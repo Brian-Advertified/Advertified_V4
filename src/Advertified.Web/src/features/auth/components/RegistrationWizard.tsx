@@ -1,0 +1,289 @@
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Eye, EyeOff } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
+import { useForm } from 'react-hook-form';
+import type { RegistrationSchema } from '../schemas';
+import { registrationSchema } from '../schemas';
+
+const businessTypes = ['PTY LTD', 'Sole proprietor', 'Partnership', 'Non-profit', 'Other'];
+const industries = ['Retail', 'Finance', 'Hospitality', 'Real estate', 'Automotive', 'Technology', 'Health', 'Other'];
+const provinces = ['Gauteng', 'Western Cape', 'KwaZulu-Natal', 'Eastern Cape', 'Free State', 'Limpopo', 'Mpumalanga', 'North West', 'Northern Cape'];
+const revenueBands = [
+  { value: 'under_r1m', label: 'Under R1m' },
+  { value: 'r1m_r5m', label: 'R1m - R5m' },
+  { value: 'r5m_r20m', label: 'R5m - R20m' },
+  { value: 'r20m_r100m', label: 'R20m - R100m' },
+  { value: 'over_r100m', label: 'Over R100m' },
+];
+
+export function RegistrationWizard({
+  onSubmit,
+  loading,
+}: {
+  onSubmit: (values: RegistrationSchema) => Promise<void>;
+  loading: boolean;
+}) {
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const {
+    register,
+    handleSubmit,
+    watch,
+    formState: { errors },
+  } = useForm<RegistrationSchema>({
+    resolver: zodResolver(registrationSchema),
+    mode: 'onBlur',
+    shouldUnregister: true,
+    defaultValues: {
+      isSouthAfricanCitizen: true,
+      acceptTerms: true,
+      acceptPopia: true,
+    } as Partial<RegistrationSchema>,
+  });
+
+  const isCitizen = watch('isSouthAfricanCitizen');
+
+  return (
+    <form className="register-shell" onSubmit={handleSubmit(onSubmit)}>
+      <div className="register-head">
+        <p className="register-kicker">Create account</p>
+        <h1 className="register-title">Register your business for Advertified</h1>
+        <p className="register-copy">
+          Set up your account, add the business profile, and we&apos;ll queue your activation email immediately after registration.
+        </p>
+      </div>
+
+      <RegisterSection title="Account details">
+        <div className="register-grid">
+          <Field label="Full name *" error={errors.fullName?.message} className="register-field-full">
+            <input {...register('fullName')} className="register-input" placeholder="Full name *" />
+          </Field>
+
+          <Field label="Email *" error={errors.email?.message}>
+            <input {...register('email')} className="register-input" placeholder="Email *" />
+          </Field>
+
+          <Field label="Phone *" error={errors.phone?.message}>
+            <input {...register('phone')} className="register-input" placeholder="Phone *" />
+          </Field>
+
+          <Field label="Citizenship *" error={errors.isSouthAfricanCitizen?.message} className="register-field-full">
+            <select
+              {...register('isSouthAfricanCitizen', {
+                setValueAs: (value) => value === true || value === 'true',
+              })}
+              className="register-input"
+            >
+              <option value="true">South African Citizen</option>
+              <option value="false">Non-South African Citizen</option>
+            </select>
+          </Field>
+
+          {isCitizen ? (
+            <Field label="SA ID Number *" error={errors.saIdNumber?.message} className="register-field-full">
+              <input {...register('saIdNumber')} className="register-input" placeholder="SA ID Number *" />
+            </Field>
+          ) : (
+            <>
+              <Field label="Passport Number *" error={errors.passportNumber?.message}>
+                <input {...register('passportNumber')} className="register-input" placeholder="Passport Number *" />
+              </Field>
+
+              <Field label="Country of issuance *" error={errors.passportCountryIso2?.message}>
+                <input {...register('passportCountryIso2')} className="register-input" placeholder="Country of Issuance (ISO-2) *" />
+              </Field>
+
+              <Field label="Passport issue date *" error={errors.passportIssueDate?.message}>
+                <input {...register('passportIssueDate')} type="date" className="register-input" />
+              </Field>
+
+              <Field label="Passport valid until *" error={errors.passportValidUntil?.message}>
+                <input {...register('passportValidUntil')} type="date" className="register-input" />
+              </Field>
+            </>
+          )}
+        </div>
+      </RegisterSection>
+
+      <RegisterSection title="Business details">
+        <div className="register-grid">
+          <Field label="Business name *" error={errors.businessName?.message}>
+            <input {...register('businessName')} className="register-input" placeholder="Business name *" />
+          </Field>
+
+          <Field label="Business type *" error={errors.businessType?.message}>
+            <select {...register('businessType')} className="register-input">
+              <option value="">Business type *</option>
+              {businessTypes.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="Registration number *" error={errors.registrationNumber?.message}>
+            <input {...register('registrationNumber')} className="register-input" placeholder="Registration number *" />
+          </Field>
+
+          <Field label="Industry *" error={errors.industry?.message}>
+            <select {...register('industry')} className="register-input">
+              <option value="">Industry *</option>
+              {industries.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="VAT number" error={errors.vatNumber?.message}>
+            <input {...register('vatNumber')} className="register-input" placeholder="VAT number" />
+          </Field>
+
+          <Field label="Annual revenue *" error={errors.annualRevenueBand?.message}>
+            <select {...register('annualRevenueBand')} className="register-input">
+              <option value="">Annual revenue *</option>
+              {revenueBands.map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="Trading as name" error={errors.tradingAsName?.message} className="register-field-full">
+            <input {...register('tradingAsName')} className="register-input" placeholder="Trading as name (optional)" />
+          </Field>
+        </div>
+      </RegisterSection>
+
+      <RegisterSection title="Location">
+        <div className="register-grid">
+          <Field label="Street address *" error={errors.streetAddress?.message} className="register-field-full">
+            <input {...register('streetAddress')} className="register-input" placeholder="Street address *" />
+          </Field>
+
+          <Field label="City *" error={errors.city?.message}>
+            <input {...register('city')} className="register-input" placeholder="City *" />
+          </Field>
+
+          <Field label="Province *" error={errors.province?.message}>
+            <select {...register('province')} className="register-input">
+              <option value="">Province *</option>
+              {provinces.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
+      </RegisterSection>
+
+      <RegisterSection title="Security">
+        <div className="register-grid">
+          <Field label="Password *" error={errors.password?.message}>
+            <div className="register-password-wrap">
+              <input
+                {...register('password')}
+                type={showPassword ? 'text' : 'password'}
+                className="register-input register-input-password"
+                placeholder="Password *"
+              />
+              <button
+                type="button"
+                className="register-password-toggle"
+                onClick={() => setShowPassword((value) => !value)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                <span>{showPassword ? 'Hide' : 'Show'}</span>
+              </button>
+            </div>
+            <p className="register-security-copy">
+              Password must be at least 12 characters.
+              <br />
+              Include uppercase, lowercase, number, and special character.
+            </p>
+          </Field>
+
+          <Field label="Confirm password *" error={errors.confirmPassword?.message}>
+            <div className="register-password-wrap">
+              <input
+                {...register('confirmPassword')}
+                type={showConfirmPassword ? 'text' : 'password'}
+                className="register-input register-input-password"
+                placeholder="Confirm password *"
+              />
+              <button
+                type="button"
+                className="register-password-toggle"
+                onClick={() => setShowConfirmPassword((value) => !value)}
+                aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+              >
+                {showConfirmPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                <span>{showConfirmPassword ? 'Hide' : 'Show'}</span>
+              </button>
+            </div>
+          </Field>
+        </div>
+      </RegisterSection>
+
+      <div className="register-consent">
+        <label className="register-checkbox">
+          <input type="checkbox" {...register('acceptTerms')} />
+          <span>I accept the Advertified terms and conditions.</span>
+        </label>
+        {errors.acceptTerms ? <p className="register-error">{errors.acceptTerms.message}</p> : null}
+
+        <label className="register-checkbox">
+          <input type="checkbox" {...register('acceptPopia')} />
+          <span>I consent to POPIA-aligned processing for onboarding, verification, payment, and campaign planning.</span>
+        </label>
+        {errors.acceptPopia ? <p className="register-error">{errors.acceptPopia.message}</p> : null}
+      </div>
+
+      <button type="submit" disabled={loading} className="register-submit">
+        {loading ? 'Creating account...' : 'Create account'}
+      </button>
+
+      <p className="register-footer-copy">Already registered? Check your activation email or browse FAQs.</p>
+    </form>
+  );
+}
+
+function RegisterSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="register-section">
+      <p className="register-section-title">{title}</p>
+      {children}
+    </section>
+  );
+}
+
+function Field({
+  label,
+  error,
+  className,
+  children,
+}: {
+  label: string;
+  error?: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <label className={['register-field', className].filter(Boolean).join(' ')}>
+      <span className="sr-only">{label}</span>
+      {children}
+      {error ? <p className="register-error">{error}</p> : null}
+    </label>
+  );
+}

@@ -1,0 +1,609 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  ArrowRightLeft,
+  BrainCircuit,
+  Building2,
+  CircleAlert,
+  CircleCheckBig,
+  MessageSquareQuote,
+  RefreshCcw,
+  Send,
+  SlidersHorizontal,
+  UserPlus2,
+  UserX2,
+} from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Link, Navigate, useParams } from 'react-router-dom';
+import { EmptyState } from '../../components/ui/EmptyState';
+import { LoadingState } from '../../components/ui/LoadingState';
+import { ProcessingOverlay } from '../../components/ui/ProcessingOverlay';
+import { useToast } from '../../components/ui/toast';
+import { InventoryTable } from '../../features/agent/components/InventoryTable';
+import { agentInventoryFallbackEnabled } from '../../lib/featureFlags';
+import { formatCurrency, titleCase } from '../../lib/utils';
+import { advertifiedApi } from '../../services/advertifiedApi';
+import type { CampaignBrief, SelectedPlanInventoryItem } from '../../types/domain';
+
+function buildAudienceSummary(brief?: CampaignBrief) {
+  if (!brief) return 'Not captured yet';
+
+  const parts: string[] = [];
+  if (brief.targetAudienceNotes) parts.push(brief.targetAudienceNotes);
+  if (brief.targetInterests?.length) parts.push(brief.targetInterests.join(', '));
+  if (brief.targetAgeMin || brief.targetAgeMax) parts.push(`Age ${brief.targetAgeMin ?? '?'}-${brief.targetAgeMax ?? '?'}`);
+  return parts[0] ?? 'General audience';
+}
+
+function buildGeoSummary(brief?: CampaignBrief) {
+  if (!brief) return 'Not captured yet';
+
+  const areas = [...(brief.areas ?? []), ...(brief.cities ?? []), ...(brief.provinces ?? [])];
+  if (areas.length > 0) return areas.slice(0, 3).join(', ');
+  return titleCase(brief.geographyScope || 'not set');
+}
+
+function buildChannelSummary(brief?: CampaignBrief, selectedPlanItems?: SelectedPlanInventoryItem[]) {
+  if (brief?.preferredMediaTypes?.length) return brief.preferredMediaTypes.map((x) => x.toUpperCase()).join(' + ');
+  const channels = Array.from(new Set((selectedPlanItems ?? []).map((item) => item.type.toUpperCase())));
+  return channels.length > 0 ? channels.join(' + ') : 'Not selected yet';
+}
+
+function buildToneSummary(brief?: CampaignBrief) {
+  const notes = brief?.creativeNotes?.toLowerCase() ?? '';
+  if (notes.includes('premium')) return 'Premium';
+  if (notes.includes('youth')) return 'Youthful';
+  if (notes.includes('bold') || notes.includes('visibility')) return 'High visibility';
+  return brief?.creativeNotes ? 'Campaign-led' : 'Balanced';
+}
+
+function buildOriginalPrompt(brief?: CampaignBrief) {
+  return brief?.specialRequirements
+    ?? brief?.creativeNotes
+    ?? brief?.targetAudienceNotes
+    ?? 'No original prompt has been captured yet.';
+}
+
+function calculateConfidence(brief?: CampaignBrief) {
+  if (!brief) return 0.42;
+
+  let score = 0.42;
+  if (brief.objective) score += 0.1;
+  if (brief.geographyScope) score += 0.1;
+  if (brief.targetAudienceNotes || brief.targetInterests?.length) score += 0.12;
+  if (brief.preferredMediaTypes?.length) score += 0.1;
+  if (brief.creativeNotes) score += 0.07;
+  if (brief.specialRequirements) score += 0.05;
+  return Math.min(0.96, Number(score.toFixed(2)));
+}
+
+function getConstraintChecks(brief: CampaignBrief | undefined, selectedPlanItems: SelectedPlanInventoryItem[], isOverBudget: boolean, selectedBudget: number) {
+  const geoAligned = selectedPlanItems.length === 0
+    || selectedPlanItems.some((item) => {
+      const region = item.region.toLowerCase();
+      return (
+        brief?.areas?.some((area) => region.includes(area.toLowerCase()))
+        || brief?.cities?.some((city) => region.includes(city.toLowerCase()))
+        || brief?.provinces?.some((province) => region.includes(province.toLowerCase()))
+        || region.includes((brief?.geographyScope ?? '').toLowerCase())
+      );
+    });
+
+  const nationalRadioSelected = selectedPlanItems.some((item) =>
+    item.type === 'radio' && /(metro|5fm|ukhozi|radio 2000)/i.test(item.station));
+
+  return [
+    {
+      label: 'Within budget',
+      ok: !isOverBudget,
+      detail: !isOverBudget ? `Inside the paid ${formatCurrency(selectedBudget)} package.` : 'This draft is currently over budget.',
+    },
+    {
+      label: 'No national radio',
+      ok: !nationalRadioSelected,
+      detail: nationalRadioSelected ? 'National-capable radio is included.' : 'No national radio selected yet. That is still acceptable here.',
+    },
+    {
+      label: 'Geo aligned',
+      ok: geoAligned,
+      detail: geoAligned ? 'The plan matches the campaign geography.' : 'Some lines do not clearly match the campaign geography.',
+    },
+  ];
+}
+
+function groupPlanItems(items: SelectedPlanInventoryItem[]) {
+  return items.reduce<Record<string, SelectedPlanInventoryItem[]>>((acc, item) => {
+    const key = item.type.toUpperCase();
+    acc[key] = [...(acc[key] ?? []), item];
+    return acc;
+  }, {});
+}
+
+export function AgentCampaignDetailPage() {
+  const { id = '' } = useParams();
+  const { pushToast } = useToast();
+  const queryClient = useQueryClient();
+  const [selectedPlanItems, setSelectedPlanItems] = useState<SelectedPlanInventoryItem[]>([]);
+  const [strategySummary, setStrategySummary] = useState('');
+  const [mixBalance, setMixBalance] = useState(60);
+
+  const campaignQuery = useQuery({ queryKey: ['agent-campaign', id], queryFn: () => advertifiedApi.getAgentCampaign(id) });
+  const inventoryQuery = useQuery({
+    queryKey: ['inventory'],
+    queryFn: advertifiedApi.getInventory,
+    enabled: agentInventoryFallbackEnabled,
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: (notes: string) => advertifiedApi.updateRecommendation(id, notes, selectedPlanItems),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['agent-campaign', id] }),
+        queryClient.invalidateQueries({ queryKey: ['agent-inbox'] }),
+        queryClient.invalidateQueries({ queryKey: ['agent-campaigns'] }),
+      ]);
+      pushToast({
+        title: 'Recommendation draft saved.',
+        description: 'The latest plan and strategy summary are now part of this campaign draft.',
+      });
+    },
+  });
+
+  const sendMutation = useMutation({
+    mutationFn: () => advertifiedApi.sendRecommendationToClient(id),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['agent-campaign', id] }),
+        queryClient.invalidateQueries({ queryKey: ['agent-inbox'] }),
+        queryClient.invalidateQueries({ queryKey: ['agent-campaigns'] }),
+      ]);
+      pushToast({
+        title: 'Recommendation sent to client.',
+        description: 'The campaign has moved into the client review stage.',
+      });
+    },
+  });
+
+  const assignMutation = useMutation({
+    mutationFn: () => advertifiedApi.assignCampaignToMe(id),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['agent-campaign', id] }),
+        queryClient.invalidateQueries({ queryKey: ['agent-inbox'] }),
+        queryClient.invalidateQueries({ queryKey: ['agent-campaigns'] }),
+      ]);
+      pushToast({
+        title: 'Campaign assigned to you.',
+        description: 'This campaign is now in your active working queue.',
+      });
+    },
+  });
+
+  const unassignMutation = useMutation({
+    mutationFn: () => advertifiedApi.unassignCampaign(id),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['agent-campaign', id] }),
+        queryClient.invalidateQueries({ queryKey: ['agent-inbox'] }),
+        queryClient.invalidateQueries({ queryKey: ['agent-campaigns'] }),
+      ]);
+      pushToast({
+        title: 'Campaign unassigned.',
+        description: 'This campaign has been returned to the shared queue.',
+      }, 'info');
+    },
+  });
+
+  const campaign = campaignQuery.data;
+  const inventoryItems = inventoryQuery.data ?? [];
+
+  useEffect(() => {
+    if (!campaign) return;
+    setStrategySummary(campaign.recommendation?.summary ?? '');
+  }, [campaign]);
+
+  useEffect(() => {
+    if (!campaign) return;
+
+    const byId = new Map(inventoryItems.map((item) => [item.id, item]));
+    const selectedFromRecommendation = (campaign.recommendation?.items ?? [])
+      .map((item) => {
+        if (!item.sourceInventoryId) return null;
+        const inventoryMatch = byId.get(item.sourceInventoryId);
+        if (!inventoryMatch) return null;
+
+        return {
+          ...inventoryMatch,
+          quantity: item.quantity || 1,
+          flighting: item.flighting,
+          notes: item.itemNotes,
+          startDate: item.startDate,
+          endDate: item.endDate,
+        } as SelectedPlanInventoryItem;
+      })
+      .filter((item): item is SelectedPlanInventoryItem => item !== null);
+
+    setSelectedPlanItems(selectedFromRecommendation);
+  }, [campaign, inventoryItems]);
+
+  if (campaignQuery.isLoading || (agentInventoryFallbackEnabled && inventoryQuery.isLoading) || !campaign) {
+    return <LoadingState label="Loading agent campaign detail..." />;
+  }
+
+  const needsRecommendationSetup = !campaign.brief || !campaign.recommendation;
+  if (needsRecommendationSetup) {
+    return <Navigate to={`/agent/recommendations/new?campaignId=${campaign.id}`} replace />;
+  }
+
+  const selectedInventoryIds = selectedPlanItems.map((item) => item.id);
+  const groupedItems = groupPlanItems(selectedPlanItems);
+  const groupedTotals = Object.entries(groupedItems).map(([channel, items]) => ({
+    channel,
+    total: items.reduce((sum, item) => sum + item.rate * item.quantity, 0),
+  }));
+  const plannedTotal = selectedPlanItems.reduce((sum, item) => sum + item.rate * item.quantity, 0);
+  const effectivePlannedTotal = plannedTotal > 0 ? plannedTotal : campaign.recommendation?.totalCost ?? 0;
+  const budgetDelta = campaign.selectedBudget - effectivePlannedTotal;
+  const isOverBudget = budgetDelta < 0;
+  const radioShare = groupedTotals.reduce((sum, entry) => entry.channel === 'RADIO' ? sum + entry.total : sum, 0);
+  const oohShare = groupedTotals.reduce((sum, entry) => entry.channel === 'OOH' ? sum + entry.total : sum, 0);
+  const digitalShare = groupedTotals.reduce((sum, entry) => entry.channel === 'DIGITAL' ? sum + entry.total : sum, 0);
+  const totalGroupedSpend = groupedTotals.reduce((sum, entry) => sum + entry.total, 0);
+  const recommendedRadioShare = totalGroupedSpend > 0 ? Math.round((radioShare / totalGroupedSpend) * 100) : mixBalance;
+  const confidenceScore = calculateConfidence(campaign.brief);
+  const audienceSummary = buildAudienceSummary(campaign.brief);
+  const geoSummary = buildGeoSummary(campaign.brief);
+  const channelSummary = buildChannelSummary(campaign.brief, selectedPlanItems);
+  const toneSummary = buildToneSummary(campaign.brief);
+  const originalPrompt = buildOriginalPrompt(campaign.brief);
+  const clientNotes = campaign.brief?.specialRequirements ?? campaign.brief?.creativeNotes ?? campaign.brief?.targetAudienceNotes ?? 'No client notes captured yet.';
+  const statusLabel = campaign.recommendation?.status ? titleCase(campaign.recommendation.status) : titleCase(campaign.status);
+  const constraints = getConstraintChecks(campaign.brief, selectedPlanItems, isOverBudget, campaign.selectedBudget);
+  const recommendationTitle = strategySummary || campaign.recommendation?.summary || 'Draft recommendation';
+
+  function toggleInventoryItem(item: SelectedPlanInventoryItem) {
+    setSelectedPlanItems((current) => {
+      const existing = current.find((value) => value.id === item.id);
+      if (existing) {
+        return current.filter((value) => value.id !== item.id);
+      }
+
+      return [
+        ...current,
+        {
+          ...item,
+          quantity: 1,
+          flighting: '',
+          notes: '',
+          startDate: '',
+          endDate: '',
+        },
+      ];
+    });
+  }
+
+  function handleReplace(itemId: string) {
+    const currentItem = selectedPlanItems.find((item) => item.id === itemId);
+    if (!currentItem) return;
+
+    const suggestions = inventoryItems
+      .filter((item) => item.id !== currentItem.id && item.type === currentItem.type)
+      .slice(0, 2)
+      .map((item) => item.station);
+
+    document.getElementById('agent-inventory-table')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    pushToast({
+      title: 'Pick a replacement below.',
+      description: suggestions.length > 0
+        ? `Suggested swaps: ${suggestions.join(', ')}.`
+        : 'Browse the inventory library below to replace this line.',
+    }, 'info');
+  }
+
+  async function handleApproveRecommendation() {
+    await saveMutation.mutateAsync(strategySummary);
+    pushToast({
+      title: 'Recommendation approved.',
+      description: 'The draft is saved and ready for the next step.',
+    });
+  }
+
+  function handleRegenerate() {
+    pushToast({
+      title: 'AI regenerate is not available yet.',
+      description: 'Edit the inputs, adjust the mix, and save the recommendation draft for now.',
+    }, 'info');
+  }
+
+  return (
+    <section className="page-shell space-y-8">
+      {saveMutation.isPending || sendMutation.isPending || assignMutation.isPending || unassignMutation.isPending ? (
+        <ProcessingOverlay
+          label={
+            sendMutation.isPending
+              ? 'Sending recommendation to the client...'
+              : assignMutation.isPending
+                ? 'Assigning this campaign to you...'
+                : unassignMutation.isPending
+                  ? 'Returning this campaign to the shared queue...'
+                  : 'Saving recommendation draft...'
+          }
+        />
+      ) : null}
+
+      <div className="panel border-brand/10 bg-white/80 px-6 py-6 sm:px-8">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <div className="hero-kicker">Agent review workspace</div>
+            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-ink">{campaign.campaignName}</h1>
+            <p className="mt-3 max-w-3xl text-sm leading-7 text-ink-soft">
+              User expresses intent, AI drafts the direction, and the agent validates and elevates the final recommendation.
+            </p>
+          </div>
+          <div className="rounded-[20px] border border-line bg-slate-50 px-4 py-4 text-sm">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Ownership</p>
+            <p className="mt-2 font-semibold text-ink">
+              {campaign.isAssignedToCurrentUser
+                ? 'Assigned to you'
+                : campaign.isUnassigned
+                  ? 'Unassigned'
+                  : `Assigned to ${campaign.assignedAgentName ?? 'another agent'}`}
+            </p>
+            <p className="mt-2 leading-7 text-ink-soft">{campaign.nextAction}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[360px_1fr] xl:grid-cols-[380px_1fr]">
+        <div className="space-y-5 lg:sticky lg:top-24 lg:self-start">
+          <div className="panel px-5 py-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ink-soft">Order</p>
+            <h2 className="mt-3 text-xl font-semibold text-ink">{campaign.packageBandName}</h2>
+            <p className="mt-2 text-sm text-ink-soft">{formatCurrency(campaign.selectedBudget)} budget</p>
+            <div className="mt-4 inline-flex rounded-full bg-brand-soft px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-brand">
+              {statusLabel}
+            </div>
+          </div>
+
+          <div className="panel px-5 py-5">
+            <div className="flex items-start gap-3">
+              <div className="rounded-2xl bg-brand-soft p-3 text-brand">
+                <Building2 className="size-4" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ink-soft">Client</p>
+                <p className="mt-3 text-lg font-semibold text-ink">{campaign.businessName ?? campaign.clientName ?? 'Client account'}</p>
+                <p className="mt-2 text-sm text-ink-soft">{campaign.industry ?? 'Industry not captured'} | {geoSummary}</p>
+                <p className="mt-2 line-clamp-4 text-sm text-ink-soft">{clientNotes}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="panel px-5 py-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="rounded-2xl bg-brand-soft p-3 text-brand">
+                  <BrainCircuit className="size-4" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ink-soft">AI inputs</p>
+                  <div className="mt-3 space-y-1.5 text-sm text-ink">
+                    <p><span className="font-semibold">Objective:</span> {campaign.brief?.objective ?? 'Not set'}</p>
+                    <p><span className="font-semibold">Audience:</span> {audienceSummary}</p>
+                    <p><span className="font-semibold">Geo:</span> {geoSummary}</p>
+                    <p><span className="font-semibold">Channels:</span> {channelSummary}</p>
+                    <p><span className="font-semibold">Tone:</span> {toneSummary}</p>
+                    <p><span className="font-semibold">Confidence:</span> {confidenceScore.toFixed(2)}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <Link to={`/campaigns/${campaign.id}/brief`} className="button-secondary mt-4 inline-flex px-4 py-2">
+              Edit inputs
+            </Link>
+          </div>
+
+          <div className="panel px-5 py-5">
+            <div className="flex items-start gap-3">
+              <div className="rounded-2xl bg-brand-soft p-3 text-brand">
+                <MessageSquareQuote className="size-4" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ink-soft">User prompt</p>
+                <p className="mt-3 text-sm leading-7 text-ink">{originalPrompt}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          {campaign.recommendation?.clientFeedbackNotes ? (
+            <div className="panel border-amber-200 bg-amber-50/80 px-6 py-5">
+              <p className="text-sm font-semibold text-amber-800">Client feedback</p>
+              <p className="mt-2 text-sm leading-7 text-amber-900">{campaign.recommendation.clientFeedbackNotes}</p>
+            </div>
+          ) : null}
+
+          <div className="panel border-line/80 bg-white px-6 py-6 shadow-[0_10px_26px_rgba(17,24,39,0.05)]">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-ink">Recommendation</h2>
+                <p className="mt-2 text-sm text-ink-soft">{recommendationTitle}</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={handleRegenerate} className="button-secondary inline-flex items-center gap-2 px-4 py-2">
+                  <RefreshCcw className="size-4" />
+                  Regenerate
+                </button>
+                <button type="button" className="button-secondary inline-flex items-center gap-2 px-4 py-2">
+                  <SlidersHorizontal className="size-4" />
+                  Adjust mix
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-6 space-y-5">
+              {Object.entries(groupedItems).length > 0 ? Object.entries(groupedItems).map(([channel, items]) => (
+                <div key={channel}>
+                  <p className="mb-3 text-sm font-semibold text-ink">{titleCase(channel.toLowerCase())}</p>
+                  <div className="flex flex-wrap gap-2.5">
+                    {items.map((item) => (
+                      <div
+                        key={item.id}
+                        className="group min-w-[210px] rounded-[16px] border border-line bg-slate-50 px-3.5 py-3"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-ink">{item.station}</p>
+                            <p className="mt-1 text-xs text-ink-soft">
+                              {formatCurrency(item.rate * item.quantity)}{item.quantity > 1 ? ` | Qty ${item.quantity}` : ''}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleReplace(item.id)}
+                            className="inline-flex items-center gap-1 rounded-full border border-brand/15 bg-white px-2.5 py-1 text-[11px] font-semibold text-brand transition group-hover:border-brand/30"
+                          >
+                            <ArrowRightLeft className="size-3" />
+                            Replace
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )) : (
+                <EmptyState
+                  title="No plan lines selected yet"
+                  description="Use the inventory table below to add radio, OOH, or digital lines into the recommendation."
+                />
+              )}
+            </div>
+          </div>
+
+          <div className="panel border-line/80 bg-white px-6 py-6 shadow-[0_10px_26px_rgba(17,24,39,0.05)]">
+            <h2 className="text-xl font-semibold text-ink">Strategy</h2>
+            <textarea
+              value={strategySummary}
+              onChange={(event) => setStrategySummary(event.target.value)}
+              className="input-base mt-4 min-h-[170px]"
+              placeholder="This campaign focuses on high-frequency commuter exposure across key Gauteng routes and stations aligned to the target audience."
+            />
+          </div>
+
+          <div className="panel border-line/80 bg-white px-6 py-6 shadow-[0_10px_26px_rgba(17,24,39,0.05)]">
+            <h2 className="text-xl font-semibold text-ink">Budget split</h2>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={mixBalance}
+              onChange={(event) => setMixBalance(Number(event.target.value))}
+              className="mt-5 w-full accent-brand"
+            />
+            <p className="mt-4 text-sm text-ink-soft">
+              Radio {recommendedRadioShare}% | OOH {totalGroupedSpend > 0 ? Math.round((oohShare / totalGroupedSpend) * 100) : Math.max(0, 100 - mixBalance)}% | Digital {totalGroupedSpend > 0 ? Math.round((digitalShare / totalGroupedSpend) * 100) : 0}%
+            </p>
+          </div>
+
+          <div className="panel border-line/80 bg-white px-6 py-6 shadow-[0_10px_26px_rgba(17,24,39,0.05)]">
+            <h2 className="text-xl font-semibold text-ink">Validation</h2>
+            <div className="mt-4 space-y-2.5">
+              {constraints.map((constraint) => (
+                <div key={constraint.label} className="flex items-start gap-3 rounded-[14px] border border-line bg-slate-50 px-4 py-3">
+                  {constraint.ok ? (
+                    <CircleCheckBig className={`mt-0.5 size-4 ${constraint.label === 'No national radio' ? 'text-amber-600' : 'text-emerald-600'}`} />
+                  ) : (
+                    <CircleAlert className="mt-0.5 size-4 text-amber-600" />
+                  )}
+                  <div>
+                    <p className={`text-sm font-medium ${constraint.ok && constraint.label !== 'No national radio' ? 'text-emerald-700' : 'text-amber-700'}`}>
+                      {constraint.label === 'No national radio'
+                        ? `Optional national radio check`
+                        : constraint.label}
+                    </p>
+                    <p className="text-sm text-ink-soft">{constraint.detail}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {isOverBudget ? (
+              <p className="mt-4 text-sm font-medium text-rose-700">
+                This draft is {formatCurrency(Math.abs(budgetDelta))} over the client&apos;s budget.
+              </p>
+            ) : null}
+          </div>
+
+          <div className="flex flex-wrap justify-end gap-3">
+            {campaign.isAssignedToCurrentUser ? (
+              <button
+                type="button"
+                disabled={unassignMutation.isPending}
+                onClick={() => unassignMutation.mutate()}
+                className="button-secondary inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60"
+              >
+                <UserX2 className="size-4" />
+                Unassign
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled={assignMutation.isPending}
+                onClick={() => assignMutation.mutate()}
+                className="button-secondary inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60"
+              >
+                <UserPlus2 className="size-4" />
+                Assign to me
+              </button>
+            )}
+            <button
+              type="button"
+              disabled={sendMutation.isPending || isOverBudget}
+              onClick={() => sendMutation.mutate()}
+              className="button-secondary inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60"
+            >
+              <Send className="size-4" />
+              Send to client
+            </button>
+            <button
+              type="button"
+              disabled={saveMutation.isPending}
+              onClick={() => void handleApproveRecommendation()}
+              className="button-primary inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60"
+            >
+              <CircleCheckBig className="size-4" />
+              Approve recommendation
+            </button>
+          </div>
+
+          {agentInventoryFallbackEnabled ? (
+            <details id="agent-inventory-table" className="panel overflow-hidden" open={selectedPlanItems.length === 0}>
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-6 py-5">
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand">Inventory library</p>
+                  <p className="mt-2 text-sm leading-7 text-ink-soft">
+                    Add or swap plan lines only when you need to refine the recommendation.
+                  </p>
+                </div>
+                <div className="rounded-full bg-brand-soft px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-brand">
+                  {selectedPlanItems.length} selected
+                </div>
+              </summary>
+              <div className="border-t border-line px-6 py-6">
+                <InventoryTable
+                  items={inventoryItems}
+                  selectedItemIds={selectedInventoryIds}
+                  onToggleItem={(item) => toggleInventoryItem(item as SelectedPlanInventoryItem)}
+                />
+              </div>
+            </details>
+          ) : (
+            <EmptyState
+              title="Inventory is hidden for now"
+              description="Recommendation work can continue without showing the temporary inventory fallback."
+            />
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}

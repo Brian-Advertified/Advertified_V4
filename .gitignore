@@ -1,0 +1,11 @@
+bin/
+obj/
+.vs/
+.vscode/
+TestResults/
+.dotnet/
+artifacts/
+*.log
+*.err.log
+*.out.log
+src/Advertified.App/appsettings.Development.json

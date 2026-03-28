@@ -1,0 +1,49 @@
+using Advertified.App.Contracts.Users;
+using Advertified.App.Data;
+using Advertified.App.Services.Abstractions;
+using System.Text.RegularExpressions;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Mvc;
+
+namespace Advertified.App.Controllers;
+
+[ApiController]
+[Route("me")]
+public sealed class MeController : ControllerBase
+{
+    private readonly AppDbContext _db;
+    private readonly ICurrentUserAccessor _currentUserAccessor;
+
+    public MeController(AppDbContext db, ICurrentUserAccessor currentUserAccessor)
+    {
+        _db = db;
+        _currentUserAccessor = currentUserAccessor;
+    }
+
+    [HttpGet]
+    public async Task<ActionResult<MeResponse>> Get(CancellationToken cancellationToken)
+    {
+        var userId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
+        var user = await _db.UserAccounts
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == userId, cancellationToken)
+            ?? throw new InvalidOperationException("User account not found.");
+
+        return Ok(new MeResponse
+        {
+            UserId = user.Id,
+            FullName = user.FullName,
+            Email = user.Email,
+            Phone = user.Phone,
+            Role = ToSnakeCase(user.Role.ToString()),
+            AccountStatus = ToSnakeCase(user.AccountStatus.ToString()),
+            EmailVerified = user.EmailVerified,
+            PhoneVerified = user.PhoneVerified
+        });
+    }
+
+    private static string ToSnakeCase(string value)
+    {
+        return Regex.Replace(value, "(?<!^)([A-Z])", "_$1").ToLowerInvariant();
+    }
+}

@@ -1,0 +1,189 @@
+using Advertified.App.Contracts.Campaigns;
+using Advertified.App.Data;
+using Advertified.App.Services.Abstractions;
+using Advertified.App.Validation;
+using FluentValidation;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Mvc;
+
+namespace Advertified.App.Controllers;
+
+[ApiController]
+[Route("campaigns")]
+public sealed class CampaignsController : ControllerBase
+{
+    private readonly AppDbContext _db;
+    private readonly ICurrentUserAccessor _currentUserAccessor;
+    private readonly ICampaignAccessService _campaignAccessService;
+    private readonly ICampaignBriefService _campaignBriefService;
+    private readonly ICampaignRecommendationService _campaignRecommendationService;
+    private readonly CampaignPlanningRequestValidator _campaignPlanningRequestValidator;
+
+    public CampaignsController(
+        AppDbContext db,
+        ICurrentUserAccessor currentUserAccessor,
+        ICampaignAccessService campaignAccessService,
+        ICampaignBriefService campaignBriefService,
+        ICampaignRecommendationService campaignRecommendationService,
+        CampaignPlanningRequestValidator campaignPlanningRequestValidator)
+    {
+        _db = db;
+        _currentUserAccessor = currentUserAccessor;
+        _campaignAccessService = campaignAccessService;
+        _campaignBriefService = campaignBriefService;
+        _campaignRecommendationService = campaignRecommendationService;
+        _campaignPlanningRequestValidator = campaignPlanningRequestValidator;
+    }
+
+    [HttpGet]
+    public async Task<ActionResult<IReadOnlyCollection<CampaignListItemResponse>>> Get(CancellationToken cancellationToken)
+    {
+        var userId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
+        var campaigns = await _db.Campaigns
+            .AsNoTracking()
+            .Include(x => x.PackageBand)
+            .Include(x => x.PackageOrder)
+            .Where(x => x.UserId == userId)
+            .OrderByDescending(x => x.CreatedAt)
+            .ToArrayAsync(cancellationToken);
+
+        return Ok(campaigns.Select(x => x.ToListItem()).ToArray());
+    }
+
+    [HttpGet("{id:guid}")]
+    public async Task<ActionResult<CampaignDetailResponse>> GetById(Guid id, CancellationToken cancellationToken)
+    {
+        var userId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
+        var campaign = await _db.Campaigns
+            .AsNoTracking()
+            .AsSplitQuery()
+            .Include(x => x.PackageBand)
+            .Include(x => x.PackageOrder)
+            .Include(x => x.CampaignBrief)
+            .Include(x => x.CampaignRecommendations)
+                .ThenInclude(x => x.RecommendationItems)
+            .FirstOrDefaultAsync(x => x.Id == id && x.UserId == userId, cancellationToken);
+
+        if (campaign is null)
+        {
+            return NotFound(new ProblemDetails
+            {
+                Title = "Campaign not found.",
+                Status = StatusCodes.Status404NotFound
+            });
+        }
+
+        return Ok(campaign.ToDetail());
+    }
+
+    [HttpPut("{id:guid}/brief")]
+    public async Task<IActionResult> SaveBrief(Guid id, [FromBody] SaveCampaignBriefRequest request, CancellationToken cancellationToken)
+    {
+        var userId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
+        await _campaignAccessService.EnsureCanEditBriefAsync(userId, id, cancellationToken);
+        await _campaignBriefService.SaveDraftAsync(userId, id, request, cancellationToken);
+        return NoContent();
+    }
+
+    [HttpPost("{id:guid}/brief/submit")]
+    public async Task<IActionResult> SubmitBrief(Guid id, [FromBody] SubmitCampaignBriefRequest request, CancellationToken cancellationToken)
+    {
+        var userId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
+        await _campaignBriefService.SubmitAsync(userId, id, cancellationToken);
+        return Accepted(new { CampaignId = id, Message = "Campaign brief submitted." });
+    }
+
+    [HttpPost("{id:guid}/planning-mode")]
+    public async Task<IActionResult> SetPlanningMode(Guid id, [FromBody] SetPlanningModeRequest request, CancellationToken cancellationToken)
+    {
+        var userId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
+        await _campaignBriefService.SetPlanningModeAsync(userId, id, request.PlanningMode, cancellationToken);
+        return Accepted(new { CampaignId = id, request.PlanningMode });
+    }
+
+    [HttpPost("{id:guid}/generate-plan")]
+    public async Task<IActionResult> GeneratePlan(Guid id, [FromBody] CampaignPlanningRequest request, CancellationToken cancellationToken)
+    {
+        await _campaignPlanningRequestValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+        if (request.CampaignId != Guid.Empty && request.CampaignId != id)
+        {
+            return BadRequest(new { Message = "Campaign ID in the request body must match the route ID." });
+        }
+
+        var userId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
+        await _campaignAccessService.EnsureCanGeneratePlanAsync(userId, id, cancellationToken);
+        var recommendationId = await _campaignRecommendationService.GenerateAndSaveAsync(id, cancellationToken);
+        return Accepted(new
+        {
+            CampaignId = id,
+            RecommendationId = recommendationId,
+            Status = "planning_in_progress"
+        });
+    }
+
+    [HttpPost("{id:guid}/approve-recommendation")]
+    public async Task<IActionResult> ApproveRecommendation(Guid id, CancellationToken cancellationToken)
+    {
+        var userId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
+        var campaign = await _db.Campaigns
+            .Include(x => x.CampaignRecommendations)
+            .FirstOrDefaultAsync(x => x.Id == id && x.UserId == userId, cancellationToken)
+            ?? throw new InvalidOperationException("Campaign not found.");
+
+        var recommendation = campaign.CampaignRecommendations
+            .OrderByDescending(x => x.CreatedAt)
+            .FirstOrDefault()
+            ?? throw new InvalidOperationException("Recommendation not found.");
+
+        recommendation.Status = "approved";
+        recommendation.UpdatedAt = DateTime.UtcNow;
+        campaign.Status = "approved";
+        campaign.UpdatedAt = DateTime.UtcNow;
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return Accepted(new
+        {
+            CampaignId = id,
+            RecommendationId = recommendation.Id,
+            Status = recommendation.Status,
+            Message = "Recommendation approved."
+        });
+    }
+
+    [HttpPost("{id:guid}/request-changes")]
+    public async Task<IActionResult> RequestChanges(Guid id, [FromBody] RequestRecommendationChangesRequest request, CancellationToken cancellationToken)
+    {
+        var userId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
+        var campaign = await _db.Campaigns
+            .Include(x => x.CampaignRecommendations)
+            .FirstOrDefaultAsync(x => x.Id == id && x.UserId == userId, cancellationToken)
+            ?? throw new InvalidOperationException("Campaign not found.");
+
+        var recommendation = campaign.CampaignRecommendations
+            .OrderByDescending(x => x.CreatedAt)
+            .FirstOrDefault()
+            ?? throw new InvalidOperationException("Recommendation not found.");
+
+        recommendation.Status = "draft";
+        if (!string.IsNullOrWhiteSpace(request.Notes))
+        {
+            recommendation.Rationale = $"{recommendation.Rationale ?? string.Empty}\n\nClient feedback: {request.Notes.Trim()}".Trim();
+        }
+
+        recommendation.UpdatedAt = DateTime.UtcNow;
+        campaign.Status = "planning_in_progress";
+        campaign.UpdatedAt = DateTime.UtcNow;
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return Accepted(new
+        {
+            CampaignId = id,
+            RecommendationId = recommendation.Id,
+            Status = campaign.Status,
+            Message = "Recommendation returned for changes."
+        });
+    }
+}

@@ -1,0 +1,42 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useToast } from '../../components/ui/toast';
+import { ProcessingOverlay } from '../../components/ui/ProcessingOverlay';
+import { useAuth } from '../../features/auth/auth-context';
+import { RegistrationWizard } from '../../features/auth/components/RegistrationWizard';
+import type { RegistrationSchema } from '../../features/auth/schemas';
+
+export function RegisterPage() {
+  const { register } = useAuth();
+  const { pushToast } = useToast();
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(values: RegistrationSchema) {
+    try {
+      setLoading(true);
+      const result = await register(values);
+      pushToast({
+        title: 'Your account has been created.',
+        description: 'Check your email for the activation link before you sign in.',
+      });
+      navigate(`/verify-email?email=${encodeURIComponent(result.email)}`);
+    } catch (error) {
+      pushToast({
+        title: 'We could not create your account.',
+        description: error instanceof Error ? error.message : 'Please review the form and try again.',
+      }, 'error');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <section className="page-shell py-6 sm:py-10">
+      {loading ? <ProcessingOverlay label="Creating your account..." /> : null}
+      <div className="register-layout">
+        <RegistrationWizard onSubmit={handleSubmit} loading={loading} />
+      </div>
+    </section>
+  );
+}

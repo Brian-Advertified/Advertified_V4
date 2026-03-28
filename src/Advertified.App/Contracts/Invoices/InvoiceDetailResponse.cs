@@ -1,0 +1,27 @@
+namespace Advertified.App.Contracts.Invoices;
+
+public sealed record InvoiceDetailResponse(
+    Guid Id,
+    string InvoiceNumber,
+    string CampaignName,
+    string? PackageName,
+    string Provider,
+    string InvoiceType,
+    string Status,
+    decimal TotalAmount,
+    string Currency,
+    decimal SubtotalAmount,
+    decimal VatAmount,
+    DateTime CreatedAtUtc,
+    DateTime? DueAtUtc,
+    DateTime? PaidAtUtc,
+    string? PaymentReference,
+    string CustomerName,
+    string CustomerEmail,
+    string CustomerAddress,
+    string CompanyName,
+    string? CompanyRegistrationNumber,
+    string? CompanyVatNumber,
+    string? CompanyAddress,
+    IReadOnlyList<InvoiceLineItemResponse> LineItems,
+    string PdfUrl);
