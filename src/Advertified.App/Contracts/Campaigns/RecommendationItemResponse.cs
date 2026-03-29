@@ -4,6 +4,16 @@ public sealed class RecommendationItemResponse
 {
     public Guid Id { get; set; }
     public string? SourceInventoryId { get; set; }
+    public string? Region { get; set; }
+    public string? Language { get; set; }
+    public string? ShowDaypart { get; set; }
+    public string? TimeBand { get; set; }
+    public string? SlotType { get; set; }
+    public string? Duration { get; set; }
+    public string? Restrictions { get; set; }
+    public decimal? ConfidenceScore { get; set; }
+    public IReadOnlyList<string> SelectionReasons { get; set; } = Array.Empty<string>();
+    public IReadOnlyList<string> PolicyFlags { get; set; } = Array.Empty<string>();
     public int Quantity { get; set; }
     public string? Flighting { get; set; }
     public string? ItemNotes { get; set; }

@@ -2,6 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { StatusBadge } from '../../components/ui/StatusBadge';
+import { CampaignTimeline } from '../../features/campaigns/components/CampaignTimeline';
+import { getCampaignPrimaryAction } from '../../lib/access';
 import { formatCurrency } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
 
@@ -14,6 +16,7 @@ export function CampaignDetailPage() {
   }
 
   const campaign = campaignQuery.data;
+  const primaryAction = getCampaignPrimaryAction(campaign);
 
   return (
     <section className="page-shell space-y-8">
@@ -43,18 +46,31 @@ export function CampaignDetailPage() {
         </div>
       </div>
 
+      <CampaignTimeline steps={campaign.timeline} />
+
+      <div className="panel flex flex-col gap-4 border-brand/20 bg-brand-soft/40 px-6 py-6 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand">{primaryAction.stepLabel}</p>
+          <h2 className="mt-2 text-2xl font-semibold text-ink">{primaryAction.label}</h2>
+          <p className="mt-2 text-sm leading-7 text-ink-soft">{primaryAction.description}</p>
+        </div>
+        <Link to={primaryAction.href} className="inline-flex items-center justify-center rounded-full bg-brand px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-dark">
+          Continue
+        </Link>
+      </div>
+
       <div className="grid gap-4 md:grid-cols-3">
         <Link to={`/campaigns/${campaign.id}/brief`} className="panel px-6 py-6 transition hover:border-brand/30">
           <p className="text-lg font-semibold text-ink">Complete brief</p>
-          <p className="mt-2 text-sm leading-7 text-ink-soft">Tell us about objectives, geography, audience, and media preferences.</p>
+          <p className="mt-2 text-sm leading-7 text-ink-soft">Step 1. Tell us about objectives, geography, audience, and media preferences.</p>
         </Link>
         <Link to={`/campaigns/${campaign.id}/planning`} className="panel px-6 py-6 transition hover:border-brand/30">
-          <p className="text-lg font-semibold text-ink">Planning</p>
-          <p className="mt-2 text-sm leading-7 text-ink-soft">Choose AI or agent-assisted planning once your brief is submitted.</p>
+          <p className="text-lg font-semibold text-ink">Choose planning mode</p>
+          <p className="mt-2 text-sm leading-7 text-ink-soft">Step 2. Choose AI or agent-assisted planning once your brief is submitted.</p>
         </Link>
         <Link to={`/campaigns/${campaign.id}/review`} className="panel px-6 py-6 transition hover:border-brand/30">
           <p className="text-lg font-semibold text-ink">Review recommendation</p>
-          <p className="mt-2 text-sm leading-7 text-ink-soft">See the current recommendation pack and optional upsells.</p>
+          <p className="mt-2 text-sm leading-7 text-ink-soft">Step 3. See the current recommendation pack and optional upsells.</p>
         </Link>
       </div>
     </section>

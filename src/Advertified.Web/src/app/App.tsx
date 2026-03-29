@@ -20,10 +20,11 @@ import { AgentCampaignsPage } from '../pages/agent/AgentCampaignsPage';
 import { AgentCampaignDetailPage } from '../pages/agent/AgentCampaignDetailPage';
 import { AgentCreateRecommendationPage } from '../pages/agent/AgentCreateRecommendationPage';
 import { AgentInventoryPage } from '../pages/agent/AgentInventoryPage';
+import { AdminDashboardPage } from '../pages/admin/AdminDashboardPage';
 
 export function App() {
   const location = useLocation();
-  const isAgentRoute = location.pathname.startsWith('/agent');
+  const isAgentRoute = location.pathname.startsWith('/agent') || location.pathname.startsWith('/admin');
 
   return (
     <div className="min-h-screen">
@@ -43,6 +44,7 @@ export function App() {
           <Route path="/campaigns/:id/brief" element={<ProtectedRoute requirePurchase><CampaignBriefPage /></ProtectedRoute>} />
           <Route path="/campaigns/:id/planning" element={<ProtectedRoute requirePlanningAccess><CampaignPlanningPage /></ProtectedRoute>} />
           <Route path="/campaigns/:id/review" element={<ProtectedRoute requirePlanningAccess><CampaignReviewPage /></ProtectedRoute>} />
+          <Route path="/admin" element={<ProtectedRoute requireAdmin><AdminDashboardPage /></ProtectedRoute>} />
           <Route path="/agent" element={<ProtectedRoute requireAgent><AgentDashboardPage /></ProtectedRoute>} />
           <Route path="/agent/recommendations/new" element={<ProtectedRoute requireAgent><AgentCreateRecommendationPage /></ProtectedRoute>} />
           <Route path="/agent/campaigns" element={<ProtectedRoute requireAgent><AgentCampaignsPage /></ProtectedRoute>} />

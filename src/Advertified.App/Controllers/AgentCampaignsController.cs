@@ -1,10 +1,13 @@
 using Advertified.App.Contracts.Agent;
+using Advertified.App.Configuration;
 using Advertified.App.Data;
 using Advertified.App.Data.Entities;
 using Advertified.App.Services.Abstractions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
+using System.Globalization;
+using Microsoft.Extensions.Options;
 
 namespace Advertified.App.Controllers;
 
@@ -13,21 +16,34 @@ namespace Advertified.App.Controllers;
 public sealed class AgentCampaignsController : ControllerBase
 {
     private const string ClientFeedbackMarker = "Client feedback:";
+    private const string ManualReviewMarker = "Manual review required:";
     private readonly AppDbContext _db;
     private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly ICampaignBriefService _campaignBriefService;
     private readonly ICampaignRecommendationService _campaignRecommendationService;
+    private readonly ICampaignBriefInterpretationService _campaignBriefInterpretationService;
+    private readonly ITemplatedEmailService _emailService;
+    private readonly FrontendOptions _frontendOptions;
+    private readonly ILogger<AgentCampaignsController> _logger;
 
     public AgentCampaignsController(
         AppDbContext db,
         ICurrentUserAccessor currentUserAccessor,
         ICampaignBriefService campaignBriefService,
-        ICampaignRecommendationService campaignRecommendationService)
+        ICampaignRecommendationService campaignRecommendationService,
+        ICampaignBriefInterpretationService campaignBriefInterpretationService,
+        ITemplatedEmailService emailService,
+        IOptions<FrontendOptions> frontendOptions,
+        ILogger<AgentCampaignsController> logger)
     {
         _db = db;
         _currentUserAccessor = currentUserAccessor;
         _campaignBriefService = campaignBriefService;
         _campaignRecommendationService = campaignRecommendationService;
+        _campaignBriefInterpretationService = campaignBriefInterpretationService;
+        _emailService = emailService;
+        _frontendOptions = frontendOptions.Value;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -67,6 +83,24 @@ public sealed class AgentCampaignsController : ControllerBase
         var items = campaigns.Select(campaign =>
         {
             var stage = ResolveQueueStage(campaign);
+            var latestRecommendation = campaign.CampaignRecommendations
+                .OrderByDescending(x => x.CreatedAt)
+                .FirstOrDefault();
+            var selectedBudget = campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount;
+            var manualReviewRequired = ExtractManualReviewRequired(latestRecommendation?.Rationale);
+            var isOverBudget = latestRecommendation is not null
+                && latestRecommendation.TotalCost > selectedBudget
+                && !string.Equals(latestRecommendation.Status, "approved", StringComparison.OrdinalIgnoreCase);
+            var updatedAt = new DateTimeOffset(campaign.UpdatedAt, TimeSpan.Zero);
+            var ageInDays = Math.Max(0, (int)Math.Floor((DateTimeOffset.UtcNow - updatedAt).TotalDays));
+            var isStale = IsStale(stage, updatedAt);
+            var isUrgent = manualReviewRequired
+                || isOverBudget
+                || stage is "planning_ready" or "agent_review"
+                || (stage == "newly_paid" && ageInDays >= 1)
+                || (stage == "waiting_on_client" && ageInDays >= 3)
+                || isStale;
+
             return new AgentInboxItemResponse
             {
                 Id = campaign.Id,
@@ -75,7 +109,7 @@ public sealed class AgentCampaignsController : ControllerBase
                 ClientName = campaign.User.FullName,
                 ClientEmail = campaign.User.Email,
                 PackageBandName = campaign.PackageBand.Name,
-                SelectedBudget = campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
+                SelectedBudget = selectedBudget,
                 Status = campaign.Status,
                 PlanningMode = campaign.PlanningMode,
                 QueueStage = stage,
@@ -86,13 +120,19 @@ public sealed class AgentCampaignsController : ControllerBase
                 IsAssignedToCurrentUser = campaign.AssignedAgentUserId == currentUserId,
                 IsUnassigned = campaign.AssignedAgentUserId is null,
                 NextAction = GetAgentNextAction(campaign, stage, currentUserId),
+                ManualReviewRequired = manualReviewRequired,
+                IsOverBudget = isOverBudget,
+                IsStale = isStale,
+                IsUrgent = isUrgent,
+                AgeInDays = ageInDays,
                 HasBrief = campaign.CampaignBrief is not null,
                 HasRecommendation = campaign.CampaignRecommendations.Any(),
                 CreatedAt = new DateTimeOffset(campaign.CreatedAt, TimeSpan.Zero),
-                UpdatedAt = new DateTimeOffset(campaign.UpdatedAt, TimeSpan.Zero)
+                UpdatedAt = updatedAt
             };
         })
-        .OrderByDescending(x => x.IsAssignedToCurrentUser)
+        .OrderByDescending(x => x.IsUrgent)
+        .ThenByDescending(x => x.IsAssignedToCurrentUser)
         .ThenByDescending(x => x.IsUnassigned)
         .ThenBy(x => GetQueueRank(x.QueueStage))
         .ThenByDescending(x => x.UpdatedAt)
@@ -103,6 +143,10 @@ public sealed class AgentCampaignsController : ControllerBase
             TotalCampaigns = items.Length,
             AssignedToMeCount = items.Count(x => x.IsAssignedToCurrentUser),
             UnassignedCount = items.Count(x => x.IsUnassigned),
+            UrgentCount = items.Count(x => x.IsUrgent),
+            ManualReviewCount = items.Count(x => x.ManualReviewRequired),
+            OverBudgetCount = items.Count(x => x.IsOverBudget),
+            StaleCount = items.Count(x => x.IsStale),
             NewlyPaidCount = items.Count(x => x.QueueStage == "newly_paid"),
             BriefWaitingCount = items.Count(x => x.QueueStage == "brief_waiting"),
             PlanningReadyCount = items.Count(x => x.QueueStage == "planning_ready"),
@@ -281,6 +325,9 @@ public sealed class AgentCampaignsController : ControllerBase
     {
         var currentUserId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
         var campaign = await _db.Campaigns
+            .Include(x => x.User)
+            .Include(x => x.PackageBand)
+            .Include(x => x.PackageOrder)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw new InvalidOperationException("Campaign not found.");
 
@@ -288,6 +335,7 @@ public sealed class AgentCampaignsController : ControllerBase
         campaign.AssignedAt ??= DateTime.UtcNow;
         campaign.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
+        await SendRecommendationPreparingEmailAsync(campaign, cancellationToken);
 
         await _campaignRecommendationService.GenerateAndSaveAsync(id, cancellationToken);
 
@@ -317,11 +365,33 @@ public sealed class AgentCampaignsController : ControllerBase
         return Ok(response);
     }
 
+    [HttpPost("{id:guid}/interpret-brief")]
+    public async Task<IActionResult> InterpretBrief(Guid id, [FromBody] InterpretCampaignBriefRequest request, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.Brief))
+        {
+            throw new InvalidOperationException("Campaign brief is required.");
+        }
+
+        var campaign = await _db.Campaigns
+            .Include(x => x.PackageOrder)
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+            ?? throw new InvalidOperationException("Campaign not found.");
+
+        request.SelectedBudget = request.SelectedBudget > 0 ? request.SelectedBudget : (campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount);
+
+        var interpretation = await _campaignBriefInterpretationService.InterpretAsync(request, cancellationToken);
+        return Ok(interpretation);
+    }
+
     [HttpPost("{id:guid}/send-to-client")]
     public async Task<IActionResult> SendToClient(Guid id, [FromBody] SendToClientRequest request, CancellationToken cancellationToken)
     {
         var campaign = await _db.Campaigns
+            .Include(x => x.User)
             .Include(x => x.CampaignRecommendations)
+            .Include(x => x.PackageBand)
+            .Include(x => x.PackageOrder)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw new InvalidOperationException("Campaign not found.");
 
@@ -336,6 +406,29 @@ public sealed class AgentCampaignsController : ControllerBase
         campaign.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            await _emailService.SendAsync(
+                "recommendation-ready",
+                campaign.User.Email,
+                "noreply",
+                new Dictionary<string, string?>
+                {
+                    ["ClientName"] = campaign.User.FullName,
+                    ["CampaignName"] = string.IsNullOrWhiteSpace(campaign.CampaignName) ? $"{campaign.PackageBand.Name} campaign" : campaign.CampaignName.Trim(),
+                    ["PackageName"] = campaign.PackageBand.Name,
+                    ["Budget"] = FormatCurrency(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount),
+                    ["ReviewUrl"] = BuildFrontendUrl($"/campaigns/{campaign.Id}/review"),
+                    ["AgentMessageBlock"] = BuildAgentMessageBlock(request.Message)
+                },
+                null,
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send recommendation email for campaign {CampaignId}.", campaign.Id);
+        }
 
         return Accepted(new { CampaignId = id, Message = "Recommendation sent to client.", ClientMessage = request.Message });
     }
@@ -379,12 +472,30 @@ public sealed class AgentCampaignsController : ControllerBase
 
     private static string GetAgentNextAction(Campaign campaign, string stage, Guid currentUserId)
     {
+        var latestRecommendation = campaign.CampaignRecommendations
+            .OrderByDescending(x => x.CreatedAt)
+            .FirstOrDefault();
+        var selectedBudget = campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount;
+        var manualReviewRequired = ExtractManualReviewRequired(latestRecommendation?.Rationale);
+        var isOverBudget = latestRecommendation is not null
+            && latestRecommendation.TotalCost > selectedBudget
+            && !string.Equals(latestRecommendation.Status, "approved", StringComparison.OrdinalIgnoreCase);
         var assignmentPrefix = campaign.AssignedAgentUserId switch
         {
             null => "Unassigned. Claim this campaign and",
             var assignedAgentId when assignedAgentId == currentUserId => "Assigned to you. Next,",
             _ => $"Assigned to {campaign.AssignedAgentUser?.FullName ?? "another agent"}. Monitor and"
         };
+
+        if (isOverBudget)
+        {
+            return $"{assignmentPrefix} bring the draft back within the paid budget before sending it onward.";
+        }
+
+        if (manualReviewRequired)
+        {
+            return $"{assignmentPrefix} review the fallback warnings carefully before sending this recommendation.";
+        }
 
         return stage switch
         {
@@ -396,6 +507,19 @@ public sealed class AgentCampaignsController : ControllerBase
             "waiting_on_client" => $"{assignmentPrefix} wait for client approval or update requests.",
             "completed" => $"{assignmentPrefix} archive this work or support activation if needed.",
             _ => $"{assignmentPrefix} monitor campaign progress for {campaign.PackageBand.Name}."
+        };
+    }
+
+    private static bool IsStale(string stage, DateTimeOffset updatedAt)
+    {
+        var age = DateTimeOffset.UtcNow - updatedAt;
+        return stage switch
+        {
+            "newly_paid" => age.TotalDays >= 2,
+            "planning_ready" or "agent_review" => age.TotalDays >= 2,
+            "waiting_on_client" => age.TotalDays >= 5,
+            "brief_waiting" => age.TotalDays >= 4,
+            _ => age.TotalDays >= 7
         };
     }
 
@@ -502,6 +626,27 @@ public sealed class AgentCampaignsController : ControllerBase
         return string.IsNullOrWhiteSpace(notes) ? null : notes;
     }
 
+    private static bool ExtractManualReviewRequired(string? rationale)
+    {
+        if (string.IsNullOrWhiteSpace(rationale))
+        {
+            return false;
+        }
+
+        var line = rationale
+            .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(entry => entry.Trim())
+            .LastOrDefault(entry => entry.StartsWith(ManualReviewMarker, StringComparison.OrdinalIgnoreCase));
+
+        if (line is null)
+        {
+            return false;
+        }
+
+        var rawValue = line[(ManualReviewMarker.Length)..].Trim();
+        return bool.TryParse(rawValue, out var parsed) && parsed;
+    }
+
     private static string MergeClientFeedback(string notes, string? clientFeedbackNotes)
     {
         if (string.IsNullOrWhiteSpace(clientFeedbackNotes))
@@ -510,5 +655,58 @@ public sealed class AgentCampaignsController : ControllerBase
         }
 
         return $"{notes.Trim()}\n\n{ClientFeedbackMarker} {clientFeedbackNotes}".Trim();
+    }
+
+    private string BuildFrontendUrl(string path)
+    {
+        return _frontendOptions.BaseUrl.TrimEnd('/') + path;
+    }
+
+    private async Task SendRecommendationPreparingEmailAsync(Campaign campaign, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _emailService.SendAsync(
+                "recommendation-preparing",
+                campaign.User.Email,
+                "campaigns",
+                new Dictionary<string, string?>
+                {
+                    ["ClientName"] = campaign.User.FullName,
+                    ["CampaignName"] = string.IsNullOrWhiteSpace(campaign.CampaignName) ? $"{campaign.PackageBand.Name} campaign" : campaign.CampaignName.Trim(),
+                    ["PackageName"] = campaign.PackageBand.Name,
+                    ["Budget"] = FormatCurrency(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount),
+                    ["CampaignUrl"] = BuildFrontendUrl($"/campaigns/{campaign.Id}")
+                },
+                null,
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send recommendation preparing email for campaign {CampaignId}.", campaign.Id);
+        }
+    }
+
+    private static string BuildAgentMessageBlock(string? message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return string.Empty;
+        }
+
+        var encodedMessage = System.Net.WebUtility.HtmlEncode(message.Trim())
+            .Replace(Environment.NewLine, "<br/>")
+            .Replace("\n", "<br/>");
+
+        return $@"
+            <div style=""margin:24px 0;padding:18px 20px;border:1px solid #d8e9e1;border-radius:18px;background:#ffffff;"">
+              <div style=""font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Message from your strategist</div>
+              <p style=""margin:10px 0 0;font-size:15px;line-height:1.7;color:#4b635a;"">{encodedMessage}</p>
+            </div>";
+    }
+
+    private static string FormatCurrency(decimal amount)
+    {
+        return $"R {amount.ToString("N2", CultureInfo.GetCultureInfo("en-ZA"))}";
     }
 }

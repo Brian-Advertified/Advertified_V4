@@ -1,11 +1,14 @@
 using System.Text.Json;
 using Advertified.App.Contracts.Campaigns;
+using Advertified.App.Configuration;
 using Advertified.App.Data;
 using Advertified.App.Data.Entities;
 using Advertified.App.Services.Abstractions;
 using Advertified.App.Validation;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using System.Globalization;
 
 namespace Advertified.App.Services;
 
@@ -14,11 +17,22 @@ public sealed class CampaignBriefService : ICampaignBriefService
     private static readonly string[] AllowedModes = { "ai_assisted", "agent_assisted", "hybrid" };
     private readonly AppDbContext _db;
     private readonly SaveCampaignBriefRequestValidator _validator;
+    private readonly ITemplatedEmailService _emailService;
+    private readonly FrontendOptions _frontendOptions;
+    private readonly ILogger<CampaignBriefService> _logger;
 
-    public CampaignBriefService(AppDbContext db, SaveCampaignBriefRequestValidator validator)
+    public CampaignBriefService(
+        AppDbContext db,
+        SaveCampaignBriefRequestValidator validator,
+        ITemplatedEmailService emailService,
+        IOptions<FrontendOptions> frontendOptions,
+        ILogger<CampaignBriefService> logger)
     {
         _db = db;
         _validator = validator;
+        _emailService = emailService;
+        _frontendOptions = frontendOptions.Value;
+        _logger = logger;
     }
 
     public async Task SaveDraftAsync(Guid userId, Guid campaignId, SaveCampaignBriefRequest request, CancellationToken cancellationToken)
@@ -27,6 +41,8 @@ public sealed class CampaignBriefService : ICampaignBriefService
 
         var campaign = await _db.Campaigns
             .Include(x => x.PackageOrder)
+            .Include(x => x.PackageBand)
+            .Include(x => x.User)
             .FirstOrDefaultAsync(x => x.Id == campaignId && x.UserId == userId, cancellationToken)
             ?? throw new InvalidOperationException("Campaign not found.");
 
@@ -81,6 +97,8 @@ public sealed class CampaignBriefService : ICampaignBriefService
     {
         var campaign = await _db.Campaigns
             .Include(x => x.PackageOrder)
+            .Include(x => x.PackageBand)
+            .Include(x => x.User)
             .FirstOrDefaultAsync(x => x.Id == campaignId && x.UserId == userId, cancellationToken)
             ?? throw new InvalidOperationException("Campaign not found.");
 
@@ -99,6 +117,28 @@ public sealed class CampaignBriefService : ICampaignBriefService
         campaign.AiUnlocked = true;
         campaign.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            await _emailService.SendAsync(
+                "brief-submitted",
+                campaign.User.Email,
+                "campaigns",
+                new Dictionary<string, string?>
+                {
+                    ["ClientName"] = campaign.User.FullName,
+                    ["CampaignName"] = string.IsNullOrWhiteSpace(campaign.CampaignName) ? $"{campaign.PackageBand.Name} campaign" : campaign.CampaignName.Trim(),
+                    ["PackageName"] = campaign.PackageBand.Name,
+                    ["Budget"] = FormatCurrency(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount),
+                    ["CampaignUrl"] = BuildFrontendUrl($"/campaigns/{campaign.Id}")
+                },
+                null,
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send brief submitted email for campaign {CampaignId}.", campaign.Id);
+        }
     }
 
     public async Task SetPlanningModeAsync(Guid userId, Guid campaignId, string planningMode, CancellationToken cancellationToken)
@@ -159,5 +199,15 @@ public sealed class CampaignBriefService : ICampaignBriefService
     private static string? Serialize<T>(T value)
     {
         return value == null ? null : JsonSerializer.Serialize(value);
+    }
+
+    private string BuildFrontendUrl(string path)
+    {
+        return _frontendOptions.BaseUrl.TrimEnd('/') + path;
+    }
+
+    private static string FormatCurrency(decimal amount)
+    {
+        return $"R {amount.ToString("N2", CultureInfo.GetCultureInfo("en-ZA"))}";
     }
 }

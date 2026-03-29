@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, CheckCircle2, Clock3, LogOut, Sparkles, UsersRound } from 'lucide-react';
+import { AlertTriangle, ArrowRight, CheckCircle2, Clock3, LogOut, Sparkles, UsersRound } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { useAuth } from '../../features/auth/auth-context';
@@ -39,6 +39,7 @@ export function AgentDashboardPage() {
   const inbox = inboxQuery.data;
   const recentItems = (inbox?.items ?? []).slice(0, 3);
   const pendingCount = (inbox?.newlyPaidCount ?? 0) + (inbox?.planningReadyCount ?? 0) + (inbox?.briefWaitingCount ?? 0);
+  const urgentCount = inbox?.urgentCount ?? 0;
   const inReviewCount = (inbox?.agentReviewCount ?? 0) + (inbox?.readyToSendCount ?? 0) + (inbox?.waitingOnClientCount ?? 0);
   const approvedCount = inbox?.completedCount ?? 0;
   const liveCampaignCount = (inbox?.items ?? []).filter((item) => item.status === 'approved').length;
@@ -53,6 +54,12 @@ export function AgentDashboardPage() {
       icon: <Clock3 className="size-5" />,
     },
     {
+      label: 'Urgent',
+      value: String(urgentCount),
+      helper: 'Manual review, over-budget, or aging work that needs attention now.',
+      icon: <AlertTriangle className="size-5" />,
+    },
+    {
       label: 'In Review',
       value: String(inReviewCount),
       helper: 'Recommendations moving between agent and client review.',
@@ -64,12 +71,13 @@ export function AgentDashboardPage() {
       helper: 'Campaigns signed off and ready for the next stage.',
       icon: <CheckCircle2 className="size-5" />,
     },
-    {
-      label: 'Live Campaigns',
-      value: String(liveCampaignCount),
-      helper: 'Approved work currently active in the pipeline.',
-      icon: <UsersRound className="size-5" />,
-    },
+  ];
+
+  const opsHighlights = [
+    { label: 'Manual review', value: inbox?.manualReviewCount ?? 0 },
+    { label: 'Over budget', value: inbox?.overBudgetCount ?? 0 },
+    { label: 'Stale work', value: inbox?.staleCount ?? 0 },
+    { label: 'Live campaigns', value: liveCampaignCount },
   ];
 
   return (
@@ -132,6 +140,12 @@ export function AgentDashboardPage() {
                     <p className="mt-1 text-sm text-ink-soft">
                       {item.packageBandName} · {item.clientName} · {formatCurrency(item.selectedBudget)}
                     </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {item.isUrgent ? <span className="pill border-rose-200 bg-rose-50 text-rose-700">Urgent</span> : null}
+                      {item.manualReviewRequired ? <span className="pill border-amber-200 bg-amber-50 text-amber-700">Manual review</span> : null}
+                      {item.isOverBudget ? <span className="pill border-rose-200 bg-rose-50 text-rose-700">Over budget</span> : null}
+                      {item.isStale ? <span className="pill border-slate-200 bg-slate-100 text-ink-soft">Stale {item.ageInDays}d</span> : null}
+                    </div>
                     <p className="mt-2 text-sm text-ink-soft">{item.nextAction}</p>
                   </div>
 
@@ -161,6 +175,26 @@ export function AgentDashboardPage() {
           </div>
 
           <div className="space-y-4">
+            <div className="panel border-brand/5 bg-white/92 px-6 py-6">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-ink">Operations snapshot</h3>
+                  <p className="mt-2 text-sm leading-6 text-ink-soft">
+                    Use these signals to spot risky work before it slips.
+                  </p>
+                </div>
+                <UsersRound className="size-5 text-brand" />
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                {opsHighlights.map((item) => (
+                  <div key={item.label} className="rounded-2xl border border-line bg-slate-50 px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink-soft">{item.label}</p>
+                    <p className="mt-2 text-2xl font-semibold text-ink">{item.value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             <div className="panel border-brand/5 bg-white/92 px-6 py-6">
               <h3 className="text-lg font-semibold text-ink">Create Recommendation</h3>
               <p className="mt-2 text-sm leading-6 text-ink-soft">

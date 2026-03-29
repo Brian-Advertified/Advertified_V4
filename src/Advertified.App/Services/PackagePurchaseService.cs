@@ -151,9 +151,11 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
         order.PurchasedAt = DateTime.UtcNow;
         order.UpdatedAt = DateTime.UtcNow;
 
+        await _db.SaveChangesAsync(cancellationToken);
+
         if (order.Campaign is null)
         {
-            order.Campaign = new Campaign
+            var campaign = new Campaign
             {
                 Id = Guid.NewGuid(),
                 UserId = order.UserId,
@@ -165,9 +167,11 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
-        }
 
-        await _db.SaveChangesAsync(cancellationToken);
+            _db.Campaigns.Add(campaign);
+            await _db.SaveChangesAsync(cancellationToken);
+            order.Campaign = campaign;
+        }
 
         await _invoiceService.EnsureInvoiceAsync(
             order,

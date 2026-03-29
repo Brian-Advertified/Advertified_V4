@@ -2,6 +2,7 @@ import { Menu, X } from 'lucide-react';
 import { useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../features/auth/auth-context';
+import { NotificationCenter } from '../../features/notifications/NotificationCenter';
 import advertifiedLogo from '../../assets/advertified-logo-v3.png';
 
 const publicLinks = [
@@ -41,11 +42,17 @@ export function Navbar() {
               Agent
             </NavLink>
           ) : null}
+          {user?.role === 'admin' ? (
+            <NavLink to="/admin" className="nav-link">
+              Admin
+            </NavLink>
+          ) : null}
         </nav>
 
         <div className="hidden items-center gap-3 lg:flex">
           {user ? (
             <>
+              <NotificationCenter />
               <span className="text-sm font-medium text-ink-soft">{user.fullName}</span>
               <button
                 type="button"
@@ -90,6 +97,11 @@ export function Navbar() {
             {user?.role === 'agent' ? (
               <NavLink to="/agent" className="nav-link" onClick={() => setOpen(false)}>
                 Agent
+              </NavLink>
+            ) : null}
+            {user?.role === 'admin' ? (
+              <NavLink to="/admin" className="nav-link" onClick={() => setOpen(false)}>
+                Admin
               </NavLink>
             ) : null}
             {user ? (

@@ -24,6 +24,7 @@ public sealed class CampaignDetailResponse
     public bool IsUnassigned { get; set; }
     public string NextAction { get; set; } = string.Empty;
     public DateTimeOffset CreatedAt { get; set; }
+    public IReadOnlyList<CampaignTimelineStepResponse> Timeline { get; set; } = Array.Empty<CampaignTimelineStepResponse>();
     public SaveCampaignBriefRequest? Brief { get; set; }
     public CampaignRecommendationResponse? Recommendation { get; set; }
 }

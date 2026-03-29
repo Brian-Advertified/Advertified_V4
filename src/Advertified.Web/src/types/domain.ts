@@ -1,4 +1,4 @@
-export type UserRole = 'client' | 'agent';
+export type UserRole = 'client' | 'agent' | 'admin';
 export type PaymentStatus = 'pending' | 'paid' | 'failed';
 export type PaymentProvider = 'vodapay' | 'lula';
 export type CampaignStatus =
@@ -112,6 +112,16 @@ export interface CampaignBrief {
 export interface RecommendationItem {
   id: string;
   sourceInventoryId?: string;
+  region?: string;
+  language?: string;
+  showDaypart?: string;
+  timeBand?: string;
+  slotType?: string;
+  duration?: string;
+  restrictions?: string;
+  confidenceScore?: number;
+  selectionReasons: string[];
+  policyFlags: string[];
   quantity: number;
   flighting?: string;
   itemNotes?: string;
@@ -130,10 +140,19 @@ export interface CampaignRecommendation {
   summary: string;
   rationale: string;
   clientFeedbackNotes?: string;
+  manualReviewRequired: boolean;
+  fallbackFlags: string[];
   buildSourceLabel?: string;
   status: 'draft' | 'sent_to_client' | 'approved';
   totalCost: number;
   items: RecommendationItem[];
+}
+
+export interface CampaignTimelineStep {
+  key: string;
+  label: string;
+  description: string;
+  state: 'complete' | 'current' | 'upcoming';
 }
 
 export interface Campaign {
@@ -158,6 +177,7 @@ export interface Campaign {
   isUnassigned?: boolean;
   campaignName: string;
   nextAction: string;
+  timeline: CampaignTimelineStep[];
   brief?: CampaignBrief;
   recommendation?: CampaignRecommendation;
   createdAt: string;
@@ -181,6 +201,11 @@ export interface AgentInboxItem {
   isAssignedToCurrentUser: boolean;
   isUnassigned: boolean;
   nextAction: string;
+  manualReviewRequired: boolean;
+  isOverBudget: boolean;
+  isStale: boolean;
+  isUrgent: boolean;
+  ageInDays: number;
   hasBrief: boolean;
   hasRecommendation: boolean;
   createdAt: string;
@@ -191,6 +216,10 @@ export interface AgentInbox {
   totalCampaigns: number;
   assignedToMeCount: number;
   unassignedCount: number;
+  urgentCount: number;
+  manualReviewCount: number;
+  overBudgetCount: number;
+  staleCount: number;
   newlyPaidCount: number;
   briefWaitingCount: number;
   planningReadyCount: number;

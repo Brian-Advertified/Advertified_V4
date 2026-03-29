@@ -1,43 +1,42 @@
+using Advertified.App.Configuration;
 using Advertified.App.Contracts.Campaigns;
 using Advertified.App.Domain.Campaigns;
 using Advertified.App.Services.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace Advertified.App.Services;
 
 public sealed class MediaPlanningEngine : IMediaPlanningEngine
 {
-    private const decimal ScaleBudgetFloor = 150000m;
-    private const decimal DominanceBudgetFloor = 500000m;
     private readonly IPlanningInventoryRepository _repository;
+    private readonly PlanningPolicyOptions _policyOptions;
 
-    public MediaPlanningEngine(IPlanningInventoryRepository repository)
+    public MediaPlanningEngine(
+        IPlanningInventoryRepository repository,
+        IOptions<PlanningPolicyOptions> policyOptions)
     {
         _repository = repository;
+        _policyOptions = policyOptions.Value;
     }
 
     public async Task<RecommendationResult> GenerateAsync(
         CampaignPlanningRequest request,
         CancellationToken cancellationToken)
     {
-        var ooh = await _repository.GetOohCandidatesAsync(request, cancellationToken);
-        var radioSlots = await _repository.GetRadioSlotCandidatesAsync(request, cancellationToken);
-        var radioPackages = await _repository.GetRadioPackageCandidatesAsync(request, cancellationToken);
+        var allCandidates = await LoadCandidatesAsync(request, cancellationToken);
+        var policyOutcome = FilterEligibleCandidates(allCandidates, request);
+        var eligibleCandidates = policyOutcome.Candidates;
 
-        var allCandidates = ooh
-            .Concat(radioSlots)
-            .Concat(radioPackages)
-            .Where(x => x.IsAvailable)
-            .Where(x => !request.ExcludedMediaTypes.Contains(x.MediaType, StringComparer.OrdinalIgnoreCase))
-            .ToList();
-
-        allCandidates = ApplyHigherBandRadioPolicy(allCandidates, request);
-
-        foreach (var candidate in allCandidates)
+        foreach (var candidate in eligibleCandidates)
         {
-            candidate.Score = ScoreCandidate(candidate, request);
+            var analysis = AnalyzeCandidate(candidate, request);
+            candidate.Score = analysis.Score;
+            candidate.Metadata["selectionReasons"] = analysis.SelectionReasons;
+            candidate.Metadata["policyFlags"] = analysis.PolicyFlags;
+            candidate.Metadata["confidenceScore"] = analysis.ConfidenceScore;
         }
 
-        var scored = allCandidates
+        var scored = eligibleCandidates
             .OrderByDescending(x => x.Score)
             .ThenBy(x => x.Cost)
             .ToList();
@@ -62,16 +61,134 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
             ? BuildUpsells(scored, recommendedPlan, upsellBudget - recommendedPlan.Sum(x => x.TotalCost))
             : new List<PlannedItem>();
 
+        var fallbackFlags = new List<string>(policyOutcome.FallbackFlags);
+        if (eligibleCandidates.Count == 0)
+        {
+            fallbackFlags.Add("inventory_insufficient");
+        }
+
+        if (recommendedPlan.Count == 0)
+        {
+            fallbackFlags.Add("no_recommendation_generated");
+        }
+
+        fallbackFlags.AddRange(GetPreferredMediaFallbackFlags(request, recommendedPlan));
+
         return new RecommendationResult
         {
             BasePlan = basePlan,
             RecommendedPlan = recommendedPlan,
             Upsells = upsells,
+            FallbackFlags = fallbackFlags.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+            ManualReviewRequired = fallbackFlags.Count > 0,
             Rationale = BuildRationale(basePlan, recommendedPlan, request)
         };
     }
 
-    private static decimal ScoreCandidate(InventoryCandidate c, CampaignPlanningRequest request)
+    private async Task<List<InventoryCandidate>> LoadCandidatesAsync(
+        CampaignPlanningRequest request,
+        CancellationToken cancellationToken)
+    {
+        var ooh = await _repository.GetOohCandidatesAsync(request, cancellationToken);
+        var radioSlots = await _repository.GetRadioSlotCandidatesAsync(request, cancellationToken);
+        var radioPackages = await _repository.GetRadioPackageCandidatesAsync(request, cancellationToken);
+
+        return ooh
+            .Concat(radioSlots)
+            .Concat(radioPackages)
+            .ToList();
+    }
+
+    private PolicyOutcome FilterEligibleCandidates(
+        List<InventoryCandidate> candidates,
+        CampaignPlanningRequest request)
+    {
+        var eligible = candidates
+            .Where(candidate => IsEligibleCandidate(candidate, request))
+            .ToList();
+
+        return ApplyHigherBandRadioEligibility(eligible, request);
+    }
+
+    private static bool IsEligibleCandidate(InventoryCandidate candidate, CampaignPlanningRequest request)
+    {
+        if (!candidate.IsAvailable)
+        {
+            return false;
+        }
+
+        if (candidate.Cost <= 0 || candidate.Cost > request.SelectedBudget)
+        {
+            return false;
+        }
+
+        if (request.ExcludedMediaTypes.Contains(candidate.MediaType, StringComparer.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (!MatchesPreferredMedia(candidate, request))
+        {
+            return false;
+        }
+
+        if (!MatchesRequestedGeography(candidate, request))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool MatchesPreferredMedia(InventoryCandidate candidate, CampaignPlanningRequest request)
+    {
+        if (request.PreferredMediaTypes.Count == 0)
+        {
+            return true;
+        }
+
+        return request.PreferredMediaTypes.Any(preferred =>
+            Matches(preferred, candidate.MediaType)
+            || Matches(preferred, candidate.Subtype));
+    }
+
+    private static bool MatchesRequestedGeography(InventoryCandidate candidate, CampaignPlanningRequest request)
+    {
+        var hasSpecificGeography = request.Suburbs.Count > 0
+            || request.Cities.Count > 0
+            || request.Provinces.Count > 0
+            || request.Areas.Count > 0;
+
+        if (!hasSpecificGeography)
+        {
+            return true;
+        }
+
+        if (request.Suburbs.Any(x => Matches(x, candidate.Suburb) || Matches(x, candidate.Area)))
+        {
+            return true;
+        }
+
+        if (request.Cities.Any(x => Matches(x, candidate.City)))
+        {
+            return true;
+        }
+
+        if (request.Provinces.Any(x => Matches(x, candidate.Province)))
+        {
+            return true;
+        }
+
+        if (request.Areas.Any(x => Matches(x, candidate.Area) || Matches(x, candidate.Suburb)))
+        {
+            return true;
+        }
+
+        return Matches(request.GeographyScope, candidate.MarketScope)
+            || Matches(request.GeographyScope, candidate.RegionClusterCode);
+    }
+
+    private decimal ScoreCandidate(InventoryCandidate c, CampaignPlanningRequest request)
     {
         decimal score = 0m;
 
@@ -80,6 +197,7 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
         score += BudgetScore(c, request);
         score += MediaPreferenceScore(c, request);
         score += AvailabilityScore(c);
+        score += OohPriorityScore(c, request);
 
         if (c.MediaType.Equals("Radio", StringComparison.OrdinalIgnoreCase))
         {
@@ -87,6 +205,16 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
         }
 
         return score;
+    }
+
+    private CandidateAnalysis AnalyzeCandidate(InventoryCandidate candidate, CampaignPlanningRequest request)
+    {
+        var score = ScoreCandidate(candidate, request);
+        var selectionReasons = BuildSelectionReasons(candidate, request);
+        var policyFlags = BuildPolicyFlags(candidate, request);
+        var confidenceScore = CalculateConfidenceScore(candidate, request);
+
+        return new CandidateAnalysis(score, selectionReasons, policyFlags, confidenceScore);
     }
 
     private static decimal GeoScore(InventoryCandidate c, CampaignPlanningRequest request)
@@ -152,7 +280,20 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
         return c.IsAvailable ? 10m : 0m;
     }
 
-    private static decimal RadioFitBonus(InventoryCandidate c, CampaignPlanningRequest request)
+    private static decimal OohPriorityScore(InventoryCandidate candidate, CampaignPlanningRequest request)
+    {
+        if (!candidate.MediaType.Equals("OOH", StringComparison.OrdinalIgnoreCase))
+        {
+            return 0m;
+        }
+
+        var preferredOoh = request.PreferredMediaTypes.Any(preferred =>
+            Matches(preferred, "ooh") || Matches(preferred, candidate.MediaType) || Matches(preferred, candidate.Subtype));
+
+        return preferredOoh ? 30m : 18m;
+    }
+
+    private decimal RadioFitBonus(InventoryCandidate c, CampaignPlanningRequest request)
     {
         decimal bonus = 0m;
 
@@ -183,11 +324,11 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
         return bonus;
     }
 
-    private static List<InventoryCandidate> ApplyHigherBandRadioPolicy(List<InventoryCandidate> candidates, CampaignPlanningRequest request)
+    private PolicyOutcome ApplyHigherBandRadioEligibility(List<InventoryCandidate> candidates, CampaignPlanningRequest request)
     {
-        if (request.SelectedBudget < ScaleBudgetFloor)
+        if (request.SelectedBudget < _policyOptions.Scale.BudgetFloor)
         {
-            return candidates;
+            return new PolicyOutcome(candidates, Array.Empty<string>());
         }
 
         var radioCandidates = candidates
@@ -195,53 +336,53 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
             .ToList();
         if (radioCandidates.Count == 0)
         {
-            return candidates;
+            return new PolicyOutcome(candidates, new[] { "radio_inventory_unavailable" });
         }
 
         var nationalRadioCandidates = radioCandidates
             .Where(candidate => IsNationalCapableRadioCandidate(candidate, request))
             .ToList();
 
-        var minimumNationalCandidates = request.SelectedBudget >= DominanceBudgetFloor ? 2 : 1;
+        var applicablePolicy = request.SelectedBudget >= _policyOptions.Dominance.BudgetFloor
+            ? _policyOptions.Dominance
+            : _policyOptions.Scale;
+        var minimumNationalCandidates = applicablePolicy.MinimumNationalRadioCandidates;
         if (nationalRadioCandidates.Count < minimumNationalCandidates)
         {
-            return candidates;
+            return new PolicyOutcome(candidates, new[] { "national_radio_inventory_insufficient", "policy_relaxed" });
         }
 
-        return candidates
+        return new PolicyOutcome(
+            candidates
             .Where(candidate => !candidate.MediaType.Equals("Radio", StringComparison.OrdinalIgnoreCase) || IsNationalCapableRadioCandidate(candidate, request))
-            .ToList();
+            .ToList(),
+            Array.Empty<string>());
     }
 
-    private static decimal GetHigherBandRadioBonus(InventoryCandidate candidate, CampaignPlanningRequest request)
+    private decimal GetHigherBandRadioBonus(InventoryCandidate candidate, CampaignPlanningRequest request)
     {
-        if (!candidate.MediaType.Equals("Radio", StringComparison.OrdinalIgnoreCase) || request.SelectedBudget < ScaleBudgetFloor)
+        if (!candidate.MediaType.Equals("Radio", StringComparison.OrdinalIgnoreCase) || request.SelectedBudget < _policyOptions.Scale.BudgetFloor)
         {
             return 0m;
         }
 
         var isNational = IsNationalCapableRadioCandidate(candidate, request);
         var isRegionalOnly = IsRegionalOrProvincialRadioCandidate(candidate);
-
-        if (request.SelectedBudget >= DominanceBudgetFloor)
-        {
-            if (isNational)
-            {
-                return 18m;
-            }
-
-            return isRegionalOnly ? -24m : -12m;
-        }
+        var applicablePolicy = request.SelectedBudget >= _policyOptions.Dominance.BudgetFloor
+            ? _policyOptions.Dominance
+            : _policyOptions.Scale;
 
         if (isNational)
         {
-            return 12m;
+            return applicablePolicy.NationalRadioBonus;
         }
 
-        return isRegionalOnly ? -16m : -8m;
+        return isRegionalOnly
+            ? -applicablePolicy.RegionalRadioPenalty
+            : -applicablePolicy.NonNationalRadioPenalty;
     }
 
-    private static bool IsNationalCapableRadioCandidate(InventoryCandidate candidate, CampaignPlanningRequest request)
+    private bool IsNationalCapableRadioCandidate(InventoryCandidate candidate, CampaignPlanningRequest request)
     {
         var marketScope = candidate.MarketScope?.Trim() ?? string.Empty;
         var marketTier = candidate.MarketTier?.Trim() ?? string.Empty;
@@ -255,9 +396,16 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
             || marketTier.Equals("flagship", StringComparison.OrdinalIgnoreCase)
             || marketTier.Equals("premium", StringComparison.OrdinalIgnoreCase);
 
-        if (request.SelectedBudget >= DominanceBudgetFloor)
+        if (request.SelectedBudget >= _policyOptions.Dominance.BudgetFloor)
         {
-            return isNational && isFlagshipOrPremium;
+            return _policyOptions.Dominance.RequirePremiumNationalRadio
+                ? isNational && isFlagshipOrPremium
+                : isNational;
+        }
+
+        if (!_policyOptions.Scale.RequireNationalCapableRadio)
+        {
+            return true;
         }
 
         return isNational || candidate.IsFlagshipStation || displayName.Contains("Metro FM", StringComparison.OrdinalIgnoreCase);
@@ -309,6 +457,8 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
             usedMediaTypes.Add(candidate.MediaType);
         }
 
+        FillBudgetGap(result, candidates, budget, maxItems);
+
         if (result.Count == 0)
         {
             foreach (var candidate in candidates)
@@ -322,6 +472,128 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
         }
 
         return result;
+    }
+
+    private static void FillBudgetGap(
+        List<PlannedItem> result,
+        List<InventoryCandidate> candidates,
+        decimal budget,
+        int? maxItems)
+    {
+        if (result.Count == 0)
+        {
+            return;
+        }
+
+        var remaining = budget - result.Sum(x => x.TotalCost);
+        if (remaining <= 0m)
+        {
+            return;
+        }
+
+        var fillCandidates = candidates
+            .Where(candidate => candidate.Cost > 0m && candidate.Cost <= budget)
+            .GroupBy(candidate => candidate.SourceId)
+            .Select(group => group
+                .OrderByDescending(candidate => candidate.Score)
+                .ThenByDescending(candidate => candidate.Cost)
+                .First())
+            .OrderByDescending(candidate => candidate.Cost)
+            .ThenByDescending(candidate => candidate.Score)
+            .ToList();
+
+        if (fillCandidates.Count == 0)
+        {
+            return;
+        }
+
+        var maxDepth = Math.Min(6, Math.Max(2, maxItems.GetValueOrDefault(result.Count + 3)));
+        var exactFill = TryBuildExactFill(fillCandidates, remaining, maxDepth, maxItems, result);
+
+        if (exactFill.Count > 0)
+        {
+            foreach (var candidate in exactFill)
+            {
+                AddOrIncrement(result, candidate);
+            }
+
+            return;
+        }
+
+        var iterations = 0;
+        while (remaining > 0m && iterations < 12)
+        {
+            var candidate = fillCandidates
+                .Where(x =>
+                    x.Cost <= remaining &&
+                    (
+                        (result.Any(item => item.SourceId == x.SourceId) && IsRepeatableCandidate(x))
+                        || !maxItems.HasValue
+                        || result.Count < maxItems.Value
+                    ))
+                .OrderByDescending(x => x.Cost)
+                .ThenByDescending(x => x.Score)
+                .FirstOrDefault();
+
+            if (candidate is null)
+            {
+                break;
+            }
+
+            AddOrIncrement(result, candidate);
+            remaining -= candidate.Cost;
+            iterations++;
+        }
+    }
+
+    private static IReadOnlyList<InventoryCandidate> TryBuildExactFill(
+        IReadOnlyList<InventoryCandidate> candidates,
+        decimal remaining,
+        int depthRemaining,
+        int? maxItems,
+        IReadOnlyList<PlannedItem> currentPlan)
+    {
+        if (remaining == 0m)
+        {
+            return Array.Empty<InventoryCandidate>();
+        }
+
+        if (depthRemaining <= 0)
+        {
+            return Array.Empty<InventoryCandidate>();
+        }
+
+        foreach (var candidate in candidates.Where(x => x.Cost <= remaining))
+        {
+            var wouldAddNewLine = currentPlan.All(item => item.SourceId != candidate.SourceId);
+            var wouldRepeatExisting = !wouldAddNewLine;
+
+            if (wouldRepeatExisting && !IsRepeatableCandidate(candidate))
+            {
+                continue;
+            }
+
+            if (wouldAddNewLine && maxItems.HasValue && currentPlan.Count >= maxItems.Value)
+            {
+                continue;
+            }
+
+            if (candidate.Cost == remaining)
+            {
+                return new[] { candidate };
+            }
+
+            var simulatedPlan = wouldAddNewLine
+                ? currentPlan.Concat(new[] { ToPlannedItem(candidate) }).ToArray()
+                : currentPlan;
+            var tail = TryBuildExactFill(candidates, remaining - candidate.Cost, depthRemaining - 1, maxItems, simulatedPlan);
+            if (tail.Count > 0 || remaining - candidate.Cost == 0m)
+            {
+                return new[] { candidate }.Concat(tail).ToArray();
+            }
+        }
+
+        return Array.Empty<InventoryCandidate>();
     }
 
     private static List<PlannedItem> BuildUpsells(
@@ -356,6 +628,28 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
         return $"Plan built within budget of {request.SelectedBudget:n0}, prioritising geography fit, audience fit, media preference, and available inventory. Selected mix: {mediaMix}.";
     }
 
+    private static IReadOnlyList<string> GetPreferredMediaFallbackFlags(
+        CampaignPlanningRequest request,
+        List<PlannedItem> recommendedPlan)
+    {
+        if (request.PreferredMediaTypes.Count == 0 || recommendedPlan.Count == 0)
+        {
+            return Array.Empty<string>();
+        }
+
+        var selectedMedia = recommendedPlan
+            .Select(item => item.MediaType.Trim().ToLowerInvariant())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return request.PreferredMediaTypes
+            .Select(preferred => preferred.Trim().ToLowerInvariant())
+            .Where(preferred => !string.IsNullOrWhiteSpace(preferred))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Where(preferred => !selectedMedia.Contains(preferred))
+            .Select(preferred => $"preferred_media_unfulfilled:{preferred}")
+            .ToArray();
+    }
+
     private static bool Matches(string? left, string? right)
     {
         if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right)) return false;
@@ -376,4 +670,189 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
             Metadata = new Dictionary<string, object?>(candidate.Metadata)
         };
     }
+
+    private static void AddOrIncrement(List<PlannedItem> result, InventoryCandidate candidate)
+    {
+        var existing = result.FirstOrDefault(item => item.SourceId == candidate.SourceId);
+        if (existing is not null)
+        {
+            if (!IsRepeatableCandidate(candidate))
+            {
+                return;
+            }
+
+            existing.Quantity += 1;
+            return;
+        }
+
+        result.Add(ToPlannedItem(candidate));
+    }
+
+    private string[] BuildSelectionReasons(InventoryCandidate candidate, CampaignPlanningRequest request)
+    {
+        var reasons = new List<string>();
+
+        if (GeoScore(candidate, request) >= 22m)
+        {
+            reasons.Add("Strong geography match");
+        }
+        else if (GeoScore(candidate, request) >= 16m)
+        {
+            reasons.Add("Good regional alignment");
+        }
+
+        if (AudienceScore(candidate, request) >= 15m)
+        {
+            reasons.Add("Audience profile overlap");
+        }
+        else if (AudienceScore(candidate, request) >= 10m)
+        {
+            reasons.Add("Language or audience fit");
+        }
+
+        if (MediaPreferenceScore(candidate, request) >= 15m)
+        {
+            reasons.Add("Matches requested channel mix");
+        }
+
+        if (BudgetScore(candidate, request) >= 12m)
+        {
+            reasons.Add("Fits comfortably within budget");
+        }
+
+        if (candidate.MediaType.Equals("Radio", StringComparison.OrdinalIgnoreCase))
+        {
+            if (IsPackageTotalCandidate(candidate))
+            {
+                reasons.Add("Fixed supplier package investment");
+            }
+            else if (IsPerSpotRateCardCandidate(candidate))
+            {
+                reasons.Add("Per-spot rate card pricing");
+            }
+
+            if (!string.IsNullOrWhiteSpace(candidate.TimeBand)
+                && (Matches(candidate.TimeBand, "breakfast") || Matches(candidate.TimeBand, "drive")))
+            {
+                reasons.Add("High-impact radio daypart");
+            }
+
+            if (IsNationalCapableRadioCandidate(candidate, request) && request.SelectedBudget >= _policyOptions.Scale.BudgetFloor)
+            {
+                reasons.Add("Supports higher-band radio policy");
+            }
+        }
+
+        if (candidate.MediaType.Equals("OOH", StringComparison.OrdinalIgnoreCase))
+        {
+            reasons.Add("OOH prioritized for visibility");
+            reasons.Add("Adds visible market presence");
+        }
+
+        return reasons.Distinct(StringComparer.OrdinalIgnoreCase).Take(4).ToArray();
+    }
+
+    private string[] BuildPolicyFlags(InventoryCandidate candidate, CampaignPlanningRequest request)
+    {
+        var flags = new List<string>();
+
+        if (request.SelectedBudget >= _policyOptions.Dominance.BudgetFloor)
+        {
+            flags.Add("dominance_policy");
+        }
+        else if (request.SelectedBudget >= _policyOptions.Scale.BudgetFloor)
+        {
+            flags.Add("scale_policy");
+        }
+
+        if (request.PreferredMediaTypes.Count > 0)
+        {
+            flags.Add("preferred_media_applied");
+        }
+
+        if (candidate.MediaType.Equals("Radio", StringComparison.OrdinalIgnoreCase) && IsNationalCapableRadioCandidate(candidate, request))
+        {
+            flags.Add("national_capable_radio");
+        }
+
+        flags.Add(GetPricingModel(candidate));
+
+        if (candidate.MediaType.Equals("OOH", StringComparison.OrdinalIgnoreCase))
+        {
+            flags.Add("ooh_priority");
+        }
+
+        if (!string.IsNullOrWhiteSpace(candidate.RegionClusterCode))
+        {
+            flags.Add($"region:{candidate.RegionClusterCode.Trim().ToLowerInvariant()}");
+        }
+
+        return flags.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+    }
+
+    private static bool IsRepeatableCandidate(InventoryCandidate candidate)
+    {
+        return !IsPackageTotalCandidate(candidate) && !IsFixedPlacementCandidate(candidate);
+    }
+
+    private static bool IsPackageTotalCandidate(InventoryCandidate candidate)
+    {
+        return GetPricingModel(candidate).Equals("package_total", StringComparison.OrdinalIgnoreCase)
+            || candidate.PackageOnly;
+    }
+
+    private static bool IsPerSpotRateCardCandidate(InventoryCandidate candidate)
+    {
+        return GetPricingModel(candidate).Equals("per_spot_rate_card", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsFixedPlacementCandidate(InventoryCandidate candidate)
+    {
+        return GetPricingModel(candidate).Equals("fixed_placement_total", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string GetPricingModel(InventoryCandidate candidate)
+    {
+        if (candidate.Metadata.TryGetValue("pricingModel", out var value) && value is not null)
+        {
+            var normalized = value.ToString();
+            if (!string.IsNullOrWhiteSpace(normalized))
+            {
+                return normalized.Trim();
+            }
+        }
+
+        return candidate.SourceType switch
+        {
+            "radio_package" => "package_total",
+            "radio_slot" => "per_spot_rate_card",
+            "ooh" => "fixed_placement_total",
+            _ => candidate.PackageOnly ? "package_total" : "unit_rate"
+        };
+    }
+
+    private static decimal CalculateConfidenceScore(InventoryCandidate candidate, CampaignPlanningRequest request)
+    {
+        var score = 0.45m;
+
+        if (GeoScore(candidate, request) >= 16m) score += 0.15m;
+        if (AudienceScore(candidate, request) > 0m) score += 0.12m;
+        if (MediaPreferenceScore(candidate, request) > 0m) score += 0.08m;
+        if (!string.IsNullOrWhiteSpace(candidate.RegionClusterCode)) score += 0.05m;
+        if (!string.IsNullOrWhiteSpace(candidate.Language)) score += 0.05m;
+        if (candidate.MediaType.Equals("Radio", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(candidate.TimeBand)) score += 0.05m;
+        if (candidate.MediaType.Equals("Radio", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(candidate.SlotType)) score += 0.03m;
+
+        return Math.Min(0.95m, decimal.Round(score, 2));
+    }
+
+    private readonly record struct CandidateAnalysis(
+        decimal Score,
+        string[] SelectionReasons,
+        string[] PolicyFlags,
+        decimal ConfidenceScore);
+
+    private readonly record struct PolicyOutcome(
+        List<InventoryCandidate> Candidates,
+        IReadOnlyList<string> FallbackFlags);
 }

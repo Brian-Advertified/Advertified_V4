@@ -83,6 +83,19 @@ export function AgentCampaignsPage() {
 
       <div className="flex flex-wrap gap-3">
         {[
+          { label: `Urgent (${inbox?.urgentCount ?? 0})`, tone: 'border-rose-200 bg-rose-50 text-rose-700' },
+          { label: `Manual review (${inbox?.manualReviewCount ?? 0})`, tone: 'border-amber-200 bg-amber-50 text-amber-700' },
+          { label: `Over budget (${inbox?.overBudgetCount ?? 0})`, tone: 'border-rose-200 bg-rose-50 text-rose-700' },
+          { label: `Stale (${inbox?.staleCount ?? 0})`, tone: 'border-slate-200 bg-slate-100 text-ink-soft' },
+        ].map((chip) => (
+          <span key={chip.label} className={`pill ${chip.tone}`}>
+            {chip.label}
+          </span>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap gap-3">
+        {[
           { id: 'all' as const, label: `All ownership (${inbox?.totalCampaigns ?? 0})` },
           { id: 'assigned_to_me' as const, label: `Assigned to me (${inbox?.assignedToMeCount ?? 0})` },
           { id: 'unassigned' as const, label: `Unassigned (${inbox?.unassignedCount ?? 0})` },
@@ -114,6 +127,10 @@ export function AgentCampaignsPage() {
                 <span className={`pill ${campaign.isAssignedToCurrentUser ? 'border-brand bg-brand-soft text-brand' : campaign.isUnassigned ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-line bg-slate-50 text-ink-soft'}`}>
                   {campaign.isAssignedToCurrentUser ? 'Assigned to me' : campaign.isUnassigned ? 'Unassigned' : `Owned by ${campaign.assignedAgentName ?? 'another agent'}`}
                 </span>
+                {campaign.isUrgent ? <span className="pill border-rose-200 bg-rose-50 text-rose-700">Urgent</span> : null}
+                {campaign.manualReviewRequired ? <span className="pill border-amber-200 bg-amber-50 text-amber-700">Manual review</span> : null}
+                {campaign.isOverBudget ? <span className="pill border-rose-200 bg-rose-50 text-rose-700">Over budget</span> : null}
+                {campaign.isStale ? <span className="pill border-slate-200 bg-slate-100 text-ink-soft">Stale {campaign.ageInDays}d</span> : null}
               </div>
               <p className="mt-2 text-sm text-ink-soft">{campaign.clientName} | {campaign.packageBandName}</p>
               <p className="mt-2 text-sm text-ink-soft">Paid budget: {formatCurrency(campaign.selectedBudget)}</p>

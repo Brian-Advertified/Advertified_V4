@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Navigate, useLocation, useParams } from 'react-router-dom';
-import { canOpenBrief, canOpenPlanning, isAgent } from '../../lib/access';
+import { canAccessOperations, canOpenBrief, canOpenPlanning, isAdmin, isAgent } from '../../lib/access';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import { useAuth } from '../../features/auth/auth-context';
 import { LoadingState } from './LoadingState';
@@ -10,12 +10,14 @@ export function ProtectedRoute({
   children,
   guestOnly,
   requireAgent,
+  requireAdmin,
   requirePurchase,
   requirePlanningAccess,
 }: {
   children: ReactElement;
   guestOnly?: boolean;
   requireAgent?: boolean;
+  requireAdmin?: boolean;
   requirePurchase?: boolean;
   requirePlanningAccess?: boolean;
 }) {
@@ -32,14 +34,18 @@ export function ProtectedRoute({
   });
 
   if (guestOnly && isAuthenticated) {
-    return <Navigate to={isAgent(user) ? '/agent' : '/dashboard'} replace />;
+    return <Navigate to={isAdmin(user) ? '/admin' : isAgent(user) ? '/agent' : '/dashboard'} replace />;
   }
 
   if (!guestOnly && !isAuthenticated) {
     return <Navigate to="/login" state={{ from: location.pathname }} replace />;
   }
 
-  if (requireAgent && !isAgent(user)) {
+  if (requireAgent && !canAccessOperations(user)) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  if (requireAdmin && !isAdmin(user)) {
     return <Navigate to="/dashboard" replace />;
   }
 

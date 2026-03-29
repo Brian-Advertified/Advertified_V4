@@ -10,5 +10,7 @@ public sealed class ResendOptions
 
     public string FromEmail { get; set; } = string.Empty;
 
+    public string LocalArchiveDirectory { get; set; } = "App_Data/email_outbox";
+
     public Dictionary<string, string> SenderAddresses { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }

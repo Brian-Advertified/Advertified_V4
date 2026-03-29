@@ -65,6 +65,8 @@ export function AgentCreateRecommendationPage() {
   const requestedCampaignId = searchParams.get('campaignId') ?? '';
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>('');
   const [selectedClientId, setSelectedClientId] = useState<string>('');
+  const [pendingAction, setPendingAction] = useState<'draft' | 'generate' | null>(null);
+  const [aiInterpretationSummary, setAiInterpretationSummary] = useState('');
   const [form, setForm] = useState<CampaignFormState>({
     objective: '',
     audience: '',
@@ -77,9 +79,8 @@ export function AgentCreateRecommendationPage() {
   });
 
   const availableCampaigns = useMemo(() => (inboxQuery.data?.items ?? []).filter((item) => (
-    item.queueStage === 'planning_ready'
-    || item.queueStage === 'newly_paid'
-    || item.queueStage === 'brief_waiting'
+    item.queueStage !== 'waiting_on_client'
+    && item.queueStage !== 'completed'
   )), [inboxQuery.data]);
 
   const clientOptions = useMemo(() => {
@@ -134,6 +135,7 @@ export function AgentCreateRecommendationPage() {
     }
 
     setForm(inferInitialForm(selectedCampaign));
+    setAiInterpretationSummary('');
   }, [selectedCampaign?.id]);
 
   if (inboxQuery.isLoading) {
@@ -199,8 +201,12 @@ export function AgentCreateRecommendationPage() {
       return campaign;
     },
     onSuccess: async (campaign, variables) => {
-      await queryClient.invalidateQueries({ queryKey: ['agent-inbox'] });
-      await queryClient.invalidateQueries({ queryKey: ['agent-campaign', campaign.id] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['agent-inbox'] }),
+        queryClient.invalidateQueries({ queryKey: ['agent-campaign', campaign.id] }),
+        queryClient.invalidateQueries({ queryKey: ['campaign', campaign.id] }),
+      ]);
+      setPendingAction(null);
       pushToast({
         title: variables.submitBrief ? 'Recommendation generated.' : 'Draft saved.',
         description: variables.submitBrief
@@ -213,6 +219,7 @@ export function AgentCreateRecommendationPage() {
       }
     },
     onError: (error) => {
+      setPendingAction(null);
       pushToast({
         title: 'We could not create the recommendation flow.',
         description: error instanceof Error ? error.message : 'Please try again in a moment.',
@@ -220,7 +227,86 @@ export function AgentCreateRecommendationPage() {
     },
   });
 
+  const interpretMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedCampaign) {
+        throw new Error('Choose an order first.');
+      }
+
+      return advertifiedApi.interpretAgentBrief(selectedCampaign.id, {
+        brief: form.brief,
+        campaignName: form.brandName,
+        selectedBudget: selectedCampaign.selectedBudget,
+      });
+    },
+    onSuccess: (result) => {
+      const interpretedChannels = result.channels
+        .filter((channel): channel is ChannelOption => CHANNEL_OPTIONS.includes(channel as ChannelOption));
+
+      setForm((current) => ({
+        ...current,
+        objective: result.objective || current.objective,
+        audience: result.audience || current.audience,
+        scope: result.scope || current.scope,
+        geography: result.geography || current.geography,
+        tone: result.tone || current.tone,
+        brandName: result.campaignName || current.brandName,
+        channels: interpretedChannels.length > 0 ? interpretedChannels : current.channels,
+      }));
+      setAiInterpretationSummary(result.summary);
+      pushToast({
+        title: 'AI inputs updated.',
+        description: 'The brief has been interpreted into structured campaign inputs you can refine before generating the draft.',
+      });
+    },
+    onError: (error) => {
+      pushToast({
+        title: 'We could not interpret that brief.',
+        description: error instanceof Error ? error.message : 'Please try again in a moment.',
+      }, 'error');
+    },
+  });
+
+  const isStep1Complete = Boolean(selectedClientId && selectedCampaign);
+  const isStep2Complete = isStep1Complete
+    && Boolean(form.objective && form.audience && form.scope && form.geography && form.brief.trim());
+  const isGenerating = pendingAction === 'generate' && initializeMutation.isPending;
+  const isWorking = initializeMutation.isPending || interpretMutation.isPending;
+  const canGenerate = isStep2Complete && !isWorking;
+  const canSaveDraft = isStep1Complete && !isWorking;
+
+  const stepPresentation = STEP_CONFIG.map((step) => {
+    if (step.id === 1) {
+      return {
+        ...step,
+        toneClass: isStep1Complete ? 'bg-highlight-soft text-highlight' : 'bg-brand text-white',
+        displayValue: isStep1Complete ? '✓' : '1',
+      };
+    }
+
+    if (step.id === 2) {
+      const isActive = isStep1Complete && !isGenerating;
+      return {
+        ...step,
+        toneClass: isStep2Complete
+          ? 'bg-highlight-soft text-highlight'
+          : isActive
+            ? 'bg-brand text-white'
+            : 'bg-slate-100 text-slate-500',
+        displayValue: isStep2Complete ? '✓' : '2',
+      };
+    }
+
+    return {
+      ...step,
+      label: isGenerating ? 'Generating draft...' : step.label,
+      toneClass: isGenerating ? 'bg-brand text-white' : 'bg-slate-100 text-slate-400',
+      displayValue: isGenerating ? '…' : '3',
+    };
+  });
+
   const handleSaveDraft = async () => {
+    setPendingAction('draft');
     await initializeMutation.mutateAsync({ submitBrief: false });
   };
 
@@ -233,12 +319,25 @@ export function AgentCreateRecommendationPage() {
       return;
     }
 
+    if (!isStep2Complete) {
+      pushToast({
+        title: 'Complete the campaign details first.',
+        description: 'Add the campaign objective, audience, scope, geography, and brief before generating the draft.',
+      }, 'info');
+      return;
+    }
+
+    setPendingAction('generate');
     await initializeMutation.mutateAsync({ submitBrief: true });
   };
 
   return (
     <section className="min-h-screen bg-surface text-ink">
-      {initializeMutation.isPending ? <ProcessingOverlay label="Creating recommendation flow..." /> : null}
+      {initializeMutation.isPending ? (
+        <ProcessingOverlay
+          label={pendingAction === 'generate' ? 'Generating AI draft and opening the workspace...' : 'Saving recommendation draft...'}
+        />
+      ) : null}
       <div className="border-b border-line bg-white/90 backdrop-blur">
         <div className="page-shell flex flex-col gap-4 py-4 lg:flex-row lg:items-center lg:justify-between">
           <button type="button" onClick={() => navigate('/agent')} className="button-secondary inline-flex items-center gap-2 px-4 py-2">
@@ -247,17 +346,12 @@ export function AgentCreateRecommendationPage() {
           </button>
 
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-            {STEP_CONFIG.map((step, index) => {
-              const toneClass = step.id === 2
-                ? 'bg-brand text-white'
-                : step.id < 2
-                  ? 'bg-highlight-soft text-highlight'
-                  : 'bg-slate-100 text-slate-500';
-
+            {stepPresentation.map((step, index) => {
+              const toneClass = step.toneClass;
               return (
                 <div key={step.id} className="flex items-center gap-2">
                   <div className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold ${toneClass}`}>
-                    {step.id}
+                    {step.displayValue}
                   </div>
                   <span className="hidden text-sm text-ink-soft md:inline">{step.label}</span>
                   {index < STEP_CONFIG.length - 1 ? <ChevronRight className="size-4 text-slate-300" /> : null}
@@ -413,8 +507,22 @@ export function AgentCreateRecommendationPage() {
                 placeholder="Describe the campaign in plain language."
               />
               <p className="helper-text">
-                The agent can enter a brief manually or paste a client request. AI will convert this into structured planning inputs.
+                The agent can enter a brief manually or paste a client request. AI can convert this into structured planning inputs before draft generation.
               </p>
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => interpretMutation.mutate()}
+                  disabled={!selectedCampaign || !form.brief.trim() || isWorking}
+                  className="button-secondary inline-flex items-center gap-2 px-4 py-2 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Sparkles className="size-4" />
+                  {interpretMutation.isPending ? 'Interpreting brief...' : 'Interpret with AI'}
+                </button>
+                {aiInterpretationSummary ? (
+                  <p className="text-sm text-ink-soft">{aiInterpretationSummary}</p>
+                ) : null}
+              </div>
             </label>
           </div>
 
@@ -425,12 +533,22 @@ export function AgentCreateRecommendationPage() {
                 <p className="mt-1 text-sm text-ink-soft">AI will create a recommendation draft inside package rules. Final inventory still comes from the planning workspace.</p>
               </div>
               <div className="flex flex-wrap gap-3">
-                <button type="button" onClick={handleSaveDraft} className="button-secondary px-4 py-3">
-                  Save as draft
+                <button
+                  type="button"
+                  onClick={handleSaveDraft}
+                  disabled={!canSaveDraft}
+                  className="button-secondary px-4 py-3 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {pendingAction === 'draft' && initializeMutation.isPending ? 'Saving draft...' : 'Save as draft'}
                 </button>
-                <button type="button" onClick={handleGenerate} className="inline-flex items-center gap-2 rounded-full bg-brand px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-dark">
+                <button
+                  type="button"
+                  onClick={handleGenerate}
+                  disabled={!canGenerate}
+                  className="inline-flex items-center gap-2 rounded-full bg-brand px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:bg-brand/55"
+                >
                   <Sparkles className="size-4" />
-                  Generate recommendation
+                  {isGenerating ? 'Generating draft...' : 'Generate recommendation'}
                 </button>
               </div>
             </div>

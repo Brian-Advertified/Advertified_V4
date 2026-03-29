@@ -12,6 +12,7 @@ export function InventoryTable({
 }) {
   const selectedSet = new Set(selectedItemIds ?? []);
   const selectable = typeof onToggleItem === 'function';
+  const displayValue = (value?: string) => value && value.trim().length > 0 ? value : 'Not specified';
 
   return (
     <div className="panel overflow-hidden">
@@ -29,14 +30,14 @@ export function InventoryTable({
               <tr key={item.id} className={`border-t border-line align-top ${selectedSet.has(item.id) ? 'bg-brand-soft/40' : ''}`}>
                 <td className="px-4 py-4 font-semibold capitalize text-ink">{item.type}</td>
                 <td className="px-4 py-4 text-ink">{item.station}</td>
-                <td className="px-4 py-4 text-ink-soft">{item.region}</td>
-                <td className="px-4 py-4 text-ink-soft">{item.language}</td>
-                <td className="px-4 py-4 text-ink-soft">{item.showDaypart}</td>
-                <td className="px-4 py-4 text-ink-soft">{item.timeBand}</td>
-                <td className="px-4 py-4 text-ink-soft">{item.slotType}</td>
-                <td className="px-4 py-4 text-ink-soft">{item.duration}</td>
+                <td className="px-4 py-4 text-ink-soft">{displayValue(item.region)}</td>
+                <td className="px-4 py-4 text-ink-soft">{displayValue(item.language)}</td>
+                <td className="px-4 py-4 text-ink-soft">{displayValue(item.showDaypart)}</td>
+                <td className="px-4 py-4 text-ink-soft">{displayValue(item.timeBand)}</td>
+                <td className="px-4 py-4 text-ink-soft">{displayValue(item.slotType)}</td>
+                <td className="px-4 py-4 text-ink-soft">{displayValue(item.duration)}</td>
                 <td className="px-4 py-4 font-semibold text-ink">{formatCurrency(item.rate)}</td>
-                <td className="px-4 py-4 text-ink-soft">{item.restrictions}</td>
+                <td className="px-4 py-4 text-ink-soft">{displayValue(item.restrictions)}</td>
                 {selectable ? (
                   <td className="px-4 py-4">
                     <button

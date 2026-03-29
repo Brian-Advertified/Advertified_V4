@@ -1,5 +1,6 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json.Serialization;
 using Advertified.App.Configuration;
 using Advertified.App.Data;
@@ -14,17 +15,20 @@ public sealed class ResendEmailService : ITemplatedEmailService
     private readonly HttpClient _httpClient;
     private readonly AppDbContext _db;
     private readonly ResendOptions _options;
+    private readonly IWebHostEnvironment _environment;
     private readonly ILogger<ResendEmailService> _logger;
 
     public ResendEmailService(
         HttpClient httpClient,
         AppDbContext db,
         IOptions<ResendOptions> options,
+        IWebHostEnvironment environment,
         ILogger<ResendEmailService> logger)
     {
         _httpClient = httpClient;
         _db = db;
         _options = options.Value;
+        _environment = environment;
         _logger = logger;
     }
 
@@ -49,7 +53,11 @@ public sealed class ResendEmailService : ITemplatedEmailService
 
         if (string.IsNullOrWhiteSpace(_options.ApiKey))
         {
-            _logger.LogWarning("Resend API key is not configured. Skipping email send for template {TemplateName}.", templateName);
+            var archivePath = await ArchiveEmailAsync(templateName, recipientEmail, subject, html, attachments, cancellationToken);
+            _logger.LogWarning(
+                "Resend API key is not configured. Email for template {TemplateName} was archived locally at {ArchivePath}.",
+                templateName,
+                archivePath);
             return;
         }
 
@@ -73,14 +81,75 @@ public sealed class ResendEmailService : ITemplatedEmailService
         if (!response.IsSuccessStatusCode)
         {
             var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+            var archivePath = await ArchiveEmailAsync(templateName, recipientEmail, subject, html, attachments, cancellationToken);
             _logger.LogError(
-                "Resend email send failed for template {TemplateName}. Status: {StatusCode}. Body: {Body}",
+                "Resend email send failed for template {TemplateName}. Status: {StatusCode}. Body: {Body}. Local archive: {ArchivePath}",
                 templateName,
                 (int)response.StatusCode,
-                responseBody);
+                responseBody,
+                archivePath);
 
             throw new InvalidOperationException($"Resend email send failed for template '{templateName}'.");
         }
+    }
+
+    private async Task<string> ArchiveEmailAsync(
+        string templateName,
+        string recipientEmail,
+        string subject,
+        string html,
+        IReadOnlyCollection<EmailAttachment>? attachments,
+        CancellationToken cancellationToken)
+    {
+        var relativeDirectory = string.IsNullOrWhiteSpace(_options.LocalArchiveDirectory)
+            ? Path.Combine("App_Data", "email_outbox")
+            : _options.LocalArchiveDirectory.Trim();
+        var archiveDirectory = Path.IsPathRooted(relativeDirectory)
+            ? relativeDirectory
+            : Path.Combine(_environment.ContentRootPath, relativeDirectory);
+
+        Directory.CreateDirectory(archiveDirectory);
+
+        var timestamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmssfff");
+        var slug = SanitizeFileSegment($"{templateName}-{recipientEmail}");
+        var folderPath = Path.Combine(archiveDirectory, $"{timestamp}-{slug}");
+        Directory.CreateDirectory(folderPath);
+
+        var htmlPath = Path.Combine(folderPath, "message.html");
+        await File.WriteAllTextAsync(htmlPath, html, Encoding.UTF8, cancellationToken);
+
+        var metadata = new StringBuilder()
+            .AppendLine($"Template: {templateName}")
+            .AppendLine($"To: {recipientEmail}")
+            .AppendLine($"Subject: {subject}")
+            .AppendLine($"ArchivedAtUtc: {DateTime.UtcNow:O}")
+            .AppendLine($"Attachments: {attachments?.Count ?? 0}");
+        await File.WriteAllTextAsync(Path.Combine(folderPath, "metadata.txt"), metadata.ToString(), Encoding.UTF8, cancellationToken);
+
+        if (attachments is not null)
+        {
+            foreach (var attachment in attachments)
+            {
+                var safeFileName = SanitizeFileSegment(attachment.FileName);
+                var attachmentPath = Path.Combine(folderPath, safeFileName);
+                await File.WriteAllBytesAsync(attachmentPath, attachment.Content, cancellationToken);
+            }
+        }
+
+        return folderPath;
+    }
+
+    private static string SanitizeFileSegment(string value)
+    {
+        var invalidChars = Path.GetInvalidFileNameChars();
+        var builder = new StringBuilder(value.Length);
+
+        foreach (var character in value)
+        {
+            builder.Append(invalidChars.Contains(character) ? '_' : character);
+        }
+
+        return builder.ToString().Replace(' ', '_');
     }
 
     private string ResolveFromAddress(string senderKey)

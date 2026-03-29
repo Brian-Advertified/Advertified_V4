@@ -8,6 +8,7 @@ import vodaLogo from '../../assets/voda.jpeg';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { useToast } from '../../components/ui/toast';
 import { useAuth } from '../../features/auth/auth-context';
+import { getCampaignPrimaryAction } from '../../lib/access';
 import { formatCurrency } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
 
@@ -47,6 +48,12 @@ export function CheckoutConfirmationPage() {
     queryFn: () => advertifiedApi.getOrder(orderId, user!.id),
     enabled: Boolean(orderId && user?.id),
     refetchInterval: (query) => (provider === 'lula' ? false : query.state.data?.paymentStatus === 'pending' ? 4000 : false),
+  });
+  const order = orderQuery.data;
+  const campaignsQuery = useQuery({
+    queryKey: ['campaigns', user?.id],
+    queryFn: () => advertifiedApi.getCampaigns(user!.id),
+    enabled: Boolean(user?.id && order?.paymentStatus === 'paid'),
   });
   const vodaPayReturnData = useMemo(() => parseVodaPayReturnData(searchParams.get('data')), [searchParams]);
 
@@ -112,7 +119,6 @@ export function CheckoutConfirmationPage() {
     return <LoadingState label={provider === 'lula' ? 'Loading invoice details...' : 'Checking payment status...'} />;
   }
 
-  const order = orderQuery.data;
   if (!order) {
     return (
       <section className="page-shell max-w-2xl">
@@ -126,6 +132,9 @@ export function CheckoutConfirmationPage() {
       </section>
       );
   }
+
+  const linkedCampaign = (campaignsQuery.data ?? []).find((campaign) => campaign.packageOrderId === order.id);
+  const linkedCampaignAction = linkedCampaign ? getCampaignPrimaryAction(linkedCampaign) : null;
 
   const statusContent = (() => {
     if (provider === 'lula' && order.paymentStatus === 'pending') {
@@ -148,11 +157,13 @@ export function CheckoutConfirmationPage() {
         status: 'success',
         label: 'Payment confirmed',
         title: "You're all set!",
-        description: 'Your payment was successfully processed. Your package is now active and ready to use.',
+        description: linkedCampaignAction
+          ? `Your payment was successfully processed. Next, ${linkedCampaignAction.label.toLowerCase()}.`
+          : 'Your payment was successfully processed. Your package is now active and ready to use.',
         icon: <BadgeCheck className="size-5" />,
         colorVar: 'var(--color-highlight)',
-        primaryHref: '/orders',
-        primaryLabel: 'Go to dashboard',
+        primaryHref: linkedCampaignAction?.href ?? '/dashboard',
+        primaryLabel: linkedCampaignAction?.label ?? 'Go to dashboard',
         secondaryHref: order.invoicePdfUrl ? `http://localhost:5050${order.invoicePdfUrl}` : '/orders',
         secondaryLabel: order.invoicePdfUrl ? 'View receipt' : 'Open my orders',
       };

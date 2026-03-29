@@ -29,19 +29,19 @@ select
     iif.province as Province,
     iif.city as City,
     iif.suburb as Suburb,
-    null as Area,
-    null as Language,
+    coalesce(nullif(iif.suburb, ''), nullif(iif.city, ''), nullif(iif.province, '')) as Area,
+    coalesce(nullif(iif.metadata_json ->> 'language', ''), 'N/A') as Language,
     null::int as LsmMin,
     null::int as LsmMax,
     coalesce((iif.metadata_json ->> 'discounted_rate_zar')::numeric, (iif.metadata_json ->> 'rate_card_zar')::numeric, 0) as Cost,
     coalesce(nullif(iif.metadata_json ->> 'available', ''), 'true') <> 'false' as IsAvailable,
     false as PackageOnly,
-    null as TimeBand,
+    coalesce(nullif(iif.metadata_json ->> 'time_band', ''), nullif(iif.metadata_json ->> 'daypart', ''), 'always_on') as TimeBand,
     null as DayType,
-    null as SlotType,
-    null::int as DurationSeconds,
+    coalesce(nullif(iif.media_type, ''), nullif(iif.metadata_json ->> 'slot_type', ''), 'placement') as SlotType,
+    nullif(iif.metadata_json ->> 'duration_seconds', '')::int as DurationSeconds,
     coalesce(rc.code, '') as RegionClusterCode,
-    null as MarketScope,
+    coalesce(nullif(iif.metadata_json ->> 'geography_scope', ''), nullif(iif.province, ''), '') as MarketScope,
     null as MarketTier,
     null::int as MonthlyListenership,
     false as IsFlagshipStation,
@@ -69,11 +69,11 @@ select
     concat(rs.name, ' - ', coalesce(nullif(rsf.time_band, ''), nullif(rsf.slot_type, ''), 'Slot')) as DisplayName,
     'Radio' as MediaType,
     rsf.slot_type as Subtype,
-    null as Province,
-    null as City,
+    nullif(rc.name, '') as Province,
+    nullif(rsf.metadata_json ->> 'city', '') as City,
     null as Suburb,
-    null as Area,
-    rsf.metadata_json ->> 'language' as Language,
+    coalesce(nullif(rsf.metadata_json ->> 'show_name', ''), nullif(rsf.metadata_json ->> 'programme', '')) as Area,
+    coalesce(nullif(rsf.metadata_json ->> 'language', ''), nullif(rsf.metadata_json ->> 'language_summary', '')) as Language,
     null::int as LsmMin,
     null::int as LsmMax,
     coalesce(rsf.rate, 0) as Cost,
@@ -113,11 +113,11 @@ select
     concat(rs.name, ' - ', rpf.name) as DisplayName,
     'Radio' as MediaType,
     'package' as Subtype,
-    null as Province,
-    null as City,
+    nullif(rc.name, '') as Province,
+    nullif(rpf.metadata_json ->> 'city', '') as City,
     null as Suburb,
-    null as Area,
-    rpf.metadata_json ->> 'language' as Language,
+    coalesce(nullif(rpf.name, ''), nullif(rpf.metadata_json ->> 'package_name', '')) as Area,
+    coalesce(nullif(rpf.metadata_json ->> 'language', ''), nullif(rpf.metadata_json ->> 'language_summary', '')) as Language,
     null::int as LsmMin,
     null::int as LsmMax,
     coalesce(rpf.total_cost, 0) as Cost,
@@ -150,6 +150,8 @@ where coalesce(rpf.total_cost, 0) <= @Budget;";
 
     private static InventoryCandidate Map(InventoryCandidateRow row)
     {
+        var metadata = NormalizeMetadata(ParseMetadata(row.MetadataJson), row);
+
         return new InventoryCandidate
         {
             SourceId = row.SourceId,
@@ -157,27 +159,27 @@ where coalesce(rpf.total_cost, 0) <= @Budget;";
             DisplayName = row.DisplayName,
             MediaType = row.MediaType,
             Subtype = row.Subtype,
-            Province = row.Province,
-            City = row.City,
-            Suburb = row.Suburb,
-            Area = row.Area,
-            Language = row.Language,
+            Province = FirstNonEmpty(row.Province, GetMetadataValue(metadata, "province")),
+            City = FirstNonEmpty(row.City, GetMetadataValue(metadata, "city")),
+            Suburb = FirstNonEmpty(row.Suburb, GetMetadataValue(metadata, "suburb")),
+            Area = FirstNonEmpty(row.Area, GetMetadataValue(metadata, "area")),
+            Language = FirstNonEmpty(row.Language, GetMetadataValue(metadata, "language")),
             LsmMin = row.LsmMin,
             LsmMax = row.LsmMax,
             Cost = row.Cost,
             IsAvailable = row.IsAvailable,
             PackageOnly = row.PackageOnly,
-            TimeBand = row.TimeBand,
-            DayType = row.DayType,
-            SlotType = row.SlotType,
-            DurationSeconds = row.DurationSeconds,
-            RegionClusterCode = row.RegionClusterCode,
-            MarketScope = row.MarketScope,
-            MarketTier = row.MarketTier,
+            TimeBand = FirstNonEmpty(row.TimeBand, GetMetadataValue(metadata, "timeBand")),
+            DayType = FirstNonEmpty(row.DayType, GetMetadataValue(metadata, "dayType")),
+            SlotType = FirstNonEmpty(row.SlotType, GetMetadataValue(metadata, "slotType")),
+            DurationSeconds = row.DurationSeconds ?? ParseNullableInt(GetMetadataValue(metadata, "durationSeconds")),
+            RegionClusterCode = FirstNonEmpty(row.RegionClusterCode, GetMetadataValue(metadata, "regionClusterCode")),
+            MarketScope = FirstNonEmpty(row.MarketScope, GetMetadataValue(metadata, "marketScope")),
+            MarketTier = FirstNonEmpty(row.MarketTier, GetMetadataValue(metadata, "marketTier")),
             MonthlyListenership = row.MonthlyListenership,
             IsFlagshipStation = row.IsFlagshipStation,
             IsPremiumStation = row.IsPremiumStation,
-            Metadata = ParseMetadata(row.MetadataJson)
+            Metadata = metadata
         };
     }
 
@@ -190,6 +192,113 @@ where coalesce(rpf.total_cost, 0) <= @Budget;";
 
         return JsonSerializer.Deserialize<Dictionary<string, object?>>(json)
                ?? new Dictionary<string, object?>();
+    }
+
+    private static Dictionary<string, object?> NormalizeMetadata(Dictionary<string, object?> metadata, InventoryCandidateRow row)
+    {
+        SetIfMissing(metadata, "sourceType", row.SourceType);
+        SetIfMissing(metadata, "mediaType", row.MediaType);
+        SetIfMissing(metadata, "displayName", row.DisplayName);
+        SetIfMissing(metadata, "pricingModel", InferPricingModel(row));
+        SetIfMissing(metadata, "rateBasis", InferRateBasis(row));
+        SetIfMissing(metadata, "province", row.Province);
+        SetIfMissing(metadata, "city", row.City);
+        SetIfMissing(metadata, "suburb", row.Suburb);
+        SetIfMissing(metadata, "area", row.Area);
+        SetIfMissing(metadata, "language", row.Language);
+        SetIfMissing(metadata, "timeBand", row.TimeBand);
+        SetIfMissing(metadata, "time_band", row.TimeBand);
+        SetIfMissing(metadata, "dayType", row.DayType);
+        SetIfMissing(metadata, "day_type", row.DayType);
+        SetIfMissing(metadata, "slotType", row.SlotType);
+        SetIfMissing(metadata, "slot_type", row.SlotType);
+        SetIfMissing(metadata, "durationSeconds", row.DurationSeconds);
+        SetIfMissing(metadata, "duration_seconds", row.DurationSeconds);
+        SetIfMissing(metadata, "regionClusterCode", row.RegionClusterCode);
+        SetIfMissing(metadata, "region_cluster_code", row.RegionClusterCode);
+        SetIfMissing(metadata, "marketScope", row.MarketScope);
+        SetIfMissing(metadata, "market_scope", row.MarketScope);
+        SetIfMissing(metadata, "marketTier", row.MarketTier);
+        SetIfMissing(metadata, "market_tier", row.MarketTier);
+
+        if (!metadata.ContainsKey("duration") && row.DurationSeconds.HasValue && row.DurationSeconds.Value > 0)
+        {
+            metadata["duration"] = $"{row.DurationSeconds.Value}s";
+        }
+
+        return metadata;
+    }
+
+    private static string InferPricingModel(InventoryCandidateRow row)
+    {
+        return row.SourceType switch
+        {
+            "radio_package" => "package_total",
+            "radio_slot" => "per_spot_rate_card",
+            "ooh" => "fixed_placement_total",
+            _ => row.PackageOnly ? "package_total" : "unit_rate"
+        };
+    }
+
+    private static string InferRateBasis(InventoryCandidateRow row)
+    {
+        return row.SourceType switch
+        {
+            "radio_package" => "package",
+            "radio_slot" => "per_spot",
+            "ooh" => "per_placement",
+            _ => row.PackageOnly ? "package" : "unit"
+        };
+    }
+
+    private static void SetIfMissing(Dictionary<string, object?> metadata, string key, object? value)
+    {
+        if (value is null)
+        {
+            return;
+        }
+
+        if (value is string text && string.IsNullOrWhiteSpace(text))
+        {
+            return;
+        }
+
+        if (!metadata.ContainsKey(key))
+        {
+            metadata[key] = value;
+        }
+    }
+
+    private static string? GetMetadataValue(IReadOnlyDictionary<string, object?> metadata, string key)
+    {
+        if (!metadata.TryGetValue(key, out var value) || value is null)
+        {
+            return null;
+        }
+
+        return value switch
+        {
+            string text => string.IsNullOrWhiteSpace(text) ? null : text,
+            JsonElement element => element.ValueKind switch
+            {
+                JsonValueKind.String => element.GetString(),
+                JsonValueKind.Number => element.ToString(),
+                JsonValueKind.True => bool.TrueString,
+                JsonValueKind.False => bool.FalseString,
+                _ => element.ToString()
+            },
+            _ => value.ToString()
+        };
+    }
+
+    private static string? FirstNonEmpty(params string?[] values)
+    {
+        return values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+    }
+
+    private static int? ParseNullableInt(string? value)
+    {
+        return int.TryParse(value, out var parsed) ? parsed : null;
     }
 
     private sealed class InventoryCandidateRow

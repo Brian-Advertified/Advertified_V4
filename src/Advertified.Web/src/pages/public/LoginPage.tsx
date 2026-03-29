@@ -22,7 +22,10 @@ export function LoginPage() {
         title: 'Logged in successfully.',
         description: `Welcome back, ${user.fullName.split(' ')[0]}.`,
       });
-      navigate((location.state as { from?: string } | null)?.from ?? (user.role === 'agent' ? '/agent' : '/dashboard'));
+      navigate(
+        (location.state as { from?: string } | null)?.from
+          ?? (user.role === 'admin' ? '/admin' : user.role === 'agent' ? '/agent' : '/dashboard'),
+      );
     } catch (error) {
       pushToast({
         title: 'We could not sign you in.',

@@ -5,6 +5,10 @@ public sealed class AgentInboxResponse
     public int TotalCampaigns { get; set; }
     public int AssignedToMeCount { get; set; }
     public int UnassignedCount { get; set; }
+    public int UrgentCount { get; set; }
+    public int ManualReviewCount { get; set; }
+    public int OverBudgetCount { get; set; }
+    public int StaleCount { get; set; }
     public int NewlyPaidCount { get; set; }
     public int BriefWaitingCount { get; set; }
     public int PlanningReadyCount { get; set; }
@@ -34,6 +38,11 @@ public sealed class AgentInboxItemResponse
     public bool IsAssignedToCurrentUser { get; set; }
     public bool IsUnassigned { get; set; }
     public string NextAction { get; set; } = string.Empty;
+    public bool ManualReviewRequired { get; set; }
+    public bool IsOverBudget { get; set; }
+    public bool IsStale { get; set; }
+    public bool IsUrgent { get; set; }
+    public int AgeInDays { get; set; }
     public bool HasBrief { get; set; }
     public bool HasRecommendation { get; set; }
     public DateTimeOffset CreatedAt { get; set; }

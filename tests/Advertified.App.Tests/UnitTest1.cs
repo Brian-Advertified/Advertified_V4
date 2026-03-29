@@ -1,10 +1,19 @@
 using Advertified.App.Contracts.Auth;
 using Advertified.App.Contracts.Campaigns;
+using Advertified.App.Configuration;
+using Advertified.App.Controllers;
 using Advertified.App.Domain.Campaigns;
+using Advertified.App.Data.Entities;
 using Advertified.App.Services;
 using Advertified.App.Services.Abstractions;
 using Advertified.App.Validation;
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using System.Text.Json;
+using CampaignEntity = Advertified.App.Data.Entities.Campaign;
+using PackageBandEntity = Advertified.App.Data.Entities.PackageBand;
+using PackageOrderEntity = Advertified.App.Data.Entities.PackageOrder;
 
 namespace Advertified.App.Tests;
 
@@ -164,7 +173,7 @@ public class MediaPlanningEngineTests
             }
         };
 
-        var engine = new MediaPlanningEngine(repository);
+        var engine = CreateEngine(repository);
         var request = new CampaignPlanningRequest
         {
             CampaignId = Guid.NewGuid(),
@@ -182,7 +191,7 @@ public class MediaPlanningEngineTests
     }
 
     [Fact]
-    public async Task GenerateAsync_CreatesUpsellsWhenAdditionalBudgetExists()
+    public async Task GenerateAsync_RespectsAdditionalBudgetWhenUpsellCapacityExists()
     {
         var repository = new StubPlanningInventoryRepository
         {
@@ -230,7 +239,7 @@ public class MediaPlanningEngineTests
             }
         };
 
-        var engine = new MediaPlanningEngine(repository);
+        var engine = CreateEngine(repository);
         var request = new CampaignPlanningRequest
         {
             CampaignId = Guid.NewGuid(),
@@ -242,9 +251,207 @@ public class MediaPlanningEngineTests
 
         var result = await engine.GenerateAsync(request, CancellationToken.None);
 
-        result.Upsells.Should().NotBeEmpty();
-        result.UpsellTotal.Should().BeGreaterThan(0m);
+        result.RecommendedPlanTotal.Should().BeLessThanOrEqualTo(request.SelectedBudget);
+        result.UpsellTotal.Should().BeLessThanOrEqualTo(request.AdditionalBudget!.Value);
+        (result.RecommendedPlanTotal + result.UpsellTotal).Should().BeLessThanOrEqualTo(request.SelectedBudget + request.AdditionalBudget.Value);
         result.Rationale.Should().Contain("Plan built within budget");
+    }
+
+    [Fact]
+    public async Task GenerateAsync_FillsTowardSelectedBudgetByIncreasingQuantities()
+    {
+        var repository = new StubPlanningInventoryRepository
+        {
+            OohCandidates = new List<InventoryCandidate>
+            {
+                new()
+                {
+                    SourceId = Guid.NewGuid(),
+                    SourceType = "ooh",
+                    DisplayName = "Sandton Billboard",
+                    MediaType = "OOH",
+                    Province = "Gauteng",
+                    Cost = 12000m,
+                    IsAvailable = true
+                }
+            },
+            RadioSlotCandidates = new List<InventoryCandidate>
+            {
+                new()
+                {
+                    SourceId = Guid.NewGuid(),
+                    SourceType = "radio_slot",
+                    DisplayName = "Drive Time Slot",
+                    MediaType = "Radio",
+                    TimeBand = "drive",
+                    DayType = "weekday",
+                    SlotType = "commercial",
+                    Cost = 9000m,
+                    IsAvailable = true
+                }
+            }
+        };
+
+        var engine = CreateEngine(repository);
+        var request = new CampaignPlanningRequest
+        {
+            CampaignId = Guid.NewGuid(),
+            SelectedBudget = 30000m,
+            MaxMediaItems = 4
+        };
+
+        var result = await engine.GenerateAsync(request, CancellationToken.None);
+
+        result.RecommendedPlanTotal.Should().Be(30000m);
+        result.RecommendedPlan.Sum(item => item.Quantity).Should().BeGreaterThan(2);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_DoesNotRepeatFixedSupplierPackagesToFillBudget()
+    {
+        var packageId = Guid.NewGuid();
+        var slotId = Guid.NewGuid();
+        var repository = new StubPlanningInventoryRepository
+        {
+            RadioPackageCandidates = new List<InventoryCandidate>
+            {
+                new()
+                {
+                    SourceId = packageId,
+                    SourceType = "radio_package",
+                    DisplayName = "Kaya Workzone Package",
+                    MediaType = "Radio",
+                    Cost = 18000m,
+                    IsAvailable = true,
+                    PackageOnly = true,
+                    Metadata = new Dictionary<string, object?> { ["pricingModel"] = "package_total" }
+                }
+            },
+            RadioSlotCandidates = new List<InventoryCandidate>
+            {
+                new()
+                {
+                    SourceId = slotId,
+                    SourceType = "radio_slot",
+                    DisplayName = "SABC Breakfast Spot",
+                    MediaType = "Radio",
+                    Cost = 1000m,
+                    IsAvailable = true,
+                    TimeBand = "breakfast",
+                    SlotType = "commercial",
+                    Metadata = new Dictionary<string, object?> { ["pricingModel"] = "per_spot_rate_card" }
+                }
+            }
+        };
+
+        var engine = CreateEngine(repository);
+        var request = new CampaignPlanningRequest
+        {
+            CampaignId = Guid.NewGuid(),
+            SelectedBudget = 20000m,
+            PreferredMediaTypes = new List<string> { "radio" },
+            MaxMediaItems = 5
+        };
+
+        var result = await engine.GenerateAsync(request, CancellationToken.None);
+
+        result.RecommendedPlan.Should().ContainSingle(item => item.SourceId == packageId && item.Quantity == 1);
+        result.RecommendedPlan.Should().ContainSingle(item => item.SourceId == slotId && item.Quantity == 2);
+        result.RecommendedPlanTotal.Should().Be(20000m);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_RanksOohAheadOfRadioForMixedPreferredMedia()
+    {
+        var repository = new StubPlanningInventoryRepository
+        {
+            OohCandidates = new List<InventoryCandidate>
+            {
+                new()
+                {
+                    SourceId = Guid.NewGuid(),
+                    SourceType = "ooh",
+                    DisplayName = "Sandton Digital Billboard",
+                    MediaType = "OOH",
+                    Province = "Gauteng",
+                    City = "Johannesburg",
+                    Area = "Sandton",
+                    Cost = 18000m,
+                    IsAvailable = true
+                }
+            },
+            RadioSlotCandidates = new List<InventoryCandidate>
+            {
+                new()
+                {
+                    SourceId = Guid.NewGuid(),
+                    SourceType = "radio_slot",
+                    DisplayName = "Kaya 959 - Drive",
+                    MediaType = "Radio",
+                    Province = "Gauteng",
+                    TimeBand = "drive",
+                    DayType = "weekday",
+                    SlotType = "commercial",
+                    Cost = 9000m,
+                    IsAvailable = true
+                }
+            }
+        };
+
+        var engine = CreateEngine(repository);
+        var request = new CampaignPlanningRequest
+        {
+            CampaignId = Guid.NewGuid(),
+            SelectedBudget = 20000m,
+            Provinces = new List<string> { "Gauteng" },
+            Areas = new List<string> { "Sandton" },
+            PreferredMediaTypes = new List<string> { "radio", "ooh" },
+            MaxMediaItems = 4
+        };
+
+        var result = await engine.GenerateAsync(request, CancellationToken.None);
+
+        result.RecommendedPlan.Should().NotBeEmpty();
+        result.RecommendedPlan[0].MediaType.Should().Be("OOH");
+    }
+
+    [Fact]
+    public async Task GenerateAsync_AddsFallbackFlagWhenPreferredMediaIsMissingFromRecommendation()
+    {
+        var repository = new StubPlanningInventoryRepository
+        {
+            RadioSlotCandidates = new List<InventoryCandidate>
+            {
+                new()
+                {
+                    SourceId = Guid.NewGuid(),
+                    SourceType = "radio_slot",
+                    DisplayName = "Kaya 959 - Drive",
+                    MediaType = "Radio",
+                    Province = "Gauteng",
+                    TimeBand = "drive",
+                    DayType = "weekday",
+                    SlotType = "commercial",
+                    Cost = 9000m,
+                    IsAvailable = true
+                }
+            }
+        };
+
+        var engine = CreateEngine(repository);
+        var request = new CampaignPlanningRequest
+        {
+            CampaignId = Guid.NewGuid(),
+            SelectedBudget = 20000m,
+            Provinces = new List<string> { "Gauteng" },
+            PreferredMediaTypes = new List<string> { "radio", "ooh" },
+            MaxMediaItems = 4
+        };
+
+        var result = await engine.GenerateAsync(request, CancellationToken.None);
+
+        result.ManualReviewRequired.Should().BeTrue();
+        result.FallbackFlags.Should().Contain("preferred_media_unfulfilled:ooh");
     }
 
     [Fact]
@@ -280,7 +487,7 @@ public class MediaPlanningEngineTests
             }
         };
 
-        var engine = new MediaPlanningEngine(repository);
+        var engine = CreateEngine(repository);
         var request = new CampaignPlanningRequest
         {
             CampaignId = Guid.NewGuid(),
@@ -293,6 +500,108 @@ public class MediaPlanningEngineTests
 
         result.RecommendedPlan.Should().ContainSingle();
         result.RecommendedPlan[0].DisplayName.Should().Contain("Metro FM");
+    }
+
+    [Fact]
+    public async Task GenerateAsync_SetsFallbackFlagsWhenHigherBandRadioPolicyCannotBeSatisfied()
+    {
+        var repository = new StubPlanningInventoryRepository
+        {
+            RadioSlotCandidates = new List<InventoryCandidate>
+            {
+                new()
+                {
+                    SourceId = Guid.NewGuid(),
+                    SourceType = "radio_slot",
+                    DisplayName = "Kaya 959 - Workzone",
+                    MediaType = "Radio",
+                    Cost = 12000m,
+                    IsAvailable = true,
+                    RegionClusterCode = "gauteng",
+                    MarketScope = "regional"
+                }
+            }
+        };
+
+        var engine = CreateEngine(repository);
+        var request = new CampaignPlanningRequest
+        {
+            CampaignId = Guid.NewGuid(),
+            SelectedBudget = 600000m,
+            PreferredMediaTypes = new List<string> { "radio" },
+            MaxMediaItems = 3
+        };
+
+        var result = await engine.GenerateAsync(request, CancellationToken.None);
+
+        result.ManualReviewRequired.Should().BeTrue();
+        result.FallbackFlags.Should().Contain("national_radio_inventory_insufficient");
+        result.FallbackFlags.Should().Contain("policy_relaxed");
+    }
+
+    [Fact]
+    public async Task GenerateAsync_SetsInventoryFallbackWhenNoEligibleCandidatesRemain()
+    {
+        var repository = new StubPlanningInventoryRepository
+        {
+            OohCandidates = new List<InventoryCandidate>
+            {
+                new()
+                {
+                    SourceId = Guid.NewGuid(),
+                    SourceType = "ooh",
+                    DisplayName = "Cape Town Billboard",
+                    MediaType = "OOH",
+                    Province = "Western Cape",
+                    Cost = 12000m,
+                    IsAvailable = true
+                }
+            }
+        };
+
+        var engine = CreateEngine(repository);
+        var request = new CampaignPlanningRequest
+        {
+            CampaignId = Guid.NewGuid(),
+            SelectedBudget = 20000m,
+            Provinces = new List<string> { "Gauteng" },
+            PreferredMediaTypes = new List<string> { "radio" },
+            MaxMediaItems = 3
+        };
+
+        var result = await engine.GenerateAsync(request, CancellationToken.None);
+
+        result.RecommendedPlan.Should().BeEmpty();
+        result.ManualReviewRequired.Should().BeTrue();
+        result.FallbackFlags.Should().Contain("inventory_insufficient");
+        result.FallbackFlags.Should().Contain("no_recommendation_generated");
+    }
+
+    private static MediaPlanningEngine CreateEngine(IPlanningInventoryRepository repository)
+    {
+        return new MediaPlanningEngine(repository, Options.Create(new PlanningPolicyOptions
+        {
+            Scale = new PackagePlanningPolicy
+            {
+                BudgetFloor = 150000m,
+                MinimumNationalRadioCandidates = 1,
+                RequireNationalCapableRadio = true,
+                RequirePremiumNationalRadio = false,
+                NationalRadioBonus = 12,
+                NonNationalRadioPenalty = 8,
+                RegionalRadioPenalty = 16
+            },
+            Dominance = new PackagePlanningPolicy
+            {
+                BudgetFloor = 500000m,
+                MinimumNationalRadioCandidates = 2,
+                RequireNationalCapableRadio = true,
+                RequirePremiumNationalRadio = true,
+                NationalRadioBonus = 18,
+                NonNationalRadioPenalty = 12,
+                RegionalRadioPenalty = 24
+            }
+        }));
     }
 
     private sealed class StubPlanningInventoryRepository : IPlanningInventoryRepository
@@ -309,5 +618,410 @@ public class MediaPlanningEngineTests
 
         public Task<List<InventoryCandidate>> GetRadioPackageCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
             => Task.FromResult(RadioPackageCandidates);
+    }
+}
+
+public class ControllerMappingsTests
+{
+    [Fact]
+    public void ToDetail_MapsManualReviewAndFallbackFlagsFromRecommendationRationale()
+    {
+        var userId = Guid.NewGuid();
+        var campaign = new CampaignEntity
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            PackageOrderId = Guid.NewGuid(),
+            PackageBandId = Guid.NewGuid(),
+            CampaignName = "Dominance campaign",
+            Status = "planning_in_progress",
+            CreatedAt = DateTime.UtcNow,
+            User = new UserAccount
+            {
+                Id = userId,
+                FullName = "Brian Rapula",
+                Email = "brian@example.com",
+                Phone = "0821234567",
+                PasswordHash = "hash",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                BusinessProfile = new BusinessProfile
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = userId,
+                    BusinessName = "Black Space PSG (Pty) Ltd",
+                    BusinessType = "pty_ltd",
+                    RegistrationNumber = "2024/123456/07",
+                    Industry = "Health",
+                    AnnualRevenueBand = "r1m_r5m",
+                    StreetAddress = "1 Main Road",
+                    City = "Johannesburg",
+                    Province = "Gauteng",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                }
+            },
+            PackageBand = new PackageBandEntity
+            {
+                Id = Guid.NewGuid(),
+                Code = "dominance",
+                Name = "Dominance",
+                MinBudget = 500000m,
+                MaxBudget = 5000000m,
+                SortOrder = 4,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            },
+            PackageOrder = new PackageOrderEntity
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                PackageBandId = Guid.NewGuid(),
+                Amount = 500000m,
+                SelectedBudget = 500000m,
+                Currency = "ZAR",
+                PaymentStatus = "paid",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                User = new UserAccount
+                {
+                    Id = userId,
+                    FullName = "Brian Rapula",
+                    Email = "brian@example.com",
+                    Phone = "0821234567",
+                    PasswordHash = "hash",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                },
+                PackageBand = new PackageBandEntity
+                {
+                    Id = Guid.NewGuid(),
+                    Code = "dominance",
+                    Name = "Dominance",
+                    MinBudget = 500000m,
+                    MaxBudget = 5000000m,
+                    SortOrder = 4,
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                }
+            }
+        };
+
+        campaign.CampaignRecommendations.Add(new CampaignRecommendation
+        {
+            Id = Guid.NewGuid(),
+            CampaignId = campaign.Id,
+            RecommendationType = "hybrid",
+            GeneratedBy = "system",
+            Status = "draft",
+            TotalCost = 320000m,
+            Summary = "Recommended 3 planned item(s) across Radio, OOH.",
+            Rationale = string.Join(Environment.NewLine, new[]
+            {
+                "Plan built within budget and aligned to campaign geography.",
+                "Manual review required: True",
+                "Fallback flags: national_radio_inventory_insufficient, policy_relaxed"
+            }),
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+
+        var response = campaign.ToDetail(userId);
+
+        response.Recommendation.Should().NotBeNull();
+        response.Recommendation!.ManualReviewRequired.Should().BeTrue();
+        response.Recommendation.FallbackFlags.Should().Contain(new[] { "national_radio_inventory_insufficient", "policy_relaxed" });
+        response.Recommendation.Rationale.Should().Be("Plan built within budget and aligned to campaign geography.");
+    }
+
+    [Fact]
+    public void ToDetail_NormalizesSparseLegacyRecommendationItemMetadata()
+    {
+        var userId = Guid.NewGuid();
+        var campaign = new CampaignEntity
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            PackageOrderId = Guid.NewGuid(),
+            PackageBandId = Guid.NewGuid(),
+            CampaignName = "Legacy campaign",
+            Status = "planning_in_progress",
+            CreatedAt = DateTime.UtcNow,
+            User = new UserAccount
+            {
+                Id = userId,
+                FullName = "Brian Rapula",
+                Email = "brian@example.com",
+                Phone = "0821234567",
+                PasswordHash = "hash",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            },
+            PackageBand = new PackageBandEntity
+            {
+                Id = Guid.NewGuid(),
+                Code = "scale",
+                Name = "Scale",
+                MinBudget = 150000m,
+                MaxBudget = 500000m,
+                SortOrder = 3,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            },
+            PackageOrder = new PackageOrderEntity
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                PackageBandId = Guid.NewGuid(),
+                Amount = 250000m,
+                SelectedBudget = 250000m,
+                Currency = "ZAR",
+                PaymentStatus = "paid",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                User = new UserAccount
+                {
+                    Id = userId,
+                    FullName = "Brian Rapula",
+                    Email = "brian@example.com",
+                    Phone = "0821234567",
+                    PasswordHash = "hash",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                },
+                PackageBand = new PackageBandEntity
+                {
+                    Id = Guid.NewGuid(),
+                    Code = "scale",
+                    Name = "Scale",
+                    MinBudget = 150000m,
+                    MaxBudget = 500000m,
+                    SortOrder = 3,
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                }
+            }
+        };
+
+        var recommendation = new CampaignRecommendation
+        {
+            Id = Guid.NewGuid(),
+            CampaignId = campaign.Id,
+            RecommendationType = "ai_assisted",
+            GeneratedBy = "system",
+            Status = "draft",
+            TotalCost = 25000m,
+            Summary = "Legacy summary",
+            Rationale = "Legacy rationale",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        recommendation.RecommendationItems.Add(new RecommendationItem
+        {
+            Id = Guid.NewGuid(),
+            RecommendationId = recommendation.Id,
+            InventoryType = "Radio",
+            DisplayName = "Metro FM Breakfast",
+            Quantity = 1,
+            UnitCost = 25000m,
+            TotalCost = 25000m,
+            MetadataJson = JsonSerializer.Serialize(new
+            {
+                rationale = "Gauteng | English | Breakfast | Qty 1 | 30s | Strong geography match"
+            }),
+            CreatedAt = DateTime.UtcNow
+        });
+
+        campaign.CampaignRecommendations.Add(recommendation);
+
+        var response = campaign.ToDetail(userId);
+        var item = response.Recommendation!.Items.Should().ContainSingle().Subject;
+
+        item.Region.Should().Be("Gauteng");
+        item.Language.Should().Be("English");
+        item.ShowDaypart.Should().Be("Breakfast");
+        item.TimeBand.Should().Be("06:00-09:00");
+        item.SlotType.Should().Be("Radio spot");
+        item.Duration.Should().Be("30s");
+    }
+
+    [Fact]
+    public void ToDetail_BuildsClientTimelineStates()
+    {
+        var userId = Guid.NewGuid();
+        var campaign = new CampaignEntity
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            PackageOrderId = Guid.NewGuid(),
+            PackageBandId = Guid.NewGuid(),
+            CampaignName = "Timeline campaign",
+            Status = "review_ready",
+            CreatedAt = DateTime.UtcNow,
+            User = new UserAccount
+            {
+                Id = userId,
+                FullName = "Brian Rapula",
+                Email = "brian@example.com",
+                Phone = "0821234567",
+                PasswordHash = "hash",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            },
+            PackageBand = new PackageBandEntity
+            {
+                Id = Guid.NewGuid(),
+                Code = "scale",
+                Name = "Scale",
+                MinBudget = 150000m,
+                MaxBudget = 500000m,
+                SortOrder = 3,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            },
+            PackageOrder = new PackageOrderEntity
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                PackageBandId = Guid.NewGuid(),
+                Amount = 250000m,
+                SelectedBudget = 250000m,
+                Currency = "ZAR",
+                PaymentStatus = "paid",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                User = new UserAccount
+                {
+                    Id = userId,
+                    FullName = "Brian Rapula",
+                    Email = "brian@example.com",
+                    Phone = "0821234567",
+                    PasswordHash = "hash",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                },
+                PackageBand = new PackageBandEntity
+                {
+                    Id = Guid.NewGuid(),
+                    Code = "scale",
+                    Name = "Scale",
+                    MinBudget = 150000m,
+                    MaxBudget = 500000m,
+                    SortOrder = 3,
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                }
+            },
+            CampaignBrief = new Advertified.App.Data.Entities.CampaignBrief
+            {
+                Id = Guid.NewGuid(),
+                CampaignId = Guid.NewGuid(),
+                Objective = "launch",
+                GeographyScope = "regional",
+                SubmittedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            }
+        };
+
+        campaign.CampaignRecommendations.Add(new CampaignRecommendation
+        {
+            Id = Guid.NewGuid(),
+            CampaignId = campaign.Id,
+            RecommendationType = "ai_assisted",
+            GeneratedBy = "system",
+            Status = "sent_to_client",
+            TotalCost = 250000m,
+            Summary = "Ready for review",
+            Rationale = "Campaign ready for client review",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+
+        var response = campaign.ToDetail(userId);
+
+        response.Timeline.Should().HaveCount(5);
+        response.Timeline[0].State.Should().Be("complete");
+        response.Timeline[1].State.Should().Be("complete");
+        response.Timeline[2].State.Should().Be("complete");
+        response.Timeline[3].State.Should().Be("current");
+        response.Timeline[4].State.Should().Be("upcoming");
+    }
+}
+
+public class OpenAICampaignReasoningServiceTests
+{
+    [Fact]
+    public async Task GenerateAsync_ReturnsNullWhenOpenAiIsDisabled()
+    {
+        var service = new OpenAICampaignReasoningService(
+            new HttpClient { BaseAddress = new Uri("https://api.openai.com/v1/") },
+            Options.Create(new OpenAIOptions
+            {
+                Enabled = false,
+                ApiKey = string.Empty,
+                BaseUrl = "https://api.openai.com/v1/",
+                Model = "gpt-5-mini"
+            }),
+            NullLogger<OpenAICampaignReasoningService>.Instance);
+
+        var result = await service.GenerateAsync(
+            new CampaignEntity
+            {
+                Id = Guid.NewGuid(),
+                CampaignName = "Dominance campaign",
+                PackageBand = new PackageBandEntity
+                {
+                    Id = Guid.NewGuid(),
+                    Code = "dominance",
+                    Name = "Dominance",
+                    MinBudget = 500000m,
+                    MaxBudget = 5000000m,
+                    SortOrder = 4,
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                }
+            },
+            new Advertified.App.Data.Entities.CampaignBrief
+            {
+                Id = Guid.NewGuid(),
+                CampaignId = Guid.NewGuid(),
+                Objective = "launch",
+                GeographyScope = "regional",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            },
+            new CampaignPlanningRequest
+            {
+                CampaignId = Guid.NewGuid(),
+                SelectedBudget = 250000m,
+                PreferredMediaTypes = new List<string> { "radio", "ooh" },
+                Provinces = new List<string> { "Gauteng" }
+            },
+            new RecommendationResult
+            {
+                RecommendedPlan = new List<PlannedItem>
+                {
+                    new PlannedItem
+                    {
+                        SourceId = Guid.NewGuid(),
+                        SourceType = "radio_slot",
+                        DisplayName = "Metro FM",
+                        MediaType = "Radio",
+                        UnitCost = 25000m,
+                        Metadata = new Dictionary<string, object?>
+                        {
+                            ["selectionReasons"] = new[] { "Strong geography match", "Matches requested channel mix" },
+                            ["confidenceScore"] = 0.85m
+                        }
+                    }
+                },
+                Rationale = "Plan built within budget.",
+                ManualReviewRequired = false
+            },
+            CancellationToken.None);
+
+        result.Should().BeNull();
     }
 }

@@ -207,6 +207,16 @@ type CampaignBriefResponse = {
 type RecommendationItemResponse = {
   id: string;
   sourceInventoryId?: string | null;
+  region?: string | null;
+  language?: string | null;
+  showDaypart?: string | null;
+  timeBand?: string | null;
+  slotType?: string | null;
+  duration?: string | null;
+  restrictions?: string | null;
+  confidenceScore?: number | null;
+  selectionReasons: string[];
+  policyFlags: string[];
   quantity: number;
   flighting?: string | null;
   itemNotes?: string | null;
@@ -225,6 +235,8 @@ type CampaignRecommendationResponse = {
   summary: string;
   rationale: string;
   clientFeedbackNotes?: string | null;
+  manualReviewRequired: boolean;
+  fallbackFlags: string[];
   status: 'draft' | 'sent_to_client' | 'approved';
   totalCost: number;
   items: RecommendationItemResponse[];
@@ -252,6 +264,12 @@ type CampaignResponse = {
   isUnassigned?: boolean;
   campaignName?: string | null;
   nextAction: string;
+  timeline?: Array<{
+    key: string;
+    label: string;
+    description: string;
+    state: 'complete' | 'current' | 'upcoming';
+  }>;
   brief?: CampaignBriefResponse | null;
   recommendation?: CampaignRecommendationResponse | null;
   createdAt: string;
@@ -275,6 +293,11 @@ type AgentInboxItemResponse = {
   isAssignedToCurrentUser: boolean;
   isUnassigned: boolean;
   nextAction: string;
+  manualReviewRequired: boolean;
+  isOverBudget: boolean;
+  isStale: boolean;
+  isUrgent: boolean;
+  ageInDays: number;
   hasBrief: boolean;
   hasRecommendation: boolean;
   createdAt: string;
@@ -285,6 +308,10 @@ type AgentInboxResponse = {
   totalCampaigns: number;
   assignedToMeCount: number;
   unassignedCount: number;
+  urgentCount: number;
+  manualReviewCount: number;
+  overBudgetCount: number;
+  staleCount: number;
   newlyPaidCount: number;
   briefWaitingCount: number;
   planningReadyCount: number;
@@ -293,6 +320,17 @@ type AgentInboxResponse = {
   waitingOnClientCount: number;
   completedCount: number;
   items: AgentInboxItemResponse[];
+};
+
+type InterpretedCampaignBriefResponse = {
+  objective: string;
+  audience: string;
+  scope: string;
+  geography: string;
+  tone: string;
+  campaignName: string;
+  channels: string[];
+  summary: string;
 };
 
 function getStoredSession(): SessionUser | null {
@@ -310,7 +348,15 @@ function emptyToUndefined(value?: string) {
 }
 
 function normalizeRole(role: string): SessionUser['role'] {
-  return role === 'agent' ? 'agent' : 'client';
+  if (role === 'agent') {
+    return 'agent';
+  }
+
+  if (role === 'admin') {
+    return 'admin';
+  }
+
+  return 'client';
 }
 
 function mapSessionUser(response: LoginResponse | MeResponse): SessionUser {
@@ -385,20 +431,32 @@ function mapRecommendation(response?: CampaignRecommendationResponse | null): Ca
     return undefined;
   }
 
-  return {
-    id: response.id,
-    campaignId: response.campaignId,
-    summary: response.summary,
-    rationale: response.rationale,
-    clientFeedbackNotes: response.clientFeedbackNotes ?? undefined,
-    status: response.status,
-    totalCost: response.totalCost,
-    items: response.items.map((item) => ({
-      ...item,
-      sourceInventoryId: item.sourceInventoryId ?? undefined,
-      quantity: item.quantity,
-      flighting: item.flighting ?? undefined,
-      itemNotes: item.itemNotes ?? undefined,
+    return {
+      id: response.id,
+      campaignId: response.campaignId,
+      summary: response.summary,
+      rationale: response.rationale,
+      clientFeedbackNotes: response.clientFeedbackNotes ?? undefined,
+      manualReviewRequired: response.manualReviewRequired,
+      fallbackFlags: response.fallbackFlags ?? [],
+      status: response.status,
+      totalCost: response.totalCost,
+      items: response.items.map((item) => ({
+        ...item,
+        sourceInventoryId: item.sourceInventoryId ?? undefined,
+        region: item.region ?? undefined,
+        language: item.language ?? undefined,
+        showDaypart: item.showDaypart ?? undefined,
+        timeBand: item.timeBand ?? undefined,
+        slotType: item.slotType ?? undefined,
+        duration: item.duration ?? undefined,
+        restrictions: item.restrictions ?? undefined,
+        confidenceScore: item.confidenceScore ?? undefined,
+        selectionReasons: item.selectionReasons ?? [],
+        policyFlags: item.policyFlags ?? [],
+        quantity: item.quantity,
+        flighting: item.flighting ?? undefined,
+        itemNotes: item.itemNotes ?? undefined,
       startDate: item.startDate ?? undefined,
       endDate: item.endDate ?? undefined,
     })),
@@ -441,6 +499,7 @@ function mapCampaign(response: CampaignResponse): Campaign {
     isUnassigned: response.isUnassigned,
     campaignName: response.campaignName?.trim() || `${response.packageBandName} campaign`,
     nextAction: response.nextAction,
+    timeline: response.timeline ?? [],
     brief: response.brief ?? undefined,
     recommendation: response.recommendation
       ? {
@@ -471,6 +530,11 @@ function mapAgentInboxItem(response: AgentInboxItemResponse): AgentInboxItem {
     isAssignedToCurrentUser: response.isAssignedToCurrentUser,
     isUnassigned: response.isUnassigned,
     nextAction: response.nextAction,
+    manualReviewRequired: response.manualReviewRequired,
+    isOverBudget: response.isOverBudget,
+    isStale: response.isStale,
+    isUrgent: response.isUrgent,
+    ageInDays: response.ageInDays,
     hasBrief: response.hasBrief,
     hasRecommendation: response.hasRecommendation,
     createdAt: response.createdAt,
@@ -483,6 +547,10 @@ function mapAgentInbox(response: AgentInboxResponse): AgentInbox {
     totalCampaigns: response.totalCampaigns,
     assignedToMeCount: response.assignedToMeCount,
     unassignedCount: response.unassignedCount,
+    urgentCount: response.urgentCount,
+    manualReviewCount: response.manualReviewCount,
+    overBudgetCount: response.overBudgetCount,
+    staleCount: response.staleCount,
     newlyPaidCount: response.newlyPaidCount,
     briefWaitingCount: response.briefWaitingCount,
     planningReadyCount: response.planningReadyCount,
@@ -829,6 +897,13 @@ export const advertifiedApi = {
     });
 
     return mapCampaign(response);
+  },
+
+  async interpretAgentBrief(campaignId: string, payload: { brief: string; campaignName?: string; selectedBudget: number }) {
+    return apiRequest<InterpretedCampaignBriefResponse>(`/agent/campaigns/${campaignId}/interpret-brief`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
   },
 
   async assignCampaignToMe(campaignId: string) {
