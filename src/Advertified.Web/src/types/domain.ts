@@ -263,8 +263,12 @@ export interface AdminUser {
   id: string;
   fullName: string;
   email: string;
+  phone: string;
   role: UserRole;
   accountStatus: string;
+  isSaCitizen: boolean;
+  emailVerified: boolean;
+  phoneVerified: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -553,6 +557,30 @@ export interface AdminUpdateOutletInput {
   provinceCodes: string[];
   cityLabels: string[];
   audienceKeywords: string[];
+}
+
+export interface AdminCreateUserInput {
+  fullName: string;
+  email: string;
+  phone: string;
+  password: string;
+  role: UserRole;
+  accountStatus: string;
+  isSaCitizen: boolean;
+  emailVerified: boolean;
+  phoneVerified: boolean;
+}
+
+export interface AdminUpdateUserInput {
+  fullName: string;
+  email: string;
+  phone: string;
+  password?: string;
+  role: UserRole;
+  accountStatus: string;
+  isSaCitizen: boolean;
+  emailVerified: boolean;
+  phoneVerified: boolean;
 }
 
 export interface InventoryRow {

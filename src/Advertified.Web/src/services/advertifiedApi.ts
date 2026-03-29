@@ -14,6 +14,7 @@ import type {
   AdminIntegrationStatus,
   AdminDashboard,
   AdminCreateOutletInput,
+  AdminCreateUserInput,
   AdminOutletDetail,
   AdminOutletPricing,
   AdminRateCardUploadInput,
@@ -21,6 +22,7 @@ import type {
   AdminUpsertOutletPricingPackageInput,
   AdminUpsertOutletSlotRateInput,
   AdminUpdateOutletInput,
+  AdminUpdateUserInput,
   PackagePreview,
   PackagePreviewMapPoint,
   PackageOrder,
@@ -762,6 +764,26 @@ export const advertifiedApi = {
     return apiRequest<AdminUser[]>('/admin/users');
   },
 
+  async createAdminUser(input: AdminCreateUserInput) {
+    return apiRequest<AdminUser>('/admin/users', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  },
+
+  async updateAdminUser(id: string, input: AdminUpdateUserInput) {
+    return apiRequest<AdminUser>(`/admin/users/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    });
+  },
+
+  async deleteAdminUser(id: string) {
+    return apiRequest(`/admin/users/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+  },
+
   async getAdminDashboard() {
     return apiRequest<AdminDashboardResponse>('/admin/dashboard');
   },
@@ -1055,6 +1077,14 @@ export const advertifiedApi = {
 
     return refreshedCampaign.recommendations.find((recommendation) => recommendation.id === recommendationId)
       ?? refreshedCampaign.recommendation;
+  },
+
+  async deleteRecommendation(campaignId: string, recommendationId: string) {
+    await apiRequest(`/agent/recommendations/${recommendationId}`, {
+      method: 'DELETE',
+    });
+
+    return this.getAgentCampaign(campaignId);
   },
 
   async sendRecommendationToClient(campaignId: string) {

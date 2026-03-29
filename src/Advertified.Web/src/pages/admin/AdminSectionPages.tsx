@@ -3,7 +3,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Eye, Globe2, MapPin, Pencil, PlusCircle, Save, ShieldCheck, Trash2, Upload, X, Zap } from 'lucide-react';
 import { useToast } from '../../components/ui/toast';
 import { advertifiedApi } from '../../services/advertifiedApi';
-import type { AdminCreateOutletInput, AdminUpdateOutletInput, AdminUpsertOutletPricingPackageInput, AdminUpsertOutletSlotRateInput } from '../../types/domain';
+import type {
+  AdminCreateOutletInput,
+  AdminOutletPricingPackage,
+  AdminOutletSlotRate,
+  AdminUpdateOutletInput,
+  AdminUpsertOutletPricingPackageInput,
+  AdminUpsertOutletSlotRateInput,
+} from '../../types/domain';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   AdminPageShell,
@@ -15,6 +22,55 @@ import {
   tone,
   useAdminDashboardQuery,
 } from './adminWorkspace';
+
+type ActionButtonProps = {
+  label: string;
+  onClick?: () => void;
+  icon: typeof Eye;
+  variant?: 'default' | 'danger';
+  disabled?: boolean;
+};
+
+function ActionButton({ label, onClick, icon: Icon, variant = 'default', disabled = false }: ActionButtonProps) {
+  const baseClassName = variant === 'danger'
+    ? 'rounded-full border border-rose-200 bg-white p-2 text-rose-600 transition hover:bg-rose-50'
+    : 'button-secondary p-2';
+
+  return (
+    <button type="button" className={baseClassName} onClick={onClick} title={label} aria-label={label} disabled={disabled}>
+      <Icon className="size-4" />
+    </button>
+  );
+}
+
+function ReadOnlyNotice({ label }: { label: string }) {
+  return (
+    <div className="rounded-[24px] border border-dashed border-line bg-white/75 px-4 py-3 text-sm text-ink-soft">
+      {label}
+    </div>
+  );
+}
+
+function EmptyTableState({ message, action }: { message: string; action?: React.ReactNode }) {
+  return (
+    <div className="rounded-[24px] border border-dashed border-line bg-white px-6 py-10 text-center">
+      <p className="text-sm text-ink-soft">{message}</p>
+      {action ? <div className="mt-4 flex justify-center">{action}</div> : null}
+    </div>
+  );
+}
+
+type AdminUserFormState = {
+  fullName: string;
+  email: string;
+  phone: string;
+  password: string;
+  role: 'client' | 'agent' | 'admin';
+  accountStatus: string;
+  isSaCitizen: boolean;
+  emailVerified: boolean;
+  phoneVerified: boolean;
+};
 
 export function AdminStationsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -227,7 +283,7 @@ export function AdminStationsPage() {
               <table className="w-full border-collapse text-sm">
                 <thead className="bg-brand-soft text-left text-xs uppercase tracking-[0.18em] text-ink-soft"><tr><th className="px-4 py-4">Outlet</th><th className="px-4 py-4">Type</th><th className="px-4 py-4">Coverage</th><th className="px-4 py-4">Geography</th><th className="px-4 py-4">Pricing</th><th className="px-4 py-4">Health</th><th className="px-4 py-4 text-right">Actions</th></tr></thead>
                 <tbody>
-                  {sortedOutlets.map((item, index) => <tr key={item.code} className="border-t border-line"><td className="px-4 py-4"><div className="flex items-center gap-3"><div><p className="font-semibold text-ink">{item.name}</p><p className="text-xs text-ink-soft">{item.languageDisplay ?? 'Language not specified'}</p></div>{sortBy === 'priority' && index < 3 ? <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-700">Needs attention</span> : null}</div></td><td className="px-4 py-4 text-ink-soft">{titleize(item.mediaType)}</td><td className="px-4 py-4 text-ink-soft">{titleize(item.coverageType)}</td><td className="px-4 py-4 text-ink-soft">{item.geographyLabel}</td><td className="px-4 py-4 text-ink-soft"><div>{item.hasPricing ? 'Available' : 'Missing'}</div><div className="text-xs">{item.packageCount} packages | {item.slotRateCount} slot rows</div></td><td className="px-4 py-4"><span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${tone(item.catalogHealth)}`}>{titleize(item.catalogHealth)}</span></td><td className="px-4 py-4"><div className="flex justify-end gap-2"><button type="button" className="button-secondary p-2" onClick={() => openExistingDialog(item.code, 'view')} title={`View ${item.name}`}><Eye className="size-4" /></button><button type="button" className="button-secondary p-2" onClick={() => openExistingDialog(item.code, 'edit')} title={`Edit ${item.name}`}><Pencil className="size-4" /></button><button type="button" className="rounded-full border border-rose-200 bg-white p-2 text-rose-600 transition hover:bg-rose-50" onClick={() => { if (window.confirm(`Delete ${item.name}? This will remove the outlet and linked broadcast pricing records.`)) { deleteOutletMutation.mutate(item.code); } }} title={`Delete ${item.name}`}><Trash2 className="size-4" /></button></div></td></tr>)}
+                  {sortedOutlets.map((item, index) => <tr key={item.code} className="border-t border-line"><td className="px-4 py-4"><div className="flex items-center gap-3"><div><p className="font-semibold text-ink">{item.name}</p><p className="text-xs text-ink-soft">{item.languageDisplay ?? 'Language not specified'}</p></div>{sortBy === 'priority' && index < 3 ? <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-700">Needs attention</span> : null}</div></td><td className="px-4 py-4 text-ink-soft">{titleize(item.mediaType)}</td><td className="px-4 py-4 text-ink-soft">{titleize(item.coverageType)}</td><td className="px-4 py-4 text-ink-soft">{item.geographyLabel}</td><td className="px-4 py-4 text-ink-soft"><div>{item.hasPricing ? 'Available' : 'Missing'}</div><div className="text-xs">{item.packageCount} packages | {item.slotRateCount} slot rows</div></td><td className="px-4 py-4"><span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${tone(item.catalogHealth)}`}>{titleize(item.catalogHealth)}</span></td><td className="px-4 py-4"><div className="flex justify-end gap-2"><ActionButton label={`View ${item.name}`} icon={Eye} onClick={() => openExistingDialog(item.code, 'view')} /><ActionButton label={`Edit ${item.name}`} icon={Pencil} onClick={() => openExistingDialog(item.code, 'edit')} /><ActionButton label={`Delete ${item.name}`} icon={Trash2} variant="danger" disabled={deleteOutletMutation.isPending} onClick={() => { if (window.confirm(`Delete ${item.name}? This will remove the outlet and linked broadcast pricing records.`)) { deleteOutletMutation.mutate(item.code); } }} /></div></td></tr>)}
                 </tbody>
               </table>
             </div>
@@ -305,8 +361,8 @@ export function AdminPricingPage() {
   const queryClient = useQueryClient();
   const { pushToast } = useToast();
   const [selectedOutletCode, setSelectedOutletCode] = useState('');
-  const [packageDialog, setPackageDialog] = useState<{ mode: 'create' | 'edit'; id?: string } | null>(null);
-  const [slotDialog, setSlotDialog] = useState<{ mode: 'create' | 'edit'; id?: string } | null>(null);
+  const [packageDialog, setPackageDialog] = useState<{ mode: 'create' | 'view' | 'edit'; id?: string } | null>(null);
+  const [slotDialog, setSlotDialog] = useState<{ mode: 'create' | 'view' | 'edit'; id?: string } | null>(null);
   const [packageForm, setPackageForm] = useState<AdminUpsertOutletPricingPackageInput>({
     packageName: '',
     packageType: '',
@@ -411,6 +467,12 @@ export function AdminPricingPage() {
 
   const parseNumber = (value: string) => value.trim() === '' ? undefined : Number(value);
   const dashboard = query.data;
+  const selectedPackage = packageDialog?.id && outletPricingQuery.data
+    ? outletPricingQuery.data.packages.find((entry) => entry.id === packageDialog.id)
+    : null;
+  const selectedSlotRate = slotDialog?.id && outletPricingQuery.data
+    ? outletPricingQuery.data.slotRates.find((entry) => entry.id === slotDialog.id)
+    : null;
 
   useEffect(() => {
     const pricingTarget = searchParams.get('outlet');
@@ -431,27 +493,45 @@ export function AdminPricingPage() {
         const outletOptions = [...dashboard.outlets].sort((left, right) => Number(left.hasPricing) - Number(right.hasPricing) || left.name.localeCompare(right.name));
         const selectedPricing = outletPricingQuery.data;
 
-        const openPackageDialog = (mode: 'create' | 'edit', id?: string) => {
-          if (mode === 'edit' && id && selectedPricing) {
+        const hydratePackageForm = (item: AdminOutletPricingPackage) => {
+          setPackageForm({
+            packageName: item.packageName,
+            packageType: item.packageType ?? '',
+            exposureCount: item.exposureCount,
+            monthlyExposureCount: item.monthlyExposureCount,
+            valueZar: item.valueZar,
+            discountZar: item.discountZar,
+            savingZar: item.savingZar,
+            investmentZar: item.investmentZar,
+            costPerMonthZar: item.costPerMonthZar,
+            durationMonths: item.durationMonths,
+            durationWeeks: item.durationWeeks,
+            notes: item.notes ?? '',
+            sourceName: item.sourceName ?? '',
+            sourceDate: item.sourceDate ?? '',
+            isActive: item.isActive,
+          });
+        };
+
+        const hydrateSlotForm = (item: AdminOutletSlotRate) => {
+          setSlotForm({
+            dayGroup: item.dayGroup,
+            startTime: item.startTime,
+            endTime: item.endTime,
+            adDurationSeconds: item.adDurationSeconds,
+            rateZar: item.rateZar,
+            rateType: item.rateType,
+            sourceName: item.sourceName ?? '',
+            sourceDate: item.sourceDate ?? '',
+            isActive: item.isActive,
+          });
+        };
+
+        const openPackageDialog = (mode: 'create' | 'view' | 'edit', id?: string) => {
+          if ((mode === 'edit' || mode === 'view') && id && selectedPricing) {
             const item = selectedPricing.packages.find((entry) => entry.id === id);
             if (item) {
-              setPackageForm({
-                packageName: item.packageName,
-                packageType: item.packageType ?? '',
-                exposureCount: item.exposureCount,
-                monthlyExposureCount: item.monthlyExposureCount,
-                valueZar: item.valueZar,
-                discountZar: item.discountZar,
-                savingZar: item.savingZar,
-                investmentZar: item.investmentZar,
-                costPerMonthZar: item.costPerMonthZar,
-                durationMonths: item.durationMonths,
-                durationWeeks: item.durationWeeks,
-                notes: item.notes ?? '',
-                sourceName: item.sourceName ?? '',
-                sourceDate: item.sourceDate ?? '',
-                isActive: item.isActive,
-              });
+              hydratePackageForm(item);
             }
           } else {
             setPackageForm({
@@ -475,21 +555,11 @@ export function AdminPricingPage() {
           setPackageDialog({ mode, id });
         };
 
-        const openSlotDialog = (mode: 'create' | 'edit', id?: string) => {
-          if (mode === 'edit' && id && selectedPricing) {
+        const openSlotDialog = (mode: 'create' | 'view' | 'edit', id?: string) => {
+          if ((mode === 'edit' || mode === 'view') && id && selectedPricing) {
             const item = selectedPricing.slotRates.find((entry) => entry.id === id);
             if (item) {
-              setSlotForm({
-                dayGroup: item.dayGroup,
-                startTime: item.startTime,
-                endTime: item.endTime,
-                adDurationSeconds: item.adDurationSeconds,
-                rateZar: item.rateZar,
-                rateType: item.rateType,
-                sourceName: item.sourceName ?? '',
-                sourceDate: item.sourceDate ?? '',
-                isActive: item.isActive,
-              });
+              hydrateSlotForm(item);
             }
           } else {
             setSlotForm({
@@ -527,7 +597,7 @@ export function AdminPricingPage() {
                   >
                     {outletOptions.map((outlet) => (
                       <option key={outlet.code} value={outlet.code}>
-                        {outlet.name} {outlet.hasPricing ? '' : '• missing pricing'}
+                        {outlet.name} {outlet.hasPricing ? '' : '- missing pricing'}
                       </option>
                     ))}
                   </select>
@@ -537,7 +607,7 @@ export function AdminPricingPage() {
               {selectedPricing ? (
                 <>
                   <div className="grid gap-4 md:grid-cols-3">
-                    <div className="panel p-6"><p className="text-xs font-semibold uppercase tracking-[0.24em] text-ink-soft">Outlet</p><p className="mt-3 text-2xl font-semibold text-ink">{selectedPricing.outletName}</p><p className="mt-2 text-sm text-ink-soft">{titleize(selectedPricing.mediaType)} • {titleize(selectedPricing.coverageType)}</p></div>
+                    <div className="panel p-6"><p className="text-xs font-semibold uppercase tracking-[0.24em] text-ink-soft">Outlet</p><p className="mt-3 text-2xl font-semibold text-ink">{selectedPricing.outletName}</p><p className="mt-2 text-sm text-ink-soft">{titleize(selectedPricing.mediaType)} / {titleize(selectedPricing.coverageType)}</p></div>
                     <div className="panel p-6"><p className="text-xs font-semibold uppercase tracking-[0.24em] text-ink-soft">Packages</p><p className="mt-3 text-2xl font-semibold text-ink">{selectedPricing.packages.length}</p></div>
                     <div className="panel p-6"><p className="text-xs font-semibold uppercase tracking-[0.24em] text-ink-soft">Slot rates</p><p className="mt-3 text-2xl font-semibold text-ink">{selectedPricing.slotRates.length}</p></div>
                   </div>
@@ -554,7 +624,7 @@ export function AdminPricingPage() {
                       <table className="w-full border-collapse text-sm">
                         <thead className="bg-brand-soft text-left text-xs uppercase tracking-[0.18em] text-ink-soft"><tr><th className="px-4 py-4">Package</th><th className="px-4 py-4">Investment</th><th className="px-4 py-4">Monthly</th><th className="px-4 py-4">Duration</th><th className="px-4 py-4">Status</th><th className="px-4 py-4 text-right">Actions</th></tr></thead>
                         <tbody>
-                          {selectedPricing.packages.map((item) => <tr key={item.id} className="border-t border-line"><td className="px-4 py-4"><p className="font-semibold text-ink">{item.packageName}</p><p className="text-xs text-ink-soft">{item.packageType ?? 'General package'}</p></td><td className="px-4 py-4 text-ink-soft">{fmtCurrency(item.investmentZar ?? item.valueZar)}</td><td className="px-4 py-4 text-ink-soft">{fmtCurrency(item.costPerMonthZar)}</td><td className="px-4 py-4 text-ink-soft">{item.durationMonths ? `${item.durationMonths} month(s)` : item.durationWeeks ? `${item.durationWeeks} week(s)` : 'Not set'}</td><td className="px-4 py-4 text-ink-soft">{item.isActive ? 'Active' : 'Inactive'}</td><td className="px-4 py-4"><div className="flex justify-end gap-2"><button type="button" className="button-secondary p-2" onClick={() => openPackageDialog('edit', item.id)}><Pencil className="size-4" /></button><button type="button" className="rounded-full border border-rose-200 bg-white p-2 text-rose-600 transition hover:bg-rose-50" onClick={() => { if (window.confirm(`Delete package ${item.packageName}?`)) { deletePackageMutation.mutate(item.id); } }}><Trash2 className="size-4" /></button></div></td></tr>)}
+                          {selectedPricing.packages.length > 0 ? selectedPricing.packages.map((item) => <tr key={item.id} className="border-t border-line"><td className="px-4 py-4"><p className="font-semibold text-ink">{item.packageName}</p><p className="text-xs text-ink-soft">{item.packageType ?? 'General package'}</p></td><td className="px-4 py-4 text-ink-soft">{fmtCurrency(item.investmentZar ?? item.valueZar)}</td><td className="px-4 py-4 text-ink-soft">{fmtCurrency(item.costPerMonthZar)}</td><td className="px-4 py-4 text-ink-soft">{item.durationMonths ? `${item.durationMonths} month(s)` : item.durationWeeks ? `${item.durationWeeks} week(s)` : 'Not set'}</td><td className="px-4 py-4 text-ink-soft">{item.isActive ? 'Active' : 'Inactive'}</td><td className="px-4 py-4"><div className="flex justify-end gap-2"><ActionButton label={`View package ${item.packageName}`} icon={Eye} onClick={() => openPackageDialog('view', item.id)} /><ActionButton label={`Edit package ${item.packageName}`} icon={Pencil} onClick={() => openPackageDialog('edit', item.id)} /><ActionButton label={`Delete package ${item.packageName}`} icon={Trash2} variant="danger" disabled={deletePackageMutation.isPending} onClick={() => { if (window.confirm(`Delete package ${item.packageName}?`)) { deletePackageMutation.mutate(item.id); } }} /></div></td></tr>) : <tr><td colSpan={6} className="px-4 py-8"><EmptyTableState message="No package rows exist for this outlet yet." action={<button type="button" className="button-primary inline-flex items-center gap-2 px-4 py-3" onClick={() => openPackageDialog('create')}><PlusCircle className="size-4" />Add package</button>} /></td></tr>}
                         </tbody>
                       </table>
                     </div>
@@ -572,14 +642,15 @@ export function AdminPricingPage() {
                       <table className="w-full border-collapse text-sm">
                         <thead className="bg-brand-soft text-left text-xs uppercase tracking-[0.18em] text-ink-soft"><tr><th className="px-4 py-4">Day group</th><th className="px-4 py-4">Time band</th><th className="px-4 py-4">Duration</th><th className="px-4 py-4">Rate</th><th className="px-4 py-4">Type</th><th className="px-4 py-4 text-right">Actions</th></tr></thead>
                         <tbody>
-                          {selectedPricing.slotRates.map((item) => <tr key={item.id} className="border-t border-line"><td className="px-4 py-4 font-semibold text-ink">{titleize(item.dayGroup)}</td><td className="px-4 py-4 text-ink-soft">{item.startTime} - {item.endTime}</td><td className="px-4 py-4 text-ink-soft">{item.adDurationSeconds}s</td><td className="px-4 py-4 text-ink-soft">{fmtCurrency(item.rateZar)}</td><td className="px-4 py-4 text-ink-soft">{titleize(item.rateType)}</td><td className="px-4 py-4"><div className="flex justify-end gap-2"><button type="button" className="button-secondary p-2" onClick={() => openSlotDialog('edit', item.id)}><Pencil className="size-4" /></button><button type="button" className="rounded-full border border-rose-200 bg-white p-2 text-rose-600 transition hover:bg-rose-50" onClick={() => { if (window.confirm(`Delete the ${item.dayGroup} ${item.startTime}-${item.endTime} slot rate?`)) { deleteSlotMutation.mutate(item.id); } }}><Trash2 className="size-4" /></button></div></td></tr>)}
+                          {selectedPricing.slotRates.length > 0 ? selectedPricing.slotRates.map((item) => <tr key={item.id} className="border-t border-line"><td className="px-4 py-4 font-semibold text-ink">{titleize(item.dayGroup)}</td><td className="px-4 py-4 text-ink-soft">{item.startTime} - {item.endTime}</td><td className="px-4 py-4 text-ink-soft">{item.adDurationSeconds}s</td><td className="px-4 py-4 text-ink-soft">{fmtCurrency(item.rateZar)}</td><td className="px-4 py-4 text-ink-soft">{titleize(item.rateType)}</td><td className="px-4 py-4"><div className="flex justify-end gap-2"><ActionButton label={`View slot rate ${item.dayGroup} ${item.startTime}-${item.endTime}`} icon={Eye} onClick={() => openSlotDialog('view', item.id)} /><ActionButton label={`Edit slot rate ${item.dayGroup} ${item.startTime}-${item.endTime}`} icon={Pencil} onClick={() => openSlotDialog('edit', item.id)} /><ActionButton label={`Delete slot rate ${item.dayGroup} ${item.startTime}-${item.endTime}`} icon={Trash2} variant="danger" disabled={deleteSlotMutation.isPending} onClick={() => { if (window.confirm(`Delete the ${item.dayGroup} ${item.startTime}-${item.endTime} slot rate?`)) { deleteSlotMutation.mutate(item.id); } }} /></div></td></tr>) : <tr><td colSpan={6} className="px-4 py-8"><EmptyTableState message="No slot-rate rows exist for this outlet yet." action={<button type="button" className="button-primary inline-flex items-center gap-2 px-4 py-3" onClick={() => openSlotDialog('create')}><PlusCircle className="size-4" />Add slot rate</button>} /></td></tr>}
                         </tbody>
                       </table>
                     </div>
                   </div>
                 </>
-              ) : outletPricingQuery.isLoading ? <div className="panel p-6 text-sm text-ink-soft">Loading outlet pricing...</div> : null}
+              ) : outletPricingQuery.isLoading ? <div className="panel p-6 text-sm text-ink-soft">Loading outlet pricing...</div> : <EmptyTableState message="Select an outlet to load package and slot-rate rows." />}
 
+              <ReadOnlyNotice label="Package band settings below are read-only on this page. They come from the live package catalog and planning rules rather than the outlet-pricing CRUD endpoints." />
               <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {dashboard.packageSettings.map((band) => <div key={band.id} className="panel p-6"><p className="text-xs font-semibold uppercase tracking-[0.24em] text-ink-soft">{band.name}</p><p className="mt-3 text-2xl font-semibold text-ink">{fmtCurrency(band.minBudget)} - {fmtCurrency(band.maxBudget)}</p><p className="mt-3 text-sm text-ink-soft">{band.quickBenefit}</p><div className="mt-4 space-y-2 text-sm text-ink-soft"><div><span className="font-semibold text-ink">Purpose:</span> {band.packagePurpose}</div><div><span className="font-semibold text-ink">Recommended spend:</span> {fmtCurrency(band.recommendedSpend)}</div><div><span className="font-semibold text-ink">Radio:</span> {titleize(band.includeRadio)}</div><div><span className="font-semibold text-ink">TV:</span> {titleize(band.includeTv)}</div><div><span className="font-semibold text-ink">Lead time:</span> {band.leadTime}</div></div></div>)}
               </section>
@@ -587,23 +658,24 @@ export function AdminPricingPage() {
               {packageDialog ? (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 p-4">
                   <div className="w-full max-w-4xl rounded-[28px] border border-line bg-white p-6 shadow-[0_24px_80px_rgba(15,23,42,0.18)]">
-                    <div className="flex items-center justify-between gap-4"><h3 className="text-xl font-semibold text-ink">{packageDialog.mode === 'create' ? 'Add pricing package' : 'Edit pricing package'}</h3><button type="button" className="button-secondary p-3" onClick={() => setPackageDialog(null)}><X className="size-4" /></button></div>
+                    <div className="flex items-center justify-between gap-4"><h3 className="text-xl font-semibold text-ink">{packageDialog.mode === 'create' ? 'Add pricing package' : packageDialog.mode === 'view' ? 'View pricing package' : 'Edit pricing package'}</h3><button type="button" className="button-secondary p-3" onClick={() => setPackageDialog(null)}><X className="size-4" /></button></div>
+                    {packageDialog.mode === 'view' && selectedPackage ? <ReadOnlyNotice label={`Viewing ${selectedPackage.packageName}. Use the edit icon or the button below to switch this record into edit mode.`} /> : null}
                     <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                      <input className="input-base" placeholder="Package name" value={packageForm.packageName} onChange={(event) => setPackageForm((current) => ({ ...current, packageName: event.target.value }))} />
-                      <input className="input-base" placeholder="Package type" value={packageForm.packageType ?? ''} onChange={(event) => setPackageForm((current) => ({ ...current, packageType: event.target.value }))} />
-                      <input className="input-base" placeholder="Source name" value={packageForm.sourceName ?? ''} onChange={(event) => setPackageForm((current) => ({ ...current, sourceName: event.target.value }))} />
-                      <input className="input-base" type="number" placeholder="Investment ZAR" value={packageForm.investmentZar ?? ''} onChange={(event) => setPackageForm((current) => ({ ...current, investmentZar: parseNumber(event.target.value) }))} />
-                      <input className="input-base" type="number" placeholder="Cost per month ZAR" value={packageForm.costPerMonthZar ?? ''} onChange={(event) => setPackageForm((current) => ({ ...current, costPerMonthZar: parseNumber(event.target.value) }))} />
-                      <input className="input-base" type="number" placeholder="Value ZAR" value={packageForm.valueZar ?? ''} onChange={(event) => setPackageForm((current) => ({ ...current, valueZar: parseNumber(event.target.value) }))} />
-                      <input className="input-base" type="number" placeholder="Exposure count" value={packageForm.exposureCount ?? ''} onChange={(event) => setPackageForm((current) => ({ ...current, exposureCount: parseNumber(event.target.value) }))} />
-                      <input className="input-base" type="number" placeholder="Monthly exposure count" value={packageForm.monthlyExposureCount ?? ''} onChange={(event) => setPackageForm((current) => ({ ...current, monthlyExposureCount: parseNumber(event.target.value) }))} />
-                      <input className="input-base" type="date" value={packageForm.sourceDate ?? ''} onChange={(event) => setPackageForm((current) => ({ ...current, sourceDate: event.target.value }))} />
-                      <input className="input-base" type="number" placeholder="Duration months" value={packageForm.durationMonths ?? ''} onChange={(event) => setPackageForm((current) => ({ ...current, durationMonths: parseNumber(event.target.value) }))} />
-                      <input className="input-base" type="number" placeholder="Duration weeks" value={packageForm.durationWeeks ?? ''} onChange={(event) => setPackageForm((current) => ({ ...current, durationWeeks: parseNumber(event.target.value) }))} />
-                      <label className="inline-flex items-center gap-2 rounded-full border border-line px-4 py-3 text-sm text-ink-soft"><input type="checkbox" checked={packageForm.isActive} onChange={(event) => setPackageForm((current) => ({ ...current, isActive: event.target.checked }))} /> Active</label>
+                      <input disabled={packageDialog.mode === 'view'} className="input-base disabled:bg-slate-50" placeholder="Package name" value={packageForm.packageName} onChange={(event) => setPackageForm((current) => ({ ...current, packageName: event.target.value }))} />
+                      <input disabled={packageDialog.mode === 'view'} className="input-base disabled:bg-slate-50" placeholder="Package type" value={packageForm.packageType ?? ''} onChange={(event) => setPackageForm((current) => ({ ...current, packageType: event.target.value }))} />
+                      <input disabled={packageDialog.mode === 'view'} className="input-base disabled:bg-slate-50" placeholder="Source name" value={packageForm.sourceName ?? ''} onChange={(event) => setPackageForm((current) => ({ ...current, sourceName: event.target.value }))} />
+                      <input disabled={packageDialog.mode === 'view'} className="input-base disabled:bg-slate-50" type="number" placeholder="Investment ZAR" value={packageForm.investmentZar ?? ''} onChange={(event) => setPackageForm((current) => ({ ...current, investmentZar: parseNumber(event.target.value) }))} />
+                      <input disabled={packageDialog.mode === 'view'} className="input-base disabled:bg-slate-50" type="number" placeholder="Cost per month ZAR" value={packageForm.costPerMonthZar ?? ''} onChange={(event) => setPackageForm((current) => ({ ...current, costPerMonthZar: parseNumber(event.target.value) }))} />
+                      <input disabled={packageDialog.mode === 'view'} className="input-base disabled:bg-slate-50" type="number" placeholder="Value ZAR" value={packageForm.valueZar ?? ''} onChange={(event) => setPackageForm((current) => ({ ...current, valueZar: parseNumber(event.target.value) }))} />
+                      <input disabled={packageDialog.mode === 'view'} className="input-base disabled:bg-slate-50" type="number" placeholder="Exposure count" value={packageForm.exposureCount ?? ''} onChange={(event) => setPackageForm((current) => ({ ...current, exposureCount: parseNumber(event.target.value) }))} />
+                      <input disabled={packageDialog.mode === 'view'} className="input-base disabled:bg-slate-50" type="number" placeholder="Monthly exposure count" value={packageForm.monthlyExposureCount ?? ''} onChange={(event) => setPackageForm((current) => ({ ...current, monthlyExposureCount: parseNumber(event.target.value) }))} />
+                      <input disabled={packageDialog.mode === 'view'} className="input-base disabled:bg-slate-50" type="date" value={packageForm.sourceDate ?? ''} onChange={(event) => setPackageForm((current) => ({ ...current, sourceDate: event.target.value }))} />
+                      <input disabled={packageDialog.mode === 'view'} className="input-base disabled:bg-slate-50" type="number" placeholder="Duration months" value={packageForm.durationMonths ?? ''} onChange={(event) => setPackageForm((current) => ({ ...current, durationMonths: parseNumber(event.target.value) }))} />
+                      <input disabled={packageDialog.mode === 'view'} className="input-base disabled:bg-slate-50" type="number" placeholder="Duration weeks" value={packageForm.durationWeeks ?? ''} onChange={(event) => setPackageForm((current) => ({ ...current, durationWeeks: parseNumber(event.target.value) }))} />
+                      <label className="inline-flex items-center gap-2 rounded-full border border-line px-4 py-3 text-sm text-ink-soft"><input disabled={packageDialog.mode === 'view'} type="checkbox" checked={packageForm.isActive} onChange={(event) => setPackageForm((current) => ({ ...current, isActive: event.target.checked }))} /> Active</label>
                     </div>
-                    <textarea className="input-base mt-4 min-h-[110px]" placeholder="Notes" value={packageForm.notes ?? ''} onChange={(event) => setPackageForm((current) => ({ ...current, notes: event.target.value }))} />
-                    <div className="mt-6 flex justify-end gap-3"><button type="button" className="button-secondary px-5 py-3" onClick={() => setPackageDialog(null)}>Close</button>{packageDialog.mode === 'create' ? <button type="button" className="button-primary px-5 py-3" onClick={() => createPackageMutation.mutate()}>Save package</button> : <button type="button" className="button-primary px-5 py-3" onClick={() => updatePackageMutation.mutate()}>Update package</button>}</div>
+                    <textarea disabled={packageDialog.mode === 'view'} className="input-base mt-4 min-h-[110px] disabled:bg-slate-50" placeholder="Notes" value={packageForm.notes ?? ''} onChange={(event) => setPackageForm((current) => ({ ...current, notes: event.target.value }))} />
+                    <div className="mt-6 flex justify-end gap-3"><button type="button" className="button-secondary px-5 py-3" onClick={() => setPackageDialog(null)}>Close</button>{packageDialog.mode === 'view' && selectedPackage ? <button type="button" className="button-secondary px-5 py-3" onClick={() => openPackageDialog('edit', selectedPackage.id)}>Edit package</button> : null}{packageDialog.mode === 'create' ? <button type="button" className="button-primary px-5 py-3" onClick={() => createPackageMutation.mutate()}>Save package</button> : packageDialog.mode === 'edit' ? <button type="button" className="button-primary px-5 py-3" onClick={() => updatePackageMutation.mutate()}>Update package</button> : null}</div>
                   </div>
                 </div>
               ) : null}
@@ -611,19 +683,20 @@ export function AdminPricingPage() {
               {slotDialog ? (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 p-4">
                   <div className="w-full max-w-3xl rounded-[28px] border border-line bg-white p-6 shadow-[0_24px_80px_rgba(15,23,42,0.18)]">
-                    <div className="flex items-center justify-between gap-4"><h3 className="text-xl font-semibold text-ink">{slotDialog.mode === 'create' ? 'Add slot rate' : 'Edit slot rate'}</h3><button type="button" className="button-secondary p-3" onClick={() => setSlotDialog(null)}><X className="size-4" /></button></div>
+                    <div className="flex items-center justify-between gap-4"><h3 className="text-xl font-semibold text-ink">{slotDialog.mode === 'create' ? 'Add slot rate' : slotDialog.mode === 'view' ? 'View slot rate' : 'Edit slot rate'}</h3><button type="button" className="button-secondary p-3" onClick={() => setSlotDialog(null)}><X className="size-4" /></button></div>
+                    {slotDialog.mode === 'view' && selectedSlotRate ? <ReadOnlyNotice label={`Viewing ${titleize(selectedSlotRate.dayGroup)} ${selectedSlotRate.startTime}-${selectedSlotRate.endTime}. Use edit when you want to change this live row.`} /> : null}
                     <div className="mt-6 grid gap-4 md:grid-cols-2">
-                      <input className="input-base" placeholder="Day group" value={slotForm.dayGroup} onChange={(event) => setSlotForm((current) => ({ ...current, dayGroup: event.target.value }))} />
-                      <input className="input-base" placeholder="Rate type" value={slotForm.rateType} onChange={(event) => setSlotForm((current) => ({ ...current, rateType: event.target.value }))} />
-                      <input className="input-base" type="time" value={slotForm.startTime} onChange={(event) => setSlotForm((current) => ({ ...current, startTime: event.target.value }))} />
-                      <input className="input-base" type="time" value={slotForm.endTime} onChange={(event) => setSlotForm((current) => ({ ...current, endTime: event.target.value }))} />
-                      <input className="input-base" type="number" placeholder="Ad duration seconds" value={slotForm.adDurationSeconds} onChange={(event) => setSlotForm((current) => ({ ...current, adDurationSeconds: Number(event.target.value) }))} />
-                      <input className="input-base" type="number" placeholder="Rate ZAR" value={slotForm.rateZar} onChange={(event) => setSlotForm((current) => ({ ...current, rateZar: Number(event.target.value) }))} />
-                      <input className="input-base" placeholder="Source name" value={slotForm.sourceName ?? ''} onChange={(event) => setSlotForm((current) => ({ ...current, sourceName: event.target.value }))} />
-                      <input className="input-base" type="date" value={slotForm.sourceDate ?? ''} onChange={(event) => setSlotForm((current) => ({ ...current, sourceDate: event.target.value }))} />
-                      <label className="inline-flex items-center gap-2 rounded-full border border-line px-4 py-3 text-sm text-ink-soft"><input type="checkbox" checked={slotForm.isActive} onChange={(event) => setSlotForm((current) => ({ ...current, isActive: event.target.checked }))} /> Active</label>
+                      <input disabled={slotDialog.mode === 'view'} className="input-base disabled:bg-slate-50" placeholder="Day group" value={slotForm.dayGroup} onChange={(event) => setSlotForm((current) => ({ ...current, dayGroup: event.target.value }))} />
+                      <input disabled={slotDialog.mode === 'view'} className="input-base disabled:bg-slate-50" placeholder="Rate type" value={slotForm.rateType} onChange={(event) => setSlotForm((current) => ({ ...current, rateType: event.target.value }))} />
+                      <input disabled={slotDialog.mode === 'view'} className="input-base disabled:bg-slate-50" type="time" value={slotForm.startTime} onChange={(event) => setSlotForm((current) => ({ ...current, startTime: event.target.value }))} />
+                      <input disabled={slotDialog.mode === 'view'} className="input-base disabled:bg-slate-50" type="time" value={slotForm.endTime} onChange={(event) => setSlotForm((current) => ({ ...current, endTime: event.target.value }))} />
+                      <input disabled={slotDialog.mode === 'view'} className="input-base disabled:bg-slate-50" type="number" placeholder="Ad duration seconds" value={slotForm.adDurationSeconds} onChange={(event) => setSlotForm((current) => ({ ...current, adDurationSeconds: Number(event.target.value) }))} />
+                      <input disabled={slotDialog.mode === 'view'} className="input-base disabled:bg-slate-50" type="number" placeholder="Rate ZAR" value={slotForm.rateZar} onChange={(event) => setSlotForm((current) => ({ ...current, rateZar: Number(event.target.value) }))} />
+                      <input disabled={slotDialog.mode === 'view'} className="input-base disabled:bg-slate-50" placeholder="Source name" value={slotForm.sourceName ?? ''} onChange={(event) => setSlotForm((current) => ({ ...current, sourceName: event.target.value }))} />
+                      <input disabled={slotDialog.mode === 'view'} className="input-base disabled:bg-slate-50" type="date" value={slotForm.sourceDate ?? ''} onChange={(event) => setSlotForm((current) => ({ ...current, sourceDate: event.target.value }))} />
+                      <label className="inline-flex items-center gap-2 rounded-full border border-line px-4 py-3 text-sm text-ink-soft"><input disabled={slotDialog.mode === 'view'} type="checkbox" checked={slotForm.isActive} onChange={(event) => setSlotForm((current) => ({ ...current, isActive: event.target.checked }))} /> Active</label>
                     </div>
-                    <div className="mt-6 flex justify-end gap-3"><button type="button" className="button-secondary px-5 py-3" onClick={() => setSlotDialog(null)}>Close</button>{slotDialog.mode === 'create' ? <button type="button" className="button-primary px-5 py-3" onClick={() => createSlotMutation.mutate()}>Save slot rate</button> : <button type="button" className="button-primary px-5 py-3" onClick={() => updateSlotMutation.mutate()}>Update slot rate</button>}</div>
+                    <div className="mt-6 flex justify-end gap-3"><button type="button" className="button-secondary px-5 py-3" onClick={() => setSlotDialog(null)}>Close</button>{slotDialog.mode === 'view' && selectedSlotRate ? <button type="button" className="button-secondary px-5 py-3" onClick={() => openSlotDialog('edit', selectedSlotRate.id)}>Edit slot rate</button> : null}{slotDialog.mode === 'create' ? <button type="button" className="button-primary px-5 py-3" onClick={() => createSlotMutation.mutate()}>Save slot rate</button> : slotDialog.mode === 'edit' ? <button type="button" className="button-primary px-5 py-3" onClick={() => updateSlotMutation.mutate()}>Update slot rate</button> : null}</div>
                   </div>
                 </div>
               ) : null}
@@ -756,7 +829,8 @@ export function AdminHealthPage() {
                           <td className="px-4 py-4 text-ink-soft">{item.suggestedFix}</td>
                           <td className="px-4 py-4">
                             <div className="flex justify-end">
-                              <Link to={href} className="button-secondary px-4 py-2 text-sm font-semibold">
+                              <Link to={href} className="button-secondary inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold">
+                                <Pencil className="size-4" />
                                 Apply fix
                               </Link>
                             </div>
@@ -782,6 +856,7 @@ export function AdminGeographyPage() {
     <AdminQueryBoundary query={query}>
       {(dashboard) => (
         <AdminPageShell title="Geography mapping" description="Review the live package area profiles and how many cluster mappings are backing each area.">
+          <ReadOnlyNotice label="Geography mapping is read-only here. This page reflects the live package-area profile data currently backing planning and package coverage." />
           <div className="overflow-hidden rounded-[28px] border border-line">
             <table className="w-full border-collapse text-sm">
               <thead className="bg-brand-soft text-left text-xs uppercase tracking-[0.18em] text-ink-soft"><tr><th className="px-4 py-4">Area</th><th className="px-4 py-4">Code</th><th className="px-4 py-4">Description</th><th className="px-4 py-4">Mapped records</th></tr></thead>
@@ -803,6 +878,7 @@ export function AdminEnginePage() {
     <AdminQueryBoundary query={query}>
       {(dashboard) => (
         <AdminPageShell title="Engine settings" description="Inspect the live planning policy configuration that governs candidate thresholds, national requirements, and scoring pressure.">
+          <ReadOnlyNotice label="Engine policy values are read-only on this screen. They are derived from the live planning configuration and are shown here for operational review." />
           <div className="grid gap-4 xl:grid-cols-2">
             {dashboard.enginePolicies.map((policy) => <div key={policy.packageCode} className="panel p-6"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.24em] text-ink-soft">{policy.packageCode}</p><p className="mt-3 text-2xl font-semibold text-ink">{fmtCurrency(policy.budgetFloor)}</p></div><span className="pill">{policy.requirePremiumNationalRadio ? 'Premium national radio required' : 'Flexible radio qualification'}</span></div><div className="mt-5 grid gap-2 text-sm text-ink-soft sm:grid-cols-2"><div><span className="font-semibold text-ink">Min national radio:</span> {policy.minimumNationalRadioCandidates}</div><div><span className="font-semibold text-ink">National capable:</span> {policy.requireNationalCapableRadio ? 'Yes' : 'No'}</div><div><span className="font-semibold text-ink">National bonus:</span> {policy.nationalRadioBonus}</div><div><span className="font-semibold text-ink">Non-national penalty:</span> {policy.nonNationalRadioPenalty}</div><div><span className="font-semibold text-ink">Regional penalty:</span> {policy.regionalRadioPenalty}</div></div></div>)}
           </div>
@@ -816,7 +892,7 @@ export function AdminPreviewRulesPage() {
   const query = useAdminDashboardQuery();
   const queryClient = useQueryClient();
   const { pushToast } = useToast();
-  const [selectedPreviewRuleKey, setSelectedPreviewRuleKey] = useState('');
+  const [previewRuleDialog, setPreviewRuleDialog] = useState<{ mode: 'view' | 'edit'; key: string } | null>(null);
   const [previewRuleForm, setPreviewRuleForm] = useState({
     tierLabel: '',
     typicalInclusions: '',
@@ -825,11 +901,11 @@ export function AdminPreviewRulesPage() {
 
   const updatePreviewRuleMutation = useMutation({
     mutationFn: () => {
-      if (!selectedPreviewRuleKey) {
+      if (!previewRuleDialog?.key) {
         throw new Error('Choose a preview rule to edit first.');
       }
 
-      const [packageCode, tierCode] = selectedPreviewRuleKey.split('|');
+      const [packageCode, tierCode] = previewRuleDialog.key.split('|');
       return advertifiedApi.updateAdminPreviewRule(packageCode, tierCode, {
         tierLabel: previewRuleForm.tierLabel,
         typicalInclusions: splitList(previewRuleForm.typicalInclusions),
@@ -838,6 +914,7 @@ export function AdminPreviewRulesPage() {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] });
+      setPreviewRuleDialog(null);
       pushToast({ title: 'Preview rule updated.', description: 'The live preview tier rule has been saved.' });
     },
     onError: (error) => pushToast({ title: 'Could not update preview rule.', description: error instanceof Error ? error.message : 'Please try again.' }, 'error'),
@@ -846,7 +923,17 @@ export function AdminPreviewRulesPage() {
   return (
     <AdminQueryBoundary query={query}>
       {(dashboard) => {
-        const topPreviewRules = dashboard.previewRules.slice(0, 8);
+        const selectedPreviewRule = previewRuleDialog
+          ? dashboard.previewRules.find((rule) => `${rule.packageCode}|${rule.tierCode}` === previewRuleDialog.key) ?? null
+          : null;
+        const openPreviewRuleDialog = (mode: 'view' | 'edit', rule: (typeof dashboard.previewRules)[number]) => {
+          setPreviewRuleForm({
+            tierLabel: rule.tierLabel,
+            typicalInclusions: rule.typicalInclusions.join(', '),
+            indicativeMix: rule.indicativeMix.join(', '),
+          });
+          setPreviewRuleDialog({ mode, key: `${rule.packageCode}|${rule.tierCode}` });
+        };
 
         return (
           <AdminPageShell title="Preview rules" description="Edit the real preview tier rules used by the package preview flow and inspect the configured inclusions by tier.">
@@ -854,47 +941,37 @@ export function AdminPreviewRulesPage() {
               <div className="panel p-6">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <h3 className="text-lg font-semibold text-ink">Adjust rules</h3>
-                    <p className="mt-2 text-sm text-ink-soft">Edit the actual preview tier rule stored in the database and used by the live package preview flow.</p>
+                    <h3 className="text-lg font-semibold text-ink">Rule catalog</h3>
+                    <p className="mt-2 text-sm text-ink-soft">Review each preview tier rule, open it in view mode, and switch into edit mode when a live update is needed.</p>
                   </div>
                   <span className="pill"><Save className="mr-2 inline size-4" />Live rule update</span>
                 </div>
-                <div className="mt-5 grid gap-4 md:grid-cols-2">
-                  <select
-                    className="input-base"
-                    value={selectedPreviewRuleKey}
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      setSelectedPreviewRuleKey(value);
-                      const selectedRule = dashboard.previewRules.find((rule) => `${rule.packageCode}|${rule.tierCode}` === value);
-                      setPreviewRuleForm({
-                        tierLabel: selectedRule?.tierLabel ?? '',
-                        typicalInclusions: selectedRule?.typicalInclusions.join(', ') ?? '',
-                        indicativeMix: selectedRule?.indicativeMix.join(', ') ?? '',
-                      });
-                    }}
-                  >
-                    <option value="">Choose rule</option>
-                    {dashboard.previewRules.map((rule) => (
-                      <option key={`${rule.packageCode}|${rule.tierCode}`} value={`${rule.packageCode}|${rule.tierCode}`}>
-                        {rule.packageName} | {rule.tierCode}
-                      </option>
-                    ))}
-                  </select>
-                  <input className="input-base" placeholder="Tier label" value={previewRuleForm.tierLabel} onChange={(event) => setPreviewRuleForm((current) => ({ ...current, tierLabel: event.target.value }))} />
-                  <input className="input-base md:col-span-2" placeholder="Typical inclusions, comma separated" value={previewRuleForm.typicalInclusions} onChange={(event) => setPreviewRuleForm((current) => ({ ...current, typicalInclusions: event.target.value }))} />
-                  <input className="input-base md:col-span-2" placeholder="Indicative mix, comma separated" value={previewRuleForm.indicativeMix} onChange={(event) => setPreviewRuleForm((current) => ({ ...current, indicativeMix: event.target.value }))} />
-                </div>
-                <div className="mt-5 flex justify-end">
-                  <button type="button" className="button-primary inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60" onClick={() => updatePreviewRuleMutation.mutate()} disabled={updatePreviewRuleMutation.isPending}>
-                    <Save className="size-4" />
-                    Save rule
-                  </button>
-                </div>
               </div>
-              <div className="grid gap-4 xl:grid-cols-2">
-                {topPreviewRules.map((rule) => <div key={`${rule.packageCode}-${rule.tierCode}`} className="panel p-6"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.24em] text-ink-soft">{rule.packageName}</p><p className="mt-3 text-lg font-semibold text-ink">{rule.tierLabel}</p></div><span className="pill">{rule.tierCode}</span></div><div className="mt-5 space-y-3 text-sm text-ink-soft"><div><span className="font-semibold text-ink">Typical inclusions:</span> {rule.typicalInclusions.join(', ') || 'None configured'}</div><div><span className="font-semibold text-ink">Indicative mix:</span> {rule.indicativeMix.join(', ') || 'None configured'}</div></div></div>)}
+              <div className="overflow-hidden rounded-[28px] border border-line">
+                <table className="w-full border-collapse text-sm">
+                  <thead className="bg-brand-soft text-left text-xs uppercase tracking-[0.18em] text-ink-soft"><tr><th className="px-4 py-4">Package</th><th className="px-4 py-4">Tier</th><th className="px-4 py-4">Typical inclusions</th><th className="px-4 py-4">Indicative mix</th><th className="px-4 py-4 text-right">Actions</th></tr></thead>
+                  <tbody>
+                    {dashboard.previewRules.map((rule) => <tr key={`${rule.packageCode}-${rule.tierCode}`} className="border-t border-line"><td className="px-4 py-4"><p className="font-semibold text-ink">{rule.packageName}</p><p className="text-xs text-ink-soft">{rule.packageCode}</p></td><td className="px-4 py-4"><p className="font-semibold text-ink">{rule.tierLabel}</p><p className="text-xs text-ink-soft">{rule.tierCode}</p></td><td className="px-4 py-4 text-ink-soft">{rule.typicalInclusions.join(', ') || 'None configured'}</td><td className="px-4 py-4 text-ink-soft">{rule.indicativeMix.join(', ') || 'None configured'}</td><td className="px-4 py-4"><div className="flex justify-end gap-2"><ActionButton label={`View preview rule ${rule.packageName} ${rule.tierCode}`} icon={Eye} onClick={() => openPreviewRuleDialog('view', rule)} /><ActionButton label={`Edit preview rule ${rule.packageName} ${rule.tierCode}`} icon={Pencil} onClick={() => openPreviewRuleDialog('edit', rule)} /></div></td></tr>)}
+                  </tbody>
+                </table>
               </div>
+
+              {previewRuleDialog && selectedPreviewRule ? (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 p-4">
+                  <div className="w-full max-w-4xl rounded-[28px] border border-line bg-white p-6 shadow-[0_24px_80px_rgba(15,23,42,0.18)]">
+                    <div className="flex items-center justify-between gap-4"><h3 className="text-xl font-semibold text-ink">{previewRuleDialog.mode === 'view' ? 'View preview rule' : 'Edit preview rule'}</h3><button type="button" className="button-secondary p-3" onClick={() => setPreviewRuleDialog(null)}><X className="size-4" /></button></div>
+                    <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-ink-soft"><span className="pill">{selectedPreviewRule.packageName}</span><span className="pill">{selectedPreviewRule.tierCode}</span></div>
+                    {previewRuleDialog.mode === 'view' ? <ReadOnlyNotice label="This rule is currently open in view mode. Switch to edit mode to save a live rule change." /> : null}
+                    <div className="mt-6 grid gap-4 md:grid-cols-2">
+                      <input disabled={previewRuleDialog.mode === 'view'} className="input-base disabled:bg-slate-50" placeholder="Tier label" value={previewRuleForm.tierLabel} onChange={(event) => setPreviewRuleForm((current) => ({ ...current, tierLabel: event.target.value }))} />
+                      <div className="rounded-[24px] border border-line bg-slate-50 px-4 py-3 text-sm text-ink-soft">Package code: <span className="font-semibold text-ink">{selectedPreviewRule.packageCode}</span></div>
+                      <input disabled={previewRuleDialog.mode === 'view'} className="input-base md:col-span-2 disabled:bg-slate-50" placeholder="Typical inclusions, comma separated" value={previewRuleForm.typicalInclusions} onChange={(event) => setPreviewRuleForm((current) => ({ ...current, typicalInclusions: event.target.value }))} />
+                      <input disabled={previewRuleDialog.mode === 'view'} className="input-base md:col-span-2 disabled:bg-slate-50" placeholder="Indicative mix, comma separated" value={previewRuleForm.indicativeMix} onChange={(event) => setPreviewRuleForm((current) => ({ ...current, indicativeMix: event.target.value }))} />
+                    </div>
+                    <div className="mt-6 flex justify-end gap-3"><button type="button" className="button-secondary px-5 py-3" onClick={() => setPreviewRuleDialog(null)}>Close</button>{previewRuleDialog.mode === 'view' ? <button type="button" className="button-secondary px-5 py-3" onClick={() => openPreviewRuleDialog('edit', selectedPreviewRule)}>Edit rule</button> : <button type="button" className="button-primary inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60" onClick={() => updatePreviewRuleMutation.mutate()} disabled={updatePreviewRuleMutation.isPending}><Save className="size-4" />Save rule</button>}</div>
+                  </div>
+                </div>
+              ) : null}
             </section>
           </AdminPageShell>
         );
@@ -910,6 +987,7 @@ export function AdminMonitoringPage() {
     <AdminQueryBoundary query={query}>
       {(dashboard) => (
         <AdminPageShell title="Monitoring" description="Track live operational metrics for campaigns, recommendations, areas, and inventory coverage in one place.">
+          <ReadOnlyNotice label="Monitoring is a live operational snapshot. These metrics are observational and are not edited from the admin UI." />
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {[['Total campaigns', dashboard.monitoring.totalCampaigns], ['Planning ready', dashboard.monitoring.planningReadyCount], ['Waiting on client', dashboard.monitoring.waitingOnClientCount], ['Inventory rows', dashboard.monitoring.inventoryRows], ['Active areas', dashboard.monitoring.activeAreaCount], ['Recommendation sets', dashboard.monitoring.recommendationCount]].map(([label, value]) => <div key={String(label)} className="panel p-6"><p className="text-xs font-semibold uppercase tracking-[0.24em] text-ink-soft">{label}</p><p className="mt-4 text-4xl font-semibold text-ink">{value}</p></div>)}
           </div>
@@ -921,21 +999,160 @@ export function AdminMonitoringPage() {
 
 export function AdminUsersPage() {
   const query = useAdminDashboardQuery();
+  const queryClient = useQueryClient();
+  const { pushToast } = useToast();
+  const [userDialog, setUserDialog] = useState<{ mode: 'create' | 'view' | 'edit'; id?: string } | null>(null);
+  const [userForm, setUserForm] = useState<AdminUserFormState>({
+    fullName: '',
+    email: '',
+    phone: '',
+    password: '',
+    role: 'client',
+    accountStatus: 'PendingVerification',
+    isSaCitizen: true,
+    emailVerified: false,
+    phoneVerified: false,
+  });
+
+  const resetUserForm = () => {
+    setUserForm({
+      fullName: '',
+      email: '',
+      phone: '',
+      password: '',
+      role: 'client',
+      accountStatus: 'PendingVerification',
+      isSaCitizen: true,
+      emailVerified: false,
+      phoneVerified: false,
+    });
+  };
+
+  const createUserMutation = useMutation({
+    mutationFn: () => advertifiedApi.createAdminUser(userForm),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] });
+      setUserDialog(null);
+      resetUserForm();
+      pushToast({ title: 'User created.', description: 'The user account is now available in the live admin workspace.' });
+    },
+    onError: (error) => pushToast({ title: 'Could not create user.', description: error instanceof Error ? error.message : 'Please try again.' }, 'error'),
+  });
+
+  const updateUserMutation = useMutation({
+    mutationFn: () => advertifiedApi.updateAdminUser(userDialog?.id ?? '', { ...userForm, password: userForm.password || undefined }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] });
+      setUserDialog(null);
+      resetUserForm();
+      pushToast({ title: 'User updated.', description: 'The account details were saved successfully.' });
+    },
+    onError: (error) => pushToast({ title: 'Could not update user.', description: error instanceof Error ? error.message : 'Please try again.' }, 'error'),
+  });
+
+  const deleteUserMutation = useMutation({
+    mutationFn: (id: string) => advertifiedApi.deleteAdminUser(id),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] });
+      setUserDialog(null);
+      resetUserForm();
+      pushToast({ title: 'User deleted.', description: 'The account was removed from the system.' });
+    },
+    onError: (error) => pushToast({ title: 'Could not delete user.', description: error instanceof Error ? error.message : 'Please try again.' }, 'error'),
+  });
 
   return (
     <AdminQueryBoundary query={query}>
-      {(dashboard) => (
-        <AdminPageShell title="Users and roles" description="See the current live user base across admin, agent, and client roles without leaving the admin workspace.">
-          <div className="overflow-hidden rounded-[28px] border border-line">
-            <table className="w-full border-collapse text-sm">
-              <thead className="bg-brand-soft text-left text-xs uppercase tracking-[0.18em] text-ink-soft"><tr><th className="px-4 py-4">Name</th><th className="px-4 py-4">Email</th><th className="px-4 py-4">Role</th><th className="px-4 py-4">Status</th><th className="px-4 py-4">Joined</th></tr></thead>
-              <tbody>
-                {dashboard.users.map((item) => <tr key={item.id} className="border-t border-line"><td className="px-4 py-4 font-semibold text-ink">{item.fullName}</td><td className="px-4 py-4 text-ink-soft">{item.email}</td><td className="px-4 py-4 text-ink-soft">{titleize(item.role)}</td><td className="px-4 py-4 text-ink-soft">{titleize(item.accountStatus)}</td><td className="px-4 py-4 text-ink-soft">{fmtDate(item.createdAt)}</td></tr>)}
-              </tbody>
-            </table>
-          </div>
-        </AdminPageShell>
-      )}
+      {(dashboard) => {
+        const selectedUser = userDialog?.id ? dashboard.users.find((item) => item.id === userDialog.id) ?? null : null;
+        const isReadOnly = userDialog?.mode === 'view';
+        const openUserDialog = (mode: 'create' | 'view' | 'edit', user?: (typeof dashboard.users)[number]) => {
+          if (mode === 'create' || !user) {
+            resetUserForm();
+            setUserDialog({ mode });
+            return;
+          }
+
+          setUserForm({
+            fullName: user.fullName,
+            email: user.email,
+            phone: user.phone,
+            password: '',
+            role: user.role,
+            accountStatus: user.accountStatus,
+            isSaCitizen: user.isSaCitizen,
+            emailVerified: user.emailVerified,
+            phoneVerified: user.phoneVerified,
+          });
+          setUserDialog({ mode, id: user.id });
+        };
+
+        return (
+          <AdminPageShell title="Users and roles" description="Manage the live user base across admin, agent, and client roles without leaving the admin workspace.">
+            <section className="space-y-6">
+              <div className="panel p-6">
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-ink">Account management</h3>
+                    <p className="mt-2 text-sm text-ink-soft">Create accounts, adjust role and verification state, and safely remove accounts that do not own live work yet.</p>
+                  </div>
+                  <button type="button" className="button-primary inline-flex items-center gap-2 px-5 py-3" onClick={() => openUserDialog('create')}>
+                    <PlusCircle className="size-4" />
+                    Add user
+                  </button>
+                </div>
+              </div>
+
+              <div className="overflow-hidden rounded-[28px] border border-line">
+                <table className="w-full border-collapse text-sm">
+                  <thead className="bg-brand-soft text-left text-xs uppercase tracking-[0.18em] text-ink-soft"><tr><th className="px-4 py-4">Name</th><th className="px-4 py-4">Contact</th><th className="px-4 py-4">Role</th><th className="px-4 py-4">Status</th><th className="px-4 py-4">Verification</th><th className="px-4 py-4">Joined</th><th className="px-4 py-4 text-right">Actions</th></tr></thead>
+                  <tbody>
+                    {dashboard.users.map((item) => <tr key={item.id} className="border-t border-line"><td className="px-4 py-4"><p className="font-semibold text-ink">{item.fullName}</p><p className="text-xs text-ink-soft">{item.isSaCitizen ? 'SA citizen' : 'International user'}</p></td><td className="px-4 py-4 text-ink-soft"><div>{item.email}</div><div className="text-xs">{item.phone}</div></td><td className="px-4 py-4 text-ink-soft">{titleize(item.role)}</td><td className="px-4 py-4 text-ink-soft">{titleize(item.accountStatus)}</td><td className="px-4 py-4 text-ink-soft"><div>Email: {item.emailVerified ? 'Verified' : 'Pending'}</div><div className="text-xs">Phone: {item.phoneVerified ? 'Verified' : 'Pending'}</div></td><td className="px-4 py-4 text-ink-soft">{fmtDate(item.createdAt)}</td><td className="px-4 py-4"><div className="flex justify-end gap-2"><ActionButton label={`View ${item.fullName}`} icon={Eye} onClick={() => openUserDialog('view', item)} /><ActionButton label={`Edit ${item.fullName}`} icon={Pencil} onClick={() => openUserDialog('edit', item)} /><ActionButton label={`Delete ${item.fullName}`} icon={Trash2} variant="danger" disabled={deleteUserMutation.isPending} onClick={() => { if (window.confirm(`Delete ${item.fullName}? Accounts with linked campaigns, recommendations, or orders cannot be deleted.`)) { deleteUserMutation.mutate(item.id); } }} /></div></td></tr>)}
+                  </tbody>
+                </table>
+              </div>
+
+              {userDialog ? (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 p-4">
+                  <div className="w-full max-w-4xl rounded-[28px] border border-line bg-white p-6 shadow-[0_24px_80px_rgba(15,23,42,0.18)]">
+                    <div className="flex items-center justify-between gap-4"><h3 className="text-xl font-semibold text-ink">{userDialog.mode === 'create' ? 'Add user' : userDialog.mode === 'view' ? 'View user' : 'Edit user'}</h3><button type="button" className="button-secondary p-3" onClick={() => { setUserDialog(null); resetUserForm(); }}><X className="size-4" /></button></div>
+                    {isReadOnly ? <ReadOnlyNotice label="This account is open in view mode. Switch to edit mode to change role, status, verification state, or credentials." /> : null}
+                    <div className="mt-6 grid gap-4 md:grid-cols-2">
+                      <input disabled={isReadOnly} className="input-base disabled:bg-slate-50" placeholder="Full name" value={userForm.fullName} onChange={(event) => setUserForm((current: AdminUserFormState) => ({ ...current, fullName: event.target.value }))} />
+                      <input disabled={isReadOnly} className="input-base disabled:bg-slate-50" placeholder="Email" value={userForm.email} onChange={(event) => setUserForm((current: AdminUserFormState) => ({ ...current, email: event.target.value }))} />
+                      <input disabled={isReadOnly} className="input-base disabled:bg-slate-50" placeholder="Phone" value={userForm.phone} onChange={(event) => setUserForm((current: AdminUserFormState) => ({ ...current, phone: event.target.value }))} />
+                      <input disabled={isReadOnly} className="input-base disabled:bg-slate-50" placeholder={userDialog.mode === 'edit' ? 'New password (optional)' : 'Password'} type="password" value={userForm.password ?? ''} onChange={(event) => setUserForm((current: AdminUserFormState) => ({ ...current, password: event.target.value }))} />
+                      <select disabled={isReadOnly} className="input-base disabled:bg-slate-50" value={userForm.role} onChange={(event) => setUserForm((current: AdminUserFormState) => ({ ...current, role: event.target.value as AdminUserFormState['role'] }))}>
+                        <option value="client">Client</option>
+                        <option value="agent">Agent</option>
+                        <option value="admin">Admin</option>
+                      </select>
+                      <select disabled={isReadOnly} className="input-base disabled:bg-slate-50" value={userForm.accountStatus} onChange={(event) => setUserForm((current: AdminUserFormState) => ({ ...current, accountStatus: event.target.value }))}>
+                        <option value="PendingVerification">Pending verification</option>
+                        <option value="Active">Active</option>
+                        <option value="Suspended">Suspended</option>
+                      </select>
+                    </div>
+                    <div className="mt-4 flex flex-wrap items-center gap-5 text-sm text-ink-soft">
+                      <label className="inline-flex items-center gap-2"><input disabled={isReadOnly} type="checkbox" checked={userForm.isSaCitizen} onChange={(event) => setUserForm((current: AdminUserFormState) => ({ ...current, isSaCitizen: event.target.checked }))} /> South African citizen</label>
+                      <label className="inline-flex items-center gap-2"><input disabled={isReadOnly} type="checkbox" checked={userForm.emailVerified} onChange={(event) => setUserForm((current: AdminUserFormState) => ({ ...current, emailVerified: event.target.checked }))} /> Email verified</label>
+                      <label className="inline-flex items-center gap-2"><input disabled={isReadOnly} type="checkbox" checked={userForm.phoneVerified} onChange={(event) => setUserForm((current: AdminUserFormState) => ({ ...current, phoneVerified: event.target.checked }))} /> Phone verified</label>
+                      {selectedUser ? <span>Updated {fmtDate(selectedUser.updatedAt)}</span> : null}
+                    </div>
+                    <div className="mt-6 flex justify-end gap-3">
+                      <button type="button" className="button-secondary px-5 py-3" onClick={() => { setUserDialog(null); resetUserForm(); }}>Close</button>
+                      {userDialog.mode === 'view' && selectedUser ? <button type="button" className="button-secondary px-5 py-3" onClick={() => openUserDialog('edit', selectedUser)}>Edit user</button> : null}
+                      {userDialog.mode === 'edit' && selectedUser ? <button type="button" className="rounded-full border border-rose-200 bg-white px-5 py-3 font-semibold text-rose-600 transition hover:bg-rose-50" disabled={deleteUserMutation.isPending} onClick={() => { if (window.confirm(`Delete ${selectedUser.fullName}? Accounts with linked campaigns, recommendations, or orders cannot be deleted.`)) { deleteUserMutation.mutate(selectedUser.id); } }}>Delete user</button> : null}
+                      {userDialog.mode === 'create' ? <button type="button" className="button-primary px-5 py-3" onClick={() => createUserMutation.mutate()} disabled={createUserMutation.isPending}>Save user</button> : null}
+                      {userDialog.mode === 'edit' ? <button type="button" className="button-primary px-5 py-3" onClick={() => updateUserMutation.mutate()} disabled={updateUserMutation.isPending}>Update user</button> : null}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </section>
+          </AdminPageShell>
+        );
+      }}
     </AdminQueryBoundary>
   );
 }
@@ -947,6 +1164,7 @@ export function AdminAuditPage() {
     <AdminQueryBoundary query={query}>
       {(dashboard) => (
         <AdminPageShell title="Audit log" description="Review recent live payment request and webhook events captured in the audit tables.">
+          <ReadOnlyNotice label="Audit entries are immutable records. This page is intentionally read-only so operational history stays trustworthy." />
           <div className="rounded-[28px] border border-line bg-white p-6">
             <div className="overflow-hidden rounded-[24px] border border-line">
               <table className="w-full border-collapse text-sm">
@@ -973,6 +1191,7 @@ export function AdminIntegrationsPage() {
 
         return (
           <AdminPageShell title="Integrations" description="Track the current health of live integration activity, payment requests, and webhook streams.">
+            <ReadOnlyNotice label="Integration health is read-only here and is derived from live request and webhook activity rather than admin-managed settings." />
             <div className="grid gap-4 xl:grid-cols-3">
               <div className="panel p-6"><div className="flex items-center gap-3 text-brand"><Zap className="size-5" /><p className="text-sm font-semibold uppercase tracking-[0.24em] text-brand">Payment requests</p></div><p className="mt-4 text-3xl font-semibold text-ink">{dashboard.integrations.paymentRequestAuditCount}</p><p className="mt-3 text-sm text-ink-soft">Requests recorded against the payment provider integration.</p><p className="mt-3 text-xs text-ink-soft">Last request {fmtDate(dashboard.integrations.lastPaymentRequestAt)}</p></div>
               <div className="panel p-6"><div className="flex items-center gap-3 text-brand"><MapPin className="size-5" /><p className="text-sm font-semibold uppercase tracking-[0.24em] text-brand">Payment webhooks</p></div><p className="mt-4 text-3xl font-semibold text-ink">{dashboard.integrations.paymentWebhookAuditCount}</p><p className="mt-3 text-sm text-ink-soft">Webhook callbacks received from the payment provider.</p><p className="mt-3 text-xs text-ink-soft">Last webhook {fmtDate(dashboard.integrations.lastPaymentWebhookAt)}</p></div>

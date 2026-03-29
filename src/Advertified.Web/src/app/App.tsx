@@ -18,11 +18,10 @@ import { CampaignDetailPage } from '../pages/client/CampaignDetailPage';
 import { CampaignBriefPage } from '../pages/client/CampaignBriefPage';
 import { CampaignPlanningPage } from '../pages/client/CampaignPlanningPage';
 import { CampaignReviewPage } from '../pages/client/CampaignReviewPage';
-import { AgentDashboardPage } from '../pages/agent/AgentDashboardPage';
-import { AgentCampaignsPage } from '../pages/agent/AgentCampaignsPage';
 import { AgentCampaignDetailPage } from '../pages/agent/AgentCampaignDetailPage';
 import { AgentCreateRecommendationPage } from '../pages/agent/AgentCreateRecommendationPage';
 import { AgentInventoryPage } from '../pages/agent/AgentInventoryPage';
+import { AgentApprovalsPage, AgentBriefsPage, AgentCampaignsPage, AgentCheckoutStatusPage, AgentDashboardPage, AgentLeadsClientsPage, AgentMessagesNotesPage, AgentPackageSelectionPage, AgentPerformancePage, AgentRecommendationBuilderPage, AgentReviewSendPage, AgentTasksPage } from '../pages/agent/AgentSectionPages';
 import { AdminDashboardPage } from '../pages/admin/AdminDashboardPage';
 import { AdminAuditPage, AdminEnginePage, AdminGeographyPage, AdminHealthPage, AdminImportsPage, AdminIntegrationsPage, AdminMonitoringPage, AdminPreviewRulesPage, AdminPricingPage, AdminStationsPage, AdminUsersPage } from '../pages/admin/AdminSectionPages';
 
@@ -64,6 +63,16 @@ export function App() {
           <Route path="/admin/audit" element={<ProtectedRoute requireAdmin><AdminAuditPage /></ProtectedRoute>} />
           <Route path="/admin/integrations" element={<ProtectedRoute requireAdmin><AdminIntegrationsPage /></ProtectedRoute>} />
           <Route path="/agent" element={<ProtectedRoute requireAgent><AgentDashboardPage /></ProtectedRoute>} />
+          <Route path="/agent/leads" element={<ProtectedRoute requireAgent><AgentLeadsClientsPage /></ProtectedRoute>} />
+          <Route path="/agent/packages" element={<ProtectedRoute requireAgent><AgentPackageSelectionPage /></ProtectedRoute>} />
+          <Route path="/agent/checkout" element={<ProtectedRoute requireAgent><AgentCheckoutStatusPage /></ProtectedRoute>} />
+          <Route path="/agent/briefs" element={<ProtectedRoute requireAgent><AgentBriefsPage /></ProtectedRoute>} />
+          <Route path="/agent/recommendation-builder" element={<ProtectedRoute requireAgent><AgentRecommendationBuilderPage /></ProtectedRoute>} />
+          <Route path="/agent/review-send" element={<ProtectedRoute requireAgent><AgentReviewSendPage /></ProtectedRoute>} />
+          <Route path="/agent/approvals" element={<ProtectedRoute requireAgent><AgentApprovalsPage /></ProtectedRoute>} />
+          <Route path="/agent/messages" element={<ProtectedRoute requireAgent><AgentMessagesNotesPage /></ProtectedRoute>} />
+          <Route path="/agent/tasks" element={<ProtectedRoute requireAgent><AgentTasksPage /></ProtectedRoute>} />
+          <Route path="/agent/performance" element={<ProtectedRoute requireAgent><AgentPerformancePage /></ProtectedRoute>} />
           <Route path="/agent/recommendations/new" element={<ProtectedRoute requireAgent><AgentCreateRecommendationPage /></ProtectedRoute>} />
           <Route path="/agent/campaigns" element={<ProtectedRoute requireAgent><AgentCampaignsPage /></ProtectedRoute>} />
           <Route path="/agent/campaigns/:id" element={<ProtectedRoute requireAgent><AgentCampaignDetailPage /></ProtectedRoute>} />

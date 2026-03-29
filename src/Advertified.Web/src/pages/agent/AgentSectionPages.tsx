@@ -1,6 +1,9 @@
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { BriefcaseBusiness, CircleAlert, CircleCheckBig, Clock3, FolderKanban, MessageSquareText, Search, Send, Sparkles, TrendingUp, UsersRound } from 'lucide-react';
+import { BriefcaseBusiness, CircleAlert, CircleCheckBig, Clock3, Download, Eye, FolderKanban, MessageSquareText, Pencil, Search, Send, Sparkles, Trash2, TrendingUp, UserPlus2, UserX2, UsersRound } from 'lucide-react';
+import { useToast } from '../../components/ui/toast';
+import { advertifiedApi } from '../../services/advertifiedApi';
 import {
   AgentPageShell,
   AgentQueryBoundary,
@@ -12,6 +15,32 @@ import {
   useAgentInboxQuery,
   usePackagesQuery,
 } from './agentWorkspace';
+
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:5050';
+
+function ActionIconButton({
+  title,
+  onClick,
+  tone = 'default',
+  children,
+  disabled = false,
+}: {
+  title: string;
+  onClick?: () => void;
+  tone?: 'default' | 'danger';
+  children: ReactNode;
+  disabled?: boolean;
+}) {
+  const className = tone === 'danger'
+    ? 'rounded-full border border-rose-200 bg-white p-2 text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50'
+    : 'button-secondary p-2 disabled:cursor-not-allowed disabled:opacity-50';
+
+  return (
+    <button type="button" className={className} onClick={onClick} title={title} disabled={disabled}>
+      {children}
+    </button>
+  );
+}
 
 function buildClientRows(campaigns: Awaited<ReturnType<typeof useAgentCampaignsQuery>['data']>, search: string) {
   const grouped = new Map<string, {
@@ -25,6 +54,7 @@ function buildClientRows(campaigns: Awaited<ReturnType<typeof useAgentCampaignsQ
     latestActivity: string;
     topRegion: string;
     topPackage: string;
+    latestCampaignId?: string;
   }>();
 
   for (const campaign of campaigns ?? []) {
@@ -39,6 +69,7 @@ function buildClientRows(campaigns: Awaited<ReturnType<typeof useAgentCampaignsQ
       latestActivity: campaign.nextAction,
       topRegion: campaign.brief?.provinces?.[0] ?? campaign.brief?.areas?.[0] ?? 'Not set',
       topPackage: campaign.packageBandName,
+      latestCampaignId: campaign.id,
     };
 
     current.campaignCount += 1;
@@ -49,6 +80,7 @@ function buildClientRows(campaigns: Awaited<ReturnType<typeof useAgentCampaignsQ
       current.latestActivity = campaign.nextAction;
       current.topRegion = campaign.brief?.provinces?.[0] ?? campaign.brief?.areas?.[0] ?? current.topRegion;
       current.topPackage = campaign.packageBandName;
+      current.latestCampaignId = campaign.id;
     }
 
     grouped.set(campaign.userId, current);
@@ -203,7 +235,7 @@ export function AgentLeadsClientsPage() {
                       <th className="px-4 py-4">Portfolio</th>
                       <th className="px-4 py-4">Current focus</th>
                       <th className="px-4 py-4">Latest activity</th>
-                      <th className="px-4 py-4 text-right">Action</th>
+                      <th className="px-4 py-4 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -226,8 +258,13 @@ export function AgentLeadsClientsPage() {
                           <p className="text-xs">{fmtDate(row.latestActivityAt)}</p>
                         </td>
                         <td className="px-4 py-4">
-                          <div className="flex justify-end">
-                            <Link to="/agent/campaigns" className="button-secondary px-4 py-2">Open campaigns</Link>
+                          <div className="flex justify-end gap-2">
+                            <Link to={row.latestCampaignId ? `/agent/campaigns/${row.latestCampaignId}` : '/agent/campaigns'} className="button-secondary p-2" title={`View campaigns for ${row.clientName}`}>
+                              <Eye className="size-4" />
+                            </Link>
+                            <Link to={row.latestCampaignId ? `/agent/recommendations/new?campaignId=${row.latestCampaignId}` : '/agent/recommendation-builder'} className="button-secondary p-2" title={`Build recommendation for ${row.clientName}`}>
+                              <Pencil className="size-4" />
+                            </Link>
                           </div>
                         </td>
                       </tr>
@@ -299,6 +336,14 @@ export function AgentPackageSelectionPage() {
                           </ul>
                         </div>
                       </div>
+                      <div className="mt-4 flex justify-end gap-2">
+                        <Link to="/packages" className="button-secondary p-2" title={`View ${pkg.name} on public packages`}>
+                          <Eye className="size-4" />
+                        </Link>
+                        <Link to="/agent/recommendation-builder" className="button-secondary p-2" title={`Use ${pkg.name} in recommendation planning`}>
+                          <Pencil className="size-4" />
+                        </Link>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -351,7 +396,7 @@ export function AgentCheckoutStatusPage() {
                       <th className="px-4 py-4">Amount</th>
                       <th className="px-4 py-4">Status</th>
                       <th className="px-4 py-4">Date</th>
-                      <th className="px-4 py-4 text-right">Action</th>
+                      <th className="px-4 py-4 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -363,8 +408,13 @@ export function AgentCheckoutStatusPage() {
                         <td className="px-4 py-4"><span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${queueTone(item.queueStage)}`}>{item.queueLabel}</span></td>
                         <td className="px-4 py-4 text-ink-soft">{fmtDate(item.createdAt)}</td>
                         <td className="px-4 py-4">
-                          <div className="flex justify-end">
-                            <Link to={`/agent/campaigns/${item.id}`} className="button-secondary px-4 py-2">{item.queueStage === 'newly_paid' ? 'Open order' : 'Open brief'}</Link>
+                          <div className="flex justify-end gap-2">
+                            <Link to={`/agent/campaigns/${item.id}`} className="button-secondary p-2" title={`View ${item.campaignName}`}>
+                              <Eye className="size-4" />
+                            </Link>
+                            <Link to={`/agent/recommendations/new?campaignId=${item.id}`} className="button-secondary p-2" title={`Edit ${item.campaignName}`}>
+                              <Pencil className="size-4" />
+                            </Link>
                           </div>
                         </td>
                       </tr>
@@ -385,6 +435,28 @@ export function AgentCheckoutStatusPage() {
 
 export function AgentCampaignsPage() {
   const inboxQuery = useAgentInboxQuery();
+  const queryClient = useQueryClient();
+  const { pushToast } = useToast();
+  const assignMutation = useMutation({
+    mutationFn: (campaignId: string) => advertifiedApi.assignCampaignToMe(campaignId),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['agent-inbox'] }),
+        queryClient.invalidateQueries({ queryKey: ['agent-campaigns'] }),
+      ]);
+      pushToast({ title: 'Campaign assigned.', description: 'This campaign is now in your active queue.' });
+    },
+  });
+  const unassignMutation = useMutation({
+    mutationFn: (campaignId: string) => advertifiedApi.unassignCampaign(campaignId),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['agent-inbox'] }),
+        queryClient.invalidateQueries({ queryKey: ['agent-campaigns'] }),
+      ]);
+      pushToast({ title: 'Campaign unassigned.', description: 'This campaign was returned to the shared queue.' }, 'info');
+    },
+  });
 
   return (
     <AgentQueryBoundary query={inboxQuery} loadingLabel="Loading campaign pipeline...">
@@ -432,7 +504,7 @@ export function AgentCampaignsPage() {
                       <th className="px-4 py-4">Queue</th>
                       <th className="px-4 py-4">Signals</th>
                       <th className="px-4 py-4">Next action</th>
-                      <th className="px-4 py-4 text-right">Open</th>
+                      <th className="px-4 py-4 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -454,14 +526,543 @@ export function AgentCampaignsPage() {
                         </td>
                         <td className="px-4 py-4 text-ink-soft">{item.nextAction}</td>
                         <td className="px-4 py-4">
-                          <div className="flex justify-end">
-                            <Link to={`/agent/campaigns/${item.id}`} className="button-secondary px-4 py-2">Open</Link>
+                          <div className="flex justify-end gap-2">
+                            <Link to={`/agent/campaigns/${item.id}`} className="button-secondary p-2" title={`View ${item.campaignName}`}>
+                              <Eye className="size-4" />
+                            </Link>
+                            <Link to={`/agent/recommendations/new?campaignId=${item.id}`} className="button-secondary p-2" title={`Edit ${item.campaignName}`}>
+                              <Pencil className="size-4" />
+                            </Link>
+                            {item.isAssignedToCurrentUser ? (
+                              <ActionIconButton title={`Unassign ${item.campaignName}`} onClick={() => unassignMutation.mutate(item.id)} disabled={unassignMutation.isPending}>
+                                <UserX2 className="size-4" />
+                              </ActionIconButton>
+                            ) : (
+                              <ActionIconButton title={`Assign ${item.campaignName}`} onClick={() => assignMutation.mutate(item.id)} disabled={assignMutation.isPending}>
+                                <UserPlus2 className="size-4" />
+                              </ActionIconButton>
+                            )}
                           </div>
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+              </div>
+            </section>
+          );
+        })()}
+      </AgentPageShell>
+    </AgentQueryBoundary>
+  );
+}
+
+export function AgentBriefsPage() {
+  const campaignsQuery = useAgentCampaignsQuery();
+
+  return (
+    <AgentQueryBoundary query={campaignsQuery} loadingLabel="Loading campaign briefs...">
+      <AgentPageShell title="Campaign brief" description="See which campaigns still need client planning inputs and which briefs are complete enough to move into recommendation work.">
+        {(() => {
+          const rows = (campaignsQuery.data ?? [])
+            .filter((campaign) => campaign.status !== 'approved')
+            .sort((left, right) => Number(Boolean(right.brief)) - Number(Boolean(left.brief)) || new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime());
+
+          return (
+            <section className="space-y-6">
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="panel p-6"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Brief missing</p><p className="mt-4 text-3xl font-semibold text-ink">{rows.filter((item) => !item.brief).length}</p></div>
+                <div className="panel p-6"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Brief captured</p><p className="mt-4 text-3xl font-semibold text-ink">{rows.filter((item) => item.brief).length}</p></div>
+                <div className="panel p-6"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Ready for planning</p><p className="mt-4 text-3xl font-semibold text-ink">{rows.filter((item) => item.brief && item.recommendations.length === 0).length}</p></div>
+              </div>
+
+              <div className="overflow-hidden rounded-[28px] border border-line bg-white">
+                <table className="w-full border-collapse text-sm">
+                  <thead className="bg-brand-soft text-left text-xs uppercase tracking-[0.18em] text-ink-soft">
+                    <tr>
+                      <th className="px-4 py-4">Campaign</th>
+                      <th className="px-4 py-4">Brief status</th>
+                      <th className="px-4 py-4">Captured inputs</th>
+                      <th className="px-4 py-4">Next action</th>
+                      <th className="px-4 py-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((campaign) => (
+                      <tr key={campaign.id} className="border-t border-line">
+                        <td className="px-4 py-4">
+                          <p className="font-semibold text-ink">{campaign.campaignName}</p>
+                          <p className="text-xs text-ink-soft">{campaign.clientName ?? campaign.businessName ?? 'Client account'}</p>
+                        </td>
+                        <td className="px-4 py-4">
+                          <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${campaign.brief ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
+                            {campaign.brief ? 'Brief complete' : 'Brief missing'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4 text-ink-soft">
+                          {campaign.brief ? `${titleize(campaign.brief.objective)} | ${titleize(campaign.brief.geographyScope)} | ${(campaign.brief.preferredMediaTypes ?? []).join(', ') || 'No channels set'}` : 'No planning inputs captured yet.'}
+                        </td>
+                        <td className="px-4 py-4 text-ink-soft">{campaign.nextAction}</td>
+                        <td className="px-4 py-4">
+                          <div className="flex justify-end gap-2">
+                            <Link to={`/agent/campaigns/${campaign.id}`} className="button-secondary p-2" title={`View ${campaign.campaignName}`}>
+                              <Eye className="size-4" />
+                            </Link>
+                            <Link to={`/agent/recommendations/new?campaignId=${campaign.id}`} className="button-secondary p-2" title={`Edit ${campaign.campaignName}`}>
+                              <Pencil className="size-4" />
+                            </Link>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          );
+        })()}
+      </AgentPageShell>
+    </AgentQueryBoundary>
+  );
+}
+
+export function AgentRecommendationBuilderPage() {
+  const inboxQuery = useAgentInboxQuery();
+
+  return (
+    <AgentQueryBoundary query={inboxQuery} loadingLabel="Loading recommendation builder...">
+      <AgentPageShell title="Recommendation builder" description="Generate, review, and refine recommendation drafts for campaigns that are ready for planning or already in strategist review.">
+        {(() => {
+          const rows = (inboxQuery.data?.items ?? [])
+            .filter((item) => item.queueStage === 'planning_ready' || item.queueStage === 'agent_review')
+            .sort((left, right) => Number(right.isUrgent) - Number(left.isUrgent) || new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime());
+
+          return (
+            <section className="space-y-6">
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="panel p-6"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Needs planning</p><p className="mt-4 text-3xl font-semibold text-ink">{inboxQuery.data?.planningReadyCount ?? 0}</p></div>
+                <div className="panel p-6"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Agent review</p><p className="mt-4 text-3xl font-semibold text-ink">{inboxQuery.data?.agentReviewCount ?? 0}</p></div>
+                <div className="panel p-6"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Manual review</p><p className="mt-4 text-3xl font-semibold text-ink">{inboxQuery.data?.manualReviewCount ?? 0}</p></div>
+              </div>
+
+              <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+                <div className="overflow-hidden rounded-[28px] border border-line bg-white">
+                  <table className="w-full border-collapse text-sm">
+                    <thead className="bg-brand-soft text-left text-xs uppercase tracking-[0.18em] text-ink-soft">
+                      <tr>
+                        <th className="px-4 py-4">Campaign</th>
+                        <th className="px-4 py-4">Build source</th>
+                        <th className="px-4 py-4">Queue</th>
+                        <th className="px-4 py-4">Next action</th>
+                        <th className="px-4 py-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((item) => (
+                        <tr key={item.id} className="border-t border-line">
+                          <td className="px-4 py-4">
+                            <p className="font-semibold text-ink">{item.campaignName}</p>
+                            <p className="text-xs text-ink-soft">{item.clientName} | {fmtCurrency(item.selectedBudget)}</p>
+                          </td>
+                          <td className="px-4 py-4 text-ink-soft">{titleize(item.planningMode ?? 'hybrid')}</td>
+                          <td className="px-4 py-4"><span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${queueTone(item.queueStage)}`}>{item.queueLabel}</span></td>
+                          <td className="px-4 py-4 text-ink-soft">{item.nextAction}</td>
+                          <td className="px-4 py-4">
+                            <div className="flex justify-end gap-2">
+                              <Link to={`/agent/campaigns/${item.id}`} className="button-secondary p-2" title={`View ${item.campaignName}`}>
+                                <Eye className="size-4" />
+                              </Link>
+                              <Link to={`/agent/recommendations/new?campaignId=${item.id}`} className="button-secondary p-2" title={`Edit ${item.campaignName}`}>
+                                <Pencil className="size-4" />
+                              </Link>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {rows.length === 0 ? (
+                        <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-ink-soft">No campaigns are waiting for recommendation build right now.</td></tr>
+                      ) : null}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="panel p-6">
+                    <div className="flex items-center gap-3 text-brand">
+                      <BriefcaseBusiness className="size-5" />
+                      <h3 className="text-lg font-semibold text-ink">Builder workspace</h3>
+                    </div>
+                    <p className="mt-3 text-sm text-ink-soft">Open the builder to structure the brief, run AI interpretation, and generate the first recommendation draft.</p>
+                    <Link to="/agent/recommendations/new" className="button-primary mt-4 inline-flex px-4 py-2">Create recommendation</Link>
+                  </div>
+                  <div className="panel p-6">
+                    <h3 className="text-lg font-semibold text-ink">Why this screen exists</h3>
+                    <p className="mt-3 text-sm text-ink-soft">This view separates recommendation work from the wider campaign queue so strategists can focus on actual build tasks without losing pipeline context.</p>
+                  </div>
+                </div>
+              </div>
+            </section>
+          );
+        })()}
+      </AgentPageShell>
+    </AgentQueryBoundary>
+  );
+}
+
+export function AgentReviewSendPage() {
+  const campaignsQuery = useAgentCampaignsQuery();
+  const queryClient = useQueryClient();
+  const { pushToast } = useToast();
+  const sendMutation = useMutation({
+    mutationFn: (campaignId: string) => advertifiedApi.sendRecommendationToClient(campaignId),
+    onSuccess: async (_, campaignId) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['agent-campaigns'] }),
+        queryClient.invalidateQueries({ queryKey: ['agent-campaign', campaignId] }),
+        queryClient.invalidateQueries({ queryKey: ['agent-inbox'] }),
+      ]);
+      pushToast({ title: 'Recommendation sent.', description: 'The recommendation was sent to the client and moved into review.' });
+    },
+    onError: (error) => pushToast({ title: 'Could not send recommendation.', description: error instanceof Error ? error.message : 'Please try again.' }, 'error'),
+  });
+  const deleteDraftMutation = useMutation({
+    mutationFn: ({ campaignId, recommendationId }: { campaignId: string; recommendationId: string }) => advertifiedApi.deleteRecommendation(campaignId, recommendationId),
+    onSuccess: async (_, variables) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['agent-campaigns'] }),
+        queryClient.invalidateQueries({ queryKey: ['agent-campaign', variables.campaignId] }),
+        queryClient.invalidateQueries({ queryKey: ['agent-inbox'] }),
+      ]);
+      pushToast({ title: 'Draft recommendation deleted.', description: 'The draft was removed from this campaign.' }, 'info');
+    },
+    onError: (error) => pushToast({ title: 'Could not delete draft.', description: error instanceof Error ? error.message : 'Please try again.' }, 'error'),
+  });
+
+  return (
+    <AgentQueryBoundary query={campaignsQuery} loadingLabel="Loading review and send...">
+      <AgentPageShell title="Review and send" description="Finalize client-facing recommendations, preview the client PDF, and send only the campaigns that are ready to move out of strategist review.">
+        {(() => {
+          const rows = (campaignsQuery.data ?? [])
+            .filter((campaign) => campaign.recommendations.some((item) => item.status === 'draft' || item.status === 'sent_to_client'))
+            .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime());
+
+          return (
+            <section className="space-y-6">
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="panel p-6"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Ready to send</p><p className="mt-4 text-3xl font-semibold text-ink">{rows.filter((item) => item.recommendations.some((rec) => rec.status === 'draft')).length}</p></div>
+                <div className="panel p-6"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Sent to client</p><p className="mt-4 text-3xl font-semibold text-ink">{rows.filter((item) => item.recommendations.some((rec) => rec.status === 'sent_to_client')).length}</p></div>
+                <div className="panel p-6"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">PDF available</p><p className="mt-4 text-3xl font-semibold text-ink">{rows.filter((item) => item.recommendationPdfUrl).length}</p></div>
+              </div>
+
+              <div className="overflow-hidden rounded-[28px] border border-line bg-white">
+                <table className="w-full border-collapse text-sm">
+                  <thead className="bg-brand-soft text-left text-xs uppercase tracking-[0.18em] text-ink-soft">
+                    <tr>
+                      <th className="px-4 py-4">Campaign</th>
+                      <th className="px-4 py-4">Recommendation</th>
+                      <th className="px-4 py-4">Client signals</th>
+                      <th className="px-4 py-4">PDF</th>
+                      <th className="px-4 py-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((campaign) => {
+                      const active = campaign.recommendations[0] ?? campaign.recommendation;
+                      return (
+                        <tr key={campaign.id} className="border-t border-line">
+                          <td className="px-4 py-4">
+                            <p className="font-semibold text-ink">{campaign.campaignName}</p>
+                            <p className="text-xs text-ink-soft">{campaign.clientName ?? campaign.businessName ?? 'Client account'}</p>
+                          </td>
+                          <td className="px-4 py-4 text-ink-soft">
+                            <p>{active?.proposalLabel ?? 'Recommendation draft'}</p>
+                            <p className="text-xs">{titleize(active?.status ?? 'draft')} | {fmtCurrency(active?.totalCost)}</p>
+                          </td>
+                          <td className="px-4 py-4 text-ink-soft">
+                            {active?.clientFeedbackNotes ?? campaign.nextAction}
+                          </td>
+                          <td className="px-4 py-4 text-ink-soft">{campaign.recommendationPdfUrl ? 'Available' : 'Not generated yet'}</td>
+                          <td className="px-4 py-4">
+                            <div className="flex justify-end gap-2">
+                              <Link to={`/agent/campaigns/${campaign.id}`} className="button-secondary p-2" title={`View ${campaign.campaignName}`}>
+                                <Eye className="size-4" />
+                              </Link>
+                              <Link to={`/agent/recommendations/new?campaignId=${campaign.id}`} className="button-secondary p-2" title={`Edit ${campaign.campaignName}`}>
+                                <Pencil className="size-4" />
+                              </Link>
+                              {campaign.recommendationPdfUrl ? (
+                                <a href={`${API_BASE_URL}${campaign.recommendationPdfUrl}`} target="_blank" rel="noreferrer" className="button-secondary p-2" title={`Preview client PDF for ${campaign.campaignName}`}>
+                                  <Download className="size-4" />
+                                </a>
+                              ) : null}
+                              {active?.status === 'draft' ? (
+                                <ActionIconButton
+                                  title={`Send ${campaign.campaignName} to client`}
+                                  disabled={sendMutation.isPending}
+                                  onClick={() => sendMutation.mutate(campaign.id)}
+                                >
+                                  <Send className="size-4" />
+                                </ActionIconButton>
+                              ) : null}
+                              {active?.status === 'draft' ? (
+                                <ActionIconButton
+                                  title={`Delete draft for ${campaign.campaignName}`}
+                                  tone="danger"
+                                  disabled={deleteDraftMutation.isPending}
+                                  onClick={() => {
+                                    if (active?.id && window.confirm(`Delete the draft recommendation for ${campaign.campaignName}?`)) {
+                                      deleteDraftMutation.mutate({ campaignId: campaign.id, recommendationId: active.id });
+                                    }
+                                  }}
+                                >
+                                  <Trash2 className="size-4" />
+                                </ActionIconButton>
+                              ) : null}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          );
+        })()}
+      </AgentPageShell>
+    </AgentQueryBoundary>
+  );
+}
+
+export function AgentApprovalsPage() {
+  const campaignsQuery = useAgentCampaignsQuery();
+
+  return (
+    <AgentQueryBoundary query={campaignsQuery} loadingLabel="Loading approvals...">
+      <AgentPageShell title="Approvals and change requests" description="Track client responses, recommendation approvals, and the campaigns that came back with revision requests.">
+        {(() => {
+          const rows = (campaignsQuery.data ?? [])
+            .filter((campaign) => campaign.recommendations.some((item) => item.status === 'sent_to_client' || item.status === 'approved' || item.clientFeedbackNotes))
+            .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime());
+
+          return (
+            <section className="space-y-6">
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="panel p-6"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Pending response</p><p className="mt-4 text-3xl font-semibold text-ink">{rows.filter((item) => item.recommendations.some((rec) => rec.status === 'sent_to_client')).length}</p></div>
+                <div className="panel p-6"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Approved</p><p className="mt-4 text-3xl font-semibold text-ink">{rows.filter((item) => item.recommendations.some((rec) => rec.status === 'approved')).length}</p></div>
+                <div className="panel p-6"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Changes requested</p><p className="mt-4 text-3xl font-semibold text-ink">{rows.filter((item) => item.recommendations.some((rec) => Boolean(rec.clientFeedbackNotes))).length}</p></div>
+              </div>
+
+              <div className="overflow-hidden rounded-[28px] border border-line bg-white">
+                <table className="w-full border-collapse text-sm">
+                  <thead className="bg-brand-soft text-left text-xs uppercase tracking-[0.18em] text-ink-soft">
+                    <tr>
+                      <th className="px-4 py-4">Client</th>
+                      <th className="px-4 py-4">Campaign</th>
+                      <th className="px-4 py-4">Status</th>
+                      <th className="px-4 py-4">Client feedback</th>
+                      <th className="px-4 py-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((campaign) => {
+                      const active = campaign.recommendations[0] ?? campaign.recommendation;
+                      const status = active?.clientFeedbackNotes ? 'Changes requested' : titleize(active?.status ?? campaign.status);
+                      const statusClass = active?.clientFeedbackNotes ? 'border-amber-200 bg-amber-50 text-amber-700' : queueTone(active?.status === 'approved' ? 'completed' : 'waiting_on_client');
+                      return (
+                        <tr key={campaign.id} className="border-t border-line">
+                          <td className="px-4 py-4 font-semibold text-ink">{campaign.clientName ?? campaign.businessName ?? 'Client account'}</td>
+                          <td className="px-4 py-4 text-ink-soft">{campaign.campaignName}</td>
+                          <td className="px-4 py-4"><span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${statusClass}`}>{status}</span></td>
+                          <td className="px-4 py-4 text-ink-soft">{active?.clientFeedbackNotes ?? 'Waiting for client response.'}</td>
+                          <td className="px-4 py-4">
+                            <div className="flex justify-end gap-2">
+                              <Link to={`/agent/campaigns/${campaign.id}`} className="button-secondary p-2" title={`View ${campaign.campaignName}`}>
+                                <Eye className="size-4" />
+                              </Link>
+                              <Link to={`/agent/recommendations/new?campaignId=${campaign.id}`} className="button-secondary p-2" title={`Edit ${campaign.campaignName}`}>
+                                <Pencil className="size-4" />
+                              </Link>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          );
+        })()}
+      </AgentPageShell>
+    </AgentQueryBoundary>
+  );
+}
+
+export function AgentMessagesNotesPage() {
+  const campaignsQuery = useAgentCampaignsQuery();
+
+  return (
+    <AgentQueryBoundary query={campaignsQuery} loadingLabel="Loading messages and notes...">
+      <AgentPageShell title="Messages and notes" description="See client notes, brief instructions, and recommendation feedback captured across campaigns so account context stays visible.">
+        {(() => {
+          const rows = (campaignsQuery.data ?? [])
+            .filter((campaign) => campaign.brief?.specialRequirements || campaign.brief?.creativeNotes || campaign.recommendations.some((item) => item.clientFeedbackNotes))
+            .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime());
+
+          return (
+            <section className="grid gap-6 xl:grid-cols-2">
+              {rows.map((campaign) => {
+                const recommendation = campaign.recommendations[0] ?? campaign.recommendation;
+                return (
+                  <div key={campaign.id} className="panel p-6">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <h3 className="text-lg font-semibold text-ink">{campaign.campaignName}</h3>
+                        <p className="mt-1 text-sm text-ink-soft">{campaign.clientName ?? campaign.businessName ?? 'Client account'}</p>
+                      </div>
+                      <MessageSquareText className="size-5 text-brand" />
+                    </div>
+                    <div className="mt-4 space-y-4 text-sm text-ink-soft">
+                      <div className="rounded-2xl border border-line bg-slate-50 p-4">
+                        <p className="font-semibold text-ink">Client brief notes</p>
+                        <p className="mt-2">{campaign.brief?.specialRequirements ?? campaign.brief?.creativeNotes ?? 'No client notes captured yet.'}</p>
+                      </div>
+                      <div className="rounded-2xl border border-line bg-white p-4">
+                        <p className="font-semibold text-ink">Recommendation feedback</p>
+                        <p className="mt-2">{recommendation?.clientFeedbackNotes ?? 'No client feedback has been captured yet.'}</p>
+                      </div>
+                    </div>
+                    <div className="mt-4 flex justify-end gap-2">
+                      <Link to={`/agent/campaigns/${campaign.id}`} className="button-secondary p-2" title={`View ${campaign.campaignName}`}>
+                        <Eye className="size-4" />
+                      </Link>
+                      <Link to={`/agent/recommendations/new?campaignId=${campaign.id}`} className="button-secondary p-2" title={`Edit ${campaign.campaignName}`}>
+                        <Pencil className="size-4" />
+                      </Link>
+                    </div>
+                  </div>
+                );
+              })}
+              {rows.length === 0 ? (
+                <div className="panel p-8 text-sm text-ink-soft">No campaign notes or client feedback are stored yet.</div>
+              ) : null}
+            </section>
+          );
+        })()}
+      </AgentPageShell>
+    </AgentQueryBoundary>
+  );
+}
+
+export function AgentTasksPage() {
+  const inboxQuery = useAgentInboxQuery();
+
+  return (
+    <AgentQueryBoundary query={inboxQuery} loadingLabel="Loading tasks...">
+      <AgentPageShell title="Tasks" description="A focused task view built from live queue urgency, strategist review work, and campaigns waiting for client follow-up.">
+        {(() => {
+          const tasks = buildTasks(inboxQuery.data!);
+          const columns = [
+            { title: 'Urgent', items: tasks.urgent, tone: 'border-rose-200 bg-rose-50' },
+            { title: 'Needs review', items: tasks.review, tone: 'border-sky-200 bg-sky-50' },
+            { title: 'Waiting on client', items: tasks.waiting, tone: 'border-amber-200 bg-amber-50' },
+          ];
+          return (
+            <section className="grid gap-6 xl:grid-cols-3">
+              {columns.map((column) => (
+                <div key={column.title} className={`rounded-[28px] border ${column.tone} p-5`}>
+                  <h3 className="text-lg font-semibold text-ink">{column.title}</h3>
+                  <div className="mt-4 space-y-3">
+                    {column.items.length > 0 ? column.items.map((item) => (
+                      <div key={item.id} className="rounded-2xl border border-line bg-white p-4 text-sm">
+                        <p className="font-semibold text-ink">{item.clientName}</p>
+                        <p className="mt-1 text-xs text-ink-soft">{item.campaignName}</p>
+                        <p className="mt-2 text-sm text-ink-soft">{item.nextAction}</p>
+                        <div className="mt-3 flex justify-end gap-2">
+                          <Link to={`/agent/campaigns/${item.id}`} className="button-secondary p-2" title={`View ${item.campaignName}`}>
+                            <Eye className="size-4" />
+                          </Link>
+                          <Link to={`/agent/recommendations/new?campaignId=${item.id}`} className="button-secondary p-2" title={`Edit ${item.campaignName}`}>
+                            <Pencil className="size-4" />
+                          </Link>
+                        </div>
+                      </div>
+                    )) : <p className="text-sm text-ink-soft">Nothing in this list right now.</p>}
+                  </div>
+                </div>
+              ))}
+            </section>
+          );
+        })()}
+      </AgentPageShell>
+    </AgentQueryBoundary>
+  );
+}
+
+export function AgentPerformancePage() {
+  const inboxQuery = useAgentInboxQuery();
+  const campaignsQuery = useAgentCampaignsQuery();
+
+  return (
+    <AgentQueryBoundary query={campaignsQuery} loadingLabel="Loading performance metrics...">
+      <AgentPageShell title="Agent performance" description="Track throughput, approval outcomes, value handled, and the speed of moving campaigns from brief to client-ready recommendation.">
+        {(() => {
+          const campaigns = campaignsQuery.data ?? [];
+          const inbox = inboxQuery.data;
+          const totalManagedValue = campaigns.reduce((sum, campaign) => sum + campaign.selectedBudget, 0);
+          const recommendationsSent = campaigns.filter((campaign) => campaign.recommendations.some((item) => item.status === 'sent_to_client' || item.status === 'approved')).length;
+          const approved = campaigns.filter((campaign) => campaign.recommendations.some((item) => item.status === 'approved')).length;
+          const approvalRate = recommendationsSent > 0 ? Math.round((approved / recommendationsSent) * 100) : 0;
+          const averageTurnaround = getAverageTurnaroundDays(campaigns);
+
+          return (
+            <section className="space-y-6">
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                {[
+                  { label: 'Managed value', value: fmtCurrency(totalManagedValue), helper: 'Total budget currently sitting in your visible campaign workload.', icon: TrendingUp },
+                  { label: 'Recommendations sent', value: String(recommendationsSent), helper: 'Campaigns that reached the client-facing recommendation stage.', icon: Send },
+                  { label: 'Approval rate', value: `${approvalRate}%`, helper: 'Approved campaigns out of all campaigns sent to clients.', icon: CircleCheckBig },
+                  { label: 'Average turnaround', value: averageTurnaround ? `${averageTurnaround}d` : 'N/A', helper: 'Approximate brief-to-approval speed from live campaign history.', icon: Sparkles },
+                ].map((card) => {
+                  const Icon = card.icon;
+                  return (
+                    <div key={card.label} className="panel p-6">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">{card.label}</p>
+                          <p className="mt-4 text-3xl font-semibold text-ink">{card.value}</p>
+                          <p className="mt-2 text-sm text-ink-soft">{card.helper}</p>
+                        </div>
+                        <div className="rounded-2xl bg-brand-soft p-3 text-brand"><Icon className="size-5" /></div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="grid gap-4 xl:grid-cols-3">
+                <div className="panel p-6">
+                  <div className="flex items-center gap-3">
+                    <CircleAlert className="size-5 text-amber-600" />
+                    <h3 className="text-lg font-semibold text-ink">Watchlist</h3>
+                  </div>
+                  <p className="mt-3 text-sm text-ink-soft">Urgent {inbox?.urgentCount ?? 0} | Manual review {inbox?.manualReviewCount ?? 0} | Stale {inbox?.staleCount ?? 0}</p>
+                </div>
+                <div className="panel p-6">
+                  <div className="flex items-center gap-3">
+                    <FolderKanban className="size-5 text-brand" />
+                    <h3 className="text-lg font-semibold text-ink">Pipeline load</h3>
+                  </div>
+                  <p className="mt-3 text-sm text-ink-soft">Planning ready {inbox?.planningReadyCount ?? 0} | Agent review {inbox?.agentReviewCount ?? 0} | Waiting on client {inbox?.waitingOnClientCount ?? 0}</p>
+                </div>
+                <div className="panel p-6">
+                  <div className="flex items-center gap-3">
+                    <Clock3 className="size-5 text-brand" />
+                    <h3 className="text-lg font-semibold text-ink">Current queue</h3>
+                  </div>
+                  <p className="mt-3 text-sm text-ink-soft">Assigned to me {inbox?.assignedToMeCount ?? 0} | Unassigned {inbox?.unassignedCount ?? 0} | Completed {inbox?.completedCount ?? 0}</p>
+                </div>
               </div>
             </section>
           );

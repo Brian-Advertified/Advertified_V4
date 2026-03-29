@@ -205,8 +205,12 @@ public sealed class AdminDashboardService : IAdminDashboardService
             Id = x.Id,
             FullName = x.FullName,
             Email = x.Email,
+            Phone = x.Phone,
             Role = x.Role.ToString().ToLowerInvariant(),
             AccountStatus = x.AccountStatus.ToString(),
+            IsSaCitizen = x.IsSaCitizen,
+            EmailVerified = x.EmailVerified,
+            PhoneVerified = x.PhoneVerified,
             CreatedAt = x.CreatedAt,
             UpdatedAt = x.UpdatedAt
         }).ToArray();

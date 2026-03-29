@@ -18,6 +18,34 @@ public sealed class AgentRecommendationsController : ControllerBase
         _db = db;
     }
 
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
+    {
+        var recommendation = await _db.CampaignRecommendations
+            .Include(x => x.RecommendationItems)
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+            ?? throw new InvalidOperationException("Recommendation not found.");
+
+        if (!string.Equals(recommendation.Status, "draft", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Only draft recommendations can be deleted.");
+        }
+
+        var campaign = await _db.Campaigns.FirstOrDefaultAsync(x => x.Id == recommendation.CampaignId, cancellationToken);
+
+        _db.RecommendationItems.RemoveRange(recommendation.RecommendationItems);
+        _db.CampaignRecommendations.Remove(recommendation);
+
+        if (campaign is not null)
+        {
+            campaign.UpdatedAt = DateTime.UtcNow;
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return Ok(new { RecommendationId = id, Message = "Draft recommendation deleted." });
+    }
+
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateRecommendationRequest request, CancellationToken cancellationToken)
     {
