@@ -19,6 +19,8 @@ export function Footer() {
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand">Product</p>
           <div className="mt-4 flex flex-col gap-3 text-sm text-ink">
             <Link to="/packages">Packages</Link>
+            <Link to="/how-it-works">How it works</Link>
+            <Link to="/media-partners">Media partners</Link>
             <Link to="/register">Register</Link>
             <Link to="/login">Log in</Link>
           </div>

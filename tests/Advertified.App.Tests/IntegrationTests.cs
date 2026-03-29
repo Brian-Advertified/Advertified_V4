@@ -248,7 +248,8 @@ public class HttpWorkflowIntegrationTests
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var emailService = harness.Services.GetRequiredService<StubTemplatedEmailService>();
-        emailService.SentEmails.Select(x => x.TemplateName).Should().Contain("recommendation-preparing");
+        emailService.SentEmails.Select(x => x.TemplateName).Should().Contain("agent-working");
+        emailService.SentEmails.Select(x => x.TemplateName).Should().NotContain("recommendation-preparing");
 
         var savedCampaign = await harness.ExecuteDbAsync(db => db.Campaigns.Include(x => x.CampaignRecommendations).SingleAsync(x => x.Id == campaignId));
         savedCampaign.CampaignRecommendations.Should().NotBeEmpty();

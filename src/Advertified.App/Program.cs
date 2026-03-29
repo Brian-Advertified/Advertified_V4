@@ -3,6 +3,7 @@ using Advertified.App.Data;
 using Advertified.App.Data.Enums;
 using Advertified.App.Services;
 using Advertified.App.Services.Abstractions;
+using Advertified.App.Services.BroadcastMatching;
 using Advertified.App.Support;
 using Advertified.App.Validation;
 using Microsoft.EntityFrameworkCore;
@@ -15,7 +16,7 @@ const string FrontendCorsPolicy = "AdvertifiedFrontend";
 builder.Services.AddControllers();
 builder.Services.AddHttpContextAccessor();
 builder.Services.Configure<FrontendOptions>(builder.Configuration.GetSection(FrontendOptions.SectionName));
-builder.Services.Configure<MediaCatalogOptions>(builder.Configuration.GetSection(MediaCatalogOptions.SectionName));
+builder.Services.Configure<BroadcastInventoryOptions>(builder.Configuration.GetSection(BroadcastInventoryOptions.SectionName));
 builder.Services.Configure<ResendOptions>(builder.Configuration.GetSection(ResendOptions.SectionName));
 builder.Services.Configure<UpstashQStashOptions>(builder.Configuration.GetSection(UpstashQStashOptions.SectionName));
 builder.Services.Configure<UpstashRedisOptions>(builder.Configuration.GetSection(UpstashRedisOptions.SectionName));
@@ -45,9 +46,26 @@ builder.Services.AddDbContext<AppDbContext>(options =>
             npgsqlOptions.MapEnum<VerificationStatus>("verification_status");
         }));
 builder.Services.AddScoped<ICurrentUserAccessor, CurrentUserAccessor>();
+builder.Services.AddScoped<IAdminDashboardService>(_ => new AdminDashboardService(
+    _.GetRequiredService<AppDbContext>(),
+    _.GetRequiredService<IBroadcastInventoryCatalog>(),
+    _.GetRequiredService<IPackageCatalogService>(),
+    _.GetRequiredService<Microsoft.Extensions.Options.IOptions<PlanningPolicyOptions>>(),
+    connectionString));
+builder.Services.AddScoped<IAdminMutationService>(_ => new AdminMutationService(
+    connectionString,
+    _.GetRequiredService<IWebHostEnvironment>()));
 builder.Services.AddScoped<ICampaignAccessService, CampaignAccessService>();
 builder.Services.AddScoped<ICampaignBriefService, CampaignBriefService>();
 builder.Services.AddScoped<ICampaignRecommendationService, CampaignRecommendationService>();
+builder.Services.AddScoped<IRecommendationDocumentService, RecommendationDocumentService>();
+builder.Services.AddSingleton<IBroadcastInventoryCatalog>(_ => new BroadcastInventoryCatalog(connectionString));
+builder.Services.AddSingleton<IBroadcastCostNormalizer, BroadcastCostNormalizer>();
+builder.Services.AddSingleton<IBroadcastInventoryImportService>(_ =>
+    new BroadcastInventoryImportService(
+        connectionString,
+        _.GetRequiredService<Microsoft.Extensions.Options.IOptions<BroadcastInventoryOptions>>(),
+        _.GetRequiredService<IWebHostEnvironment>()));
 builder.Services.AddHttpClient<ICampaignBriefInterpretationService, CampaignBriefInterpretationService>((serviceProvider, client) =>
 {
     var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<OpenAIOptions>>().Value;
@@ -76,14 +94,45 @@ builder.Services.AddHttpClient<ICampaignReasoningService, OpenAICampaignReasonin
 });
 builder.Services.AddScoped<IEmailVerificationService, EmailVerificationService>();
 builder.Services.AddScoped<IInvoiceService, InvoiceService>();
-builder.Services.AddScoped<IMediaPlanningEngine, MediaPlanningEngine>();
-builder.Services.AddScoped<IMediaCatalogSyncService, MediaCatalogSyncService>();
+builder.Services.AddSingleton(BroadcastMatcherPolicy.Default);
+builder.Services.AddScoped<IBroadcastMatchRequestNormalizer, BroadcastMatchRequestNormalizer>();
+builder.Services.AddScoped<IBroadcastMatchRequestValidator, BroadcastMatchRequestValidator>();
+builder.Services.AddScoped<IBroadcastHardFilterEngine, BroadcastHardFilterEngine>();
+builder.Services.AddScoped<IBroadcastScoreCalculator, BroadcastScoreCalculator>();
+builder.Services.AddScoped<IBroadcastRecommendationRanker, BroadcastRecommendationRanker>();
+builder.Services.AddScoped<IBroadcastMatchingEngine, BroadcastMatchingEngine>();
+builder.Services.AddScoped<IPlanningCandidateLoader, PlanningCandidateLoader>();
+builder.Services.AddScoped<IPlanningPolicyService, PlanningPolicyService>();
+builder.Services.AddScoped<IPlanningEligibilityService, PlanningEligibilityService>();
+builder.Services.AddScoped<IPlanningScoreService, PlanningScoreService>();
+builder.Services.AddScoped<IRecommendationPlanBuilder, RecommendationPlanBuilder>();
+builder.Services.AddScoped<IRecommendationExplainabilityService, RecommendationExplainabilityService>();
+builder.Services.AddScoped<IOohPlanningInventorySource>(_ => new OohPlanningInventorySource(connectionString));
+builder.Services.AddScoped<IBroadcastPlanningInventorySource, BroadcastPlanningInventorySource>();
+builder.Services.AddScoped<IPlanningInventoryCandidateMapper, PlanningInventoryCandidateMapper>();
+builder.Services.AddScoped<IMediaPlanningEngine>(_ => new MediaPlanningEngine(
+    _.GetRequiredService<IPlanningCandidateLoader>(),
+    _.GetRequiredService<IPlanningEligibilityService>(),
+    _.GetRequiredService<IRecommendationPlanBuilder>(),
+    _.GetRequiredService<IRecommendationExplainabilityService>()));
 builder.Services.AddScoped<IPaymentAuditService, PaymentAuditService>();
+builder.Services.AddScoped<IPackageAreaService, PackageAreaService>();
 builder.Services.AddScoped<IPackageCatalogService, PackageCatalogService>();
-builder.Services.AddScoped<IPlanningInventoryRepository>(_ => new PlanningInventoryRepository(connectionString));
+builder.Services.AddScoped<IPackagePreviewAreaProfileResolver, PackagePreviewAreaProfileResolver>();
+builder.Services.AddScoped<IPackagePreviewReachEstimator, PackagePreviewReachEstimator>();
+builder.Services.AddScoped<IPackagePreviewOutdoorSelector, PackagePreviewOutdoorSelector>();
+builder.Services.AddScoped<IPackagePreviewBroadcastSelector, PackagePreviewBroadcastSelector>();
+builder.Services.AddScoped<IPackagePreviewFormatter, PackagePreviewFormatter>();
+builder.Services.AddScoped<IPlanningInventoryRepository, PlanningInventoryRepository>();
 builder.Services.AddScoped<IPackagePreviewService>(_ => new PackagePreviewService(
     _.GetRequiredService<AppDbContext>(),
-    connectionString));
+    connectionString,
+    _.GetRequiredService<IBroadcastInventoryCatalog>(),
+    _.GetRequiredService<IPackagePreviewAreaProfileResolver>(),
+    _.GetRequiredService<IPackagePreviewReachEstimator>(),
+    _.GetRequiredService<IPackagePreviewOutdoorSelector>(),
+    _.GetRequiredService<IPackagePreviewBroadcastSelector>(),
+    _.GetRequiredService<IPackagePreviewFormatter>()));
 builder.Services.AddScoped<IPackagePurchaseService, PackagePurchaseService>();
 builder.Services.AddHttpClient<IWebhookQueueService, UpstashQStashWebhookQueueService>((serviceProvider, client) =>
 {
@@ -126,8 +175,8 @@ await EmailTemplateInitializer.InitializeAsync(app.Services);
 await PackageCatalogInitializer.InitializeAsync(app.Services);
 await using (var scope = app.Services.CreateAsyncScope())
 {
-    var mediaCatalogSyncService = scope.ServiceProvider.GetRequiredService<IMediaCatalogSyncService>();
-    await mediaCatalogSyncService.SyncAsync(CancellationToken.None);
+    var broadcastInventoryImportService = scope.ServiceProvider.GetRequiredService<IBroadcastInventoryImportService>();
+    await broadcastInventoryImportService.SyncAsync(CancellationToken.None);
 }
 
 app.UseCors(FrontendCorsPolicy);

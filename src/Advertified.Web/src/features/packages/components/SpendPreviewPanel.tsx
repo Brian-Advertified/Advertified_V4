@@ -1,7 +1,9 @@
 import { CheckCircle2, TrendingUp } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { lazy, Suspense, type ReactNode } from 'react';
 import { formatCurrency } from '../../../lib/utils';
 import type { PackageBand, PackagePreview } from '../../../types/domain';
+
+const OutdoorPreviewMap = lazy(async () => import('./OutdoorPreviewMap').then((module) => ({ default: module.OutdoorPreviewMap })));
 
 export function SpendPreviewPanel({
   band,
@@ -34,10 +36,16 @@ export function SpendPreviewPanel({
 
       {livePreview ? (
         <>
-          <Section title="Channel access" icon={<CheckCircle2 className="size-4 text-brand" />}>
-            <div className="space-y-3">
-              <ChannelRule label="Include radio" value={band.includeRadio} />
-              <ChannelRule label="Include TV" value={band.includeTv} />
+          <Section title="Includes" icon={<CheckCircle2 className="size-4 text-brand" />}>
+            <div className="flex flex-wrap gap-2">
+              {getPackageInclusions(band).map((item) => (
+                <span
+                  key={item}
+                  className="rounded-full bg-slate-100 px-3 py-2 text-xs font-semibold text-ink-soft"
+                >
+                  {item}
+                </span>
+              ))}
             </div>
           </Section>
 
@@ -52,6 +60,19 @@ export function SpendPreviewPanel({
               {livePreview.tvSupportExamples.length > 0 ? <MediaGroup title="TV" items={livePreview.tvSupportExamples} /> : null}
             </div>
           </Section>
+
+          {livePreview.outdoorMapPoints.length > 0 ? (
+            <Suspense
+              fallback={(
+                <section className="rounded-[22px] border border-line bg-white px-4 py-4">
+                  <p className="text-sm font-semibold text-ink">Loading interactive map...</p>
+                  <p className="mt-2 text-sm text-ink-soft">Preparing the outdoor inventory view for this package area.</p>
+                </section>
+              )}
+            >
+              <OutdoorPreviewMap points={livePreview.outdoorMapPoints} />
+            </Suspense>
+          ) : null}
 
           <Section title="Estimated reach" icon={<TrendingUp className="size-4 text-brand" />}>
             <p className="text-sm font-semibold text-ink">{livePreview.reachEstimate}</p>
@@ -159,31 +180,24 @@ function MediaGroup({ title, items }: { title: string; items: string[] }) {
   );
 }
 
-function ChannelRule({
-  label,
-  value,
-}: {
-  label: string;
-  value: 'yes' | 'optional' | 'no';
-}) {
-  return (
-    <div className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-3 py-3">
-      <span className="text-sm text-ink-soft">{label}</span>
-      <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${getRuleTone(value)}`}>
-        {value}
-      </span>
-    </div>
-  );
+function getPackageInclusions(band: PackageBand) {
+  const inclusions = ['Billboards and digital screens'];
+
+  if (band.includeRadio !== 'no') {
+    inclusions.push(band.includeRadio === 'optional' ? 'Radio support' : 'Radio');
+  }
+
+  if (band.includeTv !== 'no') {
+    inclusions.push(band.includeTv === 'optional' ? 'TV support' : 'TV');
+  }
+
+  if (!isLaunchBand(band)) {
+    inclusions.push('Advertified AI Studio Creative');
+  }
+
+  return inclusions;
 }
 
-function getRuleTone(value: 'yes' | 'optional' | 'no') {
-  if (value === 'yes') {
-    return 'bg-emerald-100 text-emerald-700';
-  }
-
-  if (value === 'optional') {
-    return 'bg-amber-100 text-amber-700';
-  }
-
-  return 'bg-rose-100 text-rose-700';
+function isLaunchBand(band: PackageBand) {
+  return band.code.toLowerCase() === 'launch' || band.name.toLowerCase().includes('launch');
 }

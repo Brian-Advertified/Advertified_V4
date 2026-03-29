@@ -26,6 +26,11 @@ public sealed class AgentRecommendationsController : ControllerBase
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw new InvalidOperationException("Recommendation not found.");
 
+        if (!string.Equals(recommendation.Status, "draft", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Only draft recommendations can be edited. Create a new revision instead.");
+        }
+
         recommendation.Status = string.IsNullOrWhiteSpace(request.Status)
             ? recommendation.Status
             : request.Status;

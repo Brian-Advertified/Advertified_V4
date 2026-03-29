@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Advertified.App.Campaigns;
 using Advertified.App.Contracts.Campaigns;
 using Advertified.App.Data;
 using Advertified.App.Data.Entities;
@@ -28,55 +29,54 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         _campaignReasoningService = campaignReasoningService;
     }
 
-    public async Task<Guid> GenerateAndSaveAsync(Guid campaignId, CancellationToken cancellationToken)
+    public async Task<Guid> GenerateAndSaveAsync(Guid campaignId, GenerateRecommendationRequest? request, CancellationToken cancellationToken)
     {
         var campaign = await _db.Campaigns
             .Include(x => x.PackageOrder)
             .Include(x => x.CampaignBrief)
+            .Include(x => x.CampaignRecommendations)
             .FirstOrDefaultAsync(x => x.Id == campaignId, cancellationToken)
             ?? throw new InvalidOperationException("Campaign not found.");
 
         var brief = campaign.CampaignBrief
             ?? throw new InvalidOperationException("Campaign brief not found.");
 
-        var request = BuildRequest(campaign, brief);
-        var recommendationResult = await _planningEngine.GenerateAsync(request, cancellationToken);
-        var aiReasoning = await _campaignReasoningService.GenerateAsync(campaign, brief, request, recommendationResult, cancellationToken);
-
         var now = DateTime.UtcNow;
-        var recommendation = new CampaignRecommendation
-        {
-            Id = Guid.NewGuid(),
-            CampaignId = campaignId,
-            RecommendationType = campaign.PlanningMode ?? "ai_assisted",
-            GeneratedBy = "system",
-            Status = "draft",
-            TotalCost = recommendationResult.RecommendedPlanTotal,
-            Summary = aiReasoning?.Summary ?? BuildSummary(recommendationResult),
-            Rationale = BuildStoredRationale(recommendationResult, aiReasoning?.Rationale),
-            CreatedAt = now,
-            UpdatedAt = now
-        };
+        var planningRequest = BuildRequest(campaign, brief, request);
+        var proposalVariants = BuildProposalVariants(planningRequest);
+        Guid? primaryRecommendationId = null;
+        var revisionNumber = RecommendationRevisionSupport.GetNextRevisionNumber(campaign.CampaignRecommendations);
 
-        foreach (var item in recommendationResult.RecommendedPlan)
+        for (var index = 0; index < proposalVariants.Count; index++)
         {
-            recommendation.RecommendationItems.Add(ToRecommendationItem(item, recommendation.Id, now, isUpsell: false));
+            var variant = proposalVariants[index];
+            var recommendationResult = await _planningEngine.GenerateAsync(variant.Request, cancellationToken);
+            var aiReasoning = await _campaignReasoningService.GenerateAsync(campaign, brief, variant.Request, recommendationResult, cancellationToken);
+            var proposalTimestamp = now.AddMilliseconds(index);
+            var recommendation = CreateRecommendationEntity(campaignId, campaign.PlanningMode, variant.Key, recommendationResult, aiReasoning, proposalTimestamp, revisionNumber);
+
+            foreach (var item in recommendationResult.RecommendedPlan)
+            {
+                recommendation.RecommendationItems.Add(ToRecommendationItem(item, recommendation.Id, proposalTimestamp, isUpsell: false));
+            }
+
+            foreach (var item in recommendationResult.Upsells)
+            {
+                recommendation.RecommendationItems.Add(ToRecommendationItem(item, recommendation.Id, proposalTimestamp, isUpsell: true));
+            }
+
+            primaryRecommendationId ??= recommendation.Id;
+            _db.CampaignRecommendations.Add(recommendation);
         }
 
-        foreach (var item in recommendationResult.Upsells)
-        {
-            recommendation.RecommendationItems.Add(ToRecommendationItem(item, recommendation.Id, now, isUpsell: true));
-        }
-
-        _db.CampaignRecommendations.Add(recommendation);
         campaign.Status = "planning_in_progress";
         campaign.UpdatedAt = now;
 
         await _db.SaveChangesAsync(cancellationToken);
-        return recommendation.Id;
+        return primaryRecommendationId ?? Guid.Empty;
     }
 
-    private static CampaignPlanningRequest BuildRequest(CampaignEntity campaign, CampaignBriefEntity brief)
+    private static CampaignPlanningRequest BuildRequest(CampaignEntity campaign, CampaignBriefEntity brief, GenerateRecommendationRequest? request)
     {
         return new CampaignPlanningRequest
         {
@@ -94,8 +94,147 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             TargetLsmMax = brief.TargetLsmMax,
             OpenToUpsell = brief.OpenToUpsell,
             AdditionalBudget = brief.AdditionalBudget,
-            MaxMediaItems = brief.MaxMediaItems
+            MaxMediaItems = brief.MaxMediaItems,
+            TargetRadioShare = request?.TargetRadioShare,
+            TargetOohShare = request?.TargetOohShare,
+            TargetDigitalShare = request?.TargetDigitalShare
         };
+    }
+
+    private static CampaignRecommendation CreateRecommendationEntity(
+        Guid campaignId,
+        string? planningMode,
+        string variantKey,
+        RecommendationResult recommendationResult,
+        CampaignReasoningResult? aiReasoning,
+        DateTime now,
+        int revisionNumber)
+    {
+        return new CampaignRecommendation
+        {
+            Id = Guid.NewGuid(),
+            CampaignId = campaignId,
+            RecommendationType = $"{planningMode ?? "ai_assisted"}:{variantKey}",
+            GeneratedBy = "system",
+            Status = "draft",
+            TotalCost = recommendationResult.RecommendedPlanTotal,
+            Summary = aiReasoning?.Summary ?? BuildSummary(recommendationResult),
+            Rationale = BuildStoredRationale(recommendationResult, aiReasoning?.Rationale),
+            RevisionNumber = revisionNumber,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+    }
+
+    private static IReadOnlyList<ProposalVariant> BuildProposalVariants(CampaignPlanningRequest request)
+    {
+        var activeChannels = ResolveActiveChannels(request);
+        var proposals = new List<ProposalVariant>
+        {
+            new("balanced", ApplyChannelTargets(request, BuildBalancedTargets(activeChannels))),
+            new("ooh_focus", ApplyChannelTargets(request, BuildFocusedTargets(activeChannels, "ooh"))),
+            new(activeChannels.Contains("digital", StringComparer.OrdinalIgnoreCase) ? "digital_focus" : "radio_focus",
+                ApplyChannelTargets(request, BuildFocusedTargets(activeChannels, activeChannels.Contains("digital", StringComparer.OrdinalIgnoreCase) ? "digital" : "radio")))
+        };
+
+        return proposals;
+    }
+
+    private static CampaignPlanningRequest ApplyChannelTargets(CampaignPlanningRequest source, ChannelTargets targets)
+    {
+        return new CampaignPlanningRequest
+        {
+            CampaignId = source.CampaignId,
+            SelectedBudget = source.SelectedBudget,
+            GeographyScope = source.GeographyScope,
+            Provinces = source.Provinces.ToList(),
+            Cities = source.Cities.ToList(),
+            Suburbs = source.Suburbs.ToList(),
+            Areas = source.Areas.ToList(),
+            PreferredMediaTypes = source.PreferredMediaTypes.ToList(),
+            ExcludedMediaTypes = source.ExcludedMediaTypes.ToList(),
+            TargetLanguages = source.TargetLanguages.ToList(),
+            TargetLsmMin = source.TargetLsmMin,
+            TargetLsmMax = source.TargetLsmMax,
+            OpenToUpsell = source.OpenToUpsell,
+            AdditionalBudget = source.AdditionalBudget,
+            MaxMediaItems = source.MaxMediaItems,
+            TargetRadioShare = targets.Radio,
+            TargetOohShare = targets.Ooh,
+            TargetDigitalShare = targets.Digital
+        };
+    }
+
+    private static IReadOnlyList<string> ResolveActiveChannels(CampaignPlanningRequest request)
+    {
+        var preferred = request.PreferredMediaTypes
+            .Select(channel => channel.Trim().ToLowerInvariant())
+            .Where(channel => channel is "radio" or "ooh" or "digital")
+            .Distinct()
+            .ToArray();
+
+        return preferred.Length > 0 ? preferred : new[] { "ooh", "radio" };
+    }
+
+    private static ChannelTargets BuildBalancedTargets(IReadOnlyList<string> activeChannels)
+    {
+        var channelCount = Math.Max(1, activeChannels.Count);
+        var baseAllocation = 100 / channelCount;
+        var remainder = 100 - (baseAllocation * channelCount);
+        var targets = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var channel in activeChannels)
+        {
+            var bump = remainder > 0 ? 1 : 0;
+            targets[channel] = baseAllocation + bump;
+            remainder = Math.Max(0, remainder - bump);
+        }
+
+        return new ChannelTargets(
+            targets.GetValueOrDefault("radio"),
+            targets.GetValueOrDefault("ooh"),
+            targets.GetValueOrDefault("digital"));
+    }
+
+    private static ChannelTargets BuildFocusedTargets(IReadOnlyList<string> activeChannels, string primaryChannel)
+    {
+        var targets = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        if (activeChannels.Count == 0)
+        {
+            return new ChannelTargets(0, 0, 0);
+        }
+
+        if (!activeChannels.Contains(primaryChannel, StringComparer.OrdinalIgnoreCase))
+        {
+            primaryChannel = activeChannels[0];
+        }
+
+        var remainderChannels = activeChannels
+            .Where(channel => !channel.Equals(primaryChannel, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+
+        targets[primaryChannel] = 60;
+
+        if (remainderChannels.Length == 0)
+        {
+            targets[primaryChannel] = 100;
+        }
+        else
+        {
+            var baseAllocation = 40 / remainderChannels.Length;
+            var remainder = 40 - (baseAllocation * remainderChannels.Length);
+            foreach (var channel in remainderChannels)
+            {
+                var bump = remainder > 0 ? 1 : 0;
+                targets[channel] = baseAllocation + bump;
+                remainder = Math.Max(0, remainder - bump);
+            }
+        }
+
+        return new ChannelTargets(
+            targets.GetValueOrDefault("radio"),
+            targets.GetValueOrDefault("ooh"),
+            targets.GetValueOrDefault("digital"));
     }
 
     private static RecommendationItem ToRecommendationItem(PlannedItem item, Guid recommendationId, DateTime now, bool isUpsell)
@@ -245,4 +384,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
 
         return string.Join(Environment.NewLine, sections.Where(section => !string.IsNullOrWhiteSpace(section)));
     }
+
+    private sealed record ProposalVariant(string Key, CampaignPlanningRequest Request);
+    private sealed record ChannelTargets(int Radio, int Ooh, int Digital);
 }

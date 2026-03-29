@@ -31,6 +31,9 @@ public partial class AppDbContext
 
             entity.Property(e => e.AssignedAgentUserId).HasColumnName("assigned_agent_user_id");
             entity.Property(e => e.AssignedAt).HasColumnName("assigned_at");
+            entity.Property(e => e.AssignmentEmailSentAt).HasColumnName("assignment_email_sent_at");
+            entity.Property(e => e.AgentWorkStartedEmailSentAt).HasColumnName("agent_work_started_email_sent_at");
+            entity.Property(e => e.RecommendationReadyEmailSentAt).HasColumnName("recommendation_ready_email_sent_at");
 
             entity.HasOne(e => e.AssignedAgentUser)
                 .WithMany()

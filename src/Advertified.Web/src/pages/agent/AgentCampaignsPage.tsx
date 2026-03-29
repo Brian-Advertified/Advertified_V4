@@ -3,6 +3,7 @@ import { Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { LoadingState } from '../../components/ui/LoadingState';
+import { PageHero } from '../../components/marketing/PageHero';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { formatCurrency } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
@@ -56,17 +57,17 @@ export function AgentCampaignsPage() {
 
   return (
     <section className="page-shell space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <div className="pill bg-highlight-soft text-highlight">Agent inbox</div>
-          <h1 className="mt-4 text-4xl font-semibold tracking-tight text-ink">Campaign queue</h1>
-          <p className="mt-3 max-w-3xl text-sm leading-7 text-ink-soft">Use the inbox to work the newest paid campaigns first, monitor client brief progress, and separate active work from campaigns waiting on client decisions.</p>
-        </div>
-        <label className="relative block w-full max-w-sm">
-          <Search className="absolute left-4 top-1/2 size-4 -translate-y-1/2 text-ink-soft" />
-          <input value={search} onChange={(event) => setSearch(event.target.value)} className="input-base pl-11" placeholder="Search campaigns or clients" />
-        </label>
-      </div>
+      <PageHero
+        kicker="Agent inbox"
+        title="Campaign queue"
+        description="Use the inbox to work the newest paid campaigns first, monitor brief progress, and separate active work from campaigns waiting on client decisions."
+        aside={(
+          <label className="relative block">
+            <Search className="absolute left-4 top-1/2 size-4 -translate-y-1/2 text-ink-soft" />
+            <input value={search} onChange={(event) => setSearch(event.target.value)} className="input-base pl-11" placeholder="Search campaigns or clients" />
+          </label>
+        )}
+      />
 
       <div className="flex flex-wrap gap-3">
         {queueTabs.map((tab) => (

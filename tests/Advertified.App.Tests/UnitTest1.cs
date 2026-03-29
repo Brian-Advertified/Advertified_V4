@@ -609,6 +609,7 @@ public class MediaPlanningEngineTests
         public List<InventoryCandidate> OohCandidates { get; set; } = new();
         public List<InventoryCandidate> RadioSlotCandidates { get; set; } = new();
         public List<InventoryCandidate> RadioPackageCandidates { get; set; } = new();
+        public List<InventoryCandidate> TvCandidates { get; set; } = new();
 
         public Task<List<InventoryCandidate>> GetOohCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
             => Task.FromResult(OohCandidates);
@@ -618,6 +619,47 @@ public class MediaPlanningEngineTests
 
         public Task<List<InventoryCandidate>> GetRadioPackageCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
             => Task.FromResult(RadioPackageCandidates);
+
+        public Task<List<InventoryCandidate>> GetTvCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
+            => Task.FromResult(TvCandidates);
+    }
+}
+
+public class BroadcastCostNormalizerTests
+{
+    [Fact]
+    public void NormalizeRadioRate_ConvertsSpotRateToMonthlyEstimate()
+    {
+        var normalizer = new BroadcastCostNormalizer();
+
+        var result = normalizer.NormalizeRadioRate(
+            station: "Kaya 959",
+            slotLabel: "Breakfast",
+            groupName: "weekday",
+            rawRateZar: 1000m);
+
+        result.RawCostZar.Should().Be(1000m);
+        result.MonthlyCostEstimateZar.Should().Be(20000m);
+        result.CostType.Should().Be("radio_slot");
+    }
+
+    [Fact]
+    public void NormalizeTvPackage_ConvertsMultiWeekPackageToMonthlyEstimate()
+    {
+        var normalizer = new BroadcastCostNormalizer();
+
+        var result = normalizer.NormalizeTvPackage(
+            station: "SABC 3",
+            packageName: "Prime 8 Week Burst",
+            investmentZar: 80000m,
+            packageCostZar: null,
+            costPerMonthZar: null,
+            durationWeeks: 8,
+            durationMonths: null);
+
+        result.RawCostZar.Should().Be(80000m);
+        result.MonthlyCostEstimateZar.Should().Be(40000m);
+        result.CostType.Should().Be("tv_weekly_or_multi_week_package");
     }
 }
 

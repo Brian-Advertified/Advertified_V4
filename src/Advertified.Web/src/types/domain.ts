@@ -17,6 +17,25 @@ export interface SessionUser {
   email: string;
   role: UserRole;
   emailVerified: boolean;
+  businessName?: string;
+  city?: string;
+  province?: string;
+}
+
+export interface PackagePreviewMapPoint {
+  label: string;
+  siteName: string;
+  city: string;
+  province: string;
+  latitude: number;
+  longitude: number;
+  isInSelectedArea: boolean;
+}
+
+export interface PackageAreaOption {
+  code: string;
+  label: string;
+  description: string;
 }
 
 export interface PackageBand {
@@ -46,6 +65,7 @@ export interface PackagePreview {
   reachEstimate: string;
   coverage: string;
   exampleLocations: string[];
+  outdoorMapPoints: PackagePreviewMapPoint[];
   radioSupportExamples: string[];
   tvSupportExamples: string[];
   typicalInclusions: string[];
@@ -125,6 +145,11 @@ export interface RecommendationItem {
   quantity: number;
   flighting?: string;
   itemNotes?: string;
+  dimensions?: string;
+  material?: string;
+  illuminated?: string;
+  trafficCount?: string;
+  siteNumber?: string;
   startDate?: string;
   endDate?: string;
   title: string;
@@ -137,6 +162,8 @@ export interface RecommendationItem {
 export interface CampaignRecommendation {
   id: string;
   campaignId: string;
+  proposalLabel?: string;
+  proposalStrategy?: string;
   summary: string;
   rationale: string;
   clientFeedbackNotes?: string;
@@ -179,7 +206,9 @@ export interface Campaign {
   nextAction: string;
   timeline: CampaignTimelineStep[];
   brief?: CampaignBrief;
+  recommendations: CampaignRecommendation[];
   recommendation?: CampaignRecommendation;
+  recommendationPdfUrl?: string;
   createdAt: string;
 }
 
@@ -230,9 +259,305 @@ export interface AgentInbox {
   items: AgentInboxItem[];
 }
 
+export interface AdminUser {
+  id: string;
+  fullName: string;
+  email: string;
+  role: UserRole;
+  accountStatus: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminAuditEntry {
+  id: string;
+  source: string;
+  provider: string;
+  eventType: string;
+  externalReference?: string;
+  requestUrl: string;
+  responseStatusCode?: number;
+  createdAt: string;
+}
+
+export interface AdminIntegrationStatus {
+  paymentRequestAuditCount: number;
+  paymentWebhookAuditCount: number;
+  lastPaymentRequestAt?: string;
+  lastPaymentWebhookAt?: string;
+}
+
+export interface AdminSummary {
+  activeOutlets: number;
+  weakOutlets: number;
+  sourceDocuments: number;
+  fallbackRatePercent: number;
+}
+
+export interface AdminAlert {
+  title: string;
+  context: string;
+  severity: string;
+  owner: string;
+}
+
+export interface AdminOutlet {
+  code: string;
+  name: string;
+  mediaType: string;
+  coverageType: string;
+  geographyLabel: string;
+  catalogHealth: string;
+  hasPricing: boolean;
+  packageCount: number;
+  slotRateCount: number;
+  minPackagePrice?: number;
+  minSlotRate?: number;
+  languageDisplay?: string;
+  broadcastFrequency?: string;
+}
+
+export interface AdminOutletDetail {
+  id: string;
+  code: string;
+  name: string;
+  mediaType: string;
+  coverageType: string;
+  catalogHealth: string;
+  operatorName?: string;
+  isNational: boolean;
+  hasPricing: boolean;
+  languageNotes?: string;
+  targetAudience?: string;
+  broadcastFrequency?: string;
+  primaryLanguages: string[];
+  provinceCodes: string[];
+  cityLabels: string[];
+  audienceKeywords: string[];
+  packageCount: number;
+  slotRateCount: number;
+  minPackagePrice?: number;
+  minSlotRate?: number;
+}
+
+export interface AdminImportDocument {
+  sourceFile: string;
+  channel: string;
+  supplierOrStation?: string;
+  documentTitle?: string;
+  pageCount?: number;
+  importedAt: string;
+}
+
+export interface AdminHealth {
+  strongCount: number;
+  mixedCount: number;
+  weakUnpricedCount: number;
+  weakNoInventoryCount: number;
+}
+
+export interface AdminHealthIssue {
+  outletCode: string;
+  outletName: string;
+  issue: string;
+  impact: string;
+  suggestedFix: string;
+}
+
+export interface AdminAreaMapping {
+  code: string;
+  label: string;
+  description: string;
+  mappingCount: number;
+}
+
+export interface AdminPackageSetting {
+  id: string;
+  code: string;
+  name: string;
+  minBudget: number;
+  maxBudget: number;
+  recommendedSpend?: number;
+  packagePurpose: string;
+  audienceFit: string;
+  quickBenefit: string;
+  includeRadio: string;
+  includeTv: string;
+  leadTime: string;
+  benefits: string[];
+}
+
+export interface AdminEnginePolicy {
+  packageCode: string;
+  budgetFloor: number;
+  minimumNationalRadioCandidates: number;
+  requireNationalCapableRadio: boolean;
+  requirePremiumNationalRadio: boolean;
+  nationalRadioBonus: number;
+  nonNationalRadioPenalty: number;
+  regionalRadioPenalty: number;
+}
+
+export interface AdminPreviewRule {
+  packageCode: string;
+  packageName: string;
+  tierCode: string;
+  tierLabel: string;
+  typicalInclusions: string[];
+  indicativeMix: string[];
+}
+
+export interface AdminMonitoring {
+  totalCampaigns: number;
+  planningReadyCount: number;
+  waitingOnClientCount: number;
+  inventoryRows: number;
+  activeAreaCount: number;
+  recommendationCount: number;
+}
+
+export interface AdminDashboard {
+  summary: AdminSummary;
+  alerts: AdminAlert[];
+  outlets: AdminOutlet[];
+  recentImports: AdminImportDocument[];
+  health: AdminHealth;
+  healthIssues: AdminHealthIssue[];
+  areas: AdminAreaMapping[];
+  packageSettings: AdminPackageSetting[];
+  enginePolicies: AdminEnginePolicy[];
+  previewRules: AdminPreviewRule[];
+  monitoring: AdminMonitoring;
+  users: AdminUser[];
+  auditEntries: AdminAuditEntry[];
+  integrations: AdminIntegrationStatus;
+}
+
+export interface AdminCreateOutletInput {
+  code: string;
+  name: string;
+  mediaType: string;
+  coverageType: string;
+  catalogHealth: string;
+  operatorName?: string;
+  isNational: boolean;
+  hasPricing: boolean;
+  languageNotes?: string;
+  targetAudience?: string;
+  broadcastFrequency?: string;
+  primaryLanguages: string[];
+  provinceCodes: string[];
+  cityLabels: string[];
+  audienceKeywords: string[];
+}
+
+export interface AdminRateCardUploadInput {
+  channel: string;
+  supplierOrStation?: string;
+  documentTitle?: string;
+  notes?: string;
+  file: File;
+}
+
+export interface AdminPreviewRuleUpdateInput {
+  tierLabel: string;
+  typicalInclusions: string[];
+  indicativeMix: string[];
+}
+
+export interface AdminOutletPricingPackage {
+  id: string;
+  packageName: string;
+  packageType?: string;
+  exposureCount?: number;
+  monthlyExposureCount?: number;
+  valueZar?: number;
+  discountZar?: number;
+  savingZar?: number;
+  investmentZar?: number;
+  costPerMonthZar?: number;
+  durationMonths?: number;
+  durationWeeks?: number;
+  notes?: string;
+  sourceName?: string;
+  sourceDate?: string;
+  isActive: boolean;
+}
+
+export interface AdminOutletSlotRate {
+  id: string;
+  dayGroup: string;
+  startTime: string;
+  endTime: string;
+  adDurationSeconds: number;
+  rateZar: number;
+  rateType: string;
+  sourceName?: string;
+  sourceDate?: string;
+  isActive: boolean;
+}
+
+export interface AdminOutletPricing {
+  outletCode: string;
+  outletName: string;
+  mediaType: string;
+  coverageType: string;
+  hasPricing: boolean;
+  packages: AdminOutletPricingPackage[];
+  slotRates: AdminOutletSlotRate[];
+}
+
+export interface AdminUpsertOutletPricingPackageInput {
+  packageName: string;
+  packageType?: string;
+  exposureCount?: number;
+  monthlyExposureCount?: number;
+  valueZar?: number;
+  discountZar?: number;
+  savingZar?: number;
+  investmentZar?: number;
+  costPerMonthZar?: number;
+  durationMonths?: number;
+  durationWeeks?: number;
+  notes?: string;
+  sourceName?: string;
+  sourceDate?: string;
+  isActive: boolean;
+}
+
+export interface AdminUpsertOutletSlotRateInput {
+  dayGroup: string;
+  startTime: string;
+  endTime: string;
+  adDurationSeconds: number;
+  rateZar: number;
+  rateType: string;
+  sourceName?: string;
+  sourceDate?: string;
+  isActive: boolean;
+}
+
+export interface AdminUpdateOutletInput {
+  code: string;
+  name: string;
+  mediaType: string;
+  coverageType: string;
+  catalogHealth: string;
+  operatorName?: string;
+  isNational: boolean;
+  hasPricing: boolean;
+  languageNotes?: string;
+  targetAudience?: string;
+  broadcastFrequency?: string;
+  primaryLanguages: string[];
+  provinceCodes: string[];
+  cityLabels: string[];
+  audienceKeywords: string[];
+}
+
 export interface InventoryRow {
   id: string;
-  type: 'radio' | 'ooh' | 'digital';
+  type: 'radio' | 'ooh' | 'digital' | 'tv';
   station: string;
   region: string;
   language: string;

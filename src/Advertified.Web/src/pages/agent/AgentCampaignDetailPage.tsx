@@ -5,6 +5,7 @@ import {
   Building2,
   CircleAlert,
   CircleCheckBig,
+  Download,
   MessageSquareQuote,
   RefreshCcw,
   Send,
@@ -12,19 +13,19 @@ import {
   UserPlus2,
   UserX2,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { ProcessingOverlay } from '../../components/ui/ProcessingOverlay';
 import { useToast } from '../../components/ui/toast';
 import { InventoryTable } from '../../features/agent/components/InventoryTable';
-import { agentInventoryFallbackEnabled } from '../../lib/featureFlags';
 import { formatCurrency, titleCase } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import type { CampaignBrief, RecommendationItem, SelectedPlanInventoryItem } from '../../types/domain';
 
 type DisplayPlanItem = SelectedPlanInventoryItem | RecommendationItem;
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:5050';
 
 function buildAudienceSummary(brief?: CampaignBrief) {
   if (!brief) return 'Not captured yet';
@@ -195,6 +196,40 @@ function normalizeChannelKey(channel: string) {
   return channel.trim().toUpperCase();
 }
 
+function isInventoryRelevant(item: SelectedPlanInventoryItem, brief?: CampaignBrief) {
+  const preferredMediaTypes = brief?.preferredMediaTypes?.map((value) => value.toLowerCase()) ?? [];
+  if (preferredMediaTypes.length > 0 && !preferredMediaTypes.includes(item.type.toLowerCase())) {
+    return false;
+  }
+
+  if ((brief?.geographyScope ?? '').toLowerCase() === 'national') {
+    return true;
+  }
+
+  const geoTerms = [
+    ...(brief?.areas ?? []),
+    ...(brief?.cities ?? []),
+    ...(brief?.provinces ?? []),
+  ]
+    .map((value) => value.toLowerCase())
+    .filter(Boolean);
+
+  if (geoTerms.length === 0) {
+    return true;
+  }
+
+  const haystack = [
+    item.station,
+    item.region,
+    item.restrictions,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+  return geoTerms.some((term) => haystack.includes(term));
+}
+
 function buildTargetChannelMix(groupedTotals: { channel: string; total: number }[], radioShareTarget: number) {
   const activeNonRadioChannels = groupedTotals
     .map((entry) => normalizeChannelKey(entry.channel))
@@ -235,16 +270,17 @@ export function AgentCampaignDetailPage() {
   const [selectedPlanItems, setSelectedPlanItems] = useState<SelectedPlanInventoryItem[]>([]);
   const [strategySummary, setStrategySummary] = useState('');
   const [mixBalance, setMixBalance] = useState(60);
+  const [selectedRecommendationId, setSelectedRecommendationId] = useState('');
+  const mixPanelRef = useRef<HTMLDivElement | null>(null);
 
   const campaignQuery = useQuery({ queryKey: ['agent-campaign', id], queryFn: () => advertifiedApi.getAgentCampaign(id) });
   const inventoryQuery = useQuery({
-    queryKey: ['inventory'],
-    queryFn: advertifiedApi.getInventory,
-    enabled: agentInventoryFallbackEnabled,
+    queryKey: ['inventory', id],
+    queryFn: () => advertifiedApi.getInventory(id),
   });
 
   const saveMutation = useMutation({
-    mutationFn: (notes: string) => advertifiedApi.updateRecommendation(id, notes, selectedPlanItems),
+    mutationFn: (notes: string) => advertifiedApi.updateRecommendation(id, activeRecommendation?.id, notes, selectedPlanItems),
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['agent-campaign', id] }),
@@ -276,7 +312,11 @@ export function AgentCampaignDetailPage() {
   });
 
   const regenerateMutation = useMutation({
-    mutationFn: () => advertifiedApi.generateAgentRecommendation(id),
+    mutationFn: () => advertifiedApi.generateAgentRecommendation(id, {
+      targetRadioShare: targetMix.radio,
+      targetOohShare: targetMix.ooh,
+      targetDigitalShare: targetMix.digital,
+    }),
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['agent-campaign', id] }),
@@ -286,7 +326,7 @@ export function AgentCampaignDetailPage() {
       ]);
       pushToast({
         title: 'Recommendation regenerated.',
-        description: 'A fresh AI draft was prepared from the latest campaign inputs.',
+        description: `A fresh AI draft was prepared using target mix Radio ${targetMix.radio}% | OOH ${targetMix.ooh}% | Digital ${targetMix.digital}%.`,
       });
     },
     onError: (error) => pushToast({
@@ -329,17 +369,26 @@ export function AgentCampaignDetailPage() {
 
   const campaign = campaignQuery.data;
   const inventoryItems = inventoryQuery.data ?? [];
+  const recommendations = campaign?.recommendations.length
+    ? campaign.recommendations
+    : (campaign?.recommendation ? [campaign.recommendation] : []);
+  const activeRecommendation = recommendations.find((item) => item.id === selectedRecommendationId) ?? recommendations[0];
+
+  useEffect(() => {
+    if (!selectedRecommendationId && recommendations[0]?.id) {
+      setSelectedRecommendationId(recommendations[0].id);
+    }
+  }, [recommendations, selectedRecommendationId]);
 
   useEffect(() => {
     if (!campaign) return;
-    setStrategySummary(campaign.recommendation?.summary ?? '');
-  }, [campaign]);
+    setStrategySummary(activeRecommendation?.summary ?? '');
+  }, [activeRecommendation, campaign]);
 
   useEffect(() => {
-    if (!campaign) return;
-
+    if (!campaign || !activeRecommendation) return;
     const byId = new Map(inventoryItems.map((item) => [item.id, item]));
-    const selectedFromRecommendation = (campaign.recommendation?.items ?? [])
+    const selectedFromRecommendation = activeRecommendation.items
       .map((item) => {
         const quantity = item.quantity || 1;
         const inventoryMatch = item.sourceInventoryId ? byId.get(item.sourceInventoryId) : undefined;
@@ -384,24 +433,25 @@ export function AgentCampaignDetailPage() {
       .filter((item): item is SelectedPlanInventoryItem => item !== null);
 
     setSelectedPlanItems(selectedFromRecommendation);
-  }, [campaign, inventoryItems]);
+  }, [activeRecommendation, campaign, inventoryItems]);
 
-  if (campaignQuery.isLoading || (agentInventoryFallbackEnabled && inventoryQuery.isLoading) || !campaign) {
+  if (campaignQuery.isLoading || inventoryQuery.isLoading || !campaign) {
     return <LoadingState label="Loading agent campaign detail..." />;
   }
 
-  const needsRecommendationSetup = !campaign.brief || !campaign.recommendation;
+  const needsRecommendationSetup = !campaign.brief || recommendations.length === 0;
   if (needsRecommendationSetup) {
     return <Navigate to={`/agent/recommendations/new?campaignId=${campaign.id}`} replace />;
   }
 
   const selectedInventoryIds = selectedPlanItems.map((item) => item.id);
+  const relevantInventoryItems = inventoryItems.filter((item) => isInventoryRelevant(item as SelectedPlanInventoryItem, campaign.brief));
   const visibleInventoryItems = [
     ...selectedPlanItems.filter((item) => !inventoryItems.some((inventoryRow) => inventoryRow.id === item.id)),
-    ...inventoryItems,
+    ...relevantInventoryItems,
   ];
   const groupedItems = groupPlanItems(selectedPlanItems);
-  const generatedRecommendationItems = campaign.recommendation?.items ?? [];
+  const generatedRecommendationItems = activeRecommendation?.items ?? [];
   const groupedGeneratedItems = groupGeneratedRecommendationItems(generatedRecommendationItems);
   const hasManualPlanItems = selectedPlanItems.length > 0;
   const displayedGroups: Record<string, DisplayPlanItem[]> = hasManualPlanItems ? groupedItems : groupedGeneratedItems;
@@ -415,7 +465,7 @@ export function AgentCampaignDetailPage() {
     total: items.reduce((sum, item) => sum + item.cost, 0),
   })));
   const plannedTotal = selectedPlanItems.reduce((sum, item) => sum + item.rate * item.quantity, 0);
-  const effectivePlannedTotal = plannedTotal > 0 ? plannedTotal : campaign.recommendation?.totalCost ?? 0;
+  const effectivePlannedTotal = plannedTotal > 0 ? plannedTotal : activeRecommendation?.totalCost ?? 0;
   const budgetDelta = campaign.selectedBudget - effectivePlannedTotal;
   const isOverBudget = budgetDelta < 0;
   const radioShare = groupedTotals.reduce((sum, entry) => entry.channel === 'RADIO' ? sum + entry.total : sum, 0);
@@ -433,9 +483,9 @@ export function AgentCampaignDetailPage() {
   const toneSummary = buildToneSummary(campaign.brief);
   const originalPrompt = buildOriginalPrompt(campaign.brief);
   const clientNotes = campaign.brief?.specialRequirements ?? campaign.brief?.creativeNotes ?? campaign.brief?.targetAudienceNotes ?? 'No client notes captured yet.';
-  const statusLabel = campaign.recommendation?.status ? titleCase(campaign.recommendation.status) : titleCase(campaign.status);
+  const statusLabel = activeRecommendation?.status ? titleCase(activeRecommendation.status) : titleCase(campaign.status);
   const constraints = getConstraintChecks(campaign.brief, selectedPlanItems, isOverBudget, campaign.selectedBudget);
-  const recommendationTitle = strategySummary || campaign.recommendation?.summary || 'Draft recommendation';
+  const recommendationTitle = strategySummary || activeRecommendation?.summary || 'Draft recommendation';
 
   function toggleInventoryItem(item: SelectedPlanInventoryItem) {
     setSelectedPlanItems((current) => {
@@ -486,6 +536,14 @@ export function AgentCampaignDetailPage() {
 
   function handleRegenerate() {
     regenerateMutation.mutate();
+  }
+
+  function handleAdjustMix() {
+    mixPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    pushToast({
+      title: 'Adjust the target mix below.',
+      description: 'Use the budget split slider, then regenerate when you want a new draft from the same saved campaign inputs.',
+    }, 'info');
   }
 
   return (
@@ -573,7 +631,7 @@ export function AgentCampaignDetailPage() {
                 </div>
               </div>
             </div>
-            <Link to={`/campaigns/${campaign.id}/brief`} className="button-secondary mt-4 inline-flex px-4 py-2">
+            <Link to={`/agent/recommendations/new?campaignId=${campaign.id}`} className="button-secondary mt-4 inline-flex px-4 py-2">
               Edit inputs
             </Link>
           </div>
@@ -592,28 +650,53 @@ export function AgentCampaignDetailPage() {
         </div>
 
         <div className="space-y-6">
-          {campaign.recommendation?.clientFeedbackNotes ? (
+          {activeRecommendation?.clientFeedbackNotes ? (
             <div className="panel border-amber-200 bg-amber-50/80 px-6 py-5">
               <p className="text-sm font-semibold text-amber-800">Client feedback</p>
-              <p className="mt-2 text-sm leading-7 text-amber-900">{campaign.recommendation.clientFeedbackNotes}</p>
+              <p className="mt-2 text-sm leading-7 text-amber-900">{activeRecommendation.clientFeedbackNotes}</p>
             </div>
           ) : null}
 
-          {campaign.recommendation?.manualReviewRequired ? (
+          {activeRecommendation?.manualReviewRequired ? (
             <div className="panel border-rose-200 bg-rose-50/80 px-6 py-5">
               <p className="text-sm font-semibold text-rose-800">Manual review required</p>
               <p className="mt-2 text-sm leading-7 text-rose-900">
                 The planner could not fully satisfy package policy or inventory requirements for this draft.
               </p>
-              {campaign.recommendation.fallbackFlags.length > 0 ? (
+              {activeRecommendation.fallbackFlags.length > 0 ? (
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {campaign.recommendation.fallbackFlags.map((flag) => (
+                  {activeRecommendation.fallbackFlags.map((flag) => (
                     <span key={flag} className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-rose-700 ring-1 ring-rose-200">
                       {flag.replace(/_/g, ' ')}
                     </span>
                   ))}
                 </div>
               ) : null}
+            </div>
+          ) : null}
+
+          {recommendations.length > 1 ? (
+            <div className="panel px-6 py-5">
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand">Proposal set</p>
+              <div className="mt-4 flex flex-wrap gap-3">
+                {recommendations.map((proposal) => {
+                  const isActive = proposal.id === activeRecommendation?.id;
+                  return (
+                    <button
+                      key={proposal.id}
+                      type="button"
+                      onClick={() => setSelectedRecommendationId(proposal.id)}
+                      className={`rounded-[18px] border px-4 py-3 text-left transition ${
+                        isActive ? 'border-brand bg-brand-soft' : 'border-line bg-slate-50 hover:border-brand/30'
+                      }`}
+                    >
+                      <p className="text-sm font-semibold text-ink">{proposal.proposalLabel ?? 'Proposal'}</p>
+                      <p className="mt-1 text-sm text-ink-soft">{proposal.proposalStrategy ?? 'Recommendation option'}</p>
+                      <p className="mt-2 text-xs uppercase tracking-[0.14em] text-ink-soft">{proposal.items.length} line item(s)</p>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           ) : null}
 
@@ -628,7 +711,7 @@ export function AgentCampaignDetailPage() {
                   <RefreshCcw className="size-4" />
                   Regenerate
                 </button>
-                <button type="button" className="button-secondary inline-flex items-center gap-2 px-4 py-2">
+                <button type="button" onClick={handleAdjustMix} className="button-secondary inline-flex items-center gap-2 px-4 py-2">
                   <SlidersHorizontal className="size-4" />
                   Adjust mix
                 </button>
@@ -711,7 +794,7 @@ export function AgentCampaignDetailPage() {
             />
           </div>
 
-          <div className="panel border-line/80 bg-white px-6 py-6 shadow-[0_10px_26px_rgba(17,24,39,0.05)]">
+          <div ref={mixPanelRef} className="panel border-line/80 bg-white px-6 py-6 shadow-[0_10px_26px_rgba(17,24,39,0.05)]">
             <h2 className="text-xl font-semibold text-ink">Budget split</h2>
             <input
               type="range"
@@ -726,6 +809,9 @@ export function AgentCampaignDetailPage() {
             </p>
             <p className="mt-2 text-sm text-ink-soft">
               Current draft: Radio {currentRadioShare}% | OOH {currentOohShare}% | Digital {currentDigitalShare}%
+            </p>
+            <p className="mt-3 text-sm text-ink-soft">
+              Regenerate refreshes the draft from the saved campaign inputs. If those inputs did not change, the result may stay very similar.
             </p>
           </div>
 
@@ -779,6 +865,17 @@ export function AgentCampaignDetailPage() {
                 Assign to me
               </button>
             )}
+            {campaign.recommendationPdfUrl ? (
+              <a
+                href={`${API_BASE_URL}${campaign.recommendationPdfUrl}`}
+                target="_blank"
+                rel="noreferrer"
+                className="button-secondary inline-flex items-center gap-2 px-5 py-3"
+              >
+                <Download className="size-4" />
+                Preview client PDF
+              </a>
+            ) : null}
             <button
               type="button"
               disabled={sendMutation.isPending || isOverBudget}
@@ -799,33 +896,26 @@ export function AgentCampaignDetailPage() {
             </button>
           </div>
 
-          {agentInventoryFallbackEnabled ? (
-            <details id="agent-inventory-table" className="panel overflow-hidden" open={selectedPlanItems.length === 0}>
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-6 py-5">
-                <div>
-                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand">Inventory library</p>
-                  <p className="mt-2 text-sm leading-7 text-ink-soft">
-                    Add or swap plan lines only when you need to refine the recommendation.
-                  </p>
-                </div>
-                <div className="rounded-full bg-brand-soft px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-brand">
-                  {selectedPlanItems.length} selected
-                </div>
-              </summary>
-              <div className="border-t border-line px-6 py-6">
-                <InventoryTable
-                  items={visibleInventoryItems}
-                  selectedItemIds={selectedInventoryIds}
-                  onToggleItem={(item) => toggleInventoryItem(item as SelectedPlanInventoryItem)}
-                />
+          <details id="agent-inventory-table" className="panel overflow-hidden">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-6 py-5">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand">Matching inventory</p>
+                <p className="mt-2 text-sm leading-7 text-ink-soft">
+                  These rows are matched against this campaign&apos;s budget, channels, and geography so the agent can mix and match with real supplier inventory.
+                </p>
               </div>
-            </details>
-          ) : (
-            <EmptyState
-              title="Inventory is hidden for now"
-              description="Recommendation work can continue without showing the temporary inventory fallback."
-            />
-          )}
+              <div className="rounded-full bg-brand-soft px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-brand">
+                {selectedPlanItems.length} selected
+              </div>
+            </summary>
+            <div className="border-t border-line px-6 py-6">
+              <InventoryTable
+                items={visibleInventoryItems}
+                selectedItemIds={selectedInventoryIds}
+                onToggleItem={(item) => toggleInventoryItem(item as SelectedPlanInventoryItem)}
+              />
+            </div>
+          </details>
         </div>
       </div>
     </section>

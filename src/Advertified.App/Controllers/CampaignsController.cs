@@ -1,4 +1,5 @@
 using Advertified.App.Contracts.Campaigns;
+using Advertified.App.Campaigns;
 using Advertified.App.Configuration;
 using Advertified.App.Data;
 using Advertified.App.Services.Abstractions;
@@ -20,6 +21,7 @@ public sealed class CampaignsController : ControllerBase
     private readonly ICampaignAccessService _campaignAccessService;
     private readonly ICampaignBriefService _campaignBriefService;
     private readonly ICampaignRecommendationService _campaignRecommendationService;
+    private readonly IRecommendationDocumentService _recommendationDocumentService;
     private readonly CampaignPlanningRequestValidator _campaignPlanningRequestValidator;
     private readonly ITemplatedEmailService _emailService;
     private readonly FrontendOptions _frontendOptions;
@@ -31,6 +33,7 @@ public sealed class CampaignsController : ControllerBase
         ICampaignAccessService campaignAccessService,
         ICampaignBriefService campaignBriefService,
         ICampaignRecommendationService campaignRecommendationService,
+        IRecommendationDocumentService recommendationDocumentService,
         CampaignPlanningRequestValidator campaignPlanningRequestValidator,
         ITemplatedEmailService emailService,
         IOptions<FrontendOptions> frontendOptions,
@@ -41,6 +44,7 @@ public sealed class CampaignsController : ControllerBase
         _campaignAccessService = campaignAccessService;
         _campaignBriefService = campaignBriefService;
         _campaignRecommendationService = campaignRecommendationService;
+        _recommendationDocumentService = recommendationDocumentService;
         _campaignPlanningRequestValidator = campaignPlanningRequestValidator;
         _emailService = emailService;
         _frontendOptions = frontendOptions.Value;
@@ -90,6 +94,34 @@ public sealed class CampaignsController : ControllerBase
         return Ok(campaign.ToDetail());
     }
 
+    [HttpGet("{id:guid}/recommendation-pdf")]
+    public async Task<IActionResult> DownloadRecommendationPdf(Guid id, CancellationToken cancellationToken)
+    {
+        var userId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
+        var campaignExists = await _db.Campaigns
+            .AsNoTracking()
+            .AnyAsync(x => x.Id == id && x.UserId == userId, cancellationToken);
+
+        if (!campaignExists)
+        {
+            return NotFound(new ProblemDetails
+            {
+                Title = "Campaign not found.",
+                Status = StatusCodes.Status404NotFound
+            });
+        }
+
+        var bytes = await _recommendationDocumentService.GetCampaignPdfBytesAsync(id, cancellationToken);
+        return File(bytes, "application/pdf", $"recommendation-{id:D}.pdf");
+    }
+
+    [HttpGet("recommendation-pdf-sample")]
+    public IActionResult DownloadRecommendationPdfSample()
+    {
+        var bytes = RecommendationPdfPreviewFactory.GenerateSample();
+        return File(bytes, "application/pdf", "recommendation-sample.pdf");
+    }
+
     [HttpPut("{id:guid}/brief")]
     public async Task<IActionResult> SaveBrief(Guid id, [FromBody] SaveCampaignBriefRequest request, CancellationToken cancellationToken)
     {
@@ -127,8 +159,7 @@ public sealed class CampaignsController : ControllerBase
 
         var userId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
         await _campaignAccessService.EnsureCanGeneratePlanAsync(userId, id, cancellationToken);
-        await SendRecommendationPreparingEmailAsync(id, userId, cancellationToken);
-        var recommendationId = await _campaignRecommendationService.GenerateAndSaveAsync(id, cancellationToken);
+        var recommendationId = await _campaignRecommendationService.GenerateAndSaveAsync(id, null, cancellationToken);
         return Accepted(new
         {
             CampaignId = id,
@@ -138,7 +169,7 @@ public sealed class CampaignsController : ControllerBase
     }
 
     [HttpPost("{id:guid}/approve-recommendation")]
-    public async Task<IActionResult> ApproveRecommendation(Guid id, CancellationToken cancellationToken)
+    public async Task<IActionResult> ApproveRecommendation(Guid id, [FromBody] ApproveRecommendationRequest? request, CancellationToken cancellationToken)
     {
         var userId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
         var campaign = await _db.Campaigns
@@ -149,12 +180,14 @@ public sealed class CampaignsController : ControllerBase
             .FirstOrDefaultAsync(x => x.Id == id && x.UserId == userId, cancellationToken)
             ?? throw new InvalidOperationException("Campaign not found.");
 
-        var recommendation = campaign.CampaignRecommendations
-            .OrderByDescending(x => x.CreatedAt)
-            .FirstOrDefault()
+        var currentRecommendations = RecommendationRevisionSupport.GetCurrentRecommendationSet(campaign.CampaignRecommendations);
+        var recommendation = currentRecommendations
+            .FirstOrDefault(x => x.Id == request?.RecommendationId)
+            ?? currentRecommendations.FirstOrDefault()
             ?? throw new InvalidOperationException("Recommendation not found.");
 
         recommendation.Status = "approved";
+        recommendation.ApprovedAt = DateTime.UtcNow;
         recommendation.UpdatedAt = DateTime.UtcNow;
         campaign.Status = "approved";
         campaign.UpdatedAt = DateTime.UtcNow;
@@ -178,70 +211,33 @@ public sealed class CampaignsController : ControllerBase
         var userId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
         var campaign = await _db.Campaigns
             .Include(x => x.CampaignRecommendations)
+                .ThenInclude(x => x.RecommendationItems)
             .FirstOrDefaultAsync(x => x.Id == id && x.UserId == userId, cancellationToken)
             ?? throw new InvalidOperationException("Campaign not found.");
 
-        var recommendation = campaign.CampaignRecommendations
-            .OrderByDescending(x => x.CreatedAt)
-            .FirstOrDefault()
-            ?? throw new InvalidOperationException("Recommendation not found.");
-
-        recommendation.Status = "draft";
-        if (!string.IsNullOrWhiteSpace(request.Notes))
+        var currentRecommendations = RecommendationRevisionSupport.GetCurrentRecommendationSet(campaign.CampaignRecommendations);
+        if (currentRecommendations.Length == 0)
         {
-            recommendation.Rationale = $"{recommendation.Rationale ?? string.Empty}\n\nClient feedback: {request.Notes.Trim()}".Trim();
+            throw new InvalidOperationException("Recommendation not found.");
         }
 
-        recommendation.UpdatedAt = DateTime.UtcNow;
+        var now = DateTime.UtcNow;
+        var nextRevisionNumber = RecommendationRevisionSupport.GetNextRevisionNumber(campaign.CampaignRecommendations);
+        var clonedRecommendations = RecommendationRevisionSupport.CloneAsDraftRevision(currentRecommendations, nextRevisionNumber, now, request.Notes);
+        _db.CampaignRecommendations.AddRange(clonedRecommendations);
         campaign.Status = "planning_in_progress";
-        campaign.UpdatedAt = DateTime.UtcNow;
+        campaign.RecommendationReadyEmailSentAt = null;
+        campaign.UpdatedAt = now;
 
         await _db.SaveChangesAsync(cancellationToken);
 
         return Accepted(new
         {
             CampaignId = id,
-            RecommendationId = recommendation.Id,
+            RecommendationId = clonedRecommendations[0].Id,
             Status = campaign.Status,
             Message = "Recommendation returned for changes."
         });
-    }
-
-    private async Task SendRecommendationPreparingEmailAsync(Guid campaignId, Guid userId, CancellationToken cancellationToken)
-    {
-        var campaign = await _db.Campaigns
-            .AsNoTracking()
-            .Include(x => x.User)
-            .Include(x => x.PackageBand)
-            .Include(x => x.PackageOrder)
-            .FirstOrDefaultAsync(x => x.Id == campaignId && x.UserId == userId, cancellationToken);
-
-        if (campaign is null)
-        {
-            return;
-        }
-
-        try
-        {
-            await _emailService.SendAsync(
-                "recommendation-preparing",
-                campaign.User.Email,
-                "campaigns",
-                new Dictionary<string, string?>
-                {
-                    ["ClientName"] = campaign.User.FullName,
-                    ["CampaignName"] = string.IsNullOrWhiteSpace(campaign.CampaignName) ? $"{campaign.PackageBand.Name} campaign" : campaign.CampaignName.Trim(),
-                    ["PackageName"] = campaign.PackageBand.Name,
-                    ["Budget"] = FormatCurrency(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount),
-                    ["CampaignUrl"] = BuildFrontendUrl($"/campaigns/{campaign.Id}")
-                },
-                null,
-                cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to send recommendation preparing email for campaign {CampaignId}.", campaign.Id);
-        }
     }
 
     private async Task SendRecommendationApprovedEmailAsync(Advertified.App.Data.Entities.Campaign campaign, CancellationToken cancellationToken)

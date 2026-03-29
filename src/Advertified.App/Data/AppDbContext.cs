@@ -295,6 +295,12 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.RecommendationType)
                 .HasMaxLength(50)
                 .HasColumnName("recommendation_type");
+            entity.Property(e => e.RevisionNumber)
+                .HasDefaultValue(1)
+                .HasColumnName("revision_number");
+            entity.Property(e => e.PdfGeneratedAt).HasColumnName("pdf_generated_at");
+            entity.Property(e => e.PdfStorageObjectKey).HasColumnName("pdf_storage_object_key");
+            entity.Property(e => e.SentToClientAt).HasColumnName("sent_to_client_at");
             entity.Property(e => e.Status)
                 .HasMaxLength(50)
                 .HasDefaultValueSql("'draft'::character varying")
@@ -303,6 +309,7 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.TotalCost)
                 .HasPrecision(12, 2)
                 .HasColumnName("total_cost");
+            entity.Property(e => e.ApprovedAt).HasColumnName("approved_at");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");

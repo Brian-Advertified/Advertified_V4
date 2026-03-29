@@ -26,5 +26,7 @@ public sealed class CampaignDetailResponse
     public DateTimeOffset CreatedAt { get; set; }
     public IReadOnlyList<CampaignTimelineStepResponse> Timeline { get; set; } = Array.Empty<CampaignTimelineStepResponse>();
     public SaveCampaignBriefRequest? Brief { get; set; }
+    public IReadOnlyList<CampaignRecommendationResponse> Recommendations { get; set; } = Array.Empty<CampaignRecommendationResponse>();
     public CampaignRecommendationResponse? Recommendation { get; set; }
+    public string? RecommendationPdfUrl { get; set; }
 }

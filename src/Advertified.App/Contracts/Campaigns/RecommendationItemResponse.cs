@@ -17,6 +17,11 @@ public sealed class RecommendationItemResponse
     public int Quantity { get; set; }
     public string? Flighting { get; set; }
     public string? ItemNotes { get; set; }
+    public string? Dimensions { get; set; }
+    public string? Material { get; set; }
+    public string? Illuminated { get; set; }
+    public string? TrafficCount { get; set; }
+    public string? SiteNumber { get; set; }
     public string? StartDate { get; set; }
     public string? EndDate { get; set; }
     public string Title { get; set; } = string.Empty;

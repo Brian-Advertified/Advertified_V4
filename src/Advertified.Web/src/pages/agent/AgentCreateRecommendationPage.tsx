@@ -214,9 +214,6 @@ export function AgentCreateRecommendationPage() {
           : 'The campaign brief has been saved for the agent workflow.',
       });
 
-      if (variables.submitBrief) {
-        navigate(`/agent/campaigns/${campaign.id}`);
-      }
     },
     onError: (error) => {
       setPendingAction(null);
@@ -328,7 +325,8 @@ export function AgentCreateRecommendationPage() {
     }
 
     setPendingAction('generate');
-    await initializeMutation.mutateAsync({ submitBrief: true });
+    const campaign = await initializeMutation.mutateAsync({ submitBrief: true });
+    navigate(`/agent/campaigns/${campaign.id}`);
   };
 
   return (

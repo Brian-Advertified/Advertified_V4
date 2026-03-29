@@ -23,19 +23,22 @@ export function PackageCard({
           <p className="text-sm font-semibold uppercase tracking-[0.22em] text-brand">{band.name}</p>
           <p className="mt-3 text-3xl font-semibold tracking-tight text-ink">{formatCurrency(band.minBudget)} - {formatCurrency(band.maxBudget)}</p>
         </div>
-        <div className="flex flex-col items-end gap-2">
-          {band.isRecommended ? <div className="package-card-flag">Most popular</div> : null}
-          <div className="package-chip rounded-2xl px-3 py-2 text-xs font-semibold">{band.leadTime}</div>
-        </div>
+        {band.isRecommended ? <div className="package-card-flag">Most popular</div> : null}
       </div>
 
       <p className="text-sm leading-7 text-ink-soft">{band.quickBenefit}</p>
 
       <div className="rounded-[20px] border border-line bg-white/80 px-4 py-4">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-brand">Channel access</p>
-        <div className="mt-3 grid gap-2 text-sm text-ink-soft">
-          <ChannelRule label="Include radio" value={band.includeRadio} />
-          <ChannelRule label="Include TV" value={band.includeTv} />
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-brand">Includes</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {getPackageInclusions(band).map((item) => (
+            <span
+              key={item}
+              className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-ink-soft"
+            >
+              {item}
+            </span>
+          ))}
         </div>
       </div>
 
@@ -47,31 +50,24 @@ export function PackageCard({
   );
 }
 
-function ChannelRule({
-  label,
-  value,
-}: {
-  label: string;
-  value: 'yes' | 'optional' | 'no';
-}) {
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <span>{label}</span>
-      <span className={cn('rounded-full px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.12em]', getRuleTone(value))}>
-        {value}
-      </span>
-    </div>
-  );
+function getPackageInclusions(band: PackageBand) {
+  const inclusions = ['Billboards and digital screens'];
+
+  if (band.includeRadio !== 'no') {
+    inclusions.push(band.includeRadio === 'optional' ? 'Radio support' : 'Radio');
+  }
+
+  if (band.includeTv !== 'no') {
+    inclusions.push(band.includeTv === 'optional' ? 'TV support' : 'TV');
+  }
+
+  if (!isLaunchBand(band)) {
+    inclusions.push('Advertified AI Studio Creative');
+  }
+
+  return inclusions;
 }
 
-function getRuleTone(value: 'yes' | 'optional' | 'no') {
-  if (value === 'yes') {
-    return 'bg-emerald-100 text-emerald-700';
-  }
-
-  if (value === 'optional') {
-    return 'bg-amber-100 text-amber-700';
-  }
-
-  return 'bg-rose-100 text-rose-700';
+function isLaunchBand(band: PackageBand) {
+  return band.code.toLowerCase() === 'launch' || band.name.toLowerCase().includes('launch');
 }

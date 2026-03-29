@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Advertified.App.Contracts.Campaigns;
 using Advertified.App.Contracts.Packages;
+using Advertified.App.Campaigns;
 using Advertified.App.Data.Entities;
 
 namespace Advertified.App.Controllers;
@@ -37,6 +38,10 @@ internal static class ControllerMappings
 
     public static CampaignDetailResponse ToDetail(this Campaign campaign, Guid? currentUserId = null)
     {
+        var recommendations = GetCurrentRecommendationSet(campaign)
+            .Select(ToResponse)
+            .ToArray();
+
         return new CampaignDetailResponse
         {
             Id = campaign.Id,
@@ -63,10 +68,9 @@ internal static class ControllerMappings
             CreatedAt = new DateTimeOffset(campaign.CreatedAt, TimeSpan.Zero),
             Timeline = BuildTimeline(campaign),
             Brief = campaign.CampaignBrief == null ? null : ToRequest(campaign.CampaignBrief),
-            Recommendation = campaign.CampaignRecommendations
-                .OrderByDescending(x => x.CreatedAt)
-                .Select(ToResponse)
-                .FirstOrDefault()
+            Recommendations = recommendations,
+            Recommendation = recommendations.FirstOrDefault(),
+            RecommendationPdfUrl = recommendations.Length > 0 ? $"/campaigns/{campaign.Id}/recommendation-pdf" : null
         };
     }
 
@@ -136,11 +140,14 @@ internal static class ControllerMappings
         var extractedFeedback = ExtractClientFeedbackNotes(recommendation.Rationale);
         var fallbackFlags = ExtractFallbackFlags(recommendation.Rationale);
         var manualReviewRequired = ExtractManualReviewRequired(recommendation.Rationale);
+        var (proposalLabel, proposalStrategy) = GetProposalDetails(recommendation.RecommendationType);
 
         return new CampaignRecommendationResponse
         {
             Id = recommendation.Id,
             CampaignId = recommendation.CampaignId,
+            ProposalLabel = proposalLabel,
+            ProposalStrategy = proposalStrategy,
             Summary = recommendation.Summary ?? string.Empty,
             Rationale = RemoveInternalMarkers(recommendation.Rationale),
             ClientFeedbackNotes = extractedFeedback,
@@ -149,6 +156,45 @@ internal static class ControllerMappings
             Status = recommendation.Status,
             TotalCost = recommendation.TotalCost,
             Items = recommendation.RecommendationItems.Select(ToResponse).ToArray()
+        };
+    }
+
+    private static IReadOnlyList<CampaignRecommendation> GetCurrentRecommendationSet(Campaign campaign)
+    {
+        return RecommendationRevisionSupport.GetCurrentRecommendationSet(campaign.CampaignRecommendations);
+    }
+
+    private static (string ProposalLabel, string ProposalStrategy) GetProposalDetails(string? recommendationType)
+    {
+        var variantKey = recommendationType?
+            .Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .LastOrDefault()?
+            .ToLowerInvariant();
+
+        return variantKey switch
+        {
+            "balanced" => ("Proposal A", "Balanced mix"),
+            "ooh_focus" => ("Proposal B", "OOH-led reach"),
+            "radio_focus" => ("Proposal C", "Radio-led frequency"),
+            "digital_focus" => ("Proposal C", "Digital-led amplification"),
+            _ => ("Proposal", "Recommendation option")
+        };
+    }
+
+    private static int GetProposalRank(string? recommendationType)
+    {
+        var variantKey = recommendationType?
+            .Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .LastOrDefault()?
+            .ToLowerInvariant();
+
+        return variantKey switch
+        {
+            "balanced" => 0,
+            "ooh_focus" => 1,
+            "radio_focus" => 2,
+            "digital_focus" => 2,
+            _ => 9
         };
     }
 
@@ -173,6 +219,11 @@ internal static class ControllerMappings
             Quantity = item.Quantity,
             Flighting = normalized.Flighting,
             ItemNotes = normalized.ItemNotes,
+            Dimensions = normalized.Dimensions,
+            Material = normalized.Material,
+            Illuminated = normalized.Illuminated,
+            TrafficCount = normalized.TrafficCount,
+            SiteNumber = normalized.SiteNumber,
             StartDate = normalized.StartDate,
             EndDate = normalized.EndDate,
             Title = item.DisplayName,
@@ -355,6 +406,11 @@ internal static class ControllerMappings
             PolicyFlags: ExtractMetadataValues(item.MetadataJson, "policyFlags"),
             Flighting: ExtractMetadataValue(item.MetadataJson, "flighting"),
             ItemNotes: ExtractMetadataValue(item.MetadataJson, "itemNotes"),
+            Dimensions: ExtractMetadataValue(item.MetadataJson, "dimensions"),
+            Material: ExtractMetadataValue(item.MetadataJson, "material"),
+            Illuminated: ExtractMetadataValue(item.MetadataJson, "illuminated"),
+            TrafficCount: ExtractMetadataValue(item.MetadataJson, "trafficCount") ?? ExtractMetadataValue(item.MetadataJson, "traffic_count"),
+            SiteNumber: ExtractMetadataValue(item.MetadataJson, "siteNumber") ?? ExtractMetadataValue(item.MetadataJson, "site_number"),
             StartDate: ExtractMetadataValue(item.MetadataJson, "startDate"),
             EndDate: ExtractMetadataValue(item.MetadataJson, "endDate"),
             Rationale: rationale);
@@ -754,6 +810,11 @@ internal static class ControllerMappings
         IReadOnlyList<string> PolicyFlags,
         string? Flighting,
         string? ItemNotes,
+        string? Dimensions,
+        string? Material,
+        string? Illuminated,
+        string? TrafficCount,
+        string? SiteNumber,
         string? StartDate,
         string? EndDate,
         string Rationale);

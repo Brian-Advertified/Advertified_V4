@@ -1,8 +1,11 @@
+import { Download } from 'lucide-react';
 import { formatCurrency } from '../../../lib/utils';
 import type { CampaignRecommendation } from '../../../types/domain';
 import { StatusBadge } from '../../../components/ui/StatusBadge';
 
-export function RecommendationViewer({ recommendation }: { recommendation: CampaignRecommendation }) {
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:5050';
+
+export function RecommendationViewer({ recommendation, recommendationPdfUrl }: { recommendation: CampaignRecommendation; recommendationPdfUrl?: string }) {
   const baseItems = recommendation.items.filter((item) => item.type === 'base');
   const groupedChannels = Array.from(new Set(baseItems.map((item) => item.channel)));
   const topReasons = Array.from(new Set(baseItems.flatMap((item) => item.selectionReasons))).slice(0, 4);
@@ -12,16 +15,39 @@ export function RecommendationViewer({ recommendation }: { recommendation: Campa
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand">Recommendation</p>
-          {recommendation.buildSourceLabel ? (
-            <div className="mt-3 inline-flex rounded-full border border-line bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">
-              {recommendation.buildSourceLabel}
-            </div>
-          ) : null}
+          <div className="mt-3 flex flex-wrap gap-2">
+            {recommendation.proposalLabel ? (
+              <div className="inline-flex rounded-full border border-brand/15 bg-brand-soft px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-brand">
+                {recommendation.proposalLabel}
+              </div>
+            ) : null}
+            {recommendation.proposalStrategy ? (
+              <div className="inline-flex rounded-full border border-line bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">
+                {recommendation.proposalStrategy}
+              </div>
+            ) : null}
+            {recommendation.buildSourceLabel ? (
+              <div className="inline-flex rounded-full border border-line bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">
+                {recommendation.buildSourceLabel}
+              </div>
+            ) : null}
+          </div>
           <h3 className="mt-2 text-2xl font-semibold tracking-tight text-ink">{recommendation.summary}</h3>
           <p className="mt-3 max-w-3xl text-sm leading-7 text-ink-soft">{recommendation.rationale}</p>
         </div>
         <div className="space-y-3">
           <StatusBadge status={recommendation.status} />
+          {recommendationPdfUrl ? (
+            <a
+              href={`${API_BASE_URL}${recommendationPdfUrl}`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink-soft transition hover:border-brand/30 hover:text-ink"
+            >
+              <Download className="size-4" />
+              Download detailed PDF
+            </a>
+          ) : null}
           <div className="rounded-2xl bg-brand-soft px-4 py-3 text-right">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Projected total</p>
             <p className="mt-1 text-2xl font-semibold text-ink">{formatCurrency(recommendation.totalCost)}</p>
@@ -64,6 +90,23 @@ export function RecommendationViewer({ recommendation }: { recommendation: Campa
                 <div className="pill bg-white text-ink-soft">{item.channel}</div>
                 <p className="mt-3 text-lg font-semibold text-ink">{item.title}</p>
                 <p className="mt-2 text-sm leading-7 text-ink-soft">{item.rationale}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {item.region ? (
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-ink-soft ring-1 ring-line">
+                      {item.region}
+                    </span>
+                  ) : null}
+                  {item.timeBand ? (
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-ink-soft ring-1 ring-line">
+                      {item.timeBand}
+                    </span>
+                  ) : null}
+                  {item.duration ? (
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-ink-soft ring-1 ring-line">
+                      {item.duration}
+                    </span>
+                  ) : null}
+                </div>
                 {item.selectionReasons.length > 0 ? (
                   <div className="mt-3 flex flex-wrap gap-2">
                     {item.selectionReasons.slice(0, 3).map((reason) => (
@@ -72,6 +115,11 @@ export function RecommendationViewer({ recommendation }: { recommendation: Campa
                       </span>
                     ))}
                   </div>
+                ) : null}
+                {item.restrictions ? (
+                  <p className="mt-3 text-sm leading-7 text-ink-soft">
+                    <span className="font-semibold text-ink">Booking note:</span> {item.restrictions}
+                  </p>
                 ) : null}
               </div>
               <div className="text-right">

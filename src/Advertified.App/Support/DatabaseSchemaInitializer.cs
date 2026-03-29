@@ -23,7 +23,13 @@ internal static class DatabaseSchemaInitializer
                      Path.Combine("database", "bootstrap", "002_normalized_media_catalog.sql"),
                      Path.Combine("database", "bootstrap", "003_payment_audit.sql"),
                      Path.Combine("database", "bootstrap", "004_invoicing.sql"),
-                     Path.Combine("database", "bootstrap", "005_agent_inbox.sql")
+                     Path.Combine("database", "bootstrap", "005_agent_inbox.sql"),
+                     Path.Combine("database", "bootstrap", "006_campaign_email_lifecycle.sql"),
+                     Path.Combine("database", "bootstrap", "007_package_area_profiles.sql"),
+                     Path.Combine("database", "bootstrap", "008_broadcast_inventory_v2.sql"),
+                     Path.Combine("database", "bootstrap", "009_remove_legacy_broadcast_v1.sql"),
+                     Path.Combine("database", "bootstrap", "010_recommendation_revisions.sql"),
+                     Path.Combine("database", "bootstrap", "011_recommendation_pdf_storage.sql")
                  })
         {
             var fullPath = baseDirectories

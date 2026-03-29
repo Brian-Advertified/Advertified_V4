@@ -8,13 +8,16 @@ namespace Advertified.App.Controllers;
 public sealed class PackagesController : ControllerBase
 {
     private readonly IPackageCatalogService _packageCatalogService;
+    private readonly IPackageAreaService _packageAreaService;
     private readonly IPackagePreviewService _packagePreviewService;
 
     public PackagesController(
         IPackageCatalogService packageCatalogService,
+        IPackageAreaService packageAreaService,
         IPackagePreviewService packagePreviewService)
     {
         _packageCatalogService = packageCatalogService;
+        _packageAreaService = packageAreaService;
         _packagePreviewService = packagePreviewService;
     }
 
@@ -22,6 +25,12 @@ public sealed class PackagesController : ControllerBase
     public IActionResult Get()
     {
         return Ok(_packageCatalogService.GetPackageBands());
+    }
+
+    [HttpGet("areas")]
+    public async Task<IActionResult> GetAreas(CancellationToken cancellationToken)
+    {
+        return Ok(await _packageAreaService.GetAreasAsync(cancellationToken));
     }
 
     [HttpGet("preview")]

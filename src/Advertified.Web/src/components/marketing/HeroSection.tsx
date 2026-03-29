@@ -18,10 +18,10 @@ Pay over terms – aligned with your business cycles, not upfront. Access TV, Ra
                 Buy a package
                 <ArrowRight className="size-4" />
               </Link>
-              <a href="#how-it-works" className="hero-secondary-button">
+              <Link to="/how-it-works" className="hero-secondary-button">
                 <CirclePlay className="size-4" />
                 How it works
-              </a>
+              </Link>
             </div>
           </div>
 

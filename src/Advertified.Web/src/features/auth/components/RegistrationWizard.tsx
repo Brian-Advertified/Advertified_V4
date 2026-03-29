@@ -1,4 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import { type AddressAutofillRetrieveResponse } from '@mapbox/search-js-core';
+import { AddressAutofill } from '@mapbox/search-js-react';
 import { Eye, EyeOff } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { useForm } from 'react-hook-form';
@@ -23,11 +25,14 @@ export function RegistrationWizard({
   onSubmit: (values: RegistrationSchema) => Promise<void>;
   loading: boolean;
 }) {
+  const mapboxAccessToken = (import.meta.env.VITE_MAPBOX_ACCESS_TOKEN as string | undefined)?.trim();
+  const mapboxEnabled = Boolean(mapboxAccessToken);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const {
     register,
     handleSubmit,
+    setValue,
     watch,
     formState: { errors },
   } = useForm<RegistrationSchema>({
@@ -42,6 +47,31 @@ export function RegistrationWizard({
   });
 
   const isCitizen = watch('isSouthAfricanCitizen');
+
+  function handleAddressRetrieve(response: AddressAutofillRetrieveResponse) {
+    const feature = response.features[0];
+    const properties = feature?.properties;
+
+    if (!properties) {
+      return;
+    }
+
+    const streetAddress = properties.address_line1 ?? properties.full_address ?? properties.place_name ?? '';
+    const city = properties.address_level2 ?? properties.address_level3 ?? '';
+    const province = properties.address_level1 ?? '';
+
+    if (streetAddress) {
+      setValue('streetAddress', streetAddress, { shouldDirty: true, shouldTouch: true, shouldValidate: true });
+    }
+
+    if (city) {
+      setValue('city', city, { shouldDirty: true, shouldTouch: true, shouldValidate: true });
+    }
+
+    if (province) {
+      setValue('province', province, { shouldDirty: true, shouldTouch: true, shouldValidate: true });
+    }
+  }
 
   return (
     <form className="register-shell" onSubmit={handleSubmit(onSubmit)}>
@@ -160,16 +190,52 @@ export function RegistrationWizard({
 
       <RegisterSection title="Location">
         <div className="register-grid">
+          <div className="register-field register-field-full">
+            <div className="rounded-[18px] border border-brand/10 bg-brand/5 px-4 py-3 text-sm leading-6 text-ink-soft">
+              {mapboxEnabled
+                ? 'Search for your business address and we will populate the location fields for you. You can still edit them manually if needed.'
+                : 'Enter your business address manually for now. Add VITE_MAPBOX_ACCESS_TOKEN to enable address search and autofill.'}
+            </div>
+          </div>
+
           <Field label="Street address *" error={errors.streetAddress?.message} className="register-field-full">
-            <input {...register('streetAddress')} className="register-input" placeholder="Street address *" />
+            {mapboxEnabled ? (
+              <AddressAutofill
+                accessToken={mapboxAccessToken!}
+                options={{
+                  country: 'ZA',
+                  language: 'en',
+                }}
+                onRetrieve={handleAddressRetrieve}
+              >
+                <input
+                  {...register('streetAddress')}
+                  autoComplete="street-address"
+                  className="register-input"
+                  placeholder="Search your business address *"
+                />
+              </AddressAutofill>
+            ) : (
+              <input
+                {...register('streetAddress')}
+                autoComplete="street-address"
+                className="register-input"
+                placeholder="Street address *"
+              />
+            )}
           </Field>
 
           <Field label="City *" error={errors.city?.message}>
-            <input {...register('city')} className="register-input" placeholder="City *" />
+            <input
+              {...register('city')}
+              autoComplete="address-level2"
+              className="register-input"
+              placeholder="City *"
+            />
           </Field>
 
           <Field label="Province *" error={errors.province?.message}>
-            <select {...register('province')} className="register-input">
+            <select {...register('province')} autoComplete="address-level1" className="register-input">
               <option value="">Province *</option>
               {provinces.map((item) => (
                 <option key={item} value={item}>

@@ -5,6 +5,7 @@ import { StatusBadge } from '../../components/ui/StatusBadge';
 import { formatCurrency, formatDate } from '../../lib/utils';
 import { useAuth } from '../../features/auth/auth-context';
 import { advertifiedApi } from '../../services/advertifiedApi';
+import { PageHero } from '../../components/marketing/PageHero';
 
 export function OrdersPage() {
   const { user } = useAuth();
@@ -22,10 +23,11 @@ export function OrdersPage() {
 
   return (
     <section className="page-shell space-y-8">
-      <div>
-        <div className="pill bg-highlight-soft text-highlight">Orders</div>
-        <h1 className="mt-4 text-4xl font-semibold tracking-tight text-ink">Package orders</h1>
-      </div>
+      <PageHero
+        kicker="Orders"
+        title="Package orders"
+        description="Track each package purchase, payment state, and reference from one clear order history."
+      />
       {orders.length ? (
         <div className="grid gap-4">
           {orders.map((order) => (

@@ -1,0 +1,1906 @@
+{
+  "schema_version": "2.0.0",
+  "generated_from": "enriched_broadcast_inventory.json",
+  "generated_at": "2026-03-29T16:49:04Z",
+  "engine_guidance": {
+    "purpose": "Normalized, enum-driven station inventory for ad-engine matching and scoring.",
+    "matching_priority_fields": [
+      "media_type",
+      "catalog_health",
+      "coverage_type",
+      "province_codes",
+      "city_labels",
+      "primary_languages",
+      "urban_rural_mix",
+      "audience_keywords",
+      "audience_age_skew",
+      "audience_lsm_range",
+      "listenership_daily",
+      "listenership_weekly"
+    ]
+  },
+  "enums": {
+    "media_type": [
+      "radio",
+      "tv"
+    ],
+    "coverage_type": [
+      "national",
+      "regional",
+      "local",
+      "digital",
+      "mixed",
+      "unknown"
+    ],
+    "catalog_health": [
+      "strong",
+      "mixed",
+      "weak_unpriced",
+      "weak_no_inventory",
+      "weak_partial_pricing",
+      "unknown"
+    ],
+    "province_code": [
+      "eastern_cape",
+      "free_state",
+      "gauteng",
+      "kwazulu_natal",
+      "limpopo",
+      "mpumalanga",
+      "north_west",
+      "northern_cape",
+      "western_cape",
+      "national"
+    ],
+    "language_code": [
+      "english",
+      "afrikaans",
+      "isizulu",
+      "isixhosa",
+      "setswana",
+      "sesotho",
+      "sepedi",
+      "siswati",
+      "isindebele",
+      "tshivenda",
+      "xitsonga",
+      "multilingual",
+      "unknown"
+    ],
+    "urban_rural_mix": [
+      "urban",
+      "peri_urban",
+      "rural",
+      "mixed",
+      "unknown"
+    ]
+  },
+  "records": [
+    {
+      "id": "radio_kaya_959",
+      "station": "Kaya 959",
+      "media_type": "radio",
+      "catalog_health": "strong",
+      "coverage_type": "regional",
+      "broadcast_frequency": "95.9 FM",
+      "province_codes": [
+        "gauteng"
+      ],
+      "city_labels": [
+        "Johannesburg",
+        "Pretoria boundary",
+        "East Rand",
+        "Vanderbijlpark",
+        "Carletonville"
+      ],
+      "primary_languages": [
+        "english"
+      ],
+      "language_display": "English",
+      "language_notes": "English talk/music service; music mix includes soul, R&B, kwaito, jazz, chart-toppers and old-school jams.",
+      "listenership_daily": 515000,
+      "listenership_weekly": 897000,
+      "listenership_period": "average day / average 7 days (source snippet, date not stated in snippet)",
+      "audience_age_skew": "25-49",
+      "audience_gender_skew": null,
+      "audience_lsm_range": null,
+      "audience_racial_skew": "Black-skewed",
+      "urban_rural_mix": "urban",
+      "target_audience": "Urban black middle-class Gauteng audience, influential and aspirational.",
+      "audience_keywords": [
+        "urban",
+        "black middle class",
+        "aspirational",
+        "culture",
+        "music",
+        "news",
+        "talk",
+        "Gauteng"
+      ],
+      "packages": [
+        {
+          "name": "Weekend Package",
+          "exposure": 32,
+          "value_zar": 75840,
+          "saving_zar": 53840,
+          "investment_zar": 22000
+        },
+        {
+          "name": "Retail Package",
+          "exposure": 16,
+          "value_zar": 106770,
+          "saving_zar": 74770,
+          "investment_zar": 32000
+        },
+        {
+          "name": "Powerweek",
+          "exposure": 38,
+          "value_zar": 255240,
+          "saving_zar": 179240,
+          "investment_zar": 76000
+        },
+        {
+          "name": "Lunch Time",
+          "exposure": 16,
+          "value_zar": 91920,
+          "saving_zar": 68920,
+          "investment_zar": 23000
+        },
+        {
+          "name": "Workzone",
+          "exposure": 20,
+          "value_zar": 133950,
+          "saving_zar": 104950,
+          "investment_zar": 33350
+        }
+      ],
+      "pricing": {
+        "weekday": {
+          "00:00-05:00": 420,
+          "05:00-06:00": 795,
+          "06:00-09:00": 4350,
+          "09:00-12:00": 4245,
+          "12:00-15:00": 2805,
+          "15:00-18:00": 3195,
+          "18:00-20:00": 2505,
+          "20:00-00:00": 1050
+        },
+        "saturday": {
+          "00:00-05:00": 420,
+          "05:00-06:00": 795,
+          "06:00-09:00": 4350,
+          "09:00-12:00": 4245,
+          "12:00-15:00": 2805,
+          "15:00-18:00": 3195,
+          "18:00-20:00": 2505,
+          "20:00-00:00": 1050
+        },
+        "sunday": {
+          "00:00-05:00": 420,
+          "05:00-06:00": 795,
+          "06:00-09:00": 4350,
+          "09:00-12:00": 4245,
+          "12:00-15:00": 2805,
+          "15:00-18:00": 3195,
+          "18:00-20:00": 2505,
+          "20:00-00:00": 1050
+        }
+      },
+      "data_source_enrichment": [
+        {
+          "source_type": "uploaded_file",
+          "source_label": "Direct Kaya Packages (Discounted) PDF",
+          "detail": "package pricing and slot grid"
+        },
+        {
+          "source_type": "web",
+          "source_label": "Kaya 959 official site",
+          "detail": "Gauteng footprint/music positioning",
+          "source_url": "https://www.kaya959.co.za/"
+        },
+        {
+          "source_type": "web",
+          "source_label": "United Stations - Kaya 959",
+          "detail": "audience description 25-49 urban black middle class Gauteng",
+          "source_url": "https://www.unitedstations.co.za/kaya-959/"
+        },
+        {
+          "source_type": "web",
+          "source_label": "iono.fm Kaya 959 live stream",
+          "detail": "95.9 FM, English, average day and 7-day reach snippet",
+          "source_url": "https://www.app-1302.iono.fm/s/82"
+        }
+      ],
+      "has_pricing": true,
+      "is_national": false
+    },
+    {
+      "id": "radio_smile_90_4fm",
+      "station": "Smile 90.4FM",
+      "media_type": "radio",
+      "catalog_health": "strong",
+      "coverage_type": "regional",
+      "broadcast_frequency": "90.4 FM",
+      "province_codes": [
+        "western_cape"
+      ],
+      "city_labels": [
+        "Cape Town",
+        "Paarl",
+        "Stellenbosch",
+        "Somerset West",
+        "Southern Suburbs",
+        "Northern Suburbs",
+        "Atlantic Seaboard",
+        "Winelands"
+      ],
+      "primary_languages": [
+        "english",
+        "afrikaans"
+      ],
+      "language_display": "English/Afrikaans",
+      "language_notes": "Bilingual adult contemporary station.",
+      "listenership_daily": null,
+      "listenership_weekly": 455000,
+      "listenership_period": "BrandMapp 2024 cited in United Stations snippet",
+      "audience_age_skew": "35-49",
+      "audience_gender_skew": null,
+      "audience_lsm_range": null,
+      "audience_racial_skew": null,
+      "urban_rural_mix": "mixed",
+      "target_audience": "Cape Town metro lifestyle audience.",
+      "audience_keywords": [
+        "Cape Town",
+        "adult contemporary",
+        "bilingual",
+        "lifestyle",
+        "metro",
+        "community",
+        "travel",
+        "mobility"
+      ],
+      "packages": [
+        {
+          "name": "Impact Plus Package",
+          "elements": [
+            {
+              "name": "Generics",
+              "exposure": 25,
+              "value_zar": 60960,
+              "discount_zar": 15240,
+              "investment_zar": 45720
+            },
+            {
+              "name": "Feature Sponsorship",
+              "exposure": 10,
+              "value_zar": 59250,
+              "discount_zar": 14813,
+              "investment_zar": 44438,
+              "notes": "news, traffic, weather or sport"
+            },
+            {
+              "name": "Social Media",
+              "exposure": 8,
+              "value_zar": 28000,
+              "discount_zar": 2800,
+              "investment_zar": 25200,
+              "notes": "Facebook & X"
+            },
+            {
+              "name": "Social Media Boosting",
+              "exposure": 4,
+              "value_zar": 2000,
+              "discount_zar": 0,
+              "investment_zar": 2000,
+              "notes": "Facebook"
+            }
+          ],
+          "total_exposure": 43,
+          "total_value_zar": 150210,
+          "total_discount_zar": 32853,
+          "total_investment_zar": 117358
+        }
+      ],
+      "pricing": {
+        "weekday": {
+          "00:00-04:00": 185,
+          "04:00-06:00": 280,
+          "06:00-09:00": 4450,
+          "09:00-13:00": 2950,
+          "13:00-16:00": 2950,
+          "16:00-19:00": 3450,
+          "19:00-21:00": 1450,
+          "21:00-00:00": 950
+        },
+        "saturday": {
+          "00:00-06:00": 185
+        },
+        "sunday": {
+          "00:00-06:00": 185
+        }
+      },
+      "data_source_enrichment": [
+        {
+          "source_type": "uploaded_file",
+          "source_label": "Smile 90.4FM - Impact Plus package - 2026 PDF",
+          "detail": "package pricing and slot grid"
+        },
+        {
+          "source_type": "web",
+          "source_label": "Smile 90.4FM About Us",
+          "detail": "bilingual coverage cities/metro",
+          "source_url": "https://smilefm.co.za/about-us/"
+        },
+        {
+          "source_type": "web",
+          "source_label": "United Stations - Smile 90.4FM",
+          "detail": "coverage areas",
+          "source_url": "https://www.unitedstations.co.za/smile-90-4fm/"
+        },
+        {
+          "source_type": "web",
+          "source_label": "United Stations Smile audience snippet",
+          "detail": "BrandMapp 2024 weekly reach 455,000",
+          "source_url": "https://www.unitedstations.co.za/tag/lois-obrien/"
+        }
+      ],
+      "has_pricing": true,
+      "is_national": false
+    },
+    {
+      "id": "radio_jozi_fm",
+      "station": "Jozi FM",
+      "media_type": "radio",
+      "catalog_health": "mixed",
+      "coverage_type": "regional",
+      "broadcast_frequency": "105.8 FM",
+      "province_codes": [
+        "gauteng"
+      ],
+      "city_labels": [
+        "Johannesburg",
+        "Soweto",
+        "Kagiso",
+        "Lenasia",
+        "Krugersdorp",
+        "Randfontein",
+        "Kempton Park",
+        "Germiston",
+        "Alberton"
+      ],
+      "primary_languages": [
+        "unknown"
+      ],
+      "language_display": "Multilingual",
+      "language_notes": "English, isiZulu, Sesotho, Sepedi, Setswana and Xitsonga.",
+      "listenership_daily": null,
+      "listenership_weekly": null,
+      "listenership_period": null,
+      "audience_age_skew": null,
+      "audience_gender_skew": null,
+      "audience_lsm_range": null,
+      "audience_racial_skew": "Black community-skewed",
+      "urban_rural_mix": "urban",
+      "target_audience": "Working-class, multicultural, educated community audience with strong Soweto/Johannesburg roots.",
+      "audience_keywords": [
+        "community",
+        "Soweto",
+        "Johannesburg",
+        "multilingual",
+        "working-class",
+        "local culture",
+        "discussion",
+        "music"
+      ],
+      "packages": [
+        {
+          "name": "Plan A - Generic Only - 6 Months",
+          "exposure": 180,
+          "total_value_zar": 478860,
+          "total_investment_zar": 239430,
+          "savings_zar": 239430,
+          "cost_per_month_zar": 39905
+        },
+        {
+          "name": "Generic & Sponsorship - 6 Months",
+          "exposure": 180,
+          "total_value_zar": 577215,
+          "total_investment_zar": 288608,
+          "savings_zar": 288608,
+          "cost_per_month_zar": 48101
+        },
+        {
+          "name": "Club Package - Generic & Pre-Rolls - 6 Months",
+          "generics_exposure": 180,
+          "stream_prerolls_exposure": 150000,
+          "total_value_zar": 576360,
+          "total_investment_zar": 336930,
+          "cost_per_month_zar": 56155
+        }
+      ],
+      "pricing": {
+        "weekday": {
+          "00:00-05:00": 1290,
+          "05:00-06:00": 1880,
+          "06:00-09:00": 3300,
+          "09:00-12:00": 3080,
+          "12:00-15:00": 2980,
+          "15:00-18:00": 2750,
+          "18:00-22:00": 2530,
+          "22:00-00:00": 1290
+        },
+        "saturday": {
+          "00:00-06:00": 1290,
+          "06:00-09:00": 3300,
+          "09:00-12:00": 3080,
+          "12:00-16:00": 2980,
+          "16:00-20:00": 2750,
+          "20:00-22:00": 2530,
+          "22:00-00:00": 1290
+        },
+        "sunday": {
+          "09:00-12:00": 1290
+        }
+      },
+      "data_source_enrichment": [
+        {
+          "source_type": "uploaded_file",
+          "source_label": "Jozi FM package PDFs",
+          "detail": "package pricing and slot grid"
+        },
+        {
+          "source_type": "web",
+          "source_label": "Jozi FM official site",
+          "detail": "station identity and current site",
+          "source_url": "https://www.jozifm.co.za/"
+        },
+        {
+          "source_type": "web",
+          "source_label": "Jozi FM Wikipedia snippet",
+          "detail": "frequency, languages, footprint, audience descriptors",
+          "source_url": "https://en.wikipedia.org/wiki/Jozi_FM"
+        },
+        {
+          "source_type": "web",
+          "source_label": "United Stations - Jozi FM",
+          "detail": "brand/audience positioning",
+          "source_url": "https://www.unitedstations.co.za/jozi-fm/"
+        }
+      ],
+      "has_pricing": true,
+      "is_national": false
+    },
+    {
+      "id": "radio_algoa_fm",
+      "station": "Algoa FM",
+      "media_type": "radio",
+      "catalog_health": "mixed",
+      "coverage_type": "regional",
+      "broadcast_frequency": "94.0-97.0 MHz",
+      "province_codes": [
+        "eastern_cape",
+        "western_cape"
+      ],
+      "city_labels": [
+        "Port Elizabeth/Gqeberha",
+        "Mossel Bay",
+        "George",
+        "Knysna",
+        "Hermanus",
+        "Oudtshoorn",
+        "Caledon",
+        "Worcester",
+        "Saldanha",
+        "Beaufort West",
+        "Wild Coast",
+        "Garden Route",
+        "Karoo"
+      ],
+      "primary_languages": [
+        "english"
+      ],
+      "language_display": "English",
+      "language_notes": "Adult contemporary regional commercial station.",
+      "listenership_daily": null,
+      "listenership_weekly": null,
+      "listenership_period": null,
+      "audience_age_skew": null,
+      "audience_gender_skew": null,
+      "audience_lsm_range": null,
+      "audience_racial_skew": null,
+      "urban_rural_mix": "mixed",
+      "target_audience": "Regional lifestyle audience across Eastern Cape and Garden Route; connected, family-oriented consumers.",
+      "audience_keywords": [
+        "Eastern Cape",
+        "Garden Route",
+        "regional lifestyle",
+        "family oriented",
+        "connected",
+        "events",
+        "music",
+        "news"
+      ],
+      "packages": [
+        {
+          "name": "Algoa Club - Plan A - Generic Only - 6 Months",
+          "exposure": 180,
+          "total_value_zar": 495780,
+          "total_investment_zar": 247890,
+          "savings_zar": 247890,
+          "cost_per_month_zar": 41315
+        },
+        {
+          "name": "Algoa Club - Plan A - Generic & Sponsorship - 6 Months",
+          "exposure": 144,
+          "total_value_zar": 448560,
+          "total_investment_zar": 224280,
+          "savings_zar": 224280,
+          "cost_per_month_zar": 37380
+        },
+        {
+          "name": "Generic & Streaming Pre-Roll Package - 6 Months",
+          "generics_exposure": 180,
+          "stream_prerolls_exposure": 138462,
+          "monthly_stream_exposure": 23077,
+          "total_value_zar": 585780,
+          "total_investment_zar": 337890,
+          "cost_per_month_zar": 56315
+        }
+      ],
+      "pricing": {
+        "weekday": {
+          "00:00-05:00": 600,
+          "05:00-06:00": 1320,
+          "06:00-09:00": 7050,
+          "09:00-12:00": 3520,
+          "12:00-15:00": 3420,
+          "15:00-19:00": 3560,
+          "19:00-21:00": 850,
+          "21:00-00:00": 600
+        },
+        "saturday": {
+          "00:00-06:00": 600,
+          "06:00-09:00": 1740,
+          "09:00-12:00": 2950,
+          "12:00-15:00": 1160,
+          "15:00-18:00": 1050,
+          "18:00-21:00": 800,
+          "21:00-00:00": 600
+        },
+        "sunday": {
+          "00:00-06:00": 600,
+          "06:00-09:00": 2240,
+          "09:00-12:00": 3260,
+          "12:00-15:00": 1110,
+          "15:00-18:00": 980,
+          "18:00-21:00": 760,
+          "21:00-00:00": 590
+        }
+      },
+      "data_source_enrichment": [
+        {
+          "source_type": "uploaded_file",
+          "source_label": "Algoa FM package PDFs",
+          "detail": "package pricing and slot grid"
+        },
+        {
+          "source_type": "web",
+          "source_label": "Algoa FM official / public profile snippet",
+          "detail": "frequency and footprint",
+          "source_url": "https://en.wikipedia.org/wiki/Algoa_FM"
+        },
+        {
+          "source_type": "web",
+          "source_label": "United Stations - Algoa FM",
+          "detail": "regional audience positioning urban/rural",
+          "source_url": "https://www.unitedstations.co.za/algoafm/"
+        },
+        {
+          "source_type": "web",
+          "source_label": "United Stations - A snapshot of Algoa FM listeners",
+          "detail": "family oriented and connected audience",
+          "source_url": "https://www.unitedstations.co.za/a-snapshot-of-algoa-fm-listeners/"
+        }
+      ],
+      "has_pricing": true,
+      "is_national": false
+    },
+    {
+      "id": "radio_metro_fm",
+      "station": "Metro FM",
+      "media_type": "radio",
+      "catalog_health": "mixed",
+      "coverage_type": "national",
+      "broadcast_frequency": null,
+      "province_codes": [
+        "national"
+      ],
+      "city_labels": [],
+      "primary_languages": [
+        "english"
+      ],
+      "language_display": "English",
+      "language_notes": "National urban commercial station broadcasting in English.",
+      "listenership_daily": 4629000,
+      "listenership_weekly": null,
+      "listenership_period": "Adults 15+, BRC RAMS Amplify Xtab Dec 2023 RA23 Q4",
+      "audience_age_skew": "Adults 15+; youthful urban adults",
+      "audience_gender_skew": null,
+      "audience_lsm_range": null,
+      "audience_racial_skew": "Black-skewed",
+      "urban_rural_mix": "urban",
+      "target_audience": "Urban, aspirant, influential black market; youthful urban adults.",
+      "audience_keywords": [
+        "national",
+        "urban",
+        "commercial",
+        "aspirational",
+        "influential",
+        "music",
+        "news",
+        "lifestyle"
+      ],
+      "packages": [],
+      "pricing": {
+        "monday_friday": {
+          "00:00-03:00": 900,
+          "03:00-05:00": 960,
+          "05:00-06:00": 3930,
+          "06:00-07:00": 32760,
+          "07:00-08:00": 32760,
+          "08:00-09:00": 23640,
+          "09:00-12:00": 16680,
+          "12:00-15:00": 15960,
+          "15:00-16:00": 17400,
+          "16:00-17:00": 20580,
+          "17:00-18:00": 20580,
+          "18:00-19:00": 20580,
+          "19:00-21:00": 7860,
+          "21:00-24:00": 2490
+        },
+        "saturday": {
+          "00:00-03:00": 660,
+          "03:00-06:00": 1410,
+          "06:00-09:00": 9660,
+          "09:00-12:00": 14520,
+          "12:00-15:00": 11460,
+          "15:00-18:00": 6210,
+          "18:00-19:00": 6210,
+          "19:00-22:00": 2490,
+          "22:00-24:00": 2490
+        },
+        "sunday": {
+          "00:00-03:00": 960,
+          "03:00-06:00": 1290,
+          "06:00-09:00": 5310,
+          "09:00-12:00": 8310,
+          "12:00-15:00": 8760,
+          "15:00-18:00": 6810,
+          "18:00-19:00": 3450,
+          "19:00-22:00": 1890,
+          "22:00-24:00": 1890
+        }
+      },
+      "data_source_enrichment": [
+        {
+          "source_type": "uploaded_file",
+          "source_label": "SABC Radio Rates FY2024-2025 PDF",
+          "detail": "listenership, audience description and slot rates"
+        }
+      ],
+      "has_pricing": true,
+      "is_national": true
+    },
+    {
+      "id": "radio_good_hope_fm",
+      "station": "Good Hope FM",
+      "media_type": "radio",
+      "catalog_health": "unknown",
+      "coverage_type": "regional",
+      "broadcast_frequency": null,
+      "province_codes": [
+        "western_cape"
+      ],
+      "city_labels": [
+        "Cape Town",
+        "Overberg",
+        "Plettenberg Bay"
+      ],
+      "primary_languages": [
+        "english"
+      ],
+      "language_display": "English",
+      "language_notes": "Cape youth/lifestyle CHR format.",
+      "listenership_daily": 680000,
+      "listenership_weekly": null,
+      "listenership_period": "Adults 15+, BRC RAMS Amplify Xtab Dec 2023 RA23 Q4",
+      "audience_age_skew": "Adults 15+; youth-leaning",
+      "audience_gender_skew": null,
+      "audience_lsm_range": null,
+      "audience_racial_skew": null,
+      "urban_rural_mix": "mixed",
+      "target_audience": "Young, global, rooted, now-generation listeners in the Cape.",
+      "audience_keywords": [
+        "Cape Town",
+        "young",
+        "CHR",
+        "R&B",
+        "pop",
+        "hip hop",
+        "dance",
+        "lifestyle"
+      ],
+      "packages": [],
+      "pricing": {
+        "monday_thursday": {
+          "00:00-01:00": 240,
+          "01:00-05:00": 240,
+          "05:00-06:00": 240,
+          "06:00-09:00": 3450,
+          "09:00-12:00": 4170,
+          "12:00-15:00": 2490,
+          "15:00-18:00": 3210,
+          "18:00-22:00": 2010,
+          "22:00-24:00": 960
+        },
+        "friday": {
+          "00:00-06:00": 240,
+          "06:00-09:00": 3450,
+          "09:00-12:00": 4170,
+          "12:00-15:00": 2730,
+          "15:00-18:00": 3210,
+          "18:00-22:00": 2010,
+          "22:00-24:00": 1290
+        },
+        "saturday": {
+          "00:00-01:00": 210,
+          "01:00-06:00": 210,
+          "06:00-09:00": 1050,
+          "09:00-12:00": 2130,
+          "12:00-15:00": 960,
+          "15:00-18:00": 330,
+          "18:00-22:00": 540,
+          "22:00-24:00": 270
+        },
+        "sunday": {
+          "00:00-01:00": 210,
+          "01:00-06:00": 210,
+          "06:00-09:00": 600,
+          "09:00-12:00": 1170,
+          "12:00-15:00": 780,
+          "15:00-18:00": 540,
+          "18:00-22:00": 300,
+          "22:00-24:00": 240
+        }
+      },
+      "data_source_enrichment": [
+        {
+          "source_type": "uploaded_file",
+          "source_label": "SABC Radio Rates FY2024-2025 PDF",
+          "detail": "listenership, audience description and slot rates"
+        }
+      ],
+      "has_pricing": true,
+      "is_national": false
+    },
+    {
+      "id": "radio_5fm",
+      "station": "5FM",
+      "media_type": "radio",
+      "catalog_health": "unknown",
+      "coverage_type": "national",
+      "broadcast_frequency": null,
+      "province_codes": [
+        "national"
+      ],
+      "city_labels": [],
+      "primary_languages": [
+        "english"
+      ],
+      "language_display": "English",
+      "language_notes": "Youth multimedia music/talk brand.",
+      "listenership_daily": 893000,
+      "listenership_weekly": null,
+      "listenership_period": "Adults 15+, BRC RAMS Amplify Xtab Dec 2023 RA23 Q4",
+      "audience_age_skew": "Youth",
+      "audience_gender_skew": null,
+      "audience_lsm_range": null,
+      "audience_racial_skew": null,
+      "urban_rural_mix": "urban",
+      "target_audience": "Upwardly mobile and trendsetting youth.",
+      "audience_keywords": [
+        "youth",
+        "music",
+        "multimedia",
+        "trendsetting",
+        "urban",
+        "hip hop",
+        "radio+digital"
+      ],
+      "packages": [],
+      "pricing": {
+        "monday_friday": {
+          "01:00-04:00": 360,
+          "04:00-06:00": 480,
+          "06:00-07:00": 9210,
+          "07:00-08:00": 10110,
+          "08:00-09:00": 10110,
+          "09:00-12:00": 8760,
+          "12:00-15:00": 4410,
+          "15:00-16:00": 7860,
+          "16:00-17:00": 9660,
+          "17:00-18:00": 9660,
+          "18:00-19:00": 10110,
+          "19:00-22:00": 3450,
+          "22:00-01:00": 360
+        },
+        "saturday": {
+          "01:00-04:00": 360,
+          "04:00-07:00": 960,
+          "07:00-10:00": 2490,
+          "10:00-14:00": 4170,
+          "14:00-18:00": 2250,
+          "18:00-19:00": 1890,
+          "19:00-22:00": 2010,
+          "22:00-01:00": 420
+        },
+        "sunday": {
+          "01:00-04:00": 360,
+          "04:00-07:00": 780,
+          "07:00-10:00": 1290,
+          "10:00-14:00": 3210,
+          "14:00-18:00": 2970,
+          "18:00-21:00": 1530,
+          "21:00-01:00": 900
+        }
+      },
+      "data_source_enrichment": [
+        {
+          "source_type": "uploaded_file",
+          "source_label": "SABC Radio Rates FY2024-2025 PDF",
+          "detail": "listenership, audience description and slot rates"
+        }
+      ],
+      "has_pricing": true,
+      "is_national": true
+    },
+    {
+      "id": "radio_ikwekwezi_fm",
+      "station": "Ikwekwezi FM",
+      "media_type": "radio",
+      "catalog_health": "unknown",
+      "coverage_type": "regional",
+      "broadcast_frequency": null,
+      "province_codes": [
+        "mpumalanga"
+      ],
+      "city_labels": [],
+      "primary_languages": [
+        "isindebele"
+      ],
+      "language_display": "isiNdebele",
+      "language_notes": "Only national radio station catering to the isiNdebele community.",
+      "listenership_daily": 1156000,
+      "listenership_weekly": null,
+      "listenership_period": "Adults 15+, BRC RAMS Amplify Xtab Dec 2023 RA23 Q4",
+      "audience_age_skew": "Adults 15+",
+      "audience_gender_skew": null,
+      "audience_lsm_range": null,
+      "audience_racial_skew": null,
+      "urban_rural_mix": "mixed",
+      "target_audience": "isiNdebele-speaking and understanding audiences.",
+      "audience_keywords": [
+        "isiNdebele",
+        "community",
+        "music",
+        "talk",
+        "Mpumalanga"
+      ],
+      "packages": [],
+      "pricing": {
+        "monday_friday": {
+          "00:00-03:00": 270,
+          "03:00-05:00": 540,
+          "05:00-06:00": 3210,
+          "06:00-09:00": 3450,
+          "09:00-12:00": 2130,
+          "12:00-15:00": 1650,
+          "15:00-18:00": 2010,
+          "18:00-19:00": 1530,
+          "19:00-21:00": 1770,
+          "21:00-24:00": 480
+        },
+        "saturday": {
+          "00:00-03:00": 240,
+          "03:00-06:00": 480,
+          "06:00-07:00": 1050,
+          "07:00-09:00": 1650,
+          "09:00-10:00": 1050,
+          "10:00-12:00": 900,
+          "12:00-15:00": 840,
+          "15:00-18:00": 960,
+          "18:00-21:00": 480,
+          "21:00-24:00": 330
+        }
+      },
+      "data_source_enrichment": [
+        {
+          "source_type": "uploaded_file",
+          "source_label": "SABC Radio Rates FY2024-2025 PDF",
+          "detail": "listenership, audience description and slot rates"
+        }
+      ],
+      "has_pricing": true,
+      "is_national": false
+    },
+    {
+      "id": "radio_lesedi_fm",
+      "station": "Lesedi FM",
+      "media_type": "radio",
+      "catalog_health": "unknown",
+      "coverage_type": "regional",
+      "broadcast_frequency": null,
+      "province_codes": [
+        "free_state"
+      ],
+      "city_labels": [
+        "Bloemfontein"
+      ],
+      "primary_languages": [
+        "sesotho"
+      ],
+      "language_display": "Sesotho",
+      "language_notes": "Sesotho station with spillover into Lesotho.",
+      "listenership_daily": 3529000,
+      "listenership_weekly": null,
+      "listenership_period": "Adults 15+, BRC RAMS Amplify Xtab Dec 2023 RA23 Q4",
+      "audience_age_skew": "Adults 15+",
+      "audience_gender_skew": null,
+      "audience_lsm_range": null,
+      "audience_racial_skew": null,
+      "urban_rural_mix": "mixed",
+      "target_audience": "Sesotho-speaking and understanding communities.",
+      "audience_keywords": [
+        "Sesotho",
+        "Free State",
+        "community",
+        "music",
+        "talk"
+      ],
+      "packages": [],
+      "pricing": {},
+      "data_source_enrichment": [
+        {
+          "source_type": "uploaded_file",
+          "source_label": "SABC Radio Rates FY2024-2025 PDF",
+          "detail": "province mapping and listenership"
+        }
+      ],
+      "has_pricing": false,
+      "is_national": false
+    },
+    {
+      "id": "radio_ligwalagwala_fm",
+      "station": "Ligwalagwala FM",
+      "media_type": "radio",
+      "catalog_health": "unknown",
+      "coverage_type": "regional",
+      "broadcast_frequency": null,
+      "province_codes": [
+        "mpumalanga"
+      ],
+      "city_labels": [],
+      "primary_languages": [
+        "siswati"
+      ],
+      "language_display": "isiSwati",
+      "language_notes": "Targets the eMaSwati audience.",
+      "listenership_daily": 1277000,
+      "listenership_weekly": null,
+      "listenership_period": "Adults 15+, BRC RAMS Amplify Xtab Dec 2023 RA23 Q4",
+      "audience_age_skew": "Young-adult leaning",
+      "audience_gender_skew": null,
+      "audience_lsm_range": null,
+      "audience_racial_skew": "Black-skewed",
+      "urban_rural_mix": "mixed",
+      "target_audience": "Young, motivated, upwardly mobile Black SiSwati-speaking listeners.",
+      "audience_keywords": [
+        "isiSwati",
+        "Mpumalanga",
+        "young",
+        "upwardly mobile",
+        "music",
+        "talk"
+      ],
+      "packages": [],
+      "pricing": {},
+      "data_source_enrichment": [
+        {
+          "source_type": "uploaded_file",
+          "source_label": "SABC Radio Rates FY2024-2025 PDF",
+          "detail": "listenership and station description"
+        }
+      ],
+      "has_pricing": false,
+      "is_national": false
+    },
+    {
+      "id": "radio_motsweding_fm",
+      "station": "Motsweding FM",
+      "media_type": "radio",
+      "catalog_health": "unknown",
+      "coverage_type": "regional",
+      "broadcast_frequency": null,
+      "province_codes": [
+        "north_west"
+      ],
+      "city_labels": [],
+      "primary_languages": [
+        "setswana"
+      ],
+      "language_display": "Setswana",
+      "language_notes": "North West service with audience spillover into Botswana.",
+      "listenership_daily": 3042000,
+      "listenership_weekly": null,
+      "listenership_period": "Adults 15+, BRC RAMS Amplify Xtab Dec 2023 RA23 Q4",
+      "audience_age_skew": "Adults 15+",
+      "audience_gender_skew": null,
+      "audience_lsm_range": null,
+      "audience_racial_skew": null,
+      "urban_rural_mix": "mixed",
+      "target_audience": "Setswana-speaking and understanding South Africans.",
+      "audience_keywords": [
+        "Setswana",
+        "North West",
+        "community",
+        "music",
+        "talk"
+      ],
+      "packages": [],
+      "pricing": {},
+      "data_source_enrichment": [
+        {
+          "source_type": "uploaded_file",
+          "source_label": "SABC Radio Rates FY2024-2025 PDF",
+          "detail": "listenership and station description"
+        }
+      ],
+      "has_pricing": false,
+      "is_national": false
+    },
+    {
+      "id": "radio_munghana_lonene_fm",
+      "station": "Munghana Lonene FM",
+      "media_type": "radio",
+      "catalog_health": "unknown",
+      "coverage_type": "regional",
+      "broadcast_frequency": null,
+      "province_codes": [
+        "limpopo",
+        "mpumalanga",
+        "gauteng",
+        "north_west"
+      ],
+      "city_labels": [],
+      "primary_languages": [
+        "xitsonga"
+      ],
+      "language_display": "Xitsonga",
+      "language_notes": "Xitsonga service with streaming/broader online access.",
+      "listenership_daily": 1424000,
+      "listenership_weekly": null,
+      "listenership_period": "Adults 15+, BRC RAMS Amplify Xtab Dec 2023 RA23 Q4",
+      "audience_age_skew": "Adults 15+",
+      "audience_gender_skew": null,
+      "audience_lsm_range": null,
+      "audience_racial_skew": null,
+      "urban_rural_mix": "mixed",
+      "target_audience": "Xitsonga-speaking family-oriented audience across multiple provinces.",
+      "audience_keywords": [
+        "Xitsonga",
+        "family",
+        "community",
+        "multi-province",
+        "music",
+        "talk"
+      ],
+      "packages": [],
+      "pricing": {},
+      "data_source_enrichment": [
+        {
+          "source_type": "uploaded_file",
+          "source_label": "SABC Radio Rates FY2024-2025 PDF",
+          "detail": "listenership and station description"
+        }
+      ],
+      "has_pricing": false,
+      "is_national": false
+    },
+    {
+      "id": "radio_phalaphala_fm",
+      "station": "Phalaphala FM",
+      "media_type": "radio",
+      "catalog_health": "unknown",
+      "coverage_type": "regional",
+      "broadcast_frequency": null,
+      "province_codes": [
+        "limpopo",
+        "gauteng",
+        "north_west",
+        "mpumalanga"
+      ],
+      "city_labels": [],
+      "primary_languages": [
+        "tshivenda"
+      ],
+      "language_display": "Tshivenda",
+      "language_notes": "Tshivenda regional service.",
+      "listenership_daily": 1119000,
+      "listenership_weekly": null,
+      "listenership_period": "Adults 15+, BRC RAMS Amplify Xtab Dec 2023 RA23 Q4",
+      "audience_age_skew": "Adults 15+",
+      "audience_gender_skew": null,
+      "audience_lsm_range": null,
+      "audience_racial_skew": null,
+      "urban_rural_mix": "mixed",
+      "target_audience": "Rural and urban Tshivenda-speaking and understanding audiences.",
+      "audience_keywords": [
+        "Tshivenda",
+        "Limpopo",
+        "community",
+        "urban/rural",
+        "music",
+        "talk"
+      ],
+      "packages": [],
+      "pricing": {},
+      "data_source_enrichment": [
+        {
+          "source_type": "uploaded_file",
+          "source_label": "SABC Radio Rates FY2024-2025 PDF",
+          "detail": "listenership and station description"
+        }
+      ],
+      "has_pricing": false,
+      "is_national": false
+    },
+    {
+      "id": "radio_ukhozi_fm",
+      "station": "Ukhozi FM",
+      "media_type": "radio",
+      "catalog_health": "unknown",
+      "coverage_type": "regional",
+      "broadcast_frequency": null,
+      "province_codes": [
+        "kwazulu_natal"
+      ],
+      "city_labels": [],
+      "primary_languages": [
+        "isizulu"
+      ],
+      "language_display": "isiZulu",
+      "language_notes": "KZN flagship isiZulu station.",
+      "listenership_daily": 7546000,
+      "listenership_weekly": null,
+      "listenership_period": "Adults 15+, BRC RAMS Amplify Xtab Dec 2023 RA23 Q4 (province/station mosaic page)",
+      "audience_age_skew": "Adults 15+",
+      "audience_gender_skew": null,
+      "audience_lsm_range": null,
+      "audience_racial_skew": "Black-skewed",
+      "urban_rural_mix": "mixed",
+      "target_audience": "Mass isiZulu-speaking audience in KZN and beyond.",
+      "audience_keywords": [
+        "isiZulu",
+        "KZN",
+        "mass reach",
+        "community",
+        "music",
+        "talk"
+      ],
+      "packages": [],
+      "pricing": {},
+      "data_source_enrichment": [
+        {
+          "source_type": "uploaded_file",
+          "source_label": "SABC Radio Rates FY2024-2025 PDF",
+          "detail": "province mapping and listenership mosaic"
+        }
+      ],
+      "has_pricing": false,
+      "is_national": false
+    },
+    {
+      "id": "radio_lotus_fm",
+      "station": "Lotus FM",
+      "media_type": "radio",
+      "catalog_health": "unknown",
+      "coverage_type": "regional",
+      "broadcast_frequency": null,
+      "province_codes": [
+        "kwazulu_natal"
+      ],
+      "city_labels": [],
+      "primary_languages": [
+        "english"
+      ],
+      "language_display": "English",
+      "language_notes": "KZN English service on SABC station list; finer audience profile not extracted.",
+      "listenership_daily": 237000,
+      "listenership_weekly": null,
+      "listenership_period": "Adults 15+, BRC RAMS Amplify Xtab Dec 2023 RA23 Q4 (province/station mosaic page)",
+      "audience_age_skew": "Adults 15+",
+      "audience_gender_skew": null,
+      "audience_lsm_range": null,
+      "audience_racial_skew": null,
+      "urban_rural_mix": "mixed",
+      "target_audience": null,
+      "audience_keywords": [
+        "KZN",
+        "English",
+        "regional"
+      ],
+      "packages": [],
+      "pricing": {},
+      "data_source_enrichment": [
+        {
+          "source_type": "uploaded_file",
+          "source_label": "SABC Radio Rates FY2024-2025 PDF",
+          "detail": "province mapping and listenership mosaic"
+        }
+      ],
+      "has_pricing": false,
+      "is_national": false
+    },
+    {
+      "id": "radio_radio_2000",
+      "station": "Radio 2000",
+      "media_type": "radio",
+      "catalog_health": "unknown",
+      "coverage_type": "national",
+      "broadcast_frequency": null,
+      "province_codes": [
+        "national"
+      ],
+      "city_labels": [],
+      "primary_languages": [
+        "english"
+      ],
+      "language_display": "English",
+      "language_notes": "National English station per SABC mosaic page.",
+      "listenership_daily": 1929000,
+      "listenership_weekly": null,
+      "listenership_period": "Adults 15+, BRC RAMS Amplify Xtab Dec 2023 RA23 Q4 (province/station mosaic page)",
+      "audience_age_skew": "Adults 15+",
+      "audience_gender_skew": null,
+      "audience_lsm_range": null,
+      "audience_racial_skew": null,
+      "urban_rural_mix": "mixed",
+      "target_audience": null,
+      "audience_keywords": [
+        "national",
+        "English",
+        "music",
+        "talk"
+      ],
+      "packages": [],
+      "pricing": {},
+      "data_source_enrichment": [
+        {
+          "source_type": "uploaded_file",
+          "source_label": "SABC Radio Rates FY2024-2025 PDF",
+          "detail": "province mapping and listenership mosaic"
+        }
+      ],
+      "has_pricing": false,
+      "is_national": true
+    },
+    {
+      "id": "radio_rsg",
+      "station": "RSG",
+      "media_type": "radio",
+      "catalog_health": "unknown",
+      "coverage_type": "national",
+      "broadcast_frequency": null,
+      "province_codes": [
+        "national"
+      ],
+      "city_labels": [],
+      "primary_languages": [
+        "afrikaans"
+      ],
+      "language_display": "Afrikaans",
+      "language_notes": "National Afrikaans service per SABC mosaic page.",
+      "listenership_daily": 1265000,
+      "listenership_weekly": null,
+      "listenership_period": "Adults 15+, BRC RAMS Amplify Xtab Dec 2023 RA23 Q4 (province/station mosaic page)",
+      "audience_age_skew": "Adults 15+",
+      "audience_gender_skew": null,
+      "audience_lsm_range": null,
+      "audience_racial_skew": null,
+      "urban_rural_mix": "mixed",
+      "target_audience": null,
+      "audience_keywords": [
+        "national",
+        "Afrikaans",
+        "talk",
+        "music",
+        "news"
+      ],
+      "packages": [],
+      "pricing": {},
+      "data_source_enrichment": [
+        {
+          "source_type": "uploaded_file",
+          "source_label": "SABC Radio Rates FY2024-2025 PDF",
+          "detail": "province mapping and listenership mosaic"
+        }
+      ],
+      "has_pricing": false,
+      "is_national": true
+    },
+    {
+      "id": "radio_safm",
+      "station": "SAfm",
+      "media_type": "radio",
+      "catalog_health": "unknown",
+      "coverage_type": "national",
+      "broadcast_frequency": null,
+      "province_codes": [
+        "national"
+      ],
+      "city_labels": [],
+      "primary_languages": [
+        "english"
+      ],
+      "language_display": "English",
+      "language_notes": "National English service per SABC mosaic page.",
+      "listenership_daily": 566000,
+      "listenership_weekly": null,
+      "listenership_period": "Adults 15+, BRC RAMS Amplify Xtab Dec 2023 RA23 Q4 (province/station mosaic page)",
+      "audience_age_skew": "Adults 15+",
+      "audience_gender_skew": null,
+      "audience_lsm_range": null,
+      "audience_racial_skew": null,
+      "urban_rural_mix": "mixed",
+      "target_audience": null,
+      "audience_keywords": [
+        "national",
+        "English",
+        "news",
+        "talk"
+      ],
+      "packages": [],
+      "pricing": {},
+      "data_source_enrichment": [
+        {
+          "source_type": "uploaded_file",
+          "source_label": "SABC Radio Rates FY2024-2025 PDF",
+          "detail": "province mapping and listenership mosaic"
+        }
+      ],
+      "has_pricing": false,
+      "is_national": true
+    },
+    {
+      "id": "radio_xk_fm",
+      "station": "XK FM",
+      "media_type": "radio",
+      "catalog_health": "unknown",
+      "coverage_type": "regional",
+      "broadcast_frequency": null,
+      "province_codes": [
+        "northern_cape"
+      ],
+      "city_labels": [],
+      "primary_languages": [
+        "unknown"
+      ],
+      "language_display": "!Xuntali & Khwedam",
+      "language_notes": "Very small indigenous-language audience per SABC mosaic page.",
+      "listenership_daily": 1000,
+      "listenership_weekly": null,
+      "listenership_period": "Adults 15+, BRC RAMS Amplify Xtab Dec 2023 RA23 Q4 (province/station mosaic page)",
+      "audience_age_skew": "Adults 15+",
+      "audience_gender_skew": null,
+      "audience_lsm_range": null,
+      "audience_racial_skew": null,
+      "urban_rural_mix": "mixed",
+      "target_audience": "!Xuntali and Khwedam-speaking audience.",
+      "audience_keywords": [
+        "Northern Cape",
+        "indigenous language",
+        "community"
+      ],
+      "packages": [],
+      "pricing": {},
+      "data_source_enrichment": [
+        {
+          "source_type": "uploaded_file",
+          "source_label": "SABC Radio Rates FY2024-2025 PDF",
+          "detail": "province mapping and listenership mosaic"
+        }
+      ],
+      "has_pricing": false,
+      "is_national": false
+    },
+    {
+      "id": "radio_channel_africa",
+      "station": "Channel Africa",
+      "media_type": "radio",
+      "catalog_health": "unknown",
+      "coverage_type": "national",
+      "broadcast_frequency": null,
+      "province_codes": [],
+      "city_labels": [],
+      "primary_languages": [
+        "unknown"
+      ],
+      "language_display": null,
+      "language_notes": "Africa-and-beyond service listed in SABC radio rate card contents; detailed pricing page not reviewed here.",
+      "listenership_daily": null,
+      "listenership_weekly": null,
+      "listenership_period": null,
+      "audience_age_skew": null,
+      "audience_gender_skew": null,
+      "audience_lsm_range": null,
+      "audience_racial_skew": null,
+      "urban_rural_mix": "unknown",
+      "target_audience": "Pan-African / beyond-SA audience",
+      "audience_keywords": [
+        "international",
+        "Africa"
+      ],
+      "packages": [],
+      "pricing": {},
+      "data_source_enrichment": [
+        {
+          "source_type": "uploaded_file",
+          "source_label": "SABC Radio Rates FY2024-2025 PDF",
+          "detail": "station listed in contents and mosaic"
+        }
+      ],
+      "has_pricing": false,
+      "is_national": true
+    },
+    {
+      "id": "radio_y",
+      "station": "Y",
+      "media_type": "radio",
+      "catalog_health": "strong",
+      "coverage_type": "regional",
+      "broadcast_frequency": "99.2 FM",
+      "province_codes": [
+        "gauteng"
+      ],
+      "city_labels": [
+        "Johannesburg"
+      ],
+      "primary_languages": [
+        "english"
+      ],
+      "language_display": "English",
+      "language_notes": "Urban contemporary youth brand.",
+      "listenership_daily": null,
+      "listenership_weekly": null,
+      "listenership_period": null,
+      "audience_age_skew": "18-35",
+      "audience_gender_skew": null,
+      "audience_lsm_range": null,
+      "audience_racial_skew": null,
+      "urban_rural_mix": "urban",
+      "target_audience": "Young South Africans / Gen Z and youth audience.",
+      "audience_keywords": [
+        "youth",
+        "Gen Z",
+        "urban",
+        "Johannesburg",
+        "hip hop",
+        "house",
+        "kwaito",
+        "R&B"
+      ],
+      "packages": [],
+      "pricing": {},
+      "data_source_enrichment": [
+        {
+          "source_type": "web",
+          "source_label": "Y official site",
+          "detail": "Johannesburg youth positioning and app/streaming presence",
+          "source_url": "https://www.yfm.co.za/"
+        },
+        {
+          "source_type": "web",
+          "source_label": "Broadcast Media 99.2 YFM",
+          "detail": "audience descriptors",
+          "source_url": "https://broadcast.media.co.za/99-2-yfm/"
+        }
+      ],
+      "has_pricing": false,
+      "is_national": false
+    },
+    {
+      "id": "radio_east_coast_radio",
+      "station": "East Coast Radio",
+      "media_type": "radio",
+      "catalog_health": "unknown",
+      "coverage_type": "regional",
+      "broadcast_frequency": null,
+      "province_codes": [
+        "kwazulu_natal"
+      ],
+      "city_labels": [],
+      "primary_languages": [
+        "english"
+      ],
+      "language_display": "English",
+      "language_notes": "KZN commercial hit music station.",
+      "listenership_daily": null,
+      "listenership_weekly": null,
+      "listenership_period": null,
+      "audience_age_skew": null,
+      "audience_gender_skew": null,
+      "audience_lsm_range": null,
+      "audience_racial_skew": null,
+      "urban_rural_mix": "mixed",
+      "target_audience": "KZN commercial radio audience.",
+      "audience_keywords": [
+        "KZN",
+        "commercial",
+        "hit music",
+        "regional"
+      ],
+      "packages": [],
+      "pricing": {},
+      "data_source_enrichment": [
+        {
+          "source_type": "web",
+          "source_label": "East Coast Radio official site",
+          "detail": "KZN positioning",
+          "source_url": "https://www.ecr.co.za/"
+        }
+      ],
+      "has_pricing": false,
+      "is_national": false
+    },
+    {
+      "id": "radio_kfm_94_5",
+      "station": "Kfm 94.5",
+      "media_type": "radio",
+      "catalog_health": "unknown",
+      "coverage_type": "regional",
+      "broadcast_frequency": "94.5 FM",
+      "province_codes": [
+        "western_cape"
+      ],
+      "city_labels": [
+        "Cape Town",
+        "Mossel Bay",
+        "George",
+        "Knysna",
+        "Hermanus",
+        "Oudtshoorn",
+        "Caledon",
+        "Worcester",
+        "Malmesbury",
+        "Saldanha",
+        "Beaufort West"
+      ],
+      "primary_languages": [
+        "english"
+      ],
+      "language_display": "English",
+      "language_notes": "Hot adult contemporary station based in Cape Town.",
+      "listenership_daily": null,
+      "listenership_weekly": 862000,
+      "listenership_period": "March 2018 station profile snippet",
+      "audience_age_skew": "25-54",
+      "audience_gender_skew": null,
+      "audience_lsm_range": "LSM 7-10",
+      "audience_racial_skew": null,
+      "urban_rural_mix": "mixed",
+      "target_audience": "Western Cape adults 25-54, LSM 7-10.",
+      "audience_keywords": [
+        "Cape Town",
+        "Western Cape",
+        "adult contemporary",
+        "music",
+        "LSM 7-10"
+      ],
+      "packages": [],
+      "pricing": {},
+      "data_source_enrichment": [
+        {
+          "source_type": "web",
+          "source_label": "Kfm audience profile snippet",
+          "detail": "862k listeners, age and LSM target",
+          "source_url": "https://res.cloudinary.com/primedia-broadcasting/image/upload/v1522161677/Station_Profile_-_KFM_-_March_2018_pwlp01.pdf"
+        },
+        {
+          "source_type": "web",
+          "source_label": "Kfm public profile",
+          "detail": "coverage towns and station format",
+          "source_url": "https://en.wikipedia.org/wiki/Kfm_94.5"
+        }
+      ],
+      "has_pricing": false,
+      "is_national": false
+    },
+    {
+      "id": "tv_sabc_1",
+      "station": "SABC 1",
+      "media_type": "tv",
+      "catalog_health": "strong",
+      "coverage_type": "national",
+      "broadcast_frequency": null,
+      "province_codes": [
+        "national"
+      ],
+      "city_labels": [],
+      "primary_languages": [
+        "unknown"
+      ],
+      "language_display": null,
+      "language_notes": "Full-spectrum national TV channel; described as the inspiration and guiding light for youthful South Africa and 'Mzansi's Official Storyteller'.",
+      "listenership_daily": null,
+      "listenership_weekly": null,
+      "listenership_period": null,
+      "audience_age_skew": "Youthful / broad mass market",
+      "audience_gender_skew": null,
+      "audience_lsm_range": null,
+      "audience_racial_skew": null,
+      "urban_rural_mix": "mixed",
+      "target_audience": "Youthful South Africa; wide demographic spanning rural, peri-urban and urban audiences for flagship dramas.",
+      "audience_keywords": [
+        "youthful South Africa",
+        "storytelling",
+        "drama",
+        "mass reach",
+        "national"
+      ],
+      "packages": [],
+      "pricing": [
+        {
+          "program": "Amalanga Awafani",
+          "slot": "Mon-Fri 18:30",
+          "price_zar": 110000
+        },
+        {
+          "program": "Skeem Saam S13",
+          "slot": "Mon-Fri 19:30",
+          "price_zar": 130000
+        },
+        {
+          "program": "Generation The Legacy",
+          "slot": "Mon-Fri 20:00",
+          "price_zar": 140000
+        },
+        {
+          "program": "Uzalo S11",
+          "slot": "Mon-Fri 20:30",
+          "price_zar": 150000
+        },
+        {
+          "program": "Good Men",
+          "slot": "Sunday 20:00",
+          "price_zar": 36000
+        }
+      ],
+      "data_source_enrichment": [
+        {
+          "source_type": "uploaded_file",
+          "source_label": "SABC TV Rate June 2025 PDF",
+          "detail": "SABC1 June schedule pricing"
+        },
+        {
+          "source_type": "web",
+          "source_label": "SABC1 About Us",
+          "detail": "channel positioning",
+          "source_url": "https://www.nmtdeploy.co.za/sabc/home/sabc1/aboutus"
+        }
+      ],
+      "has_pricing": true,
+      "is_national": true
+    },
+    {
+      "id": "tv_sabc_3",
+      "station": "SABC 3",
+      "media_type": "tv",
+      "catalog_health": "strong",
+      "coverage_type": "national",
+      "broadcast_frequency": null,
+      "province_codes": [
+        "national"
+      ],
+      "city_labels": [],
+      "primary_languages": [
+        "unknown"
+      ],
+      "language_display": null,
+      "language_notes": null,
+      "listenership_daily": null,
+      "listenership_weekly": null,
+      "listenership_period": null,
+      "audience_age_skew": null,
+      "audience_gender_skew": null,
+      "audience_lsm_range": null,
+      "audience_racial_skew": null,
+      "urban_rural_mix": "mixed",
+      "target_audience": null,
+      "audience_keywords": [
+        "national TV",
+        "news package"
+      ],
+      "packages": [
+        {
+          "name": "Weekly SABC 3 & SABC News Channel News Package",
+          "sem": "8-10",
+          "package_cost_zar": 105540,
+          "number_of_spots": 30,
+          "average_cost_per_spot_zar": 3518,
+          "exposure_value_zar": 238500
+        }
+      ],
+      "pricing": {},
+      "data_source_enrichment": [
+        {
+          "source_type": "uploaded_file",
+          "source_label": "SABC TV Rate June 2025 PDF",
+          "detail": "package summary"
+        }
+      ],
+      "has_pricing": true,
+      "is_national": true
+    },
+    {
+      "id": "tv_sabc_news_channel",
+      "station": "SABC News Channel",
+      "media_type": "tv",
+      "catalog_health": "strong",
+      "coverage_type": "national",
+      "broadcast_frequency": null,
+      "province_codes": [
+        "national"
+      ],
+      "city_labels": [],
+      "primary_languages": [
+        "unknown"
+      ],
+      "language_display": null,
+      "language_notes": null,
+      "listenership_daily": null,
+      "listenership_weekly": null,
+      "listenership_period": null,
+      "audience_age_skew": null,
+      "audience_gender_skew": null,
+      "audience_lsm_range": null,
+      "audience_racial_skew": null,
+      "urban_rural_mix": "mixed",
+      "target_audience": "News/current affairs viewers",
+      "audience_keywords": [
+        "news",
+        "current affairs",
+        "national"
+      ],
+      "packages": [
+        {
+          "name": "Weekly SABC News Channel Only Audience Reach Maximiser",
+          "sem": "8-10",
+          "package_cost_zar": 129540,
+          "number_of_spots": 60,
+          "average_cost_per_spot_zar": 2159,
+          "exposure_value_zar": 331500
+        },
+        {
+          "name": "4 Week SABC News Channel Package",
+          "sem": "8-10",
+          "package_cost_zar": 550825,
+          "number_of_spots": 240,
+          "average_cost_per_spot_zar": 2295,
+          "exposure_value_zar": 1304000
+        }
+      ],
+      "pricing": {},
+      "data_source_enrichment": [
+        {
+          "source_type": "uploaded_file",
+          "source_label": "SABC TV Rate June 2025 PDF",
+          "detail": "package summary"
+        }
+      ],
+      "has_pricing": true,
+      "is_national": true
+    },
+    {
+      "id": "tv_sabc_sport",
+      "station": "SABC Sport",
+      "media_type": "tv",
+      "catalog_health": "strong",
+      "coverage_type": "national",
+      "broadcast_frequency": null,
+      "province_codes": [
+        "national"
+      ],
+      "city_labels": [],
+      "primary_languages": [
+        "unknown"
+      ],
+      "language_display": null,
+      "language_notes": null,
+      "listenership_daily": null,
+      "listenership_weekly": null,
+      "listenership_period": null,
+      "audience_age_skew": null,
+      "audience_gender_skew": null,
+      "audience_lsm_range": null,
+      "audience_racial_skew": null,
+      "urban_rural_mix": "mixed",
+      "target_audience": "Sports viewers",
+      "audience_keywords": [
+        "sport",
+        "live events",
+        "national"
+      ],
+      "packages": [
+        {
+          "name": "4 Week SABC Sport Channel Package",
+          "sem": "8-10",
+          "package_cost_zar": 822500,
+          "number_of_spots": 285,
+          "average_cost_per_spot_zar": 2886,
+          "exposure_value_zar": 2025000
+        }
+      ],
+      "pricing": {},
+      "data_source_enrichment": [
+        {
+          "source_type": "uploaded_file",
+          "source_label": "SABC TV Rate June 2025 PDF",
+          "detail": "package summary"
+        }
+      ],
+      "has_pricing": true,
+      "is_national": true
+    },
+    {
+      "id": "tv_e_tv",
+      "station": "e.tv",
+      "media_type": "tv",
+      "catalog_health": "unknown",
+      "coverage_type": "national",
+      "broadcast_frequency": null,
+      "province_codes": [
+        "national"
+      ],
+      "city_labels": [],
+      "primary_languages": [
+        "unknown"
+      ],
+      "language_display": null,
+      "language_notes": "No pricing or inventory in uploaded catalog set.",
+      "listenership_daily": null,
+      "listenership_weekly": null,
+      "listenership_period": null,
+      "audience_age_skew": null,
+      "audience_gender_skew": null,
+      "audience_lsm_range": null,
+      "audience_racial_skew": null,
+      "urban_rural_mix": "mixed",
+      "target_audience": null,
+      "audience_keywords": [
+        "TV",
+        "national"
+      ],
+      "packages": [],
+      "pricing": {},
+      "data_source_enrichment": [
+        {
+          "source_type": "uploaded_file",
+          "source_label": "User catalog notes",
+          "detail": "noted as weak/no inventory in live catalog"
+        }
+      ],
+      "has_pricing": false,
+      "is_national": true
+    }
+  ]
+}

@@ -4,10 +4,25 @@ import type {
   Campaign,
   CampaignBrief,
   CampaignRecommendation,
+  InventoryRow,
   LoginInput,
   PackageBand,
+  PackageAreaOption,
   PackageCheckoutSession,
+  AdminUser,
+  AdminAuditEntry,
+  AdminIntegrationStatus,
+  AdminDashboard,
+  AdminCreateOutletInput,
+  AdminOutletDetail,
+  AdminOutletPricing,
+  AdminRateCardUploadInput,
+  AdminPreviewRuleUpdateInput,
+  AdminUpsertOutletPricingPackageInput,
+  AdminUpsertOutletSlotRateInput,
+  AdminUpdateOutletInput,
   PackagePreview,
+  PackagePreviewMapPoint,
   PackageOrder,
   PaymentProvider,
   PlanningMode,
@@ -16,8 +31,6 @@ import type {
   SelectedPlanInventoryItem,
   SessionUser,
 } from '../types/domain';
-import { agentInventoryFallbackEnabled } from '../lib/featureFlags';
-import { fallbackInventory } from './fallbackInventory';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:5050';
 const SESSION_STORAGE_KEY = 'advertified-session-user';
@@ -120,6 +133,9 @@ type MeResponse = {
   accountStatus: string;
   emailVerified: boolean;
   phoneVerified: boolean;
+  businessName?: string;
+  city?: string;
+  province?: string;
 };
 
 type PackageBandResponse = {
@@ -140,6 +156,14 @@ type PackageBandResponse = {
   recommendedSpend?: number;
   isRecommended: boolean;
 };
+
+type PackageAreaOptionResponse = {
+  code: string;
+  label: string;
+  description: string;
+};
+
+type AdminDashboardResponse = AdminDashboard;
 
 type PackageOrderResponse = {
   id: string;
@@ -166,6 +190,7 @@ type PackagePreviewResponse = {
   reachEstimate: string;
   coverage: string;
   exampleLocations: string[];
+  outdoorMapPoints: PackagePreviewMapPoint[];
   radioSupportExamples: string[];
   tvSupportExamples: string[];
   typicalInclusions: string[];
@@ -220,6 +245,11 @@ type RecommendationItemResponse = {
   quantity: number;
   flighting?: string | null;
   itemNotes?: string | null;
+  dimensions?: string | null;
+  material?: string | null;
+  illuminated?: string | null;
+  trafficCount?: string | null;
+  siteNumber?: string | null;
   startDate?: string | null;
   endDate?: string | null;
   title: string;
@@ -232,6 +262,8 @@ type RecommendationItemResponse = {
 type CampaignRecommendationResponse = {
   id: string;
   campaignId: string;
+  proposalLabel?: string;
+  proposalStrategy?: string;
   summary: string;
   rationale: string;
   clientFeedbackNotes?: string | null;
@@ -271,7 +303,9 @@ type CampaignResponse = {
     state: 'complete' | 'current' | 'upcoming';
   }>;
   brief?: CampaignBriefResponse | null;
+  recommendations?: CampaignRecommendationResponse[] | null;
   recommendation?: CampaignRecommendationResponse | null;
+  recommendationPdfUrl?: string | null;
   createdAt: string;
 };
 
@@ -366,6 +400,9 @@ function mapSessionUser(response: LoginResponse | MeResponse): SessionUser {
     email: response.email,
     role: normalizeRole(response.role),
     emailVerified: response.emailVerified,
+    businessName: 'businessName' in response ? response.businessName ?? undefined : undefined,
+    city: 'city' in response ? response.city ?? undefined : undefined,
+    province: 'province' in response ? response.province ?? undefined : undefined,
   };
 }
 
@@ -386,6 +423,14 @@ function mapPackageBand(response: PackageBandResponse): PackageBand {
     leadTime: response.leadTime,
     recommendedSpend: response.recommendedSpend,
     isRecommended: response.isRecommended,
+  };
+}
+
+function mapPackageAreaOption(response: PackageAreaOptionResponse): PackageAreaOption {
+  return {
+    code: response.code,
+    label: response.label,
+    description: response.description,
   };
 }
 
@@ -417,6 +462,10 @@ function mapPackagePreview(response: PackagePreviewResponse): PackagePreview {
     reachEstimate: response.reachEstimate,
     coverage: response.coverage,
     exampleLocations: response.exampleLocations,
+    outdoorMapPoints: (response.outdoorMapPoints ?? []).map((point) => ({
+      ...point,
+      isInSelectedArea: point.isInSelectedArea ?? false,
+    })),
     radioSupportExamples: response.radioSupportExamples,
     tvSupportExamples: response.tvSupportExamples,
     typicalInclusions: response.typicalInclusions,
@@ -434,6 +483,8 @@ function mapRecommendation(response?: CampaignRecommendationResponse | null): Ca
     return {
       id: response.id,
       campaignId: response.campaignId,
+      proposalLabel: response.proposalLabel ?? undefined,
+      proposalStrategy: response.proposalStrategy ?? undefined,
       summary: response.summary,
       rationale: response.rationale,
       clientFeedbackNotes: response.clientFeedbackNotes ?? undefined,
@@ -457,9 +508,14 @@ function mapRecommendation(response?: CampaignRecommendationResponse | null): Ca
         quantity: item.quantity,
         flighting: item.flighting ?? undefined,
         itemNotes: item.itemNotes ?? undefined,
-      startDate: item.startDate ?? undefined,
-      endDate: item.endDate ?? undefined,
-    })),
+        dimensions: item.dimensions ?? undefined,
+        material: item.material ?? undefined,
+        illuminated: item.illuminated ?? undefined,
+        trafficCount: item.trafficCount ?? undefined,
+        siteNumber: item.siteNumber ?? undefined,
+        startDate: item.startDate ?? undefined,
+        endDate: item.endDate ?? undefined,
+      })),
   };
 }
 
@@ -477,6 +533,19 @@ function getBuildSourceLabel(planningMode?: PlanningMode): string {
 }
 
 function mapCampaign(response: CampaignResponse): Campaign {
+  const recommendations = (response.recommendations ?? [])
+    .map((recommendation) => ({
+      ...mapRecommendation(recommendation)!,
+      buildSourceLabel: getBuildSourceLabel(response.planningMode),
+    }));
+  const primaryRecommendation = recommendations[0]
+    ?? (response.recommendation
+      ? {
+          ...mapRecommendation(response.recommendation)!,
+          buildSourceLabel: getBuildSourceLabel(response.planningMode),
+        }
+      : undefined);
+
   return {
     id: response.id,
     userId: response.userId,
@@ -501,12 +570,9 @@ function mapCampaign(response: CampaignResponse): Campaign {
     nextAction: response.nextAction,
     timeline: response.timeline ?? [],
     brief: response.brief ?? undefined,
-    recommendation: response.recommendation
-      ? {
-          ...mapRecommendation(response.recommendation)!,
-          buildSourceLabel: getBuildSourceLabel(response.planningMode),
-        }
-      : undefined,
+    recommendations,
+    recommendation: primaryRecommendation,
+    recommendationPdfUrl: response.recommendationPdfUrl ?? undefined,
     createdAt: response.createdAt,
   };
 }
@@ -657,7 +723,7 @@ export const advertifiedApi = {
       body: JSON.stringify(input),
     });
 
-    return mapSessionUser(response);
+    return this.getMe(response.userId).catch(() => mapSessionUser(response));
   },
 
   async verifyEmail(token: string) {
@@ -666,6 +732,11 @@ export const advertifiedApi = {
       body: JSON.stringify({ token }),
     });
 
+    return this.getMe(response.userId).catch(() => mapSessionUser(response));
+  },
+
+  async getMe(userId?: string) {
+    const response = await apiRequest<MeResponse>('/me', {}, userId);
     return mapSessionUser(response);
   },
 
@@ -680,6 +751,129 @@ export const advertifiedApi = {
   async getPackages() {
     const response = await apiRequest<PackageBandResponse[]>('/packages');
     return response.map(mapPackageBand);
+  },
+
+  async getPackageAreas() {
+    const response = await apiRequest<PackageAreaOptionResponse[]>('/packages/areas');
+    return response.map(mapPackageAreaOption);
+  },
+
+  async getAdminUsers() {
+    return apiRequest<AdminUser[]>('/admin/users');
+  },
+
+  async getAdminDashboard() {
+    return apiRequest<AdminDashboardResponse>('/admin/dashboard');
+  },
+
+  async createAdminOutlet(input: AdminCreateOutletInput) {
+    return apiRequest('/admin/outlets', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  },
+
+  async getAdminOutlet(code: string) {
+    return apiRequest<AdminOutletDetail>(`/admin/outlets/${encodeURIComponent(code)}`);
+  },
+
+  async updateAdminOutlet(existingCode: string, input: AdminUpdateOutletInput) {
+    return apiRequest(`/admin/outlets/${encodeURIComponent(existingCode)}`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    });
+  },
+
+  async deleteAdminOutlet(code: string) {
+    return apiRequest(`/admin/outlets/${encodeURIComponent(code)}`, {
+      method: 'DELETE',
+    });
+  },
+
+  async getAdminOutletPricing(code: string) {
+    return apiRequest<AdminOutletPricing>(`/admin/outlets/${encodeURIComponent(code)}/pricing`);
+  },
+
+  async createAdminOutletPricingPackage(code: string, input: AdminUpsertOutletPricingPackageInput) {
+    return apiRequest(`/admin/outlets/${encodeURIComponent(code)}/pricing/packages`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  },
+
+  async updateAdminOutletPricingPackage(code: string, packageId: string, input: AdminUpsertOutletPricingPackageInput) {
+    return apiRequest(`/admin/outlets/${encodeURIComponent(code)}/pricing/packages/${encodeURIComponent(packageId)}`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    });
+  },
+
+  async deleteAdminOutletPricingPackage(code: string, packageId: string) {
+    return apiRequest(`/admin/outlets/${encodeURIComponent(code)}/pricing/packages/${encodeURIComponent(packageId)}`, {
+      method: 'DELETE',
+    });
+  },
+
+  async createAdminOutletSlotRate(code: string, input: AdminUpsertOutletSlotRateInput) {
+    return apiRequest(`/admin/outlets/${encodeURIComponent(code)}/pricing/slot-rates`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  },
+
+  async updateAdminOutletSlotRate(code: string, slotRateId: string, input: AdminUpsertOutletSlotRateInput) {
+    return apiRequest(`/admin/outlets/${encodeURIComponent(code)}/pricing/slot-rates/${encodeURIComponent(slotRateId)}`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    });
+  },
+
+  async deleteAdminOutletSlotRate(code: string, slotRateId: string) {
+    return apiRequest(`/admin/outlets/${encodeURIComponent(code)}/pricing/slot-rates/${encodeURIComponent(slotRateId)}`, {
+      method: 'DELETE',
+    });
+  },
+
+  async uploadAdminRateCard(input: AdminRateCardUploadInput) {
+    const formData = new FormData();
+    formData.append('channel', input.channel);
+    if (input.supplierOrStation) formData.append('supplierOrStation', input.supplierOrStation);
+    if (input.documentTitle) formData.append('documentTitle', input.documentTitle);
+    if (input.notes) formData.append('notes', input.notes);
+    formData.append('file', input.file);
+
+    const sessionUserId = getStoredSession()?.id;
+    const headers = new Headers();
+    if (sessionUserId) {
+      headers.set('X-User-Id', sessionUserId);
+    }
+
+    const response = await fetch(`${API_BASE_URL}/admin/imports/rate-card`, {
+      method: 'POST',
+      body: formData,
+      headers,
+    });
+
+    if (!response.ok) {
+      await parseApiError(response);
+    }
+
+    return response.json();
+  },
+
+  async updateAdminPreviewRule(packageCode: string, tierCode: string, input: AdminPreviewRuleUpdateInput) {
+    return apiRequest(`/admin/preview-rules/${encodeURIComponent(packageCode)}/${encodeURIComponent(tierCode)}`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    });
+  },
+
+  async getAdminAuditEntries() {
+    return apiRequest<AdminAuditEntry[]>('/admin/audit');
+  },
+
+  async getAdminIntegrationStatus() {
+    return apiRequest<AdminIntegrationStatus>('/admin/integrations');
   },
 
   async getPackagePreview(packageBandId: string, budget: number, selectedArea: string) {
@@ -809,10 +1003,10 @@ export const advertifiedApi = {
     return this.getCampaign(campaignId);
   },
 
-  async approveRecommendation(campaignId: string) {
+  async approveRecommendation(campaignId: string, recommendationId?: string) {
     await apiRequest(`/campaigns/${campaignId}/approve-recommendation`, {
       method: 'POST',
-      body: JSON.stringify({}),
+      body: JSON.stringify({ recommendationId }),
     });
 
     return this.getCampaign(campaignId);
@@ -837,14 +1031,12 @@ export const advertifiedApi = {
     return mapAgentInbox(response);
   },
 
-  async updateRecommendation(campaignId: string, notes: string, inventoryItems: SelectedPlanInventoryItem[]) {
-    const campaign = await this.getAgentCampaign(campaignId);
-
-    if (campaign.recommendation) {
-      await apiRequest(`/agent/recommendations/${campaign.recommendation.id}`, {
+  async updateRecommendation(campaignId: string, recommendationId: string | undefined, notes: string, inventoryItems: SelectedPlanInventoryItem[]) {
+    if (recommendationId) {
+      await apiRequest(`/agent/recommendations/${recommendationId}`, {
         method: 'PUT',
         body: JSON.stringify({
-          status: campaign.recommendation.status,
+          status: 'draft',
           notes,
           inventoryItems,
         }),
@@ -857,11 +1049,12 @@ export const advertifiedApi = {
     }
 
     const refreshedCampaign = await this.getAgentCampaign(campaignId);
-    if (!refreshedCampaign.recommendation) {
+    if (!refreshedCampaign.recommendations.length && !refreshedCampaign.recommendation) {
       throw new Error('Recommendation could not be loaded after saving.');
     }
 
-    return refreshedCampaign.recommendation;
+    return refreshedCampaign.recommendations.find((recommendation) => recommendation.id === recommendationId)
+      ?? refreshedCampaign.recommendation;
   },
 
   async sendRecommendationToClient(campaignId: string) {
@@ -890,10 +1083,17 @@ export const advertifiedApi = {
     return mapCampaign(response);
   },
 
-  async generateAgentRecommendation(campaignId: string) {
+  async generateAgentRecommendation(
+    campaignId: string,
+    payload?: {
+      targetRadioShare?: number;
+      targetOohShare?: number;
+      targetDigitalShare?: number;
+    },
+  ) {
     const response = await apiRequest<CampaignResponse>(`/agent/campaigns/${campaignId}/generate-recommendation`, {
       method: 'POST',
-      body: JSON.stringify({}),
+      body: JSON.stringify(payload ?? {}),
     });
 
     return mapCampaign(response);
@@ -924,11 +1124,24 @@ export const advertifiedApi = {
     return this.getAgentCampaign(campaignId);
   },
 
-  async getInventory() {
-    if (!agentInventoryFallbackEnabled) {
-      throw new Error('Agent inventory is temporarily hidden until the backend inventory API is ready.');
-    }
+  async getInventory(campaignId?: string) {
+    return apiRequest<InventoryRow[]>(
+      campaignId ? `/agent/inventory?campaignId=${encodeURIComponent(campaignId)}` : '/agent/inventory',
+    );
+  },
 
-    return Promise.resolve(fallbackInventory);
+  async submitPartnerEnquiry(payload: {
+    fullName: string;
+    companyName: string;
+    email: string;
+    phone?: string;
+    partnerType: string;
+    inventorySummary?: string;
+    message: string;
+  }) {
+    return apiRequest<{ message: string }>('/partner-enquiry', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
   },
 };

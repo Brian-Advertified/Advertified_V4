@@ -1,7 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
-import { Link, useParams } from 'react-router-dom';
+import { Link, Navigate, useParams } from 'react-router-dom';
+import { EmptyState } from '../../components/ui/EmptyState';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { StatusBadge } from '../../components/ui/StatusBadge';
+import { useAuth } from '../../features/auth/auth-context';
 import { CampaignTimeline } from '../../features/campaigns/components/CampaignTimeline';
 import { getCampaignPrimaryAction } from '../../lib/access';
 import { formatCurrency } from '../../lib/utils';
@@ -9,10 +11,26 @@ import { advertifiedApi } from '../../services/advertifiedApi';
 
 export function CampaignDetailPage() {
   const { id = '' } = useParams();
+  const { user } = useAuth();
   const campaignQuery = useQuery({ queryKey: ['campaign', id], queryFn: () => advertifiedApi.getCampaign(id) });
 
-  if (campaignQuery.isLoading || !campaignQuery.data) {
+  if (campaignQuery.isLoading) {
     return <LoadingState label="Loading campaign..." />;
+  }
+
+  if (user?.role === 'agent' || user?.role === 'admin') {
+    return <Navigate to={`/agent/campaigns/${id}`} replace />;
+  }
+
+  if (campaignQuery.isError || !campaignQuery.data) {
+    return (
+      <EmptyState
+        title="Campaign not found"
+        description="We could not load this campaign in the client workspace. If this is an agent campaign, open it from the agent dashboard instead."
+        ctaHref="/dashboard"
+        ctaLabel="Back to dashboard"
+      />
+    );
   }
 
   const campaign = campaignQuery.data;

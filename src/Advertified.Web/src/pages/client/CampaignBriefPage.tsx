@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, CheckCircle2, FileText, Sparkles } from 'lucide-react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { ProcessingOverlay } from '../../components/ui/ProcessingOverlay';
 import { CampaignTimeline } from '../../features/campaigns/components/CampaignTimeline';
 import { CampaignBriefForm } from '../../features/campaigns/components/CampaignBriefForm';
+import { useAuth } from '../../features/auth/auth-context';
 import { useToast } from '../../components/ui/toast';
 import { formatCurrency } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
@@ -13,6 +14,7 @@ import type { CampaignBrief } from '../../types/domain';
 export function CampaignBriefPage() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { pushToast } = useToast();
   const queryClient = useQueryClient();
   const campaignQuery = useQuery({ queryKey: ['campaign', id], queryFn: () => advertifiedApi.getCampaign(id) });
@@ -54,6 +56,10 @@ export function CampaignBriefPage() {
   }
 
   const campaign = campaignQuery.data;
+  if (user?.role === 'agent' || user?.role === 'admin') {
+    return <Navigate to={`/agent/recommendations/new?campaignId=${campaign.id}`} replace />;
+  }
+
   const isSubmitted = campaign.status !== 'paid' && campaign.status !== 'brief_in_progress';
 
   return (

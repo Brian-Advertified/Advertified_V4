@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { ArrowRight, Lock } from 'lucide-react';
-import { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ProcessingOverlay } from '../../components/ui/ProcessingOverlay';
+import { PageHero } from '../../components/marketing/PageHero';
 import { BudgetSelector } from '../../features/packages/components/BudgetSelector';
 import { PackageCard } from '../../features/packages/components/PackageCard';
 import { SpendPreviewPanel } from '../../features/packages/components/SpendPreviewPanel';
@@ -16,6 +17,7 @@ import { canBuyPackage } from '../../lib/access';
 export function PackagesPage() {
   const [searchParams] = useSearchParams();
   const packagesQuery = useQuery({ queryKey: ['packages'], queryFn: advertifiedApi.getPackages });
+  const packageAreasQuery = useQuery({ queryKey: ['package-areas'], queryFn: advertifiedApi.getPackageAreas });
   const [selectedPackageId, setSelectedPackageId] = useState<string>();
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -23,6 +25,7 @@ export function PackagesPage() {
   const [step, setStep] = useState<1 | 2>(1);
   const [selectedArea, setSelectedArea] = useState('gauteng');
   const [isResendingActivation, setIsResendingActivation] = useState(false);
+  const spendSectionRef = useRef<HTMLDivElement | null>(null);
 
   const selectedBand = useMemo(
     () => packagesQuery.data?.find((item) => item.id === selectedPackageId) ?? packagesQuery.data?.[0],
@@ -58,6 +61,19 @@ export function PackagesPage() {
   }, [packagesQuery.data, searchParams, selectedPackageId]);
 
   useEffect(() => {
+    const province = user?.province;
+    const areaOptions = packageAreasQuery.data;
+    if (!province || !areaOptions?.length) {
+      return;
+    }
+
+    setSelectedArea((current) => {
+      const next = mapProvinceToAreaCode(province, areaOptions);
+      return current === next ? current : next;
+    });
+  }, [packageAreasQuery.data, user?.province]);
+
+  useEffect(() => {
     if (!selectedBand) {
       return;
     }
@@ -68,11 +84,31 @@ export function PackagesPage() {
     }
   }, [selectedBand, spend]);
 
+  useEffect(() => {
+    if (step !== 2) {
+      return;
+    }
+
+    spendSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [selectedPackageId, step]);
+
+  const effectivePreviewSpend = selectedBand
+    ? Math.min(selectedBand.maxBudget, Math.max(selectedBand.minBudget, deferredSpend))
+    : deferredSpend;
+
   const previewQuery = useQuery({
-    queryKey: ['package-preview', selectedBand?.id, deferredSpend, selectedArea],
-    queryFn: () => advertifiedApi.getPackagePreview(selectedBand!.id, deferredSpend, selectedArea),
-    enabled: Boolean(selectedBand?.id && deferredSpend > 0 && selectedArea),
+    queryKey: ['package-preview', selectedBand?.id, effectivePreviewSpend, selectedArea],
+    queryFn: () => advertifiedApi.getPackagePreview(selectedBand!.id, effectivePreviewSpend, selectedArea),
+    enabled: Boolean(
+      selectedBand?.id
+      && selectedArea
+      && selectedBand
+      && effectivePreviewSpend >= selectedBand.minBudget
+      && effectivePreviewSpend <= selectedBand.maxBudget,
+    ),
   });
+
+  const showMobilePackageGrid = step === 1;
 
   if (packagesQuery.isLoading) {
     return <LoadingState label="Loading package bands..." />;
@@ -81,44 +117,64 @@ export function PackagesPage() {
   return (
     <section className="page-shell space-y-8 pb-36">
       {isResendingActivation ? <ProcessingOverlay label="Sending a fresh activation email..." /> : null}
-      <div className="max-w-3xl">
-        <div className="pill bg-highlight-soft text-highlight">Packages</div>
-        <h1 className="mt-4 text-4xl font-semibold tracking-tight text-ink sm:text-5xl">Choose your package, then set the exact spend that fits your campaign.</h1>
-        <p className="section-copy mt-4">
-          One decision at a time. Pick the right band first, then choose the spend you want to invest.
-        </p>
-      </div>
+      <PageHero
+        kicker="Packages"
+        title="Choose your package, then set the exact spend that fits your campaign."
+        description="One decision at a time. Pick the right band first, then choose the spend you want to invest."
+      />
 
       <div className="flex flex-wrap gap-3">
         <div className={`pill ${step === 1 ? 'bg-brand text-white border-brand' : ''}`}>Step 1: Choose package</div>
         <div className={`pill ${step === 2 ? 'bg-brand text-white border-brand' : ''}`}>Step 2: Choose spend</div>
       </div>
 
-      <div className="card-grid">
-        {packagesQuery.data?.map((band) => (
-          <PackageCard
-            key={band.id}
-            band={band}
-            selected={band.id === selectedBand?.id}
-            onSelect={() => {
-              setSelectedPackageId(band.id);
-              setSpend(band.minBudget);
-              setStep(2);
-            }}
-          />
-        ))}
+      {selectedBand && step === 2 ? (
+        <div className="panel flex items-center justify-between gap-4 px-5 py-5 sm:hidden">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-brand">Selected package</p>
+            <p className="mt-2 text-xl font-semibold tracking-tight text-ink">{selectedBand.name}</p>
+            <p className="mt-1 text-sm text-ink-soft">
+              {formatCurrency(selectedBand.minBudget)} - {formatCurrency(selectedBand.maxBudget)}
+            </p>
+          </div>
+          <button
+            type="button"
+            className="button-secondary shrink-0 px-4 py-2"
+            onClick={() => setStep(1)}
+          >
+            Change package
+          </button>
+        </div>
+      ) : null}
+
+      <div className={`${showMobilePackageGrid ? 'card-grid' : 'hidden card-grid sm:grid'}`}>
+          {packagesQuery.data?.map((band) => (
+            <PackageCard
+              key={band.id}
+              band={band}
+              selected={band.id === selectedBand?.id}
+              onSelect={() => {
+                setSelectedPackageId(band.id);
+                setSpend(band.minBudget);
+                setStep(2);
+              }}
+            />
+          ))}
       </div>
 
       {selectedBand && step === 2 ? (
-        <div className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
-          <BudgetSelector
-            band={selectedBand}
-            value={clampedSpend}
-            preview={previewQuery.data}
-            selectedArea={selectedArea}
-            onAreaChange={setSelectedArea}
-            onChange={(value) => setSpend(Math.min(selectedBand.maxBudget, Math.max(selectedBand.minBudget, value || selectedBand.minBudget)))}
-          />
+        <div ref={spendSectionRef} className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
+          <div className="space-y-4">
+            <BudgetSelector
+              band={selectedBand}
+              value={clampedSpend}
+              preview={previewQuery.data}
+              selectedArea={selectedArea}
+              areaOptions={packageAreasQuery.data ?? []}
+              onAreaChange={setSelectedArea}
+              onChange={(value) => setSpend(Math.min(selectedBand.maxBudget, Math.max(selectedBand.minBudget, value || selectedBand.minBudget)))}
+            />
+          </div>
           <SpendPreviewPanel band={selectedBand} selectedSpend={clampedSpend} livePreview={previewQuery.data} />
         </div>
       ) : null}
@@ -187,4 +243,23 @@ export function PackagesPage() {
       ) : null}
     </section>
   );
+}
+
+function mapProvinceToAreaCode(province: string, areaOptions: Array<{ code: string; label: string }>) {
+  const normalizedProvince = normalizeAreaToken(province);
+  const exactLabelMatch = areaOptions.find((option) => normalizeAreaToken(option.label) === normalizedProvince);
+  if (exactLabelMatch) {
+    return exactLabelMatch.code;
+  }
+
+  const codeMatch = areaOptions.find((option) => normalizeAreaToken(option.code) === normalizedProvince);
+  if (codeMatch) {
+    return codeMatch.code;
+  }
+
+  return areaOptions.find((option) => option.code === 'national')?.code ?? areaOptions[0]?.code ?? 'gauteng';
+}
+
+function normalizeAreaToken(value: string) {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
 }

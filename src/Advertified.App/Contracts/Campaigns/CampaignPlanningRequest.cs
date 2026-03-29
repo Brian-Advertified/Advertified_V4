@@ -17,4 +17,7 @@ public sealed class CampaignPlanningRequest
     public bool OpenToUpsell { get; set; }
     public decimal? AdditionalBudget { get; set; }
     public int? MaxMediaItems { get; set; }
+    public int? TargetRadioShare { get; set; }
+    public int? TargetOohShare { get; set; }
+    public int? TargetDigitalShare { get; set; }
 }

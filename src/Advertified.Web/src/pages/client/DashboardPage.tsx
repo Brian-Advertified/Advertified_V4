@@ -8,6 +8,7 @@ import { StatusBadge } from '../../components/ui/StatusBadge';
 import { useAuth } from '../../features/auth/auth-context';
 import { getCampaignPrimaryAction } from '../../lib/access';
 import { advertifiedApi } from '../../services/advertifiedApi';
+import { PageHero } from '../../components/marketing/PageHero';
 
 export function DashboardPage() {
   const { user } = useAuth();
@@ -33,10 +34,11 @@ export function DashboardPage() {
 
   return (
     <section className="page-shell space-y-8">
-      <div className="max-w-3xl">
-        <div className="pill bg-brand-soft text-brand">Client dashboard</div>
-        <h1 className="mt-4 text-4xl font-semibold tracking-tight text-ink sm:text-5xl">Your package, campaign, and planning progress in one view.</h1>
-      </div>
+      <PageHero
+        kicker="Client dashboard"
+        title="Your package, campaign, and planning progress in one view."
+        description="Track what you have unlocked, what happens next, and where each campaign sits in the journey."
+      />
 
       <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
         <DashboardSummaryCard label="Active campaigns" value={String(campaigns.length)} helper="Track every campaign from payment through recommendation review." icon={<FolderKanban className="size-5" />} />

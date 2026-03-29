@@ -1,0 +1,229 @@
+using System.Text.Json;
+using Advertified.App.Contracts.Agent;
+using Advertified.App.Contracts.Campaigns;
+using Advertified.App.Data;
+using Advertified.App.Domain.Campaigns;
+using Advertified.App.Services.Abstractions;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+
+namespace Advertified.App.Controllers;
+
+[ApiController]
+[Route("agent/inventory")]
+public sealed class AgentInventoryController : ControllerBase
+{
+    private readonly AppDbContext _db;
+    private readonly IPlanningInventoryRepository _inventoryRepository;
+
+    public AgentInventoryController(AppDbContext db, IPlanningInventoryRepository inventoryRepository)
+    {
+        _db = db;
+        _inventoryRepository = inventoryRepository;
+    }
+
+    [HttpGet]
+    public async Task<ActionResult<IReadOnlyList<AgentInventoryItemResponse>>> Get([FromQuery] Guid? campaignId, CancellationToken cancellationToken)
+    {
+        var request = await BuildRequestAsync(campaignId, cancellationToken);
+        var candidates = new List<InventoryCandidate>();
+
+        candidates.AddRange(await _inventoryRepository.GetOohCandidatesAsync(request, cancellationToken));
+        candidates.AddRange(await _inventoryRepository.GetRadioSlotCandidatesAsync(request, cancellationToken));
+        candidates.AddRange(await _inventoryRepository.GetRadioPackageCandidatesAsync(request, cancellationToken));
+        candidates.AddRange(await _inventoryRepository.GetTvCandidatesAsync(request, cancellationToken));
+
+        var filtered = candidates
+            .Where(candidate => MatchesPreferredMedia(candidate, request))
+            .Where(candidate => MatchesRequestedGeography(candidate, request))
+            .OrderBy(candidate => GetChannelRank(candidate.MediaType))
+            .ThenBy(candidate => candidate.Cost)
+            .ThenBy(candidate => candidate.DisplayName)
+            .GroupBy(candidate => candidate.SourceId)
+            .Select(group => group.First())
+            .Take(500)
+            .Select(MapInventoryItem)
+            .ToArray();
+
+        return Ok(filtered);
+    }
+
+    private async Task<CampaignPlanningRequest> BuildRequestAsync(Guid? campaignId, CancellationToken cancellationToken)
+    {
+        if (campaignId is null)
+        {
+            return new CampaignPlanningRequest
+            {
+                SelectedBudget = 1_000_000m,
+                GeographyScope = "national"
+            };
+        }
+
+        var campaign = await _db.Campaigns
+            .AsNoTracking()
+            .Include(x => x.PackageOrder)
+            .Include(x => x.CampaignBrief)
+            .FirstOrDefaultAsync(x => x.Id == campaignId.Value, cancellationToken)
+            ?? throw new InvalidOperationException("Campaign not found.");
+
+        var brief = campaign.CampaignBrief;
+        return new CampaignPlanningRequest
+        {
+            CampaignId = campaign.Id,
+            SelectedBudget = campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
+            GeographyScope = brief?.GeographyScope,
+            Provinces = DeserializeList(brief?.ProvincesJson),
+            Cities = DeserializeList(brief?.CitiesJson),
+            Suburbs = DeserializeList(brief?.SuburbsJson),
+            Areas = DeserializeList(brief?.AreasJson),
+            PreferredMediaTypes = DeserializeList(brief?.PreferredMediaTypesJson),
+            ExcludedMediaTypes = DeserializeList(brief?.ExcludedMediaTypesJson),
+            TargetLanguages = DeserializeList(brief?.TargetLanguagesJson),
+            TargetLsmMin = brief?.TargetLsmMin,
+            TargetLsmMax = brief?.TargetLsmMax,
+            OpenToUpsell = brief?.OpenToUpsell ?? false,
+            AdditionalBudget = brief?.AdditionalBudget,
+            MaxMediaItems = brief?.MaxMediaItems
+        };
+    }
+
+    private static AgentInventoryItemResponse MapInventoryItem(InventoryCandidate candidate)
+    {
+        return new AgentInventoryItemResponse
+        {
+            Id = candidate.SourceId.ToString(),
+            Type = NormalizeType(candidate.MediaType),
+            Station = candidate.DisplayName,
+            Region = BuildRegion(candidate),
+            Language = candidate.Language ?? "Not specified",
+            ShowDaypart = candidate.Area ?? "Not specified",
+            TimeBand = candidate.TimeBand ?? "Not specified",
+            SlotType = candidate.SlotType ?? "Not specified",
+            Duration = BuildDuration(candidate),
+            Rate = candidate.Cost,
+            Restrictions = BuildRestrictions(candidate)
+        };
+    }
+
+    private static string NormalizeType(string mediaType)
+    {
+        var normalized = mediaType.Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            "radio" => "radio",
+            "ooh" => "ooh",
+            "tv" => "tv",
+            _ => normalized
+        };
+    }
+
+    private static string BuildRegion(InventoryCandidate candidate)
+    {
+        return string.Join(", ", new[] { candidate.Area, candidate.City, candidate.Province }
+            .Where(value => !string.IsNullOrWhiteSpace(value)))
+            switch
+            {
+                { Length: > 0 } region => region,
+                _ => candidate.MarketScope ?? "Not specified"
+            };
+    }
+
+    private static string BuildDuration(InventoryCandidate candidate)
+    {
+        if (candidate.DurationSeconds.HasValue && candidate.DurationSeconds.Value > 0)
+        {
+            return $"{candidate.DurationSeconds.Value}s";
+        }
+
+        if (TryGetMetadataString(candidate.Metadata, "duration") is { Length: > 0 } duration)
+        {
+            return duration;
+        }
+
+        return "Not specified";
+    }
+
+    private static string BuildRestrictions(InventoryCandidate candidate)
+    {
+        return TryGetMetadataString(candidate.Metadata, "restrictions")
+            ?? TryGetMetadataString(candidate.Metadata, "restrictionNotes")
+            ?? "Not specified";
+    }
+
+    private static bool MatchesPreferredMedia(InventoryCandidate candidate, CampaignPlanningRequest request)
+    {
+        if (request.PreferredMediaTypes.Count == 0)
+        {
+            return true;
+        }
+
+        var mediaType = candidate.MediaType.Trim().ToLowerInvariant();
+        return request.PreferredMediaTypes.Any(value => value.Equals(mediaType, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool MatchesRequestedGeography(InventoryCandidate candidate, CampaignPlanningRequest request)
+    {
+        if (string.Equals(request.GeographyScope, "national", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var requestedTerms = request.Areas
+            .Concat(request.Cities)
+            .Concat(request.Provinces)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value.Trim().ToLowerInvariant())
+            .Distinct()
+            .ToArray();
+
+        if (requestedTerms.Length == 0)
+        {
+            return true;
+        }
+
+        var haystack = string.Join(" ", new[]
+        {
+            candidate.DisplayName,
+            candidate.Area,
+            candidate.City,
+            candidate.Province,
+            candidate.MarketScope
+        }.Where(value => !string.IsNullOrWhiteSpace(value))).ToLowerInvariant();
+
+        return requestedTerms.Any(term => haystack.Contains(term));
+    }
+
+    private static int GetChannelRank(string mediaType)
+    {
+        return mediaType.Trim().ToLowerInvariant() switch
+        {
+            "ooh" => 0,
+            "radio" => 1,
+            "tv" => 2,
+            _ => 3
+        };
+    }
+
+    private static List<string> DeserializeList(string? json)
+    {
+        return string.IsNullOrWhiteSpace(json)
+            ? new List<string>()
+            : JsonSerializer.Deserialize<List<string>>(json) ?? new List<string>();
+    }
+
+    private static string? TryGetMetadataString(IReadOnlyDictionary<string, object?> metadata, string key)
+    {
+        if (!metadata.TryGetValue(key, out var value) || value is null)
+        {
+            return null;
+        }
+
+        return value switch
+        {
+            string text when !string.IsNullOrWhiteSpace(text) => text,
+            JsonElement element when element.ValueKind == JsonValueKind.String => element.GetString(),
+            JsonElement element => element.ToString(),
+            _ => value.ToString()
+        };
+    }
+}

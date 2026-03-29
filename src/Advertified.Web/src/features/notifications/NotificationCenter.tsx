@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/auth-context';
 import { advertifiedApi } from '../../services/advertifiedApi';
-import type { Campaign, PackageOrder } from '../../types/domain';
+import type { AdminDashboard, AgentInbox, Campaign, PackageOrder } from '../../types/domain';
 
 type NotificationItem = {
   id: string;
@@ -86,6 +86,95 @@ function buildOrderNotifications(orders: PackageOrder[]): NotificationItem[] {
   });
 }
 
+function buildAgentNotifications(inbox: AgentInbox): NotificationItem[] {
+  return inbox.items.flatMap<NotificationItem>((item) => {
+    if (item.queueStage === 'planning_ready') {
+      return [{
+        id: `agent-planning-ready-${item.id}`,
+        title: 'Campaign ready for recommendation',
+        description: `${item.campaignName} can now move into recommendation planning.`,
+        href: `/agent/campaigns/${item.id}`,
+        tone: item.isUrgent ? 'warning' : 'info',
+      }];
+    }
+
+    if (item.queueStage === 'ready_to_send') {
+      return [{
+        id: `agent-ready-to-send-${item.id}`,
+        title: 'Recommendation ready to send',
+        description: `${item.campaignName} is prepared and waiting for client delivery.`,
+        href: `/agent/campaigns/${item.id}`,
+        tone: 'success',
+      }];
+    }
+
+    if (item.queueStage === 'agent_review' || item.manualReviewRequired) {
+      return [{
+        id: `agent-review-${item.id}`,
+        title: 'Recommendation needs strategist review',
+        description: `${item.campaignName} has checks or flags that need your attention.`,
+        href: `/agent/campaigns/${item.id}`,
+        tone: 'warning',
+      }];
+    }
+
+    if (item.queueStage === 'waiting_on_client') {
+      return [{
+        id: `agent-client-wait-${item.id}`,
+        title: 'Waiting on client feedback',
+        description: `${item.campaignName} is with the client for approval or revisions.`,
+        href: `/agent/campaigns/${item.id}`,
+        tone: 'info',
+      }];
+    }
+
+    if (item.queueStage === 'newly_paid' || item.queueStage === 'brief_waiting') {
+      return [{
+        id: `agent-brief-${item.id}`,
+        title: 'Campaign entered the strategist queue',
+        description: `${item.campaignName} is newly paid and moving through intake.`,
+        href: `/agent/campaigns/${item.id}`,
+        tone: 'info',
+      }];
+    }
+
+    return [];
+  });
+}
+
+function buildAdminNotifications(dashboard: AdminDashboard): NotificationItem[] {
+  const alertItems = dashboard.alerts.map<NotificationItem>((alert, index) => ({
+    id: `admin-alert-${index}-${alert.title}`,
+    title: alert.title,
+    description: alert.context,
+    href: '/admin/health',
+    tone: alert.severity.toLowerCase().includes('critical') ? 'warning' : 'info',
+  }));
+
+  const pricingItems = dashboard.healthIssues
+    .filter((item) => item.issue.toLowerCase().includes('pricing') || item.issue.toLowerCase().includes('inventory'))
+    .slice(0, 3)
+    .map<NotificationItem>((item) => ({
+      id: `admin-pricing-${item.outletCode}`,
+      title: `${item.outletName} needs pricing attention`,
+      description: item.suggestedFix,
+      href: `/admin/pricing?outlet=${encodeURIComponent(item.outletCode)}`,
+      tone: 'warning',
+    }));
+
+  const monitoringItems: NotificationItem[] = dashboard.monitoring.waitingOnClientCount > 0
+    ? [{
+        id: 'admin-waiting-on-client',
+        title: 'Campaigns are waiting on client approval',
+        description: `${dashboard.monitoring.waitingOnClientCount} recommendation set(s) are currently with clients.`,
+        href: '/admin/monitoring',
+        tone: 'info',
+      }]
+    : [];
+
+  return [...alertItems, ...pricingItems, ...monitoringItems];
+}
+
 function NotificationIcon({ tone }: { tone: NotificationItem['tone'] }) {
   if (tone === 'success') {
     return <CheckCircle2 className="size-4 text-emerald-600" />;
@@ -114,17 +203,39 @@ export function NotificationCenter() {
     enabled: Boolean(user && user.role === 'client'),
   });
 
+  const agentInboxQuery = useQuery({
+    queryKey: ['agent-inbox', user?.id],
+    queryFn: () => advertifiedApi.getAgentInbox(),
+    enabled: Boolean(user && user.role === 'agent'),
+  });
+
+  const adminDashboardQuery = useQuery({
+    queryKey: ['admin-dashboard-notifications', user?.id],
+    queryFn: () => advertifiedApi.getAdminDashboard(),
+    enabled: Boolean(user && user.role === 'admin'),
+  });
+
   const notifications = useMemo(() => {
-    if (!user || user.role !== 'client') {
+    if (!user) {
       return [];
     }
 
-    const campaigns = campaignsQuery.data ?? [];
-    const orders = ordersQuery.data ?? [];
-    return [...buildCampaignNotifications(campaigns), ...buildOrderNotifications(orders)].slice(0, 6);
-  }, [campaignsQuery.data, ordersQuery.data, user]);
+    if (user.role === 'client') {
+      const campaigns = campaignsQuery.data ?? [];
+      const orders = ordersQuery.data ?? [];
+      return [...buildCampaignNotifications(campaigns), ...buildOrderNotifications(orders)].slice(0, 6);
+    }
 
-  if (!user || user.role !== 'client') {
+    if (user.role === 'agent') {
+      const inbox = agentInboxQuery.data;
+      return inbox ? buildAgentNotifications(inbox).slice(0, 6) : [];
+    }
+
+    const dashboard = adminDashboardQuery.data;
+    return dashboard ? buildAdminNotifications(dashboard).slice(0, 6) : [];
+  }, [adminDashboardQuery.data, agentInboxQuery.data, campaignsQuery.data, ordersQuery.data, user]);
+
+  if (!user) {
     return null;
   }
 

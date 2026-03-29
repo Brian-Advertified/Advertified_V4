@@ -1,11 +1,12 @@
 import { formatCurrency } from '../../../lib/utils';
-import type { PackageBand, PackagePreview } from '../../../types/domain';
+import type { PackageAreaOption, PackageBand, PackagePreview } from '../../../types/domain';
 
 export function BudgetSelector({
   band,
   value,
   preview,
   selectedArea,
+  areaOptions,
   onAreaChange,
   onChange,
 }: {
@@ -13,6 +14,7 @@ export function BudgetSelector({
   value: number;
   preview?: PackagePreview;
   selectedArea: string;
+  areaOptions: PackageAreaOption[];
   onAreaChange: (value: string) => void;
   onChange: (value: number) => void;
 }) {
@@ -40,10 +42,11 @@ export function BudgetSelector({
         <label>
           <span className="label-base">Campaign area</span>
           <select className="input-base" value={selectedArea} onChange={(event) => onAreaChange(event.target.value)}>
-            <option value="gauteng">Gauteng</option>
-            <option value="western-cape">Western Cape</option>
-            <option value="eastern-cape">Eastern Cape</option>
-            <option value="national">National</option>
+            {(areaOptions.length > 0 ? areaOptions : [{ code: selectedArea, label: preview?.selectedArea ?? selectedArea, description: '' }]).map((option) => (
+              <option key={option.code} value={option.code}>
+                {option.label}
+              </option>
+            ))}
           </select>
         </label>
       </div>

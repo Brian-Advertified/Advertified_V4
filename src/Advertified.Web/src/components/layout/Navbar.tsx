@@ -6,8 +6,9 @@ import { NotificationCenter } from '../../features/notifications/NotificationCen
 import advertifiedLogo from '../../assets/advertified-logo-v3.png';
 
 const publicLinks = [
-  { label: 'How It Works', href: '/#how-it-works' },
+  { label: 'How It Works', href: '/how-it-works' },
   { label: 'Packages', href: '/packages' },
+  { label: 'Media Partners', href: '/media-partners' },
 ];
 
 export function Navbar() {

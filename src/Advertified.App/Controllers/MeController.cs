@@ -26,6 +26,7 @@ public sealed class MeController : ControllerBase
         var userId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
         var user = await _db.UserAccounts
             .AsNoTracking()
+            .Include(x => x.BusinessProfile)
             .FirstOrDefaultAsync(x => x.Id == userId, cancellationToken)
             ?? throw new InvalidOperationException("User account not found.");
 
@@ -38,7 +39,10 @@ public sealed class MeController : ControllerBase
             Role = ToSnakeCase(user.Role.ToString()),
             AccountStatus = ToSnakeCase(user.AccountStatus.ToString()),
             EmailVerified = user.EmailVerified,
-            PhoneVerified = user.PhoneVerified
+            PhoneVerified = user.PhoneVerified,
+            BusinessName = user.BusinessProfile?.BusinessName,
+            City = user.BusinessProfile?.City,
+            Province = user.BusinessProfile?.Province
         });
     }
 

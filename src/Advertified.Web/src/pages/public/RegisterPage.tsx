@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../../components/ui/toast';
 import { ProcessingOverlay } from '../../components/ui/ProcessingOverlay';
+import { PageHero } from '../../components/marketing/PageHero';
 import { useAuth } from '../../features/auth/auth-context';
 import { RegistrationWizard } from '../../features/auth/components/RegistrationWizard';
 import type { RegistrationSchema } from '../../features/auth/schemas';
@@ -34,7 +35,12 @@ export function RegisterPage() {
   return (
     <section className="page-shell py-6 sm:py-10">
       {loading ? <ProcessingOverlay label="Creating your account..." /> : null}
-      <div className="register-layout">
+      <div className="register-layout space-y-8">
+        <PageHero
+          kicker="Create account"
+          title="Register once, then unlock packages, payment, and planning."
+          description="Set up your Advertified account so you can buy a package, complete your campaign brief, and move through planning with confidence."
+        />
         <RegistrationWizard onSubmit={handleSubmit} loading={loading} />
       </div>
     </section>

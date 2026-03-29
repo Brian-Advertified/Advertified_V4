@@ -6,6 +6,7 @@ import lulaLogo from '../../assets/lula.png';
 import vodaLogo from '../../assets/voda.jpeg';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { ProcessingOverlay } from '../../components/ui/ProcessingOverlay';
+import { PageHero } from '../../components/marketing/PageHero';
 import { useToast } from '../../components/ui/toast';
 import { useAuth } from '../../features/auth/auth-context';
 import { canBuyPackage } from '../../lib/access';
@@ -111,20 +112,20 @@ export function PaymentSelectionPage() {
           }
         />
       ) : null}
-      <div className="max-w-3xl">
-        <Link
-          to={`/packages?band=${encodeURIComponent(selectedBand.code)}`}
-          className="inline-flex items-center gap-2 text-sm font-semibold text-brand transition hover:text-brand-strong"
-        >
-          <ArrowLeft className="size-4" />
-          Back to package selection
-        </Link>
-        <div className="pill mt-4 bg-highlight-soft text-highlight">Payment</div>
-        <h1 className="mt-4 text-4xl font-semibold tracking-tight text-ink sm:text-5xl">Choose your payment method.</h1>
-        <p className="section-copy mt-4">
-          Select the provider you want to use for {selectedBand.name} at {formatCurrency(amount)}.
-        </p>
-      </div>
+      <PageHero
+        kicker="Payment"
+        title="Choose your payment method."
+        description={`Select the provider you want to use for ${selectedBand.name} at ${formatCurrency(amount)}.`}
+        actions={(
+          <Link
+            to={`/packages?band=${encodeURIComponent(selectedBand.code)}`}
+            className="hero-secondary-button rounded-full font-semibold"
+          >
+            <ArrowLeft className="size-4" />
+            Back to package selection
+          </Link>
+        )}
+      />
 
       <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
         <div className="space-y-4">

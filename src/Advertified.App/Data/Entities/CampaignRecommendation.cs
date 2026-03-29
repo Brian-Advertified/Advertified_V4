@@ -23,6 +23,16 @@ public partial class CampaignRecommendation
 
     public Guid? CreatedByUserId { get; set; }
 
+    public int RevisionNumber { get; set; }
+
+    public DateTime? SentToClientAt { get; set; }
+
+    public DateTime? ApprovedAt { get; set; }
+
+    public string? PdfStorageObjectKey { get; set; }
+
+    public DateTime? PdfGeneratedAt { get; set; }
+
     public DateTime CreatedAt { get; set; }
 
     public DateTime UpdatedAt { get; set; }

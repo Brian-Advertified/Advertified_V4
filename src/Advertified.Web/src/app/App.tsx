@@ -7,6 +7,9 @@ import { RegisterPage } from '../pages/public/RegisterPage';
 import { LoginPage } from '../pages/public/LoginPage';
 import { VerifyEmailPage } from '../pages/public/VerifyEmailPage';
 import { PackagesPage } from '../pages/public/PackagesPage';
+import { HowItWorksPage } from '../pages/public/HowItWorksPage';
+import { MediaPartnersPage } from '../pages/public/MediaPartnersPage';
+import { PartnerEnquiryPage } from '../pages/public/PartnerEnquiryPage';
 import { PaymentSelectionPage } from '../pages/public/PaymentSelectionPage';
 import { CheckoutConfirmationPage } from '../pages/public/CheckoutConfirmationPage';
 import { DashboardPage } from '../pages/client/DashboardPage';
@@ -21,6 +24,7 @@ import { AgentCampaignDetailPage } from '../pages/agent/AgentCampaignDetailPage'
 import { AgentCreateRecommendationPage } from '../pages/agent/AgentCreateRecommendationPage';
 import { AgentInventoryPage } from '../pages/agent/AgentInventoryPage';
 import { AdminDashboardPage } from '../pages/admin/AdminDashboardPage';
+import { AdminAuditPage, AdminEnginePage, AdminGeographyPage, AdminHealthPage, AdminImportsPage, AdminIntegrationsPage, AdminMonitoringPage, AdminPreviewRulesPage, AdminPricingPage, AdminStationsPage, AdminUsersPage } from '../pages/admin/AdminSectionPages';
 
 export function App() {
   const location = useLocation();
@@ -36,6 +40,9 @@ export function App() {
           <Route path="/login" element={<ProtectedRoute guestOnly><LoginPage /></ProtectedRoute>} />
           <Route path="/verify-email" element={<ProtectedRoute guestOnly><VerifyEmailPage /></ProtectedRoute>} />
           <Route path="/packages" element={<PackagesPage />} />
+          <Route path="/how-it-works" element={<HowItWorksPage />} />
+          <Route path="/media-partners" element={<MediaPartnersPage />} />
+          <Route path="/partner-enquiry" element={<PartnerEnquiryPage />} />
           <Route path="/checkout/payment" element={<ProtectedRoute><PaymentSelectionPage /></ProtectedRoute>} />
           <Route path="/checkout/confirmation" element={<CheckoutConfirmationPage />} />
           <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
@@ -45,6 +52,17 @@ export function App() {
           <Route path="/campaigns/:id/planning" element={<ProtectedRoute requirePlanningAccess><CampaignPlanningPage /></ProtectedRoute>} />
           <Route path="/campaigns/:id/review" element={<ProtectedRoute requirePlanningAccess><CampaignReviewPage /></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute requireAdmin><AdminDashboardPage /></ProtectedRoute>} />
+          <Route path="/admin/stations" element={<ProtectedRoute requireAdmin><AdminStationsPage /></ProtectedRoute>} />
+          <Route path="/admin/pricing" element={<ProtectedRoute requireAdmin><AdminPricingPage /></ProtectedRoute>} />
+          <Route path="/admin/imports" element={<ProtectedRoute requireAdmin><AdminImportsPage /></ProtectedRoute>} />
+          <Route path="/admin/health" element={<ProtectedRoute requireAdmin><AdminHealthPage /></ProtectedRoute>} />
+          <Route path="/admin/geography" element={<ProtectedRoute requireAdmin><AdminGeographyPage /></ProtectedRoute>} />
+          <Route path="/admin/engine" element={<ProtectedRoute requireAdmin><AdminEnginePage /></ProtectedRoute>} />
+          <Route path="/admin/preview-rules" element={<ProtectedRoute requireAdmin><AdminPreviewRulesPage /></ProtectedRoute>} />
+          <Route path="/admin/monitoring" element={<ProtectedRoute requireAdmin><AdminMonitoringPage /></ProtectedRoute>} />
+          <Route path="/admin/users" element={<ProtectedRoute requireAdmin><AdminUsersPage /></ProtectedRoute>} />
+          <Route path="/admin/audit" element={<ProtectedRoute requireAdmin><AdminAuditPage /></ProtectedRoute>} />
+          <Route path="/admin/integrations" element={<ProtectedRoute requireAdmin><AdminIntegrationsPage /></ProtectedRoute>} />
           <Route path="/agent" element={<ProtectedRoute requireAgent><AgentDashboardPage /></ProtectedRoute>} />
           <Route path="/agent/recommendations/new" element={<ProtectedRoute requireAgent><AgentCreateRecommendationPage /></ProtectedRoute>} />
           <Route path="/agent/campaigns" element={<ProtectedRoute requireAgent><AgentCampaignsPage /></ProtectedRoute>} />

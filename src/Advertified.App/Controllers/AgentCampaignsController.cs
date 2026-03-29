@@ -1,4 +1,6 @@
 using Advertified.App.Contracts.Agent;
+using Advertified.App.Contracts.Campaigns;
+using Advertified.App.Campaigns;
 using Advertified.App.Configuration;
 using Advertified.App.Data;
 using Advertified.App.Data.Entities;
@@ -22,6 +24,7 @@ public sealed class AgentCampaignsController : ControllerBase
     private readonly ICampaignBriefService _campaignBriefService;
     private readonly ICampaignRecommendationService _campaignRecommendationService;
     private readonly ICampaignBriefInterpretationService _campaignBriefInterpretationService;
+    private readonly IRecommendationDocumentService _recommendationDocumentService;
     private readonly ITemplatedEmailService _emailService;
     private readonly FrontendOptions _frontendOptions;
     private readonly ILogger<AgentCampaignsController> _logger;
@@ -32,6 +35,7 @@ public sealed class AgentCampaignsController : ControllerBase
         ICampaignBriefService campaignBriefService,
         ICampaignRecommendationService campaignRecommendationService,
         ICampaignBriefInterpretationService campaignBriefInterpretationService,
+        IRecommendationDocumentService recommendationDocumentService,
         ITemplatedEmailService emailService,
         IOptions<FrontendOptions> frontendOptions,
         ILogger<AgentCampaignsController> logger)
@@ -41,6 +45,7 @@ public sealed class AgentCampaignsController : ControllerBase
         _campaignBriefService = campaignBriefService;
         _campaignRecommendationService = campaignRecommendationService;
         _campaignBriefInterpretationService = campaignBriefInterpretationService;
+        _recommendationDocumentService = recommendationDocumentService;
         _emailService = emailService;
         _frontendOptions = frontendOptions.Value;
         _logger = logger;
@@ -204,6 +209,7 @@ public sealed class AgentCampaignsController : ControllerBase
         campaign.AssignedAt = DateTime.UtcNow;
         campaign.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
+        await SendAssignmentEmailIfNeededAsync(campaign.Id, cancellationToken);
 
         return Accepted(new { CampaignId = id, AssignedAgentUserId = agentUserId, Message = "Campaign assigned." });
     }
@@ -235,11 +241,13 @@ public sealed class AgentCampaignsController : ControllerBase
 
         var now = DateTime.UtcNow;
         var recommendation = campaign.CampaignRecommendations
-            .OrderByDescending(x => x.CreatedAt)
+            .OrderByDescending(x => x.RevisionNumber)
+            .ThenByDescending(x => x.CreatedAt)
             .FirstOrDefault();
 
         if (recommendation is null)
         {
+            var revisionNumber = RecommendationRevisionSupport.GetNextRevisionNumber(campaign.CampaignRecommendations);
             recommendation = new CampaignRecommendation
             {
                 Id = Guid.NewGuid(),
@@ -250,6 +258,7 @@ public sealed class AgentCampaignsController : ControllerBase
                 TotalCost = campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
                 Summary = request.Notes,
                 Rationale = request.Notes,
+                RevisionNumber = revisionNumber,
                 CreatedAt = now,
                 UpdatedAt = now
             };
@@ -273,6 +282,7 @@ public sealed class AgentCampaignsController : ControllerBase
         campaign.Status = "planning_in_progress";
         campaign.UpdatedAt = now;
         await _db.SaveChangesAsync(cancellationToken);
+        await SendAgentWorkStartedEmailIfNeededAsync(campaign.Id, cancellationToken);
 
         return Accepted(new { CampaignId = id, RecommendationId = recommendation.Id, Message = "Recommendation saved." });
     }
@@ -321,7 +331,7 @@ public sealed class AgentCampaignsController : ControllerBase
     }
 
     [HttpPost("{id:guid}/generate-recommendation")]
-    public async Task<IActionResult> GenerateRecommendation(Guid id, CancellationToken cancellationToken)
+    public async Task<IActionResult> GenerateRecommendation(Guid id, [FromBody] GenerateRecommendationRequest? request, CancellationToken cancellationToken)
     {
         var currentUserId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
         var campaign = await _db.Campaigns
@@ -335,9 +345,10 @@ public sealed class AgentCampaignsController : ControllerBase
         campaign.AssignedAt ??= DateTime.UtcNow;
         campaign.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
-        await SendRecommendationPreparingEmailAsync(campaign, cancellationToken);
+        await SendAssignmentEmailIfNeededAsync(campaign.Id, cancellationToken);
+        await SendAgentWorkStartedEmailIfNeededAsync(campaign.Id, cancellationToken);
 
-        await _campaignRecommendationService.GenerateAndSaveAsync(id, cancellationToken);
+        await _campaignRecommendationService.GenerateAndSaveAsync(id, request, cancellationToken);
 
         _db.ChangeTracker.Clear();
         var refreshedCampaign = await _db.Campaigns
@@ -395,42 +406,27 @@ public sealed class AgentCampaignsController : ControllerBase
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw new InvalidOperationException("Campaign not found.");
 
-        var recommendation = campaign.CampaignRecommendations
-            .OrderByDescending(x => x.CreatedAt)
-            .FirstOrDefault()
-            ?? throw new InvalidOperationException("Recommendation not found.");
+        var currentRecommendations = RecommendationRevisionSupport.GetCurrentRecommendationSet(campaign.CampaignRecommendations);
+        if (currentRecommendations.Length == 0)
+        {
+            throw new InvalidOperationException("Recommendation not found.");
+        }
 
-        recommendation.Status = "sent_to_client";
-        recommendation.UpdatedAt = DateTime.UtcNow;
+        foreach (var recommendation in currentRecommendations)
+        {
+            recommendation.Status = "sent_to_client";
+            recommendation.SentToClientAt = DateTime.UtcNow;
+            recommendation.UpdatedAt = DateTime.UtcNow;
+        }
+
         campaign.Status = "review_ready";
         campaign.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(cancellationToken);
 
-        try
-        {
-            await _emailService.SendAsync(
-                "recommendation-ready",
-                campaign.User.Email,
-                "noreply",
-                new Dictionary<string, string?>
-                {
-                    ["ClientName"] = campaign.User.FullName,
-                    ["CampaignName"] = string.IsNullOrWhiteSpace(campaign.CampaignName) ? $"{campaign.PackageBand.Name} campaign" : campaign.CampaignName.Trim(),
-                    ["PackageName"] = campaign.PackageBand.Name,
-                    ["Budget"] = FormatCurrency(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount),
-                    ["ReviewUrl"] = BuildFrontendUrl($"/campaigns/{campaign.Id}/review"),
-                    ["AgentMessageBlock"] = BuildAgentMessageBlock(request.Message)
-                },
-                null,
-                cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to send recommendation email for campaign {CampaignId}.", campaign.Id);
-        }
+        await SendRecommendationReadyEmailIfNeededAsync(campaign.Id, request.Message, currentRecommendations.Length, cancellationToken);
 
-        return Accepted(new { CampaignId = id, Message = "Recommendation sent to client.", ClientMessage = request.Message });
+        return Accepted(new { CampaignId = id, ProposalCount = currentRecommendations.Length, Message = "Recommendation set sent to client.", ClientMessage = request.Message });
     }
 
     private static string ResolveQueueStage(Campaign campaign)
@@ -662,12 +658,23 @@ public sealed class AgentCampaignsController : ControllerBase
         return _frontendOptions.BaseUrl.TrimEnd('/') + path;
     }
 
-    private async Task SendRecommendationPreparingEmailAsync(Campaign campaign, CancellationToken cancellationToken)
+    private async Task SendAssignmentEmailIfNeededAsync(Guid campaignId, CancellationToken cancellationToken)
     {
+        var campaign = await _db.Campaigns
+            .Include(x => x.User)
+            .Include(x => x.PackageBand)
+            .Include(x => x.PackageOrder)
+            .FirstOrDefaultAsync(x => x.Id == campaignId, cancellationToken);
+
+        if (campaign is null || campaign.AssignmentEmailSentAt.HasValue || campaign.AssignedAgentUserId is null)
+        {
+            return;
+        }
+
         try
         {
             await _emailService.SendAsync(
-                "recommendation-preparing",
+                "campaign-assigned",
                 campaign.User.Email,
                 "campaigns",
                 new Dictionary<string, string?>
@@ -683,8 +690,123 @@ public sealed class AgentCampaignsController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to send recommendation preparing email for campaign {CampaignId}.", campaign.Id);
+            _logger.LogError(ex, "Failed to send assignment email for campaign {CampaignId}.", campaign.Id);
+            return;
         }
+
+        campaign.AssignmentEmailSentAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task SendAgentWorkStartedEmailIfNeededAsync(Guid campaignId, CancellationToken cancellationToken)
+    {
+        var campaign = await _db.Campaigns
+            .Include(x => x.User)
+            .Include(x => x.PackageBand)
+            .Include(x => x.PackageOrder)
+            .FirstOrDefaultAsync(x => x.Id == campaignId, cancellationToken);
+
+        if (campaign is null || campaign.AgentWorkStartedEmailSentAt.HasValue)
+        {
+            return;
+        }
+
+        try
+        {
+            await _emailService.SendAsync(
+                "agent-working",
+                campaign.User.Email,
+                "campaigns",
+                new Dictionary<string, string?>
+                {
+                    ["ClientName"] = campaign.User.FullName,
+                    ["CampaignName"] = string.IsNullOrWhiteSpace(campaign.CampaignName) ? $"{campaign.PackageBand.Name} campaign" : campaign.CampaignName.Trim(),
+                    ["PackageName"] = campaign.PackageBand.Name,
+                    ["Budget"] = FormatCurrency(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount),
+                    ["CampaignUrl"] = BuildFrontendUrl($"/campaigns/{campaign.Id}")
+                },
+                null,
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send agent working email for campaign {CampaignId}.", campaign.Id);
+            return;
+        }
+
+        campaign.AgentWorkStartedEmailSentAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task SendRecommendationReadyEmailIfNeededAsync(Guid campaignId, string? agentMessage, int proposalCount, CancellationToken cancellationToken)
+    {
+        var campaign = await _db.Campaigns
+            .Include(x => x.User)
+            .Include(x => x.PackageBand)
+            .Include(x => x.PackageOrder)
+            .FirstOrDefaultAsync(x => x.Id == campaignId, cancellationToken);
+
+        if (campaign is null || campaign.RecommendationReadyEmailSentAt.HasValue)
+        {
+            return;
+        }
+
+        try
+        {
+            EmailAttachment[]? attachments = null;
+            string recommendationPackBlock = string.Empty;
+
+            try
+            {
+                var pdfBytes = await _recommendationDocumentService.GetCampaignPdfBytesAsync(campaign.Id, cancellationToken);
+                attachments = new[]
+                {
+                    new EmailAttachment
+                    {
+                        FileName = $"advertified-recommendation-{campaign.Id:D}.pdf",
+                        ContentType = "application/pdf",
+                        Content = pdfBytes
+                    }
+                };
+                recommendationPackBlock = @"
+                    <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">
+                      We have attached a detailed recommendation PDF with media terms, outdoor specifications, locations, and proposal line items for easier offline review.
+                    </p>";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to build recommendation PDF attachment for campaign {CampaignId}.", campaign.Id);
+            }
+
+            await _emailService.SendAsync(
+                "recommendation-ready",
+                campaign.User.Email,
+                "noreply",
+                new Dictionary<string, string?>
+                {
+                    ["ClientName"] = campaign.User.FullName,
+                    ["CampaignName"] = string.IsNullOrWhiteSpace(campaign.CampaignName) ? $"{campaign.PackageBand.Name} campaign" : campaign.CampaignName.Trim(),
+                    ["PackageName"] = campaign.PackageBand.Name,
+                    ["Budget"] = FormatCurrency(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount),
+                    ["ReviewUrl"] = BuildFrontendUrl($"/campaigns/{campaign.Id}/review"),
+                    ["ProposalCount"] = proposalCount.ToString(CultureInfo.InvariantCulture),
+                    ["ProposalSummary"] = proposalCount > 1
+                        ? $"We have prepared {proposalCount} proposal options for you to compare."
+                        : "We have prepared your recommendation for review.",
+                    ["AgentMessageBlock"] = BuildAgentMessageBlock(agentMessage),
+                    ["RecommendationPackBlock"] = recommendationPackBlock
+                },
+                attachments,
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send recommendation ready email for campaign {CampaignId}.", campaign.Id);
+            return;
+        }
+
+        campaign.RecommendationReadyEmailSentAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
     }
 
     private static string BuildAgentMessageBlock(string? message)

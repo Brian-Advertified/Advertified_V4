@@ -61,7 +61,7 @@ export function CampaignPlanningPage() {
 
       {campaign.recommendation ? (
         <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-          <RecommendationViewer recommendation={campaign.recommendation} />
+          <RecommendationViewer recommendation={campaign.recommendation} recommendationPdfUrl={campaign.recommendationPdfUrl} />
           <div className="space-y-6">
             <UpsellPanel recommendation={campaign.recommendation} />
             <div className="panel px-6 py-6">

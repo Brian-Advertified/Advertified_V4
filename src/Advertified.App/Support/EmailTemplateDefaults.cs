@@ -92,6 +92,21 @@ internal static class EmailTemplateDefaults
                   </table>
                 </div>
                 ", nowUtc),
+            Build("partner-enquiry-notification", "New media partner enquiry from {{CompanyName}}", @"
+                <div style=""font-family:Arial,sans-serif;color:#111827;line-height:1.6"">
+                  <h2 style=""margin:0 0 16px 0"">New media partner enquiry</h2>
+                  <p style=""margin:0 0 16px 0"">A prospective media partner submitted an enquiry from the Advertified website.</p>
+                  <table style=""border-collapse:collapse;width:100%;max-width:720px"">
+                    <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Contact name</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{FullName}}</td></tr>
+                    <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Company</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{CompanyName}}</td></tr>
+                    <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Email</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{Email}}</td></tr>
+                    <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Phone</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{Phone}}</td></tr>
+                    <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Partner type</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{PartnerType}}</td></tr>
+                    <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Inventory summary</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{InventorySummary}}</td></tr>
+                    <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Message</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{Message}}</td></tr>
+                  </table>
+                </div>
+                ", nowUtc),
             Build("proposal-delivery", "Your Advertified proposal {{ProposalReference}}", @"
                 <div style=""background:#f4fbf8;padding:32px;font-family:Arial,sans-serif;color:#12211D;"">
                   <div style=""max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #d8e9e1;border-radius:24px;overflow:hidden;"">
@@ -204,6 +219,72 @@ internal static class EmailTemplateDefaults
                   </div>
                 </div>
                 ", nowUtc),
+            Build("campaign-assigned", "Your campaign has been assigned to a strategist for {{CampaignName}}", @"
+                <div style=""background:#f4fbf8;padding:32px;font-family:Arial,sans-serif;color:#12211D;"">
+                  <div style=""max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #d8e9e1;border-radius:24px;overflow:hidden;"">
+                    <div style=""padding:28px 32px;background:linear-gradient(180deg,#eefbf5 0%, #ffffff 100%);border-bottom:1px solid #d8e9e1;"">
+                      <div style=""font-size:14px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Advertified strategist update</div>
+                      <h1 style=""margin:12px 0 0;font-size:30px;line-height:1.2;color:#123A33;"">Your campaign has been assigned</h1>
+                    </div>
+                    <div style=""padding:28px 32px;"">
+                      <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">
+                        Hi {{ClientName}}, your campaign <strong>{{CampaignName}}</strong> has now been assigned to an Advertified strategist.
+                      </p>
+                      <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">
+                        This means your package is now in the hands of the team member who will review the brief, shape the recommendation, and guide it through to client review.
+                      </p>
+                      <div style=""margin:24px 0;padding:18px 20px;border:1px solid #d8e9e1;border-radius:18px;background:#f8fcfa;"">
+                        <div style=""font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Assignment summary</div>
+                        <p style=""margin:10px 0 0;font-size:15px;line-height:1.6;""><strong>Campaign:</strong> {{CampaignName}}</p>
+                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Package:</strong> {{PackageName}}</p>
+                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Selected budget:</strong> {{Budget}}</p>
+                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Status:</strong> Assigned to strategist</p>
+                      </div>
+                      <p style=""margin:0 0 18px;font-size:15px;line-height:1.7;color:#4b635a;"">
+                        You do not need to take any action right now. We will let you know again when your strategist starts active recommendation work and once your proposals are ready to review.
+                      </p>
+                      <div style=""margin:22px 0 20px;"">
+                        <a href=""{{CampaignUrl}}"" style=""display:inline-block;padding:12px 18px;border-radius:14px;background:#123A33;color:#ffffff;text-decoration:none;font-weight:700;"">
+                          View campaign
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                ", nowUtc),
+            Build("agent-working", "Your strategist has started working on {{CampaignName}}", @"
+                <div style=""background:#f4fbf8;padding:32px;font-family:Arial,sans-serif;color:#12211D;"">
+                  <div style=""max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #d8e9e1;border-radius:24px;overflow:hidden;"">
+                    <div style=""padding:28px 32px;background:linear-gradient(180deg,#eefbf5 0%, #ffffff 100%);border-bottom:1px solid #d8e9e1;"">
+                      <div style=""font-size:14px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Advertified strategist update</div>
+                      <h1 style=""margin:12px 0 0;font-size:30px;line-height:1.2;color:#123A33;"">Recommendation work has started</h1>
+                    </div>
+                    <div style=""padding:28px 32px;"">
+                      <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">
+                        Hi {{ClientName}}, your strategist has now started active recommendation work on <strong>{{CampaignName}}</strong>.
+                      </p>
+                      <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">
+                        At this stage we are shaping the recommended media mix, checking real supplier inventory, and aligning the draft against your selected package, budget, and campaign brief.
+                      </p>
+                      <div style=""margin:24px 0;padding:18px 20px;border:1px solid #d8e9e1;border-radius:18px;background:#f8fcfa;"">
+                        <div style=""font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Work in progress</div>
+                        <p style=""margin:10px 0 0;font-size:15px;line-height:1.6;""><strong>Campaign:</strong> {{CampaignName}}</p>
+                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Package:</strong> {{PackageName}}</p>
+                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Selected budget:</strong> {{Budget}}</p>
+                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Status:</strong> Strategist actively working</p>
+                      </div>
+                      <p style=""margin:0 0 18px;font-size:15px;line-height:1.7;color:#4b635a;"">
+                        We will contact you again once the recommendation set is ready for review. Until then, your campaign page remains the best place to follow progress.
+                      </p>
+                      <div style=""margin:22px 0 20px;"">
+                        <a href=""{{CampaignUrl}}"" style=""display:inline-block;padding:12px 18px;border-radius:14px;background:#123A33;color:#ffffff;text-decoration:none;font-weight:700;"">
+                          Track campaign progress
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                ", nowUtc),
             Build("recommendation-ready", "Your Advertified recommendation is ready for {{CampaignName}}", @"
                 <div style=""background:#f4fbf8;padding:32px;font-family:Arial,sans-serif;color:#12211D;"">
                   <div style=""max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #d8e9e1;border-radius:24px;overflow:hidden;"">
@@ -218,6 +299,7 @@ internal static class EmailTemplateDefaults
                       <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">
                         This recommendation explains the suggested channel mix, the draft media plan, and how the proposal aligns with your selected package and campaign goals. Please review it and let us know whether you would like to approve it or request changes.
                       </p>
+                      {{RecommendationPackBlock}}
                       <div style=""margin:24px 0;padding:18px 20px;border:1px solid #d8e9e1;border-radius:18px;background:#f8fcfa;"">
                         <div style=""font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Recommendation summary</div>
                         <p style=""margin:10px 0 0;font-size:15px;line-height:1.6;""><strong>Campaign:</strong> {{CampaignName}}</p>

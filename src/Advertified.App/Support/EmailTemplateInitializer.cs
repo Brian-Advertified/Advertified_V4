@@ -41,25 +41,36 @@ internal static class EmailTemplateInitializer
 
     private static async Task SeedDefaultsAsync(AppDbContext db, ILogger logger, CancellationToken cancellationToken)
     {
-        var existingTemplateNames = await db.EmailTemplates
-            .AsNoTracking()
-            .Select(x => x.TemplateName)
+        var existingTemplates = await db.EmailTemplates
             .ToListAsync(cancellationToken);
+        var existingByName = existingTemplates.ToDictionary(x => x.TemplateName, StringComparer.OrdinalIgnoreCase);
+        var inserted = 0;
+        var updated = 0;
 
-        var existing = new HashSet<string>(existingTemplateNames, StringComparer.OrdinalIgnoreCase);
-        var defaultsToInsert = EmailTemplateDefaults.CreateDefaults()
-            .Where(template => !existing.Contains(template.TemplateName))
-            .ToList();
+        foreach (var template in EmailTemplateDefaults.CreateDefaults())
+        {
+            if (existingByName.TryGetValue(template.TemplateName, out var existing))
+            {
+                existing.SubjectTemplate = template.SubjectTemplate;
+                existing.BodyHtmlTemplate = template.BodyHtmlTemplate;
+                existing.IsActive = template.IsActive;
+                existing.UpdatedAtUtc = DateTime.UtcNow;
+                updated++;
+            }
+            else
+            {
+                db.EmailTemplates.Add(template);
+                inserted++;
+            }
+        }
 
-        if (defaultsToInsert.Count == 0)
+        if (inserted == 0 && updated == 0)
         {
             logger.LogInformation("Email template defaults already present.");
             return;
         }
 
-        db.EmailTemplates.AddRange(defaultsToInsert);
         await db.SaveChangesAsync(cancellationToken);
-
-        logger.LogInformation("Seeded {Count} default email templates.", defaultsToInsert.Count);
+        logger.LogInformation("Synchronized email templates. Inserted {InsertedCount}, updated {UpdatedCount}.", inserted, updated);
     }
 }

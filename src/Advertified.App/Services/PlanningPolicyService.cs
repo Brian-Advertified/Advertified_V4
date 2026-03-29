@@ -1,0 +1,177 @@
+using Advertified.App.Configuration;
+using Advertified.App.Contracts.Campaigns;
+using Advertified.App.Domain.Campaigns;
+using Advertified.App.Services.Abstractions;
+using Microsoft.Extensions.Options;
+
+namespace Advertified.App.Services;
+
+public sealed class PlanningPolicyService : IPlanningPolicyService
+{
+    private readonly PlanningPolicyOptions _policyOptions;
+
+    public PlanningPolicyService(IOptions<PlanningPolicyOptions> policyOptions)
+    {
+        _policyOptions = policyOptions.Value;
+    }
+
+    public PlanningPolicyOutcome ApplyHigherBandRadioEligibility(List<InventoryCandidate> candidates, CampaignPlanningRequest request)
+    {
+        if (request.SelectedBudget < _policyOptions.Scale.BudgetFloor)
+        {
+            return new PlanningPolicyOutcome(candidates, Array.Empty<string>());
+        }
+
+        var radioCandidates = candidates
+            .Where(candidate => candidate.MediaType.Equals("Radio", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        if (radioCandidates.Count == 0)
+        {
+            return new PlanningPolicyOutcome(candidates, new[] { "radio_inventory_unavailable" });
+        }
+
+        var nationalRadioCandidates = radioCandidates
+            .Where(candidate => IsNationalCapableRadioCandidate(candidate, request))
+            .ToList();
+
+        var applicablePolicy = request.SelectedBudget >= _policyOptions.Dominance.BudgetFloor
+            ? _policyOptions.Dominance
+            : _policyOptions.Scale;
+        if (nationalRadioCandidates.Count < applicablePolicy.MinimumNationalRadioCandidates)
+        {
+            return new PlanningPolicyOutcome(candidates, new[] { "national_radio_inventory_insufficient", "policy_relaxed" });
+        }
+
+        return new PlanningPolicyOutcome(
+            candidates
+                .Where(candidate => !candidate.MediaType.Equals("Radio", StringComparison.OrdinalIgnoreCase) || IsNationalCapableRadioCandidate(candidate, request))
+                .ToList(),
+            Array.Empty<string>());
+    }
+
+    public decimal GetHigherBandRadioBonus(InventoryCandidate candidate, CampaignPlanningRequest request)
+    {
+        if (!candidate.MediaType.Equals("Radio", StringComparison.OrdinalIgnoreCase) || request.SelectedBudget < _policyOptions.Scale.BudgetFloor)
+        {
+            return 0m;
+        }
+
+        var isNational = IsNationalCapableRadioCandidate(candidate, request);
+        var isRegionalOnly = IsRegionalOrProvincialRadioCandidate(candidate);
+        var applicablePolicy = request.SelectedBudget >= _policyOptions.Dominance.BudgetFloor
+            ? _policyOptions.Dominance
+            : _policyOptions.Scale;
+
+        if (isNational)
+        {
+            return applicablePolicy.NationalRadioBonus;
+        }
+
+        return isRegionalOnly
+            ? -applicablePolicy.RegionalRadioPenalty
+            : -applicablePolicy.NonNationalRadioPenalty;
+    }
+
+    public bool IsNationalCapableRadioCandidate(InventoryCandidate candidate, CampaignPlanningRequest request)
+    {
+        var marketScope = candidate.MarketScope?.Trim() ?? string.Empty;
+        var marketTier = candidate.MarketTier?.Trim() ?? string.Empty;
+        var clusterCode = candidate.RegionClusterCode?.Trim() ?? string.Empty;
+        var displayName = candidate.DisplayName ?? string.Empty;
+
+        var isNational = marketScope.Equals("national", StringComparison.OrdinalIgnoreCase)
+            || clusterCode.Equals("national", StringComparison.OrdinalIgnoreCase);
+        var isFlagshipOrPremium = candidate.IsFlagshipStation
+            || candidate.IsPremiumStation
+            || marketTier.Equals("flagship", StringComparison.OrdinalIgnoreCase)
+            || marketTier.Equals("premium", StringComparison.OrdinalIgnoreCase);
+
+        if (request.SelectedBudget >= _policyOptions.Dominance.BudgetFloor)
+        {
+            return _policyOptions.Dominance.RequirePremiumNationalRadio
+                ? isNational && isFlagshipOrPremium
+                : isNational;
+        }
+
+        if (!_policyOptions.Scale.RequireNationalCapableRadio)
+        {
+            return true;
+        }
+
+        return isNational || candidate.IsFlagshipStation || displayName.Contains("Metro FM", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public string GetPricingModel(InventoryCandidate candidate)
+    {
+        if (candidate.Metadata.TryGetValue("pricingModel", out var value) && value is not null)
+        {
+            var normalized = value.ToString();
+            if (!string.IsNullOrWhiteSpace(normalized))
+            {
+                return normalized.Trim();
+            }
+        }
+
+        return candidate.SourceType switch
+        {
+            "radio_package" => "package_total",
+            "radio_slot" => "per_spot_rate_card",
+            "ooh" => "fixed_placement_total",
+            _ => candidate.PackageOnly ? "package_total" : "unit_rate"
+        };
+    }
+
+    public bool IsRepeatableCandidate(InventoryCandidate candidate)
+    {
+        return !IsPackageTotalCandidate(candidate) && !IsFixedPlacementCandidate(candidate);
+    }
+
+    public int? GetTargetShare(string? mediaType, CampaignPlanningRequest request)
+    {
+        var normalized = mediaType?.Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            "radio" => request.TargetRadioShare,
+            "ooh" => request.TargetOohShare,
+            "digital" => request.TargetDigitalShare,
+            _ => null
+        };
+    }
+
+    public string? BuildRequestedMixLabel(CampaignPlanningRequest request)
+    {
+        var parts = new List<string>();
+        if (request.TargetRadioShare.HasValue) parts.Add($"Radio {request.TargetRadioShare.Value}%");
+        if (request.TargetOohShare.HasValue) parts.Add($"OOH {request.TargetOohShare.Value}%");
+        if (request.TargetDigitalShare.HasValue) parts.Add($"Digital {request.TargetDigitalShare.Value}%");
+        return parts.Count > 0 ? string.Join(" | ", parts) : null;
+    }
+
+    private static bool IsRegionalOrProvincialRadioCandidate(InventoryCandidate candidate)
+    {
+        var marketScope = candidate.MarketScope?.Trim() ?? string.Empty;
+        var clusterCode = candidate.RegionClusterCode?.Trim() ?? string.Empty;
+        var displayName = candidate.DisplayName ?? string.Empty;
+
+        return marketScope.Equals("regional", StringComparison.OrdinalIgnoreCase)
+            || clusterCode.Equals("gauteng", StringComparison.OrdinalIgnoreCase)
+            || clusterCode.Equals("western-cape", StringComparison.OrdinalIgnoreCase)
+            || clusterCode.Equals("eastern-cape", StringComparison.OrdinalIgnoreCase)
+            || displayName.Contains("Kaya 959", StringComparison.OrdinalIgnoreCase)
+            || displayName.Contains("JOZI FM", StringComparison.OrdinalIgnoreCase)
+            || displayName.Contains("Smile 90.4FM", StringComparison.OrdinalIgnoreCase)
+            || displayName.Contains("ALGOA FM", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool IsPackageTotalCandidate(InventoryCandidate candidate)
+    {
+        return GetPricingModel(candidate).Equals("package_total", StringComparison.OrdinalIgnoreCase)
+            || candidate.PackageOnly;
+    }
+
+    private bool IsFixedPlacementCandidate(InventoryCandidate candidate)
+    {
+        return GetPricingModel(candidate).Equals("fixed_placement_total", StringComparison.OrdinalIgnoreCase);
+    }
+}
+

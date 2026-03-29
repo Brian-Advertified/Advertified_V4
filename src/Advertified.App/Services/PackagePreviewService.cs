@@ -4,6 +4,8 @@ using Advertified.App.Services.Abstractions;
 using Dapper;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using System.Globalization;
+using System.Text.RegularExpressions;
 using System.Text.Json;
 
 namespace Advertified.App.Services;
@@ -12,11 +14,31 @@ public sealed class PackagePreviewService : IPackagePreviewService
 {
     private readonly AppDbContext _db;
     private readonly string _connectionString;
+    private readonly IBroadcastInventoryCatalog _broadcastInventoryCatalog;
+    private readonly IPackagePreviewAreaProfileResolver _areaProfileResolver;
+    private readonly IPackagePreviewReachEstimator _reachEstimator;
+    private readonly IPackagePreviewOutdoorSelector _outdoorSelector;
+    private readonly IPackagePreviewBroadcastSelector _broadcastSelector;
+    private readonly IPackagePreviewFormatter _formatter;
 
-    public PackagePreviewService(AppDbContext db, string connectionString)
+    public PackagePreviewService(
+        AppDbContext db,
+        string connectionString,
+        IBroadcastInventoryCatalog broadcastInventoryCatalog,
+        IPackagePreviewAreaProfileResolver areaProfileResolver,
+        IPackagePreviewReachEstimator reachEstimator,
+        IPackagePreviewOutdoorSelector outdoorSelector,
+        IPackagePreviewBroadcastSelector broadcastSelector,
+        IPackagePreviewFormatter formatter)
     {
         _db = db;
         _connectionString = connectionString;
+        _broadcastInventoryCatalog = broadcastInventoryCatalog;
+        _areaProfileResolver = areaProfileResolver;
+        _reachEstimator = reachEstimator;
+        _outdoorSelector = outdoorSelector;
+        _broadcastSelector = broadcastSelector;
+        _formatter = formatter;
     }
 
     public async Task<PackagePreviewResult> GeneratePreviewAsync(Guid packageBandId, decimal budget, string? selectedArea, CancellationToken cancellationToken)
@@ -35,9 +57,8 @@ public sealed class PackagePreviewService : IPackagePreviewService
             throw new InvalidOperationException($"Selected budget must be between {band.MinBudget:0.##} and {band.MaxBudget:0.##}.");
         }
 
-        var normalizedArea = NormalizeSelectedArea(selectedArea);
-
         await using var connection = new NpgsqlConnection(_connectionString);
+        var resolvedArea = await _areaProfileResolver.ResolveAsync(connection, selectedArea, cancellationToken);
         var budgetRatio = GetBudgetRatio(budget, band.MinBudget, band.MaxBudget);
         var tierCode = GetTierCode(budgetRatio);
         var tier = await _db.PackageBandPreviewTiers
@@ -53,66 +74,50 @@ public sealed class PackagePreviewService : IPackagePreviewService
                     PlacementBudget = budget * 0.35m,
                     PoolSize = 18
                 },
-                cancellationToken: cancellationToken)))
+                    cancellationToken: cancellationToken)))
             .ToList();
 
-        var oohExamples = SelectOohExamples(oohCandidates, normalizedArea, budget, budgetRatio);
-
-        var radioCandidates = (await connection.QueryAsync<RadioPreviewRow>(
+        var oohExamples = _outdoorSelector.SelectExamples(oohCandidates, resolvedArea, budget, budgetRatio);
+        var outdoorMapCandidates = (await connection.QueryAsync<OohPreviewRow>(
             new CommandDefinition(
-                GetRadioPreviewSql(),
+                GetOutdoorMapSql(),
                 new
                 {
-                    PoolSize = 80
+                    PoolSize = 250
                 },
                 cancellationToken: cancellationToken)))
             .ToList();
 
-        var radioExamples = SelectRadioExamples(radioCandidates, normalizedArea, band.Code, budget, budgetRatio);
-        var radioSupportExamples = radioExamples.Count > 0
-            ? BuildRadioSupportExamples(radioExamples)
-            : await BuildRadioShowFallbackExamplesAsync(connection, cancellationToken);
-        radioSupportExamples = await BuildNationalFirstRadioPreviewExamplesAsync(connection, radioSupportExamples, normalizedArea, band.Code, cancellationToken);
-        radioSupportExamples = await EnsureHighTierRadioPreviewExamplesAsync(connection, radioSupportExamples, radioCandidates, normalizedArea, band.Code, budget, budgetRatio, cancellationToken);
+        var broadcastInventoryRecords = await _broadcastInventoryCatalog.GetRecordsAsync(cancellationToken);
+        var radioSupportExamples = _broadcastSelector
+            .BuildRadioSupportExamples(broadcastInventoryRecords, resolvedArea, band.Code, budget, budgetRatio)
+            .ToList();
         var tvSupportExamples = new List<string>();
         var canShowTvExamples = profile.IncludeTv.Equals("yes", StringComparison.OrdinalIgnoreCase)
             || (profile.IncludeTv.Equals("optional", StringComparison.OrdinalIgnoreCase) && budgetRatio >= 0.55m);
         if (canShowTvExamples)
         {
-            var tvCandidates = (await connection.QueryAsync<TvPreviewRow>(
-                new CommandDefinition(
-                    GetTvPreviewSql(),
-                    new
-                    {
-                        PoolSize = 18,
-                        MaxRate = budget * 0.22m,
-                        MaxPackage = budget * 0.4m
-                    },
-                    cancellationToken: cancellationToken)))
-                .ToList();
-
-            tvSupportExamples = normalizedArea == "national"
-                ? SelectTvExamples(tvCandidates, budget, budgetRatio)
-                : BuildRegionalTvPreviewExamples(tvCandidates, budget, budgetRatio);
+            tvSupportExamples = _broadcastSelector.BuildTvSupportExamples(broadcastInventoryRecords, resolvedArea, band.Code, budget, budgetRatio).ToList();
         }
 
-        var reachEstimate = BuildReachEstimate(band.Code, budgetRatio, oohExamples.Count, radioExamples.Count);
+        var reachEstimate = _reachEstimator.Estimate(band.Code, budgetRatio, oohExamples.Count, radioSupportExamples.Count);
 
         return new PackagePreviewResult
         {
             Budget = budget,
-            SelectedArea = HumanizeSelectedArea(normalizedArea),
+            SelectedArea = resolvedArea.Name,
             TierLabel = tier.TierLabel,
             PackagePurpose = profile.PackagePurpose,
             RecommendedSpend = profile.RecommendedSpend,
             ReachEstimate = reachEstimate,
-            Coverage = GetCoverageLabel(band.Code, budget, band.MinBudget, band.MaxBudget),
-            ExampleLocations = BuildExampleLocations(oohExamples, normalizedArea),
+            Coverage = _formatter.GetCoverageLabel(band.Code, budget, band.MinBudget, band.MaxBudget),
+            ExampleLocations = _formatter.BuildExampleLocations(oohExamples, resolvedArea).ToList(),
+            OutdoorMapPoints = _outdoorSelector.BuildMapPoints(outdoorMapCandidates, resolvedArea).ToList(),
             RadioSupportExamples = radioSupportExamples,
             TvSupportExamples = tvSupportExamples,
             TypicalInclusions = DeserializeList(tier.TypicalInclusionsJson),
             IndicativeMix = DeserializeList(tier.IndicativeMixJson),
-            MediaMix = BuildMediaMix(band.Code, budget),
+            MediaMix = _formatter.BuildMediaMix(band.Code, budget).ToList(),
             Note = "Examples shown are indicative. Final media selection depends on your campaign brief, timing, and availability."
         };
     }
@@ -125,6 +130,7 @@ public sealed class PackagePreviewService : IPackagePreviewService
             coalesce(nullif(iif.province, ''), 'South Africa') as Province,
             coalesce(rc.code, '') as RegionClusterCode,
             coalesce(nullif(iif.site_name, ''), 'Premium placement') as SiteName,
+            coalesce(nullif(iif.metadata_json ->> 'gps_coordinates', ''), '') as GpsCoordinates,
             coalesce(
                 case
                     when regexp_replace(coalesce(iif.metadata_json ->> 'discounted_rate_zar', ''), '[^0-9.]', '', 'g') = '' then null
@@ -157,346 +163,60 @@ public sealed class PackagePreviewService : IPackagePreviewService
         limit @PoolSize;
         ";
 
-    private static string GetRadioShowPreviewSql() =>
+    private static string GetOutdoorMapSql() =>
         @"
         select
-            rs.name as StationName,
-            rsw.show_name as ShowName,
-            coalesce(nullif(rsw.default_daypart, ''), 'selected dayparts') as Daypart
-        from radio_shows rsw
-        join radio_stations rs on rs.id = rsw.station_id
-        where coalesce(nullif(rsw.show_name, ''), '') <> ''
-        order by
-            case coalesce(rsw.default_daypart, '')
-                when 'breakfast' then 0
-                when 'drive' then 1
-                when 'midday' then 2
-                else 3
-            end,
-            rs.name asc,
-            rsw.show_name asc
-        limit @PoolSize;
-        ";
-
-    private static string GetRadioPreviewSql() =>
-        @"
-        select
-            rii.id as SourceId,
-            rs.name as StationName,
-            coalesce(nullif(rsw.show_name, ''), nullif(rii.inventory_name, ''), 'Radio support') as InventoryName,
-            coalesce(nullif(rii.daypart, ''), nullif(rsw.default_daypart, ''), 'selected dayparts') as Daypart,
-            coalesce(nullif(rii.inventory_kind, ''), 'slot') as InventoryKind,
-            coalesce(rii.package_cost_zar, rii.rate_zar, 0) as Cost,
-            coalesce(nullif(rii.geography_scope, ''), nullif(rsw.geography_scope, ''), '') as GeographyScope,
+            coalesce(nullif(iif.suburb, ''), nullif(iif.city, ''), 'Priority location') as Suburb,
+            coalesce(nullif(iif.city, ''), nullif(iif.province, ''), 'South Africa') as City,
+            coalesce(nullif(iif.province, ''), 'South Africa') as Province,
             coalesce(rc.code, '') as RegionClusterCode,
-            coalesce(nullif(rs.market_scope, ''), '') as MarketScope,
-            coalesce(nullif(rs.market_tier, ''), '') as MarketTier,
-            coalesce(rs.monthly_listenership, 0) as MonthlyListenership,
-            coalesce(rs.brand_strength_score, 0) as BrandStrengthScore,
-            coalesce(rs.coverage_score, 0) as CoverageScore,
-            coalesce(rs.audience_power_score, 0) as AudiencePowerScore,
-            coalesce(nullif(rs.primary_audience, ''), '') as PrimaryAudience,
-            coalesce(rs.is_flagship_station, false) as IsFlagshipStation,
-            coalesce(rs.is_premium_station, false) as IsPremiumStation,
-            mrs.show_or_programme_name as ReferenceShowName,
-            coalesce(nullif(mrs.audience_summary, ''), nullif(rii.audience_summary, ''), nullif(rsw.audience_summary, ''), nullif(rs.audience_summary, ''), nullif(rs.primary_audience, ''), '') as AudienceSummary,
-            coalesce(nullif(mrs.source_url, ''), nullif(rii.source_url, ''), nullif(rsw.source_url, ''), '') as SourceUrl
-        from radio_inventory_items rii
-        join radio_stations rs on rs.id = rii.station_id
-        left join region_clusters rc on rc.id = coalesce(rii.region_cluster_id, rs.region_cluster_id)
-        left join radio_shows rsw on rsw.id = rii.show_id
-        left join lateral (
-            select m.*
-            from media_reference_sources m
-            where m.media_channel = 'radio'
-              and normalize_station_name(m.station_or_channel_name) = rs.normalized_name
-            order by
+            coalesce(nullif(iif.site_name, ''), 'Premium placement') as SiteName,
+            coalesce(nullif(iif.metadata_json ->> 'gps_coordinates', ''), '') as GpsCoordinates,
+            coalesce(
                 case
-                    when coalesce(rii.daypart, rsw.default_daypart, '') ilike '%breakfast%'
-                         and coalesce(m.metadata_json ->> 'daypart', '') = 'breakfast' then 0
-                    when coalesce(rii.daypart, rsw.default_daypart, '') ilike '%drive%'
-                         and coalesce(m.metadata_json ->> 'daypart', '') = 'drive' then 0
-                    when (
-                            lower(coalesce(rii.inventory_name, '')) like '%powerweek%'
-                            or lower(coalesce(rii.inventory_name, '')) like '%workzone%'
-                            or lower(coalesce(rii.inventory_name, '')) like '%lunch%'
-                            or lower(coalesce(rii.inventory_name, '')) like '%biz%'
-                         )
-                         and lower(coalesce(m.show_or_programme_name, '')) like '%biz%' then 0
-                    when (
-                            lower(coalesce(rii.inventory_name, '')) like '%weekend%'
-                            or lower(coalesce(rii.inventory_name, '')) like '%retail%'
-                         )
-                         and coalesce(m.metadata_json ->> 'daypart', '') = 'midday' then 1
-                    when coalesce(rii.daypart, rsw.default_daypart, '') ilike '%midday%'
-                         and coalesce(m.metadata_json ->> 'daypart', '') = 'midday' then 2
-                    else 5
+                    when regexp_replace(coalesce(iif.metadata_json ->> 'discounted_rate_zar', ''), '[^0-9.]', '', 'g') = '' then null
+                    else regexp_replace(coalesce(iif.metadata_json ->> 'discounted_rate_zar', ''), '[^0-9.]', '', 'g')::numeric
                 end,
-                m.updated_at desc
-            limit 1
-        ) mrs on true
-        where rii.is_available = true
-        order by
+                case
+                    when regexp_replace(coalesce(iif.metadata_json ->> 'rate_card_zar', ''), '[^0-9.]', '', 'g') = '' then null
+                    else regexp_replace(coalesce(iif.metadata_json ->> 'rate_card_zar', ''), '[^0-9.]', '', 'g')::numeric
+                end,
+                0
+            ) as Cost,
             case
-                when coalesce(rii.package_cost_zar, rii.rate_zar, 0) > 0 then 0
-                else 1
-            end,
-            case coalesce(rii.inventory_kind, '')
-                when 'package' then 0
-                when 'slot' then 1
-                when 'rate_card' then 2
-                else 3
-            end,
-            coalesce(rii.package_cost_zar, rii.rate_zar, 0) asc,
-            rs.name asc
+                when regexp_replace(coalesce(iif.metadata_json ->> 'traffic_count', ''), '[^0-9]', '', 'g') = '' then 0
+                else regexp_replace(coalesce(iif.metadata_json ->> 'traffic_count', ''), '[^0-9]', '', 'g')::bigint
+            end as TrafficCount
+        from inventory_items_final iif
+        left join region_clusters rc on rc.id = iif.region_cluster_id
+        where coalesce(nullif(iif.metadata_json ->> 'gps_coordinates', ''), '') <> ''
+        order by TrafficCount desc, iif.city nulls last, iif.suburb nulls last
         limit @PoolSize;
         ";
 
-    private static string GetTvPreviewSql() =>
-        @"
-        select
-            tvi.id as SourceId,
-            tc.channel_name as ChannelName,
-            coalesce(nullif(tp.programme_name, ''), nullif(tvi.inventory_name, ''), 'TV support') as ProgrammeName,
-            coalesce(nullif(tp.daypart, ''), nullif(tvi.inventory_kind, ''), 'selected slots') as Daypart,
-            coalesce(nullif(tp.genre, ''), 'general') as Genre,
-            coalesce(tvi.package_cost_zar, tvi.rate_zar, 0) as Cost,
-            coalesce(nullif(tvi.audience_summary, ''), nullif(tp.audience_summary, ''), '') as AudienceSummary
-        from tv_inventory_items tvi
-        join tv_channels tc on tc.id = tvi.channel_id
-        left join tv_programmes tp on tp.id = tvi.programme_id
-        where tvi.is_available = true
-          and (
-              coalesce(tvi.rate_zar, 0) <= @MaxRate
-              or coalesce(tvi.package_cost_zar, 0) <= @MaxPackage
-              or (tvi.rate_zar is null and tvi.package_cost_zar is null)
-          )
-        order by
-            case when lower(coalesce(tvi.inventory_kind, '')) = 'package' then 0 else 1 end,
-            coalesce(tvi.package_cost_zar, tvi.rate_zar, 0) asc,
-            tc.channel_name asc
-        limit @PoolSize;
-        ";
-
-    private static string GetHighTierRadioStationPreviewSql() =>
-        @"
-        select
-            rs.id as SourceId,
-            rs.name as StationName,
-            coalesce(nullif(mrs.show_or_programme_name, ''), concat(rs.name, ' - rate_book')) as InventoryName,
-            coalesce(nullif(mrs.metadata_json ->> 'daypart', ''), 'selected dayparts') as Daypart,
-            'rate_card' as InventoryKind,
-            0::numeric as Cost,
-            '' as GeographyScope,
-            coalesce(rc.code, '') as RegionClusterCode,
-            coalesce(nullif(rs.market_scope, ''), '') as MarketScope,
-            coalesce(nullif(rs.market_tier, ''), '') as MarketTier,
-            coalesce(rs.monthly_listenership, 0) as MonthlyListenership,
-            coalesce(rs.brand_strength_score, 0) as BrandStrengthScore,
-            coalesce(rs.coverage_score, 0) as CoverageScore,
-            coalesce(rs.audience_power_score, 0) as AudiencePowerScore,
-            coalesce(nullif(rs.primary_audience, ''), '') as PrimaryAudience,
-            coalesce(rs.is_flagship_station, false) as IsFlagshipStation,
-            coalesce(rs.is_premium_station, false) as IsPremiumStation,
-            mrs.show_or_programme_name as ReferenceShowName,
-            coalesce(nullif(mrs.audience_summary, ''), nullif(rs.audience_summary, ''), nullif(rs.primary_audience, ''), '') as AudienceSummary,
-            coalesce(nullif(mrs.source_url, ''), nullif(rs.source_url, ''), '') as SourceUrl
-        from radio_stations rs
-        left join region_clusters rc on rc.id = rs.region_cluster_id
-        left join lateral (
-            select m.*
-            from media_reference_sources m
-            where m.media_channel = 'radio'
-              and normalize_station_name(m.station_or_channel_name) = rs.normalized_name
-            order by
-                case coalesce(m.metadata_json ->> 'daypart', '')
-                    when 'breakfast' then 0
-                    when 'drive' then 1
-                    when 'midday' then 2
-                    else 3
-                end,
-                m.updated_at desc
-            limit 1
-        ) mrs on true
-        where
-            (coalesce(rs.is_flagship_station, false) = true or coalesce(rs.market_scope, '') = 'national')
-            and (
-                @SelectedArea = 'national'
-                or coalesce(rc.code, '') = @SelectedArea
-                or coalesce(rc.code, '') = 'national'
-                or coalesce(rs.market_scope, '') = 'national'
-            )
-        order by
-            coalesce(rs.monthly_listenership, 0) desc,
-            coalesce(rs.brand_strength_score, 0) desc,
-            coalesce(rs.audience_power_score, 0) desc
-        limit 12;
-        ";
-
-    private static List<OohPreviewRow> SelectOohExamples(List<OohPreviewRow> candidates, string selectedArea, decimal budget, decimal budgetRatio)
+    private static bool RadioMatchesArea(RadioPreviewRow row, AreaProfile selectedArea)
     {
-        if (candidates.Count == 0)
-        {
-            return new List<OohPreviewRow>();
-        }
-
-        var filteredCandidates = selectedArea == "national"
-            ? candidates
-            : candidates.Where(candidate => OohMatchesArea(candidate, selectedArea)).ToList();
-        var targetPlacementCost = budget * (0.08m + (budgetRatio * 0.18m));
-
-        return filteredCandidates
-            .OrderByDescending(candidate => ScoreOohCandidate(candidate, targetPlacementCost, budgetRatio))
-            .ThenByDescending(candidate => candidate.TrafficCount)
-            .Take(12)
-            .GroupBy(candidate => BuildAreaKey(candidate), StringComparer.OrdinalIgnoreCase)
-            .Select(group => group
-                .OrderByDescending(candidate => ScoreOohCandidate(candidate, targetPlacementCost, budgetRatio))
-                .ThenByDescending(candidate => candidate.TrafficCount)
-                .First())
-            .Take(3)
-            .ToList();
-    }
-
-    private static decimal ScoreOohCandidate(OohPreviewRow candidate, decimal targetPlacementCost, decimal budgetRatio)
-    {
-        var trafficScore = candidate.TrafficCount / 100000m;
-        var costDistance = targetPlacementCost <= 0
-            ? 1m
-            : Math.Abs(candidate.Cost - targetPlacementCost) / targetPlacementCost;
-        var affordabilityScore = Math.Max(0m, 10m - (costDistance * 10m));
-        var premiumBias = budgetRatio >= 0.6m && candidate.Cost > targetPlacementCost ? 2m : 0m;
-
-        return trafficScore + affordabilityScore + premiumBias;
-    }
-
-    private static string BuildAreaKey(OohPreviewRow row)
-    {
-        return $"{row.Suburb}|{row.City}".Trim().ToLowerInvariant();
-    }
-
-    private static bool OohMatchesArea(OohPreviewRow row, string selectedArea)
-    {
-        var clusterCode = row.RegionClusterCode?.Trim().ToLowerInvariant() ?? string.Empty;
+        var clusterCode = NormalizeBroadcastToken(row.RegionClusterCode ?? string.Empty);
+        var selectedCode = NormalizeBroadcastToken(selectedArea.Code);
         if (!string.IsNullOrWhiteSpace(clusterCode))
         {
-            return selectedArea switch
+            return selectedCode switch
             {
                 "national" => true,
-                _ => clusterCode == selectedArea
-            };
-        }
-
-        var province = row.Province?.Trim().ToLowerInvariant() ?? string.Empty;
-        var city = row.City?.Trim().ToLowerInvariant() ?? string.Empty;
-
-        return selectedArea switch
-        {
-            "gauteng" => province.Contains("gauteng") || city.Contains("johannesburg") || city.Contains("pretoria"),
-            "western-cape" => province.Contains("western cape") || city.Contains("cape town"),
-            "eastern-cape" => province.Contains("eastern cape") || city.Contains("gqeberha") || city.Contains("port elizabeth"),
-            _ => true
-        };
-    }
-
-    private static bool RadioMatchesArea(RadioPreviewRow row, string selectedArea)
-    {
-        var clusterCode = row.RegionClusterCode?.Trim().ToLowerInvariant() ?? string.Empty;
-        if (!string.IsNullOrWhiteSpace(clusterCode))
-        {
-            return selectedArea switch
-            {
-                "national" => true,
-                _ => clusterCode == selectedArea || clusterCode == "national"
+                "kzn" => clusterCode is "kzn" or "kwazulu_natal" or "national",
+                _ => clusterCode == selectedCode || clusterCode == "national"
             };
         }
 
         var geography = row.GeographyScope?.Trim().ToLowerInvariant() ?? string.Empty;
         var station = row.StationName.Trim().ToLowerInvariant();
 
-        return selectedArea switch
-        {
-            "gauteng" => geography.Contains("gauteng")
-                || geography.Contains("metro")
-                || geography.Contains("community")
-                || station.Contains("kaya")
-                || station.Contains("jozi")
-                || station.Contains("metro fm"),
-            "western-cape" => geography.Contains("western cape")
-                || station.Contains("smile")
-                || station.Contains("good hope"),
-            "eastern-cape" => geography.Contains("eastern cape")
-                || station.Contains("algoa"),
-            _ => true
-        };
+        return selectedArea.ProvinceTerms.Any(geography.Contains)
+            || selectedArea.CityTerms.Any(geography.Contains)
+            || selectedArea.StationTerms.Any(station.Contains);
     }
 
-    private static List<string> BuildExampleLocations(List<OohPreviewRow> rows, string selectedArea)
-    {
-        if (rows.Count == 0)
-        {
-            return selectedArea switch
-            {
-                "gauteng" => new List<string>
-                {
-                    "Sandton, Johannesburg (premium commuter routes)",
-                    "Sunnyside, Pretoria (high foot traffic)",
-                    "Randburg, Johannesburg (urban visibility)"
-                },
-                "western-cape" => new List<string>
-                {
-                    "Cape Town CBD (strong commuter visibility)",
-                    "Century City, Cape Town (retail and commuter traffic)",
-                    "Canal Walk area (high shopper movement)"
-                },
-                "eastern-cape" => new List<string>
-                {
-                    "Gqeberha CBD (regional visibility)",
-                    "Walmer, Gqeberha (commuter movement)",
-                    "East London CBD (urban retail traffic)"
-                },
-                _ => new List<string>
-                {
-                    "Top commuter corridors",
-                    "Retail-led urban nodes",
-                    "High-traffic regional routes"
-                }
-            };
-        }
-
-        return rows
-            .Select(row => new
-            {
-                Label = BuildExampleLocationLabel(row),
-                row.TrafficCount
-            })
-            .GroupBy(x => x.Label, StringComparer.OrdinalIgnoreCase)
-            .Select(group => group
-                .OrderByDescending(x => x.TrafficCount)
-                .First()
-                .Label)
-            .Take(3)
-            .ToList();
-    }
-
-    private static string BuildExampleLocationLabel(OohPreviewRow row)
-    {
-        var areaLabel = row.Suburb.Equals(row.City, StringComparison.OrdinalIgnoreCase)
-            ? row.Suburb
-            : $"{row.Suburb}, {row.City}";
-
-        var audienceCue = row.TrafficCount switch
-        {
-            >= 3000000 => "high-income commuter traffic",
-            >= 1200000 => "strong retail and commuter movement",
-            >= 600000 => "high foot and vehicle traffic",
-            _ => "consistent local visibility"
-        };
-
-        return $"{areaLabel} ({audienceCue})";
-    }
-
-    private static List<RadioPreviewRow> SelectRadioExamples(List<RadioPreviewRow> candidates, string selectedArea, string bandCode, decimal budget, decimal budgetRatio)
+    private static List<RadioPreviewRow> SelectRadioExamples(List<RadioPreviewRow> candidates, AreaProfile selectedArea, string bandCode, decimal budget, decimal budgetRatio)
     {
         if (candidates.Count == 0)
         {
@@ -504,12 +224,12 @@ public sealed class PackagePreviewService : IPackagePreviewService
         }
 
         var normalizedBandCode = bandCode.Trim().ToLowerInvariant();
-        var filteredCandidates = selectedArea == "national"
+        var filteredCandidates = selectedArea.Code == "national"
             ? candidates
             : candidates.Where(candidate => RadioMatchesArea(candidate, selectedArea)).ToList();
         if (filteredCandidates.Count == 0)
         {
-            filteredCandidates = candidates;
+            return new List<RadioPreviewRow>();
         }
 
         if (normalizedBandCode is "scale" or "dominance")
@@ -897,128 +617,6 @@ public sealed class PackagePreviewService : IPackagePreviewService
         return penalty;
     }
 
-    private static async Task<List<string>> EnsureHighTierRadioPreviewExamplesAsync(
-        NpgsqlConnection connection,
-        List<string> radioSupportExamples,
-        List<RadioPreviewRow> radioCandidates,
-        string selectedArea,
-        string bandCode,
-        decimal budget,
-        decimal budgetRatio,
-        CancellationToken cancellationToken)
-    {
-        var normalizedBandCode = bandCode.Trim().ToLowerInvariant();
-        if (normalizedBandCode != "scale" && normalizedBandCode != "dominance")
-        {
-            return radioSupportExamples;
-        }
-
-        if (radioCandidates.Count == 0)
-        {
-            return radioSupportExamples;
-        }
-
-        var targetSupportCost = budget * (0.06m + (budgetRatio * 0.14m));
-        var filteredCandidates = selectedArea == "national"
-            ? radioCandidates
-            : radioCandidates.Where(candidate => RadioMatchesArea(candidate, selectedArea)).ToList();
-        if (filteredCandidates.Count == 0)
-        {
-            filteredCandidates = radioCandidates;
-        }
-
-        var reservedCandidate = filteredCandidates
-            .Select(candidate => new RadioPreviewCandidate(
-                candidate,
-                GetRadioPreviewScore(candidate, normalizedBandCode, targetSupportCost, budgetRatio)))
-            .Where(candidate => IsReservedHighTierRadioCandidate(candidate.Row, normalizedBandCode))
-            .OrderByDescending(candidate => candidate.Score)
-            .ThenByDescending(candidate => candidate.Row.MonthlyListenership)
-            .ThenByDescending(candidate => candidate.Row.BrandStrengthScore)
-            .Select(candidate => candidate.Row)
-            .FirstOrDefault();
-
-        if (reservedCandidate is null)
-        {
-            reservedCandidate = await GetReservedHighTierRadioStationCandidateAsync(connection, selectedArea, normalizedBandCode, cancellationToken);
-            if (reservedCandidate is null)
-            {
-                return radioSupportExamples;
-            }
-        }
-
-        var reservedLabel = BuildRadioSupportLabel(reservedCandidate);
-        if (radioSupportExamples.Any(example => example.Equals(reservedLabel, StringComparison.OrdinalIgnoreCase)
-            || example.StartsWith($"{reservedCandidate.StationName.Trim()} - ", StringComparison.OrdinalIgnoreCase)))
-        {
-            return radioSupportExamples;
-        }
-
-        var updated = new List<string> { reservedLabel };
-        updated.AddRange(radioSupportExamples);
-        return updated
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Take(3)
-            .ToList();
-    }
-
-    private static async Task<List<string>> BuildNationalFirstRadioPreviewExamplesAsync(
-        NpgsqlConnection connection,
-        List<string> radioSupportExamples,
-        string selectedArea,
-        string bandCode,
-        CancellationToken cancellationToken)
-    {
-        var normalizedBandCode = bandCode.Trim().ToLowerInvariant();
-        if (normalizedBandCode is not "scale" and not "dominance")
-        {
-            return radioSupportExamples;
-        }
-
-        var rows = (await connection.QueryAsync<RadioPreviewRow>(
-            new CommandDefinition(
-                GetHighTierRadioStationPreviewSql(),
-                new { SelectedArea = selectedArea },
-                cancellationToken: cancellationToken)))
-            .ToList();
-
-        var examples = rows
-            .Where(row => IsNationalRadioPreviewCandidate(row, normalizedBandCode))
-            .OrderByDescending(row => row.MonthlyListenership)
-            .ThenByDescending(row => row.BrandStrengthScore)
-            .ThenByDescending(row => row.AudiencePowerScore)
-            .Select(BuildRadioSupportLabel)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Take(3)
-            .ToList();
-
-        return examples.Count >= 2 ? examples : radioSupportExamples;
-    }
-
-    private static async Task<RadioPreviewRow?> GetReservedHighTierRadioStationCandidateAsync(
-        NpgsqlConnection connection,
-        string selectedArea,
-        string bandCode,
-        CancellationToken cancellationToken)
-    {
-        var rows = (await connection.QueryAsync<RadioPreviewRow>(
-            new CommandDefinition(
-                GetHighTierRadioStationPreviewSql(),
-                new
-                {
-                    SelectedArea = selectedArea
-                },
-                cancellationToken: cancellationToken)))
-            .ToList();
-
-        return rows
-            .Where(candidate => IsReservedHighTierRadioCandidate(candidate, bandCode))
-            .OrderByDescending(candidate => candidate.MonthlyListenership)
-            .ThenByDescending(candidate => candidate.BrandStrengthScore)
-            .ThenByDescending(candidate => candidate.AudiencePowerScore)
-            .FirstOrDefault();
-    }
-
     private static List<string> SelectTvExamples(List<TvPreviewRow> candidates, decimal budget, decimal budgetRatio)
     {
         if (candidates.Count == 0)
@@ -1041,6 +639,743 @@ public sealed class PackagePreviewService : IPackagePreviewService
             .Select(BuildTvSupportLabel)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
+    }
+
+
+    private static List<string> BuildRadioSupportExamplesFromBroadcastInventory(
+        IReadOnlyList<BroadcastInventoryRecord> records,
+        AreaProfile selectedArea,
+        string bandCode,
+        decimal budget,
+        decimal budgetRatio)
+    {
+        var normalizedBandCode = bandCode.Trim().ToLowerInvariant();
+        var candidates = records
+            .Where(record => string.Equals(record.MediaType, "radio", StringComparison.OrdinalIgnoreCase))
+            .Where(record => BroadcastRecordMatchesArea(record, selectedArea) || IsNationalRecordAllowed(record, normalizedBandCode))
+            .Select(record => new
+            {
+                Record = record,
+                Score = ScoreBroadcastRecordForPreview(record, selectedArea, normalizedBandCode, budget, budgetRatio, isTv: false)
+            })
+            .OrderByDescending(candidate => candidate.Score)
+            .ThenByDescending(candidate => candidate.Record.HasPricing)
+            .ThenByDescending(candidate => candidate.Record.ListenershipWeekly ?? candidate.Record.ListenershipDaily ?? 0)
+            .ThenBy(candidate => candidate.Record.Station, StringComparer.OrdinalIgnoreCase)
+            .Take(8)
+            .ToList();
+
+        return candidates
+            .Select(candidate => BuildRadioSupportLabel(candidate.Record, budget))
+            .Where(static label => !string.IsNullOrWhiteSpace(label))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(3)
+            .ToList();
+    }
+
+    private static List<string> BuildTvSupportExamplesFromBroadcastInventory(
+        IReadOnlyList<BroadcastInventoryRecord> records,
+        AreaProfile selectedArea,
+        string bandCode,
+        decimal budget,
+        decimal budgetRatio)
+    {
+        var normalizedBandCode = bandCode.Trim().ToLowerInvariant();
+        var candidates = records
+            .Where(record => string.Equals(record.MediaType, "tv", StringComparison.OrdinalIgnoreCase))
+            .Where(record => selectedArea.Code == "national" || record.IsNational || string.Equals(record.CoverageType, "national", StringComparison.OrdinalIgnoreCase))
+            .Select(record => new
+            {
+                Record = record,
+                Score = ScoreBroadcastRecordForPreview(record, selectedArea, normalizedBandCode, budget, budgetRatio, isTv: true)
+            })
+            .OrderByDescending(candidate => candidate.Score)
+            .ThenByDescending(candidate => candidate.Record.HasPricing)
+            .ThenBy(candidate => candidate.Record.Station, StringComparer.OrdinalIgnoreCase)
+            .Take(6)
+            .ToList();
+
+        var labels = candidates
+            .Select(candidate => BuildTvSupportLabel(candidate.Record, budget))
+            .Where(static label => !string.IsNullOrWhiteSpace(label))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(selectedArea.Code == "national" ? 3 : 2)
+            .ToList();
+
+        if (labels.Count == 0)
+        {
+            return labels;
+        }
+
+        if (selectedArea.Code != "national")
+        {
+            labels.Insert(0, "TV can be included for broader or national campaigns at this package level");
+        }
+
+        return labels
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(3)
+            .ToList();
+    }
+
+    private static List<RadioPreviewRow> BuildRadioPreviewRowsFromBroadcastInventory(IReadOnlyList<BroadcastInventoryRecord> records)
+    {
+        return records
+            .Where(record => string.Equals(record.MediaType, "radio", StringComparison.OrdinalIgnoreCase))
+            .SelectMany(CreateRadioPreviewRows)
+            .ToList();
+    }
+
+    private static List<TvPreviewRow> BuildTvPreviewRowsFromBroadcastInventory(IReadOnlyList<BroadcastInventoryRecord> records)
+    {
+        return records
+            .Where(record => string.Equals(record.MediaType, "tv", StringComparison.OrdinalIgnoreCase))
+            .SelectMany(CreateTvPreviewRows)
+            .ToList();
+    }
+
+    private static IEnumerable<RadioPreviewRow> CreateRadioPreviewRows(BroadcastInventoryRecord record)
+    {
+        var rows = new List<RadioPreviewRow>();
+        var geographyScope = BuildGeographyScope(record);
+        var sourceUrl = TryGetFirstSourceUrl(record);
+        var packageCandidates = EnumeratePackageCandidates(record.Packages).ToList();
+        var rateCandidates = EnumerateRateCandidates(record.Pricing).ToList();
+
+        foreach (var package in packageCandidates)
+        {
+            var cost = package.InvestmentZar ?? package.PackageCostZar ?? package.CostPerMonthZar ?? 0m;
+            rows.Add(new RadioPreviewRow
+            {
+                SourceId = CreateDeterministicGuid($"{record.Id}:radio:package:{package.Name}"),
+                StationName = record.Station,
+                InventoryName = package.Name,
+                Daypart = DeriveDaypartFromText(package.Name),
+                InventoryKind = "package",
+                Cost = cost,
+                GeographyScope = geographyScope,
+                RegionClusterCode = record.ProvinceCodes.FirstOrDefault(),
+                MarketScope = record.CoverageType,
+                MarketTier = record.CatalogHealth,
+                MonthlyListenership = GetMonthlyListenership(record),
+                BrandStrengthScore = GetBrandStrengthScore(record),
+                CoverageScore = GetCoverageScore(record),
+                AudiencePowerScore = GetAudiencePowerScore(record),
+                PrimaryAudience = record.TargetAudience ?? string.Empty,
+                IsFlagshipStation = record.IsNational || string.Equals(record.CatalogHealth, "strong", StringComparison.OrdinalIgnoreCase),
+                IsPremiumStation = string.Equals(record.CatalogHealth, "strong", StringComparison.OrdinalIgnoreCase),
+                ReferenceShowName = package.Name,
+                AudienceSummary = record.TargetAudience,
+                SourceUrl = sourceUrl
+            });
+        }
+
+        foreach (var rate in rateCandidates)
+        {
+            rows.Add(new RadioPreviewRow
+            {
+                SourceId = CreateDeterministicGuid($"{record.Id}:radio:rate:{rate.GroupName}:{rate.SlotLabel}:{rate.ProgrammeName}"),
+                StationName = record.Station,
+                InventoryName = string.IsNullOrWhiteSpace(rate.ProgrammeName) ? $"{record.Station} slot" : rate.ProgrammeName!,
+                Daypart = string.IsNullOrWhiteSpace(rate.SlotLabel) ? rate.GroupName : rate.SlotLabel,
+                InventoryKind = "rate_card",
+                Cost = rate.RateZar,
+                GeographyScope = geographyScope,
+                RegionClusterCode = record.ProvinceCodes.FirstOrDefault(),
+                MarketScope = record.CoverageType,
+                MarketTier = record.CatalogHealth,
+                MonthlyListenership = GetMonthlyListenership(record),
+                BrandStrengthScore = GetBrandStrengthScore(record),
+                CoverageScore = GetCoverageScore(record),
+                AudiencePowerScore = GetAudiencePowerScore(record),
+                PrimaryAudience = record.TargetAudience ?? string.Empty,
+                IsFlagshipStation = record.IsNational || string.Equals(record.CatalogHealth, "strong", StringComparison.OrdinalIgnoreCase),
+                IsPremiumStation = string.Equals(record.CatalogHealth, "strong", StringComparison.OrdinalIgnoreCase),
+                ReferenceShowName = rate.ProgrammeName,
+                AudienceSummary = record.TargetAudience,
+                SourceUrl = sourceUrl
+            });
+        }
+
+        if (rows.Count == 0)
+        {
+            rows.Add(new RadioPreviewRow
+            {
+                SourceId = CreateDeterministicGuid($"{record.Id}:radio:fallback"),
+                StationName = record.Station,
+                InventoryName = $"{record.Station} support",
+                Daypart = "selected dayparts",
+                InventoryKind = "station",
+                Cost = 0m,
+                GeographyScope = geographyScope,
+                RegionClusterCode = record.ProvinceCodes.FirstOrDefault(),
+                MarketScope = record.CoverageType,
+                MarketTier = record.CatalogHealth,
+                MonthlyListenership = GetMonthlyListenership(record),
+                BrandStrengthScore = GetBrandStrengthScore(record),
+                CoverageScore = GetCoverageScore(record),
+                AudiencePowerScore = GetAudiencePowerScore(record),
+                PrimaryAudience = record.TargetAudience ?? string.Empty,
+                IsFlagshipStation = record.IsNational,
+                IsPremiumStation = string.Equals(record.CatalogHealth, "strong", StringComparison.OrdinalIgnoreCase),
+                ReferenceShowName = null,
+                AudienceSummary = record.TargetAudience,
+                SourceUrl = sourceUrl
+            });
+        }
+
+        return rows;
+    }
+
+    private static IEnumerable<TvPreviewRow> CreateTvPreviewRows(BroadcastInventoryRecord record)
+    {
+        var rows = new List<TvPreviewRow>();
+        var packageCandidates = EnumeratePackageCandidates(record.Packages).ToList();
+        var rateCandidates = EnumerateRateCandidates(record.Pricing).ToList();
+
+        foreach (var package in packageCandidates)
+        {
+            rows.Add(new TvPreviewRow
+            {
+                SourceId = CreateDeterministicGuid($"{record.Id}:tv:package:{package.Name}"),
+                ChannelName = record.Station,
+                ProgrammeName = package.Name,
+                Daypart = DeriveDaypartFromText(package.Name),
+                Genre = DeriveGenreFromText(package.Name, record.TargetAudience),
+                Cost = package.InvestmentZar ?? package.PackageCostZar ?? package.CostPerMonthZar ?? 0m,
+                AudienceSummary = record.TargetAudience
+            });
+        }
+
+        foreach (var rate in rateCandidates)
+        {
+            rows.Add(new TvPreviewRow
+            {
+                SourceId = CreateDeterministicGuid($"{record.Id}:tv:rate:{rate.GroupName}:{rate.SlotLabel}:{rate.ProgrammeName}"),
+                ChannelName = record.Station,
+                ProgrammeName = rate.ProgrammeName ?? $"{record.Station} placement",
+                Daypart = rate.SlotLabel,
+                Genre = DeriveGenreFromText(rate.ProgrammeName, record.TargetAudience),
+                Cost = rate.RateZar,
+                AudienceSummary = record.TargetAudience
+            });
+        }
+
+        if (rows.Count == 0)
+        {
+            rows.Add(new TvPreviewRow
+            {
+                SourceId = CreateDeterministicGuid($"{record.Id}:tv:fallback"),
+                ChannelName = record.Station,
+                ProgrammeName = $"{record.Station} support",
+                Daypart = "selected slots",
+                Genre = DeriveGenreFromText(record.Station, record.TargetAudience),
+                Cost = 0m,
+                AudienceSummary = record.TargetAudience
+            });
+        }
+
+        return rows;
+    }
+
+    private static bool BroadcastRecordMatchesArea(BroadcastInventoryRecord record, AreaProfile selectedArea)
+    {
+        if (selectedArea.Code == "national")
+        {
+            return record.IsNational || string.Equals(record.CoverageType, "national", StringComparison.OrdinalIgnoreCase);
+        }
+
+        var selectedCode = NormalizeBroadcastToken(selectedArea.Code);
+        var provinces = record.ProvinceCodes.Select(NormalizeBroadcastToken).ToList();
+        var cities = record.CityLabels.Select(static city => city.Trim().ToLowerInvariant()).ToList();
+
+        if (selectedCode == "kzn" && provinces.Contains("kwazulu_natal", StringComparer.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (provinces.Contains(selectedCode, StringComparer.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return selectedArea.CityTerms.Any(term => cities.Any(city => city.Contains(term, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    private static bool IsNationalRecordAllowed(BroadcastInventoryRecord record, string bandCode)
+    {
+        return (bandCode == "scale" || bandCode == "dominance")
+            && (record.IsNational || string.Equals(record.CoverageType, "national", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static decimal ScoreBroadcastRecordForPreview(
+        BroadcastInventoryRecord record,
+        AreaProfile selectedArea,
+        string bandCode,
+        decimal budget,
+        decimal budgetRatio,
+        bool isTv)
+    {
+        var score = 0m;
+
+        if (BroadcastRecordMatchesArea(record, selectedArea))
+        {
+            score += 18m;
+        }
+        else if (record.IsNational || string.Equals(record.CoverageType, "national", StringComparison.OrdinalIgnoreCase))
+        {
+            score += bandCode is "scale" or "dominance" ? 10m : 2m;
+        }
+
+        if (record.HasPricing)
+        {
+            score += 8m;
+        }
+
+        score += record.CatalogHealth switch
+        {
+            "strong" => 8m,
+            "mixed" => 4m,
+            "weak_partial_pricing" => 2m,
+            _ => 0m
+        };
+
+        score += string.Equals(record.CoverageType, "national", StringComparison.OrdinalIgnoreCase)
+            ? (bandCode is "scale" or "dominance" ? 5m : -1m)
+            : string.Equals(record.CoverageType, "regional", StringComparison.OrdinalIgnoreCase)
+                ? 3m
+                : 1m;
+
+        if (record.ListenershipWeekly.HasValue)
+        {
+            score += Math.Min(10m, record.ListenershipWeekly.Value / 150000m);
+        }
+        else if (record.ListenershipDaily.HasValue)
+        {
+            score += Math.Min(8m, record.ListenershipDaily.Value / 75000m);
+        }
+
+        if (!isTv)
+        {
+            if (record.AudienceKeywords.Any(keyword => keyword.Contains("music", StringComparison.OrdinalIgnoreCase)
+                || keyword.Contains("lifestyle", StringComparison.OrdinalIgnoreCase)
+                || keyword.Contains("commuter", StringComparison.OrdinalIgnoreCase)))
+            {
+                score += 3m;
+            }
+        }
+        else if (record.AudienceKeywords.Any(keyword => keyword.Contains("news", StringComparison.OrdinalIgnoreCase)
+            || keyword.Contains("sport", StringComparison.OrdinalIgnoreCase)))
+        {
+            score += 3m;
+        }
+
+        var pricePoint = GetClosestSpendPoint(record, budget, isTv);
+        if (pricePoint.HasValue && pricePoint.Value > 0m)
+        {
+            var target = isTv ? budget * 0.35m : budget * 0.18m;
+            var ratio = target <= 0m ? 1m : pricePoint.Value / target;
+            if (ratio <= 1.1m)
+            {
+                score += 6m;
+            }
+            else if (ratio <= 1.4m)
+            {
+                score += 3m;
+            }
+        }
+        else if (budgetRatio < 0.5m)
+        {
+            score -= 2m;
+        }
+
+        return score;
+    }
+
+    private static decimal? GetClosestSpendPoint(BroadcastInventoryRecord record, decimal budget, bool isTv)
+    {
+        var candidates = EnumeratePackageCandidates(record.Packages)
+            .Select(package => package.InvestmentZar ?? package.PackageCostZar ?? package.CostPerMonthZar)
+            .Concat(EnumerateRateCandidates(record.Pricing).Select(rate => (decimal?)rate.RateZar))
+            .Where(value => value.HasValue && value.Value > 0m)
+            .Select(value => value!.Value)
+            .ToList();
+
+        if (candidates.Count == 0)
+        {
+            return null;
+        }
+
+        var target = isTv ? budget * 0.35m : budget * 0.18m;
+        return candidates
+            .OrderBy(value => Math.Abs(value - target))
+            .First();
+    }
+
+    private static string BuildRadioSupportLabel(BroadcastInventoryRecord record, decimal budget)
+    {
+        var package = EnumeratePackageCandidates(record.Packages)
+            .OrderBy(package => Math.Abs((package.InvestmentZar ?? package.PackageCostZar ?? package.CostPerMonthZar ?? 0m) - (budget * 0.18m)))
+            .FirstOrDefault(package => (package.InvestmentZar ?? package.PackageCostZar ?? package.CostPerMonthZar ?? 0m) > 0m);
+
+        if (package is not null)
+        {
+            return $"{record.Station} - {package.Name} ({DescribeBroadcastAudience(record)})";
+        }
+
+        var rate = EnumerateRateCandidates(record.Pricing)
+            .OrderBy(rate => Math.Abs(rate.RateZar - (budget * 0.12m)))
+            .FirstOrDefault();
+
+        if (rate is not null)
+        {
+            var slot = string.IsNullOrWhiteSpace(rate.ProgrammeName) ? HumanizeDaypart(rate.SlotLabel) : rate.ProgrammeName!;
+            return $"{record.Station} - {slot} ({DescribeBroadcastAudience(record)})";
+        }
+
+        return $"{record.Station} - station support ({DescribeBroadcastAudience(record)})";
+    }
+
+    private static string BuildTvSupportLabel(BroadcastInventoryRecord record, decimal budget)
+    {
+        var package = EnumeratePackageCandidates(record.Packages)
+            .OrderBy(package => Math.Abs((package.InvestmentZar ?? package.PackageCostZar ?? package.CostPerMonthZar ?? 0m) - (budget * 0.35m)))
+            .FirstOrDefault(package => (package.InvestmentZar ?? package.PackageCostZar ?? package.CostPerMonthZar ?? 0m) > 0m);
+
+        if (package is not null)
+        {
+            return $"{record.Station} - {package.Name} ({DescribeBroadcastAudience(record)})";
+        }
+
+        var rate = EnumerateRateCandidates(record.Pricing)
+            .OrderBy(rate => Math.Abs(rate.RateZar - (budget * 0.22m)))
+            .FirstOrDefault();
+
+        if (rate is not null)
+        {
+            var programme = rate.ProgrammeName ?? rate.SlotLabel;
+            return $"{record.Station} - {programme} ({DescribeBroadcastAudience(record)})";
+        }
+
+        return $"{record.Station} - channel support ({DescribeBroadcastAudience(record)})";
+    }
+
+    private static string DescribeBroadcastAudience(BroadcastInventoryRecord record)
+    {
+        if (!string.IsNullOrWhiteSpace(record.TargetAudience))
+        {
+            var lowered = record.TargetAudience.Trim().ToLowerInvariant();
+            if (lowered.Contains("business"))
+            {
+                return "business audience";
+            }
+
+            if (lowered.Contains("lifestyle"))
+            {
+                return "lifestyle audience";
+            }
+
+            if (lowered.Contains("youth"))
+            {
+                return "youth audience";
+            }
+
+            if (lowered.Contains("community"))
+            {
+                return "community audience";
+            }
+        }
+
+        if (record.AudienceKeywords.Any(keyword => keyword.Contains("news", StringComparison.OrdinalIgnoreCase)))
+        {
+            return "news audience";
+        }
+
+        if (record.AudienceKeywords.Any(keyword => keyword.Contains("sport", StringComparison.OrdinalIgnoreCase)))
+        {
+            return "sport audience";
+        }
+
+        if (record.AudienceKeywords.Any(keyword => keyword.Contains("lifestyle", StringComparison.OrdinalIgnoreCase)))
+        {
+            return "lifestyle audience";
+        }
+
+        return "selected audience fit";
+    }
+
+    private static IEnumerable<BroadcastPackageCandidate> EnumeratePackageCandidates(JsonElement packages)
+    {
+        if (packages.ValueKind != JsonValueKind.Array)
+        {
+            yield break;
+        }
+
+        foreach (var item in packages.EnumerateArray())
+        {
+            var candidate = new BroadcastPackageCandidate
+            {
+                Name = GetString(item, "name") ?? "Package",
+                InvestmentZar = GetDecimal(item, "investment_zar"),
+                PackageCostZar = GetDecimal(item, "package_cost_zar"),
+                CostPerMonthZar = GetDecimal(item, "cost_per_month_zar"),
+                Exposure = GetInt(item, "exposure"),
+                TotalExposure = GetInt(item, "total_exposure"),
+                NumberOfSpots = GetInt(item, "number_of_spots"),
+                Notes = GetString(item, "notes")
+            };
+
+            if (item.TryGetProperty("elements", out var elements) && elements.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var element in elements.EnumerateArray())
+                {
+                    yield return new BroadcastPackageCandidate
+                    {
+                        Name = $"{candidate.Name} - {GetString(element, "name") ?? "Element"}",
+                        InvestmentZar = GetDecimal(element, "investment_zar"),
+                        PackageCostZar = GetDecimal(element, "package_cost_zar"),
+                        CostPerMonthZar = candidate.CostPerMonthZar,
+                        Exposure = GetInt(element, "exposure"),
+                        TotalExposure = GetInt(element, "total_exposure"),
+                        NumberOfSpots = GetInt(element, "number_of_spots"),
+                        Notes = GetString(element, "notes")
+                    };
+                }
+
+                continue;
+            }
+
+            yield return candidate;
+        }
+    }
+
+    private static IEnumerable<BroadcastRateCandidate> EnumerateRateCandidates(JsonElement pricing)
+    {
+        if (pricing.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var group in pricing.EnumerateObject())
+            {
+                if (group.Value.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                foreach (var slot in group.Value.EnumerateObject())
+                {
+                    var rate = slot.Value.ValueKind switch
+                    {
+                        JsonValueKind.Number when slot.Value.TryGetDecimal(out var numberRate) => numberRate,
+                        JsonValueKind.String when decimal.TryParse(slot.Value.GetString(), out var stringRate) => stringRate,
+                        _ => 0m
+                    };
+
+                    if (rate <= 0m)
+                    {
+                        continue;
+                    }
+
+                    yield return new BroadcastRateCandidate
+                    {
+                        GroupName = group.Name,
+                        SlotLabel = slot.Name,
+                        RateZar = rate
+                    };
+                }
+            }
+        }
+        else if (pricing.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in pricing.EnumerateArray())
+            {
+                var rate = GetDecimal(item, "price_zar") ?? GetDecimal(item, "rate_zar") ?? 0m;
+                if (rate <= 0m)
+                {
+                    continue;
+                }
+
+                yield return new BroadcastRateCandidate
+                {
+                    GroupName = GetString(item, "group") ?? "schedule",
+                    SlotLabel = GetString(item, "slot") ?? GetString(item, "time") ?? "selected slot",
+                    RateZar = rate,
+                    ProgrammeName = GetString(item, "program") ?? GetString(item, "programme")
+                };
+            }
+        }
+    }
+
+    private static string BuildGeographyScope(BroadcastInventoryRecord record)
+    {
+        var tokens = record.CityLabels
+            .Concat(record.ProvinceCodes)
+            .Where(static value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return tokens.Count == 0
+            ? record.CoverageType
+            : string.Join(", ", tokens);
+    }
+
+    private static string? TryGetFirstSourceUrl(BroadcastInventoryRecord record)
+    {
+        if (record.Packages.ValueKind == JsonValueKind.Undefined)
+        {
+            return null;
+        }
+
+        return null;
+    }
+
+    private static int GetMonthlyListenership(BroadcastInventoryRecord record)
+    {
+        if (record.ListenershipDaily.HasValue)
+        {
+            return (int)Math.Min(int.MaxValue, record.ListenershipDaily.Value * 22L);
+        }
+
+        if (record.ListenershipWeekly.HasValue)
+        {
+            return (int)Math.Min(int.MaxValue, record.ListenershipWeekly.Value * 4L);
+        }
+
+        return 0;
+    }
+
+    private static decimal GetBrandStrengthScore(BroadcastInventoryRecord record)
+    {
+        return record.CatalogHealth switch
+        {
+            "strong" => 9m,
+            "mixed" => 6m,
+            "weak_partial_pricing" => 4m,
+            "weak_unpriced" => 2m,
+            _ => 3m
+        };
+    }
+
+    private static decimal GetCoverageScore(BroadcastInventoryRecord record)
+    {
+        return record.CoverageType switch
+        {
+            "national" => 10m,
+            "regional" => 7m,
+            "local" => 5m,
+            _ => 4m
+        };
+    }
+
+    private static decimal GetAudiencePowerScore(BroadcastInventoryRecord record)
+    {
+        return Math.Min(10m, record.AudienceKeywords.Count + (record.PrimaryLanguages.Count * 0.5m));
+    }
+
+    private static string DeriveDaypartFromText(string? source)
+    {
+        var text = source?.Trim().ToLowerInvariant() ?? string.Empty;
+        if (text.Contains("breakfast"))
+        {
+            return "breakfast";
+        }
+
+        if (text.Contains("drive"))
+        {
+            return "drive";
+        }
+
+        if (text.Contains("lunch") || text.Contains("midday"))
+        {
+            return "midday";
+        }
+
+        if (text.Contains("weekend"))
+        {
+            return "weekend";
+        }
+
+        return "selected dayparts";
+    }
+
+    private static string DeriveGenreFromText(string? primary, string? secondary)
+    {
+        var text = $"{primary} {secondary}".Trim().ToLowerInvariant();
+        if (text.Contains("sport"))
+        {
+            return "sport";
+        }
+
+        if (text.Contains("news"))
+        {
+            return "news";
+        }
+
+        if (text.Contains("youth"))
+        {
+            return "youth";
+        }
+
+        if (text.Contains("lifestyle"))
+        {
+            return "lifestyle";
+        }
+
+        return "general";
+    }
+
+    private static string? GetString(JsonElement element, string propertyName)
+    {
+        return element.TryGetProperty(propertyName, out var property) && property.ValueKind == JsonValueKind.String
+            ? property.GetString()
+            : null;
+    }
+
+    private static decimal? GetDecimal(JsonElement element, string propertyName)
+    {
+        if (!element.TryGetProperty(propertyName, out var property))
+        {
+            return null;
+        }
+
+        if (property.ValueKind == JsonValueKind.Number && property.TryGetDecimal(out var number))
+        {
+            return number;
+        }
+
+        if (property.ValueKind == JsonValueKind.String
+            && decimal.TryParse(property.GetString(), NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed))
+        {
+            return parsed;
+        }
+
+        return null;
+    }
+
+    private static int? GetInt(JsonElement element, string propertyName)
+    {
+        if (!element.TryGetProperty(propertyName, out var property))
+        {
+            return null;
+        }
+
+        if (property.ValueKind == JsonValueKind.Number && property.TryGetInt32(out var number))
+        {
+            return number;
+        }
+
+        if (property.ValueKind == JsonValueKind.String
+            && int.TryParse(property.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed))
+        {
+            return parsed;
+        }
+
+        return null;
+    }
+
+    private static Guid CreateDeterministicGuid(string value)
+    {
+        using var md5 = System.Security.Cryptography.MD5.Create();
+        var hash = md5.ComputeHash(System.Text.Encoding.UTF8.GetBytes(value));
+        return new Guid(hash);
     }
 
     private static List<string> BuildRegionalTvPreviewExamples(List<TvPreviewRow> candidates, decimal budget, decimal budgetRatio)
@@ -1092,6 +1427,11 @@ public sealed class PackagePreviewService : IPackagePreviewService
         return $"{row.ChannelName.Trim()} - {programmeLabel} ({audience})";
     }
 
+    private static string NormalizeBroadcastToken(string value)
+    {
+        return value.Trim().Replace(" ", "_").Replace("-", "_").ToLowerInvariant();
+    }
+
     private static string BuildRadioKey(RadioPreviewRow row)
     {
         return $"{row.StationName}|{row.Daypart}|{row.InventoryKind}".Trim().ToLowerInvariant();
@@ -1101,41 +1441,6 @@ public sealed class PackagePreviewService : IPackagePreviewService
     {
         return rows
             .Select(BuildRadioSupportLabel)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Take(3)
-            .ToList();
-    }
-
-    private static async Task<List<string>> BuildRadioShowFallbackExamplesAsync(NpgsqlConnection connection, CancellationToken cancellationToken)
-    {
-        var rows = (await connection.QueryAsync<RadioShowPreviewRow>(
-            new CommandDefinition(
-                GetRadioShowPreviewSql(),
-                new { PoolSize = 12 },
-                cancellationToken: cancellationToken)))
-            .ToList();
-
-        var showExamples = rows
-            .GroupBy(row => $"{row.StationName}|{row.Daypart}", StringComparer.OrdinalIgnoreCase)
-            .Select(group => group.First())
-            .Take(3)
-            .Select(BuildRadioShowSupportLabel)
-            .ToList();
-
-        if (showExamples.Count > 0)
-        {
-            return showExamples;
-        }
-
-        var documentRows = (await connection.QueryAsync<RadioDocumentPreviewRow>(
-            new CommandDefinition(
-                GetRadioDocumentPreviewSql(),
-                new { PoolSize = 6 },
-                cancellationToken: cancellationToken)))
-            .ToList();
-
-        return documentRows
-            .Select(BuildRadioDocumentSupportLabel)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Take(3)
             .ToList();
@@ -1181,51 +1486,6 @@ public sealed class PackagePreviewService : IPackagePreviewService
         return $"{station} - {daypart} slot support ({audience})";
     }
 
-    private static string BuildRadioShowSupportLabel(RadioShowPreviewRow row)
-    {
-        var station = row.StationName.Trim();
-        var showName = row.ShowName.Trim();
-        var daypart = HumanizeDaypart(row.Daypart);
-        var audience = DescribeRadioAudience(row.Daypart, row.ShowName, null);
-
-        if (showName.Contains(station, StringComparison.OrdinalIgnoreCase))
-        {
-            return $"{showName} - {daypart} ({audience})";
-        }
-
-        return $"{station} - {showName} ({audience})";
-    }
-
-    private static string GetRadioDocumentPreviewSql() =>
-        @"
-        select
-            coalesce(nullif(sd.supplier_name, ''), nullif(sd.document_title, ''), 'Radio partner') as SourceName,
-            coalesce(nullif(sd.document_title, ''), 'Radio package') as DocumentTitle
-        from source_documents sd
-        where lower(sd.media_channel) = 'radio'
-        order by
-            coalesce(nullif(sd.supplier_name, ''), nullif(sd.document_title, ''), 'Radio partner') asc,
-            sd.document_title asc
-        limit @PoolSize;
-        ";
-
-    private static string BuildRadioDocumentSupportLabel(RadioDocumentPreviewRow row)
-    {
-        var sourceName = row.SourceName.Trim();
-        var title = row.DocumentTitle.Trim();
-
-        if (title.Contains("sport", StringComparison.OrdinalIgnoreCase))
-        {
-            return $"{sourceName} - sports programming (sport audience)";
-        }
-
-        if (title.Contains("package", StringComparison.OrdinalIgnoreCase))
-        {
-            return $"{sourceName} - selected package support ({DescribeRadioAudience(null, title)})";
-        }
-
-        return $"{sourceName} - selected market support ({DescribeRadioAudience(null, title)})";
-    }
 
     private static string HumanizeDaypart(string? daypart)
     {
@@ -1440,83 +1700,6 @@ public sealed class PackagePreviewService : IPackagePreviewService
         return !genericMarkers.Any(marker => normalized.Equals(marker, StringComparison.OrdinalIgnoreCase));
     }
 
-    private static string BuildReachEstimate(string bandCode, decimal budgetRatio, int oohCount, int radioCount)
-    {
-        var (minLow, maxLow, minHigh, maxHigh) = GetReachEnvelope(bandCode);
-        var normalizedRatio = Math.Clamp(budgetRatio, 0m, 1m);
-        var low = Interpolate(minLow, maxLow, normalizedRatio);
-        var high = Interpolate(minHigh, maxHigh, normalizedRatio);
-        var supportLift = 1m + (Math.Min(3, oohCount) * 0.03m) + (Math.Min(3, radioCount) * 0.035m);
-
-        low = RoundReach(low * supportLift);
-        high = RoundReach(high * supportLift);
-
-        if (high <= low)
-        {
-            high = RoundReach(low * 1.35m);
-        }
-
-        return $"~{FormatReachValue(low)} - {FormatReachValue(high)} impressions";
-    }
-
-    private static (decimal MinLow, decimal MaxLow, decimal MinHigh, decimal MaxHigh) GetReachEnvelope(string bandCode)
-    {
-        return bandCode.Trim().ToLowerInvariant() switch
-        {
-            "launch" => (60000m, 180000m, 180000m, 420000m),
-            "boost" => (180000m, 550000m, 450000m, 1200000m),
-            "scale" => (550000m, 1200000m, 1400000m, 3200000m),
-            _ => (1200000m, 2600000m, 3000000m, 6500000m)
-        };
-    }
-
-    private static decimal Interpolate(decimal min, decimal max, decimal ratio)
-    {
-        return min + ((max - min) * ratio);
-    }
-
-    private static decimal RoundReach(decimal reach)
-    {
-        if (reach < 250000m)
-        {
-            return RoundToIncrement(reach, 10000m);
-        }
-
-        if (reach < 1000000m)
-        {
-            return RoundToIncrement(reach, 25000m);
-        }
-
-        return RoundToIncrement(reach, 100000m);
-    }
-
-    private static decimal RoundToIncrement(decimal value, decimal increment)
-    {
-        if (increment <= 0)
-        {
-            return Math.Round(value, MidpointRounding.AwayFromZero);
-        }
-
-        return Math.Round(value / increment, MidpointRounding.AwayFromZero) * increment;
-    }
-
-    private static string FormatReachValue(decimal value)
-    {
-        if (value >= 1000000m)
-        {
-            var millions = value / 1000000m;
-            return $"{millions:0.#}M";
-        }
-
-        if (value >= 1000m)
-        {
-            var thousands = value / 1000m;
-            return $"{thousands:0.#}K";
-        }
-
-        return value.ToString("0");
-    }
-
     private static decimal GetBudgetRatio(decimal budget, decimal minBudget, decimal maxBudget)
     {
         var span = maxBudget - minBudget;
@@ -1588,46 +1771,115 @@ public sealed class PackagePreviewService : IPackagePreviewService
         return JsonSerializer.Deserialize<List<string>>(json) ?? new List<string>();
     }
 
-    private static string NormalizeSelectedArea(string? selectedArea)
+    private static (decimal Latitude, decimal Longitude)? TryParseGpsCoordinates(string? gpsCoordinates)
     {
-        var normalized = selectedArea?.Trim().ToLowerInvariant();
-        return normalized switch
+        if (string.IsNullOrWhiteSpace(gpsCoordinates))
         {
-            "gauteng" => "gauteng",
-            "western-cape" => "western-cape",
-            "eastern-cape" => "eastern-cape",
-            "national" => "national",
-            _ => "gauteng"
-        };
+            return null;
+        }
+
+        var decimalCoordinates = TryParseDecimalCoordinates(gpsCoordinates);
+        if (decimalCoordinates is not null)
+        {
+            return decimalCoordinates;
+        }
+
+        var normalized = gpsCoordinates
+            .Trim()
+            .Replace("Notes:", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace("”", "\"", StringComparison.Ordinal)
+            .Replace("“", "\"", StringComparison.Ordinal)
+            .Replace("’", "'", StringComparison.Ordinal)
+            .Replace("‘", "'", StringComparison.Ordinal);
+
+        var matches = Regex.Matches(normalized, @"(\d{1,3})°(\d{1,2})['′](\d{1,2})[""″]?([NSEW])", RegexOptions.IgnoreCase);
+        if (matches.Count < 2)
+        {
+            return null;
+        }
+
+        var latitude = ParseDmsCoordinate(matches[0]);
+        var longitude = ParseDmsCoordinate(matches[1]);
+
+        if (latitude is null || longitude is null)
+        {
+            return null;
+        }
+
+        return (latitude.Value, longitude.Value);
     }
 
-    private static string HumanizeSelectedArea(string selectedArea)
+    private static decimal? ParseDmsCoordinate(Match match)
     {
-        return selectedArea switch
+        if (!match.Success)
         {
-            "gauteng" => "Gauteng",
-            "western-cape" => "Western Cape",
-            "eastern-cape" => "Eastern Cape",
-            "national" => "National",
-            _ => "Gauteng"
-        };
+            return null;
+        }
+
+        if (!decimal.TryParse(match.Groups[1].Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var degrees)
+            || !decimal.TryParse(match.Groups[2].Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var minutes)
+            || !decimal.TryParse(match.Groups[3].Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var seconds))
+        {
+            return null;
+        }
+
+        var hemisphere = match.Groups[4].Value.ToUpperInvariant();
+        var decimalDegrees = degrees + (minutes / 60m) + (seconds / 3600m);
+
+        if (hemisphere is "S" or "W")
+        {
+            decimalDegrees *= -1m;
+        }
+
+        return decimalDegrees;
     }
 
-    private sealed class OohPreviewRow
+    private static (decimal Latitude, decimal Longitude)? TryParseDecimalCoordinates(string rawCoordinates)
     {
-        public string Suburb { get; set; } = string.Empty;
+        var normalized = rawCoordinates
+            .Trim()
+            .Replace("Notes:", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace("Animation:", string.Empty, StringComparison.OrdinalIgnoreCase);
 
-        public string City { get; set; } = string.Empty;
+        var decimalMatch = Regex.Match(
+            normalized,
+            @"(-?\d{1,2}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)",
+            RegexOptions.IgnoreCase);
 
-        public string Province { get; set; } = string.Empty;
+        if (!decimalMatch.Success)
+        {
+            return null;
+        }
 
-        public string? RegionClusterCode { get; set; }
+        if (!decimal.TryParse(decimalMatch.Groups[1].Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var latitude)
+            || !decimal.TryParse(decimalMatch.Groups[2].Value, NumberStyles.Number, CultureInfo.InvariantCulture, out var longitude))
+        {
+            return null;
+        }
 
-        public string SiteName { get; set; } = string.Empty;
+        if (latitude is < -90m or > 90m || longitude is < -180m or > 180m)
+        {
+            return null;
+        }
 
-        public decimal Cost { get; set; }
+        return (latitude, longitude);
+    }
 
-        public long TrafficCount { get; set; }
+    private sealed class AreaProfile
+    {
+        public string Code { get; set; } = string.Empty;
+
+        public string Name { get; set; } = string.Empty;
+
+        public string Description { get; set; } = string.Empty;
+
+        public List<string> FallbackExampleLocations { get; set; } = new();
+
+        public List<string> ProvinceTerms { get; set; } = new();
+
+        public List<string> CityTerms { get; set; } = new();
+
+        public List<string> StationTerms { get; set; } = new();
     }
 
     private sealed class RadioPreviewRow
@@ -1686,22 +1938,6 @@ public sealed class PackagePreviewService : IPackagePreviewService
         public decimal Score { get; }
     }
 
-    private sealed class RadioShowPreviewRow
-    {
-        public string StationName { get; set; } = string.Empty;
-
-        public string ShowName { get; set; } = string.Empty;
-
-        public string Daypart { get; set; } = string.Empty;
-    }
-
-    private sealed class RadioDocumentPreviewRow
-    {
-        public string SourceName { get; set; } = string.Empty;
-
-        public string DocumentTitle { get; set; } = string.Empty;
-    }
-
     private sealed class TvPreviewRow
     {
         public Guid SourceId { get; set; }
@@ -1717,5 +1953,25 @@ public sealed class PackagePreviewService : IPackagePreviewService
         public decimal Cost { get; set; }
 
         public string? AudienceSummary { get; set; }
+    }
+
+    private sealed class BroadcastPackageCandidate
+    {
+        public string Name { get; set; } = string.Empty;
+        public decimal? InvestmentZar { get; set; }
+        public decimal? PackageCostZar { get; set; }
+        public decimal? CostPerMonthZar { get; set; }
+        public int? Exposure { get; set; }
+        public int? TotalExposure { get; set; }
+        public int? NumberOfSpots { get; set; }
+        public string? Notes { get; set; }
+    }
+
+    private sealed class BroadcastRateCandidate
+    {
+        public string GroupName { get; set; } = string.Empty;
+        public string SlotLabel { get; set; } = string.Empty;
+        public decimal RateZar { get; set; }
+        public string? ProgrammeName { get; set; }
     }
 }
