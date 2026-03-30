@@ -62,10 +62,11 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
 
     private static bool MatchesRequestedGeography(InventoryCandidate candidate, CampaignPlanningRequest request)
     {
-        // National radio inventory should remain eligible across local/provincial briefs.
-        // This prevents false "inventory_insufficient" outcomes when outlets are correctly
-        // marked as national but brief geography is narrower (e.g., Gauteng/local campaigns).
-        if (candidate.MediaType.Equals("Radio", StringComparison.OrdinalIgnoreCase)
+        // National broadcast inventory (radio + TV) should remain eligible across
+        // local/provincial briefs. This prevents false preferred-media fallbacks when
+        // channels are inherently national even if the brief geography is narrower.
+        if ((candidate.MediaType.Equals("Radio", StringComparison.OrdinalIgnoreCase)
+                || candidate.MediaType.Equals("TV", StringComparison.OrdinalIgnoreCase))
             && Matches(candidate.MarketScope, "national"))
         {
             return true;

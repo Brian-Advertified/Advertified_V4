@@ -6,6 +6,7 @@ using Npgsql;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Globalization;
 
 namespace Advertified.App.Services;
 
@@ -348,16 +349,18 @@ public sealed class BroadcastInventoryImportService : IBroadcastInventoryImportS
                     {
                         PackageName = $"{packageName} - {GetString(element, "name") ?? "Element"}",
                         PackageType = packageType,
-                        ExposureCount = GetInt(element, "exposure"),
-                        MonthlyExposureCount = GetInt(element, "monthly_exposure_count") ?? GetInt(element, "total_exposure"),
-                        ValueZar = GetDecimal(element, "value_zar"),
+                        ExposureCount = GetInt(element, "exposure") ?? GetInt(element, "number_of_spots"),
+                        MonthlyExposureCount = GetInt(element, "monthly_exposure_count") ?? GetInt(element, "total_exposure") ?? GetInt(element, "number_of_spots"),
+                        ValueZar = GetDecimal(element, "value_zar") ?? GetDecimal(element, "total_value_zar") ?? GetDecimal(element, "exposure_value_zar"),
                         DiscountZar = GetDecimal(element, "discount_zar"),
                         SavingZar = GetDecimal(element, "saving_zar"),
-                        InvestmentZar = GetDecimal(element, "investment_zar"),
-                        CostPerMonthZar = GetDecimal(package, "cost_per_month_zar"),
-                        DurationMonths = GetInt(package, "duration_months"),
-                        DurationWeeks = GetInt(package, "duration_weeks"),
-                        Notes = GetString(element, "notes") ?? GetString(package, "notes")
+                        InvestmentZar = GetDecimal(element, "investment_zar")
+                            ?? GetDecimal(element, "total_investment_zar")
+                            ?? GetDecimal(element, "package_cost_zar"),
+                        CostPerMonthZar = GetDecimal(element, "cost_per_month_zar") ?? GetDecimal(package, "cost_per_month_zar"),
+                        DurationMonths = GetInt(element, "duration_months") ?? GetInt(package, "duration_months") ?? GetDurationMonthsFromName(GetString(element, "name")) ?? GetDurationMonthsFromName(packageName),
+                        DurationWeeks = GetInt(element, "duration_weeks") ?? GetInt(package, "duration_weeks") ?? GetDurationWeeksFromName(GetString(element, "name")) ?? GetDurationWeeksFromName(packageName),
+                        Notes = GetString(element, "notes") ?? GetString(package, "notes") ?? GetString(element, "sem") ?? GetString(package, "sem")
                     };
                 }
 
@@ -369,15 +372,15 @@ public sealed class BroadcastInventoryImportService : IBroadcastInventoryImportS
                 PackageName = packageName,
                 PackageType = packageType,
                 ExposureCount = GetInt(package, "exposure"),
-                MonthlyExposureCount = GetInt(package, "monthly_exposure_count") ?? GetInt(package, "total_exposure"),
-                ValueZar = GetDecimal(package, "value_zar") ?? GetDecimal(package, "total_value_zar"),
+                MonthlyExposureCount = GetInt(package, "monthly_exposure_count") ?? GetInt(package, "total_exposure") ?? GetInt(package, "number_of_spots"),
+                ValueZar = GetDecimal(package, "value_zar") ?? GetDecimal(package, "total_value_zar") ?? GetDecimal(package, "exposure_value_zar"),
                 DiscountZar = GetDecimal(package, "discount_zar") ?? GetDecimal(package, "total_discount_zar"),
                 SavingZar = GetDecimal(package, "saving_zar"),
-                InvestmentZar = GetDecimal(package, "investment_zar") ?? GetDecimal(package, "total_investment_zar"),
+                InvestmentZar = GetDecimal(package, "investment_zar") ?? GetDecimal(package, "total_investment_zar") ?? GetDecimal(package, "package_cost_zar"),
                 CostPerMonthZar = GetDecimal(package, "cost_per_month_zar"),
-                DurationMonths = GetInt(package, "duration_months"),
-                DurationWeeks = GetInt(package, "duration_weeks"),
-                Notes = GetString(package, "notes")
+                DurationMonths = GetInt(package, "duration_months") ?? GetDurationMonthsFromName(packageName),
+                DurationWeeks = GetInt(package, "duration_weeks") ?? GetDurationWeeksFromName(packageName),
+                Notes = GetString(package, "notes") ?? GetString(package, "sem")
             };
         }
     }
@@ -412,6 +415,41 @@ public sealed class BroadcastInventoryImportService : IBroadcastInventoryImportS
                 }
             }
         }
+        else if (record.Pricing.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var row in record.Pricing.EnumerateArray())
+            {
+                if (!TryReadRate(
+                        row.TryGetProperty("price_zar", out var price) ? price :
+                        row.TryGetProperty("rate_zar", out var rateProperty) ? rateProperty :
+                        default,
+                        out var rate))
+                {
+                    continue;
+                }
+
+                var slotText = GetString(row, "slot") ?? GetString(row, "time_band") ?? string.Empty;
+                if (!TryParseBroadcastSlot(slotText, out var dayGroup, out var start, out var end))
+                {
+                    dayGroup = "any";
+                    start = TimeSpan.Zero;
+                    end = new TimeSpan(23, 59, 0);
+                }
+
+                var rateType = GetString(row, "program") ?? "spot";
+                var adDurationSeconds = GetInt(row, "ad_duration_seconds") ?? 30;
+
+                yield return new ImportRateRow
+                {
+                    DayGroup = dayGroup,
+                    StartTime = start,
+                    EndTime = end,
+                    AdDurationSeconds = adDurationSeconds,
+                    RateZar = rate,
+                    RateType = rateType
+                };
+            }
+        }
     }
 
     private static bool TryParseSlotRange(string slot, out TimeSpan start, out TimeSpan end)
@@ -430,7 +468,7 @@ public sealed class BroadcastInventoryImportService : IBroadcastInventoryImportS
         return element.ValueKind switch
         {
             JsonValueKind.Number => element.TryGetDecimal(out rate),
-            JsonValueKind.String => decimal.TryParse(element.GetString(), out rate),
+            JsonValueKind.String => TryParseDecimalFlexible(element.GetString(), out rate),
             _ => false
         };
     }
@@ -452,7 +490,7 @@ public sealed class BroadcastInventoryImportService : IBroadcastInventoryImportS
         return property.ValueKind switch
         {
             JsonValueKind.Number when property.TryGetDecimal(out var number) => number,
-            JsonValueKind.String when decimal.TryParse(property.GetString(), out var value) => value,
+            JsonValueKind.String when TryParseDecimalFlexible(property.GetString(), out var value) => value,
             _ => null
         };
     }
@@ -470,6 +508,58 @@ public sealed class BroadcastInventoryImportService : IBroadcastInventoryImportS
             JsonValueKind.String when int.TryParse(property.GetString(), out var value) => value,
             _ => null
         };
+    }
+
+    private static bool TryParseDecimalFlexible(string? raw, out decimal value)
+    {
+        value = 0m;
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return false;
+        }
+
+        var normalized = raw.Trim().Replace("R", string.Empty, StringComparison.OrdinalIgnoreCase);
+        return decimal.TryParse(normalized, NumberStyles.Number, CultureInfo.InvariantCulture, out value)
+            || decimal.TryParse(normalized, NumberStyles.Number, CultureInfo.CurrentCulture, out value);
+    }
+
+    private static bool TryParseBroadcastSlot(string slot, out string dayGroup, out TimeSpan start, out TimeSpan end)
+    {
+        dayGroup = "any";
+        start = TimeSpan.Zero;
+        end = new TimeSpan(23, 59, 0);
+
+        if (string.IsNullOrWhiteSpace(slot))
+        {
+            return false;
+        }
+
+        var normalized = string.Join(' ', slot.Split(' ', StringSplitOptions.RemoveEmptyEntries)).Trim();
+        if (TryParseSlotRange(normalized, out start, out end))
+        {
+            return true;
+        }
+
+        var parts = normalized.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0)
+        {
+            return false;
+        }
+
+        var timeToken = parts[^1];
+        if (!TimeSpan.TryParse(timeToken, out start))
+        {
+            return false;
+        }
+
+        dayGroup = parts.Length > 1 ? string.Join(' ', parts.Take(parts.Length - 1)) : "any";
+        end = start.Add(TimeSpan.FromMinutes(30));
+        if (end > new TimeSpan(23, 59, 0))
+        {
+            end = new TimeSpan(23, 59, 0);
+        }
+
+        return true;
     }
 
     private static string InferPackageType(string? packageName, string? notes)
@@ -491,6 +581,33 @@ public sealed class BroadcastInventoryImportService : IBroadcastInventoryImportS
         }
 
         return "generic";
+    }
+
+    private static int? GetDurationMonthsFromName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return null;
+        }
+
+        if (name.Contains("12 Months", StringComparison.OrdinalIgnoreCase)) return 12;
+        if (name.Contains("6 Months", StringComparison.OrdinalIgnoreCase)) return 6;
+        if (name.Contains("3 Months", StringComparison.OrdinalIgnoreCase)) return 3;
+        if (name.Contains("1 Month", StringComparison.OrdinalIgnoreCase)) return 1;
+        return null;
+    }
+
+    private static int? GetDurationWeeksFromName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return null;
+        }
+
+        if (name.Contains("8 Week", StringComparison.OrdinalIgnoreCase)) return 8;
+        if (name.Contains("4 Week", StringComparison.OrdinalIgnoreCase) || name.Contains("4-Week", StringComparison.OrdinalIgnoreCase)) return 4;
+        if (name.Contains("2 Week", StringComparison.OrdinalIgnoreCase)) return 2;
+        return null;
     }
 
     private static Guid CreateDeterministicGuid(string input)
