@@ -1,0 +1,44 @@
+name: Deploy DEV to EC2
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "src/**"
+      - "tests/**"
+      - ".github/workflows/deploy-dev-ec2.yml"
+
+concurrency:
+  group: deploy-dev-ec2
+  cancel-in-progress: false
+
+jobs:
+  deploy-dev:
+    name: Deploy DEV (EC2)
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - name: Deploy code on EC2 DEV host
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEV_EC2_HOST }}
+          username: ${{ secrets.DEV_EC2_USER }}
+          key: ${{ secrets.DEV_EC2_SSH_PRIVATE_KEY }}
+          port: ${{ secrets.DEV_EC2_PORT || 22 }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+            APP_DIR="${{ vars.DEV_APP_DIR || '$HOME/apps/advertified-v4-dev' }}"
+            COMPOSE_FILE="${{ vars.DEV_COMPOSE_FILE || 'compose.v4-dev.yml' }}"
+            ENV_FILE="${{ vars.DEV_ENV_FILE || 'v4-dev.env' }}"
+
+            cd "$APP_DIR"
+            git fetch origin
+            git checkout main
+            git pull --ff-only origin main
+
+            docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" build api web
+            docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d api web
+            docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps
