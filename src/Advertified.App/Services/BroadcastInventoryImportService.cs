@@ -50,12 +50,8 @@ public sealed class BroadcastInventoryImportService : IBroadcastInventoryImportS
 
         await connection.ExecuteAsync(new CommandDefinition(
             @"
-            delete from media_outlet_slot_rate;
-            delete from media_outlet_pricing_package;
-            delete from media_outlet_geography;
-            delete from media_outlet_language;
-            delete from media_outlet_keyword;
-            delete from media_outlet;
+            delete from media_outlet
+            where lower(media_type) in ('radio', 'tv');
             ",
             transaction: transaction,
             cancellationToken: cancellationToken));
