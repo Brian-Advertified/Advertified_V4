@@ -277,6 +277,11 @@ public partial class AppDbContext
                 .HasMaxLength(50)
                 .HasColumnName("status");
             entity.Property(e => e.StorageObjectKey).HasColumnName("storage_object_key");
+            entity.Property(e => e.SupportingDocumentStorageObjectKey).HasColumnName("supporting_document_storage_object_key");
+            entity.Property(e => e.SupportingDocumentFileName)
+                .HasMaxLength(255)
+                .HasColumnName("supporting_document_file_name");
+            entity.Property(e => e.SupportingDocumentUploadedAtUtc).HasColumnName("supporting_document_uploaded_at_utc");
             entity.Property(e => e.TotalAmount)
                 .HasPrecision(12, 2)
                 .HasColumnName("total_amount");

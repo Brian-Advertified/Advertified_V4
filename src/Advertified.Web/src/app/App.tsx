@@ -60,6 +60,7 @@ const CreativeStudioDemoPage = lazyPage(() => import('../pages/creative/Creative
 
 const AdminDashboardPage = lazyPage(() => import('../pages/admin/AdminDashboardPage'), 'AdminDashboardPage');
 const AdminCampaignOperationsPage = lazyPage(() => import('../pages/admin/AdminCampaignOperationsPage'), 'AdminCampaignOperationsPage');
+const AdminPackageOrdersPage = lazyPage(() => import('../pages/admin/AdminPackageOrdersPage'), 'AdminPackageOrdersPage');
 const AdminAuditPage = lazyPage(() => import('../pages/admin/AdminAuditPage'), 'AdminAuditPage');
 const AdminEnginePage = lazyPage(() => import('../pages/admin/AdminEnginePage'), 'AdminEnginePage');
 const AdminGeographyPage = lazyPage(() => import('../pages/admin/AdminGeographyPage'), 'AdminGeographyPage');
@@ -105,6 +106,7 @@ export function App() {
             <Route path="/creative/studio-demo" element={<ProtectedRoute requireCreativeDirector><CreativeStudioDemoPage /></ProtectedRoute>} />
             <Route path="/creative/campaigns/:id/studio" element={<ProtectedRoute requireCreativeDirector><CreativeDirectorStudioPage /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute requireAdmin><AdminDashboardPage /></ProtectedRoute>} />
+            <Route path="/admin/package-orders" element={<ProtectedRoute requireAdmin><AdminPackageOrdersPage /></ProtectedRoute>} />
             <Route path="/admin/campaign-operations" element={<ProtectedRoute requireAdmin><AdminCampaignOperationsPage /></ProtectedRoute>} />
             <Route path="/admin/stations" element={<ProtectedRoute requireAdmin><AdminStationsPage /></ProtectedRoute>} />
             <Route path="/admin/pricing" element={<ProtectedRoute requireAdmin><AdminPricingPage /></ProtectedRoute>} />

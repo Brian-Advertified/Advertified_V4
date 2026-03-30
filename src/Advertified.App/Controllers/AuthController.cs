@@ -46,7 +46,11 @@ public sealed class AuthController : ControllerBase
     {
         var user = await _emailVerificationService.VerifyAsync(request.Token, cancellationToken);
 
-        return Ok(ToLoginResponse(user, _sessionTokenService.CreateToken(user)));
+        var identityComplete = await _db.IdentityProfiles
+            .AsNoTracking()
+            .AnyAsync(x => x.UserId == user.Id, cancellationToken);
+
+        return Ok(ToLoginResponse(user, _sessionTokenService.CreateToken(user), identityComplete));
     }
 
     [HttpPost("login")]
@@ -75,7 +79,11 @@ public sealed class AuthController : ControllerBase
             });
         }
 
-        return Ok(ToLoginResponse(user, _sessionTokenService.CreateToken(user)));
+        var identityComplete = await _db.IdentityProfiles
+            .AsNoTracking()
+            .AnyAsync(x => x.UserId == user.Id, cancellationToken);
+
+        return Ok(ToLoginResponse(user, _sessionTokenService.CreateToken(user), identityComplete));
     }
 
     [HttpPost("resend-verification")]
@@ -90,16 +98,18 @@ public sealed class AuthController : ControllerBase
         });
     }
 
-    private static LoginResponse ToLoginResponse(UserAccount user, string sessionToken)
+    private static LoginResponse ToLoginResponse(UserAccount user, string sessionToken, bool identityComplete)
     {
         return new LoginResponse
         {
             UserId = user.Id,
             FullName = user.FullName,
             Email = user.Email,
+            Phone = user.Phone,
             Role = ToSnakeCase(user.Role.ToString()),
             AccountStatus = ToSnakeCase(user.AccountStatus.ToString()),
             EmailVerified = user.EmailVerified,
+            IdentityComplete = identityComplete,
             SessionToken = sessionToken
         };
     }

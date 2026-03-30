@@ -8,18 +8,18 @@ using Microsoft.Extensions.Options;
 
 namespace Advertified.App.Services;
 
-public sealed class PublicAssetStorageService : IPublicAssetStorage
+public sealed class PrivateDocumentStorageService : IPrivateDocumentStorage
 {
     private readonly HttpClient _httpClient;
     private readonly StorageOptions _options;
     private readonly IWebHostEnvironment _environment;
-    private readonly ILogger<PublicAssetStorageService> _logger;
+    private readonly ILogger<PrivateDocumentStorageService> _logger;
 
-    public PublicAssetStorageService(
+    public PrivateDocumentStorageService(
         HttpClient httpClient,
         IOptions<StorageOptions> options,
         IWebHostEnvironment environment,
-        ILogger<PublicAssetStorageService> logger)
+        ILogger<PrivateDocumentStorageService> logger)
     {
         _httpClient = httpClient;
         _options = options.Value;
@@ -52,71 +52,98 @@ public sealed class PublicAssetStorageService : IPublicAssetStorage
         var normalizedKey = NormalizeKey(objectKey);
         if (UseS3())
         {
-            var publicUrl = GetPublicUrl(normalizedKey)
-                ?? throw new InvalidOperationException("Public asset URL could not be constructed.");
-            return await _httpClient.GetByteArrayAsync(publicUrl, cancellationToken);
+            var bucket = _options.PrivateBucket!.Trim();
+            var endpoint = BuildBaseEndpoint();
+            var requestUri = BuildObjectUri(endpoint, bucket, normalizedKey);
+            var now = DateTime.UtcNow;
+            var amzDate = now.ToString("yyyyMMdd'T'HHmmss'Z'", CultureInfo.InvariantCulture);
+            var dateStamp = now.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
+            var payloadHash = ComputeSha256Hex(Array.Empty<byte>());
+
+            using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
+            request.Headers.TryAddWithoutValidation("x-amz-content-sha256", payloadHash);
+            request.Headers.TryAddWithoutValidation("x-amz-date", amzDate);
+
+            var canonicalHeaders = new StringBuilder()
+                .Append("host:").Append(requestUri.Host).Append('\n')
+                .Append("x-amz-content-sha256:").Append(payloadHash).Append('\n')
+                .Append("x-amz-date:").Append(amzDate).Append('\n')
+                .ToString();
+            const string signedHeaders = "host;x-amz-content-sha256;x-amz-date";
+            var canonicalRequest = string.Join(
+                "\n",
+                "GET",
+                requestUri.AbsolutePath,
+                string.Empty,
+                canonicalHeaders,
+                signedHeaders,
+                payloadHash);
+
+            var credentialScope = $"{dateStamp}/{GetRegion()}/s3/aws4_request";
+            var stringToSign = string.Join(
+                "\n",
+                "AWS4-HMAC-SHA256",
+                amzDate,
+                credentialScope,
+                ComputeSha256Hex(Encoding.UTF8.GetBytes(canonicalRequest)));
+            var signingKey = GetSigningKey(_options.SecretAccessKey!, dateStamp, GetRegion(), "s3");
+            var signature = ToHexString(HmacSha256(signingKey, stringToSign));
+            var authorization = $"AWS4-HMAC-SHA256 Credential={_options.AccessKeyId}/{credentialScope}, SignedHeaders={signedHeaders}, Signature={signature}";
+            request.Headers.TryAddWithoutValidation("Authorization", authorization);
+
+            using var response = await _httpClient.SendAsync(request, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                var body = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogError(
+                    "Failed to load private document {ObjectKey} from bucket {Bucket}. Status {StatusCode}. Response: {Body}",
+                    objectKey,
+                    bucket,
+                    (int)response.StatusCode,
+                    body);
+                throw new InvalidOperationException("Stored document could not be retrieved.");
+            }
+
+            return await response.Content.ReadAsByteArrayAsync(cancellationToken);
         }
 
         var absolutePath = ResolveLocalPath(normalizedKey);
         if (!File.Exists(absolutePath))
         {
-            throw new InvalidOperationException("Stored asset could not be found.");
+            throw new InvalidOperationException("Stored document could not be found.");
         }
 
         return await File.ReadAllBytesAsync(absolutePath, cancellationToken);
     }
 
-    public string? GetPublicUrl(string objectKey)
-    {
-        var normalizedKey = NormalizeKey(objectKey);
-        if (HasS3UploadConfiguration())
-        {
-            if (!string.IsNullOrWhiteSpace(_options.PublicBaseUrl))
-            {
-                return $"{_options.PublicBaseUrl!.TrimEnd('/')}/{EncodePath(normalizedKey)}";
-            }
-
-            var bucket = _options.PublicBucket!.Trim();
-            if (!_options.ForcePathStyle && string.IsNullOrWhiteSpace(_options.ServiceUrl))
-            {
-                return $"https://{bucket}.s3.{GetRegion()}.amazonaws.com/{EncodePath(normalizedKey)}";
-            }
-
-            var endpoint = (_options.ServiceUrl?.TrimEnd('/') ?? $"https://s3.{GetRegion()}.amazonaws.com").TrimEnd('/');
-            return $"{endpoint}/{bucket}/{EncodePath(normalizedKey)}";
-        }
-
-        return null;
-    }
-
     private bool UseS3()
     {
-        if (HasS3UploadConfiguration())
+        if (HasS3Configuration())
         {
             return true;
         }
 
-        if (!string.IsNullOrWhiteSpace(_options.PublicBucket))
+        if (!string.IsNullOrWhiteSpace(_options.PrivateBucket))
         {
             _logger.LogWarning(
-                "Storage bucket {Bucket} is configured without complete S3 credentials. Falling back to local file storage.",
-                _options.PublicBucket);
+                "Private bucket {Bucket} is configured without complete S3 credentials. Falling back to local private document storage.",
+                _options.PrivateBucket);
         }
 
         return false;
     }
 
-    private bool HasS3UploadConfiguration()
+    private bool HasS3Configuration()
     {
-        return !string.IsNullOrWhiteSpace(_options.PublicBucket)
+        return !string.IsNullOrWhiteSpace(_options.PrivateBucket)
             && !string.IsNullOrWhiteSpace(_options.AccessKeyId)
             && !string.IsNullOrWhiteSpace(_options.SecretAccessKey);
     }
 
     private async Task UploadToS3Async(string objectKey, byte[] content, string contentType, CancellationToken cancellationToken)
     {
-        var bucket = _options.PublicBucket!.Trim();
-        var endpoint = (_options.ServiceUrl?.TrimEnd('/') ?? $"https://s3.{GetRegion()}.amazonaws.com").TrimEnd('/');
+        var bucket = _options.PrivateBucket!.Trim();
+        var endpoint = BuildBaseEndpoint();
         var requestUri = BuildObjectUri(endpoint, bucket, objectKey);
         var now = DateTime.UtcNow;
         var amzDate = now.ToString("yyyyMMdd'T'HHmmss'Z'", CultureInfo.InvariantCulture);
@@ -147,39 +174,30 @@ public sealed class PublicAssetStorageService : IPublicAssetStorage
             signedHeaders,
             payloadHash);
 
-        if (!string.IsNullOrWhiteSpace(_options.AccessKeyId) && !string.IsNullOrWhiteSpace(_options.SecretAccessKey))
-        {
-            var credentialScope = $"{dateStamp}/{GetRegion()}/s3/aws4_request";
-            var stringToSign = string.Join(
-                "\n",
-                "AWS4-HMAC-SHA256",
-                amzDate,
-                credentialScope,
-                ComputeSha256Hex(Encoding.UTF8.GetBytes(canonicalRequest)));
-            var signingKey = GetSigningKey(_options.SecretAccessKey!, dateStamp, GetRegion(), "s3");
-            var signature = ToHexString(HmacSha256(signingKey, stringToSign));
-            var authorization = $"AWS4-HMAC-SHA256 Credential={_options.AccessKeyId}/{credentialScope}, SignedHeaders={signedHeaders}, Signature={signature}";
-            request.Headers.TryAddWithoutValidation("Authorization", authorization);
-        }
+        var credentialScope = $"{dateStamp}/{GetRegion()}/s3/aws4_request";
+        var stringToSign = string.Join(
+            "\n",
+            "AWS4-HMAC-SHA256",
+            amzDate,
+            credentialScope,
+            ComputeSha256Hex(Encoding.UTF8.GetBytes(canonicalRequest)));
+        var signingKey = GetSigningKey(_options.SecretAccessKey!, dateStamp, GetRegion(), "s3");
+        var signature = ToHexString(HmacSha256(signingKey, stringToSign));
+        var authorization = $"AWS4-HMAC-SHA256 Credential={_options.AccessKeyId}/{credentialScope}, SignedHeaders={signedHeaders}, Signature={signature}";
+        request.Headers.TryAddWithoutValidation("Authorization", authorization);
 
         using var response = await _httpClient.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             var body = await response.Content.ReadAsStringAsync(cancellationToken);
             _logger.LogError(
-                "Failed to upload asset {ObjectKey} to bucket {Bucket}. Status {StatusCode}. Response: {Body}",
+                "Failed to upload private document {ObjectKey} to bucket {Bucket}. Status {StatusCode}. Response: {Body}",
                 objectKey,
                 bucket,
                 (int)response.StatusCode,
                 body);
-            throw new InvalidOperationException("Public asset upload failed.");
+            throw new InvalidOperationException("Private document upload failed.");
         }
-    }
-
-    private string ResolveLocalPath(string objectKey)
-    {
-        var normalized = objectKey.Replace('/', Path.DirectorySeparatorChar);
-        return Path.GetFullPath(Path.Combine(_environment.ContentRootPath, "App_Data", "public-assets", normalized));
     }
 
     private Uri BuildObjectUri(string endpoint, string bucket, string objectKey)
@@ -193,6 +211,19 @@ public sealed class PublicAssetStorageService : IPublicAssetStorage
         return endpoint.Contains("amazonaws.com", StringComparison.OrdinalIgnoreCase)
             ? new Uri($"https://{bucket}.s3.{GetRegion()}.amazonaws.com/{encodedKey}")
             : new Uri($"{endpoint.TrimEnd('/')}/{bucket}/{encodedKey}");
+    }
+
+    private string BuildBaseEndpoint()
+    {
+        return string.IsNullOrWhiteSpace(_options.ServiceUrl)
+            ? $"https://s3.{GetRegion()}.amazonaws.com"
+            : _options.ServiceUrl!.TrimEnd('/');
+    }
+
+    private string ResolveLocalPath(string objectKey)
+    {
+        var normalized = objectKey.Replace('/', Path.DirectorySeparatorChar);
+        return Path.GetFullPath(Path.Combine(_environment.ContentRootPath, "App_Data", "private-documents", normalized));
     }
 
     private string GetRegion()

@@ -54,13 +54,8 @@ export function PaymentSelectionPage() {
   const [isResendingActivation, setIsResendingActivation] = React.useState(false);
 
   const packagesQuery = useQuery({ queryKey: ['packages'], queryFn: advertifiedApi.getPackages });
-  const pricingSummaryQuery = useQuery({
-    queryKey: ['package-pricing-summary', amount],
-    queryFn: () => advertifiedApi.getPackagePricingSummary(amount),
-    enabled: Number.isFinite(amount) && amount > 0,
-  });
   const selectedBand = packagesQuery.data?.find((item) => item.id === packageBandId);
-  const chargedAmount = pricingSummaryQuery.data?.chargedAmount ?? amount;
+  const chargedAmount = amount;
 
   const checkoutMutation = useMutation({
     mutationFn: async (paymentProvider: PaymentProvider) => {
@@ -97,7 +92,7 @@ export function PaymentSelectionPage() {
     return <Navigate to="/packages" replace />;
   }
 
-  if (packagesQuery.isLoading || pricingSummaryQuery.isLoading) {
+  if (packagesQuery.isLoading) {
     return <LoadingState label="Loading payment options..." />;
   }
 

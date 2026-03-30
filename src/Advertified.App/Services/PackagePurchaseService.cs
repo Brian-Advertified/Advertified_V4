@@ -57,7 +57,7 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
         }
 
         var pricingSettings = await _pricingSettingsProvider.GetCurrentAsync(cancellationToken);
-        var aiStudioReserveAmount = PricingPolicy.CalculateAiStudioReserveAmount(selectedBudget, pricingSettings.AiStudioReservePercent);
+        var aiStudioReserveAmount = PricingPolicy.CalculateAiStudioReserveAmount(selectedBudget, pricingSettings.AiStudioReservePercent, band.Code, band.Name);
         var chargedAmount = PricingPolicy.CalculateChargedAmount(selectedBudget, pricingSettings.AiStudioReservePercent);
 
         var now = DateTime.UtcNow;
@@ -68,7 +68,7 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
             PackageBandId = band.Id,
             Amount = chargedAmount,
             SelectedBudget = selectedBudget,
-            AiStudioReservePercent = pricingSettings.AiStudioReservePercent,
+            AiStudioReservePercent = aiStudioReserveAmount > 0m ? pricingSettings.AiStudioReservePercent : 0m,
             AiStudioReserveAmount = aiStudioReserveAmount,
             Currency = request.Currency.Trim().ToUpperInvariant(),
             PaymentProvider = paymentProvider,

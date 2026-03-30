@@ -20,6 +20,7 @@ import type {
   AdminUser,
   AdminAuditEntry,
   AdminCampaignOperationsItem,
+  AdminPackageOrder,
   AdminIntegrationStatus,
   AdminDashboard,
   AdminCreateOutletInput,
@@ -140,9 +141,11 @@ type LoginResponse = {
   userId: string;
   fullName: string;
   email: string;
+  phone: string;
   role: string;
   accountStatus: string;
   emailVerified: boolean;
+  identityComplete: boolean;
   sessionToken: string;
 };
 
@@ -154,6 +157,7 @@ type MeResponse = {
   role: string;
   accountStatus: string;
   emailVerified: boolean;
+  identityComplete: boolean;
   phoneVerified: boolean;
   businessName?: string;
   city?: string;
@@ -215,6 +219,33 @@ type PackageOrderResponse = {
   invoiceId?: string | null;
   invoiceStatus?: string | null;
   invoicePdfUrl?: string | null;
+};
+
+type AdminPackageOrderResponse = {
+  orderId: string;
+  userId: string;
+  clientName: string;
+  clientEmail: string;
+  clientPhone: string;
+  packageBandId: string;
+  packageBandName: string;
+  selectedBudget: number;
+  chargedAmount: number;
+  currency: string;
+  paymentProvider: string;
+  paymentStatus: string;
+  paymentReference?: string | null;
+  createdAt: string;
+  purchasedAt?: string | null;
+  campaignId?: string | null;
+  campaignName?: string | null;
+  invoiceId?: string | null;
+  invoiceStatus?: string | null;
+  invoicePdfUrl?: string | null;
+  supportingDocumentPdfUrl?: string | null;
+  supportingDocumentFileName?: string | null;
+  supportingDocumentUploadedAt?: string | null;
+  canUpdateLulaStatus: boolean;
 };
 
 type PackagePreviewResponse = {
@@ -537,8 +568,10 @@ function mapSessionUser(response: LoginResponse | MeResponse, sessionToken?: str
     id: response.userId,
     fullName: response.fullName,
     email: response.email,
+    phone: 'phone' in response ? response.phone ?? undefined : undefined,
     role: normalizeRole(response.role),
     emailVerified: response.emailVerified,
+    identityComplete: response.identityComplete,
     sessionToken,
     businessName: 'businessName' in response ? response.businessName ?? undefined : undefined,
     city: 'city' in response ? response.city ?? undefined : undefined,
@@ -605,6 +638,35 @@ function mapPackageOrder(response: PackageOrderResponse): PackageOrder {
     invoiceId: response.invoiceId ?? undefined,
     invoiceStatus: response.invoiceStatus ?? undefined,
     invoicePdfUrl: response.invoicePdfUrl ?? undefined,
+  };
+}
+
+function mapAdminPackageOrder(response: AdminPackageOrderResponse): AdminPackageOrder {
+  return {
+    orderId: response.orderId,
+    userId: response.userId,
+    clientName: response.clientName,
+    clientEmail: response.clientEmail,
+    clientPhone: response.clientPhone,
+    packageBandId: response.packageBandId,
+    packageBandName: response.packageBandName,
+    selectedBudget: response.selectedBudget,
+    chargedAmount: response.chargedAmount,
+    currency: response.currency,
+    paymentProvider: response.paymentProvider,
+    paymentStatus: response.paymentStatus,
+    paymentReference: response.paymentReference ?? undefined,
+    createdAt: response.createdAt,
+    purchasedAt: response.purchasedAt ?? undefined,
+    campaignId: response.campaignId ?? undefined,
+    campaignName: response.campaignName ?? undefined,
+    invoiceId: response.invoiceId ?? undefined,
+    invoiceStatus: response.invoiceStatus ?? undefined,
+    invoicePdfUrl: response.invoicePdfUrl ?? undefined,
+    supportingDocumentPdfUrl: response.supportingDocumentPdfUrl ?? undefined,
+    supportingDocumentFileName: response.supportingDocumentFileName ?? undefined,
+    supportingDocumentUploadedAt: response.supportingDocumentUploadedAt ?? undefined,
+    canUpdateLulaStatus: response.canUpdateLulaStatus,
   };
 }
 
@@ -949,6 +1011,35 @@ async function parseApiError(response: Response) {
   throw new Error(humanizeApiMessage(message));
 }
 
+function toAbsoluteApiUrl(path?: string | null) {
+  if (!path) {
+    return undefined;
+  }
+
+  if (/^https?:\/\//i.test(path)) {
+    return path;
+  }
+
+  return `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
+}
+
+function getAuthHeaders() {
+  const headers = new Headers();
+  const sessionToken = getStoredSession()?.sessionToken;
+  if (sessionToken) {
+    headers.set('Authorization', `Bearer ${sessionToken}`);
+  }
+
+  return headers;
+}
+
+function resolveDownloadFileName(response: Response, fallbackFileName?: string) {
+  const contentDisposition = response.headers.get('content-disposition');
+  const match = contentDisposition?.match(/filename\*?=(?:UTF-8''|")?([^\";]+)/i);
+  const decoded = match?.[1] ? decodeURIComponent(match[1].replace(/\"/g, '')) : null;
+  return decoded ?? fallbackFileName ?? 'document.pdf';
+}
+
 async function apiRequest<T>(path: string, options: RequestInit = {}, _userId?: string): Promise<T> {
   const headers = new Headers(options.headers);
 
@@ -956,9 +1047,10 @@ async function apiRequest<T>(path: string, options: RequestInit = {}, _userId?: 
     headers.set('Content-Type', 'application/json');
   }
 
-  const sessionToken = getStoredSession()?.sessionToken;
-  if (sessionToken) {
-    headers.set('Authorization', `Bearer ${sessionToken}`);
+  for (const [key, value] of getAuthHeaders().entries()) {
+    if (!headers.has(key)) {
+      headers.set(key, value);
+    }
   }
 
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -978,6 +1070,28 @@ async function apiRequest<T>(path: string, options: RequestInit = {}, _userId?: 
 }
 
 export const advertifiedApi = {
+  toAbsoluteApiUrl,
+
+  async downloadProtectedFile(path: string, fallbackFileName?: string) {
+    const response = await fetch(toAbsoluteApiUrl(path) ?? path, {
+      headers: getAuthHeaders(),
+    });
+
+    if (!response.ok) {
+      await parseApiError(response);
+    }
+
+    const blob = await response.blob();
+    const objectUrl = window.URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = objectUrl;
+    anchor.download = resolveDownloadFileName(response, fallbackFileName);
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.URL.revokeObjectURL(objectUrl);
+  },
+
   async getConsentPreferences(browserId: string) {
     const response = await apiRequest<ConsentPreferenceResponse>(`/consent/preferences?browserId=${encodeURIComponent(browserId)}`);
     return mapConsentPreference(response);
@@ -1317,6 +1431,38 @@ export const advertifiedApi = {
   async getAdminCampaignOperations() {
     const response = await apiRequest<{ items: AdminCampaignOperationsItem[] }>('/admin/campaign-operations');
     return response.items;
+  },
+
+  async getAdminPackageOrders() {
+    const response = await apiRequest<{ items: AdminPackageOrderResponse[] }>('/admin/package-orders');
+    return response.items.map(mapAdminPackageOrder);
+  },
+
+  async updateAdminPackageOrderPaymentStatus(input: {
+    orderId: string;
+    paymentStatus: 'paid' | 'failed';
+    paymentReference?: string;
+    notes?: string;
+    file?: File;
+  }) {
+    const formData = new FormData();
+    formData.append('paymentStatus', input.paymentStatus);
+    if (input.paymentReference) formData.append('paymentReference', input.paymentReference);
+    if (input.notes) formData.append('notes', input.notes);
+    if (input.file) formData.append('file', input.file);
+
+    const response = await fetch(`${API_BASE_URL}/admin/package-orders/${encodeURIComponent(input.orderId)}/payment-status`, {
+      method: 'POST',
+      body: formData,
+      headers: getAuthHeaders(),
+    });
+
+    if (!response.ok) {
+      await parseApiError(response);
+    }
+
+    const payload = (await response.json()) as AdminPackageOrderResponse;
+    return mapAdminPackageOrder(payload);
   },
 
   async pauseAdminCampaign(campaignId: string, reason?: string) {

@@ -362,7 +362,9 @@ public sealed class AdminCampaignOperationsController : ControllerBase
             ClientName = campaign.User.FullName,
             ClientEmail = campaign.User.Email,
             PackageBandName = campaign.PackageBand.Name,
-            SelectedBudget = campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
+            SelectedBudget = PricingPolicy.ResolvePlanningBudget(
+                campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
+                campaign.PackageOrder.AiStudioReserveAmount),
             ChargedTotal = campaign.PackageOrder.Amount,
             PaymentStatus = campaign.PackageOrder.PaymentStatus,
             RefundStatus = campaign.PackageOrder.RefundStatus,

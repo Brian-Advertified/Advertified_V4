@@ -24,6 +24,9 @@ public sealed class Invoice
     public string? CompanyAddress { get; set; }
     public string? PaymentReference { get; set; }
     public string? StorageObjectKey { get; set; }
+    public string? SupportingDocumentStorageObjectKey { get; set; }
+    public string? SupportingDocumentFileName { get; set; }
+    public DateTime? SupportingDocumentUploadedAtUtc { get; set; }
     public DateTime CreatedAtUtc { get; set; }
     public DateTime? DueAtUtc { get; set; }
     public DateTime? PaidAtUtc { get; set; }

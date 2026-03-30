@@ -5,6 +5,7 @@ using Advertified.App.Data;
 using Advertified.App.Data.Entities;
 using Advertified.App.Domain.Campaigns;
 using Advertified.App.Services.Abstractions;
+using Advertified.App.Support;
 using Microsoft.EntityFrameworkCore;
 using CampaignEntity = Advertified.App.Data.Entities.Campaign;
 using CampaignBriefEntity = Advertified.App.Data.Entities.CampaignBrief;
@@ -81,7 +82,9 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         return new CampaignPlanningRequest
         {
             CampaignId = campaign.Id,
-            SelectedBudget = campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
+            SelectedBudget = PricingPolicy.ResolvePlanningBudget(
+                campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
+                campaign.PackageOrder.AiStudioReserveAmount),
             GeographyScope = brief.GeographyScope,
             Provinces = brief.GetList(nameof(CampaignBriefEntity.ProvincesJson)),
             Cities = brief.GetList(nameof(CampaignBriefEntity.CitiesJson)),

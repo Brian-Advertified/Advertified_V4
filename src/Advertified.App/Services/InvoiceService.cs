@@ -14,20 +14,20 @@ public sealed class InvoiceService : IInvoiceService
     private readonly AppDbContext _db;
     private readonly ITemplatedEmailService _emailService;
     private readonly IWebHostEnvironment _environment;
-    private readonly IPublicAssetStorage _assetStorage;
+    private readonly IPrivateDocumentStorage _documentStorage;
     private readonly ILogger<InvoiceService> _logger;
 
     public InvoiceService(
         AppDbContext db,
         ITemplatedEmailService emailService,
         IWebHostEnvironment environment,
-        IPublicAssetStorage assetStorage,
+        IPrivateDocumentStorage documentStorage,
         ILogger<InvoiceService> logger)
     {
         _db = db;
         _emailService = emailService;
         _environment = environment;
-        _assetStorage = assetStorage;
+        _documentStorage = documentStorage;
         _logger = logger;
     }
 
@@ -147,7 +147,7 @@ public sealed class InvoiceService : IInvoiceService
             throw new InvalidOperationException("Invoice PDF has not been generated.");
         }
 
-        return await _assetStorage.GetBytesAsync(invoice.StorageObjectKey, cancellationToken);
+        return await _documentStorage.GetBytesAsync(invoice.StorageObjectKey, cancellationToken);
     }
 
     private async Task SendInvoiceEmailAsync(Invoice invoice, byte[] pdfBytes, CancellationToken cancellationToken)
@@ -192,8 +192,8 @@ public sealed class InvoiceService : IInvoiceService
 
     private async Task<string> PersistPdfAsync(Invoice invoice, byte[] pdfBytes, CancellationToken cancellationToken)
     {
-        var objectKey = $"invoices/{invoice.InvoiceNumber}.pdf";
-        return await _assetStorage.SaveAsync(objectKey, pdfBytes, "application/pdf", cancellationToken);
+        var objectKey = InvoiceStoragePathBuilder.BuildInvoicePdfObjectKey(invoice.InvoiceNumber);
+        return await _documentStorage.SaveAsync(objectKey, pdfBytes, "application/pdf", cancellationToken);
     }
 
     private static InvoiceLineItem CreateDefaultLineItem(Invoice invoice, PackageBand band, PackageOrder order)

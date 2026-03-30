@@ -23,10 +23,10 @@ export function Footer() {
           <div>
             <h3 className="text-sm font-semibold text-ink">Product</h3>
             <div className="mt-4 flex flex-col gap-2.5 text-sm text-ink-soft">
+              <Link to="/media-partners" className="transition hover:text-brand">Media Partners</Link>
+              <Link to="/packages" className="transition hover:text-brand">Packages</Link>
               <Link to="/about" className="transition hover:text-brand">About Us</Link>
               <Link to="/how-it-works" className="transition hover:text-brand">How It Works</Link>
-              <Link to="/media-partners" className="transition hover:text-brand">Media Partners</Link>
-              <Link to="/packages" className="transition hover:text-brand">Campaign Planner</Link>
             </div>
           </div>
 

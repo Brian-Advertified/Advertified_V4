@@ -22,7 +22,9 @@ internal static class ControllerMappings
             PackageOrderId = campaign.PackageOrderId,
             PackageBandId = campaign.PackageBandId,
             PackageBandName = campaign.PackageBand.Name,
-            SelectedBudget = campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
+            SelectedBudget = PricingPolicy.ResolvePlanningBudget(
+                campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
+                campaign.PackageOrder.AiStudioReserveAmount),
             CampaignName = campaign.CampaignName,
             Status = campaign.Status,
             PlanningMode = campaign.PlanningMode,
@@ -60,7 +62,9 @@ internal static class ControllerMappings
             PackageOrderId = campaign.PackageOrderId,
             PackageBandId = campaign.PackageBandId,
             PackageBandName = campaign.PackageBand.Name,
-            SelectedBudget = campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
+            SelectedBudget = PricingPolicy.ResolvePlanningBudget(
+                campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
+                campaign.PackageOrder.AiStudioReserveAmount),
             CampaignName = campaign.CampaignName,
             Status = campaign.Status,
             PlanningMode = campaign.PlanningMode,

@@ -67,6 +67,7 @@ builder.Services.AddScoped<ICampaignBriefService, CampaignBriefService>();
 builder.Services.AddScoped<ICampaignRecommendationService, CampaignRecommendationService>();
 builder.Services.AddScoped<IRecommendationDocumentService, RecommendationDocumentService>();
 builder.Services.AddHttpClient<IPublicAssetStorage, PublicAssetStorageService>();
+builder.Services.AddHttpClient<IPrivateDocumentStorage, PrivateDocumentStorageService>();
 builder.Services.AddSingleton<IBroadcastInventoryCatalog>(_ => new BroadcastInventoryCatalog(connectionString));
 builder.Services.AddSingleton<IBroadcastCostNormalizer, BroadcastCostNormalizer>();
 builder.Services.AddSingleton<IBroadcastInventoryImportService>(_ =>

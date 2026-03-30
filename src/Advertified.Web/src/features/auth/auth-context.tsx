@@ -1,5 +1,6 @@
 import {
   createContext,
+  useEffect,
   useContext,
   useMemo,
   useSyncExternalStore,
@@ -147,6 +148,30 @@ function getServerSnapshot() {
 export function AuthProvider({ children }: PropsWithChildren) {
   const { pushToast } = useToast();
   const user = useSyncExternalStore(subscribeToSession, getSessionSnapshot, getServerSnapshot);
+
+  useEffect(() => {
+    if (!user?.sessionToken || (user.identityComplete !== undefined && user.phone !== undefined)) {
+      return;
+    }
+
+    let cancelled = false;
+    advertifiedApi.getMe()
+      .then((freshUser) => {
+        if (!cancelled) {
+          persistUser({
+            ...user,
+            ...freshUser,
+            sessionToken: user.sessionToken,
+          });
+        }
+      })
+      .catch(() => {
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   notifySessionExpired = () => {
     pushToast(

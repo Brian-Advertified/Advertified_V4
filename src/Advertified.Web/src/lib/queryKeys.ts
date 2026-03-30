@@ -35,6 +35,7 @@ export const queryKeys = {
   admin: {
     dashboard: ['admin-dashboard'] as const,
     campaignOperations: ['admin-campaign-operations'] as const,
+    packageOrders: ['admin-package-orders'] as const,
     outlet: (outletCode: string) => ['admin-outlet', outletCode] as const,
     outletPricing: (outletCode: string) => ['admin-outlet-pricing', outletCode] as const,
     geography: (areaCode: string) => ['admin-geography', areaCode] as const,
@@ -80,6 +81,7 @@ export async function invalidateCreativeCampaignQueries(queryClient: QueryClient
 export async function invalidateAdminOperationsQueries(queryClient: QueryClient) {
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: queryKeys.admin.campaignOperations }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.admin.packageOrders }),
     queryClient.invalidateQueries({ queryKey: queryKeys.notifications.summary('admin') }),
   ]);
 }

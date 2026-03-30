@@ -7,10 +7,9 @@ import advertifiedLogo from '../../assets/advertified-logo-v3.png';
 import type { UserRole } from '../../types/domain';
 
 const publicLinks = [
-  { label: 'About', href: '/about' },
-  { label: 'How It Works', href: '/how-it-works' },
   { label: 'Packages', href: '/packages' },
   { label: 'Media Partners', href: '/media-partners' },
+  { label: 'About Us', href: '/about' },
 ];
 
 const workspaceLinksByRole: Record<UserRole, { label: string; href: string }> = {

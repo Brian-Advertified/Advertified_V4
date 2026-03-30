@@ -54,14 +54,17 @@ public sealed class PackagesController : ControllerBase
     }
 
     [HttpGet("pricing-summary")]
-    public async Task<IActionResult> GetPricingSummary([FromQuery] decimal selectedBudget, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetPricingSummary([FromQuery] decimal selectedBudget, [FromQuery] Guid? packageBandId, CancellationToken cancellationToken)
     {
         var settings = await _pricingSettingsProvider.GetCurrentAsync(cancellationToken);
+        var packageBand = packageBandId.HasValue
+            ? _packageCatalogService.GetPackageBands().FirstOrDefault(x => x.Id == packageBandId.Value)
+            : null;
         return Ok(new Contracts.Packages.PackagePricingSummaryResponse
         {
             SelectedBudget = selectedBudget,
             ChargedAmount = PricingPolicy.CalculateChargedAmount(selectedBudget, settings.AiStudioReservePercent),
-            AiStudioReserveAmount = PricingPolicy.CalculateAiStudioReserveAmount(selectedBudget, settings.AiStudioReservePercent)
+            AiStudioReserveAmount = PricingPolicy.CalculateAiStudioReserveAmount(selectedBudget, settings.AiStudioReservePercent, packageBand?.Code, packageBand?.Name)
         });
     }
 }

@@ -60,7 +60,9 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
             BusinessName = campaign.User.BusinessProfile?.BusinessName,
             CampaignName = string.IsNullOrWhiteSpace(campaign.CampaignName) ? $"{campaign.PackageBand.Name} campaign" : campaign.CampaignName.Trim(),
             PackageName = campaign.PackageBand.Name,
-            SelectedBudget = campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
+            SelectedBudget = PricingPolicy.ResolvePlanningBudget(
+                campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
+                campaign.PackageOrder.AiStudioReserveAmount),
             GeneratedAtUtc = DateTime.UtcNow,
             CampaignObjective = campaign.CampaignBrief?.Objective,
             SpecialRequirements = campaign.CampaignBrief?.SpecialRequirements ?? campaign.CampaignBrief?.CreativeNotes,

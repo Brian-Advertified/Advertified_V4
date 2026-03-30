@@ -21,7 +21,7 @@ export function canAccessCreativeStudio(user: SessionUser | null) {
 }
 
 export function canBuyPackage(user: SessionUser | null) {
-  return Boolean(user && user.emailVerified);
+  return Boolean(user && user.emailVerified && user.identityComplete);
 }
 
 export function canOpenBrief(campaign?: Campaign | null) {

@@ -4,6 +4,7 @@ using Advertified.App.Contracts.Campaigns;
 using Advertified.App.Data;
 using Advertified.App.Domain.Campaigns;
 using Advertified.App.Services.Abstractions;
+using Advertified.App.Support;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -70,7 +71,9 @@ public sealed class AgentInventoryController : ControllerBase
         return new CampaignPlanningRequest
         {
             CampaignId = campaign.Id,
-            SelectedBudget = campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
+            SelectedBudget = PricingPolicy.ResolvePlanningBudget(
+                campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
+                campaign.PackageOrder.AiStudioReserveAmount),
             GeographyScope = brief?.GeographyScope,
             Provinces = DeserializeList(brief?.ProvincesJson),
             Cities = DeserializeList(brief?.CitiesJson),

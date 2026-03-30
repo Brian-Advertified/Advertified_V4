@@ -20,8 +20,10 @@ export interface SessionUser {
   id: string;
   fullName: string;
   email: string;
+  phone?: string;
   role: UserRole;
   emailVerified: boolean;
+  identityComplete?: boolean;
   sessionToken?: string;
   businessName?: string;
   city?: string;
@@ -546,6 +548,33 @@ export interface AdminCampaignOperationsItem {
   canPause: boolean;
   canUnpause: boolean;
   canProcessRefund: boolean;
+}
+
+export interface AdminPackageOrder {
+  orderId: string;
+  userId: string;
+  clientName: string;
+  clientEmail: string;
+  clientPhone: string;
+  packageBandId: string;
+  packageBandName: string;
+  selectedBudget: number;
+  chargedAmount: number;
+  currency: string;
+  paymentProvider: string;
+  paymentStatus: PaymentStatus | string;
+  paymentReference?: string;
+  createdAt: string;
+  purchasedAt?: string;
+  campaignId?: string;
+  campaignName?: string;
+  invoiceId?: string;
+  invoiceStatus?: string;
+  invoicePdfUrl?: string;
+  supportingDocumentPdfUrl?: string;
+  supportingDocumentFileName?: string;
+  supportingDocumentUploadedAt?: string;
+  canUpdateLulaStatus: boolean;
 }
 
 export interface AdminSummary {

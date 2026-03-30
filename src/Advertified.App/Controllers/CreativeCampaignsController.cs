@@ -66,7 +66,9 @@ public sealed class CreativeCampaignsController : ControllerBase
             ClientName = campaign.User.FullName,
             ClientEmail = campaign.User.Email,
             PackageBandName = campaign.PackageBand.Name,
-            SelectedBudget = campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
+            SelectedBudget = PricingPolicy.ResolvePlanningBudget(
+                campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
+                campaign.PackageOrder.AiStudioReserveAmount),
             Status = campaign.Status,
             PlanningMode = campaign.PlanningMode,
             QueueStage = "creative_queue",

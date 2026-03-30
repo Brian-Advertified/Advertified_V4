@@ -73,7 +73,9 @@ public sealed class AgentCampaignsController : ControllerBase
                 PackageOrderId = x.PackageOrderId,
                 PackageBandId = x.PackageBandId,
                 PackageBandName = x.PackageBand.Name,
-                SelectedBudget = x.PackageOrder.SelectedBudget ?? x.PackageOrder.Amount,
+                SelectedBudget = PricingPolicy.ResolvePlanningBudget(
+                    x.PackageOrder.SelectedBudget ?? x.PackageOrder.Amount,
+                    x.PackageOrder.AiStudioReserveAmount),
                 CampaignName = x.CampaignName,
                 Status = x.Status,
                 PlanningMode = x.PlanningMode,
@@ -125,7 +127,9 @@ public sealed class AgentCampaignsController : ControllerBase
                 PackageBandName = x.PackageBand.Name,
                 ClientName = x.User.FullName,
                 ClientEmail = x.User.Email,
-                SelectedBudget = x.PackageOrder.SelectedBudget ?? x.PackageOrder.Amount,
+                SelectedBudget = PricingPolicy.ResolvePlanningBudget(
+                    x.PackageOrder.SelectedBudget ?? x.PackageOrder.Amount,
+                    x.PackageOrder.AiStudioReserveAmount),
                 Status = x.Status,
                 PlanningMode = x.PlanningMode,
                 AssignedAgentUserId = x.AssignedAgentUserId,
@@ -570,7 +574,9 @@ public sealed class AgentCampaignsController : ControllerBase
                 RecommendationType = "agent_assisted",
                 GeneratedBy = "agent",
                 Status = RecommendationStatuses.Draft,
-                TotalCost = campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
+                TotalCost = PricingPolicy.ResolvePlanningBudget(
+                    campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
+                    campaign.PackageOrder.AiStudioReserveAmount),
                 Summary = request.Notes,
                 Rationale = request.Notes,
                 RevisionNumber = revisionNumber,
@@ -591,7 +597,9 @@ public sealed class AgentCampaignsController : ControllerBase
         recommendation.TotalCost = recommendation.RecommendationItems.Sum(x => x.TotalCost);
         if (recommendation.TotalCost <= 0)
         {
-            recommendation.TotalCost = campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount;
+            recommendation.TotalCost = PricingPolicy.ResolvePlanningBudget(
+                campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
+                campaign.PackageOrder.AiStudioReserveAmount);
         }
 
         campaign.Status = CampaignStatuses.PlanningInProgress;
@@ -770,7 +778,11 @@ public sealed class AgentCampaignsController : ControllerBase
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw new InvalidOperationException("Campaign not found.");
 
-        request.SelectedBudget = request.SelectedBudget > 0 ? request.SelectedBudget : (campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount);
+        request.SelectedBudget = request.SelectedBudget > 0
+            ? request.SelectedBudget
+            : PricingPolicy.ResolvePlanningBudget(
+                campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
+                campaign.PackageOrder.AiStudioReserveAmount);
 
         var interpretation = await _campaignBriefInterpretationService.InterpretAsync(request, cancellationToken);
         return Ok(interpretation);

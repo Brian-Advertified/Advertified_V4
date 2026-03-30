@@ -145,7 +145,9 @@ public static class CampaignWorkflowPolicy
         var latestRecommendation = campaign.CampaignRecommendations
             .OrderByDescending(x => x.CreatedAt)
             .FirstOrDefault();
-        var selectedBudget = campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount;
+        var selectedBudget = PricingPolicy.ResolvePlanningBudget(
+            campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
+            campaign.PackageOrder.AiStudioReserveAmount);
         var manualReviewRequired = ExtractManualReviewRequired(latestRecommendation?.Rationale);
         var isOverBudget = latestRecommendation is not null
             && latestRecommendation.TotalCost > selectedBudget

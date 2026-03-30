@@ -10,6 +10,7 @@ import type { AdminDashboard } from '../../types/domain';
 
 export const adminNavItems = [
   { path: '/admin', label: 'Dashboard' },
+  { path: '/admin/package-orders', label: 'Payments & Orders' },
   { path: '/admin/campaign-operations', label: 'Campaign Controls' },
   { path: '/admin/stations', label: 'Stations & Channels' },
   { path: '/admin/pricing', label: 'Pricing & Packages' },

@@ -14,6 +14,16 @@ public static class PricingPolicy
         return Math.Round(selectedBudget * Math.Max(0m, aiStudioReservePercent), 2, MidpointRounding.AwayFromZero);
     }
 
+    public static decimal CalculateAiStudioReserveAmount(decimal selectedBudget, decimal aiStudioReservePercent, string? packageCode, string? packageName)
+    {
+        if (!IncludesAiCreative(packageCode, packageName))
+        {
+            return 0m;
+        }
+
+        return CalculateAiStudioReserveAmount(selectedBudget, aiStudioReservePercent);
+    }
+
     public static decimal CalculateChargedAmount(decimal selectedBudget, decimal aiStudioReservePercent)
     {
         if (selectedBudget <= 0m)
@@ -21,7 +31,34 @@ public static class PricingPolicy
             return 0m;
         }
 
-        return Math.Round(selectedBudget + CalculateAiStudioReserveAmount(selectedBudget, aiStudioReservePercent), 2, MidpointRounding.AwayFromZero);
+        return Math.Round(selectedBudget, 2, MidpointRounding.AwayFromZero);
+    }
+
+    public static decimal ResolvePlanningBudget(decimal selectedBudget, decimal aiStudioReserveAmount)
+    {
+        if (selectedBudget <= 0m)
+        {
+            return 0m;
+        }
+
+        return Math.Max(0m, Math.Round(selectedBudget - Math.Max(0m, aiStudioReserveAmount), 2, MidpointRounding.AwayFromZero));
+    }
+
+    public static bool IncludesAiCreative(string? packageCode, string? packageName)
+    {
+        if (!string.IsNullOrWhiteSpace(packageCode)
+            && packageCode.Trim().Equals("launch", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(packageName)
+            && packageName.Contains("launch", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return true;
     }
 
     public static decimal ResolveMarkupPercent(string mediaType, string? subtype, PricingSettingsSnapshot settings)

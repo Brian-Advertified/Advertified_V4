@@ -114,9 +114,9 @@ export function CheckoutConfirmationPage() {
     if (provider === 'lula' && order.paymentStatus === 'pending') {
       return {
         status: 'pending',
-        label: 'Invoice created',
-        title: 'Your invoice is ready',
-        description: 'Your invoice has been saved. The admin team can download it and send it to Lula for manual settlement.',
+        label: 'Pending Lula approval',
+        title: 'Your order is pending Lula approval',
+        description: 'Your invoice has been created and your Lula application is now waiting for manual review.',
         icon: <FileText className="size-5" />,
         colorVar: 'var(--color-highlight)',
         primaryHref: '/orders',
@@ -138,7 +138,7 @@ export function CheckoutConfirmationPage() {
         colorVar: 'var(--color-highlight)',
         primaryHref: linkedCampaignAction?.href ?? '/dashboard',
         primaryLabel: linkedCampaignAction?.label ?? 'Go to dashboard',
-        secondaryHref: order.invoicePdfUrl ? `http://localhost:5050${order.invoicePdfUrl}` : '/orders',
+        secondaryHref: order.invoicePdfUrl ? advertifiedApi.toAbsoluteApiUrl(order.invoicePdfUrl) ?? '/orders' : '/orders',
         secondaryLabel: order.invoicePdfUrl ? 'View receipt' : 'Open my orders',
       };
     }
@@ -192,6 +192,9 @@ export function CheckoutConfirmationPage() {
   const providerArtwork = provider === 'lula'
     ? { src: lulaLogo, alt: 'Lula logo', label: 'Paid through Lula' }
     : { src: vodaLogo, alt: 'VodaPay logo', label: 'Paid through VodaPay' };
+  const lulaNextStepMessage = provider === 'lula' && order.paymentStatus === 'pending'
+    ? `Your order is pending Lula Approval. Lula will contact you on ${user.email}, ${user.phone ?? 'your registered cellphone'} to process your application further.`
+    : null;
 
   return (
     <section className={`checkout-status-page-shell checkout-status-page-${statusContent.status}`}>
@@ -259,6 +262,13 @@ export function CheckoutConfirmationPage() {
             </span>
           </div>
         </div>
+
+        {lulaNextStepMessage ? (
+          <div className="checkout-status-summary-panel checkout-status-animate checkout-status-delay-200">
+            <div className="checkout-status-summary-head">Next Step</div>
+            <p className="text-sm leading-7 text-ink-soft">{lulaNextStepMessage}</p>
+          </div>
+        ) : null}
 
         <div className="checkout-status-button-row checkout-status-animate checkout-status-delay-250">
           {statusContent.secondaryHref.startsWith('http') ? (
