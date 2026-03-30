@@ -55,7 +55,12 @@ export function AdminUsersPage() {
   });
 
   const updateUserMutation = useMutation({
-    mutationFn: () => advertifiedApi.updateAdminUser(userDialog?.id ?? '', { ...userForm, password: userForm.password || undefined }),
+    mutationFn: () =>
+      advertifiedApi.updateAdminUser(userDialog?.id ?? '', {
+        ...userForm,
+        password: userForm.password || undefined,
+        assignedAreaCodes: Array.isArray(userForm.assignedAreaCodes) ? userForm.assignedAreaCodes : [],
+      }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] });
       setUserDialog(null);
@@ -98,7 +103,7 @@ export function AdminUsersPage() {
             isSaCitizen: user.isSaCitizen,
             emailVerified: user.emailVerified,
             phoneVerified: user.phoneVerified,
-            assignedAreaCodes: user.assignedAreaCodes,
+            assignedAreaCodes: Array.isArray(user.assignedAreaCodes) ? user.assignedAreaCodes : [],
           });
           setUserDialog({ mode, id: user.id });
         };

@@ -685,6 +685,7 @@ public sealed class AdminController : ControllerBase
 
         try
         {
+            var actorUserId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
             await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
             var user = await _db.UserAccounts.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
             if (user is null)
@@ -716,7 +717,7 @@ public sealed class AdminController : ControllerBase
 
             await _db.SaveChangesAsync(cancellationToken);
             await SyncAgentAreaAssignmentsAsync(user.Id, user.Role, request.AssignedAreaCodes, cancellationToken);
-            await WriteChangeAuditAsync("update", "user_account", user.Id.ToString(), user.FullName, $"Updated user account {user.FullName}.", new { user.Email, request.Role, request.AccountStatus, request.AssignedAreaCodes }, cancellationToken);
+            await WriteChangeAuditAsync(actorUserId, "update", "user_account", user.Id.ToString(), user.FullName, $"Updated user account {user.FullName}.", new { user.Email, request.Role, request.AccountStatus, request.AssignedAreaCodes }, cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             return Ok(await BuildAdminUserResponseAsync(user, cancellationToken));
         }
@@ -926,6 +927,19 @@ public sealed class AdminController : ControllerBase
         await _changeAuditService.WriteAsync(currentUserId, "admin", action, entityType, entityId, entityLabel, summary, metadata, cancellationToken);
     }
 
+    private Task WriteChangeAuditAsync(
+        Guid? actorUserId,
+        string action,
+        string entityType,
+        string entityId,
+        string? entityLabel,
+        string summary,
+        object? metadata,
+        CancellationToken cancellationToken)
+    {
+        return _changeAuditService.WriteAsync(actorUserId, "admin", action, entityType, entityId, entityLabel, summary, metadata, cancellationToken);
+    }
+
     private async Task<AdminUserResponse> BuildAdminUserResponseAsync(UserAccount user, CancellationToken cancellationToken)
     {
         var assignments = await _db.AgentAreaAssignments
@@ -971,7 +985,7 @@ public sealed class AdminController : ControllerBase
             .ToArray();
 
         var validAreaCodes = await _db.Database
-            .SqlQueryRaw<AreaCodeLookup>("select cluster_code as Code from package_area_profiles where is_active = true;")
+            .SqlQueryRaw<AreaCodeLookup>("select cluster_code as \"Code\" from package_area_profiles where is_active = true")
             .Select(x => x.Code)
             .ToArrayAsync(cancellationToken);
 

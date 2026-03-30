@@ -479,6 +479,7 @@ type AgentInboxItemResponse = {
   campaignName: string;
   clientName: string;
   clientEmail: string;
+  packageBandId: string;
   packageBandName: string;
   selectedBudget: number;
   status: string;
@@ -943,6 +944,7 @@ function mapAgentInboxItem(response: AgentInboxItemResponse): AgentInboxItem {
     campaignName: response.campaignName,
     clientName: response.clientName,
     clientEmail: response.clientEmail,
+    packageBandId: response.packageBandId,
     packageBandName: response.packageBandName,
     selectedBudget: response.selectedBudget,
     status: response.status,

@@ -16,12 +16,18 @@ public sealed class AgentRecommendationsController : ControllerBase
     private readonly AppDbContext _db;
     private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly IChangeAuditService _changeAuditService;
+    private readonly ILogger<AgentRecommendationsController> _logger;
 
-    public AgentRecommendationsController(AppDbContext db, ICurrentUserAccessor currentUserAccessor, IChangeAuditService changeAuditService)
+    public AgentRecommendationsController(
+        AppDbContext db,
+        ICurrentUserAccessor currentUserAccessor,
+        IChangeAuditService changeAuditService,
+        ILogger<AgentRecommendationsController> logger)
     {
         _db = db;
         _currentUserAccessor = currentUserAccessor;
         _changeAuditService = changeAuditService;
+        _logger = logger;
     }
 
     [HttpDelete("{id:guid}")]
@@ -63,29 +69,49 @@ public sealed class AgentRecommendationsController : ControllerBase
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateRecommendationRequest request, CancellationToken cancellationToken)
     {
         var recommendation = await _db.CampaignRecommendations
-            .Include(x => x.RecommendationItems)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw new InvalidOperationException("Recommendation not found.");
 
         if (!string.Equals(recommendation.Status, RecommendationStatuses.Draft, StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidOperationException("Only draft recommendations can be edited. Create a new revision instead.");
+            return BadRequest(new
+            {
+                Message = "Only draft recommendations can be edited. Create a new revision instead."
+            });
         }
+
+        var notes = request.Notes?.Trim() ?? string.Empty;
 
         recommendation.Status = string.IsNullOrWhiteSpace(request.Status)
             ? recommendation.Status
             : request.Status;
-        recommendation.Summary = request.Notes;
-        recommendation.Rationale = MergeClientFeedback(request.Notes, ExtractClientFeedbackNotes(recommendation.Rationale));
+        recommendation.Summary = notes;
+        recommendation.Rationale = MergeClientFeedback(notes, ExtractClientFeedbackNotes(recommendation.Rationale));
         recommendation.UpdatedAt = DateTime.UtcNow;
-        SyncRecommendationItems(recommendation, request.InventoryItems, recommendation.UpdatedAt);
-        recommendation.TotalCost = recommendation.RecommendationItems.Sum(x => x.TotalCost);
-        if (recommendation.TotalCost <= 0)
+        List<Data.Entities.RecommendationItem> updatedItems = new();
+        try
         {
-            recommendation.TotalCost = 0;
-        }
+            updatedItems = BuildRecommendationItems(recommendation.Id, request.InventoryItems ?? Array.Empty<SelectedInventoryItemRequest>(), recommendation.UpdatedAt);
+            await _db.RecommendationItems
+                .Where(x => x.RecommendationId == recommendation.Id)
+                .ExecuteDeleteAsync(cancellationToken);
+            _db.RecommendationItems.AddRange(updatedItems);
+            recommendation.TotalCost = updatedItems.Sum(x => x.TotalCost);
+            if (recommendation.TotalCost <= 0)
+            {
+                recommendation.TotalCost = 0;
+            }
 
-        await _db.SaveChangesAsync(cancellationToken);
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { Message = ex.Message });
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Conflict(new { Message = "Recommendation changed while saving. Refresh and try again." });
+        }
 
         var campaignLabel = await _db.Campaigns
             .AsNoTracking()
@@ -93,19 +119,26 @@ public sealed class AgentRecommendationsController : ControllerBase
             .Select(x => x.CampaignName)
             .FirstOrDefaultAsync(cancellationToken);
 
-        await WriteChangeAuditAsync(
-            "update_recommendation",
-            recommendation.Id.ToString(),
-            campaignLabel,
-            $"Updated draft recommendation for {ResolveCampaignLabel(campaignLabel)}.",
-            new
-            {
-                RecommendationId = recommendation.Id,
-                CampaignId = recommendation.CampaignId,
-                recommendation.Status,
-                ItemCount = recommendation.RecommendationItems.Count
-            },
-            cancellationToken);
+        try
+        {
+            await WriteChangeAuditAsync(
+                "update_recommendation",
+                recommendation.Id.ToString(),
+                campaignLabel,
+                $"Updated draft recommendation for {ResolveCampaignLabel(campaignLabel)}.",
+                new
+                {
+                    RecommendationId = recommendation.Id,
+                    CampaignId = recommendation.CampaignId,
+                    recommendation.Status,
+                    ItemCount = updatedItems.Count
+                },
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Recommendation {RecommendationId} updated but audit logging failed.", recommendation.Id);
+        }
 
         return Ok(new { RecommendationId = id, recommendation.Status, request.Notes });
     }
@@ -132,22 +165,41 @@ public sealed class AgentRecommendationsController : ControllerBase
         return string.IsNullOrWhiteSpace(campaignName) ? "campaign" : campaignName.Trim();
     }
 
-    private static void SyncRecommendationItems(Data.Entities.CampaignRecommendation recommendation, IReadOnlyList<SelectedInventoryItemRequest> inventoryItems, DateTime now)
+    private static List<Data.Entities.RecommendationItem> BuildRecommendationItems(
+        Guid recommendationId,
+        IReadOnlyList<SelectedInventoryItemRequest> inventoryItems,
+        DateTime now)
     {
-        recommendation.RecommendationItems.Clear();
+        var result = new List<Data.Entities.RecommendationItem>(inventoryItems.Count);
 
         foreach (var item in inventoryItems)
         {
             var quantity = item.Quantity <= 0 ? 1 : item.Quantity;
-            recommendation.RecommendationItems.Add(new Data.Entities.RecommendationItem
+            if (item.Rate < 0)
+            {
+                throw new ArgumentException("Inventory rate cannot be negative.");
+            }
+
+            if (item.Rate > 9999999999.99m)
+            {
+                throw new ArgumentException("Inventory rate is too large.");
+            }
+
+            var totalCost = item.Rate * quantity;
+            if (totalCost > 9999999999.99m)
+            {
+                throw new ArgumentException("Inventory total cost is too large.");
+            }
+
+            result.Add(new Data.Entities.RecommendationItem
             {
                 Id = Guid.NewGuid(),
-                RecommendationId = recommendation.Id,
-                InventoryType = string.IsNullOrWhiteSpace(item.Type) ? "base" : item.Type.Trim().ToLowerInvariant(),
-                DisplayName = string.IsNullOrWhiteSpace(item.Station) ? "Selected inventory" : item.Station.Trim(),
+                RecommendationId = recommendationId,
+                InventoryType = TrimToLength(string.IsNullOrWhiteSpace(item.Type) ? "base" : item.Type.Trim().ToLowerInvariant(), 50),
+                DisplayName = TrimToLength(string.IsNullOrWhiteSpace(item.Station) ? "Selected inventory" : item.Station.Trim(), 255),
                 Quantity = quantity,
                 UnitCost = item.Rate,
-                TotalCost = item.Rate * quantity,
+                TotalCost = totalCost,
                 MetadataJson = JsonSerializer.Serialize(new
                 {
                     sourceInventoryId = item.Id,
@@ -168,6 +220,8 @@ public sealed class AgentRecommendationsController : ControllerBase
                 CreatedAt = now
             });
         }
+
+        return result;
     }
 
     private static string BuildInventoryRationale(SelectedInventoryItemRequest item, int quantity)
@@ -227,5 +281,17 @@ public sealed class AgentRecommendationsController : ControllerBase
         }
 
         return $"{notes.Trim()}\n\n{ClientFeedbackMarker} {clientFeedbackNotes}".Trim();
+    }
+
+    private static string TrimToLength(string value, int maxLength)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return value;
+        }
+
+        return value.Length <= maxLength
+            ? value
+            : value[..maxLength];
     }
 }

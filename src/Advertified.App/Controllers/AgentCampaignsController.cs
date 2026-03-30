@@ -124,6 +124,7 @@ public sealed class AgentCampaignsController : ControllerBase
                 Id = x.Id,
                 UserId = x.UserId,
                 CampaignName = x.CampaignName,
+                PackageBandId = x.PackageBandId,
                 PackageBandName = x.PackageBand.Name,
                 ClientName = x.User.FullName,
                 ClientEmail = x.User.Email,
@@ -179,6 +180,7 @@ public sealed class AgentCampaignsController : ControllerBase
                 CampaignName = string.IsNullOrWhiteSpace(campaign.CampaignName) ? $"{campaign.PackageBandName} campaign" : campaign.CampaignName.Trim(),
                 ClientName = campaign.ClientName,
                 ClientEmail = campaign.ClientEmail,
+                PackageBandId = campaign.PackageBandId,
                 PackageBandName = campaign.PackageBandName,
                 SelectedBudget = campaign.SelectedBudget,
                 Status = campaign.Status,
@@ -872,6 +874,7 @@ public sealed class AgentCampaignsController : ControllerBase
         public Guid Id { get; init; }
         public Guid UserId { get; init; }
         public string? CampaignName { get; init; }
+        public Guid PackageBandId { get; init; }
         public string PackageBandName { get; init; } = string.Empty;
         public string ClientName { get; init; } = string.Empty;
         public string ClientEmail { get; init; } = string.Empty;

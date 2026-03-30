@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, ChevronRight, Sparkles, Wand2 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -19,6 +19,22 @@ const STEP_CONFIG = [
 
 const CHANNEL_OPTIONS: ChannelOption[] = ['Radio', 'OOH', 'TV'];
 
+function getAllowedChannels(campaign?: {
+  includeRadio: 'yes' | 'optional' | 'no';
+  includeTv: 'yes' | 'optional' | 'no';
+} | null): ChannelOption[] {
+  const allowed: ChannelOption[] = ['OOH'];
+  if (campaign?.includeRadio !== 'no') {
+    allowed.unshift('Radio');
+  }
+
+  if (campaign?.includeTv !== 'no') {
+    allowed.push('TV');
+  }
+
+  return allowed;
+}
+
 type CampaignFormState = {
   objective: string;
   audience: string;
@@ -36,13 +52,10 @@ function inferInitialForm(campaign: {
   selectedBudget: number;
   queueStage: string;
   nextAction: string;
+  includeRadio: 'yes' | 'optional' | 'no';
+  includeTv: 'yes' | 'optional' | 'no';
 }) : CampaignFormState {
-  const defaultChannels: ChannelOption[] =
-    campaign.packageBandName === 'Launch'
-      ? ['Radio', 'OOH']
-      : campaign.packageBandName === 'Scale'
-        ? ['Radio', 'OOH']
-        : ['Radio', 'OOH', 'TV'];
+  const defaultChannels = getAllowedChannels(campaign);
 
   return {
     objective: campaign.queueStage === 'newly_paid' ? 'launch' : 'awareness',
@@ -62,6 +75,7 @@ export function AgentCreateRecommendationPage() {
   const { pushToast } = useToast();
   const queryClient = useQueryClient();
   const inboxQuery = useQuery({ queryKey: ['agent-inbox'], queryFn: advertifiedApi.getAgentInbox });
+  const packagesQuery = useQuery({ queryKey: ['packages'], queryFn: advertifiedApi.getPackages });
   const requestedCampaignId = searchParams.get('campaignId') ?? '';
   const [selectedCampaignIdState, setSelectedCampaignIdState] = useState<string>('');
   const [selectedClientIdState, setSelectedClientIdState] = useState<string>('');
@@ -118,21 +132,45 @@ export function AgentCreateRecommendationPage() {
     ?? filteredCampaigns[0]
     ?? availableCampaigns[0]
     ?? null;
-  if (selectedCampaign && hydratedCampaignIdRef.current !== selectedCampaign.id) {
-    hydratedCampaignIdRef.current = selectedCampaign.id;
-    setForm(inferInitialForm(selectedCampaign));
-    setAiInterpretationSummary('');
-  }
+  const selectedPackageBand = useMemo(
+    () => packagesQuery.data?.find((item) => item.id === selectedCampaign?.packageBandId) ?? null,
+    [packagesQuery.data, selectedCampaign?.packageBandId],
+  );
+  const allowedChannels = useMemo(
+    () => getAllowedChannels(selectedPackageBand),
+    [selectedPackageBand],
+  );
+  const selectedCampaignHydrationKey = selectedCampaign
+    ? `${selectedCampaign.id}:${selectedPackageBand?.includeRadio ?? 'optional'}:${selectedPackageBand?.includeTv ?? 'no'}`
+    : null;
 
-  if (inboxQuery.isLoading) {
-    return <LoadingState label="Loading recommendation flow..." />;
-  }
+  useEffect(() => {
+    if (!selectedCampaign || !selectedCampaignHydrationKey) {
+      return;
+    }
+
+    if (hydratedCampaignIdRef.current === selectedCampaignHydrationKey) {
+      return;
+    }
+
+    hydratedCampaignIdRef.current = selectedCampaignHydrationKey;
+    setForm(inferInitialForm({
+      ...selectedCampaign,
+      includeRadio: selectedPackageBand?.includeRadio ?? 'optional',
+      includeTv: selectedPackageBand?.includeTv ?? 'no',
+    }));
+    setAiInterpretationSummary('');
+  }, [selectedCampaign, selectedCampaignHydrationKey, selectedPackageBand?.includeRadio, selectedPackageBand?.includeTv]);
 
   const handleFormChange = <K extends keyof CampaignFormState>(key: K, value: CampaignFormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
   };
 
   const toggleChannel = (channel: ChannelOption) => {
+    if (!allowedChannels.includes(channel)) {
+      return;
+    }
+
     setForm((current) => ({
       ...current,
       channels: current.channels.includes(channel)
@@ -160,7 +198,9 @@ export function AgentCreateRecommendationPage() {
       provinces: form.geography && form.geography !== 'national' ? [provinceMap[form.geography] ?? form.geography] : undefined,
       areas: form.geography && form.geography !== 'national' ? [form.geography] : undefined,
       targetAudienceNotes: [form.audience, form.tone].filter(Boolean).join(' · '),
-      preferredMediaTypes: form.channels.map((channel) => channel.toLowerCase()),
+      preferredMediaTypes: form.channels
+        .filter((channel) => allowedChannels.includes(channel))
+        .map((channel) => channel.toLowerCase()),
       creativeNotes: form.brandName || undefined,
       openToUpsell: false,
       specialRequirements: form.brief,
@@ -234,7 +274,8 @@ export function AgentCreateRecommendationPage() {
         geography: result.geography || current.geography,
         tone: result.tone || current.tone,
         brandName: result.campaignName || current.brandName,
-        channels: interpretedChannels.length > 0 ? interpretedChannels : current.channels,
+        channels: (interpretedChannels.length > 0 ? interpretedChannels : current.channels)
+          .filter((channel) => allowedChannels.includes(channel)),
       }));
       setAiInterpretationSummary(result.summary);
       pushToast({
@@ -252,7 +293,7 @@ export function AgentCreateRecommendationPage() {
 
   const isStep1Complete = Boolean(selectedClientId && selectedCampaign);
   const isStep2Complete = isStep1Complete
-    && Boolean(form.objective && form.audience && form.scope && form.geography && form.brief.trim());
+    && Boolean(form.objective && form.audience && form.scope && form.geography && form.brief.trim() && form.channels.length > 0);
   const isGenerating = pendingAction === 'generate' && initializeMutation.isPending;
   const isWorking = initializeMutation.isPending || interpretMutation.isPending;
   const canGenerate = isStep2Complete && !isWorking;
@@ -314,6 +355,10 @@ export function AgentCreateRecommendationPage() {
     const campaign = await initializeMutation.mutateAsync({ submitBrief: true });
     navigate(`/agent/campaigns/${campaign.id}`);
   };
+
+  if (inboxQuery.isLoading || packagesQuery.isLoading) {
+    return <LoadingState label="Loading recommendation flow..." />;
+  }
 
   return (
     <section className="min-h-screen bg-surface text-ink">
@@ -450,17 +495,32 @@ export function AgentCreateRecommendationPage() {
               <div className="flex flex-wrap gap-3">
                 {CHANNEL_OPTIONS.map((channel) => {
                   const checked = form.channels.includes(channel);
+                  const isAllowed = allowedChannels.includes(channel);
                   return (
                     <label
                       key={channel}
-                      className={`flex items-center gap-3 rounded-2xl border px-4 py-3 text-sm shadow-sm transition ${checked ? 'border-brand/25 bg-brand-soft/50 text-ink' : 'border-slate-200 bg-white text-ink-soft'}`}
+                      className={`flex items-center gap-3 rounded-2xl border px-4 py-3 text-sm shadow-sm transition ${
+                        !isAllowed
+                          ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
+                          : checked
+                            ? 'border-brand/25 bg-brand-soft/50 text-ink'
+                            : 'border-slate-200 bg-white text-ink-soft'
+                      }`}
                     >
-                      <input type="checkbox" checked={checked} onChange={() => toggleChannel(channel)} className="size-4 rounded border-slate-300 accent-brand" />
-                      {channel}
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        disabled={!isAllowed}
+                        onChange={() => toggleChannel(channel)}
+                        className="size-4 rounded border-slate-300 accent-brand"
+                      />
+                      <span>{channel}</span>
+                      {!isAllowed ? <span className="text-[11px] font-semibold uppercase tracking-[0.14em]">Not in package</span> : null}
                     </label>
                   );
                 })}
               </div>
+              <p className="helper-text">Only channels included in the purchased package can be selected here.</p>
             </div>
 
             <div className="mt-5 grid gap-4 md:grid-cols-2">
@@ -618,7 +678,7 @@ export function AgentCreateRecommendationPage() {
               </div>
               <div className="flex items-center justify-between">
                 <span>Allowed channels</span>
-                <span className="font-medium text-white">{form.channels.join(', ') || 'Select channels'}</span>
+                <span className="font-medium text-white">{allowedChannels.join(', ') || 'Select channels'}</span>
               </div>
             </div>
           </div>

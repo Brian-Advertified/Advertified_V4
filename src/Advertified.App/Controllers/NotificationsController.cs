@@ -178,6 +178,7 @@ public sealed class NotificationsController : ControllerBase
         var campaigns = await _db.Campaigns
             .AsNoTracking()
             .Where(campaign => campaign.UserId == userId)
+            .Include(campaign => campaign.PackageBand)
             .Include(campaign => campaign.CampaignRecommendations)
             .OrderByDescending(campaign => campaign.UpdatedAt)
             .Take(6)
@@ -195,10 +196,18 @@ public sealed class NotificationsController : ControllerBase
         var items = new List<NotificationSummaryItemResponse>();
         foreach (var campaign in campaigns)
         {
+            if (campaign is null)
+            {
+                continue;
+            }
+
+            var packageBandName = string.IsNullOrWhiteSpace(campaign.PackageBand?.Name) ? "Package" : campaign.PackageBand.Name.Trim();
             var campaignName = string.IsNullOrWhiteSpace(campaign.CampaignName)
-                ? $"{campaign.PackageBand.Name} campaign"
+                ? $"{packageBandName} campaign"
                 : campaign.CampaignName.Trim();
-            var recommendation = campaign.CampaignRecommendations.OrderByDescending(x => x.CreatedAt).FirstOrDefault();
+            var recommendation = (campaign.CampaignRecommendations ?? Array.Empty<CampaignRecommendation>())
+                .OrderByDescending(x => x.CreatedAt)
+                .FirstOrDefault();
 
             if (campaign.Status == CampaignStatuses.Paid)
             {
@@ -236,13 +245,19 @@ public sealed class NotificationsController : ControllerBase
 
         foreach (var order in orders)
         {
+            if (order is null)
+            {
+                continue;
+            }
+
+            var packageBandName = string.IsNullOrWhiteSpace(order.PackageBand?.Name) ? "your package" : order.PackageBand.Name.Trim();
             if (string.Equals(order.PaymentStatus, "failed", StringComparison.OrdinalIgnoreCase))
             {
-                items.Add(BuildItem($"order-failed-{order.Id}", "Payment was not successful", $"{order.PackageBand.Name} could not be confirmed. You can try again or contact support.", "/orders", "warning"));
+                items.Add(BuildItem($"order-failed-{order.Id}", "Payment was not successful", $"{packageBandName} could not be confirmed. You can try again or contact support.", "/orders", "warning"));
             }
             else if (string.Equals(order.PaymentStatus, "paid", StringComparison.OrdinalIgnoreCase) && order.Invoice is not null)
             {
-                items.Add(BuildItem($"invoice-ready-{order.Id}", "Invoice ready", $"Your paid invoice for {order.PackageBand.Name} is available.", "/orders", "success"));
+                items.Add(BuildItem($"invoice-ready-{order.Id}", "Invoice ready", $"Your paid invoice for {packageBandName} is available.", "/orders", "success"));
             }
         }
 
@@ -266,13 +281,19 @@ public sealed class NotificationsController : ControllerBase
         var items = new List<NotificationSummaryItemResponse>();
         foreach (var campaign in campaigns)
         {
+            if (campaign is null)
+            {
+                continue;
+            }
+
             if (!creativeOnly && campaign.AssignedAgentUserId.HasValue && campaign.AssignedAgentUserId != userId)
             {
                 continue;
             }
 
             var stage = ResolveQueueStage(campaign);
-            var campaignName = string.IsNullOrWhiteSpace(campaign.CampaignName) ? $"{campaign.PackageBand.Name} campaign" : campaign.CampaignName.Trim();
+            var packageBandName = string.IsNullOrWhiteSpace(campaign.PackageBand?.Name) ? "Package" : campaign.PackageBand.Name.Trim();
+            var campaignName = string.IsNullOrWhiteSpace(campaign.CampaignName) ? $"{packageBandName} campaign" : campaign.CampaignName.Trim();
 
             if (creativeOnly)
             {
@@ -347,7 +368,7 @@ public sealed class NotificationsController : ControllerBase
 
     private static string ResolveQueueStage(Campaign campaign)
     {
-        var latestRecommendation = campaign.CampaignRecommendations
+        var latestRecommendation = (campaign.CampaignRecommendations ?? Array.Empty<CampaignRecommendation>())
             .OrderByDescending(x => x.CreatedAt)
             .FirstOrDefault();
         var hasRecommendation = latestRecommendation is not null;

@@ -9,6 +9,11 @@ import {
 } from './agentWorkspace';
 import { buildTasks } from './agentSectionShared';
 
+function shorten(value: string, maxLength: number) {
+  const trimmed = value.trim();
+  return trimmed.length <= maxLength ? trimmed : `${trimmed.slice(0, maxLength - 1).trimEnd()}…`;
+}
+
 export function AgentDashboardPage() {
   const inboxQuery = useAgentInboxQuery();
 
@@ -115,8 +120,8 @@ export function AgentDashboardPage() {
                             {column.items.length > 0 ? column.items.map((item) => (
                               <Link key={item.id} to={`/agent/campaigns/${item.id}`} className="block rounded-2xl border border-line bg-white p-3 text-sm transition hover:border-brand/30 hover:bg-brand-soft/20">
                                 <p className="font-semibold text-ink">{item.clientName}</p>
-                                <p className="mt-1 text-xs text-ink-soft">{item.campaignName}</p>
-                                <p className="mt-2 text-xs text-ink-soft">{item.nextAction}</p>
+                                <p className="mt-1 text-xs text-ink-soft">{shorten(item.campaignName, 32)}</p>
+                                <p className="mt-2 text-xs text-ink-soft">{shorten(item.nextAction, 72)}</p>
                               </Link>
                             )) : <p className="text-sm text-ink-soft">No campaigns here.</p>}
                           </div>

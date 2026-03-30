@@ -13,7 +13,7 @@ import {
   UserPlus2,
   UserX2,
 } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { LoadingState } from '../../components/ui/LoadingState';
@@ -44,12 +44,23 @@ import type { RecommendationItem, SelectedPlanInventoryItem } from '../../types/
 type DisplayPlanItem = SelectedPlanInventoryItem | RecommendationItem;
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:5050';
 
+function formatFallbackFlag(flag: string) {
+  const normalized = flag.trim().toLowerCase();
+  if (normalized.startsWith('preferred_media_unfulfilled:')) {
+    const channel = normalized.split(':')[1]?.toUpperCase() ?? 'A preferred channel';
+    return `${channel} was requested, but this package or the available inventory could not support it in the draft.`;
+  }
+
+  return flag.replace(/_/g, ' ');
+}
+
 export function AgentCampaignDetailPage() {
   const { id = '' } = useParams();
   const { pushToast } = useToast();
   const queryClient = useQueryClient();
   const [selectedPlanItems, setSelectedPlanItems] = useState<SelectedPlanInventoryItem[]>([]);
   const [strategySummary, setStrategySummary] = useState('');
+  const [draftApprovalCaptured, setDraftApprovalCaptured] = useState(false);
   const [mixBalance, setMixBalance] = useState(60);
   const [selectedRecommendationIdState, setSelectedRecommendationIdState] = useState('');
   const [opsAssetFile, setOpsAssetFile] = useState<File | null>(null);
@@ -255,7 +266,11 @@ export function AgentCampaignDetailPage() {
   const selectedRecommendationId = selectedRecommendationIdState || recommendations[0]?.id || '';
   const activeRecommendation = recommendations.find((item) => item.id === selectedRecommendationId) ?? recommendations[0];
 
-  if (campaign && activeRecommendation) {
+  useEffect(() => {
+    if (!campaign || !activeRecommendation) {
+      return;
+    }
+
     const byId = new Map(inventoryItems.map((item) => [item.id, item]));
     const selectedFromRecommendation = activeRecommendation.items
       .map((item) => {
@@ -302,12 +317,15 @@ export function AgentCampaignDetailPage() {
       .filter((item): item is SelectedPlanInventoryItem => item !== null);
 
     const hydrationKey = `${campaign.id}:${activeRecommendation.id}:${inventoryItems.map((item) => item.id).join('|')}`;
-    if (hydratedRecommendationKeyRef.current !== hydrationKey) {
-      hydratedRecommendationKeyRef.current = hydrationKey;
-      setStrategySummary(activeRecommendation.summary ?? '');
-      setSelectedPlanItems(selectedFromRecommendation);
+    if (hydratedRecommendationKeyRef.current === hydrationKey) {
+      return;
     }
-  }
+
+    hydratedRecommendationKeyRef.current = hydrationKey;
+    setStrategySummary(activeRecommendation.summary ?? '');
+    setSelectedPlanItems(selectedFromRecommendation);
+    setDraftApprovalCaptured(false);
+  }, [campaign, activeRecommendation, inventoryItems]);
 
   if (campaignQuery.isLoading || inventoryQuery.isLoading || !campaign) {
     return <LoadingState label="Loading agent campaign detail..." />;
@@ -365,6 +383,7 @@ export function AgentCampaignDetailPage() {
   const constraints = getConstraintChecks(campaign.brief, selectedPlanItems, isOverBudget, campaign.selectedBudget);
   const recommendationTitle = strategySummary || activeRecommendation?.summary || 'Draft recommendation';
   const canMarkLive = campaign.status === 'creative_approved';
+  const canEditDraftRecommendation = activeRecommendation?.status?.toLowerCase() === 'draft';
   const executionAssets = campaign.assets ?? [];
   const supplierBookings = campaign.supplierBookings ?? [];
   const deliveryReports = campaign.deliveryReports ?? [];
@@ -409,10 +428,27 @@ export function AgentCampaignDetailPage() {
   }
 
   async function handleApproveRecommendation() {
+    if (!canEditDraftRecommendation) {
+      pushToast({
+        title: 'Recommendation is locked.',
+        description: 'Only draft recommendations can be edited. Create a new revision to make changes.',
+      }, 'info');
+      return;
+    }
+
+    if (draftApprovalCaptured) {
+      pushToast({
+        title: 'Recommendation already approved.',
+        description: 'Use Send to client to move this campaign to the next step.',
+      }, 'info');
+      return;
+    }
+
     await saveMutation.mutateAsync(strategySummary);
+    setDraftApprovalCaptured(true);
     pushToast({
       title: 'Recommendation approved.',
-      description: 'The draft is saved and ready for the next step.',
+      description: 'The approved draft is saved. Next step: send it to the client.',
     });
   }
 
@@ -551,7 +587,7 @@ export function AgentCampaignDetailPage() {
                 <div className="mt-3 flex flex-wrap gap-2">
                   {activeRecommendation.fallbackFlags.map((flag) => (
                     <span key={flag} className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-rose-700 ring-1 ring-rose-200">
-                      {flag.replace(/_/g, ' ')}
+                      {formatFallbackFlag(flag)}
                     </span>
                   ))}
                 </div>
@@ -901,12 +937,12 @@ export function AgentCampaignDetailPage() {
             </button>
             <button
               type="button"
-              disabled={saveMutation.isPending}
+              disabled={saveMutation.isPending || !canEditDraftRecommendation || draftApprovalCaptured}
               onClick={() => void handleApproveRecommendation()}
               className="button-primary inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60"
             >
               <CircleCheckBig className="size-4" />
-              Approve recommendation
+              {draftApprovalCaptured ? 'Approved' : 'Approve recommendation'}
             </button>
             {canMarkLive ? (
               <button

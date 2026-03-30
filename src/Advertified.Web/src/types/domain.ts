@@ -439,6 +439,7 @@ export interface AgentInboxItem {
   campaignName: string;
   clientName: string;
   clientEmail: string;
+  packageBandId: string;
   packageBandName: string;
   selectedBudget: number;
   status: string;
