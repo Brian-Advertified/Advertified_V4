@@ -21,13 +21,15 @@ jobs:
     runs-on: ubuntu-latest
     environment: dev
     steps:
+      - name: Workflow sanity check
+        run: echo "Starting DEV deploy run for ${GITHUB_SHA}"
+
       - name: Deploy code on EC2 DEV host
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.DEV_EC2_HOST }}
           username: ${{ secrets.DEV_EC2_USER }}
           key: ${{ secrets.DEV_EC2_SSH_PRIVATE_KEY }}
-          port: ${{ secrets.DEV_EC2_PORT || 22 }}
           script_stop: true
           script: |
             set -euo pipefail
