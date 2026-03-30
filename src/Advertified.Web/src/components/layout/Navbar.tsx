@@ -1,20 +1,34 @@
 import { Menu, X } from 'lucide-react';
 import { useState } from 'react';
-import { Link, NavLink, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../features/auth/auth-context';
 import { NotificationCenter } from '../../features/notifications/NotificationCenter';
 import advertifiedLogo from '../../assets/advertified-logo-v3.png';
+import type { UserRole } from '../../types/domain';
 
 const publicLinks = [
+  { label: 'About', href: '/about' },
   { label: 'How It Works', href: '/how-it-works' },
   { label: 'Packages', href: '/packages' },
   { label: 'Media Partners', href: '/media-partners' },
 ];
 
+const workspaceLinksByRole: Record<UserRole, { label: string; href: string }> = {
+  client: { label: 'Dashboard', href: '/dashboard' },
+  agent: { label: 'Agent Workspace', href: '/agent' },
+  creative_director: { label: 'Creative Studio', href: '/creative/studio-demo' },
+  admin: { label: 'Admin Workspace', href: '/admin' },
+};
+
 export function Navbar() {
   const [open, setOpen] = useState(false);
   const { user, logout } = useAuth();
+  const location = useLocation();
   const navigate = useNavigate();
+  const workspaceLink = user ? workspaceLinksByRole[user.role] : null;
+  const isWorkspaceLinkActive = workspaceLink
+    ? location.pathname === workspaceLink.href || location.pathname.startsWith(`${workspaceLink.href}/`)
+    : false;
 
   return (
     <header className="site-header sticky top-0 z-40">
@@ -33,31 +47,19 @@ export function Navbar() {
               {item.label}
             </NavLink>
           ))}
-          {user?.role === 'client' ? (
-            <NavLink to="/dashboard" className="nav-link">
-              Dashboard
-            </NavLink>
-          ) : null}
-          {user?.role === 'agent' ? (
-            <NavLink to="/agent" className="nav-link">
-              Agent
-            </NavLink>
-          ) : null}
-          {user?.role === 'creative_director' ? (
-            <NavLink to="/creative" className="nav-link">
-              Creative Studio
-            </NavLink>
-          ) : null}
-          {user?.role === 'admin' ? (
-            <NavLink to="/admin" className="nav-link">
-              Admin
-            </NavLink>
-          ) : null}
         </nav>
 
         <div className="hidden items-center gap-3 lg:flex">
           {user ? (
             <>
+              {workspaceLink ? (
+                <Link
+                  to={workspaceLink.href}
+                  className={isWorkspaceLinkActive ? 'button-secondary px-4 py-2' : 'button-primary px-5 py-3'}
+                >
+                  {workspaceLink.label}
+                </Link>
+              ) : null}
               <NotificationCenter />
               <span className="text-sm font-medium text-ink-soft">{user.fullName}</span>
               <button
@@ -95,25 +97,14 @@ export function Navbar() {
                 {item.label}
               </NavLink>
             ))}
-            {user?.role === 'client' ? (
-              <NavLink to="/dashboard" className="nav-link" onClick={() => setOpen(false)}>
-                Dashboard
-              </NavLink>
-            ) : null}
-            {user?.role === 'agent' ? (
-              <NavLink to="/agent" className="nav-link" onClick={() => setOpen(false)}>
-                Agent
-              </NavLink>
-            ) : null}
-            {user?.role === 'creative_director' ? (
-              <NavLink to="/creative" className="nav-link" onClick={() => setOpen(false)}>
-                Creative Studio
-              </NavLink>
-            ) : null}
-            {user?.role === 'admin' ? (
-              <NavLink to="/admin" className="nav-link" onClick={() => setOpen(false)}>
-                Admin
-              </NavLink>
+            {workspaceLink ? (
+              <Link
+                to={workspaceLink.href}
+                className={isWorkspaceLinkActive ? 'button-secondary px-4 py-3 text-center' : 'button-primary px-4 py-3 text-center'}
+                onClick={() => setOpen(false)}
+              >
+                {workspaceLink.label}
+              </Link>
             ) : null}
             {user ? (
               <button

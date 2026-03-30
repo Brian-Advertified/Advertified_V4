@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { Navigate } from 'react-router-dom';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { StatusBadge } from '../../components/ui/StatusBadge';
@@ -9,6 +10,15 @@ import { ClientPortalShell } from './clientWorkspace';
 
 export function OrdersPage() {
   const { user } = useAuth();
+
+  if (user?.role === 'creative_director') {
+    return <Navigate to="/creative/studio-demo" replace />;
+  }
+
+  if (user?.role === 'agent' || user?.role === 'admin') {
+    return <Navigate to={user.role === 'admin' ? '/admin' : '/agent'} replace />;
+  }
+
   const campaignsQuery = useQuery({
     queryKey: ['campaigns', user?.id],
     queryFn: () => advertifiedApi.getCampaigns(user!.id),

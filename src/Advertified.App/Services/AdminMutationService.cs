@@ -1203,6 +1203,47 @@ public sealed class AdminMutationService : IAdminMutationService
         }
     }
 
+    public async Task UpdatePricingSettingsAsync(UpdateAdminPricingSettingsRequest request, CancellationToken cancellationToken)
+    {
+        ValidatePercentage(request.AiStudioReservePercent, nameof(request.AiStudioReservePercent));
+        ValidatePercentage(request.OohMarkupPercent, nameof(request.OohMarkupPercent));
+        ValidatePercentage(request.RadioMarkupPercent, nameof(request.RadioMarkupPercent));
+        ValidatePercentage(request.TvMarkupPercent, nameof(request.TvMarkupPercent));
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await connection.ExecuteAsync(new CommandDefinition(
+            @"
+            insert into pricing_settings (
+                pricing_key,
+                ai_studio_reserve_percent,
+                ooh_markup_percent,
+                radio_markup_percent,
+                tv_markup_percent
+            ) values (
+                'default',
+                @AiStudioReservePercent,
+                @OohMarkupPercent,
+                @RadioMarkupPercent,
+                @TvMarkupPercent
+            )
+            on conflict (pricing_key) do update
+            set
+                ai_studio_reserve_percent = excluded.ai_studio_reserve_percent,
+                ooh_markup_percent = excluded.ooh_markup_percent,
+                radio_markup_percent = excluded.radio_markup_percent,
+                tv_markup_percent = excluded.tv_markup_percent,
+                updated_at = now();",
+            new
+            {
+                request.AiStudioReservePercent,
+                request.OohMarkupPercent,
+                request.RadioMarkupPercent,
+                request.TvMarkupPercent
+            },
+            cancellationToken: cancellationToken));
+    }
+
     private static string NormalizeToken(string? value)
         => value?.Trim().ToLowerInvariant() ?? string.Empty;
 
@@ -1460,6 +1501,14 @@ public sealed class AdminMutationService : IAdminMutationService
         if (string.IsNullOrWhiteSpace(TrimToNull(leadTime)))
         {
             throw new InvalidOperationException("Lead time is required.");
+        }
+    }
+
+    private static void ValidatePercentage(decimal value, string label)
+    {
+        if (value < 0m || value > 1m)
+        {
+            throw new InvalidOperationException($"{label} must be between 0 and 1.");
         }
     }
 

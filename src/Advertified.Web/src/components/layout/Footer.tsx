@@ -1,36 +1,69 @@
 import { Link } from 'react-router-dom';
 import advertifiedLogo from '../../assets/advertified-logo-v3.png';
+import { openConsentPreferences } from '../ui/consentPreferences';
+
+const currentYear = new Date().getFullYear();
 
 export function Footer() {
   return (
-    <footer className="footer-shell border-t border-line">
-      <div className="page-shell grid gap-10 py-12 md:grid-cols-[1.3fr_1fr_1fr]">
-        <div>
-          <img
-            src={advertifiedLogo}
-            alt="Advertified"
-            className="h-9 w-auto sm:h-10"
-          />
-          <p className="mt-4 max-w-md text-sm leading-7 text-ink-soft">
-            Unlock Premium Advertising Without Breaking Your Cash Flow. Choose your package, pay, then unlock AI or agent-assisted campaign planning.
-          </p>
-        </div>
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand">Product</p>
-          <div className="mt-4 flex flex-col gap-3 text-sm text-ink">
-            <Link to="/packages">Packages</Link>
-            <Link to="/how-it-works">How it works</Link>
-            <Link to="/media-partners">Media partners</Link>
-            <Link to="/register">Register</Link>
-            <Link to="/login">Log in</Link>
+    <footer className="border-t border-line bg-[linear-gradient(180deg,rgba(236,250,246,0.78)_0%,rgba(255,255,255,0.98)_65%,rgba(255,255,255,1)_100%)]">
+      <div className="page-shell py-10 sm:py-12">
+        <div className="grid gap-10 lg:grid-cols-[1.45fr_0.9fr_0.9fr_1fr]">
+          <div className="max-w-xs">
+            <img
+              src={advertifiedLogo}
+              alt="Advertified"
+              className="h-8 w-auto"
+            />
+            <p className="mt-5 text-sm leading-7 text-ink-soft">
+              Empowering businesses with flexible advertising solutions that align with your cash flow.
+            </p>
+          </div>
+
+          <div>
+            <h3 className="text-sm font-semibold text-ink">Product</h3>
+            <div className="mt-4 flex flex-col gap-2.5 text-sm text-ink-soft">
+              <Link to="/about" className="transition hover:text-brand">About Us</Link>
+              <Link to="/how-it-works" className="transition hover:text-brand">How It Works</Link>
+              <Link to="/media-partners" className="transition hover:text-brand">Media Partners</Link>
+              <Link to="/packages" className="transition hover:text-brand">Campaign Planner</Link>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-sm font-semibold text-ink">Company</h3>
+            <div className="mt-4 flex flex-col gap-2.5 text-sm text-ink-soft">
+              <Link to="/register" className="transition hover:text-brand">Get Started</Link>
+              <Link to="/partner-enquiry" className="transition hover:text-brand">Contact</Link>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-sm font-semibold text-ink">Contact Info</h3>
+            <div className="mt-4 space-y-2.5 text-sm text-ink-soft">
+              <p>Office 501, Elskadi Mall</p>
+              <p>45 Andring Street</p>
+              <p>Stellenbosch</p>
+              <p>7599</p>
+              <p>
+                <a href="mailto:info@advertified.com" className="transition hover:text-brand">info@advertified.com</a>
+              </p>
+              <p>
+                <a href="tel:+27110401195" className="transition hover:text-brand">+27 11 040 1195</a>
+              </p>
+            </div>
           </div>
         </div>
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand">Contact</p>
-          <div className="mt-4 space-y-2 text-sm text-ink">
-            <p>Stellenbosch, South Africa</p>
-            <p>info@advertified.com</p>
-            <p>+27 11 040 1195</p>
+
+        <div className="mt-10 flex flex-col gap-4 border-t border-line/80 pt-5 text-xs text-ink-soft sm:flex-row sm:items-center sm:justify-between">
+          <p>&copy; {currentYear} Advertified. All rights reserved.</p>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <Link to="/privacy" className="transition hover:text-brand">Privacy Policy</Link>
+            <Link to="/terms-of-service" className="transition hover:text-brand">Terms of Service</Link>
+            <Link to="/cookie-policy" className="transition hover:text-brand">Cookie Policy</Link>
+            <button type="button" onClick={openConsentPreferences} className="cursor-pointer border-0 bg-transparent p-0 text-left transition hover:text-brand">
+              Cookie settings
+            </button>
           </div>
         </div>
       </div>

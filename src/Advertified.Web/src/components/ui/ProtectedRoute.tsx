@@ -36,7 +36,7 @@ export function ProtectedRoute({
   });
 
   if (guestOnly && isAuthenticated) {
-    return <Navigate to={isAdmin(user) ? '/admin' : isCreativeDirector(user) ? '/creative' : isAgent(user) ? '/agent' : '/dashboard'} replace />;
+    return <Navigate to={isAdmin(user) ? '/admin' : isCreativeDirector(user) ? '/creative/studio-demo' : isAgent(user) ? '/agent' : '/dashboard'} replace />;
   }
 
   if (!guestOnly && !isAuthenticated) {

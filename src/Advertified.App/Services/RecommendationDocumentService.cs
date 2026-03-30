@@ -3,6 +3,7 @@ using Advertified.App.Campaigns;
 using Advertified.App.Data;
 using Advertified.App.Data.Entities;
 using Advertified.App.Services.Abstractions;
+using Advertified.App.Support;
 using Microsoft.EntityFrameworkCore;
 
 namespace Advertified.App.Services;
@@ -11,11 +12,13 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
 {
     private readonly AppDbContext _db;
     private readonly IWebHostEnvironment _environment;
+    private readonly IPublicAssetStorage _assetStorage;
 
-    public RecommendationDocumentService(AppDbContext db, IWebHostEnvironment environment)
+    public RecommendationDocumentService(AppDbContext db, IWebHostEnvironment environment, IPublicAssetStorage assetStorage)
     {
         _db = db;
         _environment = environment;
+        _assetStorage = assetStorage;
     }
 
     public async Task<byte[]> GetCampaignPdfBytesAsync(Guid campaignId, CancellationToken cancellationToken)
@@ -42,10 +45,12 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
         var existingSnapshotKey = GetSharedSnapshotKey(currentRecommendations);
         if (!string.IsNullOrWhiteSpace(existingSnapshotKey))
         {
-            var absolutePath = ResolveStoragePath(existingSnapshotKey);
-            if (File.Exists(absolutePath))
+            try
             {
-                return await File.ReadAllBytesAsync(absolutePath, cancellationToken);
+                return await _assetStorage.GetBytesAsync(existingSnapshotKey, cancellationToken);
+            }
+            catch (InvalidOperationException)
+            {
             }
         }
 
@@ -104,7 +109,6 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
             Channel = item.InventoryType,
             Title = item.DisplayName,
             Rationale = GetMetadataValue(metadata, "rationale") ?? string.Empty,
-            Cost = item.TotalCost,
             Quantity = item.Quantity,
             Region = GetMetadataValue(metadata, "region"),
             Language = GetMetadataValue(metadata, "language"),
@@ -248,8 +252,8 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
         return recommendations.Any(x =>
             x.SentToClientAt.HasValue ||
             x.ApprovedAt.HasValue ||
-            string.Equals(x.Status, "sent_to_client", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(x.Status, "approved", StringComparison.OrdinalIgnoreCase));
+            string.Equals(x.Status, RecommendationStatuses.SentToClient, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(x.Status, RecommendationStatuses.Approved, StringComparison.OrdinalIgnoreCase));
     }
 
     private static string? GetSharedSnapshotKey(IEnumerable<CampaignRecommendation> recommendations)
@@ -265,22 +269,8 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
 
     private async Task<string> PersistPdfAsync(Guid campaignId, int revisionNumber, byte[] pdfBytes, CancellationToken cancellationToken)
     {
-        var relativePath = Path.Combine("App_Data", "recommendations", $"campaign-{campaignId:D}", $"revision-{revisionNumber:D3}.pdf");
-        var absolutePath = ResolveStoragePath(relativePath);
-        var directory = Path.GetDirectoryName(absolutePath);
-        if (!string.IsNullOrWhiteSpace(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
-
-        await File.WriteAllBytesAsync(absolutePath, pdfBytes, cancellationToken);
-        return relativePath.Replace('\\', '/');
-    }
-
-    private string ResolveStoragePath(string relativePath)
-    {
-        var normalized = relativePath.Replace('/', Path.DirectorySeparatorChar);
-        return Path.GetFullPath(Path.Combine(_environment.ContentRootPath, normalized));
+        var objectKey = $"recommendations/campaign-{campaignId:D}/revision-{revisionNumber:D3}.pdf";
+        return await _assetStorage.SaveAsync(objectKey, pdfBytes, "application/pdf", cancellationToken);
     }
 
     private static (string Label, string Strategy) GetProposalDetails(string? recommendationType)

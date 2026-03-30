@@ -15,6 +15,7 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
     private readonly IVodaPayCheckoutService _vodaPayCheckoutService;
     private readonly IPaymentStateCache _paymentStateCache;
     private readonly IAgentAreaRoutingService _agentAreaRoutingService;
+    private readonly IPricingSettingsProvider _pricingSettingsProvider;
 
     public PackagePurchaseService(
         AppDbContext db,
@@ -22,7 +23,8 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
         IInvoiceService invoiceService,
         IVodaPayCheckoutService vodaPayCheckoutService,
         IPaymentStateCache paymentStateCache,
-        IAgentAreaRoutingService agentAreaRoutingService)
+        IAgentAreaRoutingService agentAreaRoutingService,
+        IPricingSettingsProvider pricingSettingsProvider)
     {
         _db = db;
         _accessService = accessService;
@@ -30,6 +32,7 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
         _vodaPayCheckoutService = vodaPayCheckoutService;
         _paymentStateCache = paymentStateCache;
         _agentAreaRoutingService = agentAreaRoutingService;
+        _pricingSettingsProvider = pricingSettingsProvider;
     }
 
     public async Task<CreatePackageOrderResponse> CreatePendingOrderAsync(Guid userId, CreatePackageOrderRequest request, CancellationToken cancellationToken)
@@ -46,12 +49,16 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
             .Include(x => x.BusinessProfile)
             .FirstOrDefaultAsync(x => x.Id == userId, cancellationToken)
             ?? throw new InvalidOperationException("User account not found.");
-        var selectedAmount = request.Amount;
-        if (selectedAmount < band.MinBudget || selectedAmount > band.MaxBudget)
+        var selectedBudget = request.Amount;
+        if (selectedBudget < band.MinBudget || selectedBudget > band.MaxBudget)
         {
             throw new InvalidOperationException(
                 $"Selected budget must be between {band.MinBudget:0.##} and {band.MaxBudget:0.##}.");
         }
+
+        var pricingSettings = await _pricingSettingsProvider.GetCurrentAsync(cancellationToken);
+        var aiStudioReserveAmount = PricingPolicy.CalculateAiStudioReserveAmount(selectedBudget, pricingSettings.AiStudioReservePercent);
+        var chargedAmount = PricingPolicy.CalculateChargedAmount(selectedBudget, pricingSettings.AiStudioReservePercent);
 
         var now = DateTime.UtcNow;
         var order = new PackageOrder
@@ -59,11 +66,14 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
             Id = Guid.NewGuid(),
             UserId = userId,
             PackageBandId = band.Id,
-            Amount = selectedAmount,
-            SelectedBudget = selectedAmount,
+            Amount = chargedAmount,
+            SelectedBudget = selectedBudget,
+            AiStudioReservePercent = pricingSettings.AiStudioReservePercent,
+            AiStudioReserveAmount = aiStudioReserveAmount,
             Currency = request.Currency.Trim().ToUpperInvariant(),
             PaymentProvider = paymentProvider,
             PaymentStatus = "pending",
+            RefundStatus = "none",
             CreatedAt = now,
             UpdatedAt = now
         };
@@ -91,7 +101,7 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
                 PackageOrderId = order.Id,
                 PackageBandId = order.PackageBandId,
                 PaymentStatus = order.PaymentStatus,
-                Amount = selectedAmount,
+                Amount = chargedAmount,
                 Currency = order.Currency,
                 PaymentProvider = order.PaymentProvider ?? paymentProvider,
                 InvoiceId = invoice.Id,
@@ -117,7 +127,7 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
             PackageOrderId = order.Id,
             PackageBandId = order.PackageBandId,
             PaymentStatus = order.PaymentStatus,
-            Amount = selectedAmount,
+            Amount = chargedAmount,
             Currency = order.Currency,
             PaymentProvider = order.PaymentProvider ?? paymentProvider,
             CheckoutUrl = checkout.CheckoutUrl,

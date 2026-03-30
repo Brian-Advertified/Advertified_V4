@@ -349,6 +349,173 @@ public class HttpWorkflowIntegrationTests
         var emailService = harness.Services.GetRequiredService<StubTemplatedEmailService>();
         emailService.SentEmails.Select(x => x.TemplateName).Should().Contain("campaign-live");
     }
+
+    [Fact]
+    public async Task AgentCanPersistSupplierExecutionAndDeliveryReport()
+    {
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var clientUser = TestSeed.CreateUser();
+                var agentUser = TestSeed.CreateAgent();
+                var (band, order, campaign) = TestSeed.CreateCampaignGraph(clientUser, selectedBudget: 250000m, status: "launched");
+                campaign.AssignedAgentUserId = agentUser.Id;
+                campaign.AssignedAt = DateTime.UtcNow;
+
+                db.UserAccounts.AddRange(clientUser, agentUser);
+                db.PackageBands.Add(band);
+                db.PackageOrders.Add(order);
+                db.Campaigns.Add(campaign);
+                db.SaveChanges();
+            },
+            configureServices: services =>
+            {
+                services.AddSingleton<StubTemplatedEmailService>();
+                services.AddSingleton<ITemplatedEmailService>(sp => sp.GetRequiredService<StubTemplatedEmailService>());
+            });
+
+        var campaignId = await harness.ExecuteDbAsync(db => db.Campaigns.Select(x => x.Id).SingleAsync());
+        var agentUserId = await harness.ExecuteDbAsync(db => db.UserAccounts.Where(x => x.Role == UserRole.Agent).Select(x => x.Id).SingleAsync());
+        harness.Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await harness.CreateSessionTokenAsync(agentUserId));
+
+        var bookingResponse = await harness.Client.PostAsJsonAsync($"/agent/campaigns/{campaignId}/supplier-bookings", new
+        {
+            supplierOrStation = "Metro FM",
+            channel = "radio",
+            bookingStatus = "booked",
+            committedAmount = 45000m,
+            liveFrom = DateOnly.FromDateTime(DateTime.UtcNow.Date),
+            liveTo = DateOnly.FromDateTime(DateTime.UtcNow.Date.AddDays(13)),
+            notes = "Confirmed for launch burst"
+        });
+
+        bookingResponse.StatusCode.Should().Be(HttpStatusCode.Accepted);
+
+        var bookingId = await harness.ExecuteDbAsync(db => db.CampaignSupplierBookings.Select(x => x.Id).SingleAsync());
+
+        var reportResponse = await harness.Client.PostAsJsonAsync($"/agent/campaigns/{campaignId}/delivery-reports", new
+        {
+            supplierBookingId = bookingId,
+            reportType = "delivery_update",
+            headline = "Week one delivery confirmed",
+            summary = "Stations have started airing the booked spots.",
+            impressions = 120000L,
+            playsOrSpots = 84,
+            spendDelivered = 22500m
+        });
+
+        reportResponse.StatusCode.Should().Be(HttpStatusCode.Accepted);
+
+        var campaign = await harness.ExecuteDbAsync(db => db.Campaigns
+            .Include(x => x.CampaignSupplierBookings)
+            .Include(x => x.CampaignDeliveryReports)
+            .SingleAsync(x => x.Id == campaignId));
+
+        campaign.CampaignSupplierBookings.Should().ContainSingle(x => x.SupplierOrStation == "Metro FM" && x.BookingStatus == "booked");
+        campaign.CampaignDeliveryReports.Should().ContainSingle(x => x.Headline == "Week one delivery confirmed" && x.PlaysOrSpots == 84);
+
+        var emailService = harness.Services.GetRequiredService<StubTemplatedEmailService>();
+        emailService.SentEmails.Select(x => x.TemplateName).Should().Contain(new[]
+        {
+            "campaign-booking-confirmed",
+            "campaign-report-available"
+        });
+    }
+
+    [Fact]
+    public async Task AdminCanProcessRefundBeforeWorkStarts()
+    {
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var clientUser = TestSeed.CreateUser();
+                var adminUser = TestSeed.CreateAdmin();
+                var (band, order, campaign) = TestSeed.CreateCampaignGraph(clientUser, selectedBudget: 38000m, status: "paid");
+                order.Amount = 41800m;
+
+                db.UserAccounts.AddRange(clientUser, adminUser);
+                db.PackageBands.Add(band);
+                db.PackageOrders.Add(order);
+                db.Campaigns.Add(campaign);
+                db.SaveChanges();
+            });
+
+        var campaignId = await harness.ExecuteDbAsync(db => db.Campaigns.Select(x => x.Id).SingleAsync());
+        var adminUserId = await harness.ExecuteDbAsync(db => db.UserAccounts.Where(x => x.Role == UserRole.Admin).Select(x => x.Id).SingleAsync());
+        harness.Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await harness.CreateSessionTokenAsync(adminUserId));
+
+        var response = await harness.Client.PostAsJsonAsync($"/admin/campaign-operations/{campaignId}/refund", new
+        {
+            gatewayFeeRetainedAmount = 800m
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var order = await harness.ExecuteDbAsync(db => db.PackageOrders.SingleAsync());
+        order.RefundedAmount.Should().Be(41000m);
+        order.GatewayFeeRetainedAmount.Should().Be(800m);
+        order.RefundStatus.Should().Be("refunded");
+    }
+
+    [Fact]
+    public async Task AdminCanPauseAndResumeCampaignAndCarryPausedDays()
+    {
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var clientUser = TestSeed.CreateUser();
+                var adminUser = TestSeed.CreateAdmin();
+                var (band, order, campaign) = TestSeed.CreateCampaignGraph(clientUser, selectedBudget: 250000m, status: "launched");
+                campaign.CampaignBrief = new CampaignBrief
+                {
+                    Id = Guid.NewGuid(),
+                    CampaignId = campaign.Id,
+                    Objective = "launch",
+                    GeographyScope = "regional",
+                    StartDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-2)),
+                    EndDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(12)),
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                db.UserAccounts.AddRange(clientUser, adminUser);
+                db.PackageBands.Add(band);
+                db.PackageOrders.Add(order);
+                db.Campaigns.Add(campaign);
+                db.SaveChanges();
+            });
+
+        var campaignId = await harness.ExecuteDbAsync(db => db.Campaigns.Select(x => x.Id).SingleAsync());
+        var adminUserId = await harness.ExecuteDbAsync(db => db.UserAccounts.Where(x => x.Role == UserRole.Admin).Select(x => x.Id).SingleAsync());
+        harness.Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await harness.CreateSessionTokenAsync(adminUserId));
+
+        var pauseResponse = await harness.Client.PostAsJsonAsync($"/admin/campaign-operations/{campaignId}/pause", new
+        {
+            reason = "Waiting for client stock confirmation"
+        });
+
+        pauseResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        await harness.ExecuteDbAsync(async db =>
+        {
+            var campaign = await db.Campaigns.SingleAsync(x => x.Id == campaignId);
+            campaign.PausedAt = DateTime.UtcNow.AddDays(-3);
+            await db.SaveChangesAsync();
+            return true;
+        });
+
+        var resumeResponse = await harness.Client.PostAsJsonAsync($"/admin/campaign-operations/{campaignId}/unpause", new
+        {
+            reason = "Stock confirmed and campaign resumed"
+        });
+
+        resumeResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var campaignAfterResume = await harness.ExecuteDbAsync(db => db.Campaigns.Include(x => x.CampaignBrief).SingleAsync(x => x.Id == campaignId));
+        campaignAfterResume.PausedAt.Should().BeNull();
+        campaignAfterResume.TotalPausedDays.Should().Be(3);
+        campaignAfterResume.PauseReason.Should().Be("Stock confirmed and campaign resumed");
+    }
 }
 
 public class ResendEmailServiceFallbackTests
@@ -458,6 +625,7 @@ internal sealed class TestApiHarness : IAsyncDisposable
         builder.Services.AddScoped<IEmailVerificationService, StubEmailVerificationService>();
         builder.Services.AddScoped<IInvoiceService, StubInvoiceService>();
         builder.Services.AddScoped<IRecommendationDocumentService, StubRecommendationDocumentService>();
+        builder.Services.AddScoped<IPublicAssetStorage, StubPublicAssetStorage>();
         builder.Services.AddScoped<IMediaPlanningEngine, StubMediaPlanningEngine>();
         builder.Services.AddScoped<ICampaignReasoningService, StubCampaignReasoningService>();
         builder.Services.AddScoped<ICampaignRecommendationService, CampaignRecommendationService>();
@@ -570,6 +738,26 @@ internal static class TestSeed
         };
     }
 
+    public static UserAccount CreateAdmin()
+    {
+        var now = DateTime.UtcNow;
+        return new UserAccount
+        {
+            Id = Guid.NewGuid(),
+            FullName = "Advertified Test Admin",
+            Email = "admin@example.com",
+            Phone = "0821111111",
+            PasswordHash = "hash",
+            IsSaCitizen = true,
+            EmailVerified = true,
+            PhoneVerified = true,
+            Role = UserRole.Admin,
+            AccountStatus = AccountStatus.Active,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+    }
+
     public static (PackageBand band, PackageOrder order, Campaign campaign) CreateCampaignGraph(UserAccount user, decimal selectedBudget, string status = "paid")
     {
         var now = DateTime.UtcNow;
@@ -595,6 +783,7 @@ internal static class TestSeed
             Currency = "ZAR",
             PaymentProvider = "vodapay",
             PaymentStatus = "paid",
+            RefundStatus = "none",
             CreatedAt = now,
             UpdatedAt = now,
             PurchasedAt = now
@@ -755,6 +944,18 @@ internal sealed class StubInvoiceService : IInvoiceService
 
     public Task<byte[]> GetPdfBytesAsync(Guid invoiceId, CancellationToken cancellationToken)
         => throw new NotSupportedException();
+}
+
+internal sealed class StubPublicAssetStorage : IPublicAssetStorage
+{
+    public Task<string> SaveAsync(string objectKey, byte[] content, string contentType, CancellationToken cancellationToken)
+        => Task.FromResult(objectKey);
+
+    public Task<byte[]> GetBytesAsync(string objectKey, CancellationToken cancellationToken)
+        => Task.FromResult(Array.Empty<byte>());
+
+    public string? GetPublicUrl(string objectKey)
+        => $"/campaign-assets/{Uri.EscapeDataString(objectKey)}";
 }
 
 internal sealed class StubWebHostEnvironment : IWebHostEnvironment

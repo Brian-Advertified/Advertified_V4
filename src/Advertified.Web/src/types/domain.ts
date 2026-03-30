@@ -1,5 +1,6 @@
 export type UserRole = 'client' | 'agent' | 'creative_director' | 'admin';
 export type PaymentStatus = 'pending' | 'paid' | 'failed';
+export type RefundStatus = 'none' | 'partial' | 'refunded';
 export type PaymentProvider = 'vodapay' | 'lula';
 export type CampaignStatus =
   | 'awaiting_purchase'
@@ -88,6 +89,12 @@ export interface PackagePreview {
   note: string;
 }
 
+export interface PackagePricingSummary {
+  selectedBudget: number;
+  chargedAmount: number;
+  aiStudioReserveAmount: number;
+}
+
 export interface PackageOrder {
   id: string;
   userId: string;
@@ -97,6 +104,11 @@ export interface PackageOrder {
   currency: string;
   paymentProvider: string;
   paymentStatus: PaymentStatus;
+  refundStatus: RefundStatus;
+  refundedAmount: number;
+  gatewayFeeRetainedAmount: number;
+  refundReason?: string;
+  refundProcessedAt?: string;
   createdAt: string;
   paymentReference?: string;
   invoiceId?: string;
@@ -189,6 +201,42 @@ export interface CampaignRecommendation {
   items: RecommendationItem[];
 }
 
+export interface CampaignAsset {
+  id: string;
+  assetType: string;
+  displayName: string;
+  publicUrl?: string;
+  contentType?: string;
+  sizeBytes: number;
+  createdAt: string;
+}
+
+export interface CampaignSupplierBooking {
+  id: string;
+  supplierOrStation: string;
+  channel: string;
+  bookingStatus: string;
+  committedAmount: number;
+  bookedAt?: string;
+  liveFrom?: string;
+  liveTo?: string;
+  notes?: string;
+  proofAsset?: CampaignAsset;
+}
+
+export interface CampaignDeliveryReport {
+  id: string;
+  supplierBookingId?: string;
+  reportType: string;
+  headline: string;
+  summary?: string;
+  reportedAt?: string;
+  impressions?: number;
+  playsOrSpots?: number;
+  spendDelivered?: number;
+  evidenceAsset?: CampaignAsset;
+}
+
 export interface CampaignTimelineStep {
   key: string;
   label: string;
@@ -223,6 +271,13 @@ export interface Campaign {
   recommendations: CampaignRecommendation[];
   recommendation?: CampaignRecommendation;
   recommendationPdfUrl?: string;
+  creativeSystems: CampaignCreativeSystemRecord[];
+  latestCreativeSystem?: CampaignCreativeSystemRecord;
+  assets: CampaignAsset[];
+  supplierBookings: CampaignSupplierBooking[];
+  deliveryReports: CampaignDeliveryReport[];
+  effectiveEndDate?: string;
+  daysLeft?: number;
   createdAt: string;
 }
 
@@ -264,6 +319,115 @@ export interface CampaignConversationThread {
   unreadCount: number;
   canSend: boolean;
   messages: CampaignConversationMessage[];
+}
+
+export interface NotificationSummaryItem {
+  id: string;
+  title: string;
+  description: string;
+  href: string;
+  tone: 'info' | 'success' | 'warning';
+}
+
+export interface NotificationSummary {
+  unreadCount: number;
+  items: NotificationSummaryItem[];
+}
+
+export interface CreativeCampaignSummary {
+  brand: string;
+  product: string;
+  audience: string;
+  objective: string;
+  tone: string;
+  channels: string[];
+  cta: string;
+  constraints: string[];
+  assumptions: string[];
+}
+
+export interface CreativeMasterIdea {
+  coreConcept: string;
+  centralMessage: string;
+  emotionalAngle: string;
+  valueProposition: string;
+  platformIdea: string;
+}
+
+export interface CreativeScene {
+  order: number;
+  title: string;
+  purpose: string;
+  visual: string;
+  copyOrDialogue: string;
+  onScreenText?: string;
+  duration?: string;
+}
+
+export interface CreativeNarrative {
+  hook: string;
+  setup: string;
+  tensionOrProblem: string;
+  solution: string;
+  payoff: string;
+  cta: string;
+  scenes: CreativeScene[];
+}
+
+export interface CreativeChannelAdaptation {
+  channel: string;
+  format: string;
+  headlineOrHook: string;
+  primaryCopy: string;
+  cta: string;
+  visualDirection: string;
+  voiceoverOrAudio?: string;
+  recommendedDirection: string;
+  adapterPrompt: string;
+  sections: CreativeChannelSection[];
+  versions: CreativeChannelVersion[];
+  productionAssets: string[];
+}
+
+export interface CreativeChannelSection {
+  label: string;
+  content: string;
+}
+
+export interface CreativeChannelVersion {
+  label: string;
+  intent: string;
+  headlineOrHook: string;
+  primaryCopy: string;
+  cta: string;
+}
+
+export interface CreativeVisualDirection {
+  lookAndFeel: string;
+  typography: string;
+  colorDirection: string;
+  composition: string;
+  imageGenerationPrompts: string[];
+}
+
+export interface CreativeSystem {
+  campaignSummary: CreativeCampaignSummary;
+  masterIdea: CreativeMasterIdea;
+  campaignLineOptions: string[];
+  storyboard: CreativeNarrative;
+  channelAdaptations: CreativeChannelAdaptation[];
+  visualDirection: CreativeVisualDirection;
+  audioVoiceNotes: string[];
+  productionNotes: string[];
+  optionalVariations: string[];
+}
+
+export interface CampaignCreativeSystemRecord {
+  id: string;
+  prompt: string;
+  iterationLabel?: string;
+  createdAt: string;
+  output: CreativeSystem;
 }
 
 export interface AgentInboxItem {
@@ -347,6 +511,41 @@ export interface AdminIntegrationStatus {
   paymentWebhookAuditCount: number;
   lastPaymentRequestAt?: string;
   lastPaymentWebhookAt?: string;
+}
+
+export interface AdminCampaignOperationsItem {
+  campaignId: string;
+  packageOrderId: string;
+  campaignName: string;
+  campaignStatus: CampaignStatus | string;
+  clientName: string;
+  clientEmail: string;
+  packageBandName: string;
+  selectedBudget: number;
+  chargedTotal: number;
+  paymentStatus: PaymentStatus | string;
+  refundStatus: RefundStatus | string;
+  refundedAmount: number;
+  remainingCollectedAmount: number;
+  suggestedRefundAmount: number;
+  maxManualRefundAmount: number;
+  gatewayFeeRetainedAmount: number;
+  refundPolicyStage: string;
+  refundPolicyLabel: string;
+  refundPolicySummary: string;
+  refundReason?: string;
+  refundProcessedAt?: string;
+  isPaused: boolean;
+  pauseReason?: string;
+  pausedAt?: string;
+  totalPausedDays: number;
+  startDate?: string;
+  endDate?: string;
+  effectiveEndDate?: string;
+  daysLeft?: number;
+  canPause: boolean;
+  canUnpause: boolean;
+  canProcessRefund: boolean;
 }
 
 export interface AdminSummary {
@@ -472,6 +671,13 @@ export interface AdminPackageSetting {
   benefits: string[];
 }
 
+export interface AdminPricingSettings {
+  aiStudioReservePercent: number;
+  oohMarkupPercent: number;
+  radioMarkupPercent: number;
+  tvMarkupPercent: number;
+}
+
 export interface AdminEnginePolicy {
   packageCode: string;
   budgetFloor: number;
@@ -544,6 +750,7 @@ export interface AdminDashboard {
   healthIssues: AdminHealthIssue[];
   areas: AdminAreaMapping[];
   packageSettings: AdminPackageSetting[];
+  pricingSettings: AdminPricingSettings;
   enginePolicies: AdminEnginePolicy[];
   previewRules: AdminPreviewRule[];
   monitoring: AdminMonitoring;
@@ -569,6 +776,13 @@ export interface AdminUpsertPackageSettingInput {
   recommendedSpend?: number;
   isRecommended: boolean;
   benefits: string[];
+}
+
+export interface AdminUpdatePricingSettingsInput {
+  aiStudioReservePercent: number;
+  oohMarkupPercent: number;
+  radioMarkupPercent: number;
+  tvMarkupPercent: number;
 }
 
 export interface AdminCreateOutletInput {

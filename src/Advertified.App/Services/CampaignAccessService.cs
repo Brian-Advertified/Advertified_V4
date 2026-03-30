@@ -1,5 +1,6 @@
 using Advertified.App.Data;
 using Advertified.App.Services.Abstractions;
+using Advertified.App.Support;
 using Microsoft.EntityFrameworkCore;
 
 namespace Advertified.App.Services;
@@ -40,9 +41,9 @@ public sealed class CampaignAccessService : ICampaignAccessService
             .FirstOrDefaultAsync(x => x.Id == campaignId && x.UserId == userId, cancellationToken)
             ?? throw new InvalidOperationException("Campaign not found.");
 
-        if (campaign.PackageOrder.PaymentStatus != "paid")
+        if (!CampaignOperationsPolicy.IsOrderOperationallyActive(campaign.PackageOrder))
         {
-            throw new InvalidOperationException("This package has not been paid for yet.");
+            throw new InvalidOperationException("This package is not active for planning.");
         }
     }
 
@@ -53,9 +54,9 @@ public sealed class CampaignAccessService : ICampaignAccessService
             .FirstOrDefaultAsync(x => x.Id == campaignId && x.UserId == userId, cancellationToken)
             ?? throw new InvalidOperationException("Campaign not found.");
 
-        if (campaign.PackageOrder.PaymentStatus != "paid")
+        if (!CampaignOperationsPolicy.IsOrderOperationallyActive(campaign.PackageOrder))
         {
-            throw new InvalidOperationException("You must pay for your package before planning.");
+            throw new InvalidOperationException("You must have an active paid package before planning.");
         }
 
         if (!campaign.AiUnlocked)
@@ -63,7 +64,7 @@ public sealed class CampaignAccessService : ICampaignAccessService
             throw new InvalidOperationException("Submit your campaign brief before AI planning becomes available.");
         }
 
-        if (campaign.Status is not ("brief_submitted" or "planning_in_progress"))
+        if (campaign.Status is not (CampaignStatuses.BriefSubmitted or CampaignStatuses.PlanningInProgress))
         {
             throw new InvalidOperationException("This campaign is not ready for planning.");
         }

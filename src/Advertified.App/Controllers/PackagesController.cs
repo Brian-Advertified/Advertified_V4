@@ -1,4 +1,5 @@
 using Advertified.App.Services.Abstractions;
+using Advertified.App.Support;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Advertified.App.Controllers;
@@ -10,15 +11,18 @@ public sealed class PackagesController : ControllerBase
     private readonly IPackageCatalogService _packageCatalogService;
     private readonly IPackageAreaService _packageAreaService;
     private readonly IPackagePreviewService _packagePreviewService;
+    private readonly IPricingSettingsProvider _pricingSettingsProvider;
 
     public PackagesController(
         IPackageCatalogService packageCatalogService,
         IPackageAreaService packageAreaService,
-        IPackagePreviewService packagePreviewService)
+        IPackagePreviewService packagePreviewService,
+        IPricingSettingsProvider pricingSettingsProvider)
     {
         _packageCatalogService = packageCatalogService;
         _packageAreaService = packageAreaService;
         _packagePreviewService = packagePreviewService;
+        _pricingSettingsProvider = pricingSettingsProvider;
     }
 
     [HttpGet]
@@ -47,5 +51,17 @@ public sealed class PackagesController : ControllerBase
                 title: exception.Message,
                 statusCode: StatusCodes.Status400BadRequest);
         }
+    }
+
+    [HttpGet("pricing-summary")]
+    public async Task<IActionResult> GetPricingSummary([FromQuery] decimal selectedBudget, CancellationToken cancellationToken)
+    {
+        var settings = await _pricingSettingsProvider.GetCurrentAsync(cancellationToken);
+        return Ok(new Contracts.Packages.PackagePricingSummaryResponse
+        {
+            SelectedBudget = selectedBudget,
+            ChargedAmount = PricingPolicy.CalculateChargedAmount(selectedBudget, settings.AiStudioReservePercent),
+            AiStudioReserveAmount = PricingPolicy.CalculateAiStudioReserveAmount(selectedBudget, settings.AiStudioReservePercent)
+        });
     }
 }

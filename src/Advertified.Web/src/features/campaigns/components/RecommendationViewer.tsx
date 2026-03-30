@@ -1,5 +1,5 @@
 import { Download } from 'lucide-react';
-import { formatCurrency } from '../../../lib/utils';
+import { titleCase, formatCurrency } from '../../../lib/utils';
 import type { CampaignRecommendation } from '../../../types/domain';
 import { StatusBadge } from '../../../components/ui/StatusBadge';
 
@@ -49,7 +49,7 @@ export function RecommendationViewer({ recommendation, recommendationPdfUrl }: {
             </a>
           ) : null}
           <div className="rounded-2xl bg-brand-soft px-4 py-3 text-right">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Projected total</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Campaign total</p>
             <p className="mt-1 text-2xl font-semibold text-ink">{formatCurrency(recommendation.totalCost)}</p>
           </div>
         </div>
@@ -63,10 +63,10 @@ export function RecommendationViewer({ recommendation, recommendationPdfUrl }: {
           </p>
         </div>
         <div className="rounded-[24px] border border-line bg-slate-50 px-5 py-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Planned lines</p>
-          <p className="mt-3 text-lg font-semibold text-ink">{baseItems.length} line item(s)</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Planned placements</p>
+          <p className="mt-3 text-lg font-semibold text-ink">{baseItems.length} placement{baseItems.length === 1 ? '' : 's'}</p>
           <p className="mt-2 text-sm leading-7 text-ink-soft">
-            Each line has been checked against budget, campaign fit, and available inventory.
+            Each placement has been checked against campaign fit and available inventory.
           </p>
         </div>
         <div className="rounded-[24px] border border-line bg-slate-50 px-5 py-5">
@@ -123,8 +123,8 @@ export function RecommendationViewer({ recommendation, recommendationPdfUrl }: {
                 ) : null}
               </div>
               <div className="text-right">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">{item.type}</p>
-                <p className="mt-2 text-xl font-semibold text-ink">{formatCurrency(item.cost)}</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">{titleCase(item.type)}</p>
+                <p className="mt-2 text-sm font-semibold text-ink">{item.quantity} placement{item.quantity === 1 ? '' : 's'}</p>
               </div>
             </div>
           </div>

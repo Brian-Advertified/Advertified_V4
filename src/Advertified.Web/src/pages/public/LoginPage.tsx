@@ -24,7 +24,7 @@ export function LoginPage() {
       });
       navigate(
         (location.state as { from?: string } | null)?.from
-          ?? (user.role === 'admin' ? '/admin' : user.role === 'creative_director' ? '/creative' : user.role === 'agent' ? '/agent' : '/dashboard'),
+          ?? (user.role === 'admin' ? '/admin' : user.role === 'creative_director' ? '/creative/studio-demo' : user.role === 'agent' ? '/agent' : '/dashboard'),
       );
     } catch (error) {
       pushToast({

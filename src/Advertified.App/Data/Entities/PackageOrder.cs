@@ -29,6 +29,20 @@ public partial class PackageOrder
 
     public decimal? SelectedBudget { get; set; }
 
+    public decimal AiStudioReservePercent { get; set; }
+
+    public decimal AiStudioReserveAmount { get; set; }
+
+    public string RefundStatus { get; set; } = "none";
+
+    public decimal RefundedAmount { get; set; }
+
+    public decimal GatewayFeeRetainedAmount { get; set; }
+
+    public string? RefundReason { get; set; }
+
+    public DateTime? RefundProcessedAt { get; set; }
+
     public virtual Campaign? Campaign { get; set; }
     public virtual Invoice? Invoice { get; set; }
 

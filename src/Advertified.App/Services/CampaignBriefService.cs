@@ -4,6 +4,7 @@ using Advertified.App.Configuration;
 using Advertified.App.Data;
 using Advertified.App.Data.Entities;
 using Advertified.App.Services.Abstractions;
+using Advertified.App.Support;
 using Advertified.App.Validation;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
@@ -49,9 +50,9 @@ public sealed class CampaignBriefService : ICampaignBriefService
             .FirstOrDefaultAsync(x => x.Id == campaignId && x.UserId == userId, cancellationToken)
             ?? throw new InvalidOperationException("Campaign not found.");
 
-        if (campaign.PackageOrder.PaymentStatus != "paid")
+        if (!CampaignOperationsPolicy.IsOrderOperationallyActive(campaign.PackageOrder))
         {
-            throw new InvalidOperationException("Package must be paid before the campaign brief can be completed.");
+            throw new InvalidOperationException("Package must be active before the campaign brief can be completed.");
         }
 
         var now = DateTime.UtcNow;
@@ -91,7 +92,7 @@ public sealed class CampaignBriefService : ICampaignBriefService
             draft.SavedAt = now;
         }
 
-        campaign.Status = "brief_in_progress";
+        campaign.Status = CampaignStatuses.BriefInProgress;
         campaign.UpdatedAt = now;
         await _db.SaveChangesAsync(cancellationToken);
         await _agentAreaRoutingService.TryAssignCampaignAsync(campaignId, "brief_saved", cancellationToken);
@@ -106,9 +107,9 @@ public sealed class CampaignBriefService : ICampaignBriefService
             .FirstOrDefaultAsync(x => x.Id == campaignId && x.UserId == userId, cancellationToken)
             ?? throw new InvalidOperationException("Campaign not found.");
 
-        if (campaign.PackageOrder.PaymentStatus != "paid")
+        if (!CampaignOperationsPolicy.IsOrderOperationallyActive(campaign.PackageOrder))
         {
-            throw new InvalidOperationException("Package must be paid before brief submission.");
+            throw new InvalidOperationException("Package must be active before brief submission.");
         }
 
         var brief = await _db.CampaignBriefs
@@ -117,7 +118,7 @@ public sealed class CampaignBriefService : ICampaignBriefService
 
         brief.SubmittedAt = DateTime.UtcNow;
         brief.UpdatedAt = DateTime.UtcNow;
-        campaign.Status = "brief_submitted";
+        campaign.Status = CampaignStatuses.BriefSubmitted;
         campaign.AiUnlocked = true;
         campaign.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
@@ -157,14 +158,14 @@ public sealed class CampaignBriefService : ICampaignBriefService
             .FirstOrDefaultAsync(x => x.Id == campaignId && x.UserId == userId, cancellationToken)
             ?? throw new InvalidOperationException("Campaign not found.");
 
-        if (campaign.Status is not ("brief_submitted" or "planning_in_progress"))
+        if (campaign.Status is not (CampaignStatuses.BriefSubmitted or CampaignStatuses.PlanningInProgress))
         {
             throw new InvalidOperationException("Planning mode can only be selected after brief submission.");
         }
 
         campaign.PlanningMode = planningMode;
         campaign.AgentAssistanceRequested = planningMode is "agent_assisted" or "hybrid";
-        campaign.Status = "planning_in_progress";
+        campaign.Status = CampaignStatuses.PlanningInProgress;
         campaign.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
     }

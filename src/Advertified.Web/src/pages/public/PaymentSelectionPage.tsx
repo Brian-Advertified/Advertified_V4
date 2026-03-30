@@ -54,7 +54,13 @@ export function PaymentSelectionPage() {
   const [isResendingActivation, setIsResendingActivation] = React.useState(false);
 
   const packagesQuery = useQuery({ queryKey: ['packages'], queryFn: advertifiedApi.getPackages });
+  const pricingSummaryQuery = useQuery({
+    queryKey: ['package-pricing-summary', amount],
+    queryFn: () => advertifiedApi.getPackagePricingSummary(amount),
+    enabled: Number.isFinite(amount) && amount > 0,
+  });
   const selectedBand = packagesQuery.data?.find((item) => item.id === packageBandId);
+  const chargedAmount = pricingSummaryQuery.data?.chargedAmount ?? amount;
 
   const checkoutMutation = useMutation({
     mutationFn: async (paymentProvider: PaymentProvider) => {
@@ -91,7 +97,7 @@ export function PaymentSelectionPage() {
     return <Navigate to="/packages" replace />;
   }
 
-  if (packagesQuery.isLoading) {
+  if (packagesQuery.isLoading || pricingSummaryQuery.isLoading) {
     return <LoadingState label="Loading payment options..." />;
   }
 
@@ -115,7 +121,7 @@ export function PaymentSelectionPage() {
       <PageHero
         kicker="Payment"
         title="Choose your payment method."
-        description={`Select the provider you want to use for ${selectedBand.name} at ${formatCurrency(amount)}.`}
+        description={`Select the provider you want to use for ${selectedBand.name} at ${formatCurrency(chargedAmount)}.`}
         actions={(
           <Link
             to={`/packages?band=${encodeURIComponent(selectedBand.code)}`}
@@ -163,7 +169,7 @@ export function PaymentSelectionPage() {
           <div>
             <p className="package-preview-tab-label">Order summary</p>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight text-ink">{selectedBand.name}</h2>
-            <p className="mt-1 text-sm text-ink-soft">{formatCurrency(amount)} in the {selectedArea.replace('-', ' ')} planning area.</p>
+            <p className="mt-1 text-sm text-ink-soft">{formatCurrency(chargedAmount)} in the {selectedArea.replace('-', ' ')} planning area.</p>
           </div>
 
           <div className="space-y-3 rounded-[20px] border border-line bg-white px-4 py-4">

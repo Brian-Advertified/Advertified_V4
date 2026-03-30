@@ -29,4 +29,11 @@ public sealed class CampaignDetailResponse
     public IReadOnlyList<CampaignRecommendationResponse> Recommendations { get; set; } = Array.Empty<CampaignRecommendationResponse>();
     public CampaignRecommendationResponse? Recommendation { get; set; }
     public string? RecommendationPdfUrl { get; set; }
+    public IReadOnlyList<CampaignCreativeSystemResponse> CreativeSystems { get; set; } = Array.Empty<CampaignCreativeSystemResponse>();
+    public CampaignCreativeSystemResponse? LatestCreativeSystem { get; set; }
+    public IReadOnlyList<CampaignAssetResponse> Assets { get; set; } = Array.Empty<CampaignAssetResponse>();
+    public IReadOnlyList<CampaignSupplierBookingResponse> SupplierBookings { get; set; } = Array.Empty<CampaignSupplierBookingResponse>();
+    public IReadOnlyList<CampaignDeliveryReportResponse> DeliveryReports { get; set; } = Array.Empty<CampaignDeliveryReportResponse>();
+    public DateOnly? EffectiveEndDate { get; set; }
+    public int? DaysLeft { get; set; }
 }

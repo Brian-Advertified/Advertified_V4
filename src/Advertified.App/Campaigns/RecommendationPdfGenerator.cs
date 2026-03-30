@@ -104,7 +104,7 @@ internal static class RecommendationPdfGenerator
 
                                 row.ConstantItem(160).AlignRight().Column(col =>
                                 {
-                                    col.Item().Text("Proposal total").FontColor("#4B5563");
+                                    col.Item().Text("Campaign total").FontColor("#4B5563");
                                     col.Item().Text(FormatCurrency(proposal.TotalCost)).SemiBold().FontSize(14);
                                 });
                             });
@@ -135,7 +135,6 @@ internal static class RecommendationPdfGenerator
                                         row.ConstantItem(130).AlignRight().Column(col =>
                                         {
                                             col.Item().Text($"Qty: {item.Quantity}").FontColor("#4B5563");
-                                            col.Item().Text(FormatCurrency(item.Cost)).SemiBold();
                                         });
                                     });
 
@@ -229,7 +228,6 @@ public static class RecommendationPdfPreviewFactory
                             Channel = "OOH",
                             Title = "Sandton Drive digital screen",
                             Rationale = "Premium commuter visibility close to retail and corporate traffic.",
-                            Cost = 45000m,
                             Quantity = 1,
                             Region = "Sandton, Johannesburg, Gauteng",
                             Duration = "4 weeks",
@@ -247,7 +245,6 @@ public static class RecommendationPdfPreviewFactory
                             Channel = "Radio",
                             Title = "Kaya 959 breakfast support",
                             Rationale = "High-value urban audience support during high-attention drive and breakfast windows.",
-                            Cost = 38500m,
                             Quantity = 1,
                             Region = "Gauteng",
                             Language = "English",
@@ -263,7 +260,6 @@ public static class RecommendationPdfPreviewFactory
                             Channel = "TV",
                             Title = "SABC 3 prime support",
                             Rationale = "Adds broad brand authority and premium visibility for the launch burst.",
-                            Cost = 38000m,
                             Quantity = 1,
                             Region = "National",
                             TimeBand = "Prime time",
@@ -312,7 +308,6 @@ internal sealed class RecommendationLineDocumentModel
     public string Channel { get; init; } = string.Empty;
     public string Title { get; init; } = string.Empty;
     public string Rationale { get; init; } = string.Empty;
-    public decimal Cost { get; init; }
     public int Quantity { get; init; }
     public string? Region { get; init; }
     public string? Language { get; init; }

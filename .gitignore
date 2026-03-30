@@ -5,6 +5,7 @@ obj/
 TestResults/
 .dotnet/
 artifacts/
+.artifacts/
 .buildcheck/
 .runlogs/
 .vite/

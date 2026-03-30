@@ -69,6 +69,17 @@ create table if not exists invoice_line_items
 
 create index if not exists ix_invoice_line_items_invoice_id on invoice_line_items(invoice_id);
 
+update invoice_issuer_profiles
+set
+    legal_name = 'Black Space PSG (Pty) Ltd t/a Black Space VSBLT',
+    vat_number = '4210266484',
+    address = E'08 Kikuyu Road\nSunninghill\nGauteng\n2191',
+    contact_email = 'info@blackspacegroup.co.za',
+    contact_phone = '0812549067',
+    is_active = true,
+    updated_at_utc = timezone('utc', now())
+where registration_number = '2014/147638/07';
+
 insert into invoice_issuer_profiles
 (
     legal_name,
@@ -87,4 +98,15 @@ select
     'info@blackspacegroup.co.za',
     '0812549067',
     true
-where not exists (select 1 from invoice_issuer_profiles where is_active = true);
+where not exists (
+    select 1
+    from invoice_issuer_profiles
+    where registration_number = '2014/147638/07'
+);
+
+update invoice_issuer_profiles
+set
+    is_active = false,
+    updated_at_utc = timezone('utc', now())
+where registration_number <> '2014/147638/07'
+  and is_active = true;

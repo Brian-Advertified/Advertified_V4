@@ -322,22 +322,42 @@ textarea {
 }
 
 .checkout-status-page-success {
+  --checkout-status-color: #14b86e;
   background-image:
     radial-gradient(ellipse 60% 50% at 15% 50%, rgba(20, 184, 110, 0.08), transparent),
     radial-gradient(ellipse 40% 40% at 85% 20%, rgba(15, 118, 110, 0.05), transparent);
 }
 
 .checkout-status-page-failed {
+  --checkout-status-color: #dc2626;
   background-image:
     radial-gradient(ellipse 60% 50% at 15% 50%, rgba(220, 38, 38, 0.07), transparent),
     radial-gradient(ellipse 40% 40% at 85% 20%, rgba(220, 38, 38, 0.03), transparent);
 }
 
 .checkout-status-page-pending {
+  --checkout-status-color: #d97706;
   background-image:
     radial-gradient(ellipse 60% 50% at 15% 50%, rgba(217, 119, 6, 0.07), transparent),
     radial-gradient(ellipse 40% 40% at 85% 20%, rgba(217, 119, 6, 0.03), transparent);
 }
+
+.checkout-status-animate {
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    opacity 0.45s cubic-bezier(0.16, 1, 0.3, 1) var(--checkout-status-delay, 0ms),
+    transform 0.45s cubic-bezier(0.16, 1, 0.3, 1) var(--checkout-status-delay, 0ms);
+}
+
+.checkout-status-delay-0 { --checkout-status-delay: 0ms; }
+.checkout-status-delay-60 { --checkout-status-delay: 60ms; }
+.checkout-status-delay-110 { --checkout-status-delay: 110ms; }
+.checkout-status-delay-150 { --checkout-status-delay: 150ms; }
+.checkout-status-delay-200 { --checkout-status-delay: 200ms; }
+.checkout-status-delay-250 { --checkout-status-delay: 250ms; }
+.checkout-status-delay-290 { --checkout-status-delay: 290ms; }
+.checkout-status-delay-310 { --checkout-status-delay: 310ms; }
 
 .checkout-status-card {
   width: 100%;

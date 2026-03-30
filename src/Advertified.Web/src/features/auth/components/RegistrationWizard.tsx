@@ -2,6 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { type AddressAutofillRetrieveResponse } from '@mapbox/search-js-core';
 import { AddressAutofill } from '@mapbox/search-js-react';
 import { Eye, EyeOff } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useState, type ReactNode } from 'react';
 import { useForm } from 'react-hook-form';
 import type { RegistrationSchema } from '../schemas';
@@ -299,13 +300,13 @@ export function RegistrationWizard({
       <div className="register-consent">
         <label className="register-checkbox">
           <input type="checkbox" {...register('acceptTerms')} />
-          <span>I accept the Advertified terms and conditions.</span>
+          <span>I accept the Advertified <Link to="/terms-of-service" className="font-semibold text-brand underline">terms and conditions</Link> and confirm that I am 18 years or older.</span>
         </label>
         {errors.acceptTerms ? <p className="register-error">{errors.acceptTerms.message}</p> : null}
 
         <label className="register-checkbox">
           <input type="checkbox" {...register('acceptPopia')} />
-          <span>I consent to POPIA-aligned processing for onboarding, verification, payment, and campaign planning.</span>
+          <span>I consent to POPIA-aligned processing for onboarding, verification, payment, campaign planning, and billing as described in the <Link to="/privacy" className="font-semibold text-brand underline">privacy policy</Link>.</span>
         </label>
         {errors.acceptPopia ? <p className="register-error">{errors.acceptPopia.message}</p> : null}
       </div>

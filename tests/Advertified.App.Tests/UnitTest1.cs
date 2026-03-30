@@ -11,6 +11,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using System.Text.Json;
+using CampaignBriefEntity = Advertified.App.Data.Entities.CampaignBrief;
 using CampaignEntity = Advertified.App.Data.Entities.Campaign;
 using PackageBandEntity = Advertified.App.Data.Entities.PackageBand;
 using PackageOrderEntity = Advertified.App.Data.Entities.PackageOrder;
@@ -625,6 +626,69 @@ public class MediaPlanningEngineTests
     }
 }
 
+public class CreativeStudioIntelligenceServiceTests
+{
+    [Fact]
+    public async Task GenerateAsync_FallbackBuildsStructuredChannelAdaptationsWithVersions()
+    {
+        var service = new CreativeStudioIntelligenceService(
+            new HttpClient(),
+            Options.Create(new OpenAIOptions
+            {
+                Enabled = false,
+                ApiKey = string.Empty,
+                Model = "test-model"
+            }),
+            NullLogger<CreativeStudioIntelligenceService>.Instance);
+
+        var campaign = new CampaignEntity
+        {
+            Id = Guid.NewGuid(),
+            CampaignName = "Momentum Launch",
+            User = new UserAccount
+            {
+                FullName = "Test User",
+                BusinessProfile = new BusinessProfile
+                {
+                    BusinessName = "Advertified Labs"
+                }
+            },
+            PackageBand = new PackageBandEntity
+            {
+                Name = "Growth"
+            },
+            PackageOrder = new PackageOrderEntity
+            {
+                Amount = 75000m,
+                SelectedBudget = 75000m
+            },
+            CampaignRecommendations = new List<CampaignRecommendation>()
+        };
+
+        var brief = new CampaignBriefEntity
+        {
+            Objective = "Drive response",
+            TargetAudienceNotes = "Busy operators who want faster growth",
+            CreativeNotes = "Keep it premium but direct"
+        };
+
+        var request = new Advertified.App.Contracts.Creative.GenerateCreativeSystemRequest
+        {
+            Prompt = "Build a production-ready campaign system.",
+            Channels = new[] { "Billboard", "TikTok", "Social Static" },
+            Cta = "Book your rollout today"
+        };
+
+        var result = await service.GenerateAsync(campaign, brief, request, CancellationToken.None);
+
+        result.ChannelAdaptations.Should().HaveCount(3);
+        result.ChannelAdaptations.Should().OnlyContain(item => item.Versions.Count == 3);
+        result.ChannelAdaptations.Should().OnlyContain(item => item.Sections.Count > 0);
+        result.ChannelAdaptations.Should().OnlyContain(item => !string.IsNullOrWhiteSpace(item.AdapterPrompt));
+        result.ChannelAdaptations.Should().Contain(item => item.Channel == "Social Static");
+    }
+}
+
 public class BroadcastCostNormalizerTests
 {
     [Fact]
@@ -660,6 +724,164 @@ public class BroadcastCostNormalizerTests
         result.RawCostZar.Should().Be(80000m);
         result.MonthlyCostEstimateZar.Should().Be(40000m);
         result.CostType.Should().Be("tv_weekly_or_multi_week_package");
+    }
+}
+
+public class PricingPolicyTests
+{
+    [Fact]
+    public void CalculateChargedAmount_AddsHiddenAiStudioReserve()
+    {
+        var chargedAmount = Advertified.App.Support.PricingPolicy.CalculateChargedAmount(38000m, 0.10m);
+
+        chargedAmount.Should().Be(41800m);
+    }
+
+    [Fact]
+    public void ApplyMarkup_UsesConfiguredChannelPercentages()
+    {
+        var settings = new Advertified.App.Support.PricingSettingsSnapshot(0.10m, 0.05m, 0.10m, 0.10m);
+
+        Advertified.App.Support.PricingPolicy.ApplyMarkup(1000m, "OOH", "billboard", settings).Should().Be(1050m);
+        Advertified.App.Support.PricingPolicy.ApplyMarkup(1000m, "radio", null, settings).Should().Be(1100m);
+        Advertified.App.Support.PricingPolicy.ApplyMarkup(1000m, "tv", null, settings).Should().Be(1100m);
+    }
+}
+
+public class CampaignOperationsPolicyTests
+{
+    [Fact]
+    public void BuildRefundSnapshot_BeforeWorkStarts_AllowsFullRefund()
+    {
+        var campaign = CreateCampaign(status: "paid", chargedAmount: 41800m, selectedBudget: 38000m);
+
+        var snapshot = Advertified.App.Support.CampaignOperationsPolicy.BuildRefundSnapshot(campaign);
+
+        snapshot.Stage.Should().Be("before_work_starts");
+        snapshot.SuggestedRefundAmount.Should().Be(41800m);
+    }
+
+    [Fact]
+    public void BuildRefundSnapshot_StrategyInProgress_RetainsAiStudioReserve()
+    {
+        var campaign = CreateCampaign(status: "planning_in_progress", chargedAmount: 41800m, selectedBudget: 38000m);
+
+        var snapshot = Advertified.App.Support.CampaignOperationsPolicy.BuildRefundSnapshot(campaign);
+
+        snapshot.Stage.Should().Be("strategy_in_progress");
+        snapshot.SuggestedRefundAmount.Should().Be(38000m);
+    }
+
+    [Fact]
+    public void BuildRefundSnapshot_AfterApproval_RequiresManualAmount()
+    {
+        var campaign = CreateCampaign(status: "creative_approved", chargedAmount: 41800m, selectedBudget: 38000m);
+
+        var snapshot = Advertified.App.Support.CampaignOperationsPolicy.BuildRefundSnapshot(campaign);
+
+        snapshot.Stage.Should().Be("post_delivery_or_live");
+        snapshot.SuggestedRefundAmount.Should().Be(0m);
+        snapshot.MaxManualRefundAmount.Should().Be(41800m);
+    }
+
+    [Fact]
+    public void BuildScheduleSnapshot_ExtendsEndDateByPausedDays()
+    {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var campaign = CreateCampaign(status: "launched", chargedAmount: 100000m, selectedBudget: 90000m);
+        campaign.CampaignBrief = new Advertified.App.Data.Entities.CampaignBrief
+        {
+            Id = Guid.NewGuid(),
+            CampaignId = campaign.Id,
+            Objective = "launch",
+            GeographyScope = "regional",
+            StartDate = today.AddDays(-1),
+            EndDate = today.AddDays(9),
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        campaign.TotalPausedDays = 2;
+
+        var snapshot = Advertified.App.Support.CampaignOperationsPolicy.BuildScheduleSnapshot(campaign, today);
+
+        snapshot.EffectiveEndDate.Should().Be(today.AddDays(11));
+        snapshot.DaysLeft.Should().Be(12);
+    }
+
+    [Fact]
+    public void BuildScheduleSnapshot_UsesBookedLiveWindowWhenAvailable()
+    {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var campaign = CreateCampaign(status: "launched", chargedAmount: 100000m, selectedBudget: 90000m);
+        campaign.CampaignSupplierBookings.Add(new CampaignSupplierBooking
+        {
+            Id = Guid.NewGuid(),
+            CampaignId = campaign.Id,
+            SupplierOrStation = "Metro FM",
+            Channel = "radio",
+            BookingStatus = "booked",
+            LiveFrom = today.AddDays(2),
+            LiveTo = today.AddDays(16),
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+
+        var snapshot = Advertified.App.Support.CampaignOperationsPolicy.BuildScheduleSnapshot(campaign, today);
+
+        snapshot.StartDate.Should().Be(today.AddDays(2));
+        snapshot.EndDate.Should().Be(today.AddDays(16));
+        snapshot.EffectiveEndDate.Should().Be(today.AddDays(16));
+        snapshot.DaysLeft.Should().Be(17);
+    }
+
+    private static CampaignEntity CreateCampaign(string status, decimal chargedAmount, decimal selectedBudget)
+    {
+        var userId = Guid.NewGuid();
+        return new CampaignEntity
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            PackageOrderId = Guid.NewGuid(),
+            PackageBandId = Guid.NewGuid(),
+            CampaignName = "Operations campaign",
+            Status = status,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            User = new UserAccount
+            {
+                Id = userId,
+                FullName = "Brian Rapula",
+                Email = "brian@example.com",
+                Phone = "0821234567",
+                PasswordHash = "hash",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            },
+            PackageBand = new PackageBandEntity
+            {
+                Id = Guid.NewGuid(),
+                Code = "scale",
+                Name = "Scale",
+                MinBudget = 20000m,
+                MaxBudget = 500000m,
+                SortOrder = 1,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            },
+            PackageOrder = new PackageOrderEntity
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                PackageBandId = Guid.NewGuid(),
+                Amount = chargedAmount,
+                SelectedBudget = selectedBudget,
+                Currency = "ZAR",
+                PaymentStatus = "paid",
+                RefundStatus = "none",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            }
+        };
     }
 }
 

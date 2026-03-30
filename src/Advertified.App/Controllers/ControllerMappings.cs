@@ -1,8 +1,10 @@
 using System.Text.Json;
 using Advertified.App.Contracts.Campaigns;
+using Advertified.App.Contracts.Creative;
 using Advertified.App.Contracts.Packages;
 using Advertified.App.Campaigns;
 using Advertified.App.Data.Entities;
+using Advertified.App.Support;
 
 namespace Advertified.App.Controllers;
 
@@ -31,16 +33,21 @@ internal static class ControllerMappings
             AssignedAt = campaign.AssignedAt.HasValue ? new DateTimeOffset(campaign.AssignedAt.Value, TimeSpan.Zero) : null,
             IsAssignedToCurrentUser = currentUserId.HasValue && campaign.AssignedAgentUserId == currentUserId.Value,
             IsUnassigned = campaign.AssignedAgentUserId is null,
-            NextAction = GetNextAction(campaign),
+            NextAction = CampaignWorkflowPolicy.GetClientNextAction(campaign),
             CreatedAt = new DateTimeOffset(campaign.CreatedAt, TimeSpan.Zero)
         };
     }
 
-    public static CampaignDetailResponse ToDetail(this Campaign campaign, Guid? currentUserId = null)
+    public static CampaignDetailResponse ToDetail(this Campaign campaign, Guid? currentUserId = null, bool includeLinePricing = true)
     {
         var recommendations = GetCurrentRecommendationSet(campaign)
+            .Select(x => ToResponse(x, includeLinePricing))
+            .ToArray();
+        var creativeSystems = campaign.CampaignCreativeSystems
+            .OrderByDescending(x => x.CreatedAt)
             .Select(ToResponse)
             .ToArray();
+        var schedule = CampaignOperationsPolicy.BuildScheduleSnapshot(campaign, DateOnly.FromDateTime(DateTime.UtcNow));
 
         return new CampaignDetailResponse
         {
@@ -64,13 +71,27 @@ internal static class ControllerMappings
             AssignedAt = campaign.AssignedAt.HasValue ? new DateTimeOffset(campaign.AssignedAt.Value, TimeSpan.Zero) : null,
             IsAssignedToCurrentUser = currentUserId.HasValue && campaign.AssignedAgentUserId == currentUserId.Value,
             IsUnassigned = campaign.AssignedAgentUserId is null,
-            NextAction = GetNextAction(campaign),
+            NextAction = CampaignWorkflowPolicy.GetClientNextAction(campaign),
             CreatedAt = new DateTimeOffset(campaign.CreatedAt, TimeSpan.Zero),
-            Timeline = BuildTimeline(campaign),
+            Timeline = CampaignWorkflowPolicy.BuildTimeline(campaign),
             Brief = campaign.CampaignBrief == null ? null : ToRequest(campaign.CampaignBrief),
             Recommendations = recommendations,
             Recommendation = recommendations.FirstOrDefault(),
-            RecommendationPdfUrl = recommendations.Length > 0 ? $"/campaigns/{campaign.Id}/recommendation-pdf" : null
+            RecommendationPdfUrl = recommendations.Length > 0 ? $"/campaigns/{campaign.Id}/recommendation-pdf" : null,
+            CreativeSystems = creativeSystems,
+            LatestCreativeSystem = creativeSystems.FirstOrDefault(),
+            Assets = campaign.CampaignAssets.OrderByDescending(x => x.CreatedAt).Select(ToResponse).ToArray(),
+            SupplierBookings = campaign.CampaignSupplierBookings
+                .OrderBy(x => x.LiveFrom ?? DateOnly.MaxValue)
+                .ThenBy(x => x.SupplierOrStation)
+                .Select(ToResponse)
+                .ToArray(),
+            DeliveryReports = campaign.CampaignDeliveryReports
+                .OrderByDescending(x => x.ReportedAt ?? x.CreatedAt)
+                .Select(ToResponse)
+                .ToArray(),
+            EffectiveEndDate = schedule.EffectiveEndDate,
+            DaysLeft = schedule.DaysLeft
         };
     }
 
@@ -82,10 +103,15 @@ internal static class ControllerMappings
             UserId = order.UserId,
             PackageBandId = order.PackageBandId,
             PackageBandName = order.PackageBand.Name,
-            Amount = order.SelectedBudget ?? order.Amount,
+            Amount = order.Amount,
             Currency = order.Currency,
             PaymentProvider = order.PaymentProvider ?? string.Empty,
             PaymentStatus = order.PaymentStatus,
+            RefundStatus = order.RefundStatus,
+            RefundedAmount = order.RefundedAmount,
+            GatewayFeeRetainedAmount = order.GatewayFeeRetainedAmount,
+            RefundReason = order.RefundReason,
+            RefundProcessedAt = order.RefundProcessedAt.HasValue ? new DateTimeOffset(order.RefundProcessedAt.Value, TimeSpan.Zero) : null,
             PaymentReference = order.PaymentReference,
             CreatedAt = new DateTimeOffset(order.CreatedAt, TimeSpan.Zero),
             InvoiceId = order.Invoice?.Id,
@@ -135,7 +161,7 @@ internal static class ControllerMappings
             : JsonSerializer.Deserialize<List<string>>(json);
     }
 
-    private static CampaignRecommendationResponse ToResponse(CampaignRecommendation recommendation)
+    private static CampaignRecommendationResponse ToResponse(CampaignRecommendation recommendation, bool includeLinePricing)
     {
         var extractedFeedback = ExtractClientFeedbackNotes(recommendation.Rationale);
         var fallbackFlags = ExtractFallbackFlags(recommendation.Rationale);
@@ -155,7 +181,67 @@ internal static class ControllerMappings
             FallbackFlags = fallbackFlags,
             Status = recommendation.Status,
             TotalCost = recommendation.TotalCost,
-            Items = recommendation.RecommendationItems.Select(ToResponse).ToArray()
+            Items = recommendation.RecommendationItems.Select(item => ToResponse(item, includeLinePricing)).ToArray()
+        };
+    }
+
+    private static CampaignAssetResponse ToResponse(CampaignAsset asset)
+    {
+        return new CampaignAssetResponse
+        {
+            Id = asset.Id,
+            AssetType = asset.AssetType,
+            DisplayName = asset.DisplayName,
+            PublicUrl = asset.PublicUrl ?? $"/campaign-assets/{asset.Id}",
+            ContentType = asset.ContentType,
+            SizeBytes = asset.SizeBytes,
+            CreatedAt = new DateTimeOffset(asset.CreatedAt, TimeSpan.Zero)
+        };
+    }
+
+    private static CampaignCreativeSystemResponse ToResponse(CampaignCreativeSystem creativeSystem)
+    {
+        return new CampaignCreativeSystemResponse
+        {
+            Id = creativeSystem.Id,
+            Prompt = creativeSystem.Prompt,
+            IterationLabel = creativeSystem.IterationLabel,
+            CreatedAt = new DateTimeOffset(creativeSystem.CreatedAt, TimeSpan.Zero),
+            Output = DeserializeCreativeSystem(creativeSystem.OutputJson)
+        };
+    }
+
+    private static CampaignSupplierBookingResponse ToResponse(CampaignSupplierBooking booking)
+    {
+        return new CampaignSupplierBookingResponse
+        {
+            Id = booking.Id,
+            SupplierOrStation = booking.SupplierOrStation,
+            Channel = booking.Channel,
+            BookingStatus = booking.BookingStatus,
+            CommittedAmount = booking.CommittedAmount,
+            BookedAt = booking.BookedAt.HasValue ? new DateTimeOffset(booking.BookedAt.Value, TimeSpan.Zero) : null,
+            LiveFrom = booking.LiveFrom,
+            LiveTo = booking.LiveTo,
+            Notes = booking.Notes,
+            ProofAsset = booking.ProofAsset is null ? null : ToResponse(booking.ProofAsset)
+        };
+    }
+
+    private static CampaignDeliveryReportResponse ToResponse(CampaignDeliveryReport report)
+    {
+        return new CampaignDeliveryReportResponse
+        {
+            Id = report.Id,
+            SupplierBookingId = report.SupplierBookingId,
+            ReportType = report.ReportType,
+            Headline = report.Headline,
+            Summary = report.Summary,
+            ReportedAt = report.ReportedAt.HasValue ? new DateTimeOffset(report.ReportedAt.Value, TimeSpan.Zero) : null,
+            Impressions = report.Impressions,
+            PlaysOrSpots = report.PlaysOrSpots,
+            SpendDelivered = report.SpendDelivered,
+            EvidenceAsset = report.EvidenceAsset is null ? null : ToResponse(report.EvidenceAsset)
         };
     }
 
@@ -198,7 +284,7 @@ internal static class ControllerMappings
         };
     }
 
-    private static RecommendationItemResponse ToResponse(RecommendationItem item)
+    private static RecommendationItemResponse ToResponse(RecommendationItem item, bool includeLinePricing)
     {
         var normalized = NormalizeRecommendationItemMetadata(item);
 
@@ -229,112 +315,8 @@ internal static class ControllerMappings
             Title = item.DisplayName,
             Channel = item.InventoryType,
             Rationale = normalized.Rationale,
-            Cost = item.TotalCost,
+            Cost = includeLinePricing ? item.TotalCost : 0m,
             Type = item.InventoryType.Contains("upsell", StringComparison.OrdinalIgnoreCase) ? "upsell" : "base"
-        };
-    }
-
-    private static string GetNextAction(Campaign campaign)
-    {
-        return campaign.Status switch
-        {
-            "paid" => "Complete your campaign brief",
-            "brief_in_progress" => "Finish and submit your brief",
-            "brief_submitted" => "Choose planning mode",
-            "planning_in_progress" => "Review your tailored recommendation",
-            "review_ready" => "Approve or request updates",
-            "approved" => "Creative production is in progress",
-            "creative_changes_requested" => "Creative revisions are in progress",
-            "creative_sent_to_client_for_approval" => "Review the finished media for final approval",
-            "creative_approved" => "Final approval is captured and activation is being prepared",
-            "launched" => "Campaign is now live",
-            _ => "Continue campaign setup"
-        };
-    }
-
-    private static IReadOnlyList<CampaignTimelineStepResponse> BuildTimeline(Campaign campaign)
-    {
-        var latestRecommendation = campaign.CampaignRecommendations
-            .OrderByDescending(x => x.CreatedAt)
-            .FirstOrDefault();
-        var recommendationStatus = latestRecommendation?.Status?.Trim().ToLowerInvariant();
-
-        var paymentComplete = campaign.Status is not "awaiting_purchase";
-        var briefComplete = campaign.Status is not "paid" and not "brief_in_progress" || campaign.CampaignBrief?.SubmittedAt is not null;
-        var recommendationReady = campaign.Status is "planning_in_progress" or "review_ready" or "approved" or "creative_changes_requested" or "creative_sent_to_client_for_approval" or "creative_approved" or "launched" || latestRecommendation is not null;
-        var clientReviewActive = campaign.Status is "review_ready" || recommendationStatus == "sent_to_client";
-        var recommendationApproved = campaign.Status is "approved" or "creative_changes_requested" or "creative_sent_to_client_for_approval" or "creative_approved" or "launched" || recommendationStatus == "approved";
-        var creativeProductionStarted = campaign.Status is "approved" or "creative_changes_requested" or "creative_sent_to_client_for_approval" or "creative_approved" or "launched";
-        var creativeReviewActive = campaign.Status == "creative_sent_to_client_for_approval";
-        var creativeApproved = campaign.Status is "creative_approved" or "launched";
-        var launchActivated = campaign.Status == "launched";
-
-        return new[]
-        {
-            BuildTimelineStep(
-                key: "payment",
-                label: "Payment confirmed",
-                description: "Your package payment has been received and your campaign is open.",
-                isComplete: paymentComplete,
-                isCurrent: campaign.Status == "paid"),
-            BuildTimelineStep(
-                key: "brief",
-                label: "Brief submitted",
-                description: "Your goals, audience, geography, and media preferences have been captured.",
-                isComplete: briefComplete,
-                isCurrent: campaign.Status == "brief_in_progress" || campaign.Status == "brief_submitted"),
-            BuildTimelineStep(
-                key: "recommendation",
-                label: "Recommendation prepared",
-                description: "Advertified has prepared a draft recommendation for your review.",
-                isComplete: recommendationReady,
-                isCurrent: campaign.Status == "planning_in_progress"),
-            BuildTimelineStep(
-                key: "review",
-                label: "Client review",
-                description: "Review the recommendation and approve it or request changes.",
-                isComplete: recommendationApproved,
-                isCurrent: clientReviewActive && !recommendationApproved),
-            BuildTimelineStep(
-                key: "creative-production",
-                label: "Creative production",
-                description: "Advertified's creative director is preparing your finished media from the approved recommendation.",
-                isComplete: campaign.Status is "creative_sent_to_client_for_approval" or "creative_approved" or "launched",
-                isCurrent: creativeProductionStarted && !creativeReviewActive && !creativeApproved),
-            BuildTimelineStep(
-                key: "creative-approval",
-                label: "Final creative approval",
-                description: "Your finished media has been sent back for final client approval.",
-                isComplete: creativeApproved,
-                isCurrent: creativeReviewActive),
-            BuildTimelineStep(
-                key: "launch-ready",
-                label: "Launch ready",
-                description: "Final creative approval has been captured and operations can now activate the campaign.",
-                isComplete: launchActivated,
-                isCurrent: creativeApproved && !launchActivated),
-            BuildTimelineStep(
-                key: "live",
-                label: "Campaign live",
-                description: "Operations has activated the campaign and it is now live.",
-                isComplete: launchActivated,
-                isCurrent: false)
-        };
-    }
-
-    private static CampaignTimelineStepResponse BuildTimelineStep(
-        string key,
-        string label,
-        string description,
-        bool isComplete,
-        bool isCurrent)
-    {
-        return new CampaignTimelineStepResponse
-        {
-            Key = key,
-            Label = label,
-            Description = description,
-            State = isComplete ? "complete" : isCurrent ? "current" : "upcoming"
         };
     }
 
@@ -758,6 +740,23 @@ internal static class ControllerMappings
         return cleanedLines.Length == 0
             ? string.Empty
             : string.Join(Environment.NewLine, cleanedLines);
+    }
+
+    private static CreativeSystemResponse DeserializeCreativeSystem(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return new CreativeSystemResponse();
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<CreativeSystemResponse>(json) ?? new CreativeSystemResponse();
+        }
+        catch (JsonException)
+        {
+            return new CreativeSystemResponse();
+        }
     }
 
     private static bool ExtractManualReviewRequired(string? rationale)

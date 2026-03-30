@@ -100,7 +100,6 @@ export function OutdoorPreviewMap({ points }: { points: PackagePreviewMapPoint[]
           touchZoomRotate={false}
           scrollZoom={false}
           cooperativeGestures
-          style={{ width: '100%', height: '100%' }}
         >
           <NavigationControl position="top-right" showCompass={false} />
           {points.map((point) => (

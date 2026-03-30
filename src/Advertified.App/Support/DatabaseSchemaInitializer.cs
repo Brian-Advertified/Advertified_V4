@@ -33,9 +33,13 @@ internal static class DatabaseSchemaInitializer
                       Path.Combine("database", "bootstrap", "012_admin_engine_policy_overrides.sql"),
                        Path.Combine("database", "bootstrap", "013_change_audit_log.sql"),
                        Path.Combine("database", "bootstrap", "014_agent_area_assignments.sql"),
-                      Path.Combine("database", "bootstrap", "015_creative_director_role.sql"),
-                      Path.Combine("database", "bootstrap", "016_campaign_messages.sql"),
-                      Path.Combine("database", "bootstrap", "017_consent_preferences.sql")
+                     Path.Combine("database", "bootstrap", "015_creative_director_role.sql"),
+                     Path.Combine("database", "bootstrap", "016_campaign_messages.sql"),
+                     Path.Combine("database", "bootstrap", "017_consent_preferences.sql"),
+                     Path.Combine("database", "bootstrap", "018_campaign_operations_controls.sql"),
+                     Path.Combine("database", "bootstrap", "019_pricing_settings.sql"),
+                     Path.Combine("database", "bootstrap", "020_campaign_execution_and_storage.sql"),
+                     Path.Combine("database", "bootstrap", "021_campaign_creative_systems.sql")
                    })
         {
             var fullPath = baseDirectories

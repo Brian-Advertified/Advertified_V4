@@ -3,6 +3,7 @@ using Advertified.App.Campaigns;
 using Advertified.App.Configuration;
 using Advertified.App.Data;
 using Advertified.App.Services.Abstractions;
+using Advertified.App.Support;
 using Advertified.App.Validation;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
@@ -78,6 +79,13 @@ public sealed class CampaignsController : ControllerBase
             .Include(x => x.PackageBand)
             .Include(x => x.PackageOrder)
             .Include(x => x.CampaignBrief)
+            .Include(x => x.CampaignCreativeSystems)
+            .Include(x => x.CampaignAssets)
+            .Include(x => x.CampaignSupplierBookings)
+                .ThenInclude(x => x.ProofAsset)
+            .Include(x => x.CampaignDeliveryReports)
+                .ThenInclude(x => x.EvidenceAsset)
+            .Include(x => x.CampaignPauseWindows)
             .Include(x => x.CampaignRecommendations)
                 .ThenInclude(x => x.RecommendationItems)
             .FirstOrDefaultAsync(x => x.Id == id && x.UserId == userId, cancellationToken);
@@ -91,7 +99,7 @@ public sealed class CampaignsController : ControllerBase
             });
         }
 
-        return Ok(campaign.ToDetail());
+        return Ok(campaign.ToDetail(includeLinePricing: false));
     }
 
     [HttpGet("{id:guid}/recommendation-pdf")]
@@ -164,7 +172,7 @@ public sealed class CampaignsController : ControllerBase
         {
             CampaignId = id,
             RecommendationId = recommendationId,
-            Status = "planning_in_progress"
+            Status = CampaignStatuses.PlanningInProgress
         });
     }
 
@@ -186,10 +194,10 @@ public sealed class CampaignsController : ControllerBase
             ?? currentRecommendations.FirstOrDefault()
             ?? throw new InvalidOperationException("Recommendation not found.");
 
-        recommendation.Status = "approved";
+        recommendation.Status = RecommendationStatuses.Approved;
         recommendation.ApprovedAt = DateTime.UtcNow;
         recommendation.UpdatedAt = DateTime.UtcNow;
-        campaign.Status = "approved";
+        campaign.Status = CampaignStatuses.Approved;
         campaign.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(cancellationToken);
@@ -225,7 +233,7 @@ public sealed class CampaignsController : ControllerBase
         var nextRevisionNumber = RecommendationRevisionSupport.GetNextRevisionNumber(campaign.CampaignRecommendations);
         var clonedRecommendations = RecommendationRevisionSupport.CloneAsDraftRevision(currentRecommendations, nextRevisionNumber, now, request.Notes);
         _db.CampaignRecommendations.AddRange(clonedRecommendations);
-        campaign.Status = "planning_in_progress";
+        campaign.Status = CampaignStatuses.PlanningInProgress;
         campaign.RecommendationReadyEmailSentAt = null;
         campaign.UpdatedAt = now;
 
@@ -251,7 +259,7 @@ public sealed class CampaignsController : ControllerBase
             .FirstOrDefaultAsync(x => x.Id == id && x.UserId == userId, cancellationToken)
             ?? throw new InvalidOperationException("Campaign not found.");
 
-        if (!string.Equals(campaign.Status, "creative_sent_to_client_for_approval", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(campaign.Status, CampaignStatuses.CreativeSentToClientForApproval, StringComparison.OrdinalIgnoreCase))
         {
             return BadRequest(new ProblemDetails
             {
@@ -261,7 +269,7 @@ public sealed class CampaignsController : ControllerBase
             });
         }
 
-        campaign.Status = "creative_approved";
+        campaign.Status = CampaignStatuses.CreativeApproved;
         campaign.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
 
@@ -283,7 +291,7 @@ public sealed class CampaignsController : ControllerBase
             .FirstOrDefaultAsync(x => x.Id == id && x.UserId == userId, cancellationToken)
             ?? throw new InvalidOperationException("Campaign not found.");
 
-        if (!string.Equals(campaign.Status, "creative_sent_to_client_for_approval", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(campaign.Status, CampaignStatuses.CreativeSentToClientForApproval, StringComparison.OrdinalIgnoreCase))
         {
             return BadRequest(new ProblemDetails
             {
@@ -294,7 +302,7 @@ public sealed class CampaignsController : ControllerBase
         }
 
         var now = DateTime.UtcNow;
-        campaign.Status = "creative_changes_requested";
+        campaign.Status = CampaignStatuses.CreativeChangesRequested;
         campaign.UpdatedAt = now;
 
         if (!string.IsNullOrWhiteSpace(request.Notes))

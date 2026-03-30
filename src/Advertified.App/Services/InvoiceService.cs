@@ -14,17 +14,20 @@ public sealed class InvoiceService : IInvoiceService
     private readonly AppDbContext _db;
     private readonly ITemplatedEmailService _emailService;
     private readonly IWebHostEnvironment _environment;
+    private readonly IPublicAssetStorage _assetStorage;
     private readonly ILogger<InvoiceService> _logger;
 
     public InvoiceService(
         AppDbContext db,
         ITemplatedEmailService emailService,
         IWebHostEnvironment environment,
+        IPublicAssetStorage assetStorage,
         ILogger<InvoiceService> logger)
     {
         _db = db;
         _emailService = emailService;
         _environment = environment;
+        _assetStorage = assetStorage;
         _logger = logger;
     }
 
@@ -59,7 +62,7 @@ public sealed class InvoiceService : IInvoiceService
                 InvoiceType = invoiceType,
                 Status = status,
                 Currency = order.Currency,
-                TotalAmount = order.SelectedBudget ?? order.Amount,
+                TotalAmount = order.Amount,
                 CampaignName = BuildCampaignName(order, band),
                 PackageName = band.Name,
                 CustomerName = user.FullName,
@@ -85,7 +88,7 @@ public sealed class InvoiceService : IInvoiceService
             invoice.InvoiceType = invoiceType;
             invoice.Status = status;
             invoice.Currency = order.Currency;
-            invoice.TotalAmount = order.SelectedBudget ?? order.Amount;
+            invoice.TotalAmount = order.Amount;
             invoice.CampaignName = BuildCampaignName(order, band);
             invoice.PackageName = band.Name;
             invoice.CustomerName = user.FullName;
@@ -144,13 +147,7 @@ public sealed class InvoiceService : IInvoiceService
             throw new InvalidOperationException("Invoice PDF has not been generated.");
         }
 
-        var absolutePath = ResolveStoragePath(invoice.StorageObjectKey);
-        if (!File.Exists(absolutePath))
-        {
-            throw new InvalidOperationException("Invoice PDF file could not be found.");
-        }
-
-        return await File.ReadAllBytesAsync(absolutePath, cancellationToken);
+        return await _assetStorage.GetBytesAsync(invoice.StorageObjectKey, cancellationToken);
     }
 
     private async Task SendInvoiceEmailAsync(Invoice invoice, byte[] pdfBytes, CancellationToken cancellationToken)
@@ -195,27 +192,13 @@ public sealed class InvoiceService : IInvoiceService
 
     private async Task<string> PersistPdfAsync(Invoice invoice, byte[] pdfBytes, CancellationToken cancellationToken)
     {
-        var relativePath = Path.Combine("App_Data", "invoices", $"{invoice.InvoiceNumber}.pdf");
-        var absolutePath = ResolveStoragePath(relativePath);
-        var directory = Path.GetDirectoryName(absolutePath);
-        if (!string.IsNullOrWhiteSpace(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
-
-        await File.WriteAllBytesAsync(absolutePath, pdfBytes, cancellationToken);
-        return relativePath.Replace('\\', '/');
-    }
-
-    private string ResolveStoragePath(string relativePath)
-    {
-        var normalized = relativePath.Replace('/', Path.DirectorySeparatorChar);
-        return Path.GetFullPath(Path.Combine(_environment.ContentRootPath, normalized));
+        var objectKey = $"invoices/{invoice.InvoiceNumber}.pdf";
+        return await _assetStorage.SaveAsync(objectKey, pdfBytes, "application/pdf", cancellationToken);
     }
 
     private static InvoiceLineItem CreateDefaultLineItem(Invoice invoice, PackageBand band, PackageOrder order)
     {
-        var total = order.SelectedBudget ?? order.Amount;
+        var total = order.Amount;
         var subtotal = Math.Round(total / (1m + VatRate), 2, MidpointRounding.AwayFromZero);
         var vatAmount = Math.Round(total - subtotal, 2, MidpointRounding.AwayFromZero);
 
@@ -237,7 +220,7 @@ public sealed class InvoiceService : IInvoiceService
 
     private static void UpdateDefaultLineItem(InvoiceLineItem lineItem, Invoice invoice, PackageBand band, PackageOrder order)
     {
-        var total = order.SelectedBudget ?? order.Amount;
+        var total = order.Amount;
         var subtotal = Math.Round(total / (1m + VatRate), 2, MidpointRounding.AwayFromZero);
         var vatAmount = Math.Round(total - subtotal, 2, MidpointRounding.AwayFromZero);
 

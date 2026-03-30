@@ -76,6 +76,7 @@ export function AdminDashboardPage() {
                     <p className="mt-2 text-sm text-ink-soft">Open a focused admin page or jump into operational workflows.</p>
                     <div className="mt-6 grid gap-3">
                       <Link to="/admin/stations" className="button-secondary inline-flex items-center justify-between gap-2 px-4 py-3">Manage outlets <ArrowRight className="size-4" /></Link>
+                      <Link to="/admin/campaign-operations" className="button-secondary inline-flex items-center justify-between gap-2 px-4 py-3">Campaign controls <ArrowRight className="size-4" /></Link>
                       <Link to="/admin/imports" className="button-secondary inline-flex items-center justify-between gap-2 px-4 py-3">Upload rate cards <ArrowRight className="size-4" /></Link>
                       <Link to="/admin/preview-rules" className="button-secondary inline-flex items-center justify-between gap-2 px-4 py-3">Edit preview rules <ArrowRight className="size-4" /></Link>
                       <Link to="/agent/campaigns" className="button-secondary inline-flex items-center justify-between gap-2 px-4 py-3">Review queue <ArrowRight className="size-4" /></Link>

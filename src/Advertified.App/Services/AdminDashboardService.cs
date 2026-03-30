@@ -3,6 +3,7 @@ using Advertified.App.Configuration;
 using Advertified.App.Contracts.Admin;
 using Advertified.App.Data;
 using Advertified.App.Services.Abstractions;
+using Advertified.App.Support;
 using Dapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -39,6 +40,7 @@ public sealed class AdminDashboardService : IAdminDashboardService
             .ToArray();
 
         var packageSettings = await GetPackageSettingsAsync(cancellationToken);
+        var pricingSettings = await GetPricingSettingsAsync(cancellationToken);
 
         var strongCount = outletRecords.Count(x => string.Equals(DetermineHealthBucket(x), "strong", StringComparison.OrdinalIgnoreCase));
         var mixedCount = outletRecords.Count(x => string.Equals(DetermineHealthBucket(x), "mixed_not_fully_healthy", StringComparison.OrdinalIgnoreCase));
@@ -88,6 +90,7 @@ public sealed class AdminDashboardService : IAdminDashboardService
             HealthIssues = weakOutlets,
             Areas = areaMappings,
             PackageSettings = packageSettings,
+            PricingSettings = pricingSettings,
             EnginePolicies = BuildEnginePolicies(),
             PreviewRules = previewRules,
             Monitoring = monitoring,
@@ -194,6 +197,32 @@ public sealed class AdminDashboardService : IAdminDashboardService
             LeadTime = row.LeadTime,
             Benefits = DeserializeJsonList(row.BenefitsJson)
         }).ToArray();
+    }
+
+    private async Task<AdminPricingSettingsResponse> GetPricingSettingsAsync(CancellationToken cancellationToken)
+    {
+        var row = await _db.PricingSettings
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.PricingKey == "default", cancellationToken);
+
+        if (row is null)
+        {
+            return new AdminPricingSettingsResponse
+            {
+                AiStudioReservePercent = 0.10m,
+                OohMarkupPercent = 0.05m,
+                RadioMarkupPercent = 0.10m,
+                TvMarkupPercent = 0.10m
+            };
+        }
+
+        return new AdminPricingSettingsResponse
+        {
+            AiStudioReservePercent = row.AiStudioReservePercent,
+            OohMarkupPercent = row.OohMarkupPercent,
+            RadioMarkupPercent = row.RadioMarkupPercent,
+            TvMarkupPercent = row.TvMarkupPercent
+        };
     }
 
     private async Task<IReadOnlyList<AdminPreviewRuleResponse>> GetPreviewRulesAsync(CancellationToken cancellationToken)
@@ -368,9 +397,9 @@ public sealed class AdminDashboardService : IAdminDashboardService
     {
         var totalCampaigns = await _db.Campaigns.CountAsync(cancellationToken);
         var planningReadyCount = await _db.Campaigns.CountAsync(
-            x => x.Status == "brief_submitted" || x.Status == "planning_in_progress",
+            x => x.Status == CampaignStatuses.BriefSubmitted || x.Status == CampaignStatuses.PlanningInProgress,
             cancellationToken);
-        var waitingOnClientCount = await _db.CampaignRecommendations.CountAsync(x => x.Status == "sent_to_client", cancellationToken);
+        var waitingOnClientCount = await _db.CampaignRecommendations.CountAsync(x => x.Status == RecommendationStatuses.SentToClient, cancellationToken);
         await using var connection = new NpgsqlConnection(_connectionString);
         var inventoryRows = await connection.ExecuteScalarAsync<int>(new CommandDefinition(
             "select count(*) from inventory_items_final",

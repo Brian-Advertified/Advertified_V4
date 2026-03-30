@@ -1,5 +1,6 @@
 using Advertified.App.Contracts.Campaigns;
 using Advertified.App.Services.Abstractions;
+using Advertified.App.Support;
 using Dapper;
 using Npgsql;
 
@@ -8,10 +9,12 @@ namespace Advertified.App.Services;
 public sealed class OohPlanningInventorySource : IOohPlanningInventorySource
 {
     private readonly string _connectionString;
+    private readonly IPricingSettingsProvider _pricingSettingsProvider;
 
-    public OohPlanningInventorySource(string connectionString)
+    public OohPlanningInventorySource(string connectionString, IPricingSettingsProvider pricingSettingsProvider)
     {
         _connectionString = connectionString;
+        _pricingSettingsProvider = pricingSettingsProvider;
     }
 
     public async Task<List<OohPlanningInventoryRow>> GetCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
@@ -49,12 +52,20 @@ left join region_clusters rc on rc.id = iif.region_cluster_id
 where coalesce((iif.metadata_json ->> 'discounted_rate_zar')::numeric, (iif.metadata_json ->> 'rate_card_zar')::numeric, 0) <= @Budget;";
 
         await using var conn = new NpgsqlConnection(_connectionString);
+        var pricingSettings = await _pricingSettingsProvider.GetCurrentAsync(cancellationToken);
         var rows = await conn.QueryAsync<OohPlanningInventoryRow>(new CommandDefinition(
             sql,
             new { Budget = request.SelectedBudget },
             cancellationToken: cancellationToken));
 
-        return rows.ToList();
+        return rows
+            .Select(row =>
+            {
+                var rawCost = row.Cost;
+                row.Cost = PricingPolicy.ApplyMarkup(rawCost, row.MediaType, row.Subtype, pricingSettings);
+                return row;
+            })
+            .Where(row => row.Cost > 0m && row.Cost <= request.SelectedBudget)
+            .ToList();
     }
 }
-

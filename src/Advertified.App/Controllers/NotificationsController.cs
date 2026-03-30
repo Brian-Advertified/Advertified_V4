@@ -1,0 +1,260 @@
+using Advertified.App.Contracts.Notifications;
+using Advertified.App.Data;
+using Advertified.App.Data.Entities;
+using Advertified.App.Data.Enums;
+using Advertified.App.Services.Abstractions;
+using Advertified.App.Support;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+
+namespace Advertified.App.Controllers;
+
+[ApiController]
+[Route("notifications")]
+public sealed class NotificationsController : ControllerBase
+{
+    private readonly AppDbContext _db;
+    private readonly ICurrentUserAccessor _currentUserAccessor;
+    private readonly IAdminDashboardService _adminDashboardService;
+
+    public NotificationsController(
+        AppDbContext db,
+        ICurrentUserAccessor currentUserAccessor,
+        IAdminDashboardService adminDashboardService)
+    {
+        _db = db;
+        _currentUserAccessor = currentUserAccessor;
+        _adminDashboardService = adminDashboardService;
+    }
+
+    [HttpGet("summary")]
+    public async Task<ActionResult<NotificationSummaryResponse>> GetSummary(CancellationToken cancellationToken)
+    {
+        var currentUserId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
+        var currentUser = await _db.UserAccounts
+            .AsNoTracking()
+            .FirstOrDefaultAsync(user => user.Id == currentUserId, cancellationToken)
+            ?? throw new InvalidOperationException("Authenticated user account could not be found.");
+
+        var items = currentUser.Role switch
+        {
+            UserRole.Client => await BuildClientNotificationsAsync(currentUserId, cancellationToken),
+            UserRole.Agent => await BuildAgentNotificationsAsync(currentUserId, false, cancellationToken),
+            UserRole.CreativeDirector => await BuildCreativeNotificationsAsync(cancellationToken),
+            UserRole.Admin => await BuildAdminNotificationsAsync(cancellationToken),
+            _ => Array.Empty<NotificationSummaryItemResponse>()
+        };
+
+        return Ok(new NotificationSummaryResponse
+        {
+            UnreadCount = items.Length,
+            Items = items
+        });
+    }
+
+    private async Task<NotificationSummaryItemResponse[]> BuildClientNotificationsAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        var campaigns = await _db.Campaigns
+            .AsNoTracking()
+            .Where(campaign => campaign.UserId == userId)
+            .Include(campaign => campaign.CampaignRecommendations)
+            .OrderByDescending(campaign => campaign.UpdatedAt)
+            .Take(6)
+            .ToArrayAsync(cancellationToken);
+
+        var orders = await _db.PackageOrders
+            .AsNoTracking()
+            .Where(order => order.UserId == userId)
+            .Include(order => order.PackageBand)
+            .Include(order => order.Invoice)
+            .OrderByDescending(order => order.CreatedAt)
+            .Take(6)
+            .ToArrayAsync(cancellationToken);
+
+        var items = new List<NotificationSummaryItemResponse>();
+        foreach (var campaign in campaigns)
+        {
+            var campaignName = string.IsNullOrWhiteSpace(campaign.CampaignName)
+                ? $"{campaign.PackageBand.Name} campaign"
+                : campaign.CampaignName.Trim();
+            var recommendation = campaign.CampaignRecommendations.OrderByDescending(x => x.CreatedAt).FirstOrDefault();
+
+            if (campaign.Status == CampaignStatuses.Paid)
+            {
+                items.Add(BuildItem($"campaign-paid-{campaign.Id}", "Campaign workspace ready", $"{campaignName} is paid and ready in your simplified client workspace.", $"/campaigns/{campaign.Id}", "info"));
+            }
+            else if (campaign.Status == CampaignStatuses.ReviewReady && string.Equals(recommendation?.Status, RecommendationStatuses.SentToClient, StringComparison.OrdinalIgnoreCase))
+            {
+                items.Add(BuildItem($"campaign-review-{campaign.Id}", "Recommendation ready for review", $"{campaignName} is ready for your approval or change request.", $"/campaigns/{campaign.Id}", "success"));
+            }
+            else if (campaign.Status == CampaignStatuses.PlanningInProgress)
+            {
+                items.Add(BuildItem($"campaign-planning-{campaign.Id}", "Recommendation in progress", $"{campaignName} is currently being prepared.", $"/campaigns/{campaign.Id}", "info"));
+            }
+            else if (campaign.Status == CampaignStatuses.Approved)
+            {
+                items.Add(BuildItem($"campaign-approved-{campaign.Id}", "Recommendation approved", $"{campaignName} is approved and ready for the next step.", $"/campaigns/{campaign.Id}", "success"));
+            }
+            else if (campaign.Status == CampaignStatuses.CreativeChangesRequested)
+            {
+                items.Add(BuildItem($"campaign-creative-changes-{campaign.Id}", "Creative changes requested", $"{campaignName} has been sent back for creative revision.", $"/campaigns/{campaign.Id}", "warning"));
+            }
+            else if (campaign.Status == CampaignStatuses.CreativeSentToClientForApproval)
+            {
+                items.Add(BuildItem($"campaign-creative-review-{campaign.Id}", "Finished media ready for approval", $"{campaignName} has been sent back for your final approval.", $"/campaigns/{campaign.Id}", "success"));
+            }
+            else if (campaign.Status == CampaignStatuses.CreativeApproved)
+            {
+                items.Add(BuildItem($"campaign-creative-approved-{campaign.Id}", "Final creative approved", $"{campaignName} has completed final creative approval and is waiting for activation.", $"/campaigns/{campaign.Id}", "success"));
+            }
+            else if (campaign.Status == CampaignStatuses.Launched)
+            {
+                items.Add(BuildItem($"campaign-live-{campaign.Id}", "Campaign live", $"{campaignName} is now live.", $"/campaigns/{campaign.Id}", "success"));
+            }
+        }
+
+        foreach (var order in orders)
+        {
+            if (string.Equals(order.PaymentStatus, "failed", StringComparison.OrdinalIgnoreCase))
+            {
+                items.Add(BuildItem($"order-failed-{order.Id}", "Payment was not successful", $"{order.PackageBand.Name} could not be confirmed. You can try again or contact support.", "/orders", "warning"));
+            }
+            else if (string.Equals(order.PaymentStatus, "paid", StringComparison.OrdinalIgnoreCase) && order.Invoice is not null)
+            {
+                items.Add(BuildItem($"invoice-ready-{order.Id}", "Invoice ready", $"Your paid invoice for {order.PackageBand.Name} is available.", "/orders", "success"));
+            }
+        }
+
+        return items.Take(6).ToArray();
+    }
+
+    private async Task<NotificationSummaryItemResponse[]> BuildAgentNotificationsAsync(Guid userId, bool creativeOnly, CancellationToken cancellationToken)
+    {
+        var campaigns = await _db.Campaigns
+            .AsNoTracking()
+            .Include(campaign => campaign.User)
+            .Include(campaign => campaign.AssignedAgentUser)
+            .Include(campaign => campaign.PackageBand)
+            .Include(campaign => campaign.PackageOrder)
+            .Include(campaign => campaign.CampaignBrief)
+            .Include(campaign => campaign.CampaignRecommendations)
+            .OrderByDescending(campaign => campaign.UpdatedAt)
+            .Take(12)
+            .ToArrayAsync(cancellationToken);
+
+        var items = new List<NotificationSummaryItemResponse>();
+        foreach (var campaign in campaigns)
+        {
+            if (!creativeOnly && campaign.AssignedAgentUserId.HasValue && campaign.AssignedAgentUserId != userId)
+            {
+                continue;
+            }
+
+            var stage = ResolveQueueStage(campaign);
+            var campaignName = string.IsNullOrWhiteSpace(campaign.CampaignName) ? $"{campaign.PackageBand.Name} campaign" : campaign.CampaignName.Trim();
+
+            if (creativeOnly)
+            {
+                if (campaign.Status == CampaignStatuses.Approved || campaign.Status == CampaignStatuses.CreativeChangesRequested)
+                {
+                    items.Add(BuildItem($"creative-studio-{campaign.Id}", "Creative studio work ready", $"{campaignName} is ready for production or creative revision handling.", $"/creative/campaigns/{campaign.Id}/studio", "info"));
+                }
+                continue;
+            }
+
+            if (stage == "planning_ready")
+            {
+                items.Add(BuildItem($"agent-planning-ready-{campaign.Id}", "Campaign ready for recommendation", $"{campaignName} can now move into recommendation planning.", $"/agent/campaigns/{campaign.Id}", "info"));
+            }
+            else if (stage == "agent_review")
+            {
+                items.Add(BuildItem($"agent-review-{campaign.Id}", "Recommendation needs strategist review", $"{campaignName} has checks or flags that need your attention.", $"/agent/campaigns/{campaign.Id}", "warning"));
+            }
+            else if (stage == "waiting_on_client")
+            {
+                items.Add(BuildItem($"agent-client-wait-{campaign.Id}", "Waiting on client feedback", $"{campaignName} is with the client for approval or revisions.", $"/agent/campaigns/{campaign.Id}", "info"));
+            }
+            else if (stage == "newly_paid" || stage == "brief_waiting")
+            {
+                items.Add(BuildItem($"agent-brief-{campaign.Id}", "Campaign entered the strategist queue", $"{campaignName} is newly paid and moving through intake.", $"/agent/campaigns/{campaign.Id}", "info"));
+            }
+        }
+
+        return items.Take(6).ToArray();
+    }
+
+    private async Task<NotificationSummaryItemResponse[]> BuildCreativeNotificationsAsync(CancellationToken cancellationToken)
+    {
+        return await BuildAgentNotificationsAsync(Guid.Empty, true, cancellationToken);
+    }
+
+    private async Task<NotificationSummaryItemResponse[]> BuildAdminNotificationsAsync(CancellationToken cancellationToken)
+    {
+        var dashboard = await _adminDashboardService.GetDashboardAsync(cancellationToken);
+
+        var alertItems = dashboard.Alerts
+            .Select((alert, index) => BuildItem(
+                $"admin-alert-{index}-{alert.Title}",
+                alert.Title,
+                alert.Context,
+                "/admin/health",
+                alert.Severity.Contains("critical", StringComparison.OrdinalIgnoreCase) ? "warning" : "info"));
+
+        var pricingItems = dashboard.HealthIssues
+            .Where(item => item.Issue.Contains("pricing", StringComparison.OrdinalIgnoreCase) || item.Issue.Contains("inventory", StringComparison.OrdinalIgnoreCase))
+            .Take(3)
+            .Select(item => BuildItem(
+                $"admin-pricing-{item.OutletCode}",
+                $"{item.OutletName} needs pricing attention",
+                item.SuggestedFix,
+                $"/admin/pricing?outlet={Uri.EscapeDataString(item.OutletCode)}",
+                "warning"));
+
+        var items = alertItems.Concat(pricingItems).ToList();
+        if (dashboard.Monitoring.WaitingOnClientCount > 0)
+        {
+            items.Add(BuildItem(
+                "admin-waiting-on-client",
+                "Campaigns are waiting on client approval",
+                $"{dashboard.Monitoring.WaitingOnClientCount} recommendation set(s) are currently with clients.",
+                "/admin/monitoring",
+                "info"));
+        }
+
+        return items.Take(6).ToArray();
+    }
+
+    private static string ResolveQueueStage(Campaign campaign)
+    {
+        var latestRecommendation = campaign.CampaignRecommendations
+            .OrderByDescending(x => x.CreatedAt)
+            .FirstOrDefault();
+        var hasRecommendation = latestRecommendation is not null;
+        var recommendationStatus = latestRecommendation?.Status?.Trim().ToLowerInvariant();
+
+        return campaign.Status switch
+        {
+            CampaignStatuses.Paid => "newly_paid",
+            CampaignStatuses.BriefInProgress => "brief_waiting",
+            CampaignStatuses.BriefSubmitted => "planning_ready",
+            _ when recommendationStatus == RecommendationStatuses.Approved => "completed",
+            _ when recommendationStatus == RecommendationStatuses.SentToClient => "waiting_on_client",
+            CampaignStatuses.PlanningInProgress when hasRecommendation => "agent_review",
+            CampaignStatuses.PlanningInProgress => "planning_ready",
+            CampaignStatuses.ReviewReady => "waiting_on_client",
+            _ => "watching"
+        };
+    }
+
+    private static NotificationSummaryItemResponse BuildItem(string id, string title, string description, string href, string tone)
+    {
+        return new NotificationSummaryItemResponse
+        {
+            Id = id,
+            Title = title,
+            Description = description,
+            Href = href,
+            Tone = tone
+        };
+    }
+}

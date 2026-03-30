@@ -486,6 +486,68 @@ internal static class EmailTemplateDefaults
                   </div>
                 </div>
                 ", nowUtc),
+            Build("refund-processed", "Refund processed for {{CampaignName}}", @"
+                <div style=""background:#f4fbf8;padding:32px;font-family:Arial,sans-serif;color:#12211D;"">
+                  <div style=""max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #d8e9e1;border-radius:24px;overflow:hidden;"">
+                    <div style=""padding:28px 32px;background:linear-gradient(180deg,#eefbf5 0%, #ffffff 100%);border-bottom:1px solid #d8e9e1;"">
+                      <div style=""font-size:14px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Advertified billing</div>
+                      <h1 style=""margin:12px 0 0;font-size:30px;line-height:1.2;color:#123A33;"">Your refund has been processed</h1>
+                    </div>
+                    <div style=""padding:28px 32px;"">
+                      <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">Hi {{ClientName}}, a refund has been processed for <strong>{{CampaignName}}</strong>.</p>
+                      <div style=""margin:24px 0;padding:18px 20px;border:1px solid #d8e9e1;border-radius:18px;background:#f8fcfa;"">
+                        <p style=""margin:0;font-size:15px;line-height:1.6;""><strong>Campaign:</strong> {{CampaignName}}</p>
+                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Package:</strong> {{PackageName}}</p>
+                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Refund amount:</strong> {{RefundAmount}}</p>
+                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Refund status:</strong> {{RefundStatus}}</p>
+                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Policy stage:</strong> {{RefundPolicyLabel}}</p>
+                      </div>
+                      <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;""><strong>Reason:</strong> {{RefundReason}}</p>
+                      <p style=""margin:24px 0 0;"">
+                        <a href=""{{CampaignUrl}}"" style=""display:inline-block;padding:12px 18px;background:#123A33;color:#ffffff;text-decoration:none;border-radius:12px;font-weight:700;"">Open campaign</a>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                ", nowUtc),
+            Build("campaign-paused", "Campaign paused: {{CampaignName}}", @"
+                <div style=""background:#f4fbf8;padding:32px;font-family:Arial,sans-serif;color:#12211D;"">
+                  <div style=""max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #d8e9e1;border-radius:24px;overflow:hidden;"">
+                    <div style=""padding:28px 32px;background:linear-gradient(180deg,#eefbf5 0%, #ffffff 100%);border-bottom:1px solid #d8e9e1;"">
+                      <div style=""font-size:14px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Advertified operations</div>
+                      <h1 style=""margin:12px 0 0;font-size:30px;line-height:1.2;color:#123A33;"">{{CampaignName}} has been paused</h1>
+                    </div>
+                    <div style=""padding:28px 32px;"">
+                      <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">Hi {{ClientName}}, we have paused work on <strong>{{CampaignName}}</strong>.</p>
+                      <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;""><strong>Reason:</strong> {{PauseReason}}</p>
+                      <p style=""margin:24px 0 0;"">
+                        <a href=""{{CampaignUrl}}"" style=""display:inline-block;padding:12px 18px;background:#123A33;color:#ffffff;text-decoration:none;border-radius:12px;font-weight:700;"">Open campaign</a>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                ", nowUtc),
+            Build("campaign-resumed", "Campaign resumed: {{CampaignName}}", @"
+                <div style=""background:#f4fbf8;padding:32px;font-family:Arial,sans-serif;color:#12211D;"">
+                  <div style=""max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #d8e9e1;border-radius:24px;overflow:hidden;"">
+                    <div style=""padding:28px 32px;background:linear-gradient(180deg,#eefbf5 0%, #ffffff 100%);border-bottom:1px solid #d8e9e1;"">
+                      <div style=""font-size:14px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Advertified operations</div>
+                      <h1 style=""margin:12px 0 0;font-size:30px;line-height:1.2;color:#123A33;"">{{CampaignName}} has resumed</h1>
+                    </div>
+                    <div style=""padding:28px 32px;"">
+                      <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">Hi {{ClientName}}, work on <strong>{{CampaignName}}</strong> has resumed.</p>
+                      <div style=""margin:24px 0;padding:18px 20px;border:1px solid #d8e9e1;border-radius:18px;background:#f8fcfa;"">
+                        <p style=""margin:0;font-size:15px;line-height:1.6;""><strong>Package:</strong> {{PackageName}}</p>
+                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Paused days added back:</strong> {{PausedDays}}</p>
+                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Days left:</strong> {{DaysLeft}}</p>
+                      </div>
+                      <p style=""margin:24px 0 0;"">
+                        <a href=""{{CampaignUrl}}"" style=""display:inline-block;padding:12px 18px;background:#123A33;color:#ffffff;text-decoration:none;border-radius:12px;font-weight:700;"">Open campaign</a>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                ", nowUtc),
             Build("campaign-live", "Your Advertified campaign is now live: {{CampaignName}}", @"
                 <div style=""background:#f4fbf8;padding:32px;font-family:Arial,sans-serif;color:#12211D;"">
                   <div style=""max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #d8e9e1;border-radius:24px;overflow:hidden;"">
@@ -512,6 +574,52 @@ internal static class EmailTemplateDefaults
                           Open campaign
                         </a>
                       </div>
+                    </div>
+                  </div>
+                </div>
+                ", nowUtc),
+            Build("campaign-booking-confirmed", "Supplier booking confirmed for {{CampaignName}}", @"
+                <div style=""background:#f4fbf8;padding:32px;font-family:Arial,sans-serif;color:#12211D;"">
+                  <div style=""max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #d8e9e1;border-radius:24px;overflow:hidden;"">
+                    <div style=""padding:28px 32px;background:linear-gradient(180deg,#eefbf5 0%, #ffffff 100%);border-bottom:1px solid #d8e9e1;"">
+                      <div style=""font-size:14px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Advertified delivery</div>
+                      <h1 style=""margin:12px 0 0;font-size:30px;line-height:1.2;color:#123A33;"">A supplier booking has been logged for {{CampaignName}}</h1>
+                    </div>
+                    <div style=""padding:28px 32px;"">
+                      <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">Hi {{ClientName}}, we have recorded a supplier execution update for <strong>{{CampaignName}}</strong>.</p>
+                      <div style=""margin:24px 0;padding:18px 20px;border:1px solid #d8e9e1;border-radius:18px;background:#f8fcfa;"">
+                        <p style=""margin:0;font-size:15px;line-height:1.6;""><strong>Supplier / station:</strong> {{SupplierOrStation}}</p>
+                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Channel:</strong> {{Channel}}</p>
+                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Status:</strong> {{BookingStatus}}</p>
+                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Committed amount:</strong> {{CommittedAmount}}</p>
+                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Live window:</strong> {{LiveWindow}}</p>
+                      </div>
+                      <p style=""margin:24px 0 0;"">
+                        <a href=""{{CampaignUrl}}"" style=""display:inline-block;padding:12px 18px;background:#123A33;color:#ffffff;text-decoration:none;border-radius:12px;font-weight:700;"">Open campaign</a>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                ", nowUtc),
+            Build("campaign-report-available", "Delivery update available for {{CampaignName}}", @"
+                <div style=""background:#f4fbf8;padding:32px;font-family:Arial,sans-serif;color:#12211D;"">
+                  <div style=""max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #d8e9e1;border-radius:24px;overflow:hidden;"">
+                    <div style=""padding:28px 32px;background:linear-gradient(180deg,#eefbf5 0%, #ffffff 100%);border-bottom:1px solid #d8e9e1;"">
+                      <div style=""font-size:14px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Advertified live reporting</div>
+                      <h1 style=""margin:12px 0 0;font-size:30px;line-height:1.2;color:#123A33;"">{{Headline}}</h1>
+                    </div>
+                    <div style=""padding:28px 32px;"">
+                      <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">Hi {{ClientName}}, a new campaign delivery report has been added for <strong>{{CampaignName}}</strong>.</p>
+                      <div style=""margin:24px 0;padding:18px 20px;border:1px solid #d8e9e1;border-radius:18px;background:#f8fcfa;"">
+                        <p style=""margin:0;font-size:15px;line-height:1.6;""><strong>Report type:</strong> {{ReportType}}</p>
+                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Reported at:</strong> {{ReportedAt}}</p>
+                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Impressions:</strong> {{Impressions}}</p>
+                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Plays / spots:</strong> {{PlaysOrSpots}}</p>
+                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Spend delivered:</strong> {{SpendDelivered}}</p>
+                      </div>
+                      <p style=""margin:24px 0 0;"">
+                        <a href=""{{CampaignUrl}}"" style=""display:inline-block;padding:12px 18px;background:#123A33;color:#ffffff;text-decoration:none;border-radius:12px;font-weight:700;"">Open campaign</a>
+                      </p>
                     </div>
                   </div>
                 </div>

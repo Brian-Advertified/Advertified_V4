@@ -189,22 +189,14 @@ export function CheckoutConfirmationPage() {
     };
   })();
 
-  const transitionStyle = (delayMs: number) => ({
-    opacity: 1,
-    transform: 'translateY(0)',
-    transition: `opacity 0.45s cubic-bezier(0.16,1,0.3,1) ${delayMs}ms, transform 0.45s cubic-bezier(0.16,1,0.3,1) ${delayMs}ms`,
-  });
   const providerArtwork = provider === 'lula'
     ? { src: lulaLogo, alt: 'Lula logo', label: 'Paid through Lula' }
     : { src: vodaLogo, alt: 'VodaPay logo', label: 'Paid through VodaPay' };
 
   return (
-    <section
-      className={`checkout-status-page-shell checkout-status-page-${statusContent.status}`}
-      style={{ ['--checkout-status-color' as string]: statusContent.colorVar }}
-    >
+    <section className={`checkout-status-page-shell checkout-status-page-${statusContent.status}`}>
       <div className="checkout-status-card">
-        <div className="checkout-status-brand-strip" style={transitionStyle(0)}>
+        <div className="checkout-status-brand-strip checkout-status-animate checkout-status-delay-0">
           <div className="checkout-status-brand-card">
             <img src={providerArtwork.src} alt={providerArtwork.alt} className="checkout-status-brand-logo" />
             <span>{providerArtwork.label}</span>
@@ -213,7 +205,7 @@ export function CheckoutConfirmationPage() {
           <img src={advertifiedLogo} alt="Advertified logo" className="checkout-status-brand-logo checkout-status-brand-logo-advertified" />
         </div>
 
-        <div className="checkout-status-icon-wrap" style={transitionStyle(0)}>
+        <div className="checkout-status-icon-wrap checkout-status-animate checkout-status-delay-0">
           {statusContent.status !== 'pending' ? (
             <>
               <div className="checkout-status-ring" />
@@ -230,22 +222,22 @@ export function CheckoutConfirmationPage() {
           </div>
         </div>
 
-        <div className="checkout-status-badge" style={transitionStyle(60)}>
+        <div className="checkout-status-badge checkout-status-animate checkout-status-delay-60">
           <span className={`checkout-status-badge-dot ${statusContent.status === 'pending' ? 'checkout-status-badge-dot-pending' : ''}`} />
           {statusContent.label}
         </div>
 
-        <h1 className="checkout-status-title" style={transitionStyle(110)}>{statusContent.title}</h1>
-        <p className="checkout-status-description" style={transitionStyle(150)}>{statusContent.description}</p>
+        <h1 className="checkout-status-title checkout-status-animate checkout-status-delay-110">{statusContent.title}</h1>
+        <p className="checkout-status-description checkout-status-animate checkout-status-delay-150">{statusContent.description}</p>
 
-        <div className="checkout-status-summary-panel" style={transitionStyle(200)}>
+        <div className="checkout-status-summary-panel checkout-status-animate checkout-status-delay-200">
           <div className="checkout-status-summary-head">Order Summary</div>
           <div className="checkout-status-summary-entry">
             <span className="checkout-status-summary-entry-label">Package</span>
             <span className="checkout-status-summary-pill">{order.packageBandName}</span>
           </div>
           <div className="checkout-status-summary-entry">
-            <span className="checkout-status-summary-entry-label">Amount</span>
+            <span className="checkout-status-summary-entry-label">Total</span>
             <span className="checkout-status-summary-entry-value">
               {order.paymentStatus === 'paid' ? formatCurrency(order.amount, order.currency) : 'Not paid'}
             </span>
@@ -268,7 +260,7 @@ export function CheckoutConfirmationPage() {
           </div>
         </div>
 
-        <div className="checkout-status-button-row" style={transitionStyle(250)}>
+        <div className="checkout-status-button-row checkout-status-animate checkout-status-delay-250">
           {statusContent.secondaryHref.startsWith('http') ? (
             <a href={statusContent.secondaryHref} target="_blank" rel="noreferrer" className="checkout-status-button checkout-status-button-ghost">
               {statusContent.secondaryLabel}
@@ -283,9 +275,9 @@ export function CheckoutConfirmationPage() {
           </Link>
         </div>
 
-        <div className="checkout-status-divider" style={transitionStyle(290)} />
+        <div className="checkout-status-divider checkout-status-animate checkout-status-delay-290" />
 
-        <p className="checkout-status-help" style={transitionStyle(310)}>
+        <p className="checkout-status-help checkout-status-animate checkout-status-delay-310">
           Need help? <a href="mailto:support@advertified.com">Contact support</a>
         </p>
       </div>

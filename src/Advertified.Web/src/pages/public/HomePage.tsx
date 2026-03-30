@@ -101,6 +101,10 @@ export function HomePage() {
               <p className="mt-3 max-w-[520px] text-sm leading-7 text-ink-soft sm:text-[15px]">
                 This video is a quick brand introduction: who we are, what we enable, and why the journey is designed to feel clear instead of overwhelming.
               </p>
+              <Link to="/about" className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-brand">
+                Read more about Advertified
+                <ArrowRight className="size-4" />
+              </Link>
             </div>
             <div className="flex justify-center lg:justify-end">
               <div className="w-full max-w-[210px] overflow-hidden rounded-[24px] border border-line bg-slate-950 shadow-[0_12px_24px_rgba(15,23,42,0.11)]">

@@ -1,6 +1,7 @@
 using Advertified.App.Contracts.Agent;
 using Advertified.App.Data;
 using Advertified.App.Services.Abstractions;
+using Advertified.App.Support;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
@@ -31,7 +32,7 @@ public sealed class AgentRecommendationsController : ControllerBase
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw new InvalidOperationException("Recommendation not found.");
 
-        if (!string.Equals(recommendation.Status, "draft", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(recommendation.Status, RecommendationStatuses.Draft, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException("Only draft recommendations can be deleted.");
         }
@@ -66,7 +67,7 @@ public sealed class AgentRecommendationsController : ControllerBase
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw new InvalidOperationException("Recommendation not found.");
 
-        if (!string.Equals(recommendation.Status, "draft", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(recommendation.Status, RecommendationStatuses.Draft, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException("Only draft recommendations can be edited. Create a new revision instead.");
         }

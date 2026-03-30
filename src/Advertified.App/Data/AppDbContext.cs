@@ -22,11 +22,21 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<CampaignBriefDraft> CampaignBriefDrafts { get; set; }
 
+    public virtual DbSet<CampaignAsset> CampaignAssets { get; set; }
+
+    public virtual DbSet<CampaignCreativeSystem> CampaignCreativeSystems { get; set; }
+
     public virtual DbSet<CampaignConversation> CampaignConversations { get; set; }
+
+    public virtual DbSet<CampaignDeliveryReport> CampaignDeliveryReports { get; set; }
 
     public virtual DbSet<CampaignMessage> CampaignMessages { get; set; }
 
+    public virtual DbSet<CampaignPauseWindow> CampaignPauseWindows { get; set; }
+
     public virtual DbSet<CampaignRecommendation> CampaignRecommendations { get; set; }
+
+    public virtual DbSet<CampaignSupplierBooking> CampaignSupplierBookings { get; set; }
 
     public virtual DbSet<ChangeAuditLog> ChangeAuditLogs { get; set; }
 
@@ -47,6 +57,8 @@ public partial class AppDbContext : DbContext
     public virtual DbSet<PackageBand> PackageBands { get; set; }
 
     public virtual DbSet<PackageOrder> PackageOrders { get; set; }
+
+    public virtual DbSet<PricingSetting> PricingSettings { get; set; }
 
     public virtual DbSet<PaymentProviderRequestAudit> PaymentProviderRequests { get; set; }
 
@@ -148,6 +160,8 @@ public partial class AppDbContext : DbContext
                 .HasColumnName("created_at");
             entity.Property(e => e.PackageBandId).HasColumnName("package_band_id");
             entity.Property(e => e.PackageOrderId).HasColumnName("package_order_id");
+            entity.Property(e => e.PausedAt).HasColumnName("paused_at");
+            entity.Property(e => e.PauseReason).HasColumnName("pause_reason");
             entity.Property(e => e.PlanningMode)
                 .HasMaxLength(50)
                 .HasColumnName("planning_mode");
@@ -155,6 +169,9 @@ public partial class AppDbContext : DbContext
                 .HasMaxLength(50)
                 .HasDefaultValueSql("'paid'::character varying")
                 .HasColumnName("status");
+            entity.Property(e => e.TotalPausedDays)
+                .HasDefaultValue(0)
+                .HasColumnName("total_paused_days");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");
@@ -282,6 +299,86 @@ public partial class AppDbContext : DbContext
                 .HasConstraintName("campaign_brief_drafts_campaign_id_fkey");
         });
 
+        modelBuilder.Entity<CampaignAsset>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("campaign_assets_pkey");
+
+            entity.ToTable("campaign_assets");
+
+            entity.HasIndex(e => e.CampaignId, "ix_campaign_assets_campaign_id");
+            entity.HasIndex(e => e.AssetType, "ix_campaign_assets_asset_type");
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.AssetType)
+                .HasMaxLength(50)
+                .HasColumnName("asset_type");
+            entity.Property(e => e.CampaignId).HasColumnName("campaign_id");
+            entity.Property(e => e.ContentType)
+                .HasMaxLength(255)
+                .HasColumnName("content_type");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.DisplayName)
+                .HasMaxLength(255)
+                .HasColumnName("display_name");
+            entity.Property(e => e.PublicUrl).HasColumnName("public_url");
+            entity.Property(e => e.SizeBytes).HasColumnName("size_bytes");
+            entity.Property(e => e.StorageObjectKey).HasColumnName("storage_object_key");
+            entity.Property(e => e.UploadedByUserId).HasColumnName("uploaded_by_user_id");
+
+            entity.HasOne(d => d.Campaign).WithMany(p => p.CampaignAssets)
+                .HasForeignKey(d => d.CampaignId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("campaign_assets_campaign_id_fkey");
+
+            entity.HasOne(d => d.UploadedByUser).WithMany()
+                .HasForeignKey(d => d.UploadedByUserId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("campaign_assets_uploaded_by_user_id_fkey");
+        });
+
+        modelBuilder.Entity<CampaignCreativeSystem>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("campaign_creative_systems_pkey");
+
+            entity.ToTable("campaign_creative_systems");
+
+            entity.HasIndex(e => e.CampaignId, "ix_campaign_creative_systems_campaign_id");
+            entity.HasIndex(e => e.CreatedAt, "ix_campaign_creative_systems_created_at");
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.CampaignId).HasColumnName("campaign_id");
+            entity.Property(e => e.CreatedByUserId).HasColumnName("created_by_user_id");
+            entity.Property(e => e.Prompt).HasColumnName("prompt");
+            entity.Property(e => e.IterationLabel)
+                .HasMaxLength(100)
+                .HasColumnName("iteration_label");
+            entity.Property(e => e.InputJson)
+                .HasColumnType("jsonb")
+                .HasColumnName("input_json");
+            entity.Property(e => e.OutputJson)
+                .HasColumnType("jsonb")
+                .HasColumnName("output_json");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+
+            entity.HasOne(d => d.Campaign).WithMany(p => p.CampaignCreativeSystems)
+                .HasForeignKey(d => d.CampaignId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("campaign_creative_systems_campaign_id_fkey");
+
+            entity.HasOne(d => d.CreatedByUser).WithMany()
+                .HasForeignKey(d => d.CreatedByUserId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("campaign_creative_systems_created_by_user_id_fkey");
+        });
+
         modelBuilder.Entity<CampaignConversation>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("campaign_conversations_pkey");
@@ -314,6 +411,60 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.ClientUserId)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("campaign_conversations_client_user_id_fkey");
+        });
+
+        modelBuilder.Entity<CampaignDeliveryReport>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("campaign_delivery_reports_pkey");
+
+            entity.ToTable("campaign_delivery_reports");
+
+            entity.HasIndex(e => e.CampaignId, "ix_campaign_delivery_reports_campaign_id");
+            entity.HasIndex(e => e.ReportedAt, "ix_campaign_delivery_reports_reported_at");
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.CampaignId).HasColumnName("campaign_id");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.CreatedByUserId).HasColumnName("created_by_user_id");
+            entity.Property(e => e.EvidenceAssetId).HasColumnName("evidence_asset_id");
+            entity.Property(e => e.Headline)
+                .HasMaxLength(200)
+                .HasColumnName("headline");
+            entity.Property(e => e.Impressions).HasColumnName("impressions");
+            entity.Property(e => e.PlaysOrSpots).HasColumnName("plays_or_spots");
+            entity.Property(e => e.ReportType)
+                .HasMaxLength(50)
+                .HasColumnName("report_type");
+            entity.Property(e => e.ReportedAt).HasColumnName("reported_at");
+            entity.Property(e => e.SpendDelivered)
+                .HasPrecision(12, 2)
+                .HasColumnName("spend_delivered");
+            entity.Property(e => e.SupplierBookingId).HasColumnName("supplier_booking_id");
+            entity.Property(e => e.Summary).HasColumnName("summary");
+
+            entity.HasOne(d => d.Campaign).WithMany(p => p.CampaignDeliveryReports)
+                .HasForeignKey(d => d.CampaignId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("campaign_delivery_reports_campaign_id_fkey");
+
+            entity.HasOne(d => d.CreatedByUser).WithMany()
+                .HasForeignKey(d => d.CreatedByUserId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("campaign_delivery_reports_created_by_user_id_fkey");
+
+            entity.HasOne(d => d.EvidenceAsset).WithMany()
+                .HasForeignKey(d => d.EvidenceAssetId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("campaign_delivery_reports_evidence_asset_id_fkey");
+
+            entity.HasOne(d => d.SupplierBooking).WithMany()
+                .HasForeignKey(d => d.SupplierBookingId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("campaign_delivery_reports_supplier_booking_id_fkey");
         });
 
         modelBuilder.Entity<CampaignMessage>(entity =>
@@ -351,6 +502,47 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.SenderUserId)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("campaign_messages_sender_user_id_fkey");
+        });
+
+        modelBuilder.Entity<CampaignPauseWindow>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("campaign_pause_windows_pkey");
+
+            entity.ToTable("campaign_pause_windows");
+
+            entity.HasIndex(e => e.CampaignId, "ix_campaign_pause_windows_campaign_id");
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.CampaignId).HasColumnName("campaign_id");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.CreatedByUserId).HasColumnName("created_by_user_id");
+            entity.Property(e => e.EndedAt).HasColumnName("ended_at");
+            entity.Property(e => e.PausedDayCount)
+                .HasDefaultValue(0)
+                .HasColumnName("paused_day_count");
+            entity.Property(e => e.PauseReason).HasColumnName("pause_reason");
+            entity.Property(e => e.ResumeReason).HasColumnName("resume_reason");
+            entity.Property(e => e.ResumedByUserId).HasColumnName("resumed_by_user_id");
+            entity.Property(e => e.StartedAt).HasColumnName("started_at");
+
+            entity.HasOne(d => d.Campaign).WithMany(p => p.CampaignPauseWindows)
+                .HasForeignKey(d => d.CampaignId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("campaign_pause_windows_campaign_id_fkey");
+
+            entity.HasOne(d => d.CreatedByUser).WithMany()
+                .HasForeignKey(d => d.CreatedByUserId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("campaign_pause_windows_created_by_user_id_fkey");
+
+            entity.HasOne(d => d.ResumedByUser).WithMany()
+                .HasForeignKey(d => d.ResumedByUserId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("campaign_pause_windows_resumed_by_user_id_fkey");
         });
 
         modelBuilder.Entity<CampaignRecommendation>(entity =>
@@ -519,9 +711,21 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.Amount)
                 .HasPrecision(12, 2)
                 .HasColumnName("amount");
+            entity.Property(e => e.AiStudioReserveAmount)
+                .HasPrecision(12, 2)
+                .HasDefaultValue(0m)
+                .HasColumnName("ai_studio_reserve_amount");
+            entity.Property(e => e.AiStudioReservePercent)
+                .HasPrecision(8, 4)
+                .HasDefaultValue(0.10m)
+                .HasColumnName("ai_studio_reserve_percent");
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("created_at");
+            entity.Property(e => e.GatewayFeeRetainedAmount)
+                .HasPrecision(12, 2)
+                .HasDefaultValue(0m)
+                .HasColumnName("gateway_fee_retained_amount");
             entity.Property(e => e.Currency)
                 .HasMaxLength(3)
                 .HasDefaultValueSql("'ZAR'::character varying")
@@ -538,6 +742,16 @@ public partial class AppDbContext : DbContext
                 .HasDefaultValueSql("'pending'::character varying")
                 .HasColumnName("payment_status");
             entity.Property(e => e.PurchasedAt).HasColumnName("purchased_at");
+            entity.Property(e => e.RefundProcessedAt).HasColumnName("refund_processed_at");
+            entity.Property(e => e.RefundReason).HasColumnName("refund_reason");
+            entity.Property(e => e.RefundStatus)
+                .HasMaxLength(50)
+                .HasDefaultValueSql("'none'::character varying")
+                .HasColumnName("refund_status");
+            entity.Property(e => e.RefundedAmount)
+                .HasPrecision(12, 2)
+                .HasDefaultValue(0m)
+                .HasColumnName("refunded_amount");
             entity.Property(e => e.SelectedBudget)
                 .HasPrecision(12, 2)
                 .HasColumnName("selected_budget");
@@ -555,6 +769,91 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.UserId)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("package_orders_user_id_fkey");
+        });
+
+        modelBuilder.Entity<CampaignSupplierBooking>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("campaign_supplier_bookings_pkey");
+
+            entity.ToTable("campaign_supplier_bookings");
+
+            entity.HasIndex(e => e.CampaignId, "ix_campaign_supplier_bookings_campaign_id");
+            entity.HasIndex(e => new { e.LiveFrom, e.LiveTo }, "ix_campaign_supplier_bookings_live_window");
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.BookedAt).HasColumnName("booked_at");
+            entity.Property(e => e.BookingStatus)
+                .HasMaxLength(50)
+                .HasDefaultValueSql("'planned'::character varying")
+                .HasColumnName("booking_status");
+            entity.Property(e => e.CampaignId).HasColumnName("campaign_id");
+            entity.Property(e => e.Channel)
+                .HasMaxLength(50)
+                .HasColumnName("channel");
+            entity.Property(e => e.CommittedAmount)
+                .HasPrecision(12, 2)
+                .HasDefaultValue(0m)
+                .HasColumnName("committed_amount");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.CreatedByUserId).HasColumnName("created_by_user_id");
+            entity.Property(e => e.LiveFrom).HasColumnName("live_from");
+            entity.Property(e => e.LiveTo).HasColumnName("live_to");
+            entity.Property(e => e.Notes).HasColumnName("notes");
+            entity.Property(e => e.ProofAssetId).HasColumnName("proof_asset_id");
+            entity.Property(e => e.SupplierOrStation)
+                .HasMaxLength(255)
+                .HasColumnName("supplier_or_station");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+
+            entity.HasOne(d => d.Campaign).WithMany(p => p.CampaignSupplierBookings)
+                .HasForeignKey(d => d.CampaignId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("campaign_supplier_bookings_campaign_id_fkey");
+
+            entity.HasOne(d => d.CreatedByUser).WithMany()
+                .HasForeignKey(d => d.CreatedByUserId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("campaign_supplier_bookings_created_by_user_id_fkey");
+
+            entity.HasOne(d => d.ProofAsset).WithMany()
+                .HasForeignKey(d => d.ProofAssetId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("campaign_supplier_bookings_proof_asset_id_fkey");
+        });
+
+        modelBuilder.Entity<PricingSetting>(entity =>
+        {
+            entity.HasKey(e => e.PricingKey).HasName("pricing_settings_pkey");
+
+            entity.ToTable("pricing_settings");
+
+            entity.Property(e => e.PricingKey)
+                .HasMaxLength(50)
+                .HasColumnName("pricing_key");
+            entity.Property(e => e.AiStudioReservePercent)
+                .HasPrecision(8, 4)
+                .HasColumnName("ai_studio_reserve_percent");
+            entity.Property(e => e.OohMarkupPercent)
+                .HasPrecision(8, 4)
+                .HasColumnName("ooh_markup_percent");
+            entity.Property(e => e.RadioMarkupPercent)
+                .HasPrecision(8, 4)
+                .HasColumnName("radio_markup_percent");
+            entity.Property(e => e.TvMarkupPercent)
+                .HasPrecision(8, 4)
+                .HasColumnName("tv_markup_percent");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
         });
 
         modelBuilder.Entity<RecommendationItem>(entity =>

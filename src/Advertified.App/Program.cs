@@ -1,6 +1,7 @@
 using Advertified.App.Configuration;
 using Advertified.App.Data;
 using Advertified.App.Data.Enums;
+using Advertified.App.Middleware;
 using Advertified.App.Services;
 using Advertified.App.Services.Abstractions;
 using Advertified.App.Services.BroadcastMatching;
@@ -25,6 +26,7 @@ builder.Services.Configure<UpstashRedisOptions>(builder.Configuration.GetSection
 builder.Services.Configure<VodaPayOptions>(builder.Configuration.GetSection(VodaPayOptions.SectionName));
 builder.Services.Configure<PlanningPolicyOptions>(builder.Configuration.GetSection(PlanningPolicyOptions.SectionName));
 builder.Services.Configure<OpenAIOptions>(builder.Configuration.GetSection(OpenAIOptions.SectionName));
+builder.Services.Configure<StorageOptions>(builder.Configuration.GetSection(StorageOptions.SectionName));
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(FrontendCorsPolicy, policy =>
@@ -50,6 +52,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped<ICurrentUserAccessor, CurrentUserAccessor>();
 builder.Services.AddScoped<ISessionTokenService, SessionTokenService>();
 builder.Services.AddScoped<IPasswordHashingService, PasswordHashingService>();
+builder.Services.AddScoped<IPricingSettingsProvider, PricingSettingsProvider>();
 builder.Services.AddScoped<IAdminDashboardService>(_ => new AdminDashboardService(
     _.GetRequiredService<AppDbContext>(),
     _.GetRequiredService<IBroadcastInventoryCatalog>(),
@@ -63,6 +66,7 @@ builder.Services.AddScoped<IAgentAreaRoutingService, AgentAreaRoutingService>();
 builder.Services.AddScoped<ICampaignBriefService, CampaignBriefService>();
 builder.Services.AddScoped<ICampaignRecommendationService, CampaignRecommendationService>();
 builder.Services.AddScoped<IRecommendationDocumentService, RecommendationDocumentService>();
+builder.Services.AddHttpClient<IPublicAssetStorage, PublicAssetStorageService>();
 builder.Services.AddSingleton<IBroadcastInventoryCatalog>(_ => new BroadcastInventoryCatalog(connectionString));
 builder.Services.AddSingleton<IBroadcastCostNormalizer, BroadcastCostNormalizer>();
 builder.Services.AddSingleton<IBroadcastInventoryImportService>(_ =>
@@ -96,6 +100,19 @@ builder.Services.AddHttpClient<ICampaignReasoningService, OpenAICampaignReasonin
         client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
     }
 });
+builder.Services.AddHttpClient<ICreativeStudioIntelligenceService, CreativeStudioIntelligenceService>((serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<OpenAIOptions>>().Value;
+    if (!string.IsNullOrWhiteSpace(options.BaseUrl))
+    {
+        client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
+    }
+
+    if (options.TimeoutSeconds > 0)
+    {
+        client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
+    }
+});
 builder.Services.AddScoped<IEmailVerificationService, EmailVerificationService>();
 builder.Services.AddScoped<IInvoiceService, InvoiceService>();
 builder.Services.AddSingleton(BroadcastMatcherPolicy.Default);
@@ -114,7 +131,9 @@ builder.Services.AddScoped<IPlanningEligibilityService, PlanningEligibilityServi
 builder.Services.AddScoped<IPlanningScoreService, PlanningScoreService>();
 builder.Services.AddScoped<IRecommendationPlanBuilder, RecommendationPlanBuilder>();
 builder.Services.AddScoped<IRecommendationExplainabilityService, RecommendationExplainabilityService>();
-builder.Services.AddScoped<IOohPlanningInventorySource>(_ => new OohPlanningInventorySource(connectionString));
+builder.Services.AddScoped<IOohPlanningInventorySource>(_ => new OohPlanningInventorySource(
+    connectionString,
+    _.GetRequiredService<IPricingSettingsProvider>()));
 builder.Services.AddScoped<IBroadcastPlanningInventorySource, BroadcastPlanningInventorySource>();
 builder.Services.AddScoped<IPlanningInventoryCandidateMapper, PlanningInventoryCandidateMapper>();
 builder.Services.AddScoped<IMediaPlanningEngine>(_ => new MediaPlanningEngine(
@@ -187,34 +206,7 @@ await using (var scope = app.Services.CreateAsyncScope())
     await broadcastInventoryImportService.SyncAsync(CancellationToken.None);
 }
 
-app.Use(async (context, next) =>
-{
-    try
-    {
-        await next();
-    }
-    catch (InvalidOperationException ex) when (ex.Message.Contains("authenticated session", StringComparison.OrdinalIgnoreCase)
-        || ex.Message.Contains("authenticated user account", StringComparison.OrdinalIgnoreCase))
-    {
-        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-        await context.Response.WriteAsJsonAsync(new ProblemDetails
-        {
-            Title = "Authentication required.",
-            Detail = ex.Message,
-            Status = StatusCodes.Status401Unauthorized
-        });
-    }
-    catch (InvalidOperationException ex) when (ex.Message.Contains("access is required", StringComparison.OrdinalIgnoreCase))
-    {
-        context.Response.StatusCode = StatusCodes.Status403Forbidden;
-        await context.Response.WriteAsJsonAsync(new ProblemDetails
-        {
-            Title = "Forbidden.",
-            Detail = ex.Message,
-            Status = StatusCodes.Status403Forbidden
-        });
-    }
-});
+app.UseMiddleware<ProblemDetailsExceptionHandlingMiddleware>();
 
 app.UseCors(FrontendCorsPolicy);
 app.MapControllers();

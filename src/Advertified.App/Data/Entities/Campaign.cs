@@ -27,6 +27,12 @@ public partial class Campaign
 
     public DateTime UpdatedAt { get; set; }
 
+    public DateTime? PausedAt { get; set; }
+
+    public int TotalPausedDays { get; set; }
+
+    public string? PauseReason { get; set; }
+
     public virtual CampaignBrief? CampaignBrief { get; set; }
 
     public virtual CampaignBriefDraft? CampaignBriefDraft { get; set; }

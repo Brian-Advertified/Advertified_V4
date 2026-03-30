@@ -19,249 +19,30 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { ProcessingOverlay } from '../../components/ui/ProcessingOverlay';
 import { useToast } from '../../components/ui/toast';
+import {
+  buildAudienceSummary,
+  buildChannelSummary,
+  buildGeneratedInventoryFallback,
+  buildGeoSummary,
+  buildOriginalPrompt,
+  buildTargetChannelMix,
+  buildToneSummary,
+  calculateConfidence,
+  formatConfidenceLabel,
+  getConstraintChecks,
+  groupGeneratedRecommendationItems,
+  groupPlanItems,
+  isInventoryRelevant,
+  normalizeChannelKey,
+} from '../../features/agent/agentCampaignDetailUtils';
 import { InventoryTable } from '../../features/agent/components/InventoryTable';
+import { invalidateAgentCampaignQueries, queryKeys } from '../../lib/queryKeys';
 import { formatCurrency, titleCase } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
-import type { CampaignBrief, RecommendationItem, SelectedPlanInventoryItem } from '../../types/domain';
+import type { RecommendationItem, SelectedPlanInventoryItem } from '../../types/domain';
 
 type DisplayPlanItem = SelectedPlanInventoryItem | RecommendationItem;
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:5050';
-
-function buildAudienceSummary(brief?: CampaignBrief) {
-  if (!brief) return 'Not captured yet';
-
-  const parts: string[] = [];
-  if (brief.targetAudienceNotes) parts.push(brief.targetAudienceNotes);
-  if (brief.targetInterests?.length) parts.push(brief.targetInterests.join(', '));
-  if (brief.targetAgeMin || brief.targetAgeMax) parts.push(`Age ${brief.targetAgeMin ?? '?'}-${brief.targetAgeMax ?? '?'}`);
-  return parts[0] ?? 'General audience';
-}
-
-function buildGeoSummary(brief?: CampaignBrief) {
-  if (!brief) return 'Not captured yet';
-
-  const areas = [...(brief.areas ?? []), ...(brief.cities ?? []), ...(brief.provinces ?? [])];
-  if (areas.length > 0) return areas.slice(0, 3).join(', ');
-  return titleCase(brief.geographyScope || 'not set');
-}
-
-function buildChannelSummary(brief?: CampaignBrief, selectedPlanItems?: SelectedPlanInventoryItem[]) {
-  if (brief?.preferredMediaTypes?.length) return brief.preferredMediaTypes.map((x) => x.toUpperCase()).join(' + ');
-  const channels = Array.from(new Set((selectedPlanItems ?? []).map((item) => item.type.toUpperCase())));
-  return channels.length > 0 ? channels.join(' + ') : 'Not selected yet';
-}
-
-function buildToneSummary(brief?: CampaignBrief) {
-  const notes = brief?.creativeNotes?.toLowerCase() ?? '';
-  if (notes.includes('premium')) return 'Premium';
-  if (notes.includes('youth')) return 'Youthful';
-  if (notes.includes('bold') || notes.includes('visibility')) return 'High visibility';
-  return brief?.creativeNotes ? 'Campaign-led' : 'Balanced';
-}
-
-function buildOriginalPrompt(brief?: CampaignBrief) {
-  return brief?.specialRequirements
-    ?? brief?.creativeNotes
-    ?? brief?.targetAudienceNotes
-    ?? 'No original prompt has been captured yet.';
-}
-
-function inferRegionFromTitle(title: string, brief?: CampaignBrief) {
-  const segments = title
-    .split(',')
-    .map((part) => part.trim())
-    .filter(Boolean);
-
-  if (segments.length > 1) {
-    return segments[segments.length - 1];
-  }
-
-  return buildGeoSummary(brief);
-}
-
-function buildGeneratedInventoryFallback(item: RecommendationItem, brief?: CampaignBrief) {
-  const channel = normalizeChannelKey(item.channel);
-  if (channel === 'RADIO') {
-    return {
-      region: item.region || buildGeoSummary(brief),
-      language: item.language || 'Station language',
-      showDaypart: item.showDaypart || 'Station schedule',
-      timeBand: item.timeBand || 'To be confirmed',
-      slotType: item.slotType || 'Radio spot',
-      duration: item.duration || 'Standard spot',
-      restrictions: item.restrictions || 'Final station slot to be confirmed',
-    };
-  }
-
-  if (channel === 'OOH') {
-    return {
-      region: item.region || inferRegionFromTitle(item.title, brief),
-      language: item.language || 'N/A',
-      showDaypart: item.showDaypart || 'All day',
-      timeBand: item.timeBand || 'Always on',
-      slotType: item.slotType || 'Placement',
-      duration: item.duration || 'Site-based',
-      restrictions: item.restrictions || 'Subject to site availability',
-    };
-  }
-
-  return {
-    region: item.region || buildGeoSummary(brief),
-    language: item.language || 'N/A',
-    showDaypart: item.showDaypart || 'Flexible',
-    timeBand: item.timeBand || 'Flexible',
-    slotType: item.slotType || 'Placement',
-    duration: item.duration || 'Campaign-based',
-    restrictions: item.restrictions || 'Final delivery details pending',
-  };
-}
-
-function formatConfidenceLabel(confidenceScore?: number) {
-  if (confidenceScore === undefined) {
-    return null;
-  }
-
-  return `${Math.round(confidenceScore * 100)}% confidence`;
-}
-
-function calculateConfidence(brief?: CampaignBrief) {
-  if (!brief) return 0.42;
-
-  let score = 0.42;
-  if (brief.objective) score += 0.1;
-  if (brief.geographyScope) score += 0.1;
-  if (brief.targetAudienceNotes || brief.targetInterests?.length) score += 0.12;
-  if (brief.preferredMediaTypes?.length) score += 0.1;
-  if (brief.creativeNotes) score += 0.07;
-  if (brief.specialRequirements) score += 0.05;
-  return Math.min(0.96, Number(score.toFixed(2)));
-}
-
-function getConstraintChecks(brief: CampaignBrief | undefined, selectedPlanItems: SelectedPlanInventoryItem[], isOverBudget: boolean, selectedBudget: number) {
-  const geoAligned = selectedPlanItems.length === 0
-    || selectedPlanItems.some((item) => {
-      const region = item.region.toLowerCase();
-      return (
-        brief?.areas?.some((area) => region.includes(area.toLowerCase()))
-        || brief?.cities?.some((city) => region.includes(city.toLowerCase()))
-        || brief?.provinces?.some((province) => region.includes(province.toLowerCase()))
-        || region.includes((brief?.geographyScope ?? '').toLowerCase())
-      );
-    });
-
-  const nationalRadioSelected = selectedPlanItems.some((item) =>
-    item.type === 'radio' && /(metro|5fm|ukhozi|radio 2000)/i.test(item.station));
-
-  return [
-    {
-      label: 'Within budget',
-      ok: !isOverBudget,
-      detail: !isOverBudget ? `Inside the paid ${formatCurrency(selectedBudget)} package.` : 'This draft is currently over budget.',
-    },
-    {
-      label: 'No national radio',
-      ok: !nationalRadioSelected,
-      detail: nationalRadioSelected ? 'National-capable radio is included.' : 'No national radio selected yet. That is still acceptable here.',
-    },
-    {
-      label: 'Geo aligned',
-      ok: geoAligned,
-      detail: geoAligned ? 'The plan matches the campaign geography.' : 'Some lines do not clearly match the campaign geography.',
-    },
-  ];
-}
-
-function groupPlanItems(items: SelectedPlanInventoryItem[]) {
-  return items.reduce<Record<string, SelectedPlanInventoryItem[]>>((acc, item) => {
-    const key = item.type.toUpperCase();
-    acc[key] = [...(acc[key] ?? []), item];
-    return acc;
-  }, {});
-}
-
-function groupGeneratedRecommendationItems(items: RecommendationItem[]) {
-  return items.reduce<Record<string, typeof items>>((acc, item) => {
-    const key = normalizeChannelKey(item.channel);
-    acc[key] = [...(acc[key] ?? []), item];
-    return acc;
-  }, {});
-}
-
-function normalizeChannelKey(channel: string) {
-  const normalized = channel.trim().toLowerCase();
-  if (normalized.includes('radio')) return 'RADIO';
-  if (normalized.includes('ooh') || normalized.includes('out of home') || normalized.includes('billboard')) return 'OOH';
-  if (normalized.includes('digital')) return 'DIGITAL';
-  if (normalized.includes('tv')) return 'TV';
-  return channel.trim().toUpperCase();
-}
-
-function isInventoryRelevant(item: SelectedPlanInventoryItem, brief?: CampaignBrief) {
-  const preferredMediaTypes = brief?.preferredMediaTypes?.map((value) => value.toLowerCase()) ?? [];
-  if (preferredMediaTypes.length > 0 && !preferredMediaTypes.includes(item.type.toLowerCase())) {
-    return false;
-  }
-
-  if ((brief?.geographyScope ?? '').toLowerCase() === 'national') {
-    return true;
-  }
-
-  const geoTerms = [
-    ...(brief?.areas ?? []),
-    ...(brief?.cities ?? []),
-    ...(brief?.provinces ?? []),
-  ]
-    .map((value) => value.toLowerCase())
-    .filter(Boolean);
-
-  if (geoTerms.length === 0) {
-    return true;
-  }
-
-  const haystack = [
-    item.station,
-    item.region,
-    item.restrictions,
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase();
-
-  return geoTerms.some((term) => haystack.includes(term));
-}
-
-function buildTargetChannelMix(groupedTotals: { channel: string; total: number }[], radioShareTarget: number) {
-  const activeNonRadioChannels = groupedTotals
-    .map((entry) => normalizeChannelKey(entry.channel))
-    .filter((channel) => channel !== 'RADIO');
-
-  const uniqueNonRadioChannels = Array.from(new Set(activeNonRadioChannels));
-  const remaining = Math.max(0, 100 - radioShareTarget);
-
-  if (uniqueNonRadioChannels.length === 0) {
-    return {
-      radio: radioShareTarget,
-      ooh: 0,
-      digital: 0,
-    };
-  }
-
-  const baseAllocation = Math.floor(remaining / uniqueNonRadioChannels.length);
-  let leftover = remaining - (baseAllocation * uniqueNonRadioChannels.length);
-
-  const allocations = new Map<string, number>();
-  for (const channel of uniqueNonRadioChannels) {
-    const extra = leftover > 0 ? 1 : 0;
-    allocations.set(channel, baseAllocation + extra);
-    leftover = Math.max(0, leftover - extra);
-  }
-
-  return {
-    radio: radioShareTarget,
-    ooh: allocations.get('OOH') ?? 0,
-    digital: allocations.get('DIGITAL') ?? 0,
-  };
-}
 
 export function AgentCampaignDetailPage() {
   const { id = '' } = useParams();
@@ -271,24 +52,41 @@ export function AgentCampaignDetailPage() {
   const [strategySummary, setStrategySummary] = useState('');
   const [mixBalance, setMixBalance] = useState(60);
   const [selectedRecommendationIdState, setSelectedRecommendationIdState] = useState('');
+  const [opsAssetFile, setOpsAssetFile] = useState<File | null>(null);
+  const [opsAssetType, setOpsAssetType] = useState('proof_of_booking');
+  const [bookingDraft, setBookingDraft] = useState({
+    supplierOrStation: '',
+    channel: 'radio',
+    bookingStatus: 'planned',
+    committedAmount: '',
+    liveFrom: '',
+    liveTo: '',
+    notes: '',
+    proofAssetId: '',
+  });
+  const [reportDraft, setReportDraft] = useState({
+    supplierBookingId: '',
+    reportType: 'delivery_update',
+    headline: '',
+    summary: '',
+    impressions: '',
+    playsOrSpots: '',
+    spendDelivered: '',
+    evidenceAssetId: '',
+  });
   const mixPanelRef = useRef<HTMLDivElement | null>(null);
   const hydratedRecommendationKeyRef = useRef<string | null>(null);
 
-  const campaignQuery = useQuery({ queryKey: ['agent-campaign', id], queryFn: () => advertifiedApi.getAgentCampaign(id) });
+  const campaignQuery = useQuery({ queryKey: queryKeys.agent.campaign(id), queryFn: () => advertifiedApi.getAgentCampaign(id) });
   const inventoryQuery = useQuery({
-    queryKey: ['inventory', id],
+    queryKey: queryKeys.agent.inventory(id),
     queryFn: () => advertifiedApi.getInventory(id),
   });
 
   const saveMutation = useMutation({
     mutationFn: (notes: string) => advertifiedApi.updateRecommendation(id, activeRecommendation?.id, notes, selectedPlanItems),
     onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['agent-campaign', id] }),
-        queryClient.invalidateQueries({ queryKey: ['campaign', id] }),
-        queryClient.invalidateQueries({ queryKey: ['agent-inbox'] }),
-        queryClient.invalidateQueries({ queryKey: ['agent-campaigns'] }),
-      ]);
+      await invalidateAgentCampaignQueries(queryClient, id);
       pushToast({
         title: 'Recommendation draft saved.',
         description: 'The latest plan and strategy summary are now part of this campaign draft.',
@@ -299,12 +97,7 @@ export function AgentCampaignDetailPage() {
   const sendMutation = useMutation({
     mutationFn: () => advertifiedApi.sendRecommendationToClient(id),
     onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['agent-campaign', id] }),
-        queryClient.invalidateQueries({ queryKey: ['campaign', id] }),
-        queryClient.invalidateQueries({ queryKey: ['agent-inbox'] }),
-        queryClient.invalidateQueries({ queryKey: ['agent-campaigns'] }),
-      ]);
+      await invalidateAgentCampaignQueries(queryClient, id);
       pushToast({
         title: 'Recommendation sent to client.',
         description: 'The campaign has moved into the client review stage.',
@@ -315,13 +108,7 @@ export function AgentCampaignDetailPage() {
   const markLiveMutation = useMutation({
     mutationFn: () => advertifiedApi.markCampaignLaunched(id),
     onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['agent-campaign', id] }),
-        queryClient.invalidateQueries({ queryKey: ['campaign', id] }),
-        queryClient.invalidateQueries({ queryKey: ['campaigns'] }),
-        queryClient.invalidateQueries({ queryKey: ['agent-inbox'] }),
-        queryClient.invalidateQueries({ queryKey: ['agent-campaigns'] }),
-      ]);
+      await invalidateAgentCampaignQueries(queryClient, id);
       pushToast({
         title: 'Campaign marked live.',
         description: 'Operations activation is now captured separately from client approval.',
@@ -342,12 +129,7 @@ export function AgentCampaignDetailPage() {
       targetDigitalShare: targetMix.digital,
     }),
     onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['agent-campaign', id] }),
-        queryClient.invalidateQueries({ queryKey: ['campaign', id] }),
-        queryClient.invalidateQueries({ queryKey: ['agent-inbox'] }),
-        queryClient.invalidateQueries({ queryKey: ['agent-campaigns'] }),
-      ]);
+      await invalidateAgentCampaignQueries(queryClient, id);
       pushToast({
         title: 'Recommendation regenerated.',
         description: `A fresh AI draft was prepared using target mix Radio ${targetMix.radio}% | OOH ${targetMix.ooh}% | Digital ${targetMix.digital}%.`,
@@ -362,12 +144,7 @@ export function AgentCampaignDetailPage() {
   const assignMutation = useMutation({
     mutationFn: () => advertifiedApi.assignCampaignToMe(id),
     onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['agent-campaign', id] }),
-        queryClient.invalidateQueries({ queryKey: ['campaign', id] }),
-        queryClient.invalidateQueries({ queryKey: ['agent-inbox'] }),
-        queryClient.invalidateQueries({ queryKey: ['agent-campaigns'] }),
-      ]);
+      await invalidateAgentCampaignQueries(queryClient, id);
       pushToast({
         title: 'Campaign assigned to you.',
         description: 'This campaign is now in your active working queue.',
@@ -378,17 +155,96 @@ export function AgentCampaignDetailPage() {
   const unassignMutation = useMutation({
     mutationFn: () => advertifiedApi.unassignCampaign(id),
     onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['agent-campaign', id] }),
-        queryClient.invalidateQueries({ queryKey: ['campaign', id] }),
-        queryClient.invalidateQueries({ queryKey: ['agent-inbox'] }),
-        queryClient.invalidateQueries({ queryKey: ['agent-campaigns'] }),
-      ]);
+      await invalidateAgentCampaignQueries(queryClient, id);
       pushToast({
         title: 'Campaign unassigned.',
         description: 'This campaign has been returned to the shared queue.',
       }, 'info');
     },
+  });
+
+  const uploadOpsAssetMutation = useMutation({
+    mutationFn: ({ file, type }: { file: File; type: string }) => advertifiedApi.uploadAgentCampaignAsset(id, file, type),
+    onSuccess: async () => {
+      setOpsAssetFile(null);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.agent.campaign(id) });
+      pushToast({
+        title: 'Campaign asset uploaded.',
+        description: 'The file is now available for supplier proof, delivery reporting, or execution support.',
+      });
+    },
+    onError: (error) => pushToast({
+      title: 'Could not upload campaign asset.',
+      description: error instanceof Error ? error.message : 'Please try again.',
+    }, 'error'),
+  });
+
+  const saveBookingMutation = useMutation({
+    mutationFn: () => advertifiedApi.saveSupplierBooking(id, {
+      supplierOrStation: bookingDraft.supplierOrStation,
+      channel: bookingDraft.channel,
+      bookingStatus: bookingDraft.bookingStatus,
+      committedAmount: Number(bookingDraft.committedAmount || 0),
+      liveFrom: bookingDraft.liveFrom || undefined,
+      liveTo: bookingDraft.liveTo || undefined,
+      notes: bookingDraft.notes || undefined,
+      proofAssetId: bookingDraft.proofAssetId || undefined,
+    }),
+    onSuccess: async () => {
+      setBookingDraft({
+        supplierOrStation: '',
+        channel: 'radio',
+        bookingStatus: 'planned',
+        committedAmount: '',
+        liveFrom: '',
+        liveTo: '',
+        notes: '',
+        proofAssetId: '',
+      });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.agent.campaign(id) });
+      pushToast({
+        title: 'Supplier booking saved.',
+        description: 'Execution details are now attached to this campaign.',
+      });
+    },
+    onError: (error) => pushToast({
+      title: 'Could not save supplier booking.',
+      description: error instanceof Error ? error.message : 'Please try again.',
+    }, 'error'),
+  });
+
+  const saveReportMutation = useMutation({
+    mutationFn: () => advertifiedApi.saveDeliveryReport(id, {
+      supplierBookingId: reportDraft.supplierBookingId || undefined,
+      reportType: reportDraft.reportType,
+      headline: reportDraft.headline,
+      summary: reportDraft.summary || undefined,
+      impressions: reportDraft.impressions ? Number(reportDraft.impressions) : undefined,
+      playsOrSpots: reportDraft.playsOrSpots ? Number(reportDraft.playsOrSpots) : undefined,
+      spendDelivered: reportDraft.spendDelivered ? Number(reportDraft.spendDelivered) : undefined,
+      evidenceAssetId: reportDraft.evidenceAssetId || undefined,
+    }),
+    onSuccess: async () => {
+      setReportDraft({
+        supplierBookingId: '',
+        reportType: 'delivery_update',
+        headline: '',
+        summary: '',
+        impressions: '',
+        playsOrSpots: '',
+        spendDelivered: '',
+        evidenceAssetId: '',
+      });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.agent.campaign(id) });
+      pushToast({
+        title: 'Delivery report saved.',
+        description: 'The latest live reporting update is now visible on the campaign.',
+      });
+    },
+    onError: (error) => pushToast({
+      title: 'Could not save delivery report.',
+      description: error instanceof Error ? error.message : 'Please try again.',
+    }, 'error'),
   });
 
   const campaign = campaignQuery.data;
@@ -509,6 +365,9 @@ export function AgentCampaignDetailPage() {
   const constraints = getConstraintChecks(campaign.brief, selectedPlanItems, isOverBudget, campaign.selectedBudget);
   const recommendationTitle = strategySummary || activeRecommendation?.summary || 'Draft recommendation';
   const canMarkLive = campaign.status === 'creative_approved';
+  const executionAssets = campaign.assets ?? [];
+  const supplierBookings = campaign.supplierBookings ?? [];
+  const deliveryReports = campaign.deliveryReports ?? [];
 
   function toggleInventoryItem(item: SelectedPlanInventoryItem) {
     setSelectedPlanItems((current) => {
@@ -866,6 +725,136 @@ export function AgentCampaignDetailPage() {
                 This draft is {formatCurrency(Math.abs(budgetDelta))} over the client&apos;s budget.
               </p>
             ) : null}
+          </div>
+
+          <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+            <div className="panel border-line/80 bg-white px-6 py-6 shadow-[0_10px_26px_rgba(17,24,39,0.05)]">
+              <h2 className="text-xl font-semibold text-ink">Execution files</h2>
+              <div className="mt-4 space-y-3">
+                {executionAssets.length > 0 ? executionAssets.map((asset) => (
+                  <div key={asset.id} className="rounded-[16px] border border-line bg-slate-50 px-4 py-3">
+                    <p className="text-sm font-semibold text-ink">{asset.displayName}</p>
+                    <p className="mt-1 text-xs text-ink-soft">{asset.assetType.replace(/_/g, ' ')}</p>
+                    {asset.publicUrl ? (
+                      <a href={asset.publicUrl} target="_blank" rel="noreferrer" className="button-secondary mt-3 inline-flex px-3 py-2 text-xs">
+                        <Download className="size-3.5" />
+                        Open file
+                      </a>
+                    ) : null}
+                  </div>
+                )) : (
+                  <div className="rounded-[16px] border border-line bg-slate-50 px-4 py-3 text-sm text-ink-soft">
+                    No proof, delivery, or support files uploaded yet.
+                  </div>
+                )}
+              </div>
+              <div className="mt-5 space-y-3">
+                <select value={opsAssetType} onChange={(event) => setOpsAssetType(event.target.value)} className="input-base">
+                  <option value="proof_of_booking">Proof of booking</option>
+                  <option value="delivery_proof">Delivery proof</option>
+                  <option value="supporting_asset">Supporting asset</option>
+                </select>
+                <input type="file" onChange={(event) => setOpsAssetFile(event.target.files?.[0] ?? null)} className="input-base" />
+                <button
+                  type="button"
+                  disabled={!opsAssetFile || uploadOpsAssetMutation.isPending}
+                  onClick={() => {
+                    if (!opsAssetFile) return;
+                    uploadOpsAssetMutation.mutate({ file: opsAssetFile, type: opsAssetType });
+                  }}
+                  className="button-secondary inline-flex w-full items-center justify-center gap-2 px-4 py-3 disabled:opacity-60"
+                >
+                  Upload execution file
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              <div className="panel border-line/80 bg-white px-6 py-6 shadow-[0_10px_26px_rgba(17,24,39,0.05)]">
+                <h2 className="text-xl font-semibold text-ink">Supplier execution</h2>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <input className="input-base" placeholder="Supplier or station" value={bookingDraft.supplierOrStation} onChange={(event) => setBookingDraft((current) => ({ ...current, supplierOrStation: event.target.value }))} />
+                  <select className="input-base" value={bookingDraft.channel} onChange={(event) => setBookingDraft((current) => ({ ...current, channel: event.target.value }))}>
+                    <option value="radio">Radio</option>
+                    <option value="ooh">OOH</option>
+                    <option value="tv">TV</option>
+                    <option value="digital">Digital</option>
+                  </select>
+                  <select className="input-base" value={bookingDraft.bookingStatus} onChange={(event) => setBookingDraft((current) => ({ ...current, bookingStatus: event.target.value }))}>
+                    <option value="planned">Planned</option>
+                    <option value="booked">Booked</option>
+                    <option value="live">Live</option>
+                    <option value="completed">Completed</option>
+                  </select>
+                  <input className="input-base" type="number" min="0" step="0.01" placeholder="Committed amount" value={bookingDraft.committedAmount} onChange={(event) => setBookingDraft((current) => ({ ...current, committedAmount: event.target.value }))} />
+                  <input className="input-base" type="date" value={bookingDraft.liveFrom} onChange={(event) => setBookingDraft((current) => ({ ...current, liveFrom: event.target.value }))} />
+                  <input className="input-base" type="date" value={bookingDraft.liveTo} onChange={(event) => setBookingDraft((current) => ({ ...current, liveTo: event.target.value }))} />
+                  <select className="input-base md:col-span-2" value={bookingDraft.proofAssetId} onChange={(event) => setBookingDraft((current) => ({ ...current, proofAssetId: event.target.value }))}>
+                    <option value="">Proof asset (optional)</option>
+                    {executionAssets.map((asset) => <option key={asset.id} value={asset.id}>{asset.displayName}</option>)}
+                  </select>
+                  <textarea className="input-base md:col-span-2 min-h-[96px]" placeholder="Booking notes" value={bookingDraft.notes} onChange={(event) => setBookingDraft((current) => ({ ...current, notes: event.target.value }))} />
+                </div>
+                <button
+                  type="button"
+                  disabled={!bookingDraft.supplierOrStation.trim() || saveBookingMutation.isPending}
+                  onClick={() => saveBookingMutation.mutate()}
+                  className="button-primary mt-4 inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60"
+                >
+                  Save supplier booking
+                </button>
+                <div className="mt-4 space-y-3">
+                  {supplierBookings.length > 0 ? supplierBookings.map((booking) => (
+                    <div key={booking.id} className="rounded-[16px] border border-line bg-slate-50 px-4 py-3">
+                      <p className="text-sm font-semibold text-ink">{booking.supplierOrStation}</p>
+                      <p className="mt-1 text-xs text-ink-soft">{booking.channel.toUpperCase()} | {titleCase(booking.bookingStatus)} | {formatCurrency(booking.committedAmount)}</p>
+                      <p className="mt-1 text-xs text-ink-soft">{booking.liveFrom ?? 'Start TBC'} to {booking.liveTo ?? 'End TBC'}</p>
+                    </div>
+                  )) : null}
+                </div>
+              </div>
+
+              <div className="panel border-line/80 bg-white px-6 py-6 shadow-[0_10px_26px_rgba(17,24,39,0.05)]">
+                <h2 className="text-xl font-semibold text-ink">Live reporting</h2>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <select className="input-base" value={reportDraft.reportType} onChange={(event) => setReportDraft((current) => ({ ...current, reportType: event.target.value }))}>
+                    <option value="delivery_update">Delivery update</option>
+                    <option value="performance_snapshot">Performance snapshot</option>
+                    <option value="proof_of_flight">Proof of flight</option>
+                  </select>
+                  <select className="input-base" value={reportDraft.supplierBookingId} onChange={(event) => setReportDraft((current) => ({ ...current, supplierBookingId: event.target.value }))}>
+                    <option value="">Related booking (optional)</option>
+                    {supplierBookings.map((booking) => <option key={booking.id} value={booking.id}>{booking.supplierOrStation}</option>)}
+                  </select>
+                  <input className="input-base md:col-span-2" placeholder="Headline" value={reportDraft.headline} onChange={(event) => setReportDraft((current) => ({ ...current, headline: event.target.value }))} />
+                  <textarea className="input-base md:col-span-2 min-h-[96px]" placeholder="Report summary" value={reportDraft.summary} onChange={(event) => setReportDraft((current) => ({ ...current, summary: event.target.value }))} />
+                  <input className="input-base" type="number" min="0" step="1" placeholder="Impressions" value={reportDraft.impressions} onChange={(event) => setReportDraft((current) => ({ ...current, impressions: event.target.value }))} />
+                  <input className="input-base" type="number" min="0" step="1" placeholder="Plays / spots" value={reportDraft.playsOrSpots} onChange={(event) => setReportDraft((current) => ({ ...current, playsOrSpots: event.target.value }))} />
+                  <input className="input-base" type="number" min="0" step="0.01" placeholder="Spend delivered" value={reportDraft.spendDelivered} onChange={(event) => setReportDraft((current) => ({ ...current, spendDelivered: event.target.value }))} />
+                  <select className="input-base" value={reportDraft.evidenceAssetId} onChange={(event) => setReportDraft((current) => ({ ...current, evidenceAssetId: event.target.value }))}>
+                    <option value="">Evidence asset (optional)</option>
+                    {executionAssets.map((asset) => <option key={asset.id} value={asset.id}>{asset.displayName}</option>)}
+                  </select>
+                </div>
+                <button
+                  type="button"
+                  disabled={!reportDraft.headline.trim() || saveReportMutation.isPending}
+                  onClick={() => saveReportMutation.mutate()}
+                  className="button-primary mt-4 inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60"
+                >
+                  Save delivery report
+                </button>
+                <div className="mt-4 space-y-3">
+                  {deliveryReports.length > 0 ? deliveryReports.map((report) => (
+                    <div key={report.id} className="rounded-[16px] border border-line bg-slate-50 px-4 py-3">
+                      <p className="text-sm font-semibold text-ink">{report.headline}</p>
+                      <p className="mt-1 text-xs text-ink-soft">{titleCase(report.reportType)}{report.impressions ? ` | ${report.impressions.toLocaleString()} impressions` : ''}{report.playsOrSpots ? ` | ${report.playsOrSpots} plays/spots` : ''}</p>
+                      <p className="mt-1 text-xs text-ink-soft">{report.summary ?? 'No summary captured yet.'}</p>
+                    </div>
+                  )) : null}
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="flex flex-wrap justify-end gap-3">

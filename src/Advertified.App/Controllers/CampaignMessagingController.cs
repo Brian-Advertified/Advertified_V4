@@ -4,6 +4,7 @@ using Advertified.App.Data;
 using Advertified.App.Data.Entities;
 using Advertified.App.Data.Enums;
 using Advertified.App.Services.Abstractions;
+using Advertified.App.Support;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -41,12 +42,6 @@ public sealed class CampaignMessagingController : ControllerBase
 
         var campaignsQuery = _db.Campaigns
             .AsNoTracking()
-            .AsSplitQuery()
-            .Include(x => x.User)
-            .Include(x => x.PackageBand)
-            .Include(x => x.AssignedAgentUser)
-            .Include(x => x.CampaignConversation!)
-                .ThenInclude(x => x.Messages)
             .AsQueryable();
 
         if (currentUser.Role == UserRole.Agent)
@@ -54,41 +49,47 @@ public sealed class CampaignMessagingController : ControllerBase
             campaignsQuery = campaignsQuery.Where(x => x.AssignedAgentUserId == currentUser.Id);
         }
 
-        var campaigns = await campaignsQuery
+        var response = await campaignsQuery
             .OrderByDescending(x => x.CampaignConversation != null ? x.CampaignConversation.LastMessageAt : null)
             .ThenByDescending(x => x.UpdatedAt)
+            .Select(campaign => new AgentMessageInboxProjection
+            {
+                CampaignId = campaign.Id,
+                ConversationId = campaign.CampaignConversation != null ? campaign.CampaignConversation.Id : null,
+                CampaignName = string.IsNullOrWhiteSpace(campaign.CampaignName)
+                    ? $"{campaign.PackageBand.Name} campaign"
+                    : campaign.CampaignName.Trim(),
+                CampaignStatus = campaign.Status,
+                ClientName = campaign.User.FullName,
+                ClientEmail = campaign.User.Email,
+                PackageBandName = campaign.PackageBand.Name,
+                AssignedAgentName = campaign.AssignedAgentUser != null ? campaign.AssignedAgentUser.FullName : null,
+                LatestMessageBody = campaign.CampaignConversation != null
+                    ? campaign.CampaignConversation.Messages
+                        .OrderByDescending(message => message.CreatedAt)
+                        .Select(message => message.Body)
+                        .FirstOrDefault()
+                    : null,
+                LatestMessageSenderRole = campaign.CampaignConversation != null
+                    ? campaign.CampaignConversation.Messages
+                        .OrderByDescending(message => message.CreatedAt)
+                        .Select(message => message.SenderRole)
+                        .FirstOrDefault()
+                    : null,
+                LatestMessageCreatedAt = campaign.CampaignConversation != null
+                    ? campaign.CampaignConversation.Messages
+                        .OrderByDescending(message => message.CreatedAt)
+                        .Select(message => (DateTime?)message.CreatedAt)
+                        .FirstOrDefault()
+                    : null,
+                UnreadCount = campaign.CampaignConversation != null
+                    ? campaign.CampaignConversation.Messages.Count(message => message.SenderRole == ConversationParticipantRoles.Client && message.ReadByAgentAt == null)
+                    : 0,
+                HasMessages = campaign.CampaignConversation != null && campaign.CampaignConversation.Messages.Any()
+            })
             .ToArrayAsync(cancellationToken);
 
-        var response = campaigns
-            .Select(campaign =>
-            {
-                var conversation = campaign.CampaignConversation;
-                var lastMessage = conversation?.Messages
-                    .OrderByDescending(x => x.CreatedAt)
-                    .FirstOrDefault();
-
-                return new CampaignConversationListItemResponse
-                {
-                    CampaignId = campaign.Id,
-                    ConversationId = conversation?.Id,
-                    CampaignName = ResolveCampaignName(campaign),
-                    CampaignStatus = campaign.Status,
-                    ClientName = campaign.User.FullName,
-                    ClientEmail = campaign.User.Email,
-                    PackageBandName = campaign.PackageBand.Name,
-                    AssignedAgentName = campaign.AssignedAgentUser?.FullName,
-                    LastMessagePreview = string.IsNullOrWhiteSpace(lastMessage?.Body)
-                        ? null
-                        : Truncate(lastMessage.Body, 140),
-                    LastMessageSenderRole = lastMessage?.SenderRole,
-                    LastMessageAt = lastMessage is null ? null : new DateTimeOffset(lastMessage.CreatedAt, TimeSpan.Zero),
-                    UnreadCount = conversation?.Messages.Count(x => x.SenderRole == "client" && x.ReadByAgentAt is null) ?? 0,
-                    HasMessages = conversation?.Messages.Count > 0
-                };
-            })
-            .ToArray();
-
-        return Ok(response);
+        return Ok(response.Select(item => item.ToResponse()).ToArray());
     }
 
     [HttpGet("agent/messages/campaigns/{campaignId:guid}")]
@@ -101,9 +102,9 @@ public sealed class CampaignMessagingController : ControllerBase
             ?? throw new InvalidOperationException("Campaign not found.");
 
         EnsureAgentCampaignAccess(currentUser, campaign);
-        await MarkMessagesAsReadAsync(campaign.CampaignConversation, "agent", cancellationToken);
+        await MarkMessagesAsReadAsync(campaign.CampaignConversation?.Id, ConversationParticipantRoles.Agent, cancellationToken);
 
-        return Ok(BuildThreadResponse(campaign, "agent"));
+        return Ok(BuildThreadResponse(campaign, ConversationParticipantRoles.Agent));
     }
 
     [HttpPost("agent/messages/campaigns/{campaignId:guid}")]
@@ -135,7 +136,7 @@ public sealed class CampaignMessagingController : ControllerBase
             Id = Guid.NewGuid(),
             ConversationId = conversation.Id,
             SenderUserId = currentUser.Id,
-            SenderRole = "agent",
+            SenderRole = ConversationParticipantRoles.Agent,
             Body = request.Body.Trim(),
             CreatedAt = now,
             ReadByAgentAt = now
@@ -155,7 +156,7 @@ public sealed class CampaignMessagingController : ControllerBase
             messagePreview: message.Body,
             cancellationToken);
 
-        return Ok(BuildThreadResponse(campaign, "agent"));
+        return Ok(BuildThreadResponse(campaign, ConversationParticipantRoles.Agent));
     }
 
     [HttpGet("campaigns/{campaignId:guid}/messages")]
@@ -167,9 +168,9 @@ public sealed class CampaignMessagingController : ControllerBase
             ?? throw new InvalidOperationException("Campaign not found.");
 
         EnsureClientAccess(currentUser, campaign);
-        await MarkMessagesAsReadAsync(campaign.CampaignConversation, "client", cancellationToken);
+        await MarkMessagesAsReadAsync(campaign.CampaignConversation?.Id, ConversationParticipantRoles.Client, cancellationToken);
 
-        return Ok(BuildThreadResponse(campaign, "client"));
+        return Ok(BuildThreadResponse(campaign, ConversationParticipantRoles.Client));
     }
 
     [HttpPost("campaigns/{campaignId:guid}/messages")]
@@ -201,7 +202,7 @@ public sealed class CampaignMessagingController : ControllerBase
             Id = Guid.NewGuid(),
             ConversationId = conversation.Id,
             SenderUserId = currentUser.Id,
-            SenderRole = "client",
+            SenderRole = ConversationParticipantRoles.Client,
             Body = request.Body.Trim(),
             CreatedAt = now,
             ReadByClientAt = now
@@ -225,13 +226,50 @@ public sealed class CampaignMessagingController : ControllerBase
                 cancellationToken);
         }
 
-        return Ok(BuildThreadResponse(campaign, "client"));
+        return Ok(BuildThreadResponse(campaign, ConversationParticipantRoles.Client));
     }
 
     private async Task<UserAccount> GetCurrentUserAsync(CancellationToken cancellationToken)
     {
         var currentUserId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
         return await _db.UserAccounts.FirstAsync(x => x.Id == currentUserId, cancellationToken);
+    }
+
+    private sealed class AgentMessageInboxProjection
+    {
+        public Guid CampaignId { get; init; }
+        public Guid? ConversationId { get; init; }
+        public string CampaignName { get; init; } = string.Empty;
+        public string CampaignStatus { get; init; } = string.Empty;
+        public string ClientName { get; init; } = string.Empty;
+        public string ClientEmail { get; init; } = string.Empty;
+        public string PackageBandName { get; init; } = string.Empty;
+        public string? AssignedAgentName { get; init; }
+        public string? LatestMessageBody { get; init; }
+        public string? LatestMessageSenderRole { get; init; }
+        public DateTime? LatestMessageCreatedAt { get; init; }
+        public int UnreadCount { get; init; }
+        public bool HasMessages { get; init; }
+
+        public CampaignConversationListItemResponse ToResponse()
+        {
+            return new CampaignConversationListItemResponse
+            {
+                CampaignId = CampaignId,
+                ConversationId = ConversationId,
+                CampaignName = CampaignName,
+                CampaignStatus = CampaignStatus,
+                ClientName = ClientName,
+                ClientEmail = ClientEmail,
+                PackageBandName = PackageBandName,
+                AssignedAgentName = AssignedAgentName,
+                LastMessagePreview = string.IsNullOrWhiteSpace(LatestMessageBody) ? null : Truncate(LatestMessageBody, 140),
+                LastMessageSenderRole = LatestMessageSenderRole,
+                LastMessageAt = LatestMessageCreatedAt.HasValue ? new DateTimeOffset(LatestMessageCreatedAt.Value, TimeSpan.Zero) : null,
+                UnreadCount = UnreadCount,
+                HasMessages = HasMessages
+            };
+        }
     }
 
     private async Task<Campaign?> LoadCampaignForMessagingAsync(Guid campaignId, CancellationToken cancellationToken)
@@ -304,33 +342,25 @@ public sealed class CampaignMessagingController : ControllerBase
         return conversation;
     }
 
-    private async Task MarkMessagesAsReadAsync(CampaignConversation? conversation, string viewerRole, CancellationToken cancellationToken)
+    private async Task MarkMessagesAsReadAsync(Guid? conversationId, string viewerRole, CancellationToken cancellationToken)
     {
-        if (conversation is null)
+        if (conversationId is null)
         {
             return;
         }
 
         var now = DateTime.UtcNow;
-        var changed = false;
-        foreach (var message in conversation.Messages)
+        if (viewerRole == ConversationParticipantRoles.Agent)
         {
-            if (viewerRole == "agent" && message.SenderRole == "client" && message.ReadByAgentAt is null)
-            {
-                message.ReadByAgentAt = now;
-                changed = true;
-            }
-            else if (viewerRole == "client" && message.SenderRole == "agent" && message.ReadByClientAt is null)
-            {
-                message.ReadByClientAt = now;
-                changed = true;
-            }
+            await _db.CampaignMessages
+                .Where(message => message.ConversationId == conversationId.Value && message.SenderRole == ConversationParticipantRoles.Client && message.ReadByAgentAt == null)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(message => message.ReadByAgentAt, now), cancellationToken);
         }
-
-        if (changed)
+        else if (viewerRole == ConversationParticipantRoles.Client)
         {
-            conversation.UpdatedAt = now;
-            await _db.SaveChangesAsync(cancellationToken);
+            await _db.CampaignMessages
+                .Where(message => message.ConversationId == conversationId.Value && message.SenderRole == ConversationParticipantRoles.Agent && message.ReadByClientAt == null)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(message => message.ReadByClientAt, now), cancellationToken);
         }
     }
 
@@ -347,7 +377,7 @@ public sealed class CampaignMessagingController : ControllerBase
                 SenderName = message.SenderUser?.FullName ?? "Unknown sender",
                 Body = message.Body,
                 CreatedAt = new DateTimeOffset(message.CreatedAt, TimeSpan.Zero),
-                IsRead = viewerRole == "agent"
+                IsRead = viewerRole == ConversationParticipantRoles.Agent
                     ? message.ReadByAgentAt is not null
                     : message.ReadByClientAt is not null
             })
@@ -364,9 +394,9 @@ public sealed class CampaignMessagingController : ControllerBase
             ClientEmail = campaign.User.Email,
             PackageBandName = campaign.PackageBand.Name,
             AssignedAgentName = campaign.AssignedAgentUser?.FullName,
-            UnreadCount = viewerRole == "agent"
-                ? conversation?.Messages.Count(x => x.SenderRole == "client" && x.ReadByAgentAt is null) ?? 0
-                : conversation?.Messages.Count(x => x.SenderRole == "agent" && x.ReadByClientAt is null) ?? 0,
+            UnreadCount = viewerRole == ConversationParticipantRoles.Agent
+                ? conversation?.Messages.Count(x => x.SenderRole == ConversationParticipantRoles.Client && x.ReadByAgentAt is null) ?? 0
+                : conversation?.Messages.Count(x => x.SenderRole == ConversationParticipantRoles.Agent && x.ReadByClientAt is null) ?? 0,
             CanSend = true,
             Messages = messages
         };

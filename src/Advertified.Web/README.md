@@ -1,73 +1,140 @@
-# React + TypeScript + Vite
+# Advertified Web
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Advertified Web is the React + TypeScript frontend for the Advertified platform. It serves the public marketing site plus the authenticated client, agent, creative, and admin workspaces.
 
-Currently, two official plugins are available:
+## Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- React 19
+- TypeScript
+- Vite
+- React Router
+- TanStack React Query
 
-## React Compiler
+## Main Areas
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- Public routes: marketing pages, package selection, checkout, login, registration, email verification
+- Client routes: dashboard, orders, single campaign workspace
+- Agent routes: dashboard, briefs, recommendations, approvals, messaging, tasks, campaign operations
+- Creative routes: dashboard and studio workflow
+- Admin routes: dashboard, operations, audit, imports, pricing, geography, stations, engine, monitoring, users
 
-## Expanding the ESLint configuration
+## Local Development
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+Run the frontend from `src/Advertified.Web`:
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Default local frontend URL:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+```text
+http://localhost:5173
+```
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+The frontend expects the API to be available separately. In local development the backend is typically served from the `src/Advertified.App` project.
+
+## Scripts
+
+```bash
+npm run dev
+npm run build
+npm run lint
+npm run preview
+```
+
+## Architecture Notes
+
+### Routing
+
+- The top-level router lives in `src/app/App.tsx`
+- Major routes are lazy-loaded so public, client, agent, creative, and admin sections do not all ship in the initial bundle
+- `ProtectedRoute` is a UX guard only; real authorization is enforced by the backend
+
+### Auth Session
+
+- The app uses `AuthProvider` from `src/features/auth/auth-context.tsx`
+- Session state is persisted in browser storage and attached to API requests through the centralized client in `src/services/advertifiedApi.ts`
+- Backend auth now uses signed session tokens rather than caller-supplied user IDs
+
+### Data Fetching
+
+- Server state is managed with React Query
+- API calls are centralized in `src/services/advertifiedApi.ts`
+- Shared domain contracts live in `src/types/domain.ts`
+
+### Error Handling
+
+- The app root is wrapped in `AppErrorBoundary`
+- Route chunks render through `Suspense` with `LoadingState`
+- Individual screens are still responsible for query-specific loading, empty, and error states
+
+## Key Product Workflows
+
+### Client
+
+- Browse packages
+- Select a campaign budget
+- Checkout and view order history
+- Review one campaign workspace for approvals, messages, progress, and final creative sign-off
+
+### Agent
+
+- Manage briefs and campaigns
+- Build and send recommendations
+- Handle approvals and client messages
+- Mark campaigns live after final approval
+
+### Creative
+
+- Pick up approved campaigns
+- Work in the creative studio
+- Send finished media back to the client for approval
+
+### Admin
+
+- Manage stations, pricing, users, imports, monitoring, and audit surfaces
+- Process refunds
+- Pause and resume campaigns
+- Review campaign operations state
+
+## Consent, Messaging, and Pricing Notes
+
+- Consent preferences are persisted through the backend, not just browser storage
+- Campaign messaging is a persisted conversation per campaign with role-based access
+- Client-facing recommendation views and PDFs show only overall totals, not line-item pricing
+- Checkout totals include the hidden AI Studio reserve in the overall amount rather than as a visible surcharge
+
+## Folder Guide
+
+```text
+src/
+  app/                  App shell and routing
+  components/           Shared UI and layout primitives
+  features/             Domain-oriented UI and state modules
+  lib/                  Shared helpers and access logic
+  pages/                Route screens grouped by role
+  services/             API client and transport helpers
+  types/                Shared TypeScript contracts
+```
+
+## Current Gaps
+
+- Frontend test coverage is not in place yet
+- Some large route files still need to be split into smaller feature modules
+- Notification aggregation and some campaign orchestration logic still need further cleanup
+
+## Build Verification
+
+Type-check the app with:
+
+```bash
+npx tsc -b
+```
+
+Create a production bundle with:
+
+```bash
+npm run build
 ```

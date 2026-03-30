@@ -10,6 +10,7 @@ public sealed class AdminDashboardResponse
     public IReadOnlyList<AdminHealthIssueResponse> HealthIssues { get; set; } = Array.Empty<AdminHealthIssueResponse>();
     public IReadOnlyList<AdminAreaMappingResponse> Areas { get; set; } = Array.Empty<AdminAreaMappingResponse>();
     public IReadOnlyList<AdminPackageSettingResponse> PackageSettings { get; set; } = Array.Empty<AdminPackageSettingResponse>();
+    public AdminPricingSettingsResponse PricingSettings { get; set; } = new();
     public IReadOnlyList<AdminEnginePolicyResponse> EnginePolicies { get; set; } = Array.Empty<AdminEnginePolicyResponse>();
     public IReadOnlyList<AdminPreviewRuleResponse> PreviewRules { get; set; } = Array.Empty<AdminPreviewRuleResponse>();
     public AdminMonitoringResponse Monitoring { get; set; } = new();
@@ -106,6 +107,14 @@ public sealed class AdminPackageSettingResponse
     public string IncludeTv { get; set; } = string.Empty;
     public string LeadTime { get; set; } = string.Empty;
     public IReadOnlyList<string> Benefits { get; set; } = Array.Empty<string>();
+}
+
+public sealed class AdminPricingSettingsResponse
+{
+    public decimal AiStudioReservePercent { get; set; }
+    public decimal OohMarkupPercent { get; set; }
+    public decimal RadioMarkupPercent { get; set; }
+    public decimal TvMarkupPercent { get; set; }
 }
 
 public sealed class AdminEnginePolicyResponse

@@ -1,11 +1,17 @@
 import type {
   AgentInbox,
   AgentInboxItem,
+  CampaignAsset,
   Campaign,
   CampaignConversationListItem,
   CampaignConversationThread,
+  NotificationSummary,
   CampaignBrief,
+  CampaignDeliveryReport,
+  CampaignCreativeSystemRecord,
   CampaignRecommendation,
+  CampaignSupplierBooking,
+  CreativeSystem,
   InventoryRow,
   LoginInput,
   PackageBand,
@@ -13,6 +19,7 @@ import type {
   PackageCheckoutSession,
   AdminUser,
   AdminAuditEntry,
+  AdminCampaignOperationsItem,
   AdminIntegrationStatus,
   AdminDashboard,
   AdminCreateOutletInput,
@@ -21,6 +28,7 @@ import type {
   AdminGeographyDetail,
   AdminOutletDetail,
   AdminOutletPricing,
+  AdminUpdatePricingSettingsInput,
   AdminUpsertPackageSettingInput,
   AdminRateCardUploadInput,
   AdminRateCardUpdateInput,
@@ -33,6 +41,7 @@ import type {
   AdminUpdateOutletInput,
   AdminUpdateUserInput,
   PackagePreview,
+  PackagePricingSummary,
   PackagePreviewMapPoint,
   PackageOrder,
   PaymentProvider,
@@ -196,6 +205,11 @@ type PackageOrderResponse = {
   currency: string;
   paymentProvider?: string | null;
   paymentStatus: string;
+  refundStatus: string;
+  refundedAmount: number;
+  gatewayFeeRetainedAmount: number;
+  refundReason?: string | null;
+  refundProcessedAt?: string | null;
   createdAt: string;
   paymentReference?: string | null;
   invoiceId?: string | null;
@@ -219,6 +233,12 @@ type PackagePreviewResponse = {
   indicativeMix: string[];
   mediaMix: string[];
   note: string;
+};
+
+type PackagePricingSummaryResponse = {
+  selectedBudget: number;
+  chargedAmount: number;
+  aiStudioReserveAmount: number;
 };
 
 type CampaignBriefResponse = {
@@ -328,6 +348,71 @@ type CampaignResponse = {
   recommendations?: CampaignRecommendationResponse[] | null;
   recommendation?: CampaignRecommendationResponse | null;
   recommendationPdfUrl?: string | null;
+  creativeSystems?: Array<{
+    id: string;
+    prompt: string;
+    iterationLabel?: string | null;
+    createdAt: string;
+    output: CreativeSystem;
+  }> | null;
+  latestCreativeSystem?: {
+    id: string;
+    prompt: string;
+    iterationLabel?: string | null;
+    createdAt: string;
+    output: CreativeSystem;
+  } | null;
+  assets?: Array<{
+    id: string;
+    assetType: string;
+    displayName: string;
+    publicUrl?: string | null;
+    contentType?: string | null;
+    sizeBytes: number;
+    createdAt: string;
+  }> | null;
+  supplierBookings?: Array<{
+    id: string;
+    supplierOrStation: string;
+    channel: string;
+    bookingStatus: string;
+    committedAmount: number;
+    bookedAt?: string | null;
+    liveFrom?: string | null;
+    liveTo?: string | null;
+    notes?: string | null;
+    proofAsset?: {
+      id: string;
+      assetType: string;
+      displayName: string;
+      publicUrl?: string | null;
+      contentType?: string | null;
+      sizeBytes: number;
+      createdAt: string;
+    } | null;
+  }> | null;
+  deliveryReports?: Array<{
+    id: string;
+    supplierBookingId?: string | null;
+    reportType: string;
+    headline: string;
+    summary?: string | null;
+    reportedAt?: string | null;
+    impressions?: number | null;
+    playsOrSpots?: number | null;
+    spendDelivered?: number | null;
+    evidenceAsset?: {
+      id: string;
+      assetType: string;
+      displayName: string;
+      publicUrl?: string | null;
+      contentType?: string | null;
+      sizeBytes: number;
+      createdAt: string;
+    } | null;
+  }> | null;
+  effectiveEndDate?: string | null;
+  daysLeft?: number | null;
   createdAt: string;
 };
 
@@ -354,6 +439,8 @@ type CampaignConversationThreadResponse = {
     isRead: boolean;
   }>;
 };
+
+type NotificationSummaryResponse = NotificationSummary;
 
 type AgentInboxItemResponse = {
   id: string;
@@ -412,6 +499,8 @@ type InterpretedCampaignBriefResponse = {
   channels: string[];
   summary: string;
 };
+
+type CreativeSystemResponse = CreativeSystem;
 
 function getStoredSession(): SessionUser | null {
   const raw = localStorage.getItem(SESSION_STORAGE_KEY);
@@ -506,6 +595,11 @@ function mapPackageOrder(response: PackageOrderResponse): PackageOrder {
     currency: response.currency,
     paymentProvider: response.paymentProvider ?? 'vodapay',
     paymentStatus: response.paymentStatus as PackageOrder['paymentStatus'],
+    refundStatus: response.refundStatus as PackageOrder['refundStatus'],
+    refundedAmount: response.refundedAmount,
+    gatewayFeeRetainedAmount: response.gatewayFeeRetainedAmount,
+    refundReason: response.refundReason ?? undefined,
+    refundProcessedAt: response.refundProcessedAt ?? undefined,
     createdAt: response.createdAt,
     paymentReference: response.paymentReference ?? undefined,
     invoiceId: response.invoiceId ?? undefined,
@@ -581,6 +675,98 @@ function mapRecommendation(response?: CampaignRecommendationResponse | null): Ca
   };
 }
 
+function mapCampaignAsset(response: {
+  id: string;
+  assetType: string;
+  displayName: string;
+  publicUrl?: string | null;
+  contentType?: string | null;
+  sizeBytes: number;
+  createdAt: string;
+}): CampaignAsset {
+  return {
+    id: response.id,
+    assetType: response.assetType,
+    displayName: response.displayName,
+    publicUrl: response.publicUrl ?? undefined,
+    contentType: response.contentType ?? undefined,
+    sizeBytes: response.sizeBytes,
+    createdAt: response.createdAt,
+  };
+}
+
+function mapSupplierBooking(response: NonNullable<CampaignResponse['supplierBookings']>[number]): CampaignSupplierBooking {
+  return {
+    id: response.id,
+    supplierOrStation: response.supplierOrStation,
+    channel: response.channel,
+    bookingStatus: response.bookingStatus,
+    committedAmount: response.committedAmount,
+    bookedAt: response.bookedAt ?? undefined,
+    liveFrom: response.liveFrom ?? undefined,
+    liveTo: response.liveTo ?? undefined,
+    notes: response.notes ?? undefined,
+    proofAsset: response.proofAsset ? mapCampaignAsset(response.proofAsset) : undefined,
+  };
+}
+
+function mapDeliveryReport(response: NonNullable<CampaignResponse['deliveryReports']>[number]): CampaignDeliveryReport {
+  return {
+    id: response.id,
+    supplierBookingId: response.supplierBookingId ?? undefined,
+    reportType: response.reportType,
+    headline: response.headline,
+    summary: response.summary ?? undefined,
+    reportedAt: response.reportedAt ?? undefined,
+    impressions: response.impressions ?? undefined,
+    playsOrSpots: response.playsOrSpots ?? undefined,
+    spendDelivered: response.spendDelivered ?? undefined,
+    evidenceAsset: response.evidenceAsset ? mapCampaignAsset(response.evidenceAsset) : undefined,
+  };
+}
+
+function normalizeCreativeSystem(response: CreativeSystem): CreativeSystem {
+  return {
+    ...response,
+    campaignSummary: {
+      ...response.campaignSummary,
+      channels: response.campaignSummary?.channels ?? [],
+      constraints: response.campaignSummary?.constraints ?? [],
+      assumptions: response.campaignSummary?.assumptions ?? [],
+    },
+    storyboard: {
+      ...response.storyboard,
+      scenes: response.storyboard?.scenes ?? [],
+    },
+    channelAdaptations: (response.channelAdaptations ?? []).map((adaptation) => ({
+      ...adaptation,
+      recommendedDirection: adaptation.recommendedDirection ?? '',
+      adapterPrompt: adaptation.adapterPrompt ?? '',
+      sections: adaptation.sections ?? [],
+      versions: adaptation.versions ?? [],
+      productionAssets: adaptation.productionAssets ?? [],
+    })),
+    visualDirection: {
+      ...response.visualDirection,
+      imageGenerationPrompts: response.visualDirection?.imageGenerationPrompts ?? [],
+    },
+    campaignLineOptions: response.campaignLineOptions ?? [],
+    audioVoiceNotes: response.audioVoiceNotes ?? [],
+    productionNotes: response.productionNotes ?? [],
+    optionalVariations: response.optionalVariations ?? [],
+  };
+}
+
+function mapCreativeSystemRecord(response: NonNullable<CampaignResponse['creativeSystems']>[number]): CampaignCreativeSystemRecord {
+  return {
+    id: response.id,
+    prompt: response.prompt,
+    iterationLabel: response.iterationLabel ?? undefined,
+    createdAt: response.createdAt,
+    output: normalizeCreativeSystem(response.output),
+  };
+}
+
 function getBuildSourceLabel(planningMode?: PlanningMode): string {
   switch (planningMode) {
     case 'ai_assisted':
@@ -635,6 +821,13 @@ function mapCampaign(response: CampaignResponse): Campaign {
     recommendations,
     recommendation: primaryRecommendation,
     recommendationPdfUrl: response.recommendationPdfUrl ?? undefined,
+    creativeSystems: (response.creativeSystems ?? []).map(mapCreativeSystemRecord),
+    latestCreativeSystem: response.latestCreativeSystem ? mapCreativeSystemRecord(response.latestCreativeSystem) : undefined,
+    assets: (response.assets ?? []).map(mapCampaignAsset),
+    supplierBookings: (response.supplierBookings ?? []).map(mapSupplierBooking),
+    deliveryReports: (response.deliveryReports ?? []).map(mapDeliveryReport),
+    effectiveEndDate: response.effectiveEndDate ?? undefined,
+    daysLeft: response.daysLeft ?? undefined,
     createdAt: response.createdAt,
   };
 }
@@ -964,6 +1157,13 @@ export const advertifiedApi = {
     return apiRequest<AdminDashboardResponse>('/admin/dashboard');
   },
 
+  async updateAdminPricingSettings(input: AdminUpdatePricingSettingsInput) {
+    return apiRequest('/admin/pricing-settings', {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    });
+  },
+
   async createAdminOutlet(input: AdminCreateOutletInput) {
     return apiRequest('/admin/outlets', {
       method: 'POST',
@@ -1114,12 +1314,44 @@ export const advertifiedApi = {
     return apiRequest<AdminIntegrationStatus>('/admin/integrations');
   },
 
+  async getAdminCampaignOperations() {
+    const response = await apiRequest<{ items: AdminCampaignOperationsItem[] }>('/admin/campaign-operations');
+    return response.items;
+  },
+
+  async pauseAdminCampaign(campaignId: string, reason?: string) {
+    return apiRequest<AdminCampaignOperationsItem>(`/admin/campaign-operations/${encodeURIComponent(campaignId)}/pause`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  },
+
+  async unpauseAdminCampaign(campaignId: string, reason?: string) {
+    return apiRequest<AdminCampaignOperationsItem>(`/admin/campaign-operations/${encodeURIComponent(campaignId)}/unpause`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  },
+
+  async refundAdminCampaign(campaignId: string, payload: { amount?: number; gatewayFeeRetainedAmount?: number; reason?: string }) {
+    return apiRequest<AdminCampaignOperationsItem>(`/admin/campaign-operations/${encodeURIComponent(campaignId)}/refund`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
   async getPackagePreview(packageBandId: string, budget: number, selectedArea: string) {
     const response = await apiRequest<PackagePreviewResponse>(
       `/packages/preview?packageBandId=${encodeURIComponent(packageBandId)}&budget=${encodeURIComponent(String(budget))}&selectedArea=${encodeURIComponent(selectedArea)}`,
     );
 
     return mapPackagePreview(response);
+  },
+
+  async getPackagePricingSummary(selectedBudget: number) {
+    return apiRequest<PackagePricingSummaryResponse>(
+      `/packages/pricing-summary?selectedBudget=${encodeURIComponent(String(selectedBudget))}`,
+    ) as Promise<PackagePricingSummary>;
   },
 
   async createOrder(userId: string, packageBandId: string, amount: number, paymentProvider: PaymentProvider) {
@@ -1162,7 +1394,12 @@ export const advertifiedApi = {
         currency: response.currency,
         paymentProvider: response.paymentProvider ?? paymentProvider,
         paymentStatus: response.paymentStatus as PackageOrder['paymentStatus'],
+        refundStatus: 'none',
+        refundedAmount: 0,
+        gatewayFeeRetainedAmount: 0,
         createdAt: new Date().toISOString(),
+        refundReason: undefined,
+        refundProcessedAt: undefined,
         invoiceId: response.invoiceId ?? undefined,
         invoiceStatus: response.invoiceStatus ?? undefined,
         invoicePdfUrl: response.invoicePdfUrl ?? undefined,
@@ -1216,6 +1453,10 @@ export const advertifiedApi = {
       body: JSON.stringify({ body }),
     });
     return mapConversationThread(response);
+  },
+
+  async getNotificationSummary() {
+    return apiRequest<NotificationSummaryResponse>('/notifications/summary');
   },
 
   async getAgentCampaign(campaignId: string) {
@@ -1309,6 +1550,16 @@ export const advertifiedApi = {
     return mapAgentInbox(response);
   },
 
+  async getCreativeInbox() {
+    const response = await apiRequest<AgentInboxResponse>('/creative/campaigns/inbox');
+    return mapAgentInbox(response);
+  },
+
+  async getCreativeCampaign(campaignId: string) {
+    const response = await apiRequest<CampaignResponse>(`/creative/campaigns/${campaignId}`);
+    return mapCampaign(response);
+  },
+
   async getAgentMessageInbox() {
     const response = await apiRequest<CampaignConversationListItemResponse[]>('/agent/messages');
     return response.map(mapConversationListItem);
@@ -1376,6 +1627,92 @@ export const advertifiedApi = {
       body: JSON.stringify({}),
     });
 
+    return this.getCreativeCampaign(campaignId);
+  },
+
+  async uploadCreativeCampaignAsset(campaignId: string, file: File, assetType: string) {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('assetType', assetType);
+
+    const headers = new Headers();
+    const sessionToken = getStoredSession()?.sessionToken;
+    if (sessionToken) {
+      headers.set('Authorization', `Bearer ${sessionToken}`);
+    }
+
+    const response = await fetch(`${API_BASE_URL}/creative/campaigns/${encodeURIComponent(campaignId)}/assets`, {
+      method: 'POST',
+      body: formData,
+      headers,
+    });
+
+    if (!response.ok) {
+      await parseApiError(response);
+    }
+
+    return mapCampaignAsset(await response.json());
+  },
+
+  async uploadAgentCampaignAsset(campaignId: string, file: File, assetType: string) {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('assetType', assetType);
+
+    const headers = new Headers();
+    const sessionToken = getStoredSession()?.sessionToken;
+    if (sessionToken) {
+      headers.set('Authorization', `Bearer ${sessionToken}`);
+    }
+
+    const response = await fetch(`${API_BASE_URL}/agent/campaigns/${encodeURIComponent(campaignId)}/assets`, {
+      method: 'POST',
+      body: formData,
+      headers,
+    });
+
+    if (!response.ok) {
+      await parseApiError(response);
+    }
+
+    return mapCampaignAsset(await response.json());
+  },
+
+  async saveSupplierBooking(campaignId: string, payload: {
+    supplierOrStation: string;
+    channel: string;
+    bookingStatus: string;
+    committedAmount: number;
+    bookedAt?: string;
+    liveFrom?: string;
+    liveTo?: string;
+    notes?: string;
+    proofAssetId?: string;
+  }) {
+    await apiRequest(`/agent/campaigns/${campaignId}/supplier-bookings`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+
+    return this.getAgentCampaign(campaignId);
+  },
+
+  async saveDeliveryReport(campaignId: string, payload: {
+    supplierBookingId?: string;
+    reportType: string;
+    headline: string;
+    summary?: string;
+    reportedAt?: string;
+    impressions?: number;
+    playsOrSpots?: number;
+    spendDelivered?: number;
+    evidenceAssetId?: string;
+  }) {
+    await apiRequest(`/agent/campaigns/${campaignId}/delivery-reports`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+
     return this.getAgentCampaign(campaignId);
   },
 
@@ -1417,6 +1754,26 @@ export const advertifiedApi = {
       method: 'POST',
       body: JSON.stringify(payload),
     });
+  },
+
+  async generateCreativeSystem(campaignId: string, payload: {
+    prompt: string;
+    iterationLabel?: string;
+    brand?: string;
+    product?: string;
+    audience?: string;
+    objective?: string;
+    tone?: string;
+    channels?: string[];
+    cta?: string;
+    constraints?: string[];
+  }) {
+    const response = await apiRequest<CreativeSystemResponse>(`/creative/campaigns/${campaignId}/creative-system`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+
+    return normalizeCreativeSystem(response);
   },
 
   async assignCampaignToMe(campaignId: string) {

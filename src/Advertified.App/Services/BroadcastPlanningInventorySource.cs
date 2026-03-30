@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using Advertified.App.Contracts.Campaigns;
 using Advertified.App.Services.Abstractions;
+using Advertified.App.Support;
 
 namespace Advertified.App.Services;
 
@@ -9,21 +10,25 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
 {
     private readonly IBroadcastInventoryCatalog _broadcastInventoryCatalog;
     private readonly IBroadcastCostNormalizer _costNormalizer;
+    private readonly IPricingSettingsProvider _pricingSettingsProvider;
 
     public BroadcastPlanningInventorySource(
         IBroadcastInventoryCatalog broadcastInventoryCatalog,
-        IBroadcastCostNormalizer costNormalizer)
+        IBroadcastCostNormalizer costNormalizer,
+        IPricingSettingsProvider pricingSettingsProvider)
     {
         _broadcastInventoryCatalog = broadcastInventoryCatalog;
         _costNormalizer = costNormalizer;
+        _pricingSettingsProvider = pricingSettingsProvider;
     }
 
     public async Task<List<BroadcastPlanningInventorySeed>> GetRadioSlotCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
     {
         var records = await _broadcastInventoryCatalog.GetRecordsAsync(cancellationToken);
+        var pricingSettings = await _pricingSettingsProvider.GetCurrentAsync(cancellationToken);
         return records
             .Where(record => string.Equals(record.MediaType, "radio", StringComparison.OrdinalIgnoreCase))
-            .SelectMany(CreateBroadcastRateCandidates)
+            .SelectMany(record => CreateBroadcastRateCandidates(record, pricingSettings))
             .Where(candidate => candidate.Cost > 0m && candidate.Cost <= request.SelectedBudget)
             .ToList();
     }
@@ -31,9 +36,10 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
     public async Task<List<BroadcastPlanningInventorySeed>> GetRadioPackageCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
     {
         var records = await _broadcastInventoryCatalog.GetRecordsAsync(cancellationToken);
+        var pricingSettings = await _pricingSettingsProvider.GetCurrentAsync(cancellationToken);
         return records
             .Where(record => string.Equals(record.MediaType, "radio", StringComparison.OrdinalIgnoreCase))
-            .SelectMany(CreateBroadcastPackageCandidates)
+            .SelectMany(record => CreateBroadcastPackageCandidates(record, pricingSettings))
             .Where(candidate => candidate.Cost > 0m && candidate.Cost <= request.SelectedBudget)
             .ToList();
     }
@@ -41,14 +47,15 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
     public async Task<List<BroadcastPlanningInventorySeed>> GetTvCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
     {
         var records = await _broadcastInventoryCatalog.GetRecordsAsync(cancellationToken);
+        var pricingSettings = await _pricingSettingsProvider.GetCurrentAsync(cancellationToken);
         return records
             .Where(record => string.Equals(record.MediaType, "tv", StringComparison.OrdinalIgnoreCase))
-            .SelectMany(record => CreateBroadcastPackageCandidates(record).Concat(CreateBroadcastRateCandidates(record)))
+            .SelectMany(record => CreateBroadcastPackageCandidates(record, pricingSettings).Concat(CreateBroadcastRateCandidates(record, pricingSettings)))
             .Where(candidate => candidate.Cost > 0m && candidate.Cost <= request.SelectedBudget)
             .ToList();
     }
 
-    private IEnumerable<BroadcastPlanningInventorySeed> CreateBroadcastPackageCandidates(BroadcastInventoryRecord record)
+    private IEnumerable<BroadcastPlanningInventorySeed> CreateBroadcastPackageCandidates(BroadcastInventoryRecord record, PricingSettingsSnapshot pricingSettings)
     {
         if (record.Packages.ValueKind != JsonValueKind.Array)
         {
@@ -100,6 +107,12 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
                         continue;
                     }
 
+                    var markedUpCost = PricingPolicy.ApplyMarkup(normalized.MonthlyCostEstimateZar, record.MediaType, packageType, pricingSettings);
+                    if (markedUpCost <= 0m)
+                    {
+                        continue;
+                    }
+
                     yield return new BroadcastPlanningInventorySeed
                     {
                         Record = record,
@@ -107,10 +120,12 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
                         SourceType = record.MediaType.Equals("tv", StringComparison.OrdinalIgnoreCase) ? "tv_package" : "radio_package",
                         DisplayName = $"{record.Station} - {packageName} - {GetString(element, "name") ?? "Element"}",
                         SlotType = "package",
-                        Cost = normalized.MonthlyCostEstimateZar,
+                        Cost = markedUpCost,
                         Metadata = CreateMetadata(
                             record,
                             normalized,
+                            markedUpCost,
+                            pricingSettings,
                             packageType,
                             null,
                             null,
@@ -154,6 +169,13 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
                 continue;
             }
 
+            var markedUpPackageCost = PricingPolicy.ApplyMarkup(normalizedPackage.MonthlyCostEstimateZar, record.MediaType, packageType, pricingSettings);
+            if (markedUpPackageCost <= 0m)
+            {
+                index++;
+                continue;
+            }
+
             yield return new BroadcastPlanningInventorySeed
             {
                 Record = record,
@@ -161,14 +183,14 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
                 SourceType = record.MediaType.Equals("tv", StringComparison.OrdinalIgnoreCase) ? "tv_package" : "radio_package",
                 DisplayName = $"{record.Station} - {packageName}",
                 SlotType = "package",
-                Cost = normalizedPackage.MonthlyCostEstimateZar,
-                Metadata = CreateMetadata(record, normalizedPackage, packageType, null, null, true, packageName, GetString(package, "notes"))
+                Cost = markedUpPackageCost,
+                Metadata = CreateMetadata(record, normalizedPackage, markedUpPackageCost, pricingSettings, packageType, null, null, true, packageName, GetString(package, "notes"))
             };
             index++;
         }
     }
 
-    private IEnumerable<BroadcastPlanningInventorySeed> CreateBroadcastRateCandidates(BroadcastInventoryRecord record)
+    private IEnumerable<BroadcastPlanningInventorySeed> CreateBroadcastRateCandidates(BroadcastInventoryRecord record, PricingSettingsSnapshot pricingSettings)
     {
         if (record.Pricing.ValueKind != JsonValueKind.Object)
         {
@@ -198,6 +220,12 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
                     continue;
                 }
 
+                var markedUpRate = PricingPolicy.ApplyMarkup(normalized.MonthlyCostEstimateZar, record.MediaType, slot.Name, pricingSettings);
+                if (markedUpRate <= 0m)
+                {
+                    continue;
+                }
+
                 yield return new BroadcastPlanningInventorySeed
                 {
                     Record = record,
@@ -205,8 +233,8 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
                     SourceType = record.MediaType.Equals("tv", StringComparison.OrdinalIgnoreCase) ? "tv_slot" : "radio_slot",
                     DisplayName = $"{record.Station} - {slot.Name}",
                     SlotType = "spot",
-                    Cost = normalized.MonthlyCostEstimateZar,
-                    Metadata = CreateMetadata(record, normalized, "spot", dayGroup.Name, slot.Name, false, null, null)
+                    Cost = markedUpRate,
+                    Metadata = CreateMetadata(record, normalized, markedUpRate, pricingSettings, "spot", dayGroup.Name, slot.Name, false, null, null)
                 };
             }
         }
@@ -215,6 +243,8 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
     private static Dictionary<string, object?> CreateMetadata(
         BroadcastInventoryRecord record,
         NormalizedCostResult normalizedCost,
+        decimal quotedCost,
+        PricingSettingsSnapshot pricingSettings,
         string pricingModel,
         string? dayType,
         string? timeBand,
@@ -233,6 +263,10 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
             ["raw_cost_zar"] = normalizedCost.RawCostZar,
             ["monthlyCostEstimateZar"] = normalizedCost.MonthlyCostEstimateZar,
             ["monthly_cost_estimate_zar"] = normalizedCost.MonthlyCostEstimateZar,
+            ["quotedCostZar"] = quotedCost,
+            ["quoted_cost_zar"] = quotedCost,
+            ["markupPercent"] = PricingPolicy.ResolveMarkupPercent(record.MediaType, packageName ?? timeBand, pricingSettings),
+            ["markup_percent"] = PricingPolicy.ResolveMarkupPercent(record.MediaType, packageName ?? timeBand, pricingSettings),
             ["costType"] = normalizedCost.CostType,
             ["cost_type"] = normalizedCost.CostType,
             ["normalizationNote"] = normalizedCost.NormalizationNote,

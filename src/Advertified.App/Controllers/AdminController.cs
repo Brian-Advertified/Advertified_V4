@@ -552,6 +552,40 @@ public sealed class AdminController : ControllerBase
         }
     }
 
+    [HttpPut("pricing-settings")]
+    public async Task<IActionResult> UpdatePricingSettings([FromBody] UpdateAdminPricingSettingsRequest request, CancellationToken cancellationToken)
+    {
+        var gateResult = await EnsureAdminAsync(cancellationToken);
+        if (gateResult is not null)
+        {
+            return gateResult;
+        }
+
+        try
+        {
+            await _adminMutationService.UpdatePricingSettingsAsync(request, cancellationToken);
+            await WriteChangeAuditAsync(
+                "update",
+                "pricing_settings",
+                "default",
+                "Default pricing settings",
+                "Updated platform pricing settings.",
+                new
+                {
+                    request.AiStudioReservePercent,
+                    request.OohMarkupPercent,
+                    request.RadioMarkupPercent,
+                    request.TvMarkupPercent
+                },
+                cancellationToken);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpPut("engine-settings/{packageCode}")]
     public async Task<IActionResult> UpdateEnginePolicy(string packageCode, [FromBody] UpdateAdminEnginePolicyRequest request, CancellationToken cancellationToken)
     {
