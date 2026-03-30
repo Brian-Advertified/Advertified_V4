@@ -644,6 +644,24 @@ export function AgentCampaignDetailPage() {
             </div>
 
             <div className="mt-6 space-y-5">
+              <div ref={mixPanelRef} className="rounded-[16px] border border-line bg-slate-50 px-4 py-4">
+                <h3 className="text-sm font-semibold text-ink">Budget split</h3>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={mixBalance}
+                  onChange={(event) => setMixBalance(Number(event.target.value))}
+                  className="mt-4 w-full accent-brand"
+                />
+                <p className="mt-3 text-sm text-ink-soft">
+                  Target mix: Radio {targetMix.radio}% | OOH {targetMix.ooh}% | Digital {targetMix.digital}%
+                </p>
+                <p className="mt-1 text-sm text-ink-soft">
+                  Current draft: Radio {currentRadioShare}% | OOH {currentOohShare}% | Digital {currentDigitalShare}%
+                </p>
+              </div>
+
               {Object.entries(displayedGroups).length > 0 ? Object.entries(displayedGroups).map(([channel, items]) => (
                 <div key={channel}>
                   <p className="mb-3 text-sm font-semibold text-ink">{titleCase(channel.toLowerCase())}</p>
@@ -717,27 +735,6 @@ export function AgentCampaignDetailPage() {
               className="input-base mt-4 min-h-[170px]"
               placeholder="This campaign focuses on high-frequency commuter exposure across key Gauteng routes and stations aligned to the target audience."
             />
-          </div>
-
-          <div ref={mixPanelRef} className="panel border-line/80 bg-white px-6 py-6 shadow-[0_10px_26px_rgba(17,24,39,0.05)]">
-            <h2 className="text-xl font-semibold text-ink">Budget split</h2>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              value={mixBalance}
-              onChange={(event) => setMixBalance(Number(event.target.value))}
-              className="mt-5 w-full accent-brand"
-            />
-            <p className="mt-4 text-sm text-ink-soft">
-              Target mix: Radio {targetMix.radio}% | OOH {targetMix.ooh}% | Digital {targetMix.digital}%
-            </p>
-            <p className="mt-2 text-sm text-ink-soft">
-              Current draft: Radio {currentRadioShare}% | OOH {currentOohShare}% | Digital {currentDigitalShare}%
-            </p>
-            <p className="mt-3 text-sm text-ink-soft">
-              Regenerate refreshes the draft from the saved campaign inputs. If those inputs did not change, the result may stay very similar.
-            </p>
           </div>
 
           {isOverBudget ? (
