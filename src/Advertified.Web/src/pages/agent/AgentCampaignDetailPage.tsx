@@ -134,6 +134,7 @@ export function AgentCampaignDetailPage() {
         title: 'Recommendation sent to client.',
         description: 'The campaign has moved into the client review stage.',
       });
+      navigate('/agent/approvals');
     },
   });
 
@@ -145,6 +146,7 @@ export function AgentCampaignDetailPage() {
         title: 'Campaign marked live.',
         description: 'Operations activation is now captured separately from client approval.',
       });
+      navigate('/agent/campaigns');
     },
     onError: (error) => {
       pushToast({
