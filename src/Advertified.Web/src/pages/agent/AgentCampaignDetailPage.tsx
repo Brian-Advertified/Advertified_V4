@@ -360,6 +360,13 @@ export function AgentCampaignDetailPage() {
   const effectivePlannedTotal = plannedTotal > 0 ? plannedTotal : activeRecommendation?.totalCost ?? 0;
   const budgetDelta = campaign.selectedBudget - effectivePlannedTotal;
   const isOverBudget = budgetDelta < 0;
+  const showExecutionOperations = (
+    campaign.status === 'approved'
+    || campaign.status === 'creative_changes_requested'
+    || campaign.status === 'creative_sent_to_client_for_approval'
+    || campaign.status === 'creative_approved'
+    || campaign.status === 'launched'
+  );
   const radioShare = groupedTotals.reduce((sum, entry) => entry.channel === 'RADIO' ? sum + entry.total : sum, 0);
   const oohShare = groupedTotals.reduce((sum, entry) => entry.channel === 'OOH' ? sum + entry.total : sum, 0);
   const digitalShare = groupedTotals.reduce((sum, entry) => entry.channel === 'DIGITAL' ? sum + entry.total : sum, 0);
@@ -763,135 +770,141 @@ export function AgentCampaignDetailPage() {
             ) : null}
           </div>
 
-          <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-            <div className="panel border-line/80 bg-white px-6 py-6 shadow-[0_10px_26px_rgba(17,24,39,0.05)]">
-              <h2 className="text-xl font-semibold text-ink">Execution files</h2>
-              <div className="mt-4 space-y-3">
-                {executionAssets.length > 0 ? executionAssets.map((asset) => (
-                  <div key={asset.id} className="rounded-[16px] border border-line bg-slate-50 px-4 py-3">
-                    <p className="text-sm font-semibold text-ink">{asset.displayName}</p>
-                    <p className="mt-1 text-xs text-ink-soft">{asset.assetType.replace(/_/g, ' ')}</p>
-                    {asset.publicUrl ? (
-                      <a href={asset.publicUrl} target="_blank" rel="noreferrer" className="button-secondary mt-3 inline-flex px-3 py-2 text-xs">
-                        <Download className="size-3.5" />
-                        Open file
-                      </a>
-                    ) : null}
-                  </div>
-                )) : (
-                  <div className="rounded-[16px] border border-line bg-slate-50 px-4 py-3 text-sm text-ink-soft">
-                    No proof, delivery, or support files uploaded yet.
-                  </div>
-                )}
-              </div>
-              <div className="mt-5 space-y-3">
-                <select value={opsAssetType} onChange={(event) => setOpsAssetType(event.target.value)} className="input-base">
-                  <option value="proof_of_booking">Proof of booking</option>
-                  <option value="delivery_proof">Delivery proof</option>
-                  <option value="supporting_asset">Supporting asset</option>
-                </select>
-                <input type="file" onChange={(event) => setOpsAssetFile(event.target.files?.[0] ?? null)} className="input-base" />
-                <button
-                  type="button"
-                  disabled={!opsAssetFile || uploadOpsAssetMutation.isPending}
-                  onClick={() => {
-                    if (!opsAssetFile) return;
-                    uploadOpsAssetMutation.mutate({ file: opsAssetFile, type: opsAssetType });
-                  }}
-                  className="button-secondary inline-flex w-full items-center justify-center gap-2 px-4 py-3 disabled:opacity-60"
-                >
-                  Upload execution file
-                </button>
-              </div>
-            </div>
-
-            <div className="space-y-6">
+          {showExecutionOperations ? (
+            <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
               <div className="panel border-line/80 bg-white px-6 py-6 shadow-[0_10px_26px_rgba(17,24,39,0.05)]">
-                <h2 className="text-xl font-semibold text-ink">Supplier execution</h2>
-                <div className="mt-4 grid gap-3 md:grid-cols-2">
-                  <input className="input-base" placeholder="Supplier or station" value={bookingDraft.supplierOrStation} onChange={(event) => setBookingDraft((current) => ({ ...current, supplierOrStation: event.target.value }))} />
-                  <select className="input-base" value={bookingDraft.channel} onChange={(event) => setBookingDraft((current) => ({ ...current, channel: event.target.value }))}>
-                    <option value="radio">Radio</option>
-                    <option value="ooh">OOH</option>
-                    <option value="tv">TV</option>
-                    <option value="digital">Digital</option>
-                  </select>
-                  <select className="input-base" value={bookingDraft.bookingStatus} onChange={(event) => setBookingDraft((current) => ({ ...current, bookingStatus: event.target.value }))}>
-                    <option value="planned">Planned</option>
-                    <option value="booked">Booked</option>
-                    <option value="live">Live</option>
-                    <option value="completed">Completed</option>
-                  </select>
-                  <input className="input-base" type="number" min="0" step="0.01" placeholder="Committed amount" value={bookingDraft.committedAmount} onChange={(event) => setBookingDraft((current) => ({ ...current, committedAmount: event.target.value }))} />
-                  <input className="input-base" type="date" value={bookingDraft.liveFrom} onChange={(event) => setBookingDraft((current) => ({ ...current, liveFrom: event.target.value }))} />
-                  <input className="input-base" type="date" value={bookingDraft.liveTo} onChange={(event) => setBookingDraft((current) => ({ ...current, liveTo: event.target.value }))} />
-                  <select className="input-base md:col-span-2" value={bookingDraft.proofAssetId} onChange={(event) => setBookingDraft((current) => ({ ...current, proofAssetId: event.target.value }))}>
-                    <option value="">Proof asset (optional)</option>
-                    {executionAssets.map((asset) => <option key={asset.id} value={asset.id}>{asset.displayName}</option>)}
-                  </select>
-                  <textarea className="input-base md:col-span-2 min-h-[96px]" placeholder="Booking notes" value={bookingDraft.notes} onChange={(event) => setBookingDraft((current) => ({ ...current, notes: event.target.value }))} />
-                </div>
-                <button
-                  type="button"
-                  disabled={!bookingDraft.supplierOrStation.trim() || saveBookingMutation.isPending}
-                  onClick={() => saveBookingMutation.mutate()}
-                  className="button-primary mt-4 inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60"
-                >
-                  Save supplier booking
-                </button>
+                <h2 className="text-xl font-semibold text-ink">Execution files</h2>
                 <div className="mt-4 space-y-3">
-                  {supplierBookings.length > 0 ? supplierBookings.map((booking) => (
-                    <div key={booking.id} className="rounded-[16px] border border-line bg-slate-50 px-4 py-3">
-                      <p className="text-sm font-semibold text-ink">{booking.supplierOrStation}</p>
-                      <p className="mt-1 text-xs text-ink-soft">{booking.channel.toUpperCase()} | {titleCase(booking.bookingStatus)} | {formatCurrency(booking.committedAmount)}</p>
-                      <p className="mt-1 text-xs text-ink-soft">{booking.liveFrom ?? 'Start TBC'} to {booking.liveTo ?? 'End TBC'}</p>
+                  {executionAssets.length > 0 ? executionAssets.map((asset) => (
+                    <div key={asset.id} className="rounded-[16px] border border-line bg-slate-50 px-4 py-3">
+                      <p className="text-sm font-semibold text-ink">{asset.displayName}</p>
+                      <p className="mt-1 text-xs text-ink-soft">{asset.assetType.replace(/_/g, ' ')}</p>
+                      {asset.publicUrl ? (
+                        <a href={asset.publicUrl} target="_blank" rel="noreferrer" className="button-secondary mt-3 inline-flex px-3 py-2 text-xs">
+                          <Download className="size-3.5" />
+                          Open file
+                        </a>
+                      ) : null}
                     </div>
-                  )) : null}
+                  )) : (
+                    <div className="rounded-[16px] border border-line bg-slate-50 px-4 py-3 text-sm text-ink-soft">
+                      No proof, delivery, or support files uploaded yet.
+                    </div>
+                  )}
+                </div>
+                <div className="mt-5 space-y-3">
+                  <select value={opsAssetType} onChange={(event) => setOpsAssetType(event.target.value)} className="input-base">
+                    <option value="proof_of_booking">Proof of booking</option>
+                    <option value="delivery_proof">Delivery proof</option>
+                    <option value="supporting_asset">Supporting asset</option>
+                  </select>
+                  <input type="file" onChange={(event) => setOpsAssetFile(event.target.files?.[0] ?? null)} className="input-base" />
+                  <button
+                    type="button"
+                    disabled={!opsAssetFile || uploadOpsAssetMutation.isPending}
+                    onClick={() => {
+                      if (!opsAssetFile) return;
+                      uploadOpsAssetMutation.mutate({ file: opsAssetFile, type: opsAssetType });
+                    }}
+                    className="button-secondary inline-flex w-full items-center justify-center gap-2 px-4 py-3 disabled:opacity-60"
+                  >
+                    Upload execution file
+                  </button>
                 </div>
               </div>
 
-              <div className="panel border-line/80 bg-white px-6 py-6 shadow-[0_10px_26px_rgba(17,24,39,0.05)]">
-                <h2 className="text-xl font-semibold text-ink">Live reporting</h2>
-                <div className="mt-4 grid gap-3 md:grid-cols-2">
-                  <select className="input-base" value={reportDraft.reportType} onChange={(event) => setReportDraft((current) => ({ ...current, reportType: event.target.value }))}>
-                    <option value="delivery_update">Delivery update</option>
-                    <option value="performance_snapshot">Performance snapshot</option>
-                    <option value="proof_of_flight">Proof of flight</option>
-                  </select>
-                  <select className="input-base" value={reportDraft.supplierBookingId} onChange={(event) => setReportDraft((current) => ({ ...current, supplierBookingId: event.target.value }))}>
-                    <option value="">Related booking (optional)</option>
-                    {supplierBookings.map((booking) => <option key={booking.id} value={booking.id}>{booking.supplierOrStation}</option>)}
-                  </select>
-                  <input className="input-base md:col-span-2" placeholder="Headline" value={reportDraft.headline} onChange={(event) => setReportDraft((current) => ({ ...current, headline: event.target.value }))} />
-                  <textarea className="input-base md:col-span-2 min-h-[96px]" placeholder="Report summary" value={reportDraft.summary} onChange={(event) => setReportDraft((current) => ({ ...current, summary: event.target.value }))} />
-                  <input className="input-base" type="number" min="0" step="1" placeholder="Impressions" value={reportDraft.impressions} onChange={(event) => setReportDraft((current) => ({ ...current, impressions: event.target.value }))} />
-                  <input className="input-base" type="number" min="0" step="1" placeholder="Plays / spots" value={reportDraft.playsOrSpots} onChange={(event) => setReportDraft((current) => ({ ...current, playsOrSpots: event.target.value }))} />
-                  <input className="input-base" type="number" min="0" step="0.01" placeholder="Spend delivered" value={reportDraft.spendDelivered} onChange={(event) => setReportDraft((current) => ({ ...current, spendDelivered: event.target.value }))} />
-                  <select className="input-base" value={reportDraft.evidenceAssetId} onChange={(event) => setReportDraft((current) => ({ ...current, evidenceAssetId: event.target.value }))}>
-                    <option value="">Evidence asset (optional)</option>
-                    {executionAssets.map((asset) => <option key={asset.id} value={asset.id}>{asset.displayName}</option>)}
-                  </select>
+              <div className="space-y-6">
+                <div className="panel border-line/80 bg-white px-6 py-6 shadow-[0_10px_26px_rgba(17,24,39,0.05)]">
+                  <h2 className="text-xl font-semibold text-ink">Supplier execution</h2>
+                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    <input className="input-base" placeholder="Supplier or station" value={bookingDraft.supplierOrStation} onChange={(event) => setBookingDraft((current) => ({ ...current, supplierOrStation: event.target.value }))} />
+                    <select className="input-base" value={bookingDraft.channel} onChange={(event) => setBookingDraft((current) => ({ ...current, channel: event.target.value }))}>
+                      <option value="radio">Radio</option>
+                      <option value="ooh">OOH</option>
+                      <option value="tv">TV</option>
+                      <option value="digital">Digital</option>
+                    </select>
+                    <select className="input-base" value={bookingDraft.bookingStatus} onChange={(event) => setBookingDraft((current) => ({ ...current, bookingStatus: event.target.value }))}>
+                      <option value="planned">Planned</option>
+                      <option value="booked">Booked</option>
+                      <option value="live">Live</option>
+                      <option value="completed">Completed</option>
+                    </select>
+                    <input className="input-base" type="number" min="0" step="0.01" placeholder="Committed amount" value={bookingDraft.committedAmount} onChange={(event) => setBookingDraft((current) => ({ ...current, committedAmount: event.target.value }))} />
+                    <input className="input-base" type="date" value={bookingDraft.liveFrom} onChange={(event) => setBookingDraft((current) => ({ ...current, liveFrom: event.target.value }))} />
+                    <input className="input-base" type="date" value={bookingDraft.liveTo} onChange={(event) => setBookingDraft((current) => ({ ...current, liveTo: event.target.value }))} />
+                    <select className="input-base md:col-span-2" value={bookingDraft.proofAssetId} onChange={(event) => setBookingDraft((current) => ({ ...current, proofAssetId: event.target.value }))}>
+                      <option value="">Proof asset (optional)</option>
+                      {executionAssets.map((asset) => <option key={asset.id} value={asset.id}>{asset.displayName}</option>)}
+                    </select>
+                    <textarea className="input-base md:col-span-2 min-h-[96px]" placeholder="Booking notes" value={bookingDraft.notes} onChange={(event) => setBookingDraft((current) => ({ ...current, notes: event.target.value }))} />
+                  </div>
+                  <button
+                    type="button"
+                    disabled={!bookingDraft.supplierOrStation.trim() || saveBookingMutation.isPending}
+                    onClick={() => saveBookingMutation.mutate()}
+                    className="button-primary mt-4 inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60"
+                  >
+                    Save supplier booking
+                  </button>
+                  <div className="mt-4 space-y-3">
+                    {supplierBookings.length > 0 ? supplierBookings.map((booking) => (
+                      <div key={booking.id} className="rounded-[16px] border border-line bg-slate-50 px-4 py-3">
+                        <p className="text-sm font-semibold text-ink">{booking.supplierOrStation}</p>
+                        <p className="mt-1 text-xs text-ink-soft">{booking.channel.toUpperCase()} | {titleCase(booking.bookingStatus)} | {formatCurrency(booking.committedAmount)}</p>
+                        <p className="mt-1 text-xs text-ink-soft">{booking.liveFrom ?? 'Start TBC'} to {booking.liveTo ?? 'End TBC'}</p>
+                      </div>
+                    )) : null}
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  disabled={!reportDraft.headline.trim() || saveReportMutation.isPending}
-                  onClick={() => saveReportMutation.mutate()}
-                  className="button-primary mt-4 inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60"
-                >
-                  Save delivery report
-                </button>
-                <div className="mt-4 space-y-3">
-                  {deliveryReports.length > 0 ? deliveryReports.map((report) => (
-                    <div key={report.id} className="rounded-[16px] border border-line bg-slate-50 px-4 py-3">
-                      <p className="text-sm font-semibold text-ink">{report.headline}</p>
-                      <p className="mt-1 text-xs text-ink-soft">{titleCase(report.reportType)}{report.impressions ? ` | ${report.impressions.toLocaleString()} impressions` : ''}{report.playsOrSpots ? ` | ${report.playsOrSpots} plays/spots` : ''}</p>
-                      <p className="mt-1 text-xs text-ink-soft">{report.summary ?? 'No summary captured yet.'}</p>
-                    </div>
-                  )) : null}
+
+                <div className="panel border-line/80 bg-white px-6 py-6 shadow-[0_10px_26px_rgba(17,24,39,0.05)]">
+                  <h2 className="text-xl font-semibold text-ink">Live reporting</h2>
+                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    <select className="input-base" value={reportDraft.reportType} onChange={(event) => setReportDraft((current) => ({ ...current, reportType: event.target.value }))}>
+                      <option value="delivery_update">Delivery update</option>
+                      <option value="performance_snapshot">Performance snapshot</option>
+                      <option value="proof_of_flight">Proof of flight</option>
+                    </select>
+                    <select className="input-base" value={reportDraft.supplierBookingId} onChange={(event) => setReportDraft((current) => ({ ...current, supplierBookingId: event.target.value }))}>
+                      <option value="">Related booking (optional)</option>
+                      {supplierBookings.map((booking) => <option key={booking.id} value={booking.id}>{booking.supplierOrStation}</option>)}
+                    </select>
+                    <input className="input-base md:col-span-2" placeholder="Headline" value={reportDraft.headline} onChange={(event) => setReportDraft((current) => ({ ...current, headline: event.target.value }))} />
+                    <textarea className="input-base md:col-span-2 min-h-[96px]" placeholder="Report summary" value={reportDraft.summary} onChange={(event) => setReportDraft((current) => ({ ...current, summary: event.target.value }))} />
+                    <input className="input-base" type="number" min="0" step="1" placeholder="Impressions" value={reportDraft.impressions} onChange={(event) => setReportDraft((current) => ({ ...current, impressions: event.target.value }))} />
+                    <input className="input-base" type="number" min="0" step="1" placeholder="Plays / spots" value={reportDraft.playsOrSpots} onChange={(event) => setReportDraft((current) => ({ ...current, playsOrSpots: event.target.value }))} />
+                    <input className="input-base" type="number" min="0" step="0.01" placeholder="Spend delivered" value={reportDraft.spendDelivered} onChange={(event) => setReportDraft((current) => ({ ...current, spendDelivered: event.target.value }))} />
+                    <select className="input-base" value={reportDraft.evidenceAssetId} onChange={(event) => setReportDraft((current) => ({ ...current, evidenceAssetId: event.target.value }))}>
+                      <option value="">Evidence asset (optional)</option>
+                      {executionAssets.map((asset) => <option key={asset.id} value={asset.id}>{asset.displayName}</option>)}
+                    </select>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={!reportDraft.headline.trim() || saveReportMutation.isPending}
+                    onClick={() => saveReportMutation.mutate()}
+                    className="button-primary mt-4 inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60"
+                  >
+                    Save delivery report
+                  </button>
+                  <div className="mt-4 space-y-3">
+                    {deliveryReports.length > 0 ? deliveryReports.map((report) => (
+                      <div key={report.id} className="rounded-[16px] border border-line bg-slate-50 px-4 py-3">
+                        <p className="text-sm font-semibold text-ink">{report.headline}</p>
+                        <p className="mt-1 text-xs text-ink-soft">{titleCase(report.reportType)}{report.impressions ? ` | ${report.impressions.toLocaleString()} impressions` : ''}{report.playsOrSpots ? ` | ${report.playsOrSpots} plays/spots` : ''}</p>
+                        <p className="mt-1 text-xs text-ink-soft">{report.summary ?? 'No summary captured yet.'}</p>
+                      </div>
+                    )) : null}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="panel border-line/80 bg-white px-6 py-6 text-sm text-ink-soft shadow-[0_10px_26px_rgba(17,24,39,0.05)]">
+              Execution tools unlock after recommendation approval. For now, focus on recommendation quality and client sign-off.
+            </div>
+          )}
 
           <div className="flex flex-wrap justify-end gap-3">
             {campaign.isAssignedToCurrentUser ? (
