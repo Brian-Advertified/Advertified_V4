@@ -35,7 +35,11 @@ builder.Services.AddCors(options =>
         policy
             .WithOrigins(
                 "http://localhost:5173",
-                "https://localhost:5173")
+                "https://localhost:5173",
+                "https://dev.advertified.com",
+                "http://dev.advertified.com",
+                "https://advertified.com",
+                "https://www.advertified.com")
             .AllowAnyHeader()
             .AllowAnyMethod();
     });
