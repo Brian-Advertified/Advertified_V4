@@ -21,7 +21,15 @@ export function canAccessCreativeStudio(user: SessionUser | null) {
 }
 
 export function canBuyPackage(user: SessionUser | null) {
-  return Boolean(user && user.emailVerified && user.identityComplete);
+  if (!user) {
+    return false;
+  }
+
+  if (isAdmin(user) || isAgent(user) || isCreativeDirector(user)) {
+    return true;
+  }
+
+  return Boolean(user.emailVerified && user.identityComplete);
 }
 
 export function canOpenBrief(campaign?: Campaign | null) {

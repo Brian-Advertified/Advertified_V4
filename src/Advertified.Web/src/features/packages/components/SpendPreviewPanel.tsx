@@ -61,18 +61,16 @@ export function SpendPreviewPanel({
             </div>
           </Section>
 
-          {livePreview.outdoorMapPoints.length > 0 ? (
-            <Suspense
-              fallback={(
-                <section className="rounded-[22px] border border-line bg-white px-4 py-4">
-                  <p className="text-sm font-semibold text-ink">Loading interactive map...</p>
-                  <p className="mt-2 text-sm text-ink-soft">Preparing the outdoor inventory view for this package area.</p>
-                </section>
-              )}
-            >
-              <OutdoorPreviewMap points={livePreview.outdoorMapPoints} />
-            </Suspense>
-          ) : null}
+          <Suspense
+            fallback={(
+              <section className="rounded-[22px] border border-line bg-white px-4 py-4">
+                <p className="text-sm font-semibold text-ink">Loading interactive map...</p>
+                <p className="mt-2 text-sm text-ink-soft">Preparing the outdoor inventory view for this package area.</p>
+              </section>
+            )}
+          >
+            <OutdoorPreviewMap points={livePreview.outdoorMapPoints} />
+          </Suspense>
 
           <Section title="Estimated reach" icon={<TrendingUp className="size-4 text-brand" />}>
             <p className="text-sm font-semibold text-ink">{livePreview.reachEstimate}</p>
