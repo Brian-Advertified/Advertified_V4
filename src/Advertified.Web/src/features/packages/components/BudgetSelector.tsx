@@ -1,4 +1,4 @@
-import { formatCurrency } from '../../../lib/utils';
+import { formatCompactBudget, formatCurrency } from '../../../lib/utils';
 import type { PackageAreaOption, PackageBand, PackagePreview } from '../../../types/domain';
 
 export function BudgetSelector({
@@ -65,10 +65,10 @@ export function BudgetSelector({
           />
         </label>
         <div className="budget-stat rounded-2xl px-4 py-3 text-sm text-ink-soft">
-          Min {formatCurrency(band.minBudget)}
+          Min {formatCompactBudget(band.minBudget)}
         </div>
         <div className="budget-stat rounded-2xl px-4 py-3 text-sm text-ink-soft">
-          Max {formatCurrency(band.maxBudget)}
+          Max {formatCompactBudget(band.maxBudget)}
         </div>
       </div>
 

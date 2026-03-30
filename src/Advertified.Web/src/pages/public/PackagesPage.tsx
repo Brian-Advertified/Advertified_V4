@@ -10,7 +10,7 @@ import { SpendPreviewPanel } from '../../features/packages/components/SpendPrevi
 import { LoadingState } from '../../components/ui/LoadingState';
 import { useAuth } from '../../features/auth/auth-context';
 import { advertifiedApi } from '../../services/advertifiedApi';
-import { formatCurrency } from '../../lib/utils';
+import { formatCompactBudget, formatCurrency } from '../../lib/utils';
 import { useToast } from '../../components/ui/toast';
 import { canBuyPackage } from '../../lib/access';
 
@@ -97,7 +97,7 @@ export function PackagesPage() {
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-brand">Selected package</p>
             <p className="mt-2 text-xl font-semibold tracking-tight text-ink">{selectedBand.name}</p>
             <p className="mt-1 text-sm text-ink-soft">
-              {formatCurrency(selectedBand.minBudget)} - {formatCurrency(selectedBand.maxBudget)}
+              {formatCompactBudget(selectedBand.minBudget)} - {formatCompactBudget(selectedBand.maxBudget)}
             </p>
           </div>
             <button

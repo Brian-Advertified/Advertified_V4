@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Eye, Pencil, PlusCircle, Save, Trash2, X } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { useToast } from '../../components/ui/toast';
+import { formatCompactBudget } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import type {
   AdminUpdatePricingSettingsInput,
@@ -526,7 +527,7 @@ export function AdminPricingPage() {
                             <p className="mt-1 text-xs text-ink-soft">{band.quickBenefit}</p>
                           </td>
                           <td className="px-4 py-4 text-ink-soft">
-                            <p>{fmtCurrency(band.minBudget)} - {fmtCurrency(band.maxBudget)}</p>
+                            <p>{formatCompactBudget(band.minBudget)} - {formatCompactBudget(band.maxBudget)}</p>
                             <p className="text-xs">Recommended {fmtCurrency(band.recommendedSpend)}</p>
                           </td>
                           <td className="px-4 py-4 text-ink-soft">

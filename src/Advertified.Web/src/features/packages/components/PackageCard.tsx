@@ -1,5 +1,5 @@
 import { ArrowRight } from 'lucide-react';
-import { formatCurrency } from '../../../lib/utils';
+import { formatCompactBudget } from '../../../lib/utils';
 import type { PackageBand } from '../../../types/domain';
 import { cn } from '../../../lib/utils';
 
@@ -21,7 +21,7 @@ export function PackageCard({
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.22em] text-brand">{band.name}</p>
-          <p className="mt-3 text-3xl font-semibold tracking-tight text-ink">{formatCurrency(band.minBudget)} - {formatCurrency(band.maxBudget)}</p>
+          <p className="mt-3 text-3xl font-semibold tracking-tight text-ink">{formatCompactBudget(band.minBudget)} - {formatCompactBudget(band.maxBudget)}</p>
         </div>
         {band.isRecommended ? <div className="package-card-flag">Most popular</div> : null}
       </div>

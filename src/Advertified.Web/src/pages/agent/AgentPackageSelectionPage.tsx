@@ -1,9 +1,9 @@
 import { Eye, Pencil } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { formatCompactBudget } from '../../lib/utils';
 import {
   AgentPageShell,
   AgentQueryBoundary,
-  fmtCurrency,
   titleize,
   useAgentInboxQuery,
   usePackagesQuery,
@@ -46,7 +46,7 @@ export function AgentPackageSelectionPage() {
                           <h3 className="mt-2 text-xl font-semibold text-ink">{pkg.name}</h3>
                           <p className="mt-2 text-sm text-ink-soft">{pkg.description}</p>
                         </div>
-                        <span className="pill border-brand/15 bg-brand-soft text-brand">{fmtCurrency(pkg.minBudget)} - {fmtCurrency(pkg.maxBudget)}</span>
+                        <span className="pill border-brand/15 bg-brand-soft text-brand">{formatCompactBudget(pkg.minBudget)} - {formatCompactBudget(pkg.maxBudget)}</span>
                       </div>
                       <div className="mt-4 grid gap-3 md:grid-cols-2">
                         <div className="rounded-2xl border border-line bg-slate-50 p-4 text-sm text-ink-soft">

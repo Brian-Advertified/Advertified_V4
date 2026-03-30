@@ -13,6 +13,21 @@ export function formatCurrency(value: number, currency = 'ZAR') {
   }).format(value);
 }
 
+export function formatCompactBudget(value: number) {
+  const rounded = Math.round(value);
+  if (Math.abs(rounded) >= 1_000_000) {
+    const millions = Math.round((rounded / 1_000_000) * 10) / 10;
+    return `${Number.isInteger(millions) ? millions.toFixed(0) : millions.toFixed(1)}M`;
+  }
+
+  if (Math.abs(rounded) >= 1_000) {
+    const thousands = Math.round(rounded / 1_000);
+    return `${thousands}K`;
+  }
+
+  return String(rounded);
+}
+
 export function formatDate(value: string | Date) {
   return new Intl.DateTimeFormat('en-ZA', {
     day: '2-digit',
