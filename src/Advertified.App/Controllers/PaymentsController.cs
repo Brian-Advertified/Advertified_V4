@@ -109,23 +109,20 @@ public sealed class PaymentsController : ControllerBase
         var callbackPayload = ResolveCallbackPayload(request.QueryParameters);
         var responseCode = callbackPayload.ResponseCode;
         var paymentReference = callbackPayload.PaymentReference;
-
-        if (string.IsNullOrWhiteSpace(responseCode))
-        {
-            await _paymentAuditService.CompleteWebhookAsync(callbackAuditId, "pending", "VodaPay callback saved without response code.", cancellationToken);
-            return Accepted(new { Message = "VodaPay callback saved." });
-        }
-
-        var finalStatus = MapVodaPayFinalStatus(responseCode);
+        var finalStatus = ResolveVodaPayCallbackStatus(callbackPayload, request.QueryParameters);
         if (finalStatus == "failed")
         {
             await _packagePurchaseService.MarkOrderFailedAsync(request.PackageOrderId, paymentReference, cancellationToken);
         }
 
         var auditStatus = finalStatus == "paid" ? "pending_validation" : finalStatus;
-        var auditMessage = finalStatus == "paid"
-            ? $"VodaPay callback returned success code {responseCode}; awaiting webhook validation."
-            : $"VodaPay callback saved with response code {responseCode}: {callbackPayload.ResponseMessage ?? "No provider message supplied."}";
+        var auditMessage = finalStatus switch
+        {
+            "paid" => $"VodaPay callback returned success code {responseCode}; awaiting webhook validation.",
+            "failed" => $"VodaPay callback indicates failed/cancelled payment. Provider message: {callbackPayload.ResponseMessage ?? "No provider message supplied."}",
+            _ when string.IsNullOrWhiteSpace(responseCode) => "VodaPay callback saved without response code; awaiting provider webhook.",
+            _ => $"VodaPay callback saved with response code {responseCode}: {callbackPayload.ResponseMessage ?? "No provider message supplied."}"
+        };
 
         await _paymentAuditService.CompleteWebhookAsync(callbackAuditId, auditStatus, auditMessage, cancellationToken);
         return Accepted(new { Message = "VodaPay callback saved." });
@@ -210,6 +207,86 @@ public sealed class PaymentsController : ControllerBase
             "" => "pending",
             _ => "failed"
         };
+    }
+
+    private static string ResolveVodaPayCallbackStatus(VodaPayCallbackPayload payload, IReadOnlyDictionary<string, string> queryParameters)
+    {
+        if (!string.IsNullOrWhiteSpace(payload.ResponseCode))
+        {
+            return MapVodaPayFinalStatus(payload.ResponseCode);
+        }
+
+        var statusSignals = new[]
+        {
+            TryGetQueryValue(queryParameters, "status"),
+            TryGetQueryValue(queryParameters, "resultStatus"),
+            TryGetQueryValue(queryParameters, "paymentStatus"),
+            TryGetQueryValue(queryParameters, "transactionStatus")
+        }.Where(value => !string.IsNullOrWhiteSpace(value)).ToArray();
+
+        if (statusSignals.Any(ContainsFailureKeyword))
+        {
+            return "failed";
+        }
+
+        if (statusSignals.Any(ContainsSuccessKeyword))
+        {
+            return "paid";
+        }
+
+        if (ContainsFailureKeyword(payload.ResponseMessage)
+            || ContainsFailureKeyword(TryGetQueryValue(queryParameters, "responseMessage"))
+            || ContainsFailureKeyword(TryGetQueryValue(queryParameters, "message")))
+        {
+            return "failed";
+        }
+
+        return "pending";
+    }
+
+    private static string? TryGetQueryValue(IReadOnlyDictionary<string, string> queryParameters, string key)
+    {
+        foreach (var pair in queryParameters)
+        {
+            if (string.Equals(pair.Key, key, StringComparison.OrdinalIgnoreCase))
+            {
+                return pair.Value?.Trim();
+            }
+        }
+
+        return null;
+    }
+
+    private static bool ContainsFailureKeyword(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        var normalized = value.Trim().ToLowerInvariant();
+        return normalized.Contains("cancel")
+            || normalized.Contains("abort")
+            || normalized.Contains("declin")
+            || normalized.Contains("reject")
+            || normalized.Contains("denied")
+            || normalized.Contains("fail")
+            || normalized.Contains("error")
+            || normalized.Contains("timeout");
+    }
+
+    private static bool ContainsSuccessKeyword(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        var normalized = value.Trim().ToLowerInvariant();
+        return normalized.Contains("success")
+            || normalized.Contains("paid")
+            || normalized.Contains("approved")
+            || normalized.Contains("complete");
     }
 
     private static VodaPayCallbackPayload ResolveCallbackPayload(IReadOnlyDictionary<string, string> queryParameters)
