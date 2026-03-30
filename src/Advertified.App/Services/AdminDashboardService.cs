@@ -563,7 +563,7 @@ public sealed class AdminDashboardService : IAdminDashboardService
 
         if (string.Equals(rawHealth, "strong", StringComparison.OrdinalIgnoreCase))
         {
-            return hasGeography ? "strong" : "mixed_not_fully_healthy";
+            return "strong";
         }
 
         if (string.Equals(rawHealth, "weak_unpriced", StringComparison.OrdinalIgnoreCase) ||

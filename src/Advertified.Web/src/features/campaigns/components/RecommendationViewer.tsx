@@ -7,7 +7,7 @@ const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.
 
 export function RecommendationViewer({ recommendation, recommendationPdfUrl }: { recommendation: CampaignRecommendation; recommendationPdfUrl?: string }) {
   const baseItems = recommendation.items.filter((item) => item.type === 'base');
-  const groupedChannels = Array.from(new Set(baseItems.map((item) => item.channel)));
+  const groupedChannels = Array.from(new Set(baseItems.map((item) => formatClientChannelLabel(item.channel))));
   const topReasons = Array.from(new Set(baseItems.flatMap((item) => item.selectionReasons))).slice(0, 4);
 
   return (
@@ -32,8 +32,8 @@ export function RecommendationViewer({ recommendation, recommendationPdfUrl }: {
               </div>
             ) : null}
           </div>
-          <h3 className="mt-2 text-2xl font-semibold tracking-tight text-ink">{recommendation.summary}</h3>
-          <p className="mt-3 max-w-3xl text-sm leading-7 text-ink-soft">{recommendation.rationale}</p>
+          <h3 className="mt-2 text-2xl font-semibold tracking-tight text-ink">{toClientFriendlyCopy(recommendation.summary)}</h3>
+          <p className="mt-3 max-w-3xl text-sm leading-7 text-ink-soft">{toClientFriendlyCopy(recommendation.rationale)}</p>
         </div>
         <div className="space-y-3">
           <StatusBadge status={recommendation.status} />
@@ -87,7 +87,7 @@ export function RecommendationViewer({ recommendation, recommendationPdfUrl }: {
           <div key={item.id} className="rounded-[24px] border border-line bg-slate-50 px-5 py-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <div className="pill bg-white text-ink-soft">{item.channel}</div>
+                <div className="pill bg-white text-ink-soft">{formatClientChannelLabel(item.channel)}</div>
                 <p className="mt-3 text-lg font-semibold text-ink">{item.title}</p>
                 <p className="mt-2 text-sm leading-7 text-ink-soft">{item.rationale}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -118,7 +118,7 @@ export function RecommendationViewer({ recommendation, recommendationPdfUrl }: {
                 ) : null}
                 {item.restrictions ? (
                   <p className="mt-3 text-sm leading-7 text-ink-soft">
-                    <span className="font-semibold text-ink">Booking note:</span> {item.restrictions}
+                    <span className="font-semibold text-ink">Booking note:</span> {toClientFriendlyCopy(item.restrictions)}
                   </p>
                 ) : null}
               </div>
@@ -132,4 +132,20 @@ export function RecommendationViewer({ recommendation, recommendationPdfUrl }: {
       </div>
     </div>
   );
+}
+
+function formatClientChannelLabel(value: string) {
+  if (!value) {
+    return value;
+  }
+
+  return value.replace(/\booh\b/gi, 'Billboard / Digital screens');
+}
+
+function toClientFriendlyCopy(value: string) {
+  if (!value) {
+    return value;
+  }
+
+  return value.replace(/\booh\b/gi, 'billboard / digital screens');
 }

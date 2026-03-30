@@ -168,7 +168,7 @@ export function CampaignBriefForm({
 
       <BriefSection title="Media preferences" description="Guide the recommendation without turning this into a technical planning tool.">
         <Grid>
-          <Field label="Preferred media"><input {...register('preferredMediaTypes')} className="input-base" placeholder="radio, digital, ooh" /></Field>
+          <Field label="Preferred media"><input {...register('preferredMediaTypes')} className="input-base" placeholder="radio, digital screens, billboard" /></Field>
           <Field label="Excluded media"><input {...register('excludedMediaTypes')} className="input-base" placeholder="tv, print" /></Field>
           <Field label="Must-have areas"><input {...register('mustHaveAreas')} className="input-base" placeholder="Mall entrances, taxi ranks..." /></Field>
           <Field label="Excluded areas"><input {...register('excludedAreas')} className="input-base" placeholder="Industrial zones..." /></Field>
