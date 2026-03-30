@@ -1,4 +1,4 @@
-export type UserRole = 'client' | 'agent' | 'admin';
+export type UserRole = 'client' | 'agent' | 'creative_director' | 'admin';
 export type PaymentStatus = 'pending' | 'paid' | 'failed';
 export type PaymentProvider = 'vodapay' | 'lula';
 export type CampaignStatus =
@@ -8,7 +8,11 @@ export type CampaignStatus =
   | 'brief_submitted'
   | 'planning_in_progress'
   | 'review_ready'
-  | 'approved';
+  | 'approved'
+  | 'creative_sent_to_client_for_approval'
+  | 'creative_changes_requested'
+  | 'creative_approved'
+  | 'launched';
 export type PlanningMode = 'ai_assisted' | 'agent_assisted' | 'hybrid';
 
 export interface SessionUser {
@@ -17,9 +21,19 @@ export interface SessionUser {
   email: string;
   role: UserRole;
   emailVerified: boolean;
+  sessionToken?: string;
   businessName?: string;
   city?: string;
   province?: string;
+}
+
+export interface ConsentPreference {
+  browserId: string;
+  necessaryCookies: boolean;
+  analyticsCookies: boolean;
+  marketingCookies: boolean;
+  privacyAccepted: boolean;
+  hasSavedPreferences: boolean;
 }
 
 export interface PackagePreviewMapPoint {
@@ -212,6 +226,46 @@ export interface Campaign {
   createdAt: string;
 }
 
+export interface CampaignConversationListItem {
+  campaignId: string;
+  conversationId?: string;
+  campaignName: string;
+  campaignStatus: string;
+  clientName: string;
+  clientEmail: string;
+  packageBandName: string;
+  assignedAgentName?: string;
+  lastMessagePreview?: string;
+  lastMessageSenderRole?: 'client' | 'agent';
+  lastMessageAt?: string;
+  unreadCount: number;
+  hasMessages: boolean;
+}
+
+export interface CampaignConversationMessage {
+  id: string;
+  senderUserId: string;
+  senderRole: 'client' | 'agent';
+  senderName: string;
+  body: string;
+  createdAt: string;
+  isRead: boolean;
+}
+
+export interface CampaignConversationThread {
+  campaignId: string;
+  conversationId?: string;
+  campaignName: string;
+  campaignStatus: string;
+  clientName: string;
+  clientEmail: string;
+  packageBandName: string;
+  assignedAgentName?: string;
+  unreadCount: number;
+  canSend: boolean;
+  messages: CampaignConversationMessage[];
+}
+
 export interface AgentInboxItem {
   id: string;
   userId: string;
@@ -269,6 +323,8 @@ export interface AdminUser {
   isSaCitizen: boolean;
   emailVerified: boolean;
   phoneVerified: boolean;
+  assignedAreaCodes: string[];
+  assignedAreaLabels: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -276,11 +332,13 @@ export interface AdminUser {
 export interface AdminAuditEntry {
   id: string;
   source: string;
-  provider: string;
+  actorName: string;
+  actorRole: string;
   eventType: string;
-  externalReference?: string;
-  requestUrl: string;
-  responseStatusCode?: number;
+  entityType?: string;
+  entityLabel?: string;
+  context: string;
+  statusLabel?: string;
   createdAt: string;
 }
 
@@ -349,6 +407,7 @@ export interface AdminImportDocument {
   channel: string;
   supplierOrStation?: string;
   documentTitle?: string;
+  notes?: string;
   pageCount?: number;
   importedAt: string;
 }
@@ -375,13 +434,35 @@ export interface AdminAreaMapping {
   mappingCount: number;
 }
 
+export interface AdminGeographyMapping {
+  id: string;
+  province?: string;
+  city?: string;
+  stationOrChannelName?: string;
+}
+
+export interface AdminGeographyDetail {
+  id: string;
+  code: string;
+  label: string;
+  description: string;
+  fallbackLocations: string[];
+  sortOrder: number;
+  isActive: boolean;
+  mappings: AdminGeographyMapping[];
+}
+
 export interface AdminPackageSetting {
   id: string;
   code: string;
   name: string;
   minBudget: number;
   maxBudget: number;
+  sortOrder: number;
+  isActive: boolean;
+  description: string;
   recommendedSpend?: number;
+  isRecommended: boolean;
   packagePurpose: string;
   audienceFit: string;
   quickBenefit: string;
@@ -393,6 +474,40 @@ export interface AdminPackageSetting {
 
 export interface AdminEnginePolicy {
   packageCode: string;
+  budgetFloor: number;
+  minimumNationalRadioCandidates: number;
+  requireNationalCapableRadio: boolean;
+  requirePremiumNationalRadio: boolean;
+  nationalRadioBonus: number;
+  nonNationalRadioPenalty: number;
+  regionalRadioPenalty: number;
+}
+
+export interface AdminCreateGeographyInput {
+  code: string;
+  label: string;
+  description: string;
+  fallbackLocations: string[];
+  sortOrder: number;
+  isActive: boolean;
+}
+
+export interface AdminUpdateGeographyInput {
+  code: string;
+  label: string;
+  description: string;
+  fallbackLocations: string[];
+  sortOrder: number;
+  isActive: boolean;
+}
+
+export interface AdminUpsertGeographyMappingInput {
+  province?: string;
+  city?: string;
+  stationOrChannelName?: string;
+}
+
+export interface AdminUpdateEnginePolicyInput {
   budgetFloor: number;
   minimumNationalRadioCandidates: number;
   requireNationalCapableRadio: boolean;
@@ -437,6 +552,25 @@ export interface AdminDashboard {
   integrations: AdminIntegrationStatus;
 }
 
+export interface AdminUpsertPackageSettingInput {
+  code: string;
+  name: string;
+  minBudget: number;
+  maxBudget: number;
+  sortOrder: number;
+  isActive: boolean;
+  description: string;
+  audienceFit: string;
+  quickBenefit: string;
+  packagePurpose: string;
+  includeRadio: string;
+  includeTv: string;
+  leadTime: string;
+  recommendedSpend?: number;
+  isRecommended: boolean;
+  benefits: string[];
+}
+
 export interface AdminCreateOutletInput {
   code: string;
   name: string;
@@ -461,6 +595,13 @@ export interface AdminRateCardUploadInput {
   documentTitle?: string;
   notes?: string;
   file: File;
+}
+
+export interface AdminRateCardUpdateInput {
+  channel: string;
+  supplierOrStation?: string;
+  documentTitle?: string;
+  notes?: string;
 }
 
 export interface AdminPreviewRuleUpdateInput {
@@ -569,6 +710,7 @@ export interface AdminCreateUserInput {
   isSaCitizen: boolean;
   emailVerified: boolean;
   phoneVerified: boolean;
+  assignedAreaCodes: string[];
 }
 
 export interface AdminUpdateUserInput {
@@ -581,6 +723,7 @@ export interface AdminUpdateUserInput {
   isSaCitizen: boolean;
   emailVerified: boolean;
   phoneVerified: boolean;
+  assignedAreaCodes: string[];
 }
 
 export interface InventoryRow {

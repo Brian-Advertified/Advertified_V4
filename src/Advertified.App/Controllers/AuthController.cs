@@ -1,10 +1,9 @@
 using Advertified.App.Contracts.Auth;
 using Advertified.App.Data;
+using Advertified.App.Data.Entities;
 using Advertified.App.Services.Abstractions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.RegularExpressions;
 
 namespace Advertified.App.Controllers;
@@ -16,15 +15,21 @@ public sealed class AuthController : ControllerBase
     private readonly AppDbContext _db;
     private readonly IRegistrationService _registrationService;
     private readonly IEmailVerificationService _emailVerificationService;
+    private readonly IPasswordHashingService _passwordHashingService;
+    private readonly ISessionTokenService _sessionTokenService;
 
     public AuthController(
         AppDbContext db,
         IRegistrationService registrationService,
-        IEmailVerificationService emailVerificationService)
+        IEmailVerificationService emailVerificationService,
+        IPasswordHashingService passwordHashingService,
+        ISessionTokenService sessionTokenService)
     {
         _db = db;
         _registrationService = registrationService;
         _emailVerificationService = emailVerificationService;
+        _passwordHashingService = passwordHashingService;
+        _sessionTokenService = sessionTokenService;
     }
 
     [HttpPost("register")]
@@ -41,19 +46,18 @@ public sealed class AuthController : ControllerBase
     {
         var user = await _emailVerificationService.VerifyAsync(request.Token, cancellationToken);
 
-        return Ok(ToLoginResponse(user));
+        return Ok(ToLoginResponse(user, _sessionTokenService.CreateToken(user)));
     }
 
     [HttpPost("login")]
     public async Task<ActionResult<LoginResponse>> Login([FromBody] LoginRequest request, CancellationToken cancellationToken)
     {
         var normalizedEmail = request.Email.Trim().ToLowerInvariant();
-        var passwordHash = HashPassword(request.Password);
 
         var user = await _db.UserAccounts
-            .FirstOrDefaultAsync(x => x.Email == normalizedEmail && x.PasswordHash == passwordHash, cancellationToken);
+            .FirstOrDefaultAsync(x => x.Email == normalizedEmail, cancellationToken);
 
-        if (user is null)
+        if (user is null || !_passwordHashingService.VerifyPassword(user, request.Password))
         {
             return Unauthorized(new ProblemDetails
             {
@@ -71,7 +75,7 @@ public sealed class AuthController : ControllerBase
             });
         }
 
-        return Ok(ToLoginResponse(user));
+        return Ok(ToLoginResponse(user, _sessionTokenService.CreateToken(user)));
     }
 
     [HttpPost("resend-verification")]
@@ -86,7 +90,7 @@ public sealed class AuthController : ControllerBase
         });
     }
 
-    private static LoginResponse ToLoginResponse(Data.Entities.UserAccount user)
+    private static LoginResponse ToLoginResponse(UserAccount user, string sessionToken)
     {
         return new LoginResponse
         {
@@ -95,18 +99,13 @@ public sealed class AuthController : ControllerBase
             Email = user.Email,
             Role = ToSnakeCase(user.Role.ToString()),
             AccountStatus = ToSnakeCase(user.AccountStatus.ToString()),
-            EmailVerified = user.EmailVerified
+            EmailVerified = user.EmailVerified,
+            SessionToken = sessionToken
         };
     }
 
     private static string ToSnakeCase(string value)
     {
         return Regex.Replace(value, "(?<!^)([A-Z])", "_$1").ToLowerInvariant();
-    }
-
-    private static string HashPassword(string password)
-    {
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(password));
-        return Convert.ToHexString(bytes);
     }
 }

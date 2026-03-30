@@ -4,5 +4,6 @@ public enum UserRole
 {
     Client,
     Agent,
+    CreativeDirector,
     Admin
 }

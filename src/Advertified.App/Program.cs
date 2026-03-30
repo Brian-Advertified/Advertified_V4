@@ -6,6 +6,7 @@ using Advertified.App.Services.Abstractions;
 using Advertified.App.Services.BroadcastMatching;
 using Advertified.App.Support;
 using Advertified.App.Validation;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -14,6 +15,7 @@ var connectionString = builder.Configuration.GetConnectionString("Advertified")
 const string FrontendCorsPolicy = "AdvertifiedFrontend";
 
 builder.Services.AddControllers();
+builder.Services.AddDataProtection();
 builder.Services.AddHttpContextAccessor();
 builder.Services.Configure<FrontendOptions>(builder.Configuration.GetSection(FrontendOptions.SectionName));
 builder.Services.Configure<BroadcastInventoryOptions>(builder.Configuration.GetSection(BroadcastInventoryOptions.SectionName));
@@ -46,16 +48,18 @@ builder.Services.AddDbContext<AppDbContext>(options =>
             npgsqlOptions.MapEnum<VerificationStatus>("verification_status");
         }));
 builder.Services.AddScoped<ICurrentUserAccessor, CurrentUserAccessor>();
+builder.Services.AddScoped<ISessionTokenService, SessionTokenService>();
+builder.Services.AddScoped<IPasswordHashingService, PasswordHashingService>();
 builder.Services.AddScoped<IAdminDashboardService>(_ => new AdminDashboardService(
     _.GetRequiredService<AppDbContext>(),
     _.GetRequiredService<IBroadcastInventoryCatalog>(),
-    _.GetRequiredService<IPackageCatalogService>(),
-    _.GetRequiredService<Microsoft.Extensions.Options.IOptions<PlanningPolicyOptions>>(),
+    _.GetRequiredService<PlanningPolicySnapshotProvider>(),
     connectionString));
 builder.Services.AddScoped<IAdminMutationService>(_ => new AdminMutationService(
     connectionString,
     _.GetRequiredService<IWebHostEnvironment>()));
 builder.Services.AddScoped<ICampaignAccessService, CampaignAccessService>();
+builder.Services.AddScoped<IAgentAreaRoutingService, AgentAreaRoutingService>();
 builder.Services.AddScoped<ICampaignBriefService, CampaignBriefService>();
 builder.Services.AddScoped<ICampaignRecommendationService, CampaignRecommendationService>();
 builder.Services.AddScoped<IRecommendationDocumentService, RecommendationDocumentService>();
@@ -103,6 +107,9 @@ builder.Services.AddScoped<IBroadcastRecommendationRanker, BroadcastRecommendati
 builder.Services.AddScoped<IBroadcastMatchingEngine, BroadcastMatchingEngine>();
 builder.Services.AddScoped<IPlanningCandidateLoader, PlanningCandidateLoader>();
 builder.Services.AddScoped<IPlanningPolicyService, PlanningPolicyService>();
+builder.Services.AddScoped(_ => new PlanningPolicySnapshotProvider(
+    connectionString,
+    _.GetRequiredService<Microsoft.Extensions.Options.IOptions<PlanningPolicyOptions>>().Value));
 builder.Services.AddScoped<IPlanningEligibilityService, PlanningEligibilityService>();
 builder.Services.AddScoped<IPlanningScoreService, PlanningScoreService>();
 builder.Services.AddScoped<IRecommendationPlanBuilder, RecommendationPlanBuilder>();
@@ -116,6 +123,7 @@ builder.Services.AddScoped<IMediaPlanningEngine>(_ => new MediaPlanningEngine(
     _.GetRequiredService<IRecommendationPlanBuilder>(),
     _.GetRequiredService<IRecommendationExplainabilityService>()));
 builder.Services.AddScoped<IPaymentAuditService, PaymentAuditService>();
+builder.Services.AddScoped<IChangeAuditService, ChangeAuditService>();
 builder.Services.AddScoped<IPackageAreaService, PackageAreaService>();
 builder.Services.AddScoped<IPackageCatalogService, PackageCatalogService>();
 builder.Services.AddScoped<IPackagePreviewAreaProfileResolver, PackagePreviewAreaProfileResolver>();
@@ -178,6 +186,35 @@ await using (var scope = app.Services.CreateAsyncScope())
     var broadcastInventoryImportService = scope.ServiceProvider.GetRequiredService<IBroadcastInventoryImportService>();
     await broadcastInventoryImportService.SyncAsync(CancellationToken.None);
 }
+
+app.Use(async (context, next) =>
+{
+    try
+    {
+        await next();
+    }
+    catch (InvalidOperationException ex) when (ex.Message.Contains("authenticated session", StringComparison.OrdinalIgnoreCase)
+        || ex.Message.Contains("authenticated user account", StringComparison.OrdinalIgnoreCase))
+    {
+        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        await context.Response.WriteAsJsonAsync(new ProblemDetails
+        {
+            Title = "Authentication required.",
+            Detail = ex.Message,
+            Status = StatusCodes.Status401Unauthorized
+        });
+    }
+    catch (InvalidOperationException ex) when (ex.Message.Contains("access is required", StringComparison.OrdinalIgnoreCase))
+    {
+        context.Response.StatusCode = StatusCodes.Status403Forbidden;
+        await context.Response.WriteAsJsonAsync(new ProblemDetails
+        {
+            Title = "Forbidden.",
+            Detail = ex.Message,
+            Status = StatusCodes.Status403Forbidden
+        });
+    }
+});
 
 app.UseCors(FrontendCorsPolicy);
 app.MapControllers();

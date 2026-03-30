@@ -5,36 +5,42 @@ import { StatusBadge } from '../../components/ui/StatusBadge';
 import { formatCurrency, formatDate } from '../../lib/utils';
 import { useAuth } from '../../features/auth/auth-context';
 import { advertifiedApi } from '../../services/advertifiedApi';
-import { PageHero } from '../../components/marketing/PageHero';
+import { ClientPortalShell } from './clientWorkspace';
 
 export function OrdersPage() {
   const { user } = useAuth();
+  const campaignsQuery = useQuery({
+    queryKey: ['campaigns', user?.id],
+    queryFn: () => advertifiedApi.getCampaigns(user!.id),
+    enabled: Boolean(user),
+  });
   const ordersQuery = useQuery({
     queryKey: ['orders', user?.id],
     queryFn: () => advertifiedApi.getOrders(user!.id),
     enabled: Boolean(user),
   });
 
-  if (ordersQuery.isLoading) {
+  if (ordersQuery.isLoading || campaignsQuery.isLoading) {
     return <LoadingState label="Loading your package orders..." />;
   }
 
   const orders = ordersQuery.data ?? [];
+  const campaigns = campaignsQuery.data ?? [];
 
   return (
-    <section className="page-shell space-y-8">
-      <PageHero
-        kicker="Orders"
-        title="Package orders"
-        description="Track each package purchase, payment state, and reference from one clear order history."
-      />
+    <ClientPortalShell
+      campaigns={campaigns}
+      activeNav="orders"
+      title="Package Orders"
+      description="Track each package purchase, payment state, and reference from one clear order history inside the client portal."
+    >
       {orders.length ? (
         <div className="grid gap-4">
           {orders.map((order) => (
-            <div key={order.id} className="panel flex flex-col gap-4 px-6 py-6 sm:flex-row sm:items-center sm:justify-between">
+            <div key={order.id} className="user-card flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-lg font-semibold text-ink">{order.packageBandName}</p>
-                <p className="mt-2 text-sm text-ink-soft">{formatDate(order.createdAt)} • {formatCurrency(order.amount)}</p>
+                <p className="mt-2 text-sm text-ink-soft">{formatDate(order.createdAt)} | {formatCurrency(order.amount)}</p>
               </div>
               <div className="flex items-center gap-4">
                 <StatusBadge status={order.paymentStatus} />
@@ -46,6 +52,6 @@ export function OrdersPage() {
       ) : (
         <EmptyState title="No package orders yet" description="Once you purchase a package, every order and payment state will appear here." ctaHref="/packages" ctaLabel="Choose a package" />
       )}
-    </section>
+    </ClientPortalShell>
   );
 }

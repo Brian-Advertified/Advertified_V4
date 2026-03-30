@@ -7,6 +7,33 @@ public partial class AppDbContext
 {
     partial void OnModelCreatingPartial(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<AgentAreaAssignment>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("agent_area_assignments_pkey");
+
+            entity.ToTable("agent_area_assignments");
+
+            entity.HasIndex(e => e.AreaCode, "uq_agent_area_assignments_area_code").IsUnique();
+            entity.HasIndex(e => new { e.AgentUserId, e.AreaCode }, "uq_agent_area_assignments_agent_user_id_area_code").IsUnique();
+            entity.HasIndex(e => e.AgentUserId, "ix_agent_area_assignments_agent_user_id");
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.AgentUserId).HasColumnName("agent_user_id");
+            entity.Property(e => e.AreaCode)
+                .HasMaxLength(50)
+                .HasColumnName("area_code");
+            entity.Property(e => e.CreatedAt)
+                .HasColumnName("created_at");
+
+            entity.HasOne(e => e.AgentUser)
+                .WithMany()
+                .HasForeignKey(e => e.AgentUserId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("agent_area_assignments_agent_user_id_fkey");
+        });
+
         modelBuilder.Entity<UserAccount>(entity =>
         {
             entity.Property(e => e.Role)
@@ -395,6 +422,59 @@ public partial class AppDbContext
                 .HasForeignKey(d => d.PackageOrderId)
                 .OnDelete(DeleteBehavior.SetNull)
                 .HasConstraintName("payment_provider_webhooks_package_order_id_fkey");
+        });
+
+        modelBuilder.Entity<ChangeAuditLog>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("change_audit_log_pkey");
+
+            entity.ToTable("change_audit_log");
+
+            entity.HasIndex(e => e.CreatedAt, "ix_change_audit_log_created_at");
+            entity.HasIndex(e => e.Scope, "ix_change_audit_log_scope");
+            entity.HasIndex(e => e.ActorUserId, "ix_change_audit_log_actor_user_id");
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.ActorEmail)
+                .HasMaxLength(255)
+                .HasColumnName("actor_email");
+            entity.Property(e => e.ActorName)
+                .HasMaxLength(200)
+                .HasColumnName("actor_name");
+            entity.Property(e => e.ActorRole)
+                .HasMaxLength(50)
+                .HasColumnName("actor_role");
+            entity.Property(e => e.ActorUserId).HasColumnName("actor_user_id");
+            entity.Property(e => e.Action)
+                .HasMaxLength(100)
+                .HasColumnName("action");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.EntityId)
+                .HasMaxLength(200)
+                .HasColumnName("entity_id");
+            entity.Property(e => e.EntityLabel)
+                .HasMaxLength(255)
+                .HasColumnName("entity_label");
+            entity.Property(e => e.EntityType)
+                .HasMaxLength(100)
+                .HasColumnName("entity_type");
+            entity.Property(e => e.MetadataJson)
+                .HasColumnType("jsonb")
+                .HasColumnName("metadata_json");
+            entity.Property(e => e.Scope)
+                .HasMaxLength(50)
+                .HasColumnName("scope");
+            entity.Property(e => e.Summary).HasColumnName("summary");
+
+            entity.HasOne<UserAccount>()
+                .WithMany()
+                .HasForeignKey(e => e.ActorUserId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("change_audit_log_actor_user_id_fkey");
         });
     }
 }

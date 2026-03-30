@@ -13,7 +13,7 @@ import {
   UserPlus2,
   UserX2,
 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { LoadingState } from '../../components/ui/LoadingState';
@@ -270,8 +270,9 @@ export function AgentCampaignDetailPage() {
   const [selectedPlanItems, setSelectedPlanItems] = useState<SelectedPlanInventoryItem[]>([]);
   const [strategySummary, setStrategySummary] = useState('');
   const [mixBalance, setMixBalance] = useState(60);
-  const [selectedRecommendationId, setSelectedRecommendationId] = useState('');
+  const [selectedRecommendationIdState, setSelectedRecommendationIdState] = useState('');
   const mixPanelRef = useRef<HTMLDivElement | null>(null);
+  const hydratedRecommendationKeyRef = useRef<string | null>(null);
 
   const campaignQuery = useQuery({ queryKey: ['agent-campaign', id], queryFn: () => advertifiedApi.getAgentCampaign(id) });
   const inventoryQuery = useQuery({
@@ -308,6 +309,29 @@ export function AgentCampaignDetailPage() {
         title: 'Recommendation sent to client.',
         description: 'The campaign has moved into the client review stage.',
       });
+    },
+  });
+
+  const markLiveMutation = useMutation({
+    mutationFn: () => advertifiedApi.markCampaignLaunched(id),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['agent-campaign', id] }),
+        queryClient.invalidateQueries({ queryKey: ['campaign', id] }),
+        queryClient.invalidateQueries({ queryKey: ['campaigns'] }),
+        queryClient.invalidateQueries({ queryKey: ['agent-inbox'] }),
+        queryClient.invalidateQueries({ queryKey: ['agent-campaigns'] }),
+      ]);
+      pushToast({
+        title: 'Campaign marked live.',
+        description: 'Operations activation is now captured separately from client approval.',
+      });
+    },
+    onError: (error) => {
+      pushToast({
+        title: 'Could not mark campaign live.',
+        description: error instanceof Error ? error.message : 'Please try again.',
+      }, 'error');
     },
   });
 
@@ -372,21 +396,10 @@ export function AgentCampaignDetailPage() {
   const recommendations = campaign?.recommendations.length
     ? campaign.recommendations
     : (campaign?.recommendation ? [campaign.recommendation] : []);
+  const selectedRecommendationId = selectedRecommendationIdState || recommendations[0]?.id || '';
   const activeRecommendation = recommendations.find((item) => item.id === selectedRecommendationId) ?? recommendations[0];
 
-  useEffect(() => {
-    if (!selectedRecommendationId && recommendations[0]?.id) {
-      setSelectedRecommendationId(recommendations[0].id);
-    }
-  }, [recommendations, selectedRecommendationId]);
-
-  useEffect(() => {
-    if (!campaign) return;
-    setStrategySummary(activeRecommendation?.summary ?? '');
-  }, [activeRecommendation, campaign]);
-
-  useEffect(() => {
-    if (!campaign || !activeRecommendation) return;
+  if (campaign && activeRecommendation) {
     const byId = new Map(inventoryItems.map((item) => [item.id, item]));
     const selectedFromRecommendation = activeRecommendation.items
       .map((item) => {
@@ -432,8 +445,13 @@ export function AgentCampaignDetailPage() {
       })
       .filter((item): item is SelectedPlanInventoryItem => item !== null);
 
-    setSelectedPlanItems(selectedFromRecommendation);
-  }, [activeRecommendation, campaign, inventoryItems]);
+    const hydrationKey = `${campaign.id}:${activeRecommendation.id}:${inventoryItems.map((item) => item.id).join('|')}`;
+    if (hydratedRecommendationKeyRef.current !== hydrationKey) {
+      hydratedRecommendationKeyRef.current = hydrationKey;
+      setStrategySummary(activeRecommendation.summary ?? '');
+      setSelectedPlanItems(selectedFromRecommendation);
+    }
+  }
 
   if (campaignQuery.isLoading || inventoryQuery.isLoading || !campaign) {
     return <LoadingState label="Loading agent campaign detail..." />;
@@ -483,9 +501,14 @@ export function AgentCampaignDetailPage() {
   const toneSummary = buildToneSummary(campaign.brief);
   const originalPrompt = buildOriginalPrompt(campaign.brief);
   const clientNotes = campaign.brief?.specialRequirements ?? campaign.brief?.creativeNotes ?? campaign.brief?.targetAudienceNotes ?? 'No client notes captured yet.';
-  const statusLabel = activeRecommendation?.status ? titleCase(activeRecommendation.status) : titleCase(campaign.status);
+  const statusLabel = campaign.status === 'creative_approved' || campaign.status === 'launched'
+    ? titleCase(campaign.status)
+    : activeRecommendation?.status
+      ? titleCase(activeRecommendation.status)
+      : titleCase(campaign.status);
   const constraints = getConstraintChecks(campaign.brief, selectedPlanItems, isOverBudget, campaign.selectedBudget);
   const recommendationTitle = strategySummary || activeRecommendation?.summary || 'Draft recommendation';
+  const canMarkLive = campaign.status === 'creative_approved';
 
   function toggleInventoryItem(item: SelectedPlanInventoryItem) {
     setSelectedPlanItems((current) => {
@@ -548,11 +571,13 @@ export function AgentCampaignDetailPage() {
 
   return (
     <section className="page-shell space-y-8">
-      {saveMutation.isPending || sendMutation.isPending || assignMutation.isPending || unassignMutation.isPending || regenerateMutation.isPending ? (
+      {saveMutation.isPending || sendMutation.isPending || assignMutation.isPending || unassignMutation.isPending || regenerateMutation.isPending || markLiveMutation.isPending ? (
         <ProcessingOverlay
           label={
             sendMutation.isPending
               ? 'Sending recommendation to the client...'
+              : markLiveMutation.isPending
+                ? 'Marking the campaign live...'
               : assignMutation.isPending
                 ? 'Assigning this campaign to you...'
                 : unassignMutation.isPending
@@ -685,7 +710,7 @@ export function AgentCampaignDetailPage() {
                     <button
                       key={proposal.id}
                       type="button"
-                      onClick={() => setSelectedRecommendationId(proposal.id)}
+                      onClick={() => setSelectedRecommendationIdState(proposal.id)}
                       className={`rounded-[18px] border px-4 py-3 text-left transition ${
                         isActive ? 'border-brand bg-brand-soft' : 'border-line bg-slate-50 hover:border-brand/30'
                       }`}
@@ -894,6 +919,17 @@ export function AgentCampaignDetailPage() {
               <CircleCheckBig className="size-4" />
               Approve recommendation
             </button>
+            {canMarkLive ? (
+              <button
+                type="button"
+                disabled={markLiveMutation.isPending}
+                onClick={() => markLiveMutation.mutate()}
+                className="button-primary inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60"
+              >
+                <CircleCheckBig className="size-4" />
+                Mark campaign live
+              </button>
+            ) : null}
           </div>
 
           <details id="agent-inventory-table" className="panel overflow-hidden">

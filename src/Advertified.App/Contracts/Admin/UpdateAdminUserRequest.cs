@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+
 namespace Advertified.App.Contracts.Admin;
 
 public sealed class UpdateAdminUserRequest
@@ -11,4 +14,5 @@ public sealed class UpdateAdminUserRequest
     public bool IsSaCitizen { get; set; }
     public bool EmailVerified { get; set; }
     public bool PhoneVerified { get; set; }
+    public IReadOnlyList<string> AssignedAreaCodes { get; set; } = Array.Empty<string>();
 }

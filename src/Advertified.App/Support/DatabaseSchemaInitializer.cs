@@ -29,8 +29,14 @@ internal static class DatabaseSchemaInitializer
                      Path.Combine("database", "bootstrap", "008_broadcast_inventory_v2.sql"),
                      Path.Combine("database", "bootstrap", "009_remove_legacy_broadcast_v1.sql"),
                      Path.Combine("database", "bootstrap", "010_recommendation_revisions.sql"),
-                     Path.Combine("database", "bootstrap", "011_recommendation_pdf_storage.sql")
-                 })
+                      Path.Combine("database", "bootstrap", "011_recommendation_pdf_storage.sql"),
+                      Path.Combine("database", "bootstrap", "012_admin_engine_policy_overrides.sql"),
+                       Path.Combine("database", "bootstrap", "013_change_audit_log.sql"),
+                       Path.Combine("database", "bootstrap", "014_agent_area_assignments.sql"),
+                      Path.Combine("database", "bootstrap", "015_creative_director_role.sql"),
+                      Path.Combine("database", "bootstrap", "016_campaign_messages.sql"),
+                      Path.Combine("database", "bootstrap", "017_consent_preferences.sql")
+                   })
         {
             var fullPath = baseDirectories
                 .Select(baseDirectory => Path.Combine(baseDirectory, relativePath))

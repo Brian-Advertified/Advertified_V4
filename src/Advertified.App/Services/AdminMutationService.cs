@@ -474,6 +474,309 @@ public sealed class AdminMutationService : IAdminMutationService
         await UpdateOutletHasPricingFlagAsync(connection, outletId, cancellationToken);
     }
 
+    public async Task<AdminGeographyDetailResponse> GetGeographyAsync(string code, CancellationToken cancellationToken)
+    {
+        var normalizedCode = NormalizeToken(code);
+        if (string.IsNullOrWhiteSpace(normalizedCode))
+        {
+            throw new InvalidOperationException("Area code is required.");
+        }
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        var area = await connection.QuerySingleOrDefaultAsync<AdminGeographyRecord>(new CommandDefinition(
+            @"
+            select
+                pap.id,
+                pap.cluster_code as Code,
+                pap.display_name as Label,
+                coalesce(pap.description, '') as Description,
+                pap.fallback_locations_json as FallbackLocationsJson,
+                pap.sort_order as SortOrder,
+                pap.is_active as IsActive,
+                rc.id as ClusterId
+            from package_area_profiles pap
+            left join region_clusters rc on rc.code = pap.cluster_code
+            where lower(pap.cluster_code) = @Code;",
+            new { Code = normalizedCode },
+            cancellationToken: cancellationToken));
+
+        if (area is null)
+        {
+            throw new InvalidOperationException("Area mapping was not found.");
+        }
+
+        var mappings = area.ClusterId.HasValue
+            ? (await connection.QueryAsync<AdminGeographyMappingResponse>(new CommandDefinition(
+                @"
+                select
+                    id,
+                    province as Province,
+                    city as City,
+                    station_or_channel_name as StationOrChannelName
+                from region_cluster_mappings
+                where cluster_id = @ClusterId
+                order by province nulls first, city nulls first, station_or_channel_name nulls first;",
+                new { ClusterId = area.ClusterId.Value },
+                cancellationToken: cancellationToken))).ToArray()
+            : Array.Empty<AdminGeographyMappingResponse>();
+
+        return new AdminGeographyDetailResponse
+        {
+            Id = area.Id,
+            Code = area.Code,
+            Label = area.Label,
+            Description = area.Description,
+            FallbackLocations = DeserializeJsonArray(area.FallbackLocationsJson),
+            SortOrder = area.SortOrder,
+            IsActive = area.IsActive,
+            Mappings = mappings,
+        };
+    }
+
+    public async Task<AdminGeographyDetailResponse> CreateGeographyAsync(CreateAdminGeographyRequest request, CancellationToken cancellationToken)
+    {
+        var code = NormalizeToken(request.Code);
+        var label = TrimToNull(request.Label);
+        if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(label))
+        {
+            throw new InvalidOperationException("Area code and label are required.");
+        }
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        var clusterExists = await connection.ExecuteScalarAsync<int>(new CommandDefinition(
+            "select count(*) from region_clusters where code = @Code;",
+            new { Code = code },
+            transaction: transaction,
+            cancellationToken: cancellationToken));
+
+        if (clusterExists > 0)
+        {
+            throw new InvalidOperationException("An area with this code already exists.");
+        }
+
+        var clusterId = Guid.NewGuid();
+        await connection.ExecuteAsync(new CommandDefinition(
+            @"
+            insert into region_clusters (id, code, name, description)
+            values (@Id, @Code, @Name, @Description);",
+            new
+            {
+                Id = clusterId,
+                Code = code,
+                Name = label,
+                Description = TrimToNull(request.Description),
+            },
+            transaction: transaction,
+            cancellationToken: cancellationToken));
+
+        await connection.ExecuteAsync(new CommandDefinition(
+            @"
+            insert into package_area_profiles (id, cluster_code, display_name, description, fallback_locations_json, sort_order, is_active)
+            values (@Id, @Code, @Label, @Description, cast(@FallbackLocationsJson as jsonb), @SortOrder, @IsActive);",
+            new
+            {
+                Id = Guid.NewGuid(),
+                Code = code,
+                Label = label,
+                Description = TrimToNull(request.Description),
+                FallbackLocationsJson = SerializeJsonArray(request.FallbackLocations),
+                request.SortOrder,
+                request.IsActive,
+            },
+            transaction: transaction,
+            cancellationToken: cancellationToken));
+
+        await transaction.CommitAsync(cancellationToken);
+        return await GetGeographyAsync(code, cancellationToken);
+    }
+
+    public async Task<AdminGeographyDetailResponse> UpdateGeographyAsync(string existingCode, UpdateAdminGeographyRequest request, CancellationToken cancellationToken)
+    {
+        var normalizedExistingCode = NormalizeToken(existingCode);
+        var nextCode = NormalizeToken(request.Code);
+        var nextLabel = TrimToNull(request.Label);
+        if (string.IsNullOrWhiteSpace(normalizedExistingCode) || string.IsNullOrWhiteSpace(nextCode) || string.IsNullOrWhiteSpace(nextLabel))
+        {
+            throw new InvalidOperationException("Area code and label are required.");
+        }
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        var cluster = await connection.QuerySingleOrDefaultAsync<RegionClusterLookupRecord>(new CommandDefinition(
+            "select id, code from region_clusters where code = @Code;",
+            new { Code = normalizedExistingCode },
+            transaction: transaction,
+            cancellationToken: cancellationToken));
+
+        if (cluster is null)
+        {
+            throw new InvalidOperationException("Area mapping was not found.");
+        }
+
+        if (!string.Equals(normalizedExistingCode, nextCode, StringComparison.OrdinalIgnoreCase))
+        {
+            var duplicateExists = await connection.ExecuteScalarAsync<int>(new CommandDefinition(
+                "select count(*) from region_clusters where code = @Code and id <> @Id;",
+                new { Code = nextCode, Id = cluster.Id },
+                transaction: transaction,
+                cancellationToken: cancellationToken));
+
+            if (duplicateExists > 0)
+            {
+                throw new InvalidOperationException("Another area with this code already exists.");
+            }
+        }
+
+        await connection.ExecuteAsync(new CommandDefinition(
+            @"
+            update region_clusters
+            set
+                code = @NextCode,
+                name = @Name,
+                description = @Description,
+                updated_at = now()
+            where id = @Id;",
+            new
+            {
+                Id = cluster.Id,
+                NextCode = nextCode,
+                Name = nextLabel,
+                Description = TrimToNull(request.Description),
+            },
+            transaction: transaction,
+            cancellationToken: cancellationToken));
+
+        await connection.ExecuteAsync(new CommandDefinition(
+            @"
+            update package_area_profiles
+            set
+                cluster_code = @NextCode,
+                display_name = @Label,
+                description = @Description,
+                fallback_locations_json = cast(@FallbackLocationsJson as jsonb),
+                sort_order = @SortOrder,
+                is_active = @IsActive,
+                updated_at = now()
+            where cluster_code = @ExistingCode;",
+            new
+            {
+                ExistingCode = normalizedExistingCode,
+                NextCode = nextCode,
+                Label = nextLabel,
+                Description = TrimToNull(request.Description),
+                FallbackLocationsJson = SerializeJsonArray(request.FallbackLocations),
+                request.SortOrder,
+                request.IsActive,
+            },
+            transaction: transaction,
+            cancellationToken: cancellationToken));
+
+        await transaction.CommitAsync(cancellationToken);
+        return await GetGeographyAsync(nextCode, cancellationToken);
+    }
+
+    public async Task DeleteGeographyAsync(string code, CancellationToken cancellationToken)
+    {
+        var normalizedCode = NormalizeToken(code);
+        if (string.IsNullOrWhiteSpace(normalizedCode))
+        {
+            throw new InvalidOperationException("Area code is required.");
+        }
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        var deleted = await connection.ExecuteAsync(new CommandDefinition(
+            "delete from region_clusters where code = @Code;",
+            new { Code = normalizedCode },
+            cancellationToken: cancellationToken));
+
+        if (deleted == 0)
+        {
+            throw new InvalidOperationException("Area mapping was not found.");
+        }
+    }
+
+    public async Task<Guid> CreateGeographyMappingAsync(string code, UpsertAdminGeographyMappingRequest request, CancellationToken cancellationToken)
+    {
+        var clusterId = await GetRegionClusterIdAsync(code, cancellationToken);
+        ValidateGeographyMappingRequest(request);
+        var mappingId = Guid.NewGuid();
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await connection.ExecuteAsync(new CommandDefinition(
+            @"
+            insert into region_cluster_mappings (id, cluster_id, province, city, station_or_channel_name)
+            values (@Id, @ClusterId, @Province, @City, @StationOrChannelName);",
+            new
+            {
+                Id = mappingId,
+                ClusterId = clusterId,
+                Province = TrimToNull(request.Province),
+                City = TrimToNull(request.City),
+                StationOrChannelName = TrimToNull(request.StationOrChannelName),
+            },
+            cancellationToken: cancellationToken));
+
+        return mappingId;
+    }
+
+    public async Task UpdateGeographyMappingAsync(string code, Guid mappingId, UpsertAdminGeographyMappingRequest request, CancellationToken cancellationToken)
+    {
+        var clusterId = await GetRegionClusterIdAsync(code, cancellationToken);
+        ValidateGeographyMappingRequest(request);
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        var updated = await connection.ExecuteAsync(new CommandDefinition(
+            @"
+            update region_cluster_mappings
+            set
+                province = @Province,
+                city = @City,
+                station_or_channel_name = @StationOrChannelName,
+                updated_at = now()
+            where id = @Id and cluster_id = @ClusterId;",
+            new
+            {
+                Id = mappingId,
+                ClusterId = clusterId,
+                Province = TrimToNull(request.Province),
+                City = TrimToNull(request.City),
+                StationOrChannelName = TrimToNull(request.StationOrChannelName),
+            },
+            cancellationToken: cancellationToken));
+
+        if (updated == 0)
+        {
+            throw new InvalidOperationException("Geography mapping was not found.");
+        }
+    }
+
+    public async Task DeleteGeographyMappingAsync(string code, Guid mappingId, CancellationToken cancellationToken)
+    {
+        var clusterId = await GetRegionClusterIdAsync(code, cancellationToken);
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        var deleted = await connection.ExecuteAsync(new CommandDefinition(
+            "delete from region_cluster_mappings where id = @Id and cluster_id = @ClusterId;",
+            new { Id = mappingId, ClusterId = clusterId },
+            cancellationToken: cancellationToken));
+
+        if (deleted == 0)
+        {
+            throw new InvalidOperationException("Geography mapping was not found.");
+        }
+    }
+
     public async Task<AdminRateCardUploadResponse> UploadRateCardAsync(string channel, string? supplierOrStation, string? documentTitle, string? notes, IFormFile file, CancellationToken cancellationToken)
     {
         if (file.Length <= 0)
@@ -540,6 +843,313 @@ public sealed class AdminMutationService : IAdminMutationService
             DocumentTitle = TrimToNull(documentTitle) ?? safeFileName,
             ImportedAt = importedAt
         };
+    }
+
+    public async Task UpdateRateCardAsync(string sourceFile, UpdateAdminRateCardRequest request, CancellationToken cancellationToken)
+    {
+        var normalizedSourceFile = TrimToNull(sourceFile);
+        if (normalizedSourceFile is null)
+        {
+            throw new InvalidOperationException("Source file is required.");
+        }
+
+        var normalizedChannel = NormalizeToken(request.Channel);
+        if (string.IsNullOrWhiteSpace(normalizedChannel))
+        {
+            throw new InvalidOperationException("Channel is required.");
+        }
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        var importUpdated = await connection.ExecuteAsync(new CommandDefinition(
+            @"
+            update import_manifest
+            set channel = @Channel
+            where source_file = @SourceFile;",
+            new
+            {
+                SourceFile = normalizedSourceFile,
+                Channel = normalizedChannel,
+            },
+            transaction: transaction,
+            cancellationToken: cancellationToken));
+
+        if (importUpdated == 0)
+        {
+            throw new InvalidOperationException("Rate card import was not found.");
+        }
+
+        var metadataUpdated = await connection.ExecuteAsync(new CommandDefinition(
+            @"
+            update package_document_metadata
+            set
+                channel = @Channel,
+                supplier_or_station = @SupplierOrStation,
+                document_title = @DocumentTitle,
+                please_note = @Notes
+            where source_file = @SourceFile;",
+            new
+            {
+                SourceFile = normalizedSourceFile,
+                Channel = normalizedChannel,
+                SupplierOrStation = TrimToNull(request.SupplierOrStation),
+                DocumentTitle = TrimToNull(request.DocumentTitle),
+                Notes = TrimToNull(request.Notes),
+            },
+            transaction: transaction,
+            cancellationToken: cancellationToken));
+
+        if (metadataUpdated == 0)
+        {
+            await connection.ExecuteAsync(new CommandDefinition(
+                @"
+                insert into package_document_metadata (source_file, channel, supplier_or_station, document_title, please_note)
+                values (@SourceFile, @Channel, @SupplierOrStation, @DocumentTitle, @Notes);",
+                new
+                {
+                    SourceFile = normalizedSourceFile,
+                    Channel = normalizedChannel,
+                    SupplierOrStation = TrimToNull(request.SupplierOrStation),
+                    DocumentTitle = TrimToNull(request.DocumentTitle) ?? normalizedSourceFile,
+                    Notes = TrimToNull(request.Notes),
+                },
+                transaction: transaction,
+                cancellationToken: cancellationToken));
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    public async Task DeleteRateCardAsync(string sourceFile, CancellationToken cancellationToken)
+    {
+        var normalizedSourceFile = TrimToNull(sourceFile);
+        if (normalizedSourceFile is null)
+        {
+            throw new InvalidOperationException("Source file is required.");
+        }
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        await connection.ExecuteAsync(new CommandDefinition(
+            "delete from package_document_metadata where source_file = @SourceFile;",
+            new { SourceFile = normalizedSourceFile },
+            transaction: transaction,
+            cancellationToken: cancellationToken));
+
+        var deleted = await connection.ExecuteAsync(new CommandDefinition(
+            "delete from import_manifest where source_file = @SourceFile;",
+            new { SourceFile = normalizedSourceFile },
+            transaction: transaction,
+            cancellationToken: cancellationToken));
+
+        if (deleted == 0)
+        {
+            throw new InvalidOperationException("Rate card import was not found.");
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+
+        var fullPath = Path.Combine(_environment.ContentRootPath, "App_Data", "admin_uploads", "rate_cards", normalizedSourceFile);
+        if (File.Exists(fullPath))
+        {
+            File.Delete(fullPath);
+        }
+    }
+
+    public async Task<Guid> CreatePackageSettingAsync(CreateAdminPackageSettingRequest request, CancellationToken cancellationToken)
+    {
+        ValidatePackageSettingRequest(request.Code, request.Name, request.MinBudget, request.MaxBudget, request.LeadTime);
+
+        var packageBandId = Guid.NewGuid();
+        var normalizedCode = NormalizeToken(request.Code);
+        var benefitsJson = SerializeJsonArray(request.Benefits);
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        var existing = await connection.ExecuteScalarAsync<Guid?>(new CommandDefinition(
+            "select id from package_bands where lower(code) = @Code;",
+            new { Code = normalizedCode },
+            transaction: transaction,
+            cancellationToken: cancellationToken));
+
+        if (existing.HasValue)
+        {
+            throw new InvalidOperationException("A package band with this code already exists.");
+        }
+
+        await connection.ExecuteAsync(new CommandDefinition(
+            @"
+            insert into package_bands (id, code, name, min_budget, max_budget, sort_order, is_active)
+            values (@Id, @Code, @Name, @MinBudget, @MaxBudget, @SortOrder, @IsActive);",
+            new
+            {
+                Id = packageBandId,
+                Code = normalizedCode,
+                Name = request.Name.Trim(),
+                request.MinBudget,
+                request.MaxBudget,
+                request.SortOrder,
+                request.IsActive
+            },
+            transaction: transaction,
+            cancellationToken: cancellationToken));
+
+        await UpsertPackageBandProfileAsync(connection, transaction, packageBandId, request.Description, request.AudienceFit, request.QuickBenefit, request.PackagePurpose, request.IncludeRadio, request.IncludeTv, request.LeadTime, request.RecommendedSpend, request.IsRecommended, benefitsJson, cancellationToken);
+
+        await transaction.CommitAsync(cancellationToken);
+        return packageBandId;
+    }
+
+    public async Task UpdatePackageSettingAsync(Guid packageSettingId, UpdateAdminPackageSettingRequest request, CancellationToken cancellationToken)
+    {
+        ValidatePackageSettingRequest(request.Code, request.Name, request.MinBudget, request.MaxBudget, request.LeadTime);
+
+        var normalizedCode = NormalizeToken(request.Code);
+        var benefitsJson = SerializeJsonArray(request.Benefits);
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        var existing = await connection.ExecuteScalarAsync<Guid?>(new CommandDefinition(
+            "select id from package_bands where id = @Id;",
+            new { Id = packageSettingId },
+            transaction: transaction,
+            cancellationToken: cancellationToken));
+
+        if (!existing.HasValue)
+        {
+            throw new InvalidOperationException("Package setting was not found.");
+        }
+
+        var duplicate = await connection.ExecuteScalarAsync<Guid?>(new CommandDefinition(
+            "select id from package_bands where lower(code) = @Code and id <> @Id;",
+            new { Id = packageSettingId, Code = normalizedCode },
+            transaction: transaction,
+            cancellationToken: cancellationToken));
+
+        if (duplicate.HasValue)
+        {
+            throw new InvalidOperationException("A package band with this code already exists.");
+        }
+
+        await connection.ExecuteAsync(new CommandDefinition(
+            @"
+            update package_bands
+            set
+                code = @Code,
+                name = @Name,
+                min_budget = @MinBudget,
+                max_budget = @MaxBudget,
+                sort_order = @SortOrder,
+                is_active = @IsActive
+            where id = @Id;",
+            new
+            {
+                Id = packageSettingId,
+                Code = normalizedCode,
+                Name = request.Name.Trim(),
+                request.MinBudget,
+                request.MaxBudget,
+                request.SortOrder,
+                request.IsActive
+            },
+            transaction: transaction,
+            cancellationToken: cancellationToken));
+
+        await UpsertPackageBandProfileAsync(connection, transaction, packageSettingId, request.Description, request.AudienceFit, request.QuickBenefit, request.PackagePurpose, request.IncludeRadio, request.IncludeTv, request.LeadTime, request.RecommendedSpend, request.IsRecommended, benefitsJson, cancellationToken);
+
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    public async Task DeletePackageSettingAsync(Guid packageSettingId, CancellationToken cancellationToken)
+    {
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        var exists = await connection.ExecuteScalarAsync<bool>(new CommandDefinition(
+            "select exists(select 1 from package_bands where id = @Id);",
+            new { Id = packageSettingId },
+            transaction: transaction,
+            cancellationToken: cancellationToken));
+
+        if (!exists)
+        {
+            throw new InvalidOperationException("Package setting was not found.");
+        }
+
+        var hasDependencies = await connection.ExecuteScalarAsync<bool>(new CommandDefinition(
+            @"
+            select exists(select 1 from campaigns where package_band_id = @Id)
+                or exists(select 1 from package_orders where package_band_id = @Id);",
+            new { Id = packageSettingId },
+            transaction: transaction,
+            cancellationToken: cancellationToken));
+
+        if (hasDependencies)
+        {
+            throw new InvalidOperationException("This package band already has linked campaigns or orders and cannot be deleted. Set it inactive instead.");
+        }
+
+        await connection.ExecuteAsync(new CommandDefinition(
+            "delete from package_bands where id = @Id;",
+            new { Id = packageSettingId },
+            transaction: transaction,
+            cancellationToken: cancellationToken));
+
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    public async Task UpdateEnginePolicyAsync(string packageCode, UpdateAdminEnginePolicyRequest request, CancellationToken cancellationToken)
+    {
+        var normalizedPackageCode = NormalizeToken(packageCode);
+        if (string.IsNullOrWhiteSpace(normalizedPackageCode))
+        {
+            throw new InvalidOperationException("Package code is required.");
+        }
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await connection.ExecuteAsync(new CommandDefinition(
+            @"
+            insert into admin_engine_policy_overrides (
+                package_code, budget_floor, minimum_national_radio_candidates,
+                require_national_capable_radio, require_premium_national_radio,
+                national_radio_bonus, non_national_radio_penalty, regional_radio_penalty
+            ) values (
+                @PackageCode, @BudgetFloor, @MinimumNationalRadioCandidates,
+                @RequireNationalCapableRadio, @RequirePremiumNationalRadio,
+                @NationalRadioBonus, @NonNationalRadioPenalty, @RegionalRadioPenalty
+            )
+            on conflict (package_code) do update
+            set
+                budget_floor = excluded.budget_floor,
+                minimum_national_radio_candidates = excluded.minimum_national_radio_candidates,
+                require_national_capable_radio = excluded.require_national_capable_radio,
+                require_premium_national_radio = excluded.require_premium_national_radio,
+                national_radio_bonus = excluded.national_radio_bonus,
+                non_national_radio_penalty = excluded.non_national_radio_penalty,
+                regional_radio_penalty = excluded.regional_radio_penalty,
+                updated_at = now();",
+            new
+            {
+                PackageCode = normalizedPackageCode,
+                request.BudgetFloor,
+                request.MinimumNationalRadioCandidates,
+                request.RequireNationalCapableRadio,
+                request.RequirePremiumNationalRadio,
+                request.NationalRadioBonus,
+                request.NonNationalRadioPenalty,
+                request.RegionalRadioPenalty,
+            },
+            cancellationToken: cancellationToken));
     }
 
     public async Task UpdatePreviewRuleAsync(string packageCode, string tierCode, UpdateAdminPreviewRuleRequest request, CancellationToken cancellationToken)
@@ -620,6 +1230,24 @@ public sealed class AdminMutationService : IAdminMutationService
         }
 
         return outletId.Value;
+    }
+
+    private async Task<Guid> GetRegionClusterIdAsync(string code, CancellationToken cancellationToken)
+    {
+        var normalizedCode = NormalizeToken(code);
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        var clusterId = await connection.ExecuteScalarAsync<Guid?>(new CommandDefinition(
+            "select id from region_clusters where code = @Code;",
+            new { Code = normalizedCode },
+            cancellationToken: cancellationToken));
+
+        if (!clusterId.HasValue)
+        {
+            throw new InvalidOperationException("Area mapping was not found.");
+        }
+
+        return clusterId.Value;
     }
 
     private static async Task UpdateOutletHasPricingFlagAsync(NpgsqlConnection connection, Guid outletId, CancellationToken cancellationToken)
@@ -781,6 +1409,117 @@ public sealed class AdminMutationService : IAdminMutationService
         return value.Trim();
     }
 
+    private static string SerializeJsonArray(IEnumerable<string> values)
+    {
+        return JsonSerializer.Serialize(values
+            .Select(TrimToNull)
+            .Where(static x => !string.IsNullOrWhiteSpace(x))
+            .ToArray());
+    }
+
+    private static string[] DeserializeJsonArray(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return Array.Empty<string>();
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<string[]>(json) ?? Array.Empty<string>();
+        }
+        catch (JsonException)
+        {
+            return Array.Empty<string>();
+        }
+    }
+
+    private static void ValidateGeographyMappingRequest(UpsertAdminGeographyMappingRequest request)
+    {
+        var hasValue = !string.IsNullOrWhiteSpace(request.Province)
+            || !string.IsNullOrWhiteSpace(request.City)
+            || !string.IsNullOrWhiteSpace(request.StationOrChannelName);
+        if (!hasValue)
+        {
+            throw new InvalidOperationException("At least one mapping field is required.");
+        }
+    }
+
+    private static void ValidatePackageSettingRequest(string code, string name, decimal minBudget, decimal maxBudget, string leadTime)
+    {
+        if (string.IsNullOrWhiteSpace(NormalizeToken(code)) || string.IsNullOrWhiteSpace(TrimToNull(name)))
+        {
+            throw new InvalidOperationException("Package code and name are required.");
+        }
+
+        if (minBudget < 0 || maxBudget <= 0 || maxBudget < minBudget)
+        {
+            throw new InvalidOperationException("Package budgets must be valid and max budget must be greater than or equal to min budget.");
+        }
+
+        if (string.IsNullOrWhiteSpace(TrimToNull(leadTime)))
+        {
+            throw new InvalidOperationException("Lead time is required.");
+        }
+    }
+
+    private static async Task UpsertPackageBandProfileAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        Guid packageBandId,
+        string description,
+        string audienceFit,
+        string quickBenefit,
+        string packagePurpose,
+        string includeRadio,
+        string includeTv,
+        string leadTime,
+        decimal? recommendedSpend,
+        bool isRecommended,
+        string benefitsJson,
+        CancellationToken cancellationToken)
+    {
+        await connection.ExecuteAsync(new CommandDefinition(
+            @"
+            insert into package_band_profiles (
+                package_band_id, description, audience_fit, quick_benefit, package_purpose,
+                include_radio, include_tv, lead_time_label, recommended_spend, is_recommended, benefits_json
+            )
+            values (
+                @PackageBandId, @Description, @AudienceFit, @QuickBenefit, @PackagePurpose,
+                @IncludeRadio, @IncludeTv, @LeadTime, @RecommendedSpend, @IsRecommended, cast(@BenefitsJson as jsonb)
+            )
+            on conflict (package_band_id) do update
+            set
+                description = excluded.description,
+                audience_fit = excluded.audience_fit,
+                quick_benefit = excluded.quick_benefit,
+                package_purpose = excluded.package_purpose,
+                include_radio = excluded.include_radio,
+                include_tv = excluded.include_tv,
+                lead_time_label = excluded.lead_time_label,
+                recommended_spend = excluded.recommended_spend,
+                is_recommended = excluded.is_recommended,
+                benefits_json = excluded.benefits_json,
+                updated_at = now();",
+            new
+            {
+                PackageBandId = packageBandId,
+                Description = TrimToNull(description) ?? string.Empty,
+                AudienceFit = TrimToNull(audienceFit) ?? string.Empty,
+                QuickBenefit = TrimToNull(quickBenefit) ?? string.Empty,
+                PackagePurpose = TrimToNull(packagePurpose) ?? string.Empty,
+                IncludeRadio = NormalizeToken(includeRadio),
+                IncludeTv = NormalizeToken(includeTv),
+                LeadTime = TrimToNull(leadTime) ?? string.Empty,
+                RecommendedSpend = recommendedSpend,
+                IsRecommended = isRecommended,
+                BenefitsJson = benefitsJson
+            },
+            transaction: transaction,
+            cancellationToken: cancellationToken));
+    }
+
     private sealed class AdminOutletDetailRecord
     {
         public Guid Id { get; set; }
@@ -810,5 +1549,23 @@ public sealed class AdminMutationService : IAdminMutationService
         public int SlotRateCount { get; set; }
         public decimal? MinPackagePrice { get; set; }
         public decimal? MinSlotRate { get; set; }
+    }
+
+    private sealed class AdminGeographyRecord
+    {
+        public Guid Id { get; set; }
+        public string Code { get; set; } = string.Empty;
+        public string Label { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public string? FallbackLocationsJson { get; set; }
+        public int SortOrder { get; set; }
+        public bool IsActive { get; set; }
+        public Guid? ClusterId { get; set; }
+    }
+
+    private sealed class RegionClusterLookupRecord
+    {
+        public Guid Id { get; set; }
+        public string Code { get; set; } = string.Empty;
     }
 }

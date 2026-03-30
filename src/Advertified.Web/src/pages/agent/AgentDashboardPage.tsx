@@ -1,232 +1,266 @@
-import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, ArrowRight, CheckCircle2, Clock3, LogOut, Sparkles, UsersRound } from 'lucide-react';
+import { ArrowRight, BriefcaseBusiness, CircleAlert, Clock3, FolderKanban, ReceiptText, Send, Sparkles, UserRoundSearch, UsersRound } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { LoadingState } from '../../components/ui/LoadingState';
-import { useAuth } from '../../features/auth/auth-context';
-import { advertifiedApi } from '../../services/advertifiedApi';
-
-function formatCurrency(amount: number) {
-  return new Intl.NumberFormat('en-ZA', {
-    style: 'currency',
-    currency: 'ZAR',
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
-
-function statusTone(status: string) {
-  switch (status) {
-    case 'completed':
-      return 'bg-emerald-50 text-emerald-700 border-emerald-100';
-    case 'waiting_on_client':
-      return 'bg-amber-50 text-amber-700 border-amber-100';
-    case 'agent_review':
-      return 'bg-violet-50 text-violet-700 border-violet-100';
-    case 'ready_to_send':
-      return 'bg-sky-50 text-sky-700 border-sky-100';
-    default:
-      return 'bg-brand-soft text-brand border-brand/10';
-  }
-}
+import {
+  AgentPageShell,
+  AgentQueryBoundary,
+  fmtCurrency,
+  queueTone,
+  useAgentInboxQuery,
+} from './agentWorkspace';
+import { buildTasks } from './agentSectionShared';
 
 export function AgentDashboardPage() {
-  const { user, logout } = useAuth();
-  const inboxQuery = useQuery({ queryKey: ['agent-inbox'], queryFn: advertifiedApi.getAgentInbox });
-
-  if (inboxQuery.isLoading) {
-    return <LoadingState label="Loading agent dashboard..." />;
-  }
-
-  const inbox = inboxQuery.data;
-  const recentItems = (inbox?.items ?? []).slice(0, 3);
-  const pendingCount = (inbox?.newlyPaidCount ?? 0) + (inbox?.planningReadyCount ?? 0) + (inbox?.briefWaitingCount ?? 0);
-  const urgentCount = inbox?.urgentCount ?? 0;
-  const inReviewCount = (inbox?.agentReviewCount ?? 0) + (inbox?.readyToSendCount ?? 0) + (inbox?.waitingOnClientCount ?? 0);
-  const approvedCount = inbox?.completedCount ?? 0;
-  const liveCampaignCount = (inbox?.items ?? []).filter((item) => item.status === 'approved').length;
-  const firstName = user?.fullName?.split(' ')[0] ?? 'Agent';
-  const createRecommendationHref = '/agent/recommendations/new';
-
-  const stats = [
-    {
-      label: 'Pending',
-      value: String(pendingCount),
-      helper: 'Campaigns that still need planning attention.',
-      icon: <Clock3 className="size-5" />,
-    },
-    {
-      label: 'Urgent',
-      value: String(urgentCount),
-      helper: 'Manual review, over-budget, or aging work that needs attention now.',
-      icon: <AlertTriangle className="size-5" />,
-    },
-    {
-      label: 'In Review',
-      value: String(inReviewCount),
-      helper: 'Recommendations moving between agent and client review.',
-      icon: <Sparkles className="size-5" />,
-    },
-    {
-      label: 'Approved',
-      value: String(approvedCount),
-      helper: 'Campaigns signed off and ready for the next stage.',
-      icon: <CheckCircle2 className="size-5" />,
-    },
-  ];
-
-  const opsHighlights = [
-    { label: 'Manual review', value: inbox?.manualReviewCount ?? 0 },
-    { label: 'Over budget', value: inbox?.overBudgetCount ?? 0 },
-    { label: 'Stale work', value: inbox?.staleCount ?? 0 },
-    { label: 'Live campaigns', value: liveCampaignCount },
-  ];
+  const inboxQuery = useAgentInboxQuery();
 
   return (
-    <section className="page-shell space-y-8">
-      <div className="panel border-brand/10 bg-white/85 px-6 py-5">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand">Advertified Agent</p>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-ink">Dashboard</h1>
-            <p className="mt-2 text-sm text-ink-soft">Manage recommendations, active client work, and the next campaigns that need your attention.</p>
-          </div>
-          <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
-            <p className="text-sm text-ink-soft">Welcome back, {firstName}</p>
-            <div className="flex gap-3">
-              <Link to={createRecommendationHref} className="inline-flex items-center gap-2 rounded-full bg-brand px-5 py-3 text-sm font-semibold text-white shadow-[0_14px_35px_rgba(18,58,51,0.18)] transition hover:bg-brand-dark">
-                Create Recommendation
-              </Link>
-              <button type="button" onClick={() => logout('manual')} className="button-secondary inline-flex items-center gap-2 px-4 py-3">
-                <LogOut className="size-4" />
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+    <AgentQueryBoundary query={inboxQuery} loadingLabel="Loading agent dashboard...">
+      <AgentPageShell title="Agent dashboard" description="Daily sales activity, planning queue, approvals, and the client work that needs attention next.">
+        {(() => {
+          const inbox = inboxQuery.data;
+          if (!inbox) {
+            return null;
+          }
+          const stageColumns = [
+            { label: 'Lead', items: inbox.items.filter((item) => item.queueStage === 'newly_paid').slice(0, 3) },
+            { label: 'Purchased', items: inbox.items.filter((item) => item.queueStage === 'brief_waiting').slice(0, 3) },
+            { label: 'Planning', items: inbox.items.filter((item) => item.queueStage === 'planning_ready' || item.queueStage === 'agent_review').slice(0, 3) },
+            { label: 'Approval', items: inbox.items.filter((item) => item.queueStage === 'ready_to_send' || item.queueStage === 'waiting_on_client').slice(0, 3) },
+          ];
+          const tasks = buildTasks(inbox);
+          const focusTasks = [...tasks.urgent, ...tasks.review.filter((item) => !tasks.urgent.some((urgent) => urgent.id === item.id))]
+            .slice(0, 4);
+          const quickLinks = [
+            { label: 'Leads & Clients', href: '/agent/leads', icon: UserRoundSearch, helper: 'Track active prospects and client activity.' },
+            { label: 'Campaign Pipeline', href: '/agent/campaigns', icon: FolderKanban, helper: 'Open the full live campaign queue.' },
+            { label: 'Recommendation Builder', href: '/agent/recommendation-builder', icon: BriefcaseBusiness, helper: 'Move straight into planning work.' },
+            { label: 'Purchase / Checkout', href: '/agent/checkout', icon: ReceiptText, helper: 'Follow up on payments and checkout progress.' },
+          ];
+          const recentItems = inbox.items.slice(0, 6);
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {stats.map((stat) => (
-          <div key={stat.label} className="panel border-brand/5 bg-white/90 px-5 py-5">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">{stat.label}</p>
-                <p className="mt-3 text-3xl font-semibold tracking-tight text-ink">{stat.value}</p>
-                <p className="mt-2 text-sm leading-6 text-ink-soft">{stat.helper}</p>
-              </div>
-              <div className="rounded-2xl bg-brand-soft p-3 text-brand">{stat.icon}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid gap-8 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.9fr)]">
-        <div className="space-y-4">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <h2 className="text-xl font-semibold text-ink">Recent Recommendations</h2>
-              <p className="mt-1 text-sm text-ink-soft">The latest campaign work across draft, review, and approved stages.</p>
-            </div>
-            <Link to="/agent/campaigns" className="button-secondary px-4 py-2">
-              Open Full Queue
-            </Link>
-          </div>
-
-          <div className="space-y-4">
-            {recentItems.length > 0 ? recentItems.map((item) => (
-              <div key={item.id} className="panel border-brand/5 bg-white/92 px-5 py-5">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div>
-                    <p className="text-lg font-semibold text-ink">{item.campaignName}</p>
-                    <p className="mt-1 text-sm text-ink-soft">
-                      {item.packageBandName} · {item.clientName} · {formatCurrency(item.selectedBudget)}
-                    </p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {item.isUrgent ? <span className="pill border-rose-200 bg-rose-50 text-rose-700">Urgent</span> : null}
-                      {item.manualReviewRequired ? <span className="pill border-amber-200 bg-amber-50 text-amber-700">Manual review</span> : null}
-                      {item.isOverBudget ? <span className="pill border-rose-200 bg-rose-50 text-rose-700">Over budget</span> : null}
-                      {item.isStale ? <span className="pill border-slate-200 bg-slate-100 text-ink-soft">Stale {item.ageInDays}d</span> : null}
+          return (
+            <section className="space-y-6">
+              <div className="panel overflow-hidden border-brand/10 bg-[radial-gradient(circle_at_top_left,_rgba(15,118,110,0.14),_transparent_30%),radial-gradient(circle_at_bottom_right,_rgba(245,158,11,0.14),_transparent_24%),linear-gradient(135deg,rgba(255,255,255,0.98),rgba(242,248,246,0.96))] p-6">
+                <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+                  <div className="space-y-3">
+                    <div className="inline-flex items-center gap-2 rounded-full border border-brand/15 bg-white/80 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.26em] text-brand">
+                      Agent control center
                     </div>
-                    <p className="mt-2 text-sm text-ink-soft">{item.nextAction}</p>
+                    <div>
+                      <h3 className="text-2xl font-semibold text-ink">A daily command view for sales, briefs, planning, and approvals.</h3>
+                      <p className="mt-2 max-w-3xl text-sm leading-6 text-ink-soft">
+                        Keep using the dedicated route-based screens in the sidebar. This dashboard is the stitched-together overview that helps you decide what to open next.
+                      </p>
+                    </div>
                   </div>
-
-                  <div className="flex flex-wrap items-center gap-3">
-                    <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${statusTone(item.queueStage)}`}>
-                      {item.queueLabel}
-                    </span>
-                    <Link to={`/agent/campaigns/${item.id}`} className="button-secondary inline-flex items-center gap-2 px-4 py-2">
-                      Open
-                      <ArrowRight className="size-4" />
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="rounded-2xl border border-white/80 bg-white/80 px-4 py-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Search</p>
+                      <p className="mt-2 text-sm text-ink">Clients, campaigns, and queue items</p>
+                    </div>
+                    <Link to="/agent/tasks" className="rounded-2xl border border-white/80 bg-white/80 px-4 py-3 transition hover:border-brand/30 hover:bg-brand-soft/30">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Tasks</p>
+                      <p className="mt-2 text-sm font-semibold text-ink">{tasks.urgent.length + tasks.review.length + tasks.waiting.length} active follow-ups</p>
+                    </Link>
+                    <Link to="/agent/leads" className="rounded-2xl border border-white/80 bg-white/80 px-4 py-3 transition hover:border-brand/30 hover:bg-brand-soft/30">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Agent user</p>
+                      <p className="mt-2 text-sm font-semibold text-ink">Open your client portfolio</p>
                     </Link>
                   </div>
                 </div>
               </div>
-            )) : (
-              <div className="panel px-6 py-8 text-sm text-ink-soft">
-                No recommendations are waiting right now. New client work will appear here as soon as it enters the queue.
-              </div>
-            )}
-          </div>
-        </div>
 
-        <div className="space-y-4">
-          <div>
-            <h2 className="text-xl font-semibold text-ink">Quick Actions</h2>
-            <p className="mt-1 text-sm text-ink-soft">Jump straight into the parts of the workflow agents use most.</p>
-          </div>
-
-          <div className="space-y-4">
-            <div className="panel border-brand/5 bg-white/92 px-6 py-6">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-lg font-semibold text-ink">Operations snapshot</h3>
-                  <p className="mt-2 text-sm leading-6 text-ink-soft">
-                    Use these signals to spot risky work before it slips.
-                  </p>
-                </div>
-                <UsersRound className="size-5 text-brand" />
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                {[
+                  { label: 'New leads', value: inbox.newlyPaidCount, helper: 'Paid campaigns that still need first contact.', icon: UsersRound },
+                  { label: 'Pending briefs', value: inbox.briefWaitingCount, helper: 'Clients who paid but still owe planning input.', icon: Clock3 },
+                  { label: 'Recommendations due', value: inbox.planningReadyCount + inbox.agentReviewCount, helper: 'Campaigns waiting for build or strategist review.', icon: Sparkles },
+                  { label: 'Awaiting approval', value: inbox.waitingOnClientCount, helper: 'Sent to client and waiting for response.', icon: Send },
+                ].map((stat) => {
+                  const Icon = stat.icon;
+                  return (
+                    <div key={stat.label} className="rounded-[28px] border border-line bg-white px-5 py-5 shadow-[0_12px_34px_rgba(15,23,42,0.05)]">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">{stat.label}</p>
+                          <p className="mt-4 text-3xl font-semibold text-ink">{stat.value}</p>
+                          <p className="mt-2 text-sm text-ink-soft">{stat.helper}</p>
+                        </div>
+                        <div className="rounded-2xl bg-brand-soft p-3 text-brand">
+                          <Icon className="size-5" />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {opsHighlights.map((item) => (
-                  <div key={item.label} className="rounded-2xl border border-line bg-slate-50 px-4 py-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink-soft">{item.label}</p>
-                    <p className="mt-2 text-2xl font-semibold text-ink">{item.value}</p>
+
+              <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+                <div className="rounded-[30px] border border-line bg-white p-6 shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <h3 className="text-xl font-semibold text-ink">Today&apos;s pipeline</h3>
+                      <p className="mt-2 text-sm text-ink-soft">A wireframe-style flow view of what is entering, waiting, being planned, and ready for approval.</p>
+                    </div>
+                    <Link to="/agent/campaigns" className="button-secondary px-4 py-2">Open full queue</Link>
                   </div>
-                ))}
+                  <div className="mt-5 grid gap-4 xl:grid-cols-4">
+                    {stageColumns.map((column) => (
+                      <div key={column.label} className="rounded-[22px] border border-line bg-slate-50/80 p-4">
+                        <div>
+                          <div className="flex items-center justify-between gap-3">
+                            <h4 className="text-sm font-semibold text-ink">{column.label}</h4>
+                            <span className="pill">{column.items.length}</span>
+                          </div>
+                          <div className="mt-4 space-y-3">
+                            {column.items.length > 0 ? column.items.map((item) => (
+                              <Link key={item.id} to={`/agent/campaigns/${item.id}`} className="block rounded-2xl border border-line bg-white p-3 text-sm transition hover:border-brand/30 hover:bg-brand-soft/20">
+                                <p className="font-semibold text-ink">{item.clientName}</p>
+                                <p className="mt-1 text-xs text-ink-soft">{item.campaignName}</p>
+                                <p className="mt-2 text-xs text-ink-soft">{item.nextAction}</p>
+                              </Link>
+                            )) : <p className="text-sm text-ink-soft">No campaigns here.</p>}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="rounded-[30px] border border-line bg-white p-6 shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
+                    <h3 className="text-lg font-semibold text-ink">My tasks</h3>
+                    <p className="mt-2 text-sm text-ink-soft">Pull your next actions from the live queue without replacing the dedicated tasks page.</p>
+                    <div className="mt-4 space-y-4">
+                      {focusTasks.length > 0 ? focusTasks.map((item) => (
+                        <div key={item.id} className="rounded-2xl border border-line bg-slate-50/70 p-4">
+                          <div className="flex items-start justify-between gap-4">
+                            <div>
+                              <p className="font-semibold text-ink">{item.clientName}</p>
+                              <p className="mt-1 text-xs text-ink-soft">{item.campaignName}</p>
+                            </div>
+                            <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${queueTone(item.queueStage)}`}>{item.queueLabel}</span>
+                          </div>
+                          <p className="mt-3 text-sm text-ink-soft">{item.nextAction}</p>
+                        </div>
+                      )) : <p className="text-sm text-ink-soft">Nothing urgent or review-heavy right now.</p>}
+                    </div>
+                    <div className="mt-4">
+                      <Link to="/agent/tasks" className="button-secondary px-4 py-2">Open tasks page</Link>
+                    </div>
+                  </div>
+
+                  <div className="rounded-[30px] border border-line bg-white p-6 shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
+                    <h3 className="text-lg font-semibold text-ink">Quick actions</h3>
+                    <div className="mt-4 grid gap-3">
+                      {quickLinks.map((item) => {
+                        const Icon = item.icon;
+                        return (
+                          <Link key={item.href} to={item.href} className="flex items-center justify-between gap-4 rounded-2xl border border-line bg-slate-50/70 px-4 py-4 transition hover:border-brand/30 hover:bg-brand-soft/20">
+                            <div className="flex items-center gap-3">
+                              <div className="rounded-2xl bg-brand-soft p-3 text-brand">
+                                <Icon className="size-5" />
+                              </div>
+                              <div>
+                                <p className="font-semibold text-ink">{item.label}</p>
+                                <p className="mt-1 text-sm text-ink-soft">{item.helper}</p>
+                              </div>
+                            </div>
+                            <ArrowRight className="size-4 text-ink-soft" />
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
 
-            <div className="panel border-brand/5 bg-white/92 px-6 py-6">
-              <h3 className="text-lg font-semibold text-ink">Create Recommendation</h3>
-              <p className="mt-2 text-sm leading-6 text-ink-soft">
-                Start with the next campaign that needs planning and shape the recommendation with AI-assisted inputs.
-              </p>
-              <Link to={createRecommendationHref} className="mt-4 inline-flex rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-dark">
-                Start
-              </Link>
-            </div>
+              <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+                <div className="rounded-[30px] border border-line bg-white p-6 shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <h3 className="text-lg font-semibold text-ink">Recent campaign work</h3>
+                      <p className="mt-2 text-sm text-ink-soft">Use the dedicated workflow pages from here instead of collapsing everything into one screen.</p>
+                    </div>
+                    <Link to="/agent/campaigns" className="button-secondary px-4 py-2">Open pipeline</Link>
+                  </div>
+                  <div className="mt-5 overflow-hidden rounded-[22px] border border-line">
+                    <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_140px_120px] bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">
+                      <div>Campaign</div>
+                      <div>Client / Budget</div>
+                      <div>Status</div>
+                      <div>Action</div>
+                    </div>
+                    <div className="divide-y divide-line">
+                      {recentItems.length > 0 ? recentItems.map((item) => (
+                        <div key={item.id} className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_140px_120px] items-start gap-4 px-4 py-4 text-sm">
+                          <div>
+                            <p className="font-semibold text-ink">{item.campaignName}</p>
+                            <p className="mt-1 text-xs text-ink-soft">{item.packageBandName}</p>
+                            <p className="mt-2 text-xs text-ink-soft">{item.nextAction}</p>
+                          </div>
+                          <div>
+                            <p className="font-medium text-ink">{item.clientName}</p>
+                            <p className="mt-1 text-xs text-ink-soft">{fmtCurrency(item.selectedBudget)}</p>
+                          </div>
+                          <div>
+                            <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${queueTone(item.queueStage)}`}>{item.queueLabel}</span>
+                          </div>
+                          <div>
+                            <Link to={`/agent/campaigns/${item.id}`} className="button-secondary px-3 py-2">Open</Link>
+                          </div>
+                        </div>
+                      )) : (
+                        <div className="px-4 py-6 text-sm text-ink-soft">No recent campaign activity yet.</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
 
-            <div className="panel border-brand/5 bg-white/92 px-6 py-6">
-              <h3 className="text-lg font-semibold text-ink">Review Pending</h3>
-              <p className="mt-2 text-sm leading-6 text-ink-soft">
-                Open recommendations waiting for agent review or client feedback and move them forward quickly.
-              </p>
-              <Link to="/agent/campaigns" className="button-secondary mt-4 inline-flex px-4 py-2">
-                View
-              </Link>
-            </div>
+                <div className="space-y-4">
+                  <div className="rounded-[30px] border border-line bg-white p-6 shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
+                    <div className="flex items-center gap-3">
+                      <CircleAlert className="size-5 text-amber-600" />
+                      <h3 className="text-lg font-semibold text-ink">Operations watchlist</h3>
+                    </div>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      {[
+                        { label: 'Manual review', value: inbox.manualReviewCount },
+                        { label: 'Over budget', value: inbox.overBudgetCount },
+                        { label: 'Stale work', value: inbox.staleCount },
+                        { label: 'Unassigned', value: inbox.unassignedCount },
+                      ].map((item) => (
+                        <div key={item.label} className="rounded-2xl border border-line bg-slate-50 px-4 py-3">
+                          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink-soft">{item.label}</p>
+                          <p className="mt-2 text-2xl font-semibold text-ink">{item.value}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
 
-            <div className="panel border-brand/5 bg-white/92 px-6 py-6">
-              <h3 className="text-lg font-semibold text-ink">View Live Campaigns</h3>
-              <p className="mt-2 text-sm leading-6 text-ink-soft">
-                Check approved work, client ownership, and the campaigns already moving through activation.
-              </p>
-              <Link to="/agent/campaigns" className="button-secondary mt-4 inline-flex px-4 py-2">
-                Open
-              </Link>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
+                  <div className="rounded-[30px] border border-line bg-white p-6 shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
+                    <h3 className="text-lg font-semibold text-ink">Dedicated screens</h3>
+                    <p className="mt-2 text-sm text-ink-soft">The menu continues to open the separate working pages you already have. This dashboard just points you into them faster.</p>
+                    <div className="mt-4 grid gap-3">
+                      <Link to="/agent/briefs" className="rounded-2xl border border-line bg-slate-50/70 px-4 py-4 transition hover:border-brand/30 hover:bg-brand-soft/20">
+                        <p className="font-semibold text-ink">Campaign Brief</p>
+                        <p className="mt-1 text-sm text-ink-soft">Capture brief quality, completeness, and planning readiness.</p>
+                      </Link>
+                      <Link to="/agent/review-send" className="rounded-2xl border border-line bg-slate-50/70 px-4 py-4 transition hover:border-brand/30 hover:bg-brand-soft/20">
+                        <p className="font-semibold text-ink">Review &amp; Send</p>
+                        <p className="mt-1 text-sm text-ink-soft">Handle final strategist review and client delivery.</p>
+                      </Link>
+                      <Link to="/agent/approvals" className="rounded-2xl border border-line bg-slate-50/70 px-4 py-4 transition hover:border-brand/30 hover:bg-brand-soft/20">
+                        <p className="font-semibold text-ink">Approvals &amp; Changes</p>
+                        <p className="mt-1 text-sm text-ink-soft">Track change requests, approvals, and follow-up work.</p>
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          );
+        })()}
+      </AgentPageShell>
+    </AgentQueryBoundary>
   );
 }

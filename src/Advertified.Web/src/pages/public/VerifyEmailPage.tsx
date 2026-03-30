@@ -1,5 +1,6 @@
+import { useQuery } from '@tanstack/react-query';
 import { MailCheck, RefreshCw, ShieldCheck } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ProcessingOverlay } from '../../components/ui/ProcessingOverlay';
 import { useToast } from '../../components/ui/toast';
@@ -12,12 +13,31 @@ export function VerifyEmailPage() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token')?.trim() ?? '';
   const email = searchParams.get('email')?.trim() ?? '';
-  const [state, setState] = useState<VerificationState>(token ? 'verifying' : 'waiting');
-  const [errorMessage, setErrorMessage] = useState<string>('');
   const [resending, setResending] = useState(false);
+  const successToastSentRef = useRef(false);
+  const redirectScheduledRef = useRef(false);
   const navigate = useNavigate();
   const { verifyEmail } = useAuth();
   const { pushToast } = useToast();
+  const verificationQuery = useQuery({
+    queryKey: ['verify-email', token],
+    queryFn: async () => verifyEmail(token),
+    enabled: Boolean(token),
+    retry: false,
+    staleTime: Number.POSITIVE_INFINITY,
+    gcTime: Number.POSITIVE_INFINITY,
+    refetchOnWindowFocus: false,
+  });
+  const state: VerificationState = !token
+    ? 'waiting'
+    : verificationQuery.isPending
+      ? 'verifying'
+      : verificationQuery.isSuccess
+        ? 'success'
+        : 'error';
+  const errorMessage = verificationQuery.error instanceof Error
+    ? verificationQuery.error.message
+    : 'We could not activate your account.';
 
   const title = useMemo(() => {
     if (state === 'success') {
@@ -35,43 +55,18 @@ export function VerifyEmailPage() {
     return 'Check your email to activate';
   }, [state]);
 
-  useEffect(() => {
-    if (!token) {
-      return;
-    }
+  if (state === 'success' && !successToastSentRef.current) {
+    successToastSentRef.current = true;
+    pushToast({
+      title: 'Your email has been verified.',
+      description: 'You can sign in now and continue.',
+    });
+  }
 
-    let cancelled = false;
-
-    async function runVerification() {
-      try {
-        setState('verifying');
-        await verifyEmail(token);
-        if (cancelled) {
-          return;
-        }
-
-        setState('success');
-        pushToast({
-          title: 'Your email has been verified.',
-          description: 'You can sign in now and continue.',
-        });
-        window.setTimeout(() => navigate('/login?activated=1'), 1200);
-      } catch (error) {
-        if (cancelled) {
-          return;
-        }
-
-        setState('error');
-        setErrorMessage(error instanceof Error ? error.message : 'We could not activate your account.');
-      }
-    }
-
-    void runVerification();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [navigate, pushToast, token, verifyEmail]);
+  if (state === 'success' && !redirectScheduledRef.current) {
+    redirectScheduledRef.current = true;
+    window.setTimeout(() => navigate('/login?activated=1'), 1200);
+  }
 
   async function handleResend() {
     if (!email) {

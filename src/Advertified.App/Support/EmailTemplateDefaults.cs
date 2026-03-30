@@ -285,6 +285,37 @@ internal static class EmailTemplateDefaults
                   </div>
                 </div>
                 ", nowUtc),
+            Build("agent-area-campaign-assigned", "New campaign assigned to your area: {{CampaignName}}", @"
+                <div style=""background:#f4fbf8;padding:32px;font-family:Arial,sans-serif;color:#12211D;"">
+                  <div style=""max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #d8e9e1;border-radius:24px;overflow:hidden;"">
+                    <div style=""padding:28px 32px;background:linear-gradient(180deg,#eefbf5 0%, #ffffff 100%);border-bottom:1px solid #d8e9e1;"">
+                      <div style=""font-size:14px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Advertified agent alert</div>
+                      <h1 style=""margin:12px 0 0;font-size:30px;line-height:1.2;color:#123A33;"">A new campaign has been routed to your area</h1>
+                    </div>
+                    <div style=""padding:28px 32px;"">
+                      <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">
+                        Hi {{AgentName}}, a newly purchased campaign has been matched to your assigned area coverage.
+                      </p>
+                      <div style=""margin:24px 0;padding:18px 20px;border:1px solid #d8e9e1;border-radius:18px;background:#f8fcfa;"">
+                        <div style=""font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Assignment summary</div>
+                        <p style=""margin:10px 0 0;font-size:15px;line-height:1.6;""><strong>Client:</strong> {{ClientName}}</p>
+                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Campaign:</strong> {{CampaignName}}</p>
+                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Package:</strong> {{PackageName}}</p>
+                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Budget:</strong> {{Budget}}</p>
+                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Assigned area:</strong> {{AreaName}} ({{AreaCode}})</p>
+                      </div>
+                      <p style=""margin:0 0 18px;font-size:15px;line-height:1.7;color:#4b635a;"">
+                        Open the agent workspace to review the campaign, confirm the brief context, and begin support for this client.
+                      </p>
+                      <div style=""margin:22px 0 20px;"">
+                        <a href=""{{AgentCampaignUrl}}"" style=""display:inline-block;padding:12px 18px;border-radius:14px;background:#123A33;color:#ffffff;text-decoration:none;font-weight:700;"">
+                          Open campaign
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                ", nowUtc),
             Build("recommendation-ready", "Your Advertified recommendation is ready for {{CampaignName}}", @"
                 <div style=""background:#f4fbf8;padding:32px;font-family:Arial,sans-serif;color:#12211D;"">
                   <div style=""max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #d8e9e1;border-radius:24px;overflow:hidden;"">
@@ -451,6 +482,59 @@ internal static class EmailTemplateDefaults
                           View campaign progress
                         </a>
                       </div>
+                    </div>
+                  </div>
+                </div>
+                ", nowUtc),
+            Build("campaign-live", "Your Advertified campaign is now live: {{CampaignName}}", @"
+                <div style=""background:#f4fbf8;padding:32px;font-family:Arial,sans-serif;color:#12211D;"">
+                  <div style=""max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #d8e9e1;border-radius:24px;overflow:hidden;"">
+                    <div style=""padding:28px 32px;background:linear-gradient(180deg,#eefbf5 0%, #ffffff 100%);border-bottom:1px solid #d8e9e1;"">
+                      <div style=""font-size:14px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Advertified live campaign</div>
+                      <h1 style=""margin:12px 0 0;font-size:30px;line-height:1.2;color:#123A33;"">{{CampaignName}} is now live</h1>
+                    </div>
+                    <div style=""padding:28px 32px;"">
+                      <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">
+                        Hi {{ClientName}}, operations has activated <strong>{{CampaignName}}</strong> and the campaign is now live.
+                      </p>
+                      <div style=""margin:24px 0;padding:18px 20px;border:1px solid #d8e9e1;border-radius:18px;background:#f8fcfa;"">
+                        <div style=""font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Launch summary</div>
+                        <p style=""margin:10px 0 0;font-size:15px;line-height:1.6;""><strong>Campaign:</strong> {{CampaignName}}</p>
+                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Package:</strong> {{PackageName}}</p>
+                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Selected budget:</strong> {{Budget}}</p>
+                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Status:</strong> Live</p>
+                      </div>
+                      <p style=""margin:0 0 18px;font-size:15px;line-height:1.7;color:#4b635a;"">
+                        You can follow the latest status and team updates from your campaign workspace at any time.
+                      </p>
+                      <div style=""margin:22px 0 20px;"">
+                        <a href=""{{CampaignUrl}}"" style=""display:inline-block;padding:12px 18px;border-radius:14px;background:#123A33;color:#ffffff;text-decoration:none;font-weight:700;"">
+                          Open campaign
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                ", nowUtc),
+            Build("campaign-message-notification", "New campaign message for {{CampaignName}}", @"
+                <div style=""background:#f4fbf8;padding:32px;font-family:Arial,sans-serif;color:#12211D;"">
+                  <div style=""max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #d8e9e1;border-radius:24px;overflow:hidden;"">
+                    <div style=""padding:28px 32px;background:linear-gradient(180deg,#eefbf5 0%, #ffffff 100%);border-bottom:1px solid #d8e9e1;"">
+                      <div style=""font-size:14px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Advertified messages</div>
+                      <h1 style=""margin:12px 0 0;font-size:30px;line-height:1.2;color:#123A33;"">You have a new message on {{CampaignName}}</h1>
+                    </div>
+                    <div style=""padding:28px 32px;"">
+                      <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">
+                        Hi {{RecipientName}}, {{SenderName}} ({{SenderRole}}) sent a new message on <strong>{{CampaignName}}</strong>.
+                      </p>
+                      <div style=""margin:24px 0;padding:18px 20px;border:1px solid #d8e9e1;border-radius:18px;background:#f8fcfa;"">
+                        <div style=""font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Message preview</div>
+                        <p style=""margin:10px 0 0;font-size:15px;line-height:1.7;color:#12211D;"">{{MessagePreview}}</p>
+                        <p style=""margin:10px 0 0;font-size:15px;line-height:1.6;""><strong>Package:</strong> {{PackageName}}</p>
+                      </div>
+                      <p style=""margin:24px 0 0;"">
+                        <a href=""{{ThreadUrl}}"" style=""display:inline-block;padding:12px 18px;background:#123A33;color:#ffffff;text-decoration:none;border-radius:12px;font-weight:700;"">Open message thread</a>
+                      </p>
                     </div>
                   </div>
                 </div>

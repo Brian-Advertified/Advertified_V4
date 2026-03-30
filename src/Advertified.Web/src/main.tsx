@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router-dom';
 import { App } from './app/App';
 import { AuthProvider } from './features/auth/auth-context';
+import { ConsentBanner } from './components/ui/ConsentBanner';
 import { ToastProvider } from './components/ui/toast';
 import './index.css';
 
@@ -23,6 +24,7 @@ createRoot(document.getElementById('root')!).render(
         <ToastProvider>
           <AuthProvider>
             <App />
+            <ConsentBanner />
           </AuthProvider>
         </ToastProvider>
       </BrowserRouter>

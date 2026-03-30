@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef } from 'react';
 import { BadgeCheck, CircleAlert, Clock3, FileText } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import advertifiedLogo from '../../assets/advertified-logo-v3.png';
@@ -26,22 +26,11 @@ export function CheckoutConfirmationPage() {
   const provider = (searchParams.get('provider') ?? '').toLowerCase();
   const callbackCapturedRef = useRef(false);
   const statusToastKeyRef = useRef<string | null>(null);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    if (provider !== 'vodapay' || !orderId || callbackCapturedRef.current) {
-      return;
-    }
-
+  if (provider === 'vodapay' && orderId && !callbackCapturedRef.current) {
     const queryParameters = Object.fromEntries(searchParams.entries());
     callbackCapturedRef.current = true;
     void advertifiedApi.captureVodaPayCallback(orderId, queryParameters);
-  }, [orderId, provider, searchParams]);
-
-  useEffect(() => {
-    const timeoutId = window.setTimeout(() => setMounted(true), 30);
-    return () => window.clearTimeout(timeoutId);
-  }, []);
+  }
 
   const orderQuery = useQuery({
     queryKey: ['package-order', orderId, user?.id],
@@ -56,45 +45,6 @@ export function CheckoutConfirmationPage() {
     enabled: Boolean(user?.id && order?.paymentStatus === 'paid'),
   });
   const vodaPayReturnData = useMemo(() => parseVodaPayReturnData(searchParams.get('data')), [searchParams]);
-
-  useEffect(() => {
-    const order = orderQuery.data;
-    if (!order) {
-      return;
-    }
-
-    const statusKey = `${order.id}:${order.paymentStatus}:${vodaPayReturnData?.responseCode ?? ''}:${vodaPayReturnData?.responseMessage ?? ''}`;
-    if (statusToastKeyRef.current === statusKey) {
-      return;
-    }
-
-    if (order.paymentStatus === 'paid') {
-      pushToast({
-        title: 'Payment successful.',
-        description: `Your ${order.packageBandName} package has been paid successfully.`,
-      });
-      statusToastKeyRef.current = statusKey;
-      return;
-    }
-
-    if (order.paymentStatus === 'failed') {
-      const reason = vodaPayReturnData?.responseMessage?.trim();
-      pushToast({
-        title: reason ? `Payment failed due to ${reason.toLowerCase()}.` : 'Payment failed.',
-        description: 'No money was confirmed for this order. You can try again when you are ready.',
-      }, 'error');
-      statusToastKeyRef.current = statusKey;
-      return;
-    }
-
-    if (provider === 'vodapay' && vodaPayReturnData?.responseCode === '00') {
-      pushToast({
-        title: "We're finalising your payment confirmation.",
-        description: 'Your payment provider has returned you to Advertified while we wait for final validation.',
-      }, 'info');
-      statusToastKeyRef.current = statusKey;
-    }
-  }, [orderQuery.data, provider, pushToast, vodaPayReturnData]);
 
   if (!user) {
     return (
@@ -135,6 +85,30 @@ export function CheckoutConfirmationPage() {
 
   const linkedCampaign = (campaignsQuery.data ?? []).find((campaign) => campaign.packageOrderId === order.id);
   const linkedCampaignAction = linkedCampaign ? getCampaignPrimaryAction(linkedCampaign) : null;
+
+  const statusKey = `${order.id}:${order.paymentStatus}:${vodaPayReturnData?.responseCode ?? ''}:${vodaPayReturnData?.responseMessage ?? ''}`;
+  if (statusToastKeyRef.current !== statusKey) {
+    if (order.paymentStatus === 'paid') {
+      pushToast({
+        title: 'Payment successful.',
+        description: `Your ${order.packageBandName} package has been paid successfully.`,
+      });
+      statusToastKeyRef.current = statusKey;
+    } else if (order.paymentStatus === 'failed') {
+      const reason = vodaPayReturnData?.responseMessage?.trim();
+      pushToast({
+        title: reason ? `Payment failed due to ${reason.toLowerCase()}.` : 'Payment failed.',
+        description: 'No money was confirmed for this order. You can try again when you are ready.',
+      }, 'error');
+      statusToastKeyRef.current = statusKey;
+    } else if (provider === 'vodapay' && vodaPayReturnData?.responseCode === '00') {
+      pushToast({
+        title: "We're finalising your payment confirmation.",
+        description: 'Your payment provider has returned you to Advertified while we wait for final validation.',
+      }, 'info');
+      statusToastKeyRef.current = statusKey;
+    }
+  }
 
   const statusContent = (() => {
     if (provider === 'lula' && order.paymentStatus === 'pending') {
@@ -216,8 +190,8 @@ export function CheckoutConfirmationPage() {
   })();
 
   const transitionStyle = (delayMs: number) => ({
-    opacity: mounted ? 1 : 0,
-    transform: mounted ? 'translateY(0)' : 'translateY(12px)',
+    opacity: 1,
+    transform: 'translateY(0)',
     transition: `opacity 0.45s cubic-bezier(0.16,1,0.3,1) ${delayMs}ms, transform 0.45s cubic-bezier(0.16,1,0.3,1) ${delayMs}ms`,
   });
   const providerArtwork = provider === 'lula'

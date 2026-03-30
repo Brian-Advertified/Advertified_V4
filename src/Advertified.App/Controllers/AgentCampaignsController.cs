@@ -4,6 +4,7 @@ using Advertified.App.Campaigns;
 using Advertified.App.Configuration;
 using Advertified.App.Data;
 using Advertified.App.Data.Entities;
+using Advertified.App.Data.Enums;
 using Advertified.App.Services.Abstractions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
@@ -26,6 +27,7 @@ public sealed class AgentCampaignsController : ControllerBase
     private readonly ICampaignBriefInterpretationService _campaignBriefInterpretationService;
     private readonly IRecommendationDocumentService _recommendationDocumentService;
     private readonly ITemplatedEmailService _emailService;
+    private readonly IChangeAuditService _changeAuditService;
     private readonly FrontendOptions _frontendOptions;
     private readonly ILogger<AgentCampaignsController> _logger;
 
@@ -37,6 +39,7 @@ public sealed class AgentCampaignsController : ControllerBase
         ICampaignBriefInterpretationService campaignBriefInterpretationService,
         IRecommendationDocumentService recommendationDocumentService,
         ITemplatedEmailService emailService,
+        IChangeAuditService changeAuditService,
         IOptions<FrontendOptions> frontendOptions,
         ILogger<AgentCampaignsController> logger)
     {
@@ -47,6 +50,7 @@ public sealed class AgentCampaignsController : ControllerBase
         _campaignBriefInterpretationService = campaignBriefInterpretationService;
         _recommendationDocumentService = recommendationDocumentService;
         _emailService = emailService;
+        _changeAuditService = changeAuditService;
         _frontendOptions = frontendOptions.Value;
         _logger = logger;
     }
@@ -54,7 +58,8 @@ public sealed class AgentCampaignsController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> Get(CancellationToken cancellationToken)
     {
-        var currentUserId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
+        var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
+        var currentUserId = currentUser.Id;
         var campaigns = await _db.Campaigns
             .AsNoTracking()
             .Include(x => x.User)
@@ -72,7 +77,8 @@ public sealed class AgentCampaignsController : ControllerBase
     [HttpGet("inbox")]
     public async Task<IActionResult> GetInbox(CancellationToken cancellationToken)
     {
-        var currentUserId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
+        var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
+        var currentUserId = currentUser.Id;
         var campaigns = await _db.Campaigns
             .AsNoTracking()
             .Include(x => x.User)
@@ -168,7 +174,8 @@ public sealed class AgentCampaignsController : ControllerBase
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(Guid id, CancellationToken cancellationToken)
     {
-        var currentUserId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
+        var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
+        var currentUserId = currentUser.Id;
         var campaign = await _db.Campaigns
             .AsNoTracking()
             .AsSplitQuery()
@@ -198,7 +205,8 @@ public sealed class AgentCampaignsController : ControllerBase
     [HttpPost("{id:guid}/assign")]
     public async Task<IActionResult> Assign(Guid id, [FromBody] AssignCampaignRequest request, CancellationToken cancellationToken)
     {
-        var currentUserId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
+        var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
+        var currentUserId = currentUser.Id;
         var agentUserId = request.AgentUserId ?? currentUserId;
 
         var campaign = await _db.Campaigns
@@ -209,6 +217,14 @@ public sealed class AgentCampaignsController : ControllerBase
         campaign.AssignedAt = DateTime.UtcNow;
         campaign.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
+        await WriteChangeAuditAsync(
+            "assign",
+            "campaign",
+            campaign.Id.ToString(),
+            campaign.CampaignName,
+            $"Assigned campaign {ResolveCampaignLabel(campaign)}.",
+            new { CampaignId = campaign.Id, AssignedAgentUserId = agentUserId },
+            cancellationToken);
         await SendAssignmentEmailIfNeededAsync(campaign.Id, cancellationToken);
 
         return Accepted(new { CampaignId = id, AssignedAgentUserId = agentUserId, Message = "Campaign assigned." });
@@ -217,6 +233,7 @@ public sealed class AgentCampaignsController : ControllerBase
     [HttpPost("{id:guid}/unassign")]
     public async Task<IActionResult> Unassign(Guid id, CancellationToken cancellationToken)
     {
+        await GetCurrentOperationsUserAsync(cancellationToken);
         var campaign = await _db.Campaigns
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw new InvalidOperationException("Campaign not found.");
@@ -225,13 +242,59 @@ public sealed class AgentCampaignsController : ControllerBase
         campaign.AssignedAt = null;
         campaign.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
+        await WriteChangeAuditAsync(
+            "unassign",
+            "campaign",
+            campaign.Id.ToString(),
+            campaign.CampaignName,
+            $"Unassigned campaign {ResolveCampaignLabel(campaign)}.",
+            new { CampaignId = campaign.Id },
+            cancellationToken);
 
         return Accepted(new { CampaignId = id, Message = "Campaign unassigned." });
+    }
+
+    [HttpPost("{id:guid}/mark-launched")]
+    public async Task<IActionResult> MarkLaunched(Guid id, CancellationToken cancellationToken)
+    {
+        await GetCurrentOperationsUserAsync(cancellationToken);
+        var campaign = await _db.Campaigns
+            .Include(x => x.User)
+            .Include(x => x.PackageBand)
+            .Include(x => x.PackageOrder)
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+            ?? throw new InvalidOperationException("Campaign not found.");
+
+        if (!string.Equals(campaign.Status, "creative_approved", StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Campaign is not ready to be marked live.",
+                Detail = "Only campaigns with final creative approval captured can be activated as live.",
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
+
+        campaign.Status = "launched";
+        campaign.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
+        await WriteChangeAuditAsync(
+            "mark_launched",
+            "campaign",
+            campaign.Id.ToString(),
+            ResolveCampaignLabel(campaign),
+            $"Marked {ResolveCampaignLabel(campaign)} as live.",
+            new { CampaignId = campaign.Id, campaign.Status },
+            cancellationToken);
+        await SendCampaignLaunchedEmailAsync(campaign, cancellationToken);
+
+        return Accepted(new { CampaignId = id, Status = campaign.Status, Message = "Campaign marked live." });
     }
 
     [HttpPost("{id:guid}/recommendations")]
     public async Task<IActionResult> CreateRecommendation(Guid id, [FromBody] AgentRecommendationRequest request, CancellationToken cancellationToken)
     {
+        await GetCurrentOperationsUserAsync(cancellationToken);
         var campaign = await _db.Campaigns
             .Include(x => x.PackageOrder)
             .Include(x => x.CampaignRecommendations)
@@ -282,6 +345,21 @@ public sealed class AgentCampaignsController : ControllerBase
         campaign.Status = "planning_in_progress";
         campaign.UpdatedAt = now;
         await _db.SaveChangesAsync(cancellationToken);
+        await WriteChangeAuditAsync(
+            "save_recommendation",
+            "recommendation",
+            recommendation.Id.ToString(),
+            ResolveCampaignLabel(campaign),
+            $"Saved recommendation draft for {ResolveCampaignLabel(campaign)}.",
+            new
+            {
+                CampaignId = campaign.Id,
+                RecommendationId = recommendation.Id,
+                recommendation.RevisionNumber,
+                ItemCount = recommendation.RecommendationItems.Count,
+                recommendation.TotalCost
+            },
+            cancellationToken);
         await SendAgentWorkStartedEmailIfNeededAsync(campaign.Id, cancellationToken);
 
         return Accepted(new { CampaignId = id, RecommendationId = recommendation.Id, Message = "Recommendation saved." });
@@ -290,7 +368,8 @@ public sealed class AgentCampaignsController : ControllerBase
     [HttpPost("{id:guid}/initialize-recommendation")]
     public async Task<IActionResult> InitializeRecommendation(Guid id, [FromBody] InitializeRecommendationFlowRequest request, CancellationToken cancellationToken)
     {
-        var currentUserId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
+        var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
+        var currentUserId = currentUser.Id;
         var campaign = await _db.Campaigns
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
@@ -327,13 +406,30 @@ public sealed class AgentCampaignsController : ControllerBase
             response.CampaignName = $"{refreshedCampaign.PackageBand.Name} campaign";
         }
 
+        await WriteChangeAuditAsync(
+            request.SubmitBrief ? "submit_brief" : "save_brief_draft",
+            "campaign",
+            refreshedCampaign.Id.ToString(),
+            response.CampaignName,
+            request.SubmitBrief
+                ? $"Submitted campaign brief for {response.CampaignName}."
+                : $"Saved campaign brief draft for {response.CampaignName}.",
+            new
+            {
+                CampaignId = refreshedCampaign.Id,
+                request.SubmitBrief,
+                request.PlanningMode
+            },
+            cancellationToken);
+
         return Ok(response);
     }
 
     [HttpPost("{id:guid}/generate-recommendation")]
     public async Task<IActionResult> GenerateRecommendation(Guid id, [FromBody] GenerateRecommendationRequest? request, CancellationToken cancellationToken)
     {
-        var currentUserId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
+        var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
+        var currentUserId = currentUser.Id;
         var campaign = await _db.Campaigns
             .Include(x => x.User)
             .Include(x => x.PackageBand)
@@ -373,12 +469,33 @@ public sealed class AgentCampaignsController : ControllerBase
             response.CampaignName = $"{refreshedCampaign.PackageBand.Name} campaign";
         }
 
+        var latestRecommendation = refreshedCampaign.CampaignRecommendations
+            .OrderByDescending(x => x.RevisionNumber)
+            .ThenByDescending(x => x.CreatedAt)
+            .FirstOrDefault();
+
+        await WriteChangeAuditAsync(
+            "generate_recommendation",
+            "campaign",
+            refreshedCampaign.Id.ToString(),
+            response.CampaignName,
+            $"Generated recommendation set for {response.CampaignName}.",
+            new
+            {
+                CampaignId = refreshedCampaign.Id,
+                RecommendationId = latestRecommendation?.Id,
+                RevisionNumber = latestRecommendation?.RevisionNumber,
+                Status = latestRecommendation?.Status
+            },
+            cancellationToken);
+
         return Ok(response);
     }
 
     [HttpPost("{id:guid}/interpret-brief")]
     public async Task<IActionResult> InterpretBrief(Guid id, [FromBody] InterpretCampaignBriefRequest request, CancellationToken cancellationToken)
     {
+        await GetCurrentOperationsUserAsync(cancellationToken);
         if (string.IsNullOrWhiteSpace(request.Brief))
         {
             throw new InvalidOperationException("Campaign brief is required.");
@@ -398,6 +515,7 @@ public sealed class AgentCampaignsController : ControllerBase
     [HttpPost("{id:guid}/send-to-client")]
     public async Task<IActionResult> SendToClient(Guid id, [FromBody] SendToClientRequest request, CancellationToken cancellationToken)
     {
+        await GetCurrentOperationsUserAsync(cancellationToken);
         var campaign = await _db.Campaigns
             .Include(x => x.User)
             .Include(x => x.CampaignRecommendations)
@@ -423,6 +541,19 @@ public sealed class AgentCampaignsController : ControllerBase
         campaign.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(cancellationToken);
+        await WriteChangeAuditAsync(
+            "send_to_client",
+            "campaign",
+            campaign.Id.ToString(),
+            ResolveCampaignLabel(campaign),
+            $"Sent recommendation set to client for {ResolveCampaignLabel(campaign)}.",
+            new
+            {
+                CampaignId = campaign.Id,
+                ProposalCount = currentRecommendations.Length,
+                request.Message
+            },
+            cancellationToken);
 
         await SendRecommendationReadyEmailIfNeededAsync(campaign.Id, request.Message, currentRecommendations.Length, cancellationToken);
 
@@ -451,6 +582,43 @@ public sealed class AgentCampaignsController : ControllerBase
         };
     }
 
+    private async Task WriteChangeAuditAsync(
+        string action,
+        string entityType,
+        string entityId,
+        string? entityLabel,
+        string summary,
+        object? metadata,
+        CancellationToken cancellationToken)
+    {
+        var currentUserId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
+        await _changeAuditService.WriteAsync(currentUserId, "agent", action, entityType, entityId, entityLabel, summary, metadata, cancellationToken);
+    }
+
+    private async Task<UserAccount> GetCurrentOperationsUserAsync(CancellationToken cancellationToken)
+    {
+        var currentUserId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
+        var currentUser = await _db.UserAccounts.FirstOrDefaultAsync(x => x.Id == currentUserId, cancellationToken);
+        if (currentUser is null)
+        {
+            throw new InvalidOperationException("Authenticated user account could not be found.");
+        }
+
+        if (currentUser.Role is not UserRole.Agent and not UserRole.Admin)
+        {
+            throw new InvalidOperationException("Agent or admin access is required.");
+        }
+
+        return currentUser;
+    }
+
+    private static string ResolveCampaignLabel(Campaign campaign)
+    {
+        return string.IsNullOrWhiteSpace(campaign.CampaignName)
+            ? $"{campaign.PackageBand?.Name ?? "Campaign"} campaign"
+            : campaign.CampaignName.Trim();
+    }
+
     private static string GetQueueLabel(string stage)
     {
         return stage switch
@@ -468,6 +636,16 @@ public sealed class AgentCampaignsController : ControllerBase
 
     private static string GetAgentNextAction(Campaign campaign, string stage, Guid currentUserId)
     {
+        if (string.Equals(campaign.Status, "creative_approved", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Final creative approval is captured. Mark the campaign live when activation starts.";
+        }
+
+        if (string.Equals(campaign.Status, "launched", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Campaign is live. Monitor delivery and support any execution follow-up.";
+        }
+
         var latestRecommendation = campaign.CampaignRecommendations
             .OrderByDescending(x => x.CreatedAt)
             .FirstOrDefault();
@@ -807,6 +985,31 @@ public sealed class AgentCampaignsController : ControllerBase
 
         campaign.RecommendationReadyEmailSentAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task SendCampaignLaunchedEmailAsync(Campaign campaign, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _emailService.SendAsync(
+                "campaign-live",
+                campaign.User.Email,
+                "campaigns",
+                new Dictionary<string, string?>
+                {
+                    ["ClientName"] = campaign.User.FullName,
+                    ["CampaignName"] = ResolveCampaignLabel(campaign),
+                    ["PackageName"] = campaign.PackageBand.Name,
+                    ["Budget"] = FormatCurrency(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount),
+                    ["CampaignUrl"] = BuildFrontendUrl($"/campaigns/{campaign.Id}")
+                },
+                null,
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send campaign live email for campaign {CampaignId}.", campaign.Id);
+        }
     }
 
     private static string BuildAgentMessageBlock(string? message)

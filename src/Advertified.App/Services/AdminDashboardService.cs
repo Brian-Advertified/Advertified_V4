@@ -14,21 +14,18 @@ public sealed class AdminDashboardService : IAdminDashboardService
 {
     private readonly AppDbContext _db;
     private readonly IBroadcastInventoryCatalog _broadcastInventoryCatalog;
-    private readonly IPackageCatalogService _packageCatalogService;
-    private readonly PlanningPolicyOptions _planningPolicyOptions;
+    private readonly PlanningPolicySnapshotProvider _planningPolicySnapshotProvider;
     private readonly string _connectionString;
 
     public AdminDashboardService(
         AppDbContext db,
         IBroadcastInventoryCatalog broadcastInventoryCatalog,
-        IPackageCatalogService packageCatalogService,
-        IOptions<PlanningPolicyOptions> planningPolicyOptions,
+        PlanningPolicySnapshotProvider planningPolicySnapshotProvider,
         string connectionString)
     {
         _db = db;
         _broadcastInventoryCatalog = broadcastInventoryCatalog;
-        _packageCatalogService = packageCatalogService;
-        _planningPolicyOptions = planningPolicyOptions.Value;
+        _planningPolicySnapshotProvider = planningPolicySnapshotProvider;
         _connectionString = connectionString;
     }
 
@@ -41,24 +38,7 @@ public sealed class AdminDashboardService : IAdminDashboardService
             .ThenBy(x => x.Name)
             .ToArray();
 
-        var packageSettings = _packageCatalogService.GetPackageBands()
-            .Select(x => new AdminPackageSettingResponse
-            {
-                Id = x.Id,
-                Code = x.Code,
-                Name = x.Name,
-                MinBudget = x.MinBudget,
-                MaxBudget = x.MaxBudget,
-                RecommendedSpend = x.RecommendedSpend,
-                PackagePurpose = x.PackagePurpose,
-                AudienceFit = x.AudienceFit,
-                QuickBenefit = x.QuickBenefit,
-                IncludeRadio = x.IncludeRadio,
-                IncludeTv = x.IncludeTv,
-                LeadTime = x.LeadTime,
-                Benefits = x.Benefits
-            })
-            .ToArray();
+        var packageSettings = await GetPackageSettingsAsync(cancellationToken);
 
         var strongCount = outletRecords.Count(x => string.Equals(DetermineHealthBucket(x), "strong", StringComparison.OrdinalIgnoreCase));
         var mixedCount = outletRecords.Count(x => string.Equals(DetermineHealthBucket(x), "mixed_not_fully_healthy", StringComparison.OrdinalIgnoreCase));
@@ -75,7 +55,7 @@ public sealed class AdminDashboardService : IAdminDashboardService
         var recentImports = await GetRecentImportsAsync(cancellationToken);
         var areaMappings = await GetAreaMappingsAsync(cancellationToken);
         var auditEntries = await GetAuditEntriesAsync(cancellationToken);
-        var users = await GetUsersAsync(cancellationToken);
+        var users = await GetUsersAsync(areaMappings, cancellationToken);
         var integrations = await GetIntegrationsAsync(cancellationToken);
         var previewRules = await GetPreviewRulesAsync(cancellationToken);
         var monitoring = await GetMonitoringAsync(areaMappings.Count, cancellationToken);
@@ -133,6 +113,7 @@ public sealed class AdminDashboardService : IAdminDashboardService
                 im.channel as Channel,
                 pdm.supplier_or_station as SupplierOrStation,
                 coalesce(pdm.document_title, pdm.source_file) as DocumentTitle,
+                pdm.please_note as Notes,
                 im.page_count as PageCount,
                 im.imported_at as ImportedAt
             from import_manifest im
@@ -165,6 +146,56 @@ public sealed class AdminDashboardService : IAdminDashboardService
         return rows.ToArray();
     }
 
+    private async Task<IReadOnlyList<AdminPackageSettingResponse>> GetPackageSettingsAsync(CancellationToken cancellationToken)
+    {
+        var rows = await (from band in _db.PackageBands.AsNoTracking()
+                          join profile in _db.PackageBandProfiles.AsNoTracking() on band.Id equals profile.PackageBandId into profileJoin
+                          from profile in profileJoin.DefaultIfEmpty()
+                          orderby band.SortOrder, band.Name
+                          select new
+                          {
+                              band.Id,
+                              band.Code,
+                              band.Name,
+                              band.MinBudget,
+                              band.MaxBudget,
+                              band.SortOrder,
+                              band.IsActive,
+                              Description = profile != null ? profile.Description : string.Empty,
+                              AudienceFit = profile != null ? profile.AudienceFit : string.Empty,
+                              QuickBenefit = profile != null ? profile.QuickBenefit : string.Empty,
+                              PackagePurpose = profile != null ? profile.PackagePurpose : string.Empty,
+                              IncludeRadio = profile != null ? profile.IncludeRadio : "optional",
+                              IncludeTv = profile != null ? profile.IncludeTv : "no",
+                              LeadTime = profile != null ? profile.LeadTimeLabel : string.Empty,
+                              RecommendedSpend = profile != null ? profile.RecommendedSpend : null,
+                              IsRecommended = profile != null && profile.IsRecommended,
+                              BenefitsJson = profile != null ? profile.BenefitsJson : "[]"
+                          })
+            .ToArrayAsync(cancellationToken);
+
+        return rows.Select(row => new AdminPackageSettingResponse
+        {
+            Id = row.Id,
+            Code = row.Code,
+            Name = row.Name,
+            MinBudget = row.MinBudget,
+            MaxBudget = row.MaxBudget,
+            SortOrder = row.SortOrder,
+            IsActive = row.IsActive,
+            Description = row.Description,
+            RecommendedSpend = row.RecommendedSpend,
+            IsRecommended = row.IsRecommended,
+            PackagePurpose = row.PackagePurpose,
+            AudienceFit = row.AudienceFit,
+            QuickBenefit = row.QuickBenefit,
+            IncludeRadio = row.IncludeRadio,
+            IncludeTv = row.IncludeTv,
+            LeadTime = row.LeadTime,
+            Benefits = DeserializeJsonList(row.BenefitsJson)
+        }).ToArray();
+    }
+
     private async Task<IReadOnlyList<AdminPreviewRuleResponse>> GetPreviewRulesAsync(CancellationToken cancellationToken)
     {
         var rows = await (from band in _db.PackageBands.AsNoTracking()
@@ -193,12 +224,18 @@ public sealed class AdminDashboardService : IAdminDashboardService
         }).ToArray();
     }
 
-    private async Task<IReadOnlyList<AdminUserResponse>> GetUsersAsync(CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<AdminUserResponse>> GetUsersAsync(IReadOnlyList<AdminAreaMappingResponse> areaMappings, CancellationToken cancellationToken)
     {
         var users = await _db.UserAccounts
             .AsNoTracking()
             .OrderBy(x => x.FullName)
             .ToArrayAsync(cancellationToken);
+
+        var assignments = await _db.AgentAreaAssignments
+            .AsNoTracking()
+            .ToArrayAsync(cancellationToken);
+
+        var areaLabelsByCode = areaMappings.ToDictionary(x => x.Code, x => x.Label, StringComparer.OrdinalIgnoreCase);
 
         return users.Select(x => new AdminUserResponse
         {
@@ -211,6 +248,8 @@ public sealed class AdminDashboardService : IAdminDashboardService
             IsSaCitizen = x.IsSaCitizen,
             EmailVerified = x.EmailVerified,
             PhoneVerified = x.PhoneVerified,
+            AssignedAreaCodes = assignments.Where(assignment => assignment.AgentUserId == x.Id).Select(assignment => assignment.AreaCode).OrderBy(code => code).ToArray(),
+            AssignedAreaLabels = assignments.Where(assignment => assignment.AgentUserId == x.Id).Select(assignment => areaLabelsByCode.TryGetValue(assignment.AreaCode, out var label) ? label : assignment.AreaCode).OrderBy(label => label).ToArray(),
             CreatedAt = x.CreatedAt,
             UpdatedAt = x.UpdatedAt
         }).ToArray();
@@ -218,44 +257,87 @@ public sealed class AdminDashboardService : IAdminDashboardService
 
     private async Task<IReadOnlyList<AdminAuditEntryResponse>> GetAuditEntriesAsync(CancellationToken cancellationToken)
     {
-        var requestLogs = await _db.PaymentProviderRequests
+        var changeLogRows = await _db.ChangeAuditLogs
+            .AsNoTracking()
+            .OrderByDescending(x => x.CreatedAt)
+            .Take(20)
+            .ToArrayAsync(cancellationToken);
+
+        var changeLogs = changeLogRows
+            .Select(x => new AdminAuditEntryResponse
+            {
+                Id = x.Id,
+                Source = FormatAuditSource(x.Scope),
+                ActorName = string.IsNullOrWhiteSpace(x.ActorName) ? "System" : x.ActorName,
+                ActorRole = x.ActorRole,
+                EventType = x.Action,
+                EntityType = x.EntityType,
+                EntityLabel = x.EntityLabel,
+                Context = x.Summary,
+                StatusLabel = null,
+                CreatedAt = x.CreatedAt
+            })
+            .ToArray();
+
+        var requestRows = await _db.PaymentProviderRequests
             .AsNoTracking()
             .OrderByDescending(x => x.CreatedAt)
             .Take(10)
+            .ToArrayAsync(cancellationToken);
+
+        var requestLogs = requestRows
             .Select(x => new AdminAuditEntryResponse
             {
                 Id = x.Id,
                 Source = "Payment request",
-                Provider = x.Provider,
+                ActorName = "System",
+                ActorRole = "integration",
                 EventType = x.EventType,
-                ExternalReference = x.ExternalReference,
-                RequestUrl = x.RequestUrl,
-                ResponseStatusCode = x.ResponseStatusCode,
+                EntityType = "package_order",
+                EntityLabel = x.ExternalReference,
+                Context = x.RequestUrl,
+                StatusLabel = x.ResponseStatusCode?.ToString(),
                 CreatedAt = x.CreatedAt
             })
-            .ToArrayAsync(cancellationToken);
+            .ToArray();
 
-        var webhookLogs = await _db.PaymentProviderWebhooks
+        var webhookRows = await _db.PaymentProviderWebhooks
             .AsNoTracking()
             .OrderByDescending(x => x.CreatedAt)
             .Take(10)
+            .ToArrayAsync(cancellationToken);
+
+        var webhookLogs = webhookRows
             .Select(x => new AdminAuditEntryResponse
             {
                 Id = x.Id,
                 Source = "Payment webhook",
-                Provider = x.Provider,
+                ActorName = "System",
+                ActorRole = "integration",
                 EventType = x.ProcessedStatus,
-                ExternalReference = x.PackageOrderId.HasValue ? x.PackageOrderId.Value.ToString() : null,
-                RequestUrl = x.WebhookPath,
-                ResponseStatusCode = null,
+                EntityType = "package_order",
+                EntityLabel = x.PackageOrderId.HasValue ? x.PackageOrderId.Value.ToString() : null,
+                Context = x.WebhookPath,
+                StatusLabel = x.ProcessedStatus,
                 CreatedAt = x.CreatedAt
             })
-            .ToArrayAsync(cancellationToken);
+            .ToArray();
 
-        return requestLogs.Concat(webhookLogs)
+        return changeLogs.Concat(requestLogs).Concat(webhookLogs)
             .OrderByDescending(x => x.CreatedAt)
             .Take(20)
             .ToArray();
+    }
+
+    private static string FormatAuditSource(string? scope)
+    {
+        if (string.IsNullOrWhiteSpace(scope))
+        {
+            return "System change";
+        }
+
+        var normalizedScope = scope.Trim().ToLowerInvariant();
+        return $"{char.ToUpperInvariant(normalizedScope[0])}{normalizedScope.Substring(1)} change";
     }
 
     private async Task<AdminIntegrationStatusResponse> GetIntegrationsAsync(CancellationToken cancellationToken)
@@ -334,29 +416,30 @@ public sealed class AdminDashboardService : IAdminDashboardService
 
     private AdminEnginePolicyResponse[] BuildEnginePolicies()
     {
+        var planningPolicyOptions = _planningPolicySnapshotProvider.GetCurrent();
         return new[]
         {
             new AdminEnginePolicyResponse
             {
                 PackageCode = "scale",
-                BudgetFloor = _planningPolicyOptions.Scale.BudgetFloor,
-                MinimumNationalRadioCandidates = _planningPolicyOptions.Scale.MinimumNationalRadioCandidates,
-                RequireNationalCapableRadio = _planningPolicyOptions.Scale.RequireNationalCapableRadio,
-                RequirePremiumNationalRadio = _planningPolicyOptions.Scale.RequirePremiumNationalRadio,
-                NationalRadioBonus = _planningPolicyOptions.Scale.NationalRadioBonus,
-                NonNationalRadioPenalty = _planningPolicyOptions.Scale.NonNationalRadioPenalty,
-                RegionalRadioPenalty = _planningPolicyOptions.Scale.RegionalRadioPenalty
+                BudgetFloor = planningPolicyOptions.Scale.BudgetFloor,
+                MinimumNationalRadioCandidates = planningPolicyOptions.Scale.MinimumNationalRadioCandidates,
+                RequireNationalCapableRadio = planningPolicyOptions.Scale.RequireNationalCapableRadio,
+                RequirePremiumNationalRadio = planningPolicyOptions.Scale.RequirePremiumNationalRadio,
+                NationalRadioBonus = planningPolicyOptions.Scale.NationalRadioBonus,
+                NonNationalRadioPenalty = planningPolicyOptions.Scale.NonNationalRadioPenalty,
+                RegionalRadioPenalty = planningPolicyOptions.Scale.RegionalRadioPenalty
             },
             new AdminEnginePolicyResponse
             {
                 PackageCode = "dominance",
-                BudgetFloor = _planningPolicyOptions.Dominance.BudgetFloor,
-                MinimumNationalRadioCandidates = _planningPolicyOptions.Dominance.MinimumNationalRadioCandidates,
-                RequireNationalCapableRadio = _planningPolicyOptions.Dominance.RequireNationalCapableRadio,
-                RequirePremiumNationalRadio = _planningPolicyOptions.Dominance.RequirePremiumNationalRadio,
-                NationalRadioBonus = _planningPolicyOptions.Dominance.NationalRadioBonus,
-                NonNationalRadioPenalty = _planningPolicyOptions.Dominance.NonNationalRadioPenalty,
-                RegionalRadioPenalty = _planningPolicyOptions.Dominance.RegionalRadioPenalty
+                BudgetFloor = planningPolicyOptions.Dominance.BudgetFloor,
+                MinimumNationalRadioCandidates = planningPolicyOptions.Dominance.MinimumNationalRadioCandidates,
+                RequireNationalCapableRadio = planningPolicyOptions.Dominance.RequireNationalCapableRadio,
+                RequirePremiumNationalRadio = planningPolicyOptions.Dominance.RequirePremiumNationalRadio,
+                NationalRadioBonus = planningPolicyOptions.Dominance.NationalRadioBonus,
+                NonNationalRadioPenalty = planningPolicyOptions.Dominance.NonNationalRadioPenalty,
+                RegionalRadioPenalty = planningPolicyOptions.Dominance.RegionalRadioPenalty
             }
         };
     }

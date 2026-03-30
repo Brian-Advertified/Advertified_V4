@@ -11,6 +11,10 @@ const toneMap: Record<string, string> = {
   review_ready: 'bg-violet-100 text-violet-700',
   sent_to_client: 'bg-cyan-100 text-cyan-700',
   approved: 'bg-emerald-100 text-emerald-700',
+  creative_sent_to_client_for_approval: 'bg-sky-100 text-sky-700',
+  creative_changes_requested: 'bg-amber-100 text-amber-700',
+  creative_approved: 'bg-teal-100 text-teal-700',
+  launched: 'bg-brand-soft text-brand',
 };
 
 export function StatusBadge({ status }: { status: string }) {

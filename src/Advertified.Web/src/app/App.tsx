@@ -15,13 +15,22 @@ import { CheckoutConfirmationPage } from '../pages/public/CheckoutConfirmationPa
 import { DashboardPage } from '../pages/client/DashboardPage';
 import { OrdersPage } from '../pages/client/OrdersPage';
 import { CampaignDetailPage } from '../pages/client/CampaignDetailPage';
-import { CampaignBriefPage } from '../pages/client/CampaignBriefPage';
-import { CampaignPlanningPage } from '../pages/client/CampaignPlanningPage';
-import { CampaignReviewPage } from '../pages/client/CampaignReviewPage';
 import { AgentCampaignDetailPage } from '../pages/agent/AgentCampaignDetailPage';
 import { AgentCreateRecommendationPage } from '../pages/agent/AgentCreateRecommendationPage';
 import { AgentInventoryPage } from '../pages/agent/AgentInventoryPage';
-import { AgentApprovalsPage, AgentBriefsPage, AgentCampaignsPage, AgentCheckoutStatusPage, AgentDashboardPage, AgentLeadsClientsPage, AgentMessagesNotesPage, AgentPackageSelectionPage, AgentPerformancePage, AgentRecommendationBuilderPage, AgentReviewSendPage, AgentTasksPage } from '../pages/agent/AgentSectionPages';
+import { AgentApprovalsPage } from '../pages/agent/AgentApprovalsPage';
+import { AgentBriefsPage } from '../pages/agent/AgentBriefsPage';
+import { AgentCampaignsPage } from '../pages/agent/AgentCampaignsPage';
+import { AgentCheckoutStatusPage } from '../pages/agent/AgentCheckoutStatusPage';
+import { AgentDashboardPage } from '../pages/agent/AgentDashboardPage';
+import { AgentLeadsClientsPage } from '../pages/agent/AgentLeadsClientsPage';
+import { AgentMessagesNotesPage } from '../pages/agent/AgentMessagesNotesPage';
+import { AgentPackageSelectionPage } from '../pages/agent/AgentPackageSelectionPage';
+import { AgentPerformancePage } from '../pages/agent/AgentPerformancePage';
+import { AgentRecommendationBuilderPage } from '../pages/agent/AgentRecommendationBuilderPage';
+import { AgentReviewSendPage } from '../pages/agent/AgentReviewSendPage';
+import { AgentTasksPage } from '../pages/agent/AgentTasksPage';
+import { CreativeDirectorDashboardPage, CreativeDirectorStudioPage } from '../pages/creative/CreativeDirectorPages';
 import { AdminDashboardPage } from '../pages/admin/AdminDashboardPage';
 import { AdminAuditPage, AdminEnginePage, AdminGeographyPage, AdminHealthPage, AdminImportsPage, AdminIntegrationsPage, AdminMonitoringPage, AdminPreviewRulesPage, AdminPricingPage, AdminStationsPage, AdminUsersPage } from '../pages/admin/AdminSectionPages';
 
@@ -47,9 +56,8 @@ export function App() {
           <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
           <Route path="/orders" element={<ProtectedRoute><OrdersPage /></ProtectedRoute>} />
           <Route path="/campaigns/:id" element={<ProtectedRoute><CampaignDetailPage /></ProtectedRoute>} />
-          <Route path="/campaigns/:id/brief" element={<ProtectedRoute requirePurchase><CampaignBriefPage /></ProtectedRoute>} />
-          <Route path="/campaigns/:id/planning" element={<ProtectedRoute requirePlanningAccess><CampaignPlanningPage /></ProtectedRoute>} />
-          <Route path="/campaigns/:id/review" element={<ProtectedRoute requirePlanningAccess><CampaignReviewPage /></ProtectedRoute>} />
+          <Route path="/creative" element={<ProtectedRoute requireCreativeDirector><CreativeDirectorDashboardPage /></ProtectedRoute>} />
+          <Route path="/creative/campaigns/:id/studio" element={<ProtectedRoute requireCreativeDirector><CreativeDirectorStudioPage /></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute requireAdmin><AdminDashboardPage /></ProtectedRoute>} />
           <Route path="/admin/stations" element={<ProtectedRoute requireAdmin><AdminStationsPage /></ProtectedRoute>} />
           <Route path="/admin/pricing" element={<ProtectedRoute requireAdmin><AdminPricingPage /></ProtectedRoute>} />

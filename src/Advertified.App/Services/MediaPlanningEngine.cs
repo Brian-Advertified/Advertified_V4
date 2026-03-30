@@ -1,8 +1,6 @@
-using Advertified.App.Configuration;
 using Advertified.App.Contracts.Campaigns;
 using Advertified.App.Domain.Campaigns;
 using Advertified.App.Services.Abstractions;
-using Microsoft.Extensions.Options;
 
 namespace Advertified.App.Services;
 
@@ -25,14 +23,14 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
         _explainabilityService = explainabilityService;
     }
 
-    public MediaPlanningEngine(IPlanningInventoryRepository repository, IOptions<PlanningPolicyOptions> policyOptions)
+    public MediaPlanningEngine(IPlanningInventoryRepository repository, PlanningPolicySnapshotProvider snapshotProvider)
         : this(
             new PlanningCandidateLoader(repository),
-            new PlanningEligibilityService(new PlanningPolicyService(policyOptions)),
-            new RecommendationPlanBuilder(new PlanningPolicyService(policyOptions)),
+            new PlanningEligibilityService(new PlanningPolicyService(snapshotProvider)),
+            new RecommendationPlanBuilder(new PlanningPolicyService(snapshotProvider)),
             new RecommendationExplainabilityService(
-                new PlanningScoreService(new PlanningPolicyService(policyOptions)),
-                new PlanningPolicyService(policyOptions)))
+                new PlanningScoreService(new PlanningPolicyService(snapshotProvider)),
+                new PlanningPolicyService(snapshotProvider)))
     {
     }
 

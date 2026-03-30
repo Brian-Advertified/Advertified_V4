@@ -57,6 +57,7 @@ public sealed class AdminImportDocumentResponse
     public string Channel { get; set; } = string.Empty;
     public string? SupplierOrStation { get; set; }
     public string? DocumentTitle { get; set; }
+    public string? Notes { get; set; }
     public int? PageCount { get; set; }
     public DateTime ImportedAt { get; set; }
 }
@@ -93,7 +94,11 @@ public sealed class AdminPackageSettingResponse
     public string Name { get; set; } = string.Empty;
     public decimal MinBudget { get; set; }
     public decimal MaxBudget { get; set; }
+    public int SortOrder { get; set; }
+    public bool IsActive { get; set; }
+    public string Description { get; set; } = string.Empty;
     public decimal? RecommendedSpend { get; set; }
+    public bool IsRecommended { get; set; }
     public string PackagePurpose { get; set; } = string.Empty;
     public string AudienceFit { get; set; } = string.Empty;
     public string QuickBenefit { get; set; } = string.Empty;

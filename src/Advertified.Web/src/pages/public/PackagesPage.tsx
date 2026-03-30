@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { ArrowRight, Lock } from 'lucide-react';
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ProcessingOverlay } from '../../components/ui/ProcessingOverlay';
 import { PageHero } from '../../components/marketing/PageHero';
@@ -18,21 +18,34 @@ export function PackagesPage() {
   const [searchParams] = useSearchParams();
   const packagesQuery = useQuery({ queryKey: ['packages'], queryFn: advertifiedApi.getPackages });
   const packageAreasQuery = useQuery({ queryKey: ['package-areas'], queryFn: advertifiedApi.getPackageAreas });
-  const [selectedPackageId, setSelectedPackageId] = useState<string>();
+  const [selectedPackageIdState, setSelectedPackageIdState] = useState<string>();
   const { user } = useAuth();
   const navigate = useNavigate();
   const { pushToast } = useToast();
-  const [step, setStep] = useState<1 | 2>(1);
-  const [selectedArea, setSelectedArea] = useState('gauteng');
+  const [stepState, setStepState] = useState<1 | 2>();
+  const [selectedAreaState, setSelectedAreaState] = useState('');
   const [isResendingActivation, setIsResendingActivation] = useState(false);
-  const spendSectionRef = useRef<HTMLDivElement | null>(null);
+  const scrolledSectionKeyRef = useRef<string | null>(null);
+  const requestedBandCode = searchParams.get('band')?.trim().toLowerCase();
+  const requestedBand = requestedBandCode
+    ? packagesQuery.data?.find((item) => item.code.toLowerCase() === requestedBandCode)
+    : undefined;
+  const selectedPackageId = selectedPackageIdState ?? requestedBand?.id;
 
   const selectedBand = useMemo(
     () => packagesQuery.data?.find((item) => item.id === selectedPackageId) ?? packagesQuery.data?.[0],
     [packagesQuery.data, selectedPackageId],
   );
+  const step = stepState ?? (requestedBand ? 2 : 1);
+  const areaOptions = packageAreasQuery.data ?? [];
+  const selectedArea = selectedAreaState
+    || (user?.province && areaOptions.length > 0 ? mapProvinceToAreaCode(user.province, areaOptions) : '')
+    || areaOptions.find((option) => option.code === 'national')?.code
+    || areaOptions[0]?.code
+    || 'gauteng';
 
-  const [spend, setSpend] = useState(50_000);
+  const [spendState, setSpendState] = useState<number>();
+  const spend = spendState ?? selectedBand?.minBudget ?? 50_000;
   const clampedSpend = useMemo(() => {
     if (!selectedBand) {
       return spend;
@@ -41,56 +54,6 @@ export function PackagesPage() {
     return Math.min(selectedBand.maxBudget, Math.max(selectedBand.minBudget, spend));
   }, [selectedBand, spend]);
   const deferredSpend = useDeferredValue(clampedSpend);
-
-  useEffect(() => {
-    if (!packagesQuery.data?.length) {
-      return;
-    }
-
-    const requestedBandCode = searchParams.get('band')?.trim().toLowerCase();
-    const requestedBand = requestedBandCode
-      ? packagesQuery.data.find((item) => item.code.toLowerCase() === requestedBandCode)
-      : undefined;
-    const initialBand = requestedBand ?? packagesQuery.data[0];
-
-    if (!selectedPackageId) {
-      setSelectedPackageId(initialBand.id);
-      setSpend(initialBand.minBudget);
-      setStep(requestedBand ? 2 : 1);
-    }
-  }, [packagesQuery.data, searchParams, selectedPackageId]);
-
-  useEffect(() => {
-    const province = user?.province;
-    const areaOptions = packageAreasQuery.data;
-    if (!province || !areaOptions?.length) {
-      return;
-    }
-
-    setSelectedArea((current) => {
-      const next = mapProvinceToAreaCode(province, areaOptions);
-      return current === next ? current : next;
-    });
-  }, [packageAreasQuery.data, user?.province]);
-
-  useEffect(() => {
-    if (!selectedBand) {
-      return;
-    }
-
-    const nextSpend = Math.min(selectedBand.maxBudget, Math.max(selectedBand.minBudget, spend));
-    if (nextSpend !== spend) {
-      setSpend(nextSpend);
-    }
-  }, [selectedBand, spend]);
-
-  useEffect(() => {
-    if (step !== 2) {
-      return;
-    }
-
-    spendSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, [selectedPackageId, step]);
 
   const effectivePreviewSpend = selectedBand
     ? Math.min(selectedBand.maxBudget, Math.max(selectedBand.minBudget, deferredSpend))
@@ -137,10 +100,10 @@ export function PackagesPage() {
               {formatCurrency(selectedBand.minBudget)} - {formatCurrency(selectedBand.maxBudget)}
             </p>
           </div>
-          <button
+            <button
             type="button"
             className="button-secondary shrink-0 px-4 py-2"
-            onClick={() => setStep(1)}
+            onClick={() => setStepState(1)}
           >
             Change package
           </button>
@@ -154,25 +117,40 @@ export function PackagesPage() {
               band={band}
               selected={band.id === selectedBand?.id}
               onSelect={() => {
-                setSelectedPackageId(band.id);
-                setSpend(band.minBudget);
-                setStep(2);
+                setSelectedPackageIdState(band.id);
+                setSpendState(band.minBudget);
+                setStepState(2);
               }}
             />
           ))}
       </div>
 
       {selectedBand && step === 2 ? (
-        <div ref={spendSectionRef} className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
+        <div
+          ref={(node) => {
+            if (!node) {
+              return;
+            }
+
+            const sectionKey = `${selectedBand.id}:${step}`;
+            if (scrolledSectionKeyRef.current === sectionKey) {
+              return;
+            }
+
+            scrolledSectionKeyRef.current = sectionKey;
+            node.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }}
+          className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]"
+        >
           <div className="space-y-4">
             <BudgetSelector
               band={selectedBand}
               value={clampedSpend}
               preview={previewQuery.data}
               selectedArea={selectedArea}
-              areaOptions={packageAreasQuery.data ?? []}
-              onAreaChange={setSelectedArea}
-              onChange={(value) => setSpend(Math.min(selectedBand.maxBudget, Math.max(selectedBand.minBudget, value || selectedBand.minBudget)))}
+              areaOptions={areaOptions}
+              onAreaChange={setSelectedAreaState}
+              onChange={(value) => setSpendState(Math.min(selectedBand.maxBudget, Math.max(selectedBand.minBudget, value || selectedBand.minBudget)))}
             />
           </div>
           <SpendPreviewPanel band={selectedBand} selectedSpend={clampedSpend} livePreview={previewQuery.data} />
@@ -186,7 +164,7 @@ export function PackagesPage() {
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-brand">Your package</p>
                 <p className="mt-1 text-lg font-semibold tracking-tight text-ink">
-                  {selectedBand.name} <span className="text-ink-soft">at {formatCurrency(spend)}</span>
+                  {selectedBand.name} <span className="text-ink-soft">at {formatCurrency(clampedSpend)}</span>
                 </p>
                 <p className="mt-1 text-sm text-ink-soft">Final plan confirmed after payment and brief submission.</p>
               </div>

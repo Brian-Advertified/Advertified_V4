@@ -4,12 +4,20 @@ export function isAgent(user: SessionUser | null) {
   return user?.role === 'agent';
 }
 
+export function isCreativeDirector(user: SessionUser | null) {
+  return user?.role === 'creative_director';
+}
+
 export function isAdmin(user: SessionUser | null) {
   return user?.role === 'admin';
 }
 
 export function canAccessOperations(user: SessionUser | null) {
   return isAgent(user) || isAdmin(user);
+}
+
+export function canAccessCreativeStudio(user: SessionUser | null) {
+  return isCreativeDirector(user) || isAdmin(user);
 }
 
 export function canBuyPackage(user: SessionUser | null) {
@@ -26,15 +34,19 @@ export function canOpenBrief(campaign?: Campaign | null) {
         'planning_in_progress',
         'review_ready',
         'approved',
+        'creative_sent_to_client_for_approval',
+        'creative_changes_requested',
+        'creative_approved',
+        'launched',
       ].includes(campaign.status),
   );
 }
 
 export function canOpenPlanning(campaign?: Campaign | null) {
   return Boolean(
-    campaign &&
+      campaign &&
       campaign.aiUnlocked &&
-      ['brief_submitted', 'planning_in_progress', 'review_ready', 'approved'].includes(campaign.status),
+      ['brief_submitted', 'planning_in_progress', 'review_ready', 'approved', 'creative_sent_to_client_for_approval', 'creative_changes_requested', 'creative_approved', 'launched'].includes(campaign.status),
   );
 }
 
@@ -43,30 +55,30 @@ export function getCampaignPrimaryAction(campaign: Campaign) {
 
   if (campaign.status === 'paid' || campaign.status === 'brief_in_progress') {
     return {
-      href: `/campaigns/${campaign.id}/brief`,
-      label: 'Complete campaign brief',
-      description: 'Tell us about your audience, geography, and channels so planning can begin.',
-      stepLabel: 'Step 1 of 3',
+      href: `/campaigns/${campaign.id}`,
+      label: 'Open campaign workspace',
+      description: 'Your package is paid and the campaign workspace shows the current next step.',
+      stepLabel: 'Open workspace',
     };
   }
 
   if (campaign.status === 'brief_submitted' || (campaign.status === 'planning_in_progress' && !campaign.planningMode)) {
     return {
-      href: `/campaigns/${campaign.id}/planning`,
-      label: 'Choose planning mode',
-      description: 'Pick AI-assisted, agent-assisted, or hybrid planning for this campaign.',
-      stepLabel: 'Step 2 of 3',
+      href: `/campaigns/${campaign.id}`,
+      label: 'Open campaign workspace',
+      description: 'The campaign workspace now keeps the client focused on the current approval state, not setup screens.',
+      stepLabel: 'Open workspace',
     };
   }
 
-  if ((campaign.status === 'planning_in_progress' || campaign.status === 'review_ready' || campaign.status === 'approved') && hasRecommendation) {
+  if ((campaign.status === 'planning_in_progress' || campaign.status === 'review_ready' || campaign.status === 'approved' || campaign.status === 'creative_sent_to_client_for_approval' || campaign.status === 'creative_changes_requested' || campaign.status === 'creative_approved' || campaign.status === 'launched') && hasRecommendation) {
     return {
-      href: `/campaigns/${campaign.id}/review`,
-      label: campaign.status === 'approved' ? 'View approved recommendation' : 'Review recommendation',
-      description: campaign.status === 'approved'
-        ? 'See the approved recommendation and the next activation-ready details.'
-        : 'Review the draft recommendation, then approve it or request changes.',
-      stepLabel: campaign.status === 'approved' ? 'Completed' : 'Step 3 of 3',
+      href: `/campaigns/${campaign.id}`,
+      label: campaign.status === 'approved' || campaign.status === 'creative_sent_to_client_for_approval' || campaign.status === 'creative_changes_requested' || campaign.status === 'creative_approved' || campaign.status === 'launched' ? 'Open campaign workspace' : 'Review recommendation',
+      description: campaign.status === 'approved' || campaign.status === 'creative_sent_to_client_for_approval' || campaign.status === 'creative_changes_requested' || campaign.status === 'creative_approved' || campaign.status === 'launched'
+        ? 'See the approved recommendation and current campaign approval state in one workspace.'
+        : 'Review the draft recommendation, then approve it or request changes from the same workspace.',
+      stepLabel: campaign.status === 'approved' || campaign.status === 'creative_sent_to_client_for_approval' || campaign.status === 'creative_changes_requested' || campaign.status === 'creative_approved' || campaign.status === 'launched' ? 'Open workspace' : 'Needs action',
     };
   }
 

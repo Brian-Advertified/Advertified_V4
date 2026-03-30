@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, ChevronRight, Sparkles, Wand2 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -63,10 +63,11 @@ export function AgentCreateRecommendationPage() {
   const queryClient = useQueryClient();
   const inboxQuery = useQuery({ queryKey: ['agent-inbox'], queryFn: advertifiedApi.getAgentInbox });
   const requestedCampaignId = searchParams.get('campaignId') ?? '';
-  const [selectedCampaignId, setSelectedCampaignId] = useState<string>('');
-  const [selectedClientId, setSelectedClientId] = useState<string>('');
+  const [selectedCampaignIdState, setSelectedCampaignIdState] = useState<string>('');
+  const [selectedClientIdState, setSelectedClientIdState] = useState<string>('');
   const [pendingAction, setPendingAction] = useState<'draft' | 'generate' | null>(null);
   const [aiInterpretationSummary, setAiInterpretationSummary] = useState('');
+  const hydratedCampaignIdRef = useRef<string | null>(null);
   const [form, setForm] = useState<CampaignFormState>({
     objective: '',
     audience: '',
@@ -93,50 +94,35 @@ export function AgentCreateRecommendationPage() {
 
     return Array.from(uniqueClients.values());
   }, [availableCampaigns]);
+  const requestedCampaign = requestedCampaignId
+    ? availableCampaigns.find((item) => item.id === requestedCampaignId) ?? null
+    : null;
+  const selectedClientId = requestedCampaign?.userId
+    ?? selectedClientIdState
+    ?? availableCampaigns[0]?.userId
+    ?? '';
 
   const filteredCampaigns = useMemo(() => (
     selectedClientId
       ? availableCampaigns.filter((item) => item.userId === selectedClientId)
       : availableCampaigns
   ), [availableCampaigns, selectedClientId]);
+  const selectedCampaignId = requestedCampaign?.id
+    ?? selectedCampaignIdState
+    ?? filteredCampaigns[0]?.id
+    ?? availableCampaigns[0]?.id
+    ?? '';
 
   const selectedCampaign = filteredCampaigns.find((item) => item.id === selectedCampaignId)
     ?? availableCampaigns.find((item) => item.id === selectedCampaignId)
     ?? filteredCampaigns[0]
     ?? availableCampaigns[0]
     ?? null;
-
-  useEffect(() => {
-    if (!selectedCampaign) {
-      return;
-    }
-
-    setSelectedClientId((current) => current || selectedCampaign.userId);
-    setSelectedCampaignId((current) => current || selectedCampaign.id);
-  }, [selectedCampaign]);
-
-  useEffect(() => {
-    if (!requestedCampaignId || availableCampaigns.length === 0) {
-      return;
-    }
-
-    const requestedCampaign = availableCampaigns.find((item) => item.id === requestedCampaignId);
-    if (!requestedCampaign) {
-      return;
-    }
-
-    setSelectedClientId(requestedCampaign.userId);
-    setSelectedCampaignId(requestedCampaign.id);
-  }, [availableCampaigns, requestedCampaignId]);
-
-  useEffect(() => {
-    if (!selectedCampaign) {
-      return;
-    }
-
+  if (selectedCampaign && hydratedCampaignIdRef.current !== selectedCampaign.id) {
+    hydratedCampaignIdRef.current = selectedCampaign.id;
     setForm(inferInitialForm(selectedCampaign));
     setAiInterpretationSummary('');
-  }, [selectedCampaign?.id]);
+  }
 
   if (inboxQuery.isLoading) {
     return <LoadingState label="Loading recommendation flow..." />;
@@ -156,9 +142,9 @@ export function AgentCreateRecommendationPage() {
   };
 
   const handleClientChange = (userId: string) => {
-    setSelectedClientId(userId);
+    setSelectedClientIdState(userId);
     const nextCampaign = availableCampaigns.find((item) => item.userId === userId);
-    setSelectedCampaignId(nextCampaign?.id ?? '');
+    setSelectedCampaignIdState(nextCampaign?.id ?? '');
   };
 
   function buildBriefPayload(): CampaignBrief {
@@ -392,7 +378,7 @@ export function AgentCreateRecommendationPage() {
 
               <label className="block">
                 <span className="label-base">Paid package / order</span>
-                <select value={selectedCampaign?.id ?? ''} onChange={(event) => setSelectedCampaignId(event.target.value)} className="input-base">
+                <select value={selectedCampaign?.id ?? ''} onChange={(event) => setSelectedCampaignIdState(event.target.value)} className="input-base">
                   <option value="">Select paid package</option>
                   {filteredCampaigns.map((campaign) => (
                     <option key={campaign.id} value={campaign.id}>

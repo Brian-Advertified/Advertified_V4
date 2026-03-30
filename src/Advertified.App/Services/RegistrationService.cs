@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
 using Advertified.App.Contracts.Auth;
 using Advertified.App.Data;
 using Advertified.App.Data.Entities;
@@ -16,15 +14,18 @@ public sealed class RegistrationService : IRegistrationService
     private readonly AppDbContext _db;
     private readonly RegisterRequestValidator _validator;
     private readonly IEmailVerificationService _emailVerificationService;
+    private readonly IPasswordHashingService _passwordHashingService;
 
     public RegistrationService(
         AppDbContext db,
         RegisterRequestValidator validator,
-        IEmailVerificationService emailVerificationService)
+        IEmailVerificationService emailVerificationService,
+        IPasswordHashingService passwordHashingService)
     {
         _db = db;
         _validator = validator;
         _emailVerificationService = emailVerificationService;
+        _passwordHashingService = passwordHashingService;
     }
 
     public async Task<RegisterResponse> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken)
@@ -47,7 +48,6 @@ public sealed class RegistrationService : IRegistrationService
             FullName = request.FullName.Trim(),
             Email = normalizedEmail,
             Phone = request.Phone.Trim(),
-            PasswordHash = HashPassword(request.Password),
             IsSaCitizen = request.IsSouthAfricanCitizen,
             EmailVerified = false,
             PhoneVerified = false,
@@ -84,6 +84,7 @@ public sealed class RegistrationService : IRegistrationService
                 UpdatedAt = now
             }
         };
+        user.PasswordHash = _passwordHashingService.HashPassword(user, request.Password);
 
         _db.UserAccounts.Add(user);
         await _db.SaveChangesAsync(cancellationToken);
@@ -96,11 +97,5 @@ public sealed class RegistrationService : IRegistrationService
             EmailVerificationRequired = true,
             AccountStatus = "pending_verification"
         };
-    }
-
-    private static string HashPassword(string password)
-    {
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(password));
-        return Convert.ToHexString(bytes);
     }
 }

@@ -1,6 +1,6 @@
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { LngLatBounds } from 'mapbox-gl';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import Map, { Marker, NavigationControl, Popup, type MapRef } from 'react-map-gl/mapbox';
 import type { PackagePreviewMapPoint } from '../../../types/domain';
 
@@ -10,11 +10,30 @@ const SINGLE_POINT_ZOOM = 13;
 export function OutdoorPreviewMap({ points }: { points: PackagePreviewMapPoint[] }) {
   const mapboxToken = (import.meta.env.VITE_MAPBOX_ACCESS_TOKEN as string | undefined)?.trim();
   const mapRef = useRef<MapRef | null>(null);
-  const [selectedPoint, setSelectedPoint] = useState<PackagePreviewMapPoint | null>(null);
+  const [selectedPointKey, setSelectedPointKey] = useState<string | null | undefined>(undefined);
   const focusPoints = useMemo(() => {
     const focused = points.filter((point) => point.isInSelectedArea);
     return focused.length > 0 ? focused : points;
   }, [points]);
+  const focusPointsKey = useMemo(
+    () => focusPoints.map(getPointKey).join('|'),
+    [focusPoints],
+  );
+  const selectedPoint = useMemo(() => {
+    if (points.length === 0) {
+      return null;
+    }
+
+    if (selectedPointKey === null) {
+      return null;
+    }
+
+    if (selectedPointKey === undefined) {
+      return points[0];
+    }
+
+    return points.find((point) => getPointKey(point) === selectedPointKey) ?? points[0];
+  }, [points, selectedPointKey]);
 
   const initialViewState = useMemo(
     () => ({
@@ -24,38 +43,6 @@ export function OutdoorPreviewMap({ points }: { points: PackagePreviewMapPoint[]
     }),
     [focusPoints],
   );
-
-  useEffect(() => {
-    if (!points.length) {
-      setSelectedPoint(null);
-    } else if (!selectedPoint || !points.some((point) => isSamePoint(point, selectedPoint))) {
-      setSelectedPoint(points[0]);
-    }
-  }, [points, selectedPoint]);
-
-  useEffect(() => {
-    const map = mapRef.current?.getMap();
-    if (!map || points.length === 0) {
-      return;
-    }
-
-    if (focusPoints.length === 1) {
-      map.easeTo({
-        center: [focusPoints[0].longitude, focusPoints[0].latitude],
-        zoom: SINGLE_POINT_ZOOM,
-        duration: 600,
-      });
-      return;
-    }
-
-    const bounds = new LngLatBounds();
-    focusPoints.forEach((point) => bounds.extend([point.longitude, point.latitude]));
-    map.fitBounds(bounds, {
-      padding: 28,
-      maxZoom: SINGLE_POINT_ZOOM,
-      duration: 700,
-    });
-  }, [focusPoints, points.length]);
 
   if (points.length === 0) {
     return null;
@@ -80,7 +67,30 @@ export function OutdoorPreviewMap({ points }: { points: PackagePreviewMapPoint[]
       </div>
       <div className="h-[260px] w-full">
         <Map
-          ref={mapRef}
+          key={focusPointsKey}
+          ref={(instance) => {
+            mapRef.current = instance;
+            if (!instance) {
+              return;
+            }
+
+            const map = instance.getMap();
+            if (focusPoints.length === 1) {
+              map.jumpTo({
+                center: [focusPoints[0].longitude, focusPoints[0].latitude],
+                zoom: SINGLE_POINT_ZOOM,
+              });
+              return;
+            }
+
+            const bounds = new LngLatBounds();
+            focusPoints.forEach((point) => bounds.extend([point.longitude, point.latitude]));
+            map.fitBounds(bounds, {
+              padding: 28,
+              maxZoom: SINGLE_POINT_ZOOM,
+              duration: 0,
+            });
+          }}
           initialViewState={initialViewState}
           mapboxAccessToken={mapboxToken}
           mapStyle="mapbox://styles/mapbox/light-v11"
@@ -95,7 +105,7 @@ export function OutdoorPreviewMap({ points }: { points: PackagePreviewMapPoint[]
           <NavigationControl position="top-right" showCompass={false} />
           {points.map((point) => (
             <Marker
-              key={`${point.siteName}-${point.latitude}-${point.longitude}`}
+              key={getPointKey(point)}
               longitude={point.longitude}
               latitude={point.latitude}
               anchor="bottom"
@@ -108,7 +118,7 @@ export function OutdoorPreviewMap({ points }: { points: PackagePreviewMapPoint[]
                     ? 'border-[#0f766e] bg-[#14b8a6]'
                     : 'border-slate-400 bg-white',
                 ].join(' ')}
-                onClick={() => setSelectedPoint(point)}
+                onClick={() => setSelectedPointKey(getPointKey(point))}
                 aria-label={`View ${point.siteName}`}
               />
             </Marker>
@@ -122,7 +132,7 @@ export function OutdoorPreviewMap({ points }: { points: PackagePreviewMapPoint[]
               closeButton
               closeOnClick={false}
               offset={18}
-              onClose={() => setSelectedPoint(null)}
+              onClose={() => setSelectedPointKey(null)}
             >
               <div className="space-y-1 pr-4">
                 <p className="text-sm font-semibold text-ink">{selectedPoint.siteName}</p>
@@ -139,8 +149,6 @@ export function OutdoorPreviewMap({ points }: { points: PackagePreviewMapPoint[]
   );
 }
 
-function isSamePoint(left: PackagePreviewMapPoint, right: PackagePreviewMapPoint) {
-  return left.latitude === right.latitude
-    && left.longitude === right.longitude
-    && left.siteName === right.siteName;
+function getPointKey(point: PackagePreviewMapPoint) {
+  return `${point.siteName}-${point.latitude}-${point.longitude}`;
 }

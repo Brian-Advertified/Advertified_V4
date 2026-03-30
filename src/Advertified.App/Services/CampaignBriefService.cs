@@ -18,6 +18,7 @@ public sealed class CampaignBriefService : ICampaignBriefService
     private readonly AppDbContext _db;
     private readonly SaveCampaignBriefRequestValidator _validator;
     private readonly ITemplatedEmailService _emailService;
+    private readonly IAgentAreaRoutingService _agentAreaRoutingService;
     private readonly FrontendOptions _frontendOptions;
     private readonly ILogger<CampaignBriefService> _logger;
 
@@ -25,12 +26,14 @@ public sealed class CampaignBriefService : ICampaignBriefService
         AppDbContext db,
         SaveCampaignBriefRequestValidator validator,
         ITemplatedEmailService emailService,
+        IAgentAreaRoutingService agentAreaRoutingService,
         IOptions<FrontendOptions> frontendOptions,
         ILogger<CampaignBriefService> logger)
     {
         _db = db;
         _validator = validator;
         _emailService = emailService;
+        _agentAreaRoutingService = agentAreaRoutingService;
         _frontendOptions = frontendOptions.Value;
         _logger = logger;
     }
@@ -91,6 +94,7 @@ public sealed class CampaignBriefService : ICampaignBriefService
         campaign.Status = "brief_in_progress";
         campaign.UpdatedAt = now;
         await _db.SaveChangesAsync(cancellationToken);
+        await _agentAreaRoutingService.TryAssignCampaignAsync(campaignId, "brief_saved", cancellationToken);
     }
 
     public async Task SubmitAsync(Guid userId, Guid campaignId, CancellationToken cancellationToken)
@@ -117,6 +121,7 @@ public sealed class CampaignBriefService : ICampaignBriefService
         campaign.AiUnlocked = true;
         campaign.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
+        await _agentAreaRoutingService.TryAssignCampaignAsync(campaignId, "brief_submitted", cancellationToken);
 
         try
         {

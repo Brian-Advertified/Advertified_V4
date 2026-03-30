@@ -1,10 +1,8 @@
 import {
   createContext,
   useContext,
-  useEffect,
   useMemo,
-  useRef,
-  useState,
+  useSyncExternalStore,
   type PropsWithChildren,
 } from 'react';
 import { useToast } from '../../components/ui/toast';
@@ -22,69 +20,143 @@ type AuthContextValue = {
 
 const STORAGE_KEY = 'advertified-session-user';
 const INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000;
+const ACTIVITY_EVENTS: Array<keyof WindowEventMap> = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-export function AuthProvider({ children }: PropsWithChildren) {
-  const [user, setUser] = useState<SessionUser | null>(null);
-  const inactivityTimeoutRef = useRef<number | null>(null);
-  const { pushToast } = useToast();
+type SessionListener = () => void;
 
-  useEffect(() => {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      setUser(JSON.parse(raw) as SessionUser);
-    }
-  }, []);
+let currentUser = readStoredUser();
+let inactivityTimeoutId: number | null = null;
+let listenersAttached = false;
+const sessionListeners = new Set<SessionListener>();
+let notifySessionExpired: (() => void) | null = null;
 
-  function persist(nextUser: SessionUser | null) {
-    setUser(nextUser);
+function readStoredUser(): SessionUser | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  const raw = window.localStorage.getItem(STORAGE_KEY);
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(raw) as SessionUser;
+  } catch {
+    window.localStorage.removeItem(STORAGE_KEY);
+    return null;
+  }
+}
+
+function emitSessionChange() {
+  for (const listener of sessionListeners) {
+    listener();
+  }
+}
+
+function clearInactivityTimer() {
+  if (inactivityTimeoutId !== null) {
+    window.clearTimeout(inactivityTimeoutId);
+    inactivityTimeoutId = null;
+  }
+}
+
+function persistUser(nextUser: SessionUser | null) {
+  currentUser = nextUser;
+
+  if (typeof window !== 'undefined') {
     if (nextUser) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(nextUser));
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(nextUser));
     } else {
-      localStorage.removeItem(STORAGE_KEY);
+      window.localStorage.removeItem(STORAGE_KEY);
     }
   }
 
-  useEffect(() => {
-    if (!user) {
-      if (inactivityTimeoutRef.current) {
-        window.clearTimeout(inactivityTimeoutRef.current);
-        inactivityTimeoutRef.current = null;
-      }
-      return;
-    }
+  syncInactivityTracking();
+  emitSessionChange();
+}
 
-    const resetTimer = () => {
-      if (inactivityTimeoutRef.current) {
-        window.clearTimeout(inactivityTimeoutRef.current);
-      }
+function expireSession() {
+  if (!currentUser) {
+    return;
+  }
 
-      inactivityTimeoutRef.current = window.setTimeout(() => {
-        persist(null);
-        pushToast({
-          title: 'Session expired due to no activity.',
-          description: 'Please sign in again to continue.',
-        }, 'info');
-      }, INACTIVITY_TIMEOUT_MS);
-    };
+  persistUser(null);
+  notifySessionExpired?.();
+}
 
-    const events: Array<keyof WindowEventMap> = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
-    resetTimer();
-    for (const eventName of events) {
-      window.addEventListener(eventName, resetTimer, { passive: true });
-    }
+function resetInactivityTimer() {
+  if (typeof window === 'undefined' || !currentUser) {
+    clearInactivityTimer();
+    return;
+  }
 
-    return () => {
-      if (inactivityTimeoutRef.current) {
-        window.clearTimeout(inactivityTimeoutRef.current);
-        inactivityTimeoutRef.current = null;
-      }
+  clearInactivityTimer();
+  inactivityTimeoutId = window.setTimeout(() => {
+    expireSession();
+  }, INACTIVITY_TIMEOUT_MS);
+}
 
-      for (const eventName of events) {
-        window.removeEventListener(eventName, resetTimer);
-      }
-    };
-  }, [pushToast, user]);
+function handleActivity() {
+  if (!currentUser) {
+    return;
+  }
+
+  resetInactivityTimer();
+}
+
+function attachActivityListeners() {
+  if (typeof window === 'undefined' || listenersAttached) {
+    return;
+  }
+
+  for (const eventName of ACTIVITY_EVENTS) {
+    window.addEventListener(eventName, handleActivity, { passive: true });
+  }
+
+  listenersAttached = true;
+}
+
+function syncInactivityTracking() {
+  if (!currentUser) {
+    clearInactivityTimer();
+    return;
+  }
+
+  attachActivityListeners();
+  resetInactivityTimer();
+}
+
+function subscribeToSession(listener: SessionListener) {
+  sessionListeners.add(listener);
+
+  return () => {
+    sessionListeners.delete(listener);
+  };
+}
+
+function getSessionSnapshot() {
+  return currentUser;
+}
+
+function getServerSnapshot() {
+  return null;
+}
+
+export function AuthProvider({ children }: PropsWithChildren) {
+  const { pushToast } = useToast();
+  const user = useSyncExternalStore(subscribeToSession, getSessionSnapshot, getServerSnapshot);
+
+  notifySessionExpired = () => {
+    pushToast(
+      {
+        title: 'Session expired due to no activity.',
+        description: 'Please sign in again to continue.',
+      },
+      'info',
+    );
+  };
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -92,14 +164,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
       isAuthenticated: Boolean(user),
       async login(input) {
         const nextUser = await advertifiedApi.login(input);
-        persist(nextUser);
+        persistUser(nextUser);
         return nextUser;
       },
       async register(input) {
         return advertifiedApi.register(input);
       },
       logout(reason = 'manual') {
-        persist(null);
+        persistUser(null);
         pushToast(
           reason === 'expired'
             ? {

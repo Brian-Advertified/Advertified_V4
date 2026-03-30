@@ -19,9 +19,9 @@ function buildCampaignNotifications(campaigns: Campaign[]): NotificationItem[] {
     if (campaign.status === 'paid') {
       return [{
         id: `campaign-paid-${campaign.id}`,
-        title: 'Complete your campaign brief',
-        description: `${campaign.campaignName} is paid and ready for your brief details.`,
-        href: `/campaigns/${campaign.id}/brief`,
+        title: 'Campaign workspace ready',
+        description: `${campaign.campaignName} is paid and ready in your simplified client workspace.`,
+        href: `/campaigns/${campaign.id}`,
         tone: 'info',
       }];
     }
@@ -31,7 +31,7 @@ function buildCampaignNotifications(campaigns: Campaign[]): NotificationItem[] {
         id: `campaign-review-${campaign.id}`,
         title: 'Recommendation ready for review',
         description: `${campaign.campaignName} is ready for your approval or change request.`,
-        href: `/campaigns/${campaign.id}/review`,
+        href: `/campaigns/${campaign.id}`,
         tone: 'success',
       }];
     }
@@ -51,7 +51,47 @@ function buildCampaignNotifications(campaigns: Campaign[]): NotificationItem[] {
         id: `campaign-approved-${campaign.id}`,
         title: 'Recommendation approved',
         description: `${campaign.campaignName} is approved and ready for the next step.`,
-        href: `/campaigns/${campaign.id}/review`,
+        href: `/campaigns/${campaign.id}`,
+        tone: 'success',
+      }];
+    }
+
+    if (campaign.status === 'creative_changes_requested') {
+      return [{
+        id: `campaign-creative-changes-${campaign.id}`,
+        title: 'Creative changes requested',
+        description: `${campaign.campaignName} has been sent back for creative revision.`,
+        href: `/campaigns/${campaign.id}`,
+        tone: 'warning',
+      }];
+    }
+
+    if (campaign.status === 'creative_sent_to_client_for_approval') {
+      return [{
+        id: `campaign-creative-review-${campaign.id}`,
+        title: 'Finished media ready for approval',
+        description: `${campaign.campaignName} has been sent back for your final approval.`,
+        href: `/campaigns/${campaign.id}`,
+        tone: 'success',
+      }];
+    }
+
+    if (campaign.status === 'creative_approved') {
+      return [{
+        id: `campaign-creative-approved-${campaign.id}`,
+        title: 'Final creative approved',
+        description: `${campaign.campaignName} has completed final creative approval and is waiting for activation.`,
+        href: `/campaigns/${campaign.id}`,
+        tone: 'success',
+      }];
+    }
+
+    if (campaign.status === 'launched') {
+      return [{
+        id: `campaign-live-${campaign.id}`,
+        title: 'Campaign live',
+        description: `${campaign.campaignName} is now live.`,
+        href: `/campaigns/${campaign.id}`,
         tone: 'success',
       }];
     }

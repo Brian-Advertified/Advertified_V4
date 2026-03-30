@@ -14,19 +14,22 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
     private readonly IInvoiceService _invoiceService;
     private readonly IVodaPayCheckoutService _vodaPayCheckoutService;
     private readonly IPaymentStateCache _paymentStateCache;
+    private readonly IAgentAreaRoutingService _agentAreaRoutingService;
 
     public PackagePurchaseService(
         AppDbContext db,
         ICampaignAccessService accessService,
         IInvoiceService invoiceService,
         IVodaPayCheckoutService vodaPayCheckoutService,
-        IPaymentStateCache paymentStateCache)
+        IPaymentStateCache paymentStateCache,
+        IAgentAreaRoutingService agentAreaRoutingService)
     {
         _db = db;
         _accessService = accessService;
         _invoiceService = invoiceService;
         _vodaPayCheckoutService = vodaPayCheckoutService;
         _paymentStateCache = paymentStateCache;
+        _agentAreaRoutingService = agentAreaRoutingService;
     }
 
     public async Task<CreatePackageOrderResponse> CreatePendingOrderAsync(Guid userId, CreatePackageOrderRequest request, CancellationToken cancellationToken)
@@ -171,6 +174,11 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
             _db.Campaigns.Add(campaign);
             await _db.SaveChangesAsync(cancellationToken);
             order.Campaign = campaign;
+        }
+
+        if (order.Campaign is not null)
+        {
+            await _agentAreaRoutingService.TryAssignCampaignAsync(order.Campaign.Id, "payment_completed", cancellationToken);
         }
 
         await _invoiceService.EnsureInvoiceAsync(

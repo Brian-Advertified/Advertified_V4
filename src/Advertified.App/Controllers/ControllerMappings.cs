@@ -243,7 +243,11 @@ internal static class ControllerMappings
             "brief_submitted" => "Choose planning mode",
             "planning_in_progress" => "Review your tailored recommendation",
             "review_ready" => "Approve or request updates",
-            "approved" => "Recommendation approved",
+            "approved" => "Creative production is in progress",
+            "creative_changes_requested" => "Creative revisions are in progress",
+            "creative_sent_to_client_for_approval" => "Review the finished media for final approval",
+            "creative_approved" => "Final approval is captured and activation is being prepared",
+            "launched" => "Campaign is now live",
             _ => "Continue campaign setup"
         };
     }
@@ -257,9 +261,13 @@ internal static class ControllerMappings
 
         var paymentComplete = campaign.Status is not "awaiting_purchase";
         var briefComplete = campaign.Status is not "paid" and not "brief_in_progress" || campaign.CampaignBrief?.SubmittedAt is not null;
-        var recommendationReady = campaign.Status is "planning_in_progress" or "review_ready" or "approved" || latestRecommendation is not null;
+        var recommendationReady = campaign.Status is "planning_in_progress" or "review_ready" or "approved" or "creative_changes_requested" or "creative_sent_to_client_for_approval" or "creative_approved" or "launched" || latestRecommendation is not null;
         var clientReviewActive = campaign.Status is "review_ready" || recommendationStatus == "sent_to_client";
-        var approved = campaign.Status is "approved" || recommendationStatus == "approved";
+        var recommendationApproved = campaign.Status is "approved" or "creative_changes_requested" or "creative_sent_to_client_for_approval" or "creative_approved" or "launched" || recommendationStatus == "approved";
+        var creativeProductionStarted = campaign.Status is "approved" or "creative_changes_requested" or "creative_sent_to_client_for_approval" or "creative_approved" or "launched";
+        var creativeReviewActive = campaign.Status == "creative_sent_to_client_for_approval";
+        var creativeApproved = campaign.Status is "creative_approved" or "launched";
+        var launchActivated = campaign.Status == "launched";
 
         return new[]
         {
@@ -285,14 +293,32 @@ internal static class ControllerMappings
                 key: "review",
                 label: "Client review",
                 description: "Review the recommendation and approve it or request changes.",
-                isComplete: approved,
-                isCurrent: clientReviewActive && !approved),
+                isComplete: recommendationApproved,
+                isCurrent: clientReviewActive && !recommendationApproved),
             BuildTimelineStep(
-                key: "approval",
-                label: "Approved and ready",
-                description: "Your recommendation is approved and ready for the next activation step.",
-                isComplete: approved,
-                isCurrent: approved)
+                key: "creative-production",
+                label: "Creative production",
+                description: "Advertified's creative director is preparing your finished media from the approved recommendation.",
+                isComplete: campaign.Status is "creative_sent_to_client_for_approval" or "creative_approved" or "launched",
+                isCurrent: creativeProductionStarted && !creativeReviewActive && !creativeApproved),
+            BuildTimelineStep(
+                key: "creative-approval",
+                label: "Final creative approval",
+                description: "Your finished media has been sent back for final client approval.",
+                isComplete: creativeApproved,
+                isCurrent: creativeReviewActive),
+            BuildTimelineStep(
+                key: "launch-ready",
+                label: "Launch ready",
+                description: "Final creative approval has been captured and operations can now activate the campaign.",
+                isComplete: launchActivated,
+                isCurrent: creativeApproved && !launchActivated),
+            BuildTimelineStep(
+                key: "live",
+                label: "Campaign live",
+                description: "Operations has activated the campaign and it is now live.",
+                isComplete: launchActivated,
+                isCurrent: false)
         };
     }
 

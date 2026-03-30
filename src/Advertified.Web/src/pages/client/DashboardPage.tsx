@@ -1,14 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
-import { BarChart3, BriefcaseBusiness, FolderKanban, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { DashboardSummaryCard } from '../../components/ui/DashboardSummaryCard';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { LoadingState } from '../../components/ui/LoadingState';
-import { StatusBadge } from '../../components/ui/StatusBadge';
 import { useAuth } from '../../features/auth/auth-context';
 import { getCampaignPrimaryAction } from '../../lib/access';
+import { formatCurrency, formatDate, titleCase } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
-import { PageHero } from '../../components/marketing/PageHero';
+import { ClientPortalShell, getCampaignProgressPercent } from './clientWorkspace';
 
 export function DashboardPage() {
   const { user } = useAuth();
@@ -29,66 +27,127 @@ export function DashboardPage() {
 
   const campaigns = campaignsQuery.data ?? [];
   const orders = ordersQuery.data ?? [];
-  const nextCampaign = campaigns[0];
-  const nextAction = nextCampaign ? getCampaignPrimaryAction(nextCampaign) : null;
 
   return (
-    <section className="page-shell space-y-8">
-      <PageHero
-        kicker="Client dashboard"
-        title="Your package, campaign, and planning progress in one view."
-        description="Track what you have unlocked, what happens next, and where each campaign sits in the journey."
-      />
-
-      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-        <DashboardSummaryCard label="Active campaigns" value={String(campaigns.length)} helper="Track every campaign from payment through recommendation review." icon={<FolderKanban className="size-5" />} />
-        <DashboardSummaryCard label="Package orders" value={String(orders.length)} helper="See every purchased package and its payment state." icon={<BriefcaseBusiness className="size-5" />} />
-        <DashboardSummaryCard label="Planning unlocked" value={String(campaigns.filter((item) => item.aiUnlocked).length)} helper="Unlocked only after payment and brief submission." icon={<Sparkles className="size-5" />} />
-        <DashboardSummaryCard label="Next actions" value={nextAction?.label ?? 'Buy a package'} helper="The dashboard keeps the path guided, not technical." icon={<BarChart3 className="size-5" />} />
+    <ClientPortalShell
+      campaigns={campaigns}
+      activeNav="dashboard"
+      title="Client Portal"
+      description="Your new overview for active campaigns, purchased packages, and the next workspace each campaign should open."
+    >
+      <div className="user-banner">
+        <strong>How it works:</strong> this is now the top-level client portal. Choose a campaign below to enter its simplified workspace with the current approval and direct team messaging.
       </div>
 
-      {nextCampaign && nextAction ? (
-        <div className="panel hero-glow px-6 py-8 text-white sm:px-8">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div className="max-w-3xl">
-              <div className="pill border-white/10 bg-white/10 text-white/75">{nextAction.stepLabel}</div>
-              <h2 className="mt-4 text-3xl font-semibold tracking-tight">{nextAction.label}</h2>
-              <p className="mt-3 text-base leading-8 text-white/75">{nextAction.description}</p>
-              <p className="mt-3 text-sm leading-7 text-white/65">
-                Campaign: {nextCampaign.campaignName} • Package: {nextCampaign.packageBandName}
-              </p>
+      <div className="user-grid-4">
+        <div className="user-card">
+          <h3>Active Campaigns</h3>
+          <div className="user-metric">{campaigns.length}</div>
+          <div className="user-muted">Campaign workspaces available in the new client flow.</div>
+        </div>
+        <div className="user-card">
+          <h3>Orders</h3>
+          <div className="user-metric">{orders.length}</div>
+          <div className="user-muted">Purchased packages linked to your account.</div>
+        </div>
+        <div className="user-card">
+          <h3>Planning Unlocked</h3>
+          <div className="user-metric">{campaigns.filter((campaign) => campaign.aiUnlocked).length}</div>
+          <div className="user-muted">Campaigns ready for planning and recommendation flow.</div>
+        </div>
+        <div className="user-card">
+          <h3>Approved</h3>
+          <div className="user-metric">{campaigns.filter((campaign) => campaign.status === 'approved' || campaign.status === 'creative_approved' || campaign.status === 'launched').length}</div>
+          <div className="user-muted">Campaigns that have reached approval in the live workflow.</div>
+        </div>
+      </div>
+
+      {orders.length ? (
+        <div className="mt-6">
+          <div className="user-card">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <h3 className="!mb-2">Recent Package Orders</h3>
+                <p className="user-muted">Billing and purchase history stays available here, without pulling you out of the main campaign flow.</p>
+              </div>
+              <Link to="/orders" className="user-btn-secondary">Open full order history</Link>
             </div>
-            <Link to={nextAction.href} className="inline-flex items-center justify-center rounded-full bg-white px-5 py-3 text-sm font-semibold text-ink transition hover:bg-white/90">
-              Continue
-            </Link>
+            <div className="mt-4 space-y-3">
+              {orders.slice(0, 3).map((order) => (
+                <div key={order.id} className="user-wire">
+                  <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                      <strong>{order.packageBandName}</strong>
+                      <div>{formatDate(order.createdAt)} | {formatCurrency(order.amount)}</div>
+                    </div>
+                    <div>{titleCase(order.paymentStatus)}{order.paymentReference ? ` | ${order.paymentReference}` : ''}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       ) : null}
 
       {campaigns.length ? (
-        <div className="grid gap-5 xl:grid-cols-2">
+        <div className="mt-6 space-y-4">
           {campaigns.map((campaign) => {
             const action = getCampaignPrimaryAction(campaign);
             return (
-            <Link key={campaign.id} to={action.href} className="panel flex flex-col gap-5 px-6 py-6 transition hover:-translate-y-1 hover:border-brand/30">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">{campaign.packageBandName}</p>
-                  <h3 className="mt-2 text-2xl font-semibold tracking-tight text-ink">{campaign.campaignName}</h3>
+              <div key={campaign.id} className="user-card">
+                <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap gap-2">
+                      <span className="user-pill">{campaign.packageBandName}</span>
+                      <span className="user-pill">{formatCurrency(campaign.selectedBudget)}</span>
+                      <span className="user-pill">{titleCase(campaign.status)}</span>
+                    </div>
+                    <div>
+                      <h3 className="!mb-2">{campaign.campaignName}</h3>
+                      <p className="user-muted">{campaign.nextAction}</p>
+                    </div>
+                  </div>
+                  <div className="text-left lg:text-right">
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Progress</div>
+                    <div className="mt-2 text-2xl font-semibold text-ink">{getCampaignProgressPercent(campaign)}%</div>
+                    <div className="mt-2 user-muted">Created {formatDate(campaign.createdAt)}</div>
+                  </div>
                 </div>
-                <StatusBadge status={campaign.status} />
+
+                <div className="user-grid-3 mt-4">
+                  <div className="user-wire">
+                    <strong>Primary action</strong>
+                    <div>{action.label}</div>
+                    <div className="mt-2">{action.description}</div>
+                  </div>
+                  <div className="user-wire">
+                    <strong>Planning mode</strong>
+                    <div>{campaign.planningMode ? titleCase(campaign.planningMode) : 'Not selected yet'}</div>
+                  </div>
+                  <div className="user-wire">
+                    <strong>Workspace</strong>
+                    <div>Open the campaign workspace to review the current approval and message your Advertified team from one screen.</div>
+                  </div>
+                </div>
+
+                <div className="user-toolbar mt-4">
+                  <Link to={`/campaigns/${campaign.id}`} className="user-btn-primary">Open Campaign Workspace</Link>
+                  <Link to={action.href} className="user-btn-secondary">Continue Next Step</Link>
+                </div>
               </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">{action.stepLabel}</p>
-                <p className="mt-2 text-sm leading-7 text-ink-soft">{action.description}</p>
-              </div>
-              <div className="text-sm font-semibold text-brand">{action.label}</div>
-            </Link>
-          );})}
+            );
+          })}
         </div>
       ) : (
-        <EmptyState title="No campaigns yet" description="Buy your first package to unlock a guided campaign journey and planning recommendations." ctaHref="/packages" ctaLabel="Browse packages" />
+        <div className="mt-6">
+          <EmptyState
+            title="No campaigns yet"
+            description="Buy your first package to unlock the new client portal workflow."
+            ctaHref="/packages"
+            ctaLabel="Browse packages"
+          />
+        </div>
       )}
-    </section>
+    </ClientPortalShell>
   );
 }

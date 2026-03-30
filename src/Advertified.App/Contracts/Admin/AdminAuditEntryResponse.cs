@@ -6,10 +6,12 @@ public sealed class AdminAuditEntryResponse
 {
     public Guid Id { get; set; }
     public string Source { get; set; } = string.Empty;
-    public string Provider { get; set; } = string.Empty;
+    public string ActorName { get; set; } = string.Empty;
+    public string ActorRole { get; set; } = string.Empty;
     public string EventType { get; set; } = string.Empty;
-    public string? ExternalReference { get; set; }
-    public string RequestUrl { get; set; } = string.Empty;
-    public int? ResponseStatusCode { get; set; }
+    public string? EntityType { get; set; }
+    public string? EntityLabel { get; set; }
+    public string Context { get; set; } = string.Empty;
+    public string? StatusLabel { get; set; }
     public DateTime CreatedAt { get; set; }
 }

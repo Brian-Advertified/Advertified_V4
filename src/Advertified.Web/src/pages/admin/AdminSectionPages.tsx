@@ -1,12 +1,18 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Eye, Globe2, MapPin, Pencil, PlusCircle, Save, ShieldCheck, Trash2, Upload, X, Zap } from 'lucide-react';
 import { useToast } from '../../components/ui/toast';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import type {
+  AdminCreateGeographyInput,
   AdminCreateOutletInput,
+  AdminGeographyDetail,
+  AdminUpdateEnginePolicyInput,
+  AdminUpdateGeographyInput,
   AdminOutletPricingPackage,
   AdminOutletSlotRate,
+  AdminUpsertPackageSettingInput,
+  AdminUpsertGeographyMappingInput,
   AdminUpdateOutletInput,
   AdminUpsertOutletPricingPackageInput,
   AdminUpsertOutletSlotRateInput,
@@ -65,12 +71,15 @@ type AdminUserFormState = {
   email: string;
   phone: string;
   password: string;
-  role: 'client' | 'agent' | 'admin';
+  role: 'client' | 'agent' | 'creative_director' | 'admin';
   accountStatus: string;
   isSaCitizen: boolean;
   emailVerified: boolean;
   phoneVerified: boolean;
+  assignedAreaCodes: string[];
 };
+
+const hasText = (value: string) => value.trim().length > 0;
 
 export function AdminStationsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -186,6 +195,7 @@ export function AdminStationsPage() {
     cityLabels: splitList(outletForm.cityLabels),
     audienceKeywords: splitList(outletForm.audienceKeywords),
   });
+  const outletFormIsValid = hasText(outletForm.code) && hasText(outletForm.name);
 
   const createOutletMutation = useMutation({
     mutationFn: () => advertifiedApi.createAdminOutlet(buildOutletPayload()),
@@ -220,19 +230,13 @@ export function AdminStationsPage() {
     onError: (error) => pushToast({ title: 'Could not delete outlet.', description: error instanceof Error ? error.message : 'Please try again.' }, 'error'),
   });
 
-  useEffect(() => {
-    const outlet = searchParams.get('outlet');
-    const mode = searchParams.get('mode');
-    const key = `${outlet ?? ''}|${mode ?? ''}`;
-    if (!outlet || !mode || handledSearchRef.current === key) {
-      return;
-    }
-
-    if (mode === 'edit' || mode === 'view') {
-      handledSearchRef.current = key;
-      void openExistingDialog(outlet, mode);
-    }
-  }, [searchParams]);
+  const outletFromSearch = searchParams.get('outlet');
+  const modeFromSearch = searchParams.get('mode');
+  const searchDialogKey = `${outletFromSearch ?? ''}|${modeFromSearch ?? ''}`;
+  if (outletFromSearch && (modeFromSearch === 'edit' || modeFromSearch === 'view') && handledSearchRef.current !== searchDialogKey) {
+    handledSearchRef.current = searchDialogKey;
+    void openExistingDialog(outletFromSearch, modeFromSearch);
+  }
 
   return (
     <AdminQueryBoundary query={query}>
@@ -340,7 +344,8 @@ export function AdminStationsPage() {
                   <div className="mt-6 flex flex-wrap items-center justify-end gap-3">
                     <button type="button" className="button-secondary px-5 py-3" onClick={closeDialog}>Close</button>
                     {dialogMode === 'edit' ? <button type="button" className="rounded-full border border-rose-200 bg-white px-5 py-3 font-semibold text-rose-600 transition hover:bg-rose-50" onClick={() => { if (selectedOutletCode && window.confirm(`Delete ${outletForm.name || selectedOutletCode}? This will remove the outlet and linked broadcast pricing records.`)) { deleteOutletMutation.mutate(selectedOutletCode); } }} disabled={deleteOutletMutation.isPending}>Delete outlet</button> : null}
-                    {dialogMode !== 'view' ? <button type="button" className="button-primary inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60" onClick={() => dialogMode === 'create' ? createOutletMutation.mutate() : updateOutletMutation.mutate()} disabled={createOutletMutation.isPending || updateOutletMutation.isPending}>
+                    {!outletFormIsValid && dialogMode !== 'view' ? <p className="text-sm text-rose-600">Outlet code and name are required before saving.</p> : null}
+                    {dialogMode !== 'view' ? <button type="button" className="button-primary inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60" onClick={() => dialogMode === 'create' ? createOutletMutation.mutate() : updateOutletMutation.mutate()} disabled={createOutletMutation.isPending || updateOutletMutation.isPending || !outletFormIsValid}>
                       <Save className="size-4" />
                       {dialogMode === 'create' ? 'Save outlet' : 'Update outlet'}
                     </button> : null}
@@ -360,9 +365,28 @@ export function AdminPricingPage() {
   const query = useAdminDashboardQuery();
   const queryClient = useQueryClient();
   const { pushToast } = useToast();
-  const [selectedOutletCode, setSelectedOutletCode] = useState('');
+  const [selectedOutletCodeState, setSelectedOutletCodeState] = useState('');
+  const [packageSettingDialog, setPackageSettingDialog] = useState<{ mode: 'create' | 'view' | 'edit'; id?: string } | null>(null);
   const [packageDialog, setPackageDialog] = useState<{ mode: 'create' | 'view' | 'edit'; id?: string } | null>(null);
   const [slotDialog, setSlotDialog] = useState<{ mode: 'create' | 'view' | 'edit'; id?: string } | null>(null);
+  const [packageSettingForm, setPackageSettingForm] = useState<AdminUpsertPackageSettingInput>({
+    code: '',
+    name: '',
+    minBudget: 0,
+    maxBudget: 0,
+    sortOrder: 0,
+    isActive: true,
+    description: '',
+    audienceFit: '',
+    quickBenefit: '',
+    packagePurpose: '',
+    includeRadio: 'optional',
+    includeTv: 'no',
+    leadTime: '',
+    recommendedSpend: undefined,
+    isRecommended: false,
+    benefits: [],
+  });
   const [packageForm, setPackageForm] = useState<AdminUpsertOutletPricingPackageInput>({
     packageName: '',
     packageType: '',
@@ -391,6 +415,10 @@ export function AdminPricingPage() {
     sourceDate: '',
     isActive: true,
   });
+  const selectedOutletCode = searchParams.get('outlet')
+    ?? selectedOutletCodeState
+    ?? query.data?.outlets?.[0]?.code
+    ?? '';
 
   const outletPricingQuery = useQuery({
     queryKey: ['admin-outlet-pricing', selectedOutletCode],
@@ -404,6 +432,40 @@ export function AdminPricingPage() {
       await queryClient.invalidateQueries({ queryKey: ['admin-outlet-pricing', selectedOutletCode] });
     }
   };
+
+  const refreshPackageSettings = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] });
+  };
+
+  const createPackageSettingMutation = useMutation({
+    mutationFn: () => advertifiedApi.createAdminPackageSetting(packageSettingForm),
+    onSuccess: async () => {
+      await refreshPackageSettings();
+      setPackageSettingDialog(null);
+      pushToast({ title: 'Package band saved.', description: 'The package settings are now available across the platform.' });
+    },
+    onError: (error) => pushToast({ title: 'Could not save package band.', description: error instanceof Error ? error.message : 'Please try again.' }, 'error'),
+  });
+
+  const updatePackageSettingMutation = useMutation({
+    mutationFn: () => advertifiedApi.updateAdminPackageSetting(packageSettingDialog?.id ?? '', packageSettingForm),
+    onSuccess: async () => {
+      await refreshPackageSettings();
+      setPackageSettingDialog(null);
+      pushToast({ title: 'Package band updated.', description: 'The package settings were updated successfully.' });
+    },
+    onError: (error) => pushToast({ title: 'Could not update package band.', description: error instanceof Error ? error.message : 'Please try again.' }, 'error'),
+  });
+
+  const deletePackageSettingMutation = useMutation({
+    mutationFn: (id: string) => advertifiedApi.deleteAdminPackageSetting(id),
+    onSuccess: async () => {
+      await refreshPackageSettings();
+      setPackageSettingDialog(null);
+      pushToast({ title: 'Package band deleted.', description: 'The package band was removed from the catalog.' });
+    },
+    onError: (error) => pushToast({ title: 'Could not delete package band.', description: error instanceof Error ? error.message : 'Please try again.' }, 'error'),
+  });
 
   const createPackageMutation = useMutation({
     mutationFn: () => advertifiedApi.createAdminOutletPricingPackage(selectedOutletCode, packageForm),
@@ -466,7 +528,13 @@ export function AdminPricingPage() {
   });
 
   const parseNumber = (value: string) => value.trim() === '' ? undefined : Number(value);
-  const dashboard = query.data;
+  const packageSettingFormIsValid = hasText(packageSettingForm.code)
+    && hasText(packageSettingForm.name)
+    && hasText(packageSettingForm.leadTime)
+    && packageSettingForm.maxBudget >= packageSettingForm.minBudget
+    && packageSettingForm.maxBudget > 0;
+  const packageFormIsValid = hasText(packageForm.packageName);
+  const slotFormIsValid = hasText(slotForm.dayGroup) && hasText(slotForm.startTime) && hasText(slotForm.endTime) && Number.isFinite(slotForm.rateZar);
   const selectedPackage = packageDialog?.id && outletPricingQuery.data
     ? outletPricingQuery.data.packages.find((entry) => entry.id === packageDialog.id)
     : null;
@@ -474,24 +542,67 @@ export function AdminPricingPage() {
     ? outletPricingQuery.data.slotRates.find((entry) => entry.id === slotDialog.id)
     : null;
 
-  useEffect(() => {
-    const pricingTarget = searchParams.get('outlet');
-    const outletOptions = dashboard?.outlets ?? [];
-    if (pricingTarget && pricingTarget !== selectedOutletCode) {
-      setSelectedOutletCode(pricingTarget);
-      return;
-    }
-
-    if (!pricingTarget && !selectedOutletCode && outletOptions.length > 0) {
-      setSelectedOutletCode(outletOptions[0].code);
-    }
-  }, [dashboard?.outlets, searchParams, selectedOutletCode]);
-
   return (
     <AdminQueryBoundary query={query}>
       {(dashboard) => {
         const outletOptions = [...dashboard.outlets].sort((left, right) => Number(left.hasPricing) - Number(right.hasPricing) || left.name.localeCompare(right.name));
         const selectedPricing = outletPricingQuery.data;
+        const selectedPackageSetting = packageSettingDialog?.id
+          ? dashboard.packageSettings.find((entry) => entry.id === packageSettingDialog.id) ?? null
+          : null;
+
+        const hydratePackageSettingForm = (item: (typeof dashboard.packageSettings)[number]) => {
+          setPackageSettingForm({
+            code: item.code,
+            name: item.name,
+            minBudget: item.minBudget,
+            maxBudget: item.maxBudget,
+            sortOrder: item.sortOrder,
+            isActive: item.isActive,
+            description: item.description,
+            audienceFit: item.audienceFit,
+            quickBenefit: item.quickBenefit,
+            packagePurpose: item.packagePurpose,
+            includeRadio: item.includeRadio,
+            includeTv: item.includeTv,
+            leadTime: item.leadTime,
+            recommendedSpend: item.recommendedSpend,
+            isRecommended: item.isRecommended,
+            benefits: item.benefits,
+          });
+        };
+
+        const openPackageSettingDialog = (mode: 'create' | 'view' | 'edit', id?: string) => {
+          if ((mode === 'edit' || mode === 'view') && id) {
+            const item = dashboard.packageSettings.find((entry) => entry.id === id);
+            if (item) {
+              hydratePackageSettingForm(item);
+            }
+          } else {
+            const nextSortOrder = dashboard.packageSettings.length > 0
+              ? Math.max(...dashboard.packageSettings.map((item) => item.sortOrder)) + 10
+              : 10;
+            setPackageSettingForm({
+              code: '',
+              name: '',
+              minBudget: 0,
+              maxBudget: 0,
+              sortOrder: nextSortOrder,
+              isActive: true,
+              description: '',
+              audienceFit: '',
+              quickBenefit: '',
+              packagePurpose: '',
+              includeRadio: 'optional',
+              includeTv: 'no',
+              leadTime: '',
+              recommendedSpend: undefined,
+              isRecommended: false,
+              benefits: [],
+            });
+          }
+          setPackageSettingDialog({ mode, id });
+        };
 
         const hydratePackageForm = (item: AdminOutletPricingPackage) => {
           setPackageForm({
@@ -591,7 +702,7 @@ export function AdminPricingPage() {
                     value={selectedOutletCode}
                     onChange={(event) => {
                       const next = event.target.value;
-                      setSelectedOutletCode(next);
+                      setSelectedOutletCodeState(next);
                       setSearchParams(next ? { outlet: next } : {});
                     }}
                   >
@@ -620,14 +731,20 @@ export function AdminPricingPage() {
                         Add package
                       </button>
                     </div>
-                    <div className="mt-4 overflow-hidden rounded-[24px] border border-line">
-                      <table className="w-full border-collapse text-sm">
-                        <thead className="bg-brand-soft text-left text-xs uppercase tracking-[0.18em] text-ink-soft"><tr><th className="px-4 py-4">Package</th><th className="px-4 py-4">Investment</th><th className="px-4 py-4">Monthly</th><th className="px-4 py-4">Duration</th><th className="px-4 py-4">Status</th><th className="px-4 py-4 text-right">Actions</th></tr></thead>
-                        <tbody>
-                          {selectedPricing.packages.length > 0 ? selectedPricing.packages.map((item) => <tr key={item.id} className="border-t border-line"><td className="px-4 py-4"><p className="font-semibold text-ink">{item.packageName}</p><p className="text-xs text-ink-soft">{item.packageType ?? 'General package'}</p></td><td className="px-4 py-4 text-ink-soft">{fmtCurrency(item.investmentZar ?? item.valueZar)}</td><td className="px-4 py-4 text-ink-soft">{fmtCurrency(item.costPerMonthZar)}</td><td className="px-4 py-4 text-ink-soft">{item.durationMonths ? `${item.durationMonths} month(s)` : item.durationWeeks ? `${item.durationWeeks} week(s)` : 'Not set'}</td><td className="px-4 py-4 text-ink-soft">{item.isActive ? 'Active' : 'Inactive'}</td><td className="px-4 py-4"><div className="flex justify-end gap-2"><ActionButton label={`View package ${item.packageName}`} icon={Eye} onClick={() => openPackageDialog('view', item.id)} /><ActionButton label={`Edit package ${item.packageName}`} icon={Pencil} onClick={() => openPackageDialog('edit', item.id)} /><ActionButton label={`Delete package ${item.packageName}`} icon={Trash2} variant="danger" disabled={deletePackageMutation.isPending} onClick={() => { if (window.confirm(`Delete package ${item.packageName}?`)) { deletePackageMutation.mutate(item.id); } }} /></div></td></tr>) : <tr><td colSpan={6} className="px-4 py-8"><EmptyTableState message="No package rows exist for this outlet yet." action={<button type="button" className="button-primary inline-flex items-center gap-2 px-4 py-3" onClick={() => openPackageDialog('create')}><PlusCircle className="size-4" />Add package</button>} /></td></tr>}
-                        </tbody>
-                      </table>
-                    </div>
+                    {selectedPricing.packages.length > 0 ? (
+                      <div className="mt-4 overflow-hidden rounded-[24px] border border-line">
+                        <table className="w-full border-collapse text-sm">
+                          <thead className="bg-brand-soft text-left text-xs uppercase tracking-[0.18em] text-ink-soft"><tr><th className="px-4 py-4">Package</th><th className="px-4 py-4">Investment</th><th className="px-4 py-4">Monthly</th><th className="px-4 py-4">Duration</th><th className="px-4 py-4">Status</th><th className="px-4 py-4 text-right">Actions</th></tr></thead>
+                          <tbody>
+                            {selectedPricing.packages.map((item) => <tr key={item.id} className="border-t border-line"><td className="px-4 py-4"><p className="font-semibold text-ink">{item.packageName}</p><p className="text-xs text-ink-soft">{item.packageType ?? 'General package'}</p></td><td className="px-4 py-4 text-ink-soft">{fmtCurrency(item.investmentZar ?? item.valueZar)}</td><td className="px-4 py-4 text-ink-soft">{fmtCurrency(item.costPerMonthZar)}</td><td className="px-4 py-4 text-ink-soft">{item.durationMonths ? `${item.durationMonths} month(s)` : item.durationWeeks ? `${item.durationWeeks} week(s)` : 'Not set'}</td><td className="px-4 py-4 text-ink-soft">{item.isActive ? 'Active' : 'Inactive'}</td><td className="px-4 py-4"><div className="flex justify-end gap-2"><ActionButton label={`View package ${item.packageName}`} icon={Eye} onClick={() => openPackageDialog('view', item.id)} /><ActionButton label={`Edit package ${item.packageName}`} icon={Pencil} onClick={() => openPackageDialog('edit', item.id)} /><ActionButton label={`Delete package ${item.packageName}`} icon={Trash2} variant="danger" disabled={deletePackageMutation.isPending} onClick={() => { if (window.confirm(`Delete package ${item.packageName}?`)) { deletePackageMutation.mutate(item.id); } }} /></div></td></tr>)}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="mt-4">
+                        <EmptyTableState message="No package rows exist for this outlet yet." action={<button type="button" className="button-primary inline-flex items-center gap-2 px-4 py-3" onClick={() => openPackageDialog('create')}><PlusCircle className="size-4" />Add package</button>} />
+                      </div>
+                    )}
                   </div>
 
                   <div className="panel p-6">
@@ -650,10 +767,102 @@ export function AdminPricingPage() {
                 </>
               ) : outletPricingQuery.isLoading ? <div className="panel p-6 text-sm text-ink-soft">Loading outlet pricing...</div> : <EmptyTableState message="Select an outlet to load package and slot-rate rows." />}
 
-              <ReadOnlyNotice label="Package band settings below are read-only on this page. They come from the live package catalog and planning rules rather than the outlet-pricing CRUD endpoints." />
-              <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                {dashboard.packageSettings.map((band) => <div key={band.id} className="panel p-6"><p className="text-xs font-semibold uppercase tracking-[0.24em] text-ink-soft">{band.name}</p><p className="mt-3 text-2xl font-semibold text-ink">{fmtCurrency(band.minBudget)} - {fmtCurrency(band.maxBudget)}</p><p className="mt-3 text-sm text-ink-soft">{band.quickBenefit}</p><div className="mt-4 space-y-2 text-sm text-ink-soft"><div><span className="font-semibold text-ink">Purpose:</span> {band.packagePurpose}</div><div><span className="font-semibold text-ink">Recommended spend:</span> {fmtCurrency(band.recommendedSpend)}</div><div><span className="font-semibold text-ink">Radio:</span> {titleize(band.includeRadio)}</div><div><span className="font-semibold text-ink">TV:</span> {titleize(band.includeTv)}</div><div><span className="font-semibold text-ink">Lead time:</span> {band.leadTime}</div></div></div>)}
-              </section>
+              <div className="panel p-6">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <h3 className="text-lg font-semibold text-ink">Package band settings</h3>
+                    <p className="mt-2 text-sm text-ink-soft">Manage the package catalog that drives public package selection, agent guidance, and planning rules.</p>
+                  </div>
+                  <button type="button" className="button-primary inline-flex items-center gap-2 px-4 py-3" onClick={() => openPackageSettingDialog('create')}>
+                    <PlusCircle className="size-4" />
+                    Add package band
+                  </button>
+                </div>
+                <div className="mt-4 overflow-hidden rounded-[24px] border border-line">
+                  <table className="w-full border-collapse text-sm">
+                    <thead className="bg-brand-soft text-left text-xs uppercase tracking-[0.18em] text-ink-soft"><tr><th className="px-4 py-4">Package band</th><th className="px-4 py-4">Budget range</th><th className="px-4 py-4">Planning signals</th><th className="px-4 py-4">Status</th><th className="px-4 py-4 text-right">Actions</th></tr></thead>
+                    <tbody>
+                      {dashboard.packageSettings.length > 0 ? dashboard.packageSettings.map((band) => (
+                        <tr key={band.id} className="border-t border-line">
+                          <td className="px-4 py-4">
+                            <p className="font-semibold text-ink">{band.name}</p>
+                            <p className="text-xs text-ink-soft">{band.code} | sort {band.sortOrder}</p>
+                            <p className="mt-1 text-xs text-ink-soft">{band.quickBenefit}</p>
+                          </td>
+                          <td className="px-4 py-4 text-ink-soft">
+                            <p>{fmtCurrency(band.minBudget)} - {fmtCurrency(band.maxBudget)}</p>
+                            <p className="text-xs">Recommended {fmtCurrency(band.recommendedSpend)}</p>
+                          </td>
+                          <td className="px-4 py-4 text-ink-soft">
+                            <p>{band.packagePurpose}</p>
+                            <p className="text-xs">Radio {titleize(band.includeRadio)} | TV {titleize(band.includeTv)} | {band.leadTime}</p>
+                          </td>
+                          <td className="px-4 py-4 text-ink-soft">
+                            <div>{band.isActive ? 'Active' : 'Inactive'}</div>
+                            <div className="text-xs">{band.isRecommended ? 'Recommended package' : 'Standard package'}</div>
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="flex justify-end gap-2">
+                              <ActionButton label={`View package band ${band.name}`} icon={Eye} onClick={() => openPackageSettingDialog('view', band.id)} />
+                              <ActionButton label={`Edit package band ${band.name}`} icon={Pencil} onClick={() => openPackageSettingDialog('edit', band.id)} />
+                              <ActionButton label={`Delete package band ${band.name}`} icon={Trash2} variant="danger" disabled={deletePackageSettingMutation.isPending} onClick={() => { if (window.confirm(`Delete package band ${band.name}? Package bands linked to campaigns or orders cannot be removed.`)) { deletePackageSettingMutation.mutate(band.id); } }} />
+                            </div>
+                          </td>
+                        </tr>
+                      )) : (
+                        <tr><td colSpan={5} className="px-4 py-8"><EmptyTableState message="No package bands exist yet." action={<button type="button" className="button-primary inline-flex items-center gap-2 px-4 py-3" onClick={() => openPackageSettingDialog('create')}><PlusCircle className="size-4" />Add package band</button>} /></td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {packageSettingDialog ? (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 p-4">
+                  <div className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-[28px] border border-line bg-white p-6 shadow-[0_24px_80px_rgba(15,23,42,0.18)]">
+                    <div className="flex items-center justify-between gap-4"><h3 className="text-xl font-semibold text-ink">{packageSettingDialog.mode === 'create' ? 'Add package band' : packageSettingDialog.mode === 'view' ? 'View package band' : 'Edit package band'}</h3><button type="button" className="button-secondary p-3" onClick={() => setPackageSettingDialog(null)}><X className="size-4" /></button></div>
+                    {packageSettingDialog.mode === 'view' && selectedPackageSetting ? <ReadOnlyNotice label={`Viewing ${selectedPackageSetting.name}. Switch to edit mode when you want to change catalog budgets, messaging, or package guidance.`} /> : null}
+                    <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                      <input disabled={packageSettingDialog.mode === 'view'} className="input-base disabled:bg-slate-50" placeholder="Code" value={packageSettingForm.code} onChange={(event) => setPackageSettingForm((current) => ({ ...current, code: event.target.value }))} />
+                      <input disabled={packageSettingDialog.mode === 'view'} className="input-base disabled:bg-slate-50" placeholder="Name" value={packageSettingForm.name} onChange={(event) => setPackageSettingForm((current) => ({ ...current, name: event.target.value }))} />
+                      <input disabled={packageSettingDialog.mode === 'view'} className="input-base disabled:bg-slate-50" type="number" placeholder="Sort order" value={packageSettingForm.sortOrder} onChange={(event) => setPackageSettingForm((current) => ({ ...current, sortOrder: Number(event.target.value) }))} />
+                      <input disabled={packageSettingDialog.mode === 'view'} className="input-base disabled:bg-slate-50" type="number" placeholder="Min budget ZAR" value={packageSettingForm.minBudget} onChange={(event) => setPackageSettingForm((current) => ({ ...current, minBudget: Number(event.target.value) }))} />
+                      <input disabled={packageSettingDialog.mode === 'view'} className="input-base disabled:bg-slate-50" type="number" placeholder="Max budget ZAR" value={packageSettingForm.maxBudget} onChange={(event) => setPackageSettingForm((current) => ({ ...current, maxBudget: Number(event.target.value) }))} />
+                      <input disabled={packageSettingDialog.mode === 'view'} className="input-base disabled:bg-slate-50" type="number" placeholder="Recommended spend ZAR" value={packageSettingForm.recommendedSpend ?? ''} onChange={(event) => setPackageSettingForm((current) => ({ ...current, recommendedSpend: parseNumber(event.target.value) }))} />
+                      <select disabled={packageSettingDialog.mode === 'view'} className="input-base disabled:bg-slate-50" value={packageSettingForm.includeRadio} onChange={(event) => setPackageSettingForm((current) => ({ ...current, includeRadio: event.target.value }))}>
+                        <option value="yes">Radio required</option>
+                        <option value="optional">Radio optional</option>
+                        <option value="no">Radio excluded</option>
+                      </select>
+                      <select disabled={packageSettingDialog.mode === 'view'} className="input-base disabled:bg-slate-50" value={packageSettingForm.includeTv} onChange={(event) => setPackageSettingForm((current) => ({ ...current, includeTv: event.target.value }))}>
+                        <option value="yes">TV required</option>
+                        <option value="optional">TV optional</option>
+                        <option value="no">TV excluded</option>
+                      </select>
+                      <input disabled={packageSettingDialog.mode === 'view'} className="input-base disabled:bg-slate-50" placeholder="Lead time" value={packageSettingForm.leadTime} onChange={(event) => setPackageSettingForm((current) => ({ ...current, leadTime: event.target.value }))} />
+                    </div>
+                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                      <input disabled={packageSettingDialog.mode === 'view'} className="input-base disabled:bg-slate-50" placeholder="Audience fit" value={packageSettingForm.audienceFit} onChange={(event) => setPackageSettingForm((current) => ({ ...current, audienceFit: event.target.value }))} />
+                      <input disabled={packageSettingDialog.mode === 'view'} className="input-base disabled:bg-slate-50" placeholder="Quick benefit" value={packageSettingForm.quickBenefit} onChange={(event) => setPackageSettingForm((current) => ({ ...current, quickBenefit: event.target.value }))} />
+                    </div>
+                    <textarea disabled={packageSettingDialog.mode === 'view'} className="input-base mt-4 min-h-[100px] disabled:bg-slate-50" placeholder="Description" value={packageSettingForm.description} onChange={(event) => setPackageSettingForm((current) => ({ ...current, description: event.target.value }))} />
+                    <textarea disabled={packageSettingDialog.mode === 'view'} className="input-base mt-4 min-h-[100px] disabled:bg-slate-50" placeholder="Package purpose" value={packageSettingForm.packagePurpose} onChange={(event) => setPackageSettingForm((current) => ({ ...current, packagePurpose: event.target.value }))} />
+                    <textarea disabled={packageSettingDialog.mode === 'view'} className="input-base mt-4 min-h-[100px] disabled:bg-slate-50" placeholder="Benefits, one per line" value={packageSettingForm.benefits.join('\n')} onChange={(event) => setPackageSettingForm((current) => ({ ...current, benefits: event.target.value.split('\n').map((item) => item.trim()).filter(Boolean) }))} />
+                    <div className="mt-4 flex flex-wrap items-center gap-5 text-sm text-ink-soft">
+                      <label className="inline-flex items-center gap-2"><input disabled={packageSettingDialog.mode === 'view'} type="checkbox" checked={packageSettingForm.isActive} onChange={(event) => setPackageSettingForm((current) => ({ ...current, isActive: event.target.checked }))} /> Active</label>
+                      <label className="inline-flex items-center gap-2"><input disabled={packageSettingDialog.mode === 'view'} type="checkbox" checked={packageSettingForm.isRecommended} onChange={(event) => setPackageSettingForm((current) => ({ ...current, isRecommended: event.target.checked }))} /> Recommended package</label>
+                    </div>
+                    {!packageSettingFormIsValid ? <p className="mt-3 text-sm text-rose-600">Code, name, lead time, and a valid budget range are required before saving.</p> : null}
+                    <div className="mt-6 flex justify-end gap-3">
+                      <button type="button" className="button-secondary px-5 py-3" onClick={() => setPackageSettingDialog(null)}>Close</button>
+                      {packageSettingDialog.mode === 'view' && selectedPackageSetting ? <button type="button" className="button-secondary px-5 py-3" onClick={() => openPackageSettingDialog('edit', selectedPackageSetting.id)}>Edit package band</button> : null}
+                      {packageSettingDialog.mode === 'edit' && selectedPackageSetting ? <button type="button" className="rounded-full border border-rose-200 bg-white px-5 py-3 font-semibold text-rose-600 transition hover:bg-rose-50" disabled={deletePackageSettingMutation.isPending} onClick={() => { if (window.confirm(`Delete package band ${selectedPackageSetting.name}? Package bands linked to campaigns or orders cannot be removed.`)) { deletePackageSettingMutation.mutate(selectedPackageSetting.id); } }}>Delete package band</button> : null}
+                      {packageSettingDialog.mode === 'create' ? <button type="button" className="button-primary px-5 py-3" disabled={!packageSettingFormIsValid || createPackageSettingMutation.isPending} onClick={() => createPackageSettingMutation.mutate()}>Save package band</button> : null}
+                      {packageSettingDialog.mode === 'edit' ? <button type="button" className="button-primary px-5 py-3" disabled={!packageSettingFormIsValid || updatePackageSettingMutation.isPending} onClick={() => updatePackageSettingMutation.mutate()}>Update package band</button> : null}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
 
               {packageDialog ? (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 p-4">
@@ -675,7 +884,8 @@ export function AdminPricingPage() {
                       <label className="inline-flex items-center gap-2 rounded-full border border-line px-4 py-3 text-sm text-ink-soft"><input disabled={packageDialog.mode === 'view'} type="checkbox" checked={packageForm.isActive} onChange={(event) => setPackageForm((current) => ({ ...current, isActive: event.target.checked }))} /> Active</label>
                     </div>
                     <textarea disabled={packageDialog.mode === 'view'} className="input-base mt-4 min-h-[110px] disabled:bg-slate-50" placeholder="Notes" value={packageForm.notes ?? ''} onChange={(event) => setPackageForm((current) => ({ ...current, notes: event.target.value }))} />
-                    <div className="mt-6 flex justify-end gap-3"><button type="button" className="button-secondary px-5 py-3" onClick={() => setPackageDialog(null)}>Close</button>{packageDialog.mode === 'view' && selectedPackage ? <button type="button" className="button-secondary px-5 py-3" onClick={() => openPackageDialog('edit', selectedPackage.id)}>Edit package</button> : null}{packageDialog.mode === 'create' ? <button type="button" className="button-primary px-5 py-3" onClick={() => createPackageMutation.mutate()}>Save package</button> : packageDialog.mode === 'edit' ? <button type="button" className="button-primary px-5 py-3" onClick={() => updatePackageMutation.mutate()}>Update package</button> : null}</div>
+                    {!packageFormIsValid ? <p className="mt-3 text-sm text-rose-600">Package name is required before saving.</p> : null}
+                    <div className="mt-6 flex justify-end gap-3"><button type="button" className="button-secondary px-5 py-3" onClick={() => setPackageDialog(null)}>Close</button>{packageDialog.mode === 'view' && selectedPackage ? <button type="button" className="button-secondary px-5 py-3" onClick={() => openPackageDialog('edit', selectedPackage.id)}>Edit package</button> : null}{packageDialog.mode === 'create' ? <button type="button" className="button-primary px-5 py-3" disabled={!packageFormIsValid || createPackageMutation.isPending} onClick={() => createPackageMutation.mutate()}>Save package</button> : packageDialog.mode === 'edit' ? <button type="button" className="button-primary px-5 py-3" disabled={!packageFormIsValid || updatePackageMutation.isPending} onClick={() => updatePackageMutation.mutate()}>Update package</button> : null}</div>
                   </div>
                 </div>
               ) : null}
@@ -696,7 +906,8 @@ export function AdminPricingPage() {
                       <input disabled={slotDialog.mode === 'view'} className="input-base disabled:bg-slate-50" type="date" value={slotForm.sourceDate ?? ''} onChange={(event) => setSlotForm((current) => ({ ...current, sourceDate: event.target.value }))} />
                       <label className="inline-flex items-center gap-2 rounded-full border border-line px-4 py-3 text-sm text-ink-soft"><input disabled={slotDialog.mode === 'view'} type="checkbox" checked={slotForm.isActive} onChange={(event) => setSlotForm((current) => ({ ...current, isActive: event.target.checked }))} /> Active</label>
                     </div>
-                    <div className="mt-6 flex justify-end gap-3"><button type="button" className="button-secondary px-5 py-3" onClick={() => setSlotDialog(null)}>Close</button>{slotDialog.mode === 'view' && selectedSlotRate ? <button type="button" className="button-secondary px-5 py-3" onClick={() => openSlotDialog('edit', selectedSlotRate.id)}>Edit slot rate</button> : null}{slotDialog.mode === 'create' ? <button type="button" className="button-primary px-5 py-3" onClick={() => createSlotMutation.mutate()}>Save slot rate</button> : slotDialog.mode === 'edit' ? <button type="button" className="button-primary px-5 py-3" onClick={() => updateSlotMutation.mutate()}>Update slot rate</button> : null}</div>
+                    {!slotFormIsValid ? <p className="mt-3 text-sm text-rose-600">Day group, start time, end time, and rate are required before saving.</p> : null}
+                    <div className="mt-6 flex justify-end gap-3"><button type="button" className="button-secondary px-5 py-3" onClick={() => setSlotDialog(null)}>Close</button>{slotDialog.mode === 'view' && selectedSlotRate ? <button type="button" className="button-secondary px-5 py-3" onClick={() => openSlotDialog('edit', selectedSlotRate.id)}>Edit slot rate</button> : null}{slotDialog.mode === 'create' ? <button type="button" className="button-primary px-5 py-3" disabled={!slotFormIsValid || createSlotMutation.isPending} onClick={() => createSlotMutation.mutate()}>Save slot rate</button> : slotDialog.mode === 'edit' ? <button type="button" className="button-primary px-5 py-3" disabled={!slotFormIsValid || updateSlotMutation.isPending} onClick={() => updateSlotMutation.mutate()}>Update slot rate</button> : null}</div>
                   </div>
                 </div>
               ) : null}
@@ -712,6 +923,8 @@ export function AdminImportsPage() {
   const query = useAdminDashboardQuery();
   const queryClient = useQueryClient();
   const { pushToast } = useToast();
+  const rateCardFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [importDialog, setImportDialog] = useState<{ mode: 'view' | 'edit'; sourceFile: string } | null>(null);
   const [rateCardForm, setRateCardForm] = useState({
     channel: 'radio',
     supplierOrStation: '',
@@ -719,9 +932,17 @@ export function AdminImportsPage() {
     notes: '',
     file: null as File | null,
   });
+  const [uploadAttempted, setUploadAttempted] = useState(false);
+  const [importForm, setImportForm] = useState({
+    channel: 'radio',
+    supplierOrStation: '',
+    documentTitle: '',
+    notes: '',
+  });
 
   const uploadRateCardMutation = useMutation({
     mutationFn: () => {
+      setUploadAttempted(true);
       if (!rateCardForm.file) {
         throw new Error('Choose a file to upload first.');
       }
@@ -735,6 +956,7 @@ export function AdminImportsPage() {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] });
+      setUploadAttempted(false);
       setRateCardForm({
         channel: 'radio',
         supplierOrStation: '',
@@ -746,10 +968,49 @@ export function AdminImportsPage() {
     },
     onError: (error) => pushToast({ title: 'Could not upload rate card.', description: error instanceof Error ? error.message : 'Please try again.' }, 'error'),
   });
+  const uploadFormIsValid = hasText(rateCardForm.channel) && !!rateCardForm.file;
+  const importFormIsValid = hasText(importForm.channel);
+
+  const updateRateCardMutation = useMutation({
+    mutationFn: () => advertifiedApi.updateAdminRateCard(importDialog?.sourceFile ?? '', {
+      channel: importForm.channel,
+      supplierOrStation: importForm.supplierOrStation || undefined,
+      documentTitle: importForm.documentTitle || undefined,
+      notes: importForm.notes || undefined,
+    }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] });
+      setImportDialog(null);
+      pushToast({ title: 'Rate card updated.', description: 'The import metadata was updated successfully.' });
+    },
+    onError: (error) => pushToast({ title: 'Could not update rate card.', description: error instanceof Error ? error.message : 'Please try again.' }, 'error'),
+  });
+
+  const deleteRateCardMutation = useMutation({
+    mutationFn: (sourceFile: string) => advertifiedApi.deleteAdminRateCard(sourceFile),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] });
+      setImportDialog(null);
+      pushToast({ title: 'Rate card deleted.', description: 'The import record and stored file were removed.' });
+    },
+    onError: (error) => pushToast({ title: 'Could not delete rate card.', description: error instanceof Error ? error.message : 'Please try again.' }, 'error'),
+  });
 
   return (
     <AdminQueryBoundary query={query}>
-      {(dashboard) => (
+      {(dashboard) => {
+        const selectedImport = importDialog ? dashboard.recentImports.find((item) => item.sourceFile === importDialog.sourceFile) ?? null : null;
+        const openImportDialog = (mode: 'view' | 'edit', item: (typeof dashboard.recentImports)[number]) => {
+          setImportForm({
+            channel: item.channel,
+            supplierOrStation: item.supplierOrStation ?? '',
+            documentTitle: item.documentTitle ?? '',
+            notes: item.notes ?? '',
+          });
+          setImportDialog({ mode, sourceFile: item.sourceFile });
+        };
+
+        return (
         <AdminPageShell title="Imports and rate cards" description="Upload new source files and review the live import manifest and document metadata already in the system.">
           <section className="space-y-6">
             <div className="panel p-6">
@@ -769,11 +1030,26 @@ export function AdminImportsPage() {
                 </select>
                 <input className="input-base" placeholder="Supplier or station" value={rateCardForm.supplierOrStation} onChange={(event) => setRateCardForm((current) => ({ ...current, supplierOrStation: event.target.value }))} />
                 <input className="input-base" placeholder="Document title" value={rateCardForm.documentTitle} onChange={(event) => setRateCardForm((current) => ({ ...current, documentTitle: event.target.value }))} />
-                <input type="file" className="input-base file:mr-3 file:rounded-full file:border-0 file:bg-brand-soft file:px-3 file:py-2 file:text-sm file:font-semibold file:text-brand" onChange={(event) => setRateCardForm((current) => ({ ...current, file: event.target.files?.[0] ?? null }))} />
+                <div className="flex min-h-[60px] items-center justify-between gap-3 rounded-[20px] border border-line bg-white px-4 py-3">
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Rate-card file</p>
+                    <p className="mt-1 truncate text-sm text-ink">{rateCardForm.file?.name ?? 'No file selected yet'}</p>
+                  </div>
+                  <input
+                    ref={rateCardFileInputRef}
+                    type="file"
+                    className="hidden"
+                    onChange={(event) => setRateCardForm((current) => ({ ...current, file: event.target.files?.[0] ?? null }))}
+                  />
+                  <button type="button" className="button-secondary shrink-0 px-4 py-2" onClick={() => rateCardFileInputRef.current?.click()}>
+                    {rateCardForm.file ? 'Change file' : 'Choose file'}
+                  </button>
+                </div>
               </div>
               <textarea className="input-base mt-4 min-h-[100px]" placeholder="Notes" value={rateCardForm.notes} onChange={(event) => setRateCardForm((current) => ({ ...current, notes: event.target.value }))} />
+              {uploadAttempted && !uploadFormIsValid ? <p className="mt-3 text-sm text-rose-600">Choose a channel and file before uploading a rate card.</p> : <p className="mt-3 text-sm text-ink-soft">Upload a source file once the channel and file are ready.</p>}
               <div className="mt-5 flex justify-end">
-                <button type="button" className="button-primary inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60" onClick={() => uploadRateCardMutation.mutate()} disabled={uploadRateCardMutation.isPending}>
+                <button type="button" className="button-primary inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60" onClick={() => uploadRateCardMutation.mutate()} disabled={uploadRateCardMutation.isPending || !uploadFormIsValid}>
                   <Upload className="size-4" />
                   Upload rate card
                 </button>
@@ -781,15 +1057,43 @@ export function AdminImportsPage() {
             </div>
             <div className="overflow-hidden rounded-[28px] border border-line">
               <table className="w-full border-collapse text-sm">
-                <thead className="bg-brand-soft text-left text-xs uppercase tracking-[0.18em] text-ink-soft"><tr><th className="px-4 py-4">Document</th><th className="px-4 py-4">Channel</th><th className="px-4 py-4">Supplier / Station</th><th className="px-4 py-4">Pages</th><th className="px-4 py-4">Imported</th></tr></thead>
+                <thead className="bg-brand-soft text-left text-xs uppercase tracking-[0.18em] text-ink-soft"><tr><th className="px-4 py-4">Document</th><th className="px-4 py-4">Channel</th><th className="px-4 py-4">Supplier / Station</th><th className="px-4 py-4">Pages</th><th className="px-4 py-4">Imported</th><th className="px-4 py-4 text-right">Actions</th></tr></thead>
                 <tbody>
-                  {dashboard.recentImports.map((item) => <tr key={`${item.sourceFile}-${item.importedAt}`} className="border-t border-line"><td className="px-4 py-4"><p className="font-semibold text-ink">{item.documentTitle ?? item.sourceFile}</p><p className="text-xs text-ink-soft">{item.sourceFile}</p></td><td className="px-4 py-4 text-ink-soft">{titleize(item.channel)}</td><td className="px-4 py-4 text-ink-soft">{item.supplierOrStation ?? 'Not classified yet'}</td><td className="px-4 py-4 text-ink-soft">{item.pageCount ?? 0}</td><td className="px-4 py-4 text-ink-soft">{fmtDate(item.importedAt)}</td></tr>)}
+                  {dashboard.recentImports.map((item) => <tr key={`${item.sourceFile}-${item.importedAt}`} className="border-t border-line"><td className="px-4 py-4"><p className="font-semibold text-ink">{item.documentTitle ?? item.sourceFile}</p><p className="text-xs text-ink-soft">{item.sourceFile}</p></td><td className="px-4 py-4 text-ink-soft">{titleize(item.channel)}</td><td className="px-4 py-4 text-ink-soft">{item.supplierOrStation ?? 'Not classified yet'}</td><td className="px-4 py-4 text-ink-soft">{item.pageCount ?? 0}</td><td className="px-4 py-4 text-ink-soft">{fmtDate(item.importedAt)}</td><td className="px-4 py-4"><div className="flex justify-end gap-2"><ActionButton label={`View ${item.documentTitle ?? item.sourceFile}`} icon={Eye} onClick={() => openImportDialog('view', item)} /><ActionButton label={`Edit ${item.documentTitle ?? item.sourceFile}`} icon={Pencil} onClick={() => openImportDialog('edit', item)} /><ActionButton label={`Delete ${item.documentTitle ?? item.sourceFile}`} icon={Trash2} variant="danger" disabled={deleteRateCardMutation.isPending} onClick={() => { if (window.confirm(`Delete ${item.documentTitle ?? item.sourceFile}? This removes the stored file and import metadata.`)) { deleteRateCardMutation.mutate(item.sourceFile); } }} /></div></td></tr>)}
                 </tbody>
               </table>
             </div>
+
+            {importDialog && selectedImport ? (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 p-4">
+                <div className="w-full max-w-4xl rounded-[28px] border border-line bg-white p-6 shadow-[0_24px_80px_rgba(15,23,42,0.18)]">
+                  <div className="flex items-center justify-between gap-4"><h3 className="text-xl font-semibold text-ink">{importDialog.mode === 'view' ? 'View import' : 'Edit import'}</h3><button type="button" className="button-secondary p-3" onClick={() => setImportDialog(null)}><X className="size-4" /></button></div>
+                  {importDialog.mode === 'view' ? <ReadOnlyNotice label="This import is open in view mode. Switch to edit mode to change channel or document metadata." /> : null}
+                  <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-ink-soft"><span className="pill">{selectedImport.sourceFile}</span><span>Imported {fmtDate(selectedImport.importedAt)}</span></div>
+                  <div className="mt-6 grid gap-4 md:grid-cols-2">
+                    <select disabled={importDialog.mode === 'view'} className="input-base disabled:bg-slate-50" value={importForm.channel} onChange={(event) => setImportForm((current) => ({ ...current, channel: event.target.value }))}>
+                      <option value="radio">Radio</option>
+                      <option value="tv">TV</option>
+                      <option value="ooh">OOH</option>
+                      <option value="digital">Digital</option>
+                    </select>
+                    <input disabled={importDialog.mode === 'view'} className="input-base disabled:bg-slate-50" placeholder="Supplier or station" value={importForm.supplierOrStation} onChange={(event) => setImportForm((current) => ({ ...current, supplierOrStation: event.target.value }))} />
+                    <input disabled={importDialog.mode === 'view'} className="input-base md:col-span-2 disabled:bg-slate-50" placeholder="Document title" value={importForm.documentTitle} onChange={(event) => setImportForm((current) => ({ ...current, documentTitle: event.target.value }))} />
+                  </div>
+                  <textarea disabled={importDialog.mode === 'view'} className="input-base mt-4 min-h-[120px] disabled:bg-slate-50" placeholder="Notes" value={importForm.notes} onChange={(event) => setImportForm((current) => ({ ...current, notes: event.target.value }))} />
+                    {!importFormIsValid ? <p className="mt-3 text-sm text-rose-600">Channel is required before you can update this import.</p> : null}
+                    <div className="mt-6 flex justify-end gap-3">
+                      <button type="button" className="button-secondary px-5 py-3" onClick={() => setImportDialog(null)}>Close</button>
+                      {importDialog.mode === 'view' ? <button type="button" className="button-secondary px-5 py-3" onClick={() => openImportDialog('edit', selectedImport)}>Edit import</button> : null}
+                      {importDialog.mode === 'edit' ? <button type="button" className="rounded-full border border-rose-200 bg-white px-5 py-3 font-semibold text-rose-600 transition hover:bg-rose-50" disabled={deleteRateCardMutation.isPending} onClick={() => { if (window.confirm(`Delete ${selectedImport.documentTitle ?? selectedImport.sourceFile}? This removes the stored file and import metadata.`)) { deleteRateCardMutation.mutate(selectedImport.sourceFile); } }}>Delete import</button> : null}
+                    {importDialog.mode === 'edit' ? <button type="button" className="button-primary px-5 py-3" onClick={() => updateRateCardMutation.mutate()} disabled={updateRateCardMutation.isPending || !importFormIsValid}>Update import</button> : null}
+                    </div>
+                </div>
+              </div>
+            ) : null}
           </section>
         </AdminPageShell>
-      )}
+      )}}
     </AdminQueryBoundary>
   );
 }
@@ -851,39 +1155,329 @@ export function AdminHealthPage() {
 
 export function AdminGeographyPage() {
   const query = useAdminDashboardQuery();
+  const queryClient = useQueryClient();
+  const { pushToast } = useToast();
+  const [selectedAreaCodeState, setSelectedAreaCodeState] = useState('');
+  const [areaDialog, setAreaDialog] = useState<{ mode: 'create' | 'view' | 'edit' } | null>(null);
+  const [mappingDialog, setMappingDialog] = useState<{ mode: 'create' | 'view' | 'edit'; id?: string } | null>(null);
+  const [areaForm, setAreaForm] = useState<AdminCreateGeographyInput & AdminUpdateGeographyInput>({
+    code: '',
+    label: '',
+    description: '',
+    fallbackLocations: [],
+    sortOrder: 100,
+    isActive: true,
+  });
+  const [fallbackLocationsInput, setFallbackLocationsInput] = useState('');
+  const [mappingForm, setMappingForm] = useState<AdminUpsertGeographyMappingInput>({
+    province: '',
+    city: '',
+    stationOrChannelName: '',
+  });
+  const selectedAreaCode = selectedAreaCodeState || query.data?.areas?.[0]?.code || '';
+
+  const geographyDetailQuery = useQuery({
+    queryKey: ['admin-geography', selectedAreaCode],
+    queryFn: () => advertifiedApi.getAdminGeography(selectedAreaCode),
+    enabled: !!selectedAreaCode,
+  });
+
+  const areaPayloadIsValid = hasText(areaForm.code) && hasText(areaForm.label);
+  const mappingPayloadIsValid = hasText(mappingForm.province ?? '') || hasText(mappingForm.city ?? '') || hasText(mappingForm.stationOrChannelName ?? '');
+
+  const createAreaMutation = useMutation({
+    mutationFn: () => advertifiedApi.createAdminGeography(areaForm),
+    onSuccess: async (result) => {
+      await queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] });
+      setSelectedAreaCodeState(result.code);
+      setAreaDialog(null);
+      pushToast({ title: 'Area created.', description: 'The geography area is now available to package previews and planning flows.' });
+    },
+    onError: (error) => pushToast({ title: 'Could not create area.', description: error instanceof Error ? error.message : 'Please try again.' }, 'error'),
+  });
+
+  const updateAreaMutation = useMutation({
+    mutationFn: () => advertifiedApi.updateAdminGeography(selectedAreaCode, areaForm),
+    onSuccess: async (result) => {
+      await queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] });
+      await queryClient.invalidateQueries({ queryKey: ['admin-geography', selectedAreaCode] });
+      setSelectedAreaCodeState(result.code);
+      setAreaDialog(null);
+      pushToast({ title: 'Area updated.', description: 'The geography area details were saved successfully.' });
+    },
+    onError: (error) => pushToast({ title: 'Could not update area.', description: error instanceof Error ? error.message : 'Please try again.' }, 'error'),
+  });
+
+  const deleteAreaMutation = useMutation({
+    mutationFn: (code: string) => advertifiedApi.deleteAdminGeography(code),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] });
+      setSelectedAreaCodeState('');
+      setAreaDialog(null);
+      pushToast({ title: 'Area deleted.', description: 'The geography area and its mapping rows were removed.' });
+    },
+    onError: (error) => pushToast({ title: 'Could not delete area.', description: error instanceof Error ? error.message : 'Please try again.' }, 'error'),
+  });
+
+  const createMappingMutation = useMutation({
+    mutationFn: () => advertifiedApi.createAdminGeographyMapping(selectedAreaCode, mappingForm),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] });
+      await queryClient.invalidateQueries({ queryKey: ['admin-geography', selectedAreaCode] });
+      setMappingDialog(null);
+      pushToast({ title: 'Mapping created.', description: 'The region-cluster mapping was added successfully.' });
+    },
+    onError: (error) => pushToast({ title: 'Could not create mapping.', description: error instanceof Error ? error.message : 'Please try again.' }, 'error'),
+  });
+
+  const updateMappingMutation = useMutation({
+    mutationFn: () => advertifiedApi.updateAdminGeographyMapping(selectedAreaCode, mappingDialog?.id ?? '', mappingForm),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] });
+      await queryClient.invalidateQueries({ queryKey: ['admin-geography', selectedAreaCode] });
+      setMappingDialog(null);
+      pushToast({ title: 'Mapping updated.', description: 'The region-cluster mapping was saved successfully.' });
+    },
+    onError: (error) => pushToast({ title: 'Could not update mapping.', description: error instanceof Error ? error.message : 'Please try again.' }, 'error'),
+  });
+
+  const deleteMappingMutation = useMutation({
+    mutationFn: (id: string) => advertifiedApi.deleteAdminGeographyMapping(selectedAreaCode, id),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] });
+      await queryClient.invalidateQueries({ queryKey: ['admin-geography', selectedAreaCode] });
+      setMappingDialog(null);
+      pushToast({ title: 'Mapping deleted.', description: 'The region-cluster mapping row was removed.' });
+    },
+    onError: (error) => pushToast({ title: 'Could not delete mapping.', description: error instanceof Error ? error.message : 'Please try again.' }, 'error'),
+  });
 
   return (
     <AdminQueryBoundary query={query}>
-      {(dashboard) => (
-        <AdminPageShell title="Geography mapping" description="Review the live package area profiles and how many cluster mappings are backing each area.">
-          <ReadOnlyNotice label="Geography mapping is read-only here. This page reflects the live package-area profile data currently backing planning and package coverage." />
-          <div className="overflow-hidden rounded-[28px] border border-line">
-            <table className="w-full border-collapse text-sm">
-              <thead className="bg-brand-soft text-left text-xs uppercase tracking-[0.18em] text-ink-soft"><tr><th className="px-4 py-4">Area</th><th className="px-4 py-4">Code</th><th className="px-4 py-4">Description</th><th className="px-4 py-4">Mapped records</th></tr></thead>
-              <tbody>
-                {dashboard.areas.map((area) => <tr key={area.code} className="border-t border-line"><td className="px-4 py-4 font-semibold text-ink">{area.label}</td><td className="px-4 py-4 text-ink-soft">{area.code}</td><td className="px-4 py-4 text-ink-soft">{area.description}</td><td className="px-4 py-4 text-ink-soft">{area.mappingCount}</td></tr>)}
-              </tbody>
-            </table>
-          </div>
-        </AdminPageShell>
-      )}
+      {(dashboard) => {
+        const selectedDetail = geographyDetailQuery.data;
+        const selectedMapping = mappingDialog?.id && selectedDetail
+          ? selectedDetail.mappings.find((item) => item.id === mappingDialog.id) ?? null
+          : null;
+        const openAreaDialog = (mode: 'create' | 'view' | 'edit', detail?: AdminGeographyDetail | null) => {
+          if (mode === 'create' || !detail) {
+            setAreaForm({ code: '', label: '', description: '', fallbackLocations: [], sortOrder: 100, isActive: true });
+            setFallbackLocationsInput('');
+            setAreaDialog({ mode });
+            return;
+          }
+
+          setAreaForm({
+            code: detail.code,
+            label: detail.label,
+            description: detail.description,
+            fallbackLocations: detail.fallbackLocations,
+            sortOrder: detail.sortOrder,
+            isActive: detail.isActive,
+          });
+          setFallbackLocationsInput(detail.fallbackLocations.join(', '));
+          setAreaDialog({ mode });
+        };
+        const openMappingDialog = (mode: 'create' | 'view' | 'edit', mapping?: AdminGeographyDetail['mappings'][number] | null) => {
+          if (mode === 'create' || !mapping) {
+            setMappingForm({ province: '', city: '', stationOrChannelName: '' });
+            setMappingDialog({ mode });
+            return;
+          }
+
+          setMappingForm({
+            province: mapping.province ?? '',
+            city: mapping.city ?? '',
+            stationOrChannelName: mapping.stationOrChannelName ?? '',
+          });
+          setMappingDialog({ mode, id: mapping.id });
+        };
+
+        return (
+          <AdminPageShell title="Geography mapping" description="Manage package area profiles and the live region-cluster mappings that support planning coverage.">
+            <section className="space-y-6">
+              <div className="panel p-6">
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-ink">Area profiles</h3>
+                    <p className="mt-2 text-sm text-ink-soft">Create and maintain package-area profiles, fallback locations, and the cluster mappings used in preview and planning logic.</p>
+                  </div>
+                  <button type="button" className="button-primary inline-flex items-center gap-2 px-5 py-3" onClick={() => openAreaDialog('create')}>
+                    <PlusCircle className="size-4" />
+                    Add area
+                  </button>
+                </div>
+              </div>
+
+              <div className="overflow-hidden rounded-[28px] border border-line">
+                <table className="w-full border-collapse text-sm">
+                  <thead className="bg-brand-soft text-left text-xs uppercase tracking-[0.18em] text-ink-soft"><tr><th className="px-4 py-4">Area</th><th className="px-4 py-4">Code</th><th className="px-4 py-4">Description</th><th className="px-4 py-4">Mapped records</th><th className="px-4 py-4 text-right">Actions</th></tr></thead>
+                  <tbody>
+                    {dashboard.areas.map((area) => <tr key={area.code} className="border-t border-line"><td className="px-4 py-4 font-semibold text-ink">{area.label}</td><td className="px-4 py-4 text-ink-soft">{area.code}</td><td className="px-4 py-4 text-ink-soft">{area.description}</td><td className="px-4 py-4 text-ink-soft">{area.mappingCount}</td><td className="px-4 py-4"><div className="flex justify-end gap-2"><ActionButton label={`View ${area.label}`} icon={Eye} onClick={async () => { setSelectedAreaCodeState(area.code); const detail = await queryClient.fetchQuery({ queryKey: ['admin-geography', area.code], queryFn: () => advertifiedApi.getAdminGeography(area.code) }); openAreaDialog('view', detail); }} /><ActionButton label={`Edit ${area.label}`} icon={Pencil} onClick={async () => { setSelectedAreaCodeState(area.code); const detail = await queryClient.fetchQuery({ queryKey: ['admin-geography', area.code], queryFn: () => advertifiedApi.getAdminGeography(area.code) }); openAreaDialog('edit', detail); }} /><ActionButton label={`Delete ${area.label}`} icon={Trash2} variant="danger" disabled={deleteAreaMutation.isPending} onClick={() => { if (window.confirm(`Delete ${area.label}? This also removes its cluster mappings.`)) { deleteAreaMutation.mutate(area.code); } }} /></div></td></tr>)}
+                  </tbody>
+                </table>
+              </div>
+
+              {selectedDetail ? (
+                <div className="panel p-6">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-ink">{selectedDetail.label}</h3>
+                      <p className="mt-2 text-sm text-ink-soft">{selectedDetail.description || 'No description configured.'}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-3">
+                      <span className="pill">Code: {selectedDetail.code}</span>
+                      <span className="pill">{selectedDetail.isActive ? 'Active' : 'Inactive'}</span>
+                      <button type="button" className="button-primary inline-flex items-center gap-2 px-4 py-3" onClick={() => openMappingDialog('create')}>
+                        <PlusCircle className="size-4" />
+                        Add mapping
+                      </button>
+                    </div>
+                  </div>
+                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                    <div className="rounded-[24px] border border-line bg-slate-50 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Fallback locations</p>
+                      <p className="mt-3 text-sm text-ink-soft">{selectedDetail.fallbackLocations.join(', ') || 'No fallback locations configured.'}</p>
+                    </div>
+                    <div className="rounded-[24px] border border-line bg-slate-50 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Sort order</p>
+                      <p className="mt-3 text-sm text-ink-soft">{selectedDetail.sortOrder}</p>
+                    </div>
+                  </div>
+                  <div className="mt-6 overflow-hidden rounded-[24px] border border-line">
+                    <table className="w-full border-collapse text-sm">
+                      <thead className="bg-brand-soft text-left text-xs uppercase tracking-[0.18em] text-ink-soft"><tr><th className="px-4 py-4">Province</th><th className="px-4 py-4">City</th><th className="px-4 py-4">Station / channel</th><th className="px-4 py-4 text-right">Actions</th></tr></thead>
+                      <tbody>
+                        {selectedDetail.mappings.length > 0 ? selectedDetail.mappings.map((mapping) => <tr key={mapping.id} className="border-t border-line"><td className="px-4 py-4 text-ink-soft">{mapping.province ?? 'Not set'}</td><td className="px-4 py-4 text-ink-soft">{mapping.city ?? 'Not set'}</td><td className="px-4 py-4 text-ink-soft">{mapping.stationOrChannelName ?? 'Not set'}</td><td className="px-4 py-4"><div className="flex justify-end gap-2"><ActionButton label="View mapping" icon={Eye} onClick={() => openMappingDialog('view', mapping)} /><ActionButton label="Edit mapping" icon={Pencil} onClick={() => openMappingDialog('edit', mapping)} /><ActionButton label="Delete mapping" icon={Trash2} variant="danger" disabled={deleteMappingMutation.isPending} onClick={() => { if (window.confirm('Delete this mapping row?')) { deleteMappingMutation.mutate(mapping.id); } }} /></div></td></tr>) : <tr><td colSpan={4} className="px-4 py-8"><EmptyTableState message="No region-cluster mappings have been configured for this area yet." action={<button type="button" className="button-primary inline-flex items-center gap-2 px-4 py-3" onClick={() => openMappingDialog('create')}><PlusCircle className="size-4" />Add mapping</button>} /></td></tr>}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : geographyDetailQuery.isLoading ? <div className="panel p-6 text-sm text-ink-soft">Loading area details...</div> : null}
+
+              {areaDialog ? (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 p-4">
+                  <div className="w-full max-w-4xl rounded-[28px] border border-line bg-white p-6 shadow-[0_24px_80px_rgba(15,23,42,0.18)]">
+                    <div className="flex items-center justify-between gap-4"><h3 className="text-xl font-semibold text-ink">{areaDialog.mode === 'create' ? 'Add area' : areaDialog.mode === 'view' ? 'View area' : 'Edit area'}</h3><button type="button" className="button-secondary p-3" onClick={() => setAreaDialog(null)}><X className="size-4" /></button></div>
+                    {areaDialog.mode === 'view' ? <ReadOnlyNotice label="This area is open in view mode. Switch to edit mode to change profile details or fallback locations." /> : null}
+                    <div className="mt-6 grid gap-4 md:grid-cols-2">
+                      <input disabled={areaDialog.mode === 'view'} className="input-base disabled:bg-slate-50" placeholder="Area code" value={areaForm.code} onChange={(event) => setAreaForm((current) => ({ ...current, code: event.target.value }))} />
+                      <input disabled={areaDialog.mode === 'view'} className="input-base disabled:bg-slate-50" placeholder="Area label" value={areaForm.label} onChange={(event) => setAreaForm((current) => ({ ...current, label: event.target.value }))} />
+                      <input disabled={areaDialog.mode === 'view'} className="input-base md:col-span-2 disabled:bg-slate-50" placeholder="Fallback locations, comma separated" value={fallbackLocationsInput} onChange={(event) => { setFallbackLocationsInput(event.target.value); setAreaForm((current) => ({ ...current, fallbackLocations: splitList(event.target.value) })); }} />
+                      <input disabled={areaDialog.mode === 'view'} className="input-base disabled:bg-slate-50" type="number" placeholder="Sort order" value={areaForm.sortOrder} onChange={(event) => setAreaForm((current) => ({ ...current, sortOrder: Number(event.target.value) }))} />
+                      <label className="inline-flex items-center gap-2 rounded-full border border-line px-4 py-3 text-sm text-ink-soft"><input disabled={areaDialog.mode === 'view'} type="checkbox" checked={areaForm.isActive} onChange={(event) => setAreaForm((current) => ({ ...current, isActive: event.target.checked }))} /> Active</label>
+                    </div>
+                    <textarea disabled={areaDialog.mode === 'view'} className="input-base mt-4 min-h-[120px] disabled:bg-slate-50" placeholder="Description" value={areaForm.description} onChange={(event) => setAreaForm((current) => ({ ...current, description: event.target.value }))} />
+                    {!areaPayloadIsValid ? <p className="mt-3 text-sm text-rose-600">Area code and label are required before you can save.</p> : null}
+                    <div className="mt-6 flex justify-end gap-3">
+                      <button type="button" className="button-secondary px-5 py-3" onClick={() => setAreaDialog(null)}>Close</button>
+                      {areaDialog.mode === 'view' && selectedDetail ? <button type="button" className="button-secondary px-5 py-3" onClick={() => openAreaDialog('edit', selectedDetail)}>Edit area</button> : null}
+                      {areaDialog.mode === 'edit' ? <button type="button" className="rounded-full border border-rose-200 bg-white px-5 py-3 font-semibold text-rose-600 transition hover:bg-rose-50" disabled={deleteAreaMutation.isPending} onClick={() => { if (window.confirm(`Delete ${areaForm.label || areaForm.code}? This also removes its cluster mappings.`)) { deleteAreaMutation.mutate(selectedAreaCode); } }}>Delete area</button> : null}
+                      {areaDialog.mode === 'create' ? <button type="button" className="button-primary px-5 py-3" disabled={createAreaMutation.isPending || !areaPayloadIsValid} onClick={() => createAreaMutation.mutate()}>Save area</button> : null}
+                      {areaDialog.mode === 'edit' ? <button type="button" className="button-primary px-5 py-3" disabled={updateAreaMutation.isPending || !areaPayloadIsValid} onClick={() => updateAreaMutation.mutate()}>Update area</button> : null}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {mappingDialog ? (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 p-4">
+                  <div className="w-full max-w-3xl rounded-[28px] border border-line bg-white p-6 shadow-[0_24px_80px_rgba(15,23,42,0.18)]">
+                    <div className="flex items-center justify-between gap-4"><h3 className="text-xl font-semibold text-ink">{mappingDialog.mode === 'create' ? 'Add mapping' : mappingDialog.mode === 'view' ? 'View mapping' : 'Edit mapping'}</h3><button type="button" className="button-secondary p-3" onClick={() => setMappingDialog(null)}><X className="size-4" /></button></div>
+                    {mappingDialog.mode === 'view' ? <ReadOnlyNotice label="This mapping row is open in view mode. Switch to edit mode to change province, city, or station targeting." /> : null}
+                    <div className="mt-6 grid gap-4 md:grid-cols-2">
+                      <input disabled={mappingDialog.mode === 'view'} className="input-base disabled:bg-slate-50" placeholder="Province" value={mappingForm.province ?? ''} onChange={(event) => setMappingForm((current) => ({ ...current, province: event.target.value }))} />
+                      <input disabled={mappingDialog.mode === 'view'} className="input-base disabled:bg-slate-50" placeholder="City" value={mappingForm.city ?? ''} onChange={(event) => setMappingForm((current) => ({ ...current, city: event.target.value }))} />
+                      <input disabled={mappingDialog.mode === 'view'} className="input-base md:col-span-2 disabled:bg-slate-50" placeholder="Station or channel name" value={mappingForm.stationOrChannelName ?? ''} onChange={(event) => setMappingForm((current) => ({ ...current, stationOrChannelName: event.target.value }))} />
+                    </div>
+                    {!mappingPayloadIsValid ? <p className="mt-3 text-sm text-rose-600">Provide at least one of province, city, or station/channel name before saving.</p> : null}
+                    <div className="mt-6 flex justify-end gap-3">
+                      <button type="button" className="button-secondary px-5 py-3" onClick={() => setMappingDialog(null)}>Close</button>
+                      {mappingDialog.mode === 'view' && selectedMapping ? <button type="button" className="button-secondary px-5 py-3" onClick={() => openMappingDialog('edit', selectedMapping)}>Edit mapping</button> : null}
+                      {mappingDialog.mode === 'edit' && selectedMapping ? <button type="button" className="rounded-full border border-rose-200 bg-white px-5 py-3 font-semibold text-rose-600 transition hover:bg-rose-50" disabled={deleteMappingMutation.isPending} onClick={() => { if (window.confirm('Delete this mapping row?')) { deleteMappingMutation.mutate(selectedMapping.id); } }}>Delete mapping</button> : null}
+                      {mappingDialog.mode === 'create' ? <button type="button" className="button-primary px-5 py-3" disabled={createMappingMutation.isPending || !mappingPayloadIsValid} onClick={() => createMappingMutation.mutate()}>Save mapping</button> : null}
+                      {mappingDialog.mode === 'edit' ? <button type="button" className="button-primary px-5 py-3" disabled={updateMappingMutation.isPending || !mappingPayloadIsValid} onClick={() => updateMappingMutation.mutate()}>Update mapping</button> : null}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </section>
+          </AdminPageShell>
+        );
+      }}
     </AdminQueryBoundary>
   );
 }
 
 export function AdminEnginePage() {
   const query = useAdminDashboardQuery();
+  const queryClient = useQueryClient();
+  const { pushToast } = useToast();
+  const [engineDialog, setEngineDialog] = useState<{ mode: 'view' | 'edit'; packageCode: string } | null>(null);
+  const [engineForm, setEngineForm] = useState<AdminUpdateEnginePolicyInput>({
+    budgetFloor: 0,
+    minimumNationalRadioCandidates: 0,
+    requireNationalCapableRadio: false,
+    requirePremiumNationalRadio: false,
+    nationalRadioBonus: 0,
+    nonNationalRadioPenalty: 0,
+    regionalRadioPenalty: 0,
+  });
+
+  const updateEnginePolicyMutation = useMutation({
+    mutationFn: () => advertifiedApi.updateAdminEnginePolicy(engineDialog?.packageCode ?? '', engineForm),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] });
+      setEngineDialog(null);
+      pushToast({ title: 'Engine policy updated.', description: 'The planning policy override is now persisted for the live engine.' });
+    },
+    onError: (error) => pushToast({ title: 'Could not update engine policy.', description: error instanceof Error ? error.message : 'Please try again.' }, 'error'),
+  });
 
   return (
     <AdminQueryBoundary query={query}>
-      {(dashboard) => (
-        <AdminPageShell title="Engine settings" description="Inspect the live planning policy configuration that governs candidate thresholds, national requirements, and scoring pressure.">
-          <ReadOnlyNotice label="Engine policy values are read-only on this screen. They are derived from the live planning configuration and are shown here for operational review." />
-          <div className="grid gap-4 xl:grid-cols-2">
-            {dashboard.enginePolicies.map((policy) => <div key={policy.packageCode} className="panel p-6"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.24em] text-ink-soft">{policy.packageCode}</p><p className="mt-3 text-2xl font-semibold text-ink">{fmtCurrency(policy.budgetFloor)}</p></div><span className="pill">{policy.requirePremiumNationalRadio ? 'Premium national radio required' : 'Flexible radio qualification'}</span></div><div className="mt-5 grid gap-2 text-sm text-ink-soft sm:grid-cols-2"><div><span className="font-semibold text-ink">Min national radio:</span> {policy.minimumNationalRadioCandidates}</div><div><span className="font-semibold text-ink">National capable:</span> {policy.requireNationalCapableRadio ? 'Yes' : 'No'}</div><div><span className="font-semibold text-ink">National bonus:</span> {policy.nationalRadioBonus}</div><div><span className="font-semibold text-ink">Non-national penalty:</span> {policy.nonNationalRadioPenalty}</div><div><span className="font-semibold text-ink">Regional penalty:</span> {policy.regionalRadioPenalty}</div></div></div>)}
-          </div>
-        </AdminPageShell>
-      )}
+      {(dashboard) => {
+        const selectedPolicy = engineDialog ? dashboard.enginePolicies.find((policy) => policy.packageCode === engineDialog.packageCode) ?? null : null;
+        const openEngineDialog = (mode: 'view' | 'edit', policy: (typeof dashboard.enginePolicies)[number]) => {
+          setEngineForm({
+            budgetFloor: policy.budgetFloor,
+            minimumNationalRadioCandidates: policy.minimumNationalRadioCandidates,
+            requireNationalCapableRadio: policy.requireNationalCapableRadio,
+            requirePremiumNationalRadio: policy.requirePremiumNationalRadio,
+            nationalRadioBonus: policy.nationalRadioBonus,
+            nonNationalRadioPenalty: policy.nonNationalRadioPenalty,
+            regionalRadioPenalty: policy.regionalRadioPenalty,
+          });
+          setEngineDialog({ mode, packageCode: policy.packageCode });
+        };
+
+        return (
+          <AdminPageShell title="Engine settings" description="Manage the persisted planning policy thresholds that govern candidate qualification, national requirements, and scoring pressure.">
+            <div className="grid gap-4 xl:grid-cols-2">
+              {dashboard.enginePolicies.map((policy) => <div key={policy.packageCode} className="panel p-6"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.24em] text-ink-soft">{policy.packageCode}</p><p className="mt-3 text-2xl font-semibold text-ink">{fmtCurrency(policy.budgetFloor)}</p></div><div className="flex items-center gap-2"><span className="pill">{policy.requirePremiumNationalRadio ? 'Premium national radio required' : 'Flexible radio qualification'}</span><ActionButton label={`View ${policy.packageCode} policy`} icon={Eye} onClick={() => openEngineDialog('view', policy)} /><ActionButton label={`Edit ${policy.packageCode} policy`} icon={Pencil} onClick={() => openEngineDialog('edit', policy)} /></div></div><div className="mt-5 grid gap-2 text-sm text-ink-soft sm:grid-cols-2"><div><span className="font-semibold text-ink">Min national radio:</span> {policy.minimumNationalRadioCandidates}</div><div><span className="font-semibold text-ink">National capable:</span> {policy.requireNationalCapableRadio ? 'Yes' : 'No'}</div><div><span className="font-semibold text-ink">National bonus:</span> {policy.nationalRadioBonus}</div><div><span className="font-semibold text-ink">Non-national penalty:</span> {policy.nonNationalRadioPenalty}</div><div><span className="font-semibold text-ink">Regional penalty:</span> {policy.regionalRadioPenalty}</div></div></div>)}
+            </div>
+
+            {engineDialog && selectedPolicy ? (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 p-4">
+                <div className="w-full max-w-4xl rounded-[28px] border border-line bg-white p-6 shadow-[0_24px_80px_rgba(15,23,42,0.18)]">
+                  <div className="flex items-center justify-between gap-4"><h3 className="text-xl font-semibold text-ink">{engineDialog.mode === 'view' ? 'View engine policy' : 'Edit engine policy'}</h3><button type="button" className="button-secondary p-3" onClick={() => setEngineDialog(null)}><X className="size-4" /></button></div>
+                  {engineDialog.mode === 'view' ? <ReadOnlyNotice label="This policy is open in view mode. Switch to edit mode to persist a new engine-policy override." /> : null}
+                  <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-ink-soft"><span className="pill">{selectedPolicy.packageCode}</span></div>
+                  <div className="mt-6 grid gap-4 md:grid-cols-2">
+                    <input disabled={engineDialog.mode === 'view'} className="input-base disabled:bg-slate-50" type="number" placeholder="Budget floor" value={engineForm.budgetFloor} onChange={(event) => setEngineForm((current) => ({ ...current, budgetFloor: Number(event.target.value) }))} />
+                    <input disabled={engineDialog.mode === 'view'} className="input-base disabled:bg-slate-50" type="number" placeholder="Minimum national radio candidates" value={engineForm.minimumNationalRadioCandidates} onChange={(event) => setEngineForm((current) => ({ ...current, minimumNationalRadioCandidates: Number(event.target.value) }))} />
+                    <input disabled={engineDialog.mode === 'view'} className="input-base disabled:bg-slate-50" type="number" placeholder="National radio bonus" value={engineForm.nationalRadioBonus} onChange={(event) => setEngineForm((current) => ({ ...current, nationalRadioBonus: Number(event.target.value) }))} />
+                    <input disabled={engineDialog.mode === 'view'} className="input-base disabled:bg-slate-50" type="number" placeholder="Non-national radio penalty" value={engineForm.nonNationalRadioPenalty} onChange={(event) => setEngineForm((current) => ({ ...current, nonNationalRadioPenalty: Number(event.target.value) }))} />
+                    <input disabled={engineDialog.mode === 'view'} className="input-base disabled:bg-slate-50" type="number" placeholder="Regional radio penalty" value={engineForm.regionalRadioPenalty} onChange={(event) => setEngineForm((current) => ({ ...current, regionalRadioPenalty: Number(event.target.value) }))} />
+                    <div className="flex flex-wrap items-center gap-5 rounded-[24px] border border-line px-4 py-3 text-sm text-ink-soft md:col-span-2"><label className="inline-flex items-center gap-2"><input disabled={engineDialog.mode === 'view'} type="checkbox" checked={engineForm.requireNationalCapableRadio} onChange={(event) => setEngineForm((current) => ({ ...current, requireNationalCapableRadio: event.target.checked }))} /> Require national-capable radio</label><label className="inline-flex items-center gap-2"><input disabled={engineDialog.mode === 'view'} type="checkbox" checked={engineForm.requirePremiumNationalRadio} onChange={(event) => setEngineForm((current) => ({ ...current, requirePremiumNationalRadio: event.target.checked }))} /> Require premium national radio</label></div>
+                  </div>
+                  <div className="mt-6 flex justify-end gap-3"><button type="button" className="button-secondary px-5 py-3" onClick={() => setEngineDialog(null)}>Close</button>{engineDialog.mode === 'view' ? <button type="button" className="button-secondary px-5 py-3" onClick={() => openEngineDialog('edit', selectedPolicy)}>Edit policy</button> : <button type="button" className="button-primary px-5 py-3" disabled={updateEnginePolicyMutation.isPending} onClick={() => updateEnginePolicyMutation.mutate()}>Save policy</button>}</div>
+                </div>
+              </div>
+            ) : null}
+          </AdminPageShell>
+        );
+      }}
     </AdminQueryBoundary>
   );
 }
@@ -919,6 +1513,7 @@ export function AdminPreviewRulesPage() {
     },
     onError: (error) => pushToast({ title: 'Could not update preview rule.', description: error instanceof Error ? error.message : 'Please try again.' }, 'error'),
   });
+  const previewRuleFormIsValid = hasText(previewRuleForm.tierLabel) && !!previewRuleDialog?.key;
 
   return (
     <AdminQueryBoundary query={query}>
@@ -968,7 +1563,8 @@ export function AdminPreviewRulesPage() {
                       <input disabled={previewRuleDialog.mode === 'view'} className="input-base md:col-span-2 disabled:bg-slate-50" placeholder="Typical inclusions, comma separated" value={previewRuleForm.typicalInclusions} onChange={(event) => setPreviewRuleForm((current) => ({ ...current, typicalInclusions: event.target.value }))} />
                       <input disabled={previewRuleDialog.mode === 'view'} className="input-base md:col-span-2 disabled:bg-slate-50" placeholder="Indicative mix, comma separated" value={previewRuleForm.indicativeMix} onChange={(event) => setPreviewRuleForm((current) => ({ ...current, indicativeMix: event.target.value }))} />
                     </div>
-                    <div className="mt-6 flex justify-end gap-3"><button type="button" className="button-secondary px-5 py-3" onClick={() => setPreviewRuleDialog(null)}>Close</button>{previewRuleDialog.mode === 'view' ? <button type="button" className="button-secondary px-5 py-3" onClick={() => openPreviewRuleDialog('edit', selectedPreviewRule)}>Edit rule</button> : <button type="button" className="button-primary inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60" onClick={() => updatePreviewRuleMutation.mutate()} disabled={updatePreviewRuleMutation.isPending}><Save className="size-4" />Save rule</button>}</div>
+                    {!previewRuleFormIsValid && previewRuleDialog.mode === 'edit' ? <p className="mt-3 text-sm text-rose-600">Tier label is required before you can save this preview rule.</p> : null}
+                    <div className="mt-6 flex justify-end gap-3"><button type="button" className="button-secondary px-5 py-3" onClick={() => setPreviewRuleDialog(null)}>Close</button>{previewRuleDialog.mode === 'view' ? <button type="button" className="button-secondary px-5 py-3" onClick={() => openPreviewRuleDialog('edit', selectedPreviewRule)}>Edit rule</button> : <button type="button" className="button-primary inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60" onClick={() => updatePreviewRuleMutation.mutate()} disabled={updatePreviewRuleMutation.isPending || !previewRuleFormIsValid}><Save className="size-4" />Save rule</button>}</div>
                   </div>
                 </div>
               ) : null}
@@ -1012,7 +1608,10 @@ export function AdminUsersPage() {
     isSaCitizen: true,
     emailVerified: false,
     phoneVerified: false,
+    assignedAreaCodes: [],
   });
+  const userCreateIsValid = hasText(userForm.fullName) && hasText(userForm.email) && hasText(userForm.phone) && hasText(userForm.password);
+  const userUpdateIsValid = hasText(userForm.fullName) && hasText(userForm.email) && hasText(userForm.phone);
 
   const resetUserForm = () => {
     setUserForm({
@@ -1025,6 +1624,7 @@ export function AdminUsersPage() {
       isSaCitizen: true,
       emailVerified: false,
       phoneVerified: false,
+      assignedAreaCodes: [],
     });
   };
 
@@ -1083,6 +1683,7 @@ export function AdminUsersPage() {
             isSaCitizen: user.isSaCitizen,
             emailVerified: user.emailVerified,
             phoneVerified: user.phoneVerified,
+            assignedAreaCodes: user.assignedAreaCodes,
           });
           setUserDialog({ mode, id: user.id });
         };
@@ -1105,9 +1706,9 @@ export function AdminUsersPage() {
 
               <div className="overflow-hidden rounded-[28px] border border-line">
                 <table className="w-full border-collapse text-sm">
-                  <thead className="bg-brand-soft text-left text-xs uppercase tracking-[0.18em] text-ink-soft"><tr><th className="px-4 py-4">Name</th><th className="px-4 py-4">Contact</th><th className="px-4 py-4">Role</th><th className="px-4 py-4">Status</th><th className="px-4 py-4">Verification</th><th className="px-4 py-4">Joined</th><th className="px-4 py-4 text-right">Actions</th></tr></thead>
+                  <thead className="bg-brand-soft text-left text-xs uppercase tracking-[0.18em] text-ink-soft"><tr><th className="px-4 py-4">Name</th><th className="px-4 py-4">Contact</th><th className="px-4 py-4">Role</th><th className="px-4 py-4">Coverage</th><th className="px-4 py-4">Status</th><th className="px-4 py-4">Verification</th><th className="px-4 py-4">Joined</th><th className="px-4 py-4 text-right">Actions</th></tr></thead>
                   <tbody>
-                    {dashboard.users.map((item) => <tr key={item.id} className="border-t border-line"><td className="px-4 py-4"><p className="font-semibold text-ink">{item.fullName}</p><p className="text-xs text-ink-soft">{item.isSaCitizen ? 'SA citizen' : 'International user'}</p></td><td className="px-4 py-4 text-ink-soft"><div>{item.email}</div><div className="text-xs">{item.phone}</div></td><td className="px-4 py-4 text-ink-soft">{titleize(item.role)}</td><td className="px-4 py-4 text-ink-soft">{titleize(item.accountStatus)}</td><td className="px-4 py-4 text-ink-soft"><div>Email: {item.emailVerified ? 'Verified' : 'Pending'}</div><div className="text-xs">Phone: {item.phoneVerified ? 'Verified' : 'Pending'}</div></td><td className="px-4 py-4 text-ink-soft">{fmtDate(item.createdAt)}</td><td className="px-4 py-4"><div className="flex justify-end gap-2"><ActionButton label={`View ${item.fullName}`} icon={Eye} onClick={() => openUserDialog('view', item)} /><ActionButton label={`Edit ${item.fullName}`} icon={Pencil} onClick={() => openUserDialog('edit', item)} /><ActionButton label={`Delete ${item.fullName}`} icon={Trash2} variant="danger" disabled={deleteUserMutation.isPending} onClick={() => { if (window.confirm(`Delete ${item.fullName}? Accounts with linked campaigns, recommendations, or orders cannot be deleted.`)) { deleteUserMutation.mutate(item.id); } }} /></div></td></tr>)}
+                    {dashboard.users.map((item) => <tr key={item.id} className="border-t border-line"><td className="px-4 py-4"><p className="font-semibold text-ink">{item.fullName}</p><p className="text-xs text-ink-soft">{item.isSaCitizen ? 'SA citizen' : 'International user'}</p></td><td className="px-4 py-4 text-ink-soft"><div>{item.email}</div><div className="text-xs">{item.phone}</div></td><td className="px-4 py-4 text-ink-soft">{titleize(item.role)}</td><td className="px-4 py-4 text-ink-soft">{item.role === 'agent' ? item.assignedAreaLabels.length > 0 ? item.assignedAreaLabels.join(', ') : 'No areas assigned' : item.role === 'creative_director' ? 'Creative studio access' : 'Not applicable'}</td><td className="px-4 py-4 text-ink-soft">{titleize(item.accountStatus)}</td><td className="px-4 py-4 text-ink-soft"><div>Email: {item.emailVerified ? 'Verified' : 'Pending'}</div><div className="text-xs">Phone: {item.phoneVerified ? 'Verified' : 'Pending'}</div></td><td className="px-4 py-4 text-ink-soft">{fmtDate(item.createdAt)}</td><td className="px-4 py-4"><div className="flex justify-end gap-2"><ActionButton label={`View ${item.fullName}`} icon={Eye} onClick={() => openUserDialog('view', item)} /><ActionButton label={`Edit ${item.fullName}`} icon={Pencil} onClick={() => openUserDialog('edit', item)} /><ActionButton label={`Delete ${item.fullName}`} icon={Trash2} variant="danger" disabled={deleteUserMutation.isPending} onClick={() => { if (window.confirm(`Delete ${item.fullName}? Accounts with linked campaigns, recommendations, or orders cannot be deleted.`)) { deleteUserMutation.mutate(item.id); } }} /></div></td></tr>)}
                   </tbody>
                 </table>
               </div>
@@ -1122,9 +1723,13 @@ export function AdminUsersPage() {
                       <input disabled={isReadOnly} className="input-base disabled:bg-slate-50" placeholder="Email" value={userForm.email} onChange={(event) => setUserForm((current: AdminUserFormState) => ({ ...current, email: event.target.value }))} />
                       <input disabled={isReadOnly} className="input-base disabled:bg-slate-50" placeholder="Phone" value={userForm.phone} onChange={(event) => setUserForm((current: AdminUserFormState) => ({ ...current, phone: event.target.value }))} />
                       <input disabled={isReadOnly} className="input-base disabled:bg-slate-50" placeholder={userDialog.mode === 'edit' ? 'New password (optional)' : 'Password'} type="password" value={userForm.password ?? ''} onChange={(event) => setUserForm((current: AdminUserFormState) => ({ ...current, password: event.target.value }))} />
-                      <select disabled={isReadOnly} className="input-base disabled:bg-slate-50" value={userForm.role} onChange={(event) => setUserForm((current: AdminUserFormState) => ({ ...current, role: event.target.value as AdminUserFormState['role'] }))}>
+                      <select disabled={isReadOnly} className="input-base disabled:bg-slate-50" value={userForm.role} onChange={(event) => setUserForm((current: AdminUserFormState) => {
+                        const nextRole = event.target.value as AdminUserFormState['role'];
+                        return { ...current, role: nextRole, assignedAreaCodes: nextRole === 'agent' ? current.assignedAreaCodes : [] };
+                      })}>
                         <option value="client">Client</option>
                         <option value="agent">Agent</option>
+                        <option value="creative_director">Creative director</option>
                         <option value="admin">Admin</option>
                       </select>
                       <select disabled={isReadOnly} className="input-base disabled:bg-slate-50" value={userForm.accountStatus} onChange={(event) => setUserForm((current: AdminUserFormState) => ({ ...current, accountStatus: event.target.value }))}>
@@ -1132,6 +1737,37 @@ export function AdminUsersPage() {
                         <option value="Active">Active</option>
                         <option value="Suspended">Suspended</option>
                       </select>
+                    </div>
+                    <div className="mt-4 space-y-3">
+                      <div>
+                        <p className="text-sm font-semibold text-ink">Assigned areas</p>
+                        <p className="mt-1 text-sm text-ink-soft">Area routing is reserved for agent accounts. Creative directors work in the production studio after recommendation approval.</p>
+                      </div>
+                      {userForm.role === 'agent' ? (
+                        <div className="grid gap-3 md:grid-cols-2">
+                          {dashboard.areas.map((area) => (
+                            <label key={area.code} className="inline-flex items-center gap-3 rounded-[18px] border border-line px-4 py-3 text-sm text-ink-soft">
+                              <input
+                                disabled={isReadOnly}
+                                type="checkbox"
+                                checked={userForm.assignedAreaCodes.includes(area.code)}
+                                onChange={(event) => setUserForm((current: AdminUserFormState) => ({
+                                  ...current,
+                                  assignedAreaCodes: event.target.checked
+                                    ? [...current.assignedAreaCodes, area.code]
+                                    : current.assignedAreaCodes.filter((code) => code !== area.code),
+                                }))}
+                              />
+                              <span>
+                                <span className="font-semibold text-ink">{area.label}</span>
+                                <span className="block text-xs">{area.code}</span>
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                      ) : (
+                        <ReadOnlyNotice label="Area routing is only used for agent accounts. Switching this user away from the agent role clears any existing area ownership." />
+                      )}
                     </div>
                     <div className="mt-4 flex flex-wrap items-center gap-5 text-sm text-ink-soft">
                       <label className="inline-flex items-center gap-2"><input disabled={isReadOnly} type="checkbox" checked={userForm.isSaCitizen} onChange={(event) => setUserForm((current: AdminUserFormState) => ({ ...current, isSaCitizen: event.target.checked }))} /> South African citizen</label>
@@ -1143,8 +1779,10 @@ export function AdminUsersPage() {
                       <button type="button" className="button-secondary px-5 py-3" onClick={() => { setUserDialog(null); resetUserForm(); }}>Close</button>
                       {userDialog.mode === 'view' && selectedUser ? <button type="button" className="button-secondary px-5 py-3" onClick={() => openUserDialog('edit', selectedUser)}>Edit user</button> : null}
                       {userDialog.mode === 'edit' && selectedUser ? <button type="button" className="rounded-full border border-rose-200 bg-white px-5 py-3 font-semibold text-rose-600 transition hover:bg-rose-50" disabled={deleteUserMutation.isPending} onClick={() => { if (window.confirm(`Delete ${selectedUser.fullName}? Accounts with linked campaigns, recommendations, or orders cannot be deleted.`)) { deleteUserMutation.mutate(selectedUser.id); } }}>Delete user</button> : null}
-                      {userDialog.mode === 'create' ? <button type="button" className="button-primary px-5 py-3" onClick={() => createUserMutation.mutate()} disabled={createUserMutation.isPending}>Save user</button> : null}
-                      {userDialog.mode === 'edit' ? <button type="button" className="button-primary px-5 py-3" onClick={() => updateUserMutation.mutate()} disabled={updateUserMutation.isPending}>Update user</button> : null}
+                      {userDialog.mode === 'create' && !userCreateIsValid ? <p className="text-sm text-rose-600">Full name, email, phone, and password are required to create a user.</p> : null}
+                      {userDialog.mode === 'edit' && !userUpdateIsValid ? <p className="text-sm text-rose-600">Full name, email, and phone are required to update a user.</p> : null}
+                      {userDialog.mode === 'create' ? <button type="button" className="button-primary px-5 py-3" onClick={() => createUserMutation.mutate()} disabled={createUserMutation.isPending || !userCreateIsValid}>Save user</button> : null}
+                      {userDialog.mode === 'edit' ? <button type="button" className="button-primary px-5 py-3" onClick={() => updateUserMutation.mutate()} disabled={updateUserMutation.isPending || !userUpdateIsValid}>Update user</button> : null}
                     </div>
                   </div>
                 </div>
@@ -1163,14 +1801,14 @@ export function AdminAuditPage() {
   return (
     <AdminQueryBoundary query={query}>
       {(dashboard) => (
-        <AdminPageShell title="Audit log" description="Review recent live payment request and webhook events captured in the audit tables.">
-          <ReadOnlyNotice label="Audit entries are immutable records. This page is intentionally read-only so operational history stays trustworthy." />
+        <AdminPageShell title="Audit log" description="Review recent admin and agent changes alongside key payment integration events in one immutable timeline.">
+          <ReadOnlyNotice label="Audit entries are immutable records. This page is intentionally read-only so operational history stays trustworthy across admin, agent, and system activity." />
           <div className="rounded-[28px] border border-line bg-white p-6">
             <div className="overflow-hidden rounded-[24px] border border-line">
               <table className="w-full border-collapse text-sm">
-                <thead className="bg-brand-soft text-left text-xs uppercase tracking-[0.18em] text-ink-soft"><tr><th className="px-4 py-4">Source</th><th className="px-4 py-4">Provider</th><th className="px-4 py-4">Event</th><th className="px-4 py-4">Status</th><th className="px-4 py-4">When</th></tr></thead>
+                <thead className="bg-brand-soft text-left text-xs uppercase tracking-[0.18em] text-ink-soft"><tr><th className="px-4 py-4">Source</th><th className="px-4 py-4">Actor</th><th className="px-4 py-4">Action</th><th className="px-4 py-4">Entity</th><th className="px-4 py-4">Context</th><th className="px-4 py-4">When</th></tr></thead>
                 <tbody>
-                  {dashboard.auditEntries.map((entry) => <tr key={entry.id} className="border-t border-line"><td className="px-4 py-4 text-ink">{entry.source}</td><td className="px-4 py-4 text-ink-soft">{entry.provider}</td><td className="px-4 py-4 text-ink-soft">{entry.eventType}</td><td className="px-4 py-4 text-ink-soft">{entry.responseStatusCode ?? 'Pending'}</td><td className="px-4 py-4 text-ink-soft">{fmtDate(entry.createdAt)}</td></tr>)}
+                  {dashboard.auditEntries.map((entry) => <tr key={entry.id} className="border-t border-line"><td className="px-4 py-4 text-ink">{entry.source}</td><td className="px-4 py-4 text-ink-soft"><div>{entry.actorName}</div><div className="text-xs">{titleize(entry.actorRole || 'system')}</div></td><td className="px-4 py-4 text-ink-soft"><div>{titleize(entry.eventType)}</div>{entry.statusLabel ? <div className="text-xs">{entry.statusLabel}</div> : null}</td><td className="px-4 py-4 text-ink-soft"><div>{entry.entityLabel ?? 'Platform event'}</div><div className="text-xs">{entry.entityType ? titleize(entry.entityType) : 'System'}</div></td><td className="px-4 py-4 text-ink-soft">{entry.context}</td><td className="px-4 py-4 text-ink-soft">{fmtDate(entry.createdAt)}</td></tr>)}
                 </tbody>
               </table>
             </div>

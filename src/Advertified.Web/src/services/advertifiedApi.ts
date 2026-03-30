@@ -2,6 +2,8 @@ import type {
   AgentInbox,
   AgentInboxItem,
   Campaign,
+  CampaignConversationListItem,
+  CampaignConversationThread,
   CampaignBrief,
   CampaignRecommendation,
   InventoryRow,
@@ -14,11 +16,18 @@ import type {
   AdminIntegrationStatus,
   AdminDashboard,
   AdminCreateOutletInput,
+  AdminCreateGeographyInput,
   AdminCreateUserInput,
+  AdminGeographyDetail,
   AdminOutletDetail,
   AdminOutletPricing,
+  AdminUpsertPackageSettingInput,
   AdminRateCardUploadInput,
+  AdminRateCardUpdateInput,
+  AdminUpdateEnginePolicyInput,
+  AdminUpdateGeographyInput,
   AdminPreviewRuleUpdateInput,
+  AdminUpsertGeographyMappingInput,
   AdminUpsertOutletPricingPackageInput,
   AdminUpsertOutletSlotRateInput,
   AdminUpdateOutletInput,
@@ -28,6 +37,7 @@ import type {
   PackageOrder,
   PaymentProvider,
   PlanningMode,
+  ConsentPreference,
   RegistrationInput,
   RegistrationResult,
   SelectedPlanInventoryItem,
@@ -124,6 +134,7 @@ type LoginResponse = {
   role: string;
   accountStatus: string;
   emailVerified: boolean;
+  sessionToken: string;
 };
 
 type MeResponse = {
@@ -163,6 +174,15 @@ type PackageAreaOptionResponse = {
   code: string;
   label: string;
   description: string;
+};
+
+type ConsentPreferenceResponse = {
+  browserId: string;
+  necessaryCookies: boolean;
+  analyticsCookies: boolean;
+  marketingCookies: boolean;
+  privacyAccepted: boolean;
+  hasSavedPreferences: boolean;
 };
 
 type AdminDashboardResponse = AdminDashboard;
@@ -311,6 +331,30 @@ type CampaignResponse = {
   createdAt: string;
 };
 
+type CampaignConversationListItemResponse = CampaignConversationListItem;
+
+type CampaignConversationThreadResponse = {
+  campaignId: string;
+  conversationId?: string | null;
+  campaignName: string;
+  campaignStatus: string;
+  clientName: string;
+  clientEmail: string;
+  packageBandName: string;
+  assignedAgentName?: string | null;
+  unreadCount: number;
+  canSend: boolean;
+  messages: Array<{
+    id: string;
+    senderUserId: string;
+    senderRole: 'client' | 'agent';
+    senderName: string;
+    body: string;
+    createdAt: string;
+    isRead: boolean;
+  }>;
+};
+
 type AgentInboxItemResponse = {
   id: string;
   userId: string;
@@ -388,6 +432,10 @@ function normalizeRole(role: string): SessionUser['role'] {
     return 'agent';
   }
 
+  if (role === 'creative_director') {
+    return 'creative_director';
+  }
+
   if (role === 'admin') {
     return 'admin';
   }
@@ -395,13 +443,14 @@ function normalizeRole(role: string): SessionUser['role'] {
   return 'client';
 }
 
-function mapSessionUser(response: LoginResponse | MeResponse): SessionUser {
+function mapSessionUser(response: LoginResponse | MeResponse, sessionToken?: string): SessionUser {
   return {
     id: response.userId,
     fullName: response.fullName,
     email: response.email,
     role: normalizeRole(response.role),
     emailVerified: response.emailVerified,
+    sessionToken,
     businessName: 'businessName' in response ? response.businessName ?? undefined : undefined,
     city: 'city' in response ? response.city ?? undefined : undefined,
     province: 'province' in response ? response.province ?? undefined : undefined,
@@ -433,6 +482,17 @@ function mapPackageAreaOption(response: PackageAreaOptionResponse): PackageAreaO
     code: response.code,
     label: response.label,
     description: response.description,
+  };
+}
+
+function mapConsentPreference(response: ConsentPreferenceResponse): ConsentPreference {
+  return {
+    browserId: response.browserId,
+    necessaryCookies: response.necessaryCookies,
+    analyticsCookies: response.analyticsCookies,
+    marketingCookies: response.marketingCookies,
+    privacyAccepted: response.privacyAccepted,
+    hasSavedPreferences: response.hasSavedPreferences,
   };
 }
 
@@ -579,6 +639,48 @@ function mapCampaign(response: CampaignResponse): Campaign {
   };
 }
 
+function mapConversationListItem(response: CampaignConversationListItemResponse): CampaignConversationListItem {
+  return {
+    campaignId: response.campaignId,
+    conversationId: response.conversationId ?? undefined,
+    campaignName: response.campaignName,
+    campaignStatus: response.campaignStatus,
+    clientName: response.clientName,
+    clientEmail: response.clientEmail,
+    packageBandName: response.packageBandName,
+    assignedAgentName: response.assignedAgentName ?? undefined,
+    lastMessagePreview: response.lastMessagePreview ?? undefined,
+    lastMessageSenderRole: response.lastMessageSenderRole ?? undefined,
+    lastMessageAt: response.lastMessageAt ?? undefined,
+    unreadCount: response.unreadCount,
+    hasMessages: response.hasMessages,
+  };
+}
+
+function mapConversationThread(response: CampaignConversationThreadResponse): CampaignConversationThread {
+  return {
+    campaignId: response.campaignId,
+    conversationId: response.conversationId ?? undefined,
+    campaignName: response.campaignName,
+    campaignStatus: response.campaignStatus,
+    clientName: response.clientName,
+    clientEmail: response.clientEmail,
+    packageBandName: response.packageBandName,
+    assignedAgentName: response.assignedAgentName ?? undefined,
+    unreadCount: response.unreadCount,
+    canSend: response.canSend,
+    messages: response.messages.map((message) => ({
+      id: message.id,
+      senderUserId: message.senderUserId,
+      senderRole: message.senderRole,
+      senderName: message.senderName,
+      body: message.body,
+      createdAt: message.createdAt,
+      isRead: message.isRead,
+    })),
+  };
+}
+
 function mapAgentInboxItem(response: AgentInboxItemResponse): AgentInboxItem {
   return {
     id: response.id,
@@ -654,16 +756,16 @@ async function parseApiError(response: Response) {
   throw new Error(humanizeApiMessage(message));
 }
 
-async function apiRequest<T>(path: string, options: RequestInit = {}, userId?: string): Promise<T> {
+async function apiRequest<T>(path: string, options: RequestInit = {}, _userId?: string): Promise<T> {
   const headers = new Headers(options.headers);
 
   if (!headers.has('Content-Type') && options.body) {
     headers.set('Content-Type', 'application/json');
   }
 
-  const sessionUserId = userId ?? getStoredSession()?.id;
-  if (sessionUserId) {
-    headers.set('X-User-Id', sessionUserId);
+  const sessionToken = getStoredSession()?.sessionToken;
+  if (sessionToken) {
+    headers.set('Authorization', `Bearer ${sessionToken}`);
   }
 
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -683,6 +785,30 @@ async function apiRequest<T>(path: string, options: RequestInit = {}, userId?: s
 }
 
 export const advertifiedApi = {
+  async getConsentPreferences(browserId: string) {
+    const response = await apiRequest<ConsentPreferenceResponse>(`/consent/preferences?browserId=${encodeURIComponent(browserId)}`);
+    return mapConsentPreference(response);
+  },
+
+  async saveConsentPreferences(input: {
+    browserId: string;
+    analyticsCookies: boolean;
+    marketingCookies: boolean;
+    privacyAccepted: boolean;
+  }) {
+    const response = await apiRequest<ConsentPreferenceResponse>('/consent/preferences', {
+      method: 'PUT',
+      body: JSON.stringify({
+        browserId: input.browserId,
+        necessaryCookies: true,
+        analyticsCookies: input.analyticsCookies,
+        marketingCookies: input.marketingCookies,
+        privacyAccepted: input.privacyAccepted,
+      }),
+    });
+    return mapConsentPreference(response);
+  },
+
   async register(input: RegistrationInput) {
     const response = await apiRequest<RegisterResponse>('/auth/register', {
       method: 'POST',
@@ -725,7 +851,10 @@ export const advertifiedApi = {
       body: JSON.stringify(input),
     });
 
-    return this.getMe(response.userId).catch(() => mapSessionUser(response));
+    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(mapSessionUser(response, response.sessionToken)));
+    return this.getMe(response.userId)
+      .then((user) => ({ ...user, sessionToken: response.sessionToken }))
+      .catch(() => mapSessionUser(response, response.sessionToken));
   },
 
   async verifyEmail(token: string) {
@@ -734,7 +863,10 @@ export const advertifiedApi = {
       body: JSON.stringify({ token }),
     });
 
-    return this.getMe(response.userId).catch(() => mapSessionUser(response));
+    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(mapSessionUser(response, response.sessionToken)));
+    return this.getMe(response.userId)
+      .then((user) => ({ ...user, sessionToken: response.sessionToken }))
+      .catch(() => mapSessionUser(response, response.sessionToken));
   },
 
   async getMe(userId?: string) {
@@ -780,6 +912,50 @@ export const advertifiedApi = {
 
   async deleteAdminUser(id: string) {
     return apiRequest(`/admin/users/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+  },
+
+  async getAdminGeography(code: string) {
+    return apiRequest<AdminGeographyDetail>(`/admin/geography/${encodeURIComponent(code)}`);
+  },
+
+  async createAdminGeography(input: AdminCreateGeographyInput) {
+    return apiRequest<AdminGeographyDetail>('/admin/geography', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  },
+
+  async updateAdminGeography(code: string, input: AdminUpdateGeographyInput) {
+    return apiRequest<AdminGeographyDetail>(`/admin/geography/${encodeURIComponent(code)}`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    });
+  },
+
+  async deleteAdminGeography(code: string) {
+    return apiRequest(`/admin/geography/${encodeURIComponent(code)}`, {
+      method: 'DELETE',
+    });
+  },
+
+  async createAdminGeographyMapping(code: string, input: AdminUpsertGeographyMappingInput) {
+    return apiRequest(`/admin/geography/${encodeURIComponent(code)}/mappings`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  },
+
+  async updateAdminGeographyMapping(code: string, mappingId: string, input: AdminUpsertGeographyMappingInput) {
+    return apiRequest(`/admin/geography/${encodeURIComponent(code)}/mappings/${encodeURIComponent(mappingId)}`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    });
+  },
+
+  async deleteAdminGeographyMapping(code: string, mappingId: string) {
+    return apiRequest(`/admin/geography/${encodeURIComponent(code)}/mappings/${encodeURIComponent(mappingId)}`, {
       method: 'DELETE',
     });
   },
@@ -864,10 +1040,10 @@ export const advertifiedApi = {
     if (input.notes) formData.append('notes', input.notes);
     formData.append('file', input.file);
 
-    const sessionUserId = getStoredSession()?.id;
     const headers = new Headers();
-    if (sessionUserId) {
-      headers.set('X-User-Id', sessionUserId);
+    const sessionToken = getStoredSession()?.sessionToken;
+    if (sessionToken) {
+      headers.set('Authorization', `Bearer ${sessionToken}`);
     }
 
     const response = await fetch(`${API_BASE_URL}/admin/imports/rate-card`, {
@@ -881,6 +1057,46 @@ export const advertifiedApi = {
     }
 
     return response.json();
+  },
+
+  async updateAdminRateCard(sourceFile: string, input: AdminRateCardUpdateInput) {
+    return apiRequest(`/admin/imports/rate-card/${encodeURIComponent(sourceFile)}`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    });
+  },
+
+  async deleteAdminRateCard(sourceFile: string) {
+    return apiRequest(`/admin/imports/rate-card/${encodeURIComponent(sourceFile)}`, {
+      method: 'DELETE',
+    });
+  },
+
+  async createAdminPackageSetting(input: AdminUpsertPackageSettingInput) {
+    return apiRequest('/admin/package-settings', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  },
+
+  async updateAdminPackageSetting(id: string, input: AdminUpsertPackageSettingInput) {
+    return apiRequest(`/admin/package-settings/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    });
+  },
+
+  async deleteAdminPackageSetting(id: string) {
+    return apiRequest(`/admin/package-settings/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+  },
+
+  async updateAdminEnginePolicy(packageCode: string, input: AdminUpdateEnginePolicyInput) {
+    return apiRequest(`/admin/engine-settings/${encodeURIComponent(packageCode)}`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    });
   },
 
   async updateAdminPreviewRule(packageCode: string, tierCode: string, input: AdminPreviewRuleUpdateInput) {
@@ -989,6 +1205,19 @@ export const advertifiedApi = {
     return mapCampaign(response);
   },
 
+  async getCampaignMessages(campaignId: string) {
+    const response = await apiRequest<CampaignConversationThreadResponse>(`/campaigns/${campaignId}/messages`);
+    return mapConversationThread(response);
+  },
+
+  async sendCampaignMessage(campaignId: string, body: string) {
+    const response = await apiRequest<CampaignConversationThreadResponse>(`/campaigns/${campaignId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ body }),
+    });
+    return mapConversationThread(response);
+  },
+
   async getAgentCampaign(campaignId: string) {
     const response = await apiRequest<CampaignResponse>(`/agent/campaigns/${campaignId}`);
     return mapCampaign(response);
@@ -1043,6 +1272,33 @@ export const advertifiedApi = {
     return this.getCampaign(campaignId);
   },
 
+  async approveCreative(campaignId: string) {
+    await apiRequest(`/campaigns/${campaignId}/approve-creative`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+
+    return this.getCampaign(campaignId);
+  },
+
+  async requestCreativeChanges(campaignId: string, notes?: string) {
+    await apiRequest(`/campaigns/${campaignId}/request-creative-changes`, {
+      method: 'POST',
+      body: JSON.stringify({ notes }),
+    });
+
+    return this.getCampaign(campaignId);
+  },
+
+  async markCampaignLaunched(campaignId: string) {
+    await apiRequest(`/agent/campaigns/${campaignId}/mark-launched`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+
+    return this.getAgentCampaign(campaignId);
+  },
+
   async getAgentCampaigns() {
     const response = await apiRequest<CampaignResponse[]>('/agent/campaigns');
     return response.map(mapCampaign);
@@ -1051,6 +1307,24 @@ export const advertifiedApi = {
   async getAgentInbox() {
     const response = await apiRequest<AgentInboxResponse>('/agent/campaigns/inbox');
     return mapAgentInbox(response);
+  },
+
+  async getAgentMessageInbox() {
+    const response = await apiRequest<CampaignConversationListItemResponse[]>('/agent/messages');
+    return response.map(mapConversationListItem);
+  },
+
+  async getAgentMessageThread(campaignId: string) {
+    const response = await apiRequest<CampaignConversationThreadResponse>(`/agent/messages/campaigns/${campaignId}`);
+    return mapConversationThread(response);
+  },
+
+  async sendAgentMessage(campaignId: string, body: string) {
+    const response = await apiRequest<CampaignConversationThreadResponse>(`/agent/messages/campaigns/${campaignId}`, {
+      method: 'POST',
+      body: JSON.stringify({ body }),
+    });
+    return mapConversationThread(response);
   },
 
   async updateRecommendation(campaignId: string, recommendationId: string | undefined, notes: string, inventoryItems: SelectedPlanInventoryItem[]) {
@@ -1091,6 +1365,15 @@ export const advertifiedApi = {
     await apiRequest(`/agent/campaigns/${campaignId}/send-to-client`, {
       method: 'POST',
       body: JSON.stringify({ message: 'Recommendation sent to client.' }),
+    });
+
+    return this.getAgentCampaign(campaignId);
+  },
+
+  async sendFinishedMediaToClientForApproval(campaignId: string) {
+    await apiRequest(`/creative/campaigns/${campaignId}/send-finished-media-to-client`, {
+      method: 'POST',
+      body: JSON.stringify({}),
     });
 
     return this.getAgentCampaign(campaignId);

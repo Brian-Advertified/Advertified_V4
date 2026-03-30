@@ -43,6 +43,11 @@ export function Navbar() {
               Agent
             </NavLink>
           ) : null}
+          {user?.role === 'creative_director' ? (
+            <NavLink to="/creative" className="nav-link">
+              Creative Studio
+            </NavLink>
+          ) : null}
           {user?.role === 'admin' ? (
             <NavLink to="/admin" className="nav-link">
               Admin
@@ -98,6 +103,11 @@ export function Navbar() {
             {user?.role === 'agent' ? (
               <NavLink to="/agent" className="nav-link" onClick={() => setOpen(false)}>
                 Agent
+              </NavLink>
+            ) : null}
+            {user?.role === 'creative_director' ? (
+              <NavLink to="/creative" className="nav-link" onClick={() => setOpen(false)}>
+                Creative Studio
               </NavLink>
             ) : null}
             {user?.role === 'admin' ? (

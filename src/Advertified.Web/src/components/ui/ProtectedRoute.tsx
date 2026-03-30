@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Navigate, useLocation, useParams } from 'react-router-dom';
-import { canAccessOperations, canOpenBrief, canOpenPlanning, isAdmin, isAgent } from '../../lib/access';
+import { canAccessCreativeStudio, canAccessOperations, canOpenBrief, canOpenPlanning, isAdmin, isAgent, isCreativeDirector } from '../../lib/access';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import { useAuth } from '../../features/auth/auth-context';
 import { LoadingState } from './LoadingState';
@@ -10,6 +10,7 @@ export function ProtectedRoute({
   children,
   guestOnly,
   requireAgent,
+  requireCreativeDirector,
   requireAdmin,
   requirePurchase,
   requirePlanningAccess,
@@ -17,6 +18,7 @@ export function ProtectedRoute({
   children: ReactElement;
   guestOnly?: boolean;
   requireAgent?: boolean;
+  requireCreativeDirector?: boolean;
   requireAdmin?: boolean;
   requirePurchase?: boolean;
   requirePlanningAccess?: boolean;
@@ -34,7 +36,7 @@ export function ProtectedRoute({
   });
 
   if (guestOnly && isAuthenticated) {
-    return <Navigate to={isAdmin(user) ? '/admin' : isAgent(user) ? '/agent' : '/dashboard'} replace />;
+    return <Navigate to={isAdmin(user) ? '/admin' : isCreativeDirector(user) ? '/creative' : isAgent(user) ? '/agent' : '/dashboard'} replace />;
   }
 
   if (!guestOnly && !isAuthenticated) {
@@ -42,6 +44,10 @@ export function ProtectedRoute({
   }
 
   if (requireAgent && !canAccessOperations(user)) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  if (requireCreativeDirector && !canAccessCreativeStudio(user)) {
     return <Navigate to="/dashboard" replace />;
   }
 

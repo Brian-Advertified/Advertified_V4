@@ -31,6 +31,8 @@ public partial class Campaign
 
     public virtual CampaignBriefDraft? CampaignBriefDraft { get; set; }
 
+    public virtual CampaignConversation? CampaignConversation { get; set; }
+
     public virtual ICollection<CampaignRecommendation> CampaignRecommendations { get; set; } = new List<CampaignRecommendation>();
 
     public virtual PackageBand PackageBand { get; set; } = null!;

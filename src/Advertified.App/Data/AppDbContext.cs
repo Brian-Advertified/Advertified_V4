@@ -14,13 +14,23 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<BusinessProfile> BusinessProfiles { get; set; }
 
+    public virtual DbSet<AgentAreaAssignment> AgentAreaAssignments { get; set; }
+
     public virtual DbSet<Campaign> Campaigns { get; set; }
 
     public virtual DbSet<CampaignBrief> CampaignBriefs { get; set; }
 
     public virtual DbSet<CampaignBriefDraft> CampaignBriefDrafts { get; set; }
 
+    public virtual DbSet<CampaignConversation> CampaignConversations { get; set; }
+
+    public virtual DbSet<CampaignMessage> CampaignMessages { get; set; }
+
     public virtual DbSet<CampaignRecommendation> CampaignRecommendations { get; set; }
+
+    public virtual DbSet<ChangeAuditLog> ChangeAuditLogs { get; set; }
+
+    public virtual DbSet<ConsentPreference> ConsentPreferences { get; set; }
 
     public virtual DbSet<EmailTemplate> EmailTemplates { get; set; }
 
@@ -51,7 +61,7 @@ public partial class AppDbContext : DbContext
         modelBuilder
             .HasPostgresEnum("account_status", new[] { "pending_verification", "active", "suspended" })
             .HasPostgresEnum("identity_type", new[] { "sa_id", "passport" })
-            .HasPostgresEnum("user_role", new[] { "client", "agent", "admin" })
+            .HasPostgresEnum("user_role", new[] { "client", "agent", "creative_director", "admin" })
             .HasPostgresEnum("verification_status", new[] { "not_submitted", "submitted", "verified", "failed", "rejected" })
             .HasPostgresExtension("pgcrypto");
 
@@ -270,6 +280,77 @@ public partial class AppDbContext : DbContext
             entity.HasOne(d => d.Campaign).WithOne(p => p.CampaignBriefDraft)
                 .HasForeignKey<CampaignBriefDraft>(d => d.CampaignId)
                 .HasConstraintName("campaign_brief_drafts_campaign_id_fkey");
+        });
+
+        modelBuilder.Entity<CampaignConversation>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("campaign_conversations_pkey");
+
+            entity.ToTable("campaign_conversations");
+
+            entity.HasIndex(e => e.CampaignId, "uq_campaign_conversations_campaign_id").IsUnique();
+            entity.HasIndex(e => e.ClientUserId, "ix_campaign_conversations_client_user_id");
+            entity.HasIndex(e => e.LastMessageAt, "ix_campaign_conversations_last_message_at");
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.CampaignId).HasColumnName("campaign_id");
+            entity.Property(e => e.ClientUserId).HasColumnName("client_user_id");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+            entity.Property(e => e.LastMessageAt).HasColumnName("last_message_at");
+
+            entity.HasOne(d => d.Campaign).WithOne(p => p.CampaignConversation)
+                .HasForeignKey<CampaignConversation>(d => d.CampaignId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("campaign_conversations_campaign_id_fkey");
+
+            entity.HasOne(d => d.ClientUser).WithMany(p => p.CampaignConversations)
+                .HasForeignKey(d => d.ClientUserId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("campaign_conversations_client_user_id_fkey");
+        });
+
+        modelBuilder.Entity<CampaignMessage>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("campaign_messages_pkey");
+
+            entity.ToTable("campaign_messages");
+
+            entity.HasIndex(e => e.ConversationId, "ix_campaign_messages_conversation_id");
+            entity.HasIndex(e => e.SenderUserId, "ix_campaign_messages_sender_user_id");
+            entity.HasIndex(e => e.CreatedAt, "ix_campaign_messages_created_at");
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.ConversationId).HasColumnName("conversation_id");
+            entity.Property(e => e.SenderUserId).HasColumnName("sender_user_id");
+            entity.Property(e => e.SenderRole)
+                .HasMaxLength(20)
+                .HasColumnName("sender_role");
+            entity.Property(e => e.Body).HasColumnName("body");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.ReadByClientAt).HasColumnName("read_by_client_at");
+            entity.Property(e => e.ReadByAgentAt).HasColumnName("read_by_agent_at");
+            entity.Property(e => e.EmailNotificationSentAt).HasColumnName("email_notification_sent_at");
+
+            entity.HasOne(d => d.Conversation).WithMany(p => p.Messages)
+                .HasForeignKey(d => d.ConversationId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("campaign_messages_conversation_id_fkey");
+
+            entity.HasOne(d => d.SenderUser).WithMany(p => p.CampaignMessages)
+                .HasForeignKey(d => d.SenderUserId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("campaign_messages_sender_user_id_fkey");
         });
 
         modelBuilder.Entity<CampaignRecommendation>(entity =>
@@ -514,6 +595,44 @@ public partial class AppDbContext : DbContext
             entity.HasOne(d => d.Recommendation).WithMany(p => p.RecommendationItems)
                 .HasForeignKey(d => d.RecommendationId)
                 .HasConstraintName("recommendation_items_recommendation_id_fkey");
+        });
+
+        modelBuilder.Entity<ConsentPreference>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("consent_preferences_pkey");
+
+            entity.ToTable("consent_preferences");
+
+            entity.HasIndex(e => e.BrowserId, "ix_consent_preferences_browser_id");
+
+            entity.HasIndex(e => e.BrowserId, "uq_consent_preferences_browser_id").IsUnique();
+
+            entity.HasIndex(e => e.UserId, "ix_consent_preferences_user_id");
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.AnalyticsCookies).HasColumnName("analytics_cookies");
+            entity.Property(e => e.BrowserId)
+                .HasMaxLength(200)
+                .HasColumnName("browser_id");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.MarketingCookies).HasColumnName("marketing_cookies");
+            entity.Property(e => e.NecessaryCookies)
+                .HasDefaultValue(true)
+                .HasColumnName("necessary_cookies");
+            entity.Property(e => e.PrivacyAccepted).HasColumnName("privacy_accepted");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+            entity.Property(e => e.UserId).HasColumnName("user_id");
+
+            entity.HasOne(d => d.User).WithMany(p => p.ConsentPreferences)
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("consent_preferences_user_id_fkey");
         });
 
         modelBuilder.Entity<UserAccount>(entity =>

@@ -579,7 +579,7 @@ public class MediaPlanningEngineTests
 
     private static MediaPlanningEngine CreateEngine(IPlanningInventoryRepository repository)
     {
-        return new MediaPlanningEngine(repository, Options.Create(new PlanningPolicyOptions
+        return new MediaPlanningEngine(repository, new PlanningPolicySnapshotProvider(new PlanningPolicyOptions
         {
             Scale = new PackagePlanningPolicy
             {
@@ -983,12 +983,15 @@ public class ControllerMappingsTests
 
         var response = campaign.ToDetail(userId);
 
-        response.Timeline.Should().HaveCount(5);
+        response.Timeline.Should().HaveCount(8);
         response.Timeline[0].State.Should().Be("complete");
         response.Timeline[1].State.Should().Be("complete");
         response.Timeline[2].State.Should().Be("complete");
         response.Timeline[3].State.Should().Be("current");
         response.Timeline[4].State.Should().Be("upcoming");
+        response.Timeline[5].State.Should().Be("upcoming");
+        response.Timeline[6].State.Should().Be("upcoming");
+        response.Timeline[7].State.Should().Be("upcoming");
     }
 }
 

@@ -6,34 +6,52 @@ namespace Advertified.App.Services;
 
 public sealed class CurrentUserAccessor : ICurrentUserAccessor
 {
-    private const string UserIdHeader = "X-User-Id";
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly AppDbContext _db;
+    private readonly ISessionTokenService _sessionTokenService;
 
-    public CurrentUserAccessor(IHttpContextAccessor httpContextAccessor, AppDbContext db)
+    public CurrentUserAccessor(IHttpContextAccessor httpContextAccessor, AppDbContext db, ISessionTokenService sessionTokenService)
     {
         _httpContextAccessor = httpContextAccessor;
         _db = db;
+        _sessionTokenService = sessionTokenService;
     }
 
     public async Task<Guid> GetCurrentUserIdAsync(CancellationToken cancellationToken)
     {
-        var headerValue = _httpContextAccessor.HttpContext?.Request.Headers[UserIdHeader].FirstOrDefault();
-        if (Guid.TryParse(headerValue, out var headerUserId))
+        var token = ReadBearerToken();
+        if (string.IsNullOrWhiteSpace(token) || !_sessionTokenService.TryReadToken(token, out var payload))
         {
-            return headerUserId;
+            throw new InvalidOperationException("A valid authenticated session is required.");
         }
 
-        var latestUserId = await _db.UserAccounts
-            .OrderByDescending(x => x.CreatedAt)
-            .Select(x => x.Id)
-            .FirstOrDefaultAsync(cancellationToken);
-
-        if (latestUserId == Guid.Empty)
+        var user = await _db.UserAccounts
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == payload.UserId, cancellationToken);
+        if (user is null)
         {
-            throw new InvalidOperationException("No user account is available. Register a user first or send X-User-Id.");
+            throw new InvalidOperationException("Authenticated user account could not be found.");
         }
 
-        return latestUserId;
+        if (!string.Equals(user.PasswordHash, payload.PasswordHash, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Authenticated session is no longer valid.");
+        }
+
+        return user.Id;
+    }
+
+    private string? ReadBearerToken()
+    {
+        var authorizationHeader = _httpContextAccessor.HttpContext?.Request.Headers.Authorization.FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(authorizationHeader))
+        {
+            return null;
+        }
+
+        const string BearerPrefix = "Bearer ";
+        return authorizationHeader.StartsWith(BearerPrefix, StringComparison.OrdinalIgnoreCase)
+            ? authorizationHeader[BearerPrefix.Length..].Trim()
+            : null;
     }
 }

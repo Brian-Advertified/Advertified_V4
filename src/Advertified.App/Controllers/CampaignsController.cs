@@ -240,6 +240,105 @@ public sealed class CampaignsController : ControllerBase
         });
     }
 
+    [HttpPost("{id:guid}/approve-creative")]
+    public async Task<IActionResult> ApproveCreative(Guid id, CancellationToken cancellationToken)
+    {
+        var userId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
+        var campaign = await _db.Campaigns
+            .Include(x => x.User)
+            .Include(x => x.PackageBand)
+            .Include(x => x.PackageOrder)
+            .FirstOrDefaultAsync(x => x.Id == id && x.UserId == userId, cancellationToken)
+            ?? throw new InvalidOperationException("Campaign not found.");
+
+        if (!string.Equals(campaign.Status, "creative_sent_to_client_for_approval", StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Creative is not ready for approval.",
+                Detail = "Finished media can only be approved once it has been sent back to the client for final review.",
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
+
+        campaign.Status = "creative_approved";
+        campaign.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return Accepted(new
+        {
+            CampaignId = id,
+            Status = campaign.Status,
+            Message = "Creative approved."
+        });
+    }
+
+    [HttpPost("{id:guid}/request-creative-changes")]
+    public async Task<IActionResult> RequestCreativeChanges(Guid id, [FromBody] RequestRecommendationChangesRequest request, CancellationToken cancellationToken)
+    {
+        var userId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
+        var campaign = await _db.Campaigns
+            .Include(x => x.CampaignConversation!)
+                .ThenInclude(x => x.Messages)
+            .FirstOrDefaultAsync(x => x.Id == id && x.UserId == userId, cancellationToken)
+            ?? throw new InvalidOperationException("Campaign not found.");
+
+        if (!string.Equals(campaign.Status, "creative_sent_to_client_for_approval", StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Creative is not ready for revision.",
+                Detail = "Creative changes can only be requested after finished media has been sent back for client approval.",
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
+
+        var now = DateTime.UtcNow;
+        campaign.Status = "creative_changes_requested";
+        campaign.UpdatedAt = now;
+
+        if (!string.IsNullOrWhiteSpace(request.Notes))
+        {
+            var conversation = campaign.CampaignConversation;
+            if (conversation is null)
+            {
+                conversation = new Data.Entities.CampaignConversation
+                {
+                    Id = Guid.NewGuid(),
+                    CampaignId = campaign.Id,
+                    ClientUserId = campaign.UserId,
+                    CreatedAt = now,
+                    UpdatedAt = now,
+                    LastMessageAt = now
+                };
+                campaign.CampaignConversation = conversation;
+                _db.CampaignConversations.Add(conversation);
+            }
+
+            conversation.UpdatedAt = now;
+            conversation.LastMessageAt = now;
+            conversation.Messages.Add(new Data.Entities.CampaignMessage
+            {
+                Id = Guid.NewGuid(),
+                ConversationId = conversation.Id,
+                SenderUserId = userId,
+                SenderRole = "client",
+                Body = request.Notes.Trim(),
+                CreatedAt = now,
+                ReadByClientAt = now
+            });
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return Accepted(new
+        {
+            CampaignId = id,
+            Status = campaign.Status,
+            Message = "Creative changes requested."
+        });
+    }
+
     private async Task SendRecommendationApprovedEmailAsync(Advertified.App.Data.Entities.Campaign campaign, CancellationToken cancellationToken)
     {
         try

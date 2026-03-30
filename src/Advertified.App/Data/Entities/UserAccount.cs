@@ -27,6 +27,12 @@ public partial class UserAccount
 
     public virtual BusinessProfile? BusinessProfile { get; set; }
 
+    public virtual ICollection<ConsentPreference> ConsentPreferences { get; set; } = new List<ConsentPreference>();
+
+    public virtual ICollection<CampaignConversation> CampaignConversations { get; set; } = new List<CampaignConversation>();
+
+    public virtual ICollection<CampaignMessage> CampaignMessages { get; set; } = new List<CampaignMessage>();
+
     public virtual ICollection<CampaignRecommendation> CampaignRecommendations { get; set; } = new List<CampaignRecommendation>();
 
     public virtual ICollection<Campaign> Campaigns { get; set; } = new List<Campaign>();

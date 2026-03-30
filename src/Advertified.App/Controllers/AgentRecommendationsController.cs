@@ -1,5 +1,6 @@
 using Advertified.App.Contracts.Agent;
 using Advertified.App.Data;
+using Advertified.App.Services.Abstractions;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
@@ -12,10 +13,14 @@ public sealed class AgentRecommendationsController : ControllerBase
 {
     private const string ClientFeedbackMarker = "Client feedback:";
     private readonly AppDbContext _db;
+    private readonly ICurrentUserAccessor _currentUserAccessor;
+    private readonly IChangeAuditService _changeAuditService;
 
-    public AgentRecommendationsController(AppDbContext db)
+    public AgentRecommendationsController(AppDbContext db, ICurrentUserAccessor currentUserAccessor, IChangeAuditService changeAuditService)
     {
         _db = db;
+        _currentUserAccessor = currentUserAccessor;
+        _changeAuditService = changeAuditService;
     }
 
     [HttpDelete("{id:guid}")]
@@ -42,6 +47,13 @@ public sealed class AgentRecommendationsController : ControllerBase
         }
 
         await _db.SaveChangesAsync(cancellationToken);
+        await WriteChangeAuditAsync(
+            "delete_recommendation",
+            recommendation.Id.ToString(),
+            campaign?.CampaignName,
+            $"Deleted draft recommendation for {ResolveCampaignLabel(campaign)}.",
+            new { RecommendationId = recommendation.Id, CampaignId = recommendation.CampaignId },
+            cancellationToken);
 
         return Ok(new { RecommendationId = id, Message = "Draft recommendation deleted." });
     }
@@ -74,7 +86,49 @@ public sealed class AgentRecommendationsController : ControllerBase
 
         await _db.SaveChangesAsync(cancellationToken);
 
+        var campaignLabel = await _db.Campaigns
+            .AsNoTracking()
+            .Where(x => x.Id == recommendation.CampaignId)
+            .Select(x => x.CampaignName)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        await WriteChangeAuditAsync(
+            "update_recommendation",
+            recommendation.Id.ToString(),
+            campaignLabel,
+            $"Updated draft recommendation for {ResolveCampaignLabel(campaignLabel)}.",
+            new
+            {
+                RecommendationId = recommendation.Id,
+                CampaignId = recommendation.CampaignId,
+                recommendation.Status,
+                ItemCount = recommendation.RecommendationItems.Count
+            },
+            cancellationToken);
+
         return Ok(new { RecommendationId = id, recommendation.Status, request.Notes });
+    }
+
+    private async Task WriteChangeAuditAsync(
+        string action,
+        string entityId,
+        string? entityLabel,
+        string summary,
+        object? metadata,
+        CancellationToken cancellationToken)
+    {
+        var currentUserId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
+        await _changeAuditService.WriteAsync(currentUserId, "agent", action, "recommendation", entityId, entityLabel, summary, metadata, cancellationToken);
+    }
+
+    private static string ResolveCampaignLabel(Data.Entities.Campaign? campaign)
+    {
+        return ResolveCampaignLabel(campaign?.CampaignName);
+    }
+
+    private static string ResolveCampaignLabel(string? campaignName)
+    {
+        return string.IsNullOrWhiteSpace(campaignName) ? "campaign" : campaignName.Trim();
     }
 
     private static void SyncRecommendationItems(Data.Entities.CampaignRecommendation recommendation, IReadOnlyList<SelectedInventoryItemRequest> inventoryItems, DateTime now)

@@ -18,6 +18,7 @@ using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using System.Net.Http.Headers;
 
 namespace Advertified.App.Tests;
 
@@ -46,7 +47,7 @@ public class HttpWorkflowIntegrationTests
 
         var campaignId = await harness.ExecuteDbAsync(db => db.Campaigns.Select(x => x.Id).SingleAsync());
         var userId = await harness.ExecuteDbAsync(db => db.UserAccounts.Select(x => x.Id).SingleAsync());
-        harness.Client.DefaultRequestHeaders.Add("X-User-Id", userId.ToString());
+        harness.Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await harness.CreateSessionTokenAsync(userId));
 
         var saveResponse = await harness.Client.PutAsJsonAsync($"/campaigns/{campaignId}/brief", new
         {
@@ -89,9 +90,10 @@ public class HttpWorkflowIntegrationTests
             seed: db =>
             {
                 var user = TestSeed.CreateUser();
+                var agentUser = TestSeed.CreateAgent();
                 var (band, order, campaign) = TestSeed.CreateCampaignGraph(user, selectedBudget: 500000m);
 
-                db.UserAccounts.Add(user);
+                db.UserAccounts.AddRange(user, agentUser);
                 db.PackageBands.Add(band);
                 db.PackageOrders.Add(order);
                 db.Campaigns.Add(campaign);
@@ -103,6 +105,8 @@ public class HttpWorkflowIntegrationTests
             });
 
         var campaignId = await harness.ExecuteDbAsync(db => db.Campaigns.Select(x => x.Id).SingleAsync());
+        var agentUserId = await harness.ExecuteDbAsync(db => db.UserAccounts.Where(x => x.Role == UserRole.Agent).Select(x => x.Id).SingleAsync());
+        harness.Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await harness.CreateSessionTokenAsync(agentUserId));
 
         var response = await harness.Client.PostAsJsonAsync($"/agent/campaigns/{campaignId}/interpret-brief", new
         {
@@ -117,6 +121,56 @@ public class HttpWorkflowIntegrationTests
         payload!.Objective.Should().Be("launch");
         payload.Geography.Should().Be("gauteng");
         payload.Channels.Should().Contain(new[] { "Radio", "OOH" });
+    }
+
+    [Fact]
+    public async Task AgentCampaignQueue_AssignsAndUnassignsCampaignOverHttp()
+    {
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var clientUser = TestSeed.CreateUser();
+                var agentUser = TestSeed.CreateAgent();
+                var (band, order, campaign) = TestSeed.CreateCampaignGraph(clientUser, selectedBudget: 180000m, status: "planning_in_progress");
+                campaign.AssignedAgentUserId = null;
+                campaign.AssignedAt = null;
+
+                db.UserAccounts.AddRange(clientUser, agentUser);
+                db.PackageBands.Add(band);
+                db.PackageOrders.Add(order);
+                db.Campaigns.Add(campaign);
+                db.SaveChanges();
+            });
+
+        var campaignId = await harness.ExecuteDbAsync(db => db.Campaigns.Select(x => x.Id).SingleAsync());
+        var agentUserId = await harness.ExecuteDbAsync(db => db.UserAccounts.Where(x => x.Role == UserRole.Agent).Select(x => x.Id).SingleAsync());
+
+        harness.Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await harness.CreateSessionTokenAsync(agentUserId));
+
+        var assignResponse = await harness.Client.PostAsJsonAsync($"/agent/campaigns/{campaignId}/assign", new { });
+        assignResponse.StatusCode.Should().Be(HttpStatusCode.Accepted);
+
+        var assignedCampaign = await harness.ExecuteDbAsync(db => db.Campaigns.SingleAsync(x => x.Id == campaignId));
+        assignedCampaign.AssignedAgentUserId.Should().Be(agentUserId);
+        assignedCampaign.AssignedAt.Should().NotBeNull();
+
+        var inboxAfterAssign = await harness.Client.GetFromJsonAsync<AgentInboxResponse>("/agent/campaigns/inbox");
+        inboxAfterAssign.Should().NotBeNull();
+        inboxAfterAssign!.AssignedToMeCount.Should().Be(1);
+        inboxAfterAssign.UnassignedCount.Should().Be(0);
+        inboxAfterAssign.Items.Should().ContainSingle(x => x.Id == campaignId && x.IsAssignedToCurrentUser && !x.IsUnassigned);
+
+        var unassignResponse = await harness.Client.PostAsJsonAsync($"/agent/campaigns/{campaignId}/unassign", new { });
+        unassignResponse.StatusCode.Should().Be(HttpStatusCode.Accepted);
+
+        var unassignedCampaign = await harness.ExecuteDbAsync(db => db.Campaigns.SingleAsync(x => x.Id == campaignId));
+        unassignedCampaign.AssignedAgentUserId.Should().BeNull();
+
+        var inboxAfterUnassign = await harness.Client.GetFromJsonAsync<AgentInboxResponse>("/agent/campaigns/inbox");
+        inboxAfterUnassign.Should().NotBeNull();
+        inboxAfterUnassign!.AssignedToMeCount.Should().Be(0);
+        inboxAfterUnassign.UnassignedCount.Should().Be(1);
+        inboxAfterUnassign.Items.Should().ContainSingle(x => x.Id == campaignId && !x.IsAssignedToCurrentUser && x.IsUnassigned);
     }
 
     [Fact]
@@ -151,7 +205,7 @@ public class HttpWorkflowIntegrationTests
         var clientUserId = await harness.ExecuteDbAsync(db => db.UserAccounts.Where(x => x.Role == UserRole.Client).Select(x => x.Id).SingleAsync());
         var agentUserId = await harness.ExecuteDbAsync(db => db.UserAccounts.Where(x => x.Role == UserRole.Agent).Select(x => x.Id).SingleAsync());
 
-        harness.Client.DefaultRequestHeaders.Add("X-User-Id", agentUserId.ToString());
+        harness.Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await harness.CreateSessionTokenAsync(agentUserId));
         var sendResponse = await harness.Client.PostAsJsonAsync($"/agent/campaigns/{campaignId}/send-to-client", new
         {
             message = "Please review the attached media recommendation and let us know if you want any changes."
@@ -163,8 +217,7 @@ public class HttpWorkflowIntegrationTests
         sentEmailService.SentEmails.Should().ContainSingle();
         sentEmailService.SentEmails[0].TemplateName.Should().Be("recommendation-ready");
 
-        harness.Client.DefaultRequestHeaders.Remove("X-User-Id");
-        harness.Client.DefaultRequestHeaders.Add("X-User-Id", clientUserId.ToString());
+        harness.Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await harness.CreateSessionTokenAsync(clientUserId));
 
         var requestChangesResponse = await harness.Client.PostAsJsonAsync($"/campaigns/{campaignId}/request-changes", new
         {
@@ -175,14 +228,17 @@ public class HttpWorkflowIntegrationTests
 
         var changedCampaign = await harness.ExecuteDbAsync(db => db.Campaigns.Include(x => x.CampaignRecommendations).SingleAsync(x => x.Id == campaignId));
         changedCampaign.Status.Should().Be("planning_in_progress");
-        changedCampaign.CampaignRecommendations.Single().Status.Should().Be("draft");
-        changedCampaign.CampaignRecommendations.Single().Rationale.Should().Contain("Client feedback:");
+        changedCampaign.CampaignRecommendations.Should().Contain(x => x.Status == "draft");
+        changedCampaign.CampaignRecommendations.Should().Contain(x => (x.Rationale ?? string.Empty).Contains("Client feedback:"));
 
         await harness.ExecuteDbAsync(async db =>
         {
             var reviewReadyCampaign = await db.Campaigns.Include(x => x.CampaignRecommendations).SingleAsync(x => x.Id == campaignId);
             reviewReadyCampaign.Status = "review_ready";
-            reviewReadyCampaign.CampaignRecommendations.Single().Status = "sent_to_client";
+            reviewReadyCampaign.CampaignRecommendations
+                .OrderByDescending(x => x.CreatedAt)
+                .First()
+                .Status = "sent_to_client";
             await db.SaveChangesAsync();
             return true;
         });
@@ -192,7 +248,7 @@ public class HttpWorkflowIntegrationTests
 
         var approvedCampaign = await harness.ExecuteDbAsync(db => db.Campaigns.Include(x => x.CampaignRecommendations).SingleAsync(x => x.Id == campaignId));
         approvedCampaign.Status.Should().Be("approved");
-        approvedCampaign.CampaignRecommendations.Single().Status.Should().Be("approved");
+        approvedCampaign.CampaignRecommendations.Should().Contain(x => x.Status == "approved");
         sentEmailService.SentEmails.Select(x => x.TemplateName).Should().Contain(new[]
         {
             "recommendation-ready",
@@ -242,7 +298,7 @@ public class HttpWorkflowIntegrationTests
 
         var campaignId = await harness.ExecuteDbAsync(db => db.Campaigns.Select(x => x.Id).SingleAsync());
         var agentUserId = await harness.ExecuteDbAsync(db => db.UserAccounts.Where(x => x.Role == UserRole.Agent).Select(x => x.Id).SingleAsync());
-        harness.Client.DefaultRequestHeaders.Add("X-User-Id", agentUserId.ToString());
+        harness.Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await harness.CreateSessionTokenAsync(agentUserId));
 
         var response = await harness.Client.PostAsJsonAsync($"/agent/campaigns/{campaignId}/generate-recommendation", new { });
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -253,6 +309,45 @@ public class HttpWorkflowIntegrationTests
 
         var savedCampaign = await harness.ExecuteDbAsync(db => db.Campaigns.Include(x => x.CampaignRecommendations).SingleAsync(x => x.Id == campaignId));
         savedCampaign.CampaignRecommendations.Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public async Task OperationsCanMarkCampaignLaunchedAfterCreativeApproval()
+    {
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var clientUser = TestSeed.CreateUser();
+                var agentUser = TestSeed.CreateAgent();
+                var (band, order, campaign) = TestSeed.CreateCampaignGraph(clientUser, selectedBudget: 250000m, status: "creative_approved");
+                campaign.AssignedAgentUserId = agentUser.Id;
+                campaign.AssignedAt = DateTime.UtcNow;
+
+                db.UserAccounts.AddRange(clientUser, agentUser);
+                db.PackageBands.Add(band);
+                db.PackageOrders.Add(order);
+                db.Campaigns.Add(campaign);
+                db.SaveChanges();
+            },
+            configureServices: services =>
+            {
+                services.AddSingleton<StubTemplatedEmailService>();
+                services.AddSingleton<ITemplatedEmailService>(sp => sp.GetRequiredService<StubTemplatedEmailService>());
+            });
+
+        var campaignId = await harness.ExecuteDbAsync(db => db.Campaigns.Select(x => x.Id).SingleAsync());
+        var agentUserId = await harness.ExecuteDbAsync(db => db.UserAccounts.Where(x => x.Role == UserRole.Agent).Select(x => x.Id).SingleAsync());
+        harness.Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await harness.CreateSessionTokenAsync(agentUserId));
+
+        var response = await harness.Client.PostAsJsonAsync($"/agent/campaigns/{campaignId}/mark-launched", new { });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
+
+        var launchedCampaign = await harness.ExecuteDbAsync(db => db.Campaigns.SingleAsync(x => x.Id == campaignId));
+        launchedCampaign.Status.Should().Be("launched");
+
+        var emailService = harness.Services.GetRequiredService<StubTemplatedEmailService>();
+        emailService.SentEmails.Select(x => x.TemplateName).Should().Contain("campaign-live");
     }
 }
 
@@ -346,17 +441,23 @@ internal sealed class TestApiHarness : IAsyncDisposable
         });
 
         builder.WebHost.UseTestServer();
+        builder.Services.AddDataProtection();
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddControllers().AddApplicationPart(typeof(Advertified.App.Controllers.CampaignsController).Assembly);
         builder.Services.Configure<FrontendOptions>(options => options.BaseUrl = "http://localhost:5173");
         builder.Services.AddDbContext<AppDbContext>(options => options.UseInMemoryDatabase(databaseName));
         builder.Services.AddScoped<ICurrentUserAccessor, CurrentUserAccessor>();
+        builder.Services.AddScoped<ISessionTokenService, SessionTokenService>();
+        builder.Services.AddScoped<IPasswordHashingService, PasswordHashingService>();
+        builder.Services.AddScoped<IChangeAuditService, ChangeAuditService>();
         builder.Services.AddScoped<ICampaignAccessService, CampaignAccessService>();
+        builder.Services.AddScoped<IAgentAreaRoutingService, StubAgentAreaRoutingService>();
         builder.Services.AddScoped<ICampaignBriefService, CampaignBriefService>();
         builder.Services.AddScoped<CampaignPlanningRequestValidator>();
         builder.Services.AddScoped<SaveCampaignBriefRequestValidator>();
         builder.Services.AddScoped<IEmailVerificationService, StubEmailVerificationService>();
         builder.Services.AddScoped<IInvoiceService, StubInvoiceService>();
+        builder.Services.AddScoped<IRecommendationDocumentService, StubRecommendationDocumentService>();
         builder.Services.AddScoped<IMediaPlanningEngine, StubMediaPlanningEngine>();
         builder.Services.AddScoped<ICampaignReasoningService, StubCampaignReasoningService>();
         builder.Services.AddScoped<ICampaignRecommendationService, CampaignRecommendationService>();
@@ -391,6 +492,15 @@ internal sealed class TestApiHarness : IAsyncDisposable
         await using var scope = Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         return action(db);
+    }
+
+    public async Task<string> CreateSessionTokenAsync(Guid userId)
+    {
+        await using var scope = Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var tokenService = scope.ServiceProvider.GetRequiredService<ISessionTokenService>();
+        var user = await db.UserAccounts.FirstAsync(x => x.Id == userId);
+        return tokenService.CreateToken(user);
     }
 
     public async ValueTask DisposeAsync()
@@ -542,6 +652,17 @@ internal sealed class StubCampaignBriefInterpretationService : ICampaignBriefInt
             Summary = "The brief points to a premium Gauteng retail launch across radio and outdoor."
         });
     }
+}
+
+internal sealed class StubAgentAreaRoutingService : IAgentAreaRoutingService
+{
+    public Task TryAssignCampaignAsync(Guid campaignId, string trigger, CancellationToken cancellationToken) => Task.CompletedTask;
+}
+
+internal sealed class StubRecommendationDocumentService : IRecommendationDocumentService
+{
+    public Task<byte[]> GetCampaignPdfBytesAsync(Guid campaignId, CancellationToken cancellationToken)
+        => Task.FromResult(Array.Empty<byte>());
 }
 
 internal sealed class StubTemplatedEmailService : ITemplatedEmailService

@@ -5,8 +5,6 @@ using Advertified.App.Data.Enums;
 using Advertified.App.Services.Abstractions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System.Security.Cryptography;
-using System.Text;
 
 namespace Advertified.App.Controllers;
 
@@ -18,17 +16,23 @@ public sealed class AdminController : ControllerBase
     private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly IAdminDashboardService _adminDashboardService;
     private readonly IAdminMutationService _adminMutationService;
+    private readonly IChangeAuditService _changeAuditService;
+    private readonly IPasswordHashingService _passwordHashingService;
 
     public AdminController(
         AppDbContext db,
         ICurrentUserAccessor currentUserAccessor,
         IAdminDashboardService adminDashboardService,
-        IAdminMutationService adminMutationService)
+        IAdminMutationService adminMutationService,
+        IChangeAuditService changeAuditService,
+        IPasswordHashingService passwordHashingService)
     {
         _db = db;
         _currentUserAccessor = currentUserAccessor;
         _adminDashboardService = adminDashboardService;
         _adminMutationService = adminMutationService;
+        _changeAuditService = changeAuditService;
+        _passwordHashingService = passwordHashingService;
     }
 
     [HttpGet("dashboard")]
@@ -55,6 +59,7 @@ public sealed class AdminController : ControllerBase
         try
         {
             var result = await _adminMutationService.CreateOutletAsync(request, cancellationToken);
+            await WriteChangeAuditAsync("create", "outlet", result.Code, result.Name, $"Created outlet {result.Name}.", new { result.Code, result.Name }, cancellationToken);
             return Ok(result);
         }
         catch (InvalidOperationException ex)
@@ -93,7 +98,9 @@ public sealed class AdminController : ControllerBase
 
         try
         {
-            return Ok(await _adminMutationService.UpdateOutletAsync(code, request, cancellationToken));
+            var result = await _adminMutationService.UpdateOutletAsync(code, request, cancellationToken);
+            await WriteChangeAuditAsync("update", "outlet", result.Code, result.Name, $"Updated outlet {result.Name}.", new { PreviousCode = code, result.Code, result.Name }, cancellationToken);
+            return Ok(result);
         }
         catch (InvalidOperationException ex)
         {
@@ -113,6 +120,7 @@ public sealed class AdminController : ControllerBase
         try
         {
             await _adminMutationService.DeleteOutletAsync(code, cancellationToken);
+            await WriteChangeAuditAsync("delete", "outlet", code, code, $"Deleted outlet {code}.", new { Code = code }, cancellationToken);
             return NoContent();
         }
         catch (InvalidOperationException ex)
@@ -152,6 +160,7 @@ public sealed class AdminController : ControllerBase
         try
         {
             var id = await _adminMutationService.CreateOutletPricingPackageAsync(code, request, cancellationToken);
+            await WriteChangeAuditAsync("create", "outlet_pricing_package", id.ToString(), request.PackageName, $"Created outlet pricing package {request.PackageName}.", new { OutletCode = code, request.PackageName }, cancellationToken);
             return Ok(new { id });
         }
         catch (InvalidOperationException ex)
@@ -172,6 +181,7 @@ public sealed class AdminController : ControllerBase
         try
         {
             await _adminMutationService.UpdateOutletPricingPackageAsync(code, packageId, request, cancellationToken);
+            await WriteChangeAuditAsync("update", "outlet_pricing_package", packageId.ToString(), request.PackageName, $"Updated outlet pricing package {request.PackageName}.", new { OutletCode = code, PackageId = packageId, request.PackageName }, cancellationToken);
             return NoContent();
         }
         catch (InvalidOperationException ex)
@@ -192,6 +202,7 @@ public sealed class AdminController : ControllerBase
         try
         {
             await _adminMutationService.DeleteOutletPricingPackageAsync(code, packageId, cancellationToken);
+            await WriteChangeAuditAsync("delete", "outlet_pricing_package", packageId.ToString(), code, $"Deleted outlet pricing package {packageId} from {code}.", new { OutletCode = code, PackageId = packageId }, cancellationToken);
             return NoContent();
         }
         catch (InvalidOperationException ex)
@@ -212,6 +223,7 @@ public sealed class AdminController : ControllerBase
         try
         {
             var id = await _adminMutationService.CreateOutletSlotRateAsync(code, request, cancellationToken);
+            await WriteChangeAuditAsync("create", "outlet_slot_rate", id.ToString(), code, $"Created slot rate for outlet {code}.", new { OutletCode = code, SlotRateId = id, request.DayGroup, request.StartTime, request.EndTime }, cancellationToken);
             return Ok(new { id });
         }
         catch (InvalidOperationException ex)
@@ -232,6 +244,7 @@ public sealed class AdminController : ControllerBase
         try
         {
             await _adminMutationService.UpdateOutletSlotRateAsync(code, slotRateId, request, cancellationToken);
+            await WriteChangeAuditAsync("update", "outlet_slot_rate", slotRateId.ToString(), code, $"Updated slot rate for outlet {code}.", new { OutletCode = code, SlotRateId = slotRateId, request.DayGroup, request.StartTime, request.EndTime }, cancellationToken);
             return NoContent();
         }
         catch (InvalidOperationException ex)
@@ -252,6 +265,152 @@ public sealed class AdminController : ControllerBase
         try
         {
             await _adminMutationService.DeleteOutletSlotRateAsync(code, slotRateId, cancellationToken);
+            await WriteChangeAuditAsync("delete", "outlet_slot_rate", slotRateId.ToString(), code, $"Deleted slot rate from outlet {code}.", new { OutletCode = code, SlotRateId = slotRateId }, cancellationToken);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("geography/{code}")]
+    public async Task<ActionResult<AdminGeographyDetailResponse>> GetGeography(string code, CancellationToken cancellationToken)
+    {
+        var gateResult = await EnsureAdminAsync(cancellationToken);
+        if (gateResult is not null)
+        {
+            return gateResult;
+        }
+
+        try
+        {
+            return Ok(await _adminMutationService.GetGeographyAsync(code, cancellationToken));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("geography")]
+    public async Task<ActionResult<AdminGeographyDetailResponse>> CreateGeography([FromBody] CreateAdminGeographyRequest request, CancellationToken cancellationToken)
+    {
+        var gateResult = await EnsureAdminAsync(cancellationToken);
+        if (gateResult is not null)
+        {
+            return gateResult;
+        }
+
+        try
+        {
+            var result = await _adminMutationService.CreateGeographyAsync(request, cancellationToken);
+            await WriteChangeAuditAsync("create", "geography", result.Code, result.Label, $"Created geography mapping {result.Label}.", new { result.Code, result.Label }, cancellationToken);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPut("geography/{code}")]
+    public async Task<ActionResult<AdminGeographyDetailResponse>> UpdateGeography(string code, [FromBody] UpdateAdminGeographyRequest request, CancellationToken cancellationToken)
+    {
+        var gateResult = await EnsureAdminAsync(cancellationToken);
+        if (gateResult is not null)
+        {
+            return gateResult;
+        }
+
+        try
+        {
+            var result = await _adminMutationService.UpdateGeographyAsync(code, request, cancellationToken);
+            await WriteChangeAuditAsync("update", "geography", result.Code, result.Label, $"Updated geography mapping {result.Label}.", new { PreviousCode = code, result.Code, result.Label }, cancellationToken);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpDelete("geography/{code}")]
+    public async Task<IActionResult> DeleteGeography(string code, CancellationToken cancellationToken)
+    {
+        var gateResult = await EnsureAdminAsync(cancellationToken);
+        if (gateResult is not null)
+        {
+            return gateResult;
+        }
+
+        try
+        {
+            await _adminMutationService.DeleteGeographyAsync(code, cancellationToken);
+            await WriteChangeAuditAsync("delete", "geography", code, code, $"Deleted geography mapping {code}.", new { Code = code }, cancellationToken);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("geography/{code}/mappings")]
+    public async Task<ActionResult<object>> CreateGeographyMapping(string code, [FromBody] UpsertAdminGeographyMappingRequest request, CancellationToken cancellationToken)
+    {
+        var gateResult = await EnsureAdminAsync(cancellationToken);
+        if (gateResult is not null)
+        {
+            return gateResult;
+        }
+
+        try
+        {
+            var id = await _adminMutationService.CreateGeographyMappingAsync(code, request, cancellationToken);
+            await WriteChangeAuditAsync("create", "geography_mapping", id.ToString(), code, $"Created geography mapping row for {code}.", new { AreaCode = code, MappingId = id, request.Province, request.City, request.StationOrChannelName }, cancellationToken);
+            return Ok(new { id });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPut("geography/{code}/mappings/{mappingId:guid}")]
+    public async Task<IActionResult> UpdateGeographyMapping(string code, Guid mappingId, [FromBody] UpsertAdminGeographyMappingRequest request, CancellationToken cancellationToken)
+    {
+        var gateResult = await EnsureAdminAsync(cancellationToken);
+        if (gateResult is not null)
+        {
+            return gateResult;
+        }
+
+        try
+        {
+            await _adminMutationService.UpdateGeographyMappingAsync(code, mappingId, request, cancellationToken);
+            await WriteChangeAuditAsync("update", "geography_mapping", mappingId.ToString(), code, $"Updated geography mapping row for {code}.", new { AreaCode = code, MappingId = mappingId, request.Province, request.City, request.StationOrChannelName }, cancellationToken);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpDelete("geography/{code}/mappings/{mappingId:guid}")]
+    public async Task<IActionResult> DeleteGeographyMapping(string code, Guid mappingId, CancellationToken cancellationToken)
+    {
+        var gateResult = await EnsureAdminAsync(cancellationToken);
+        if (gateResult is not null)
+        {
+            return gateResult;
+        }
+
+        try
+        {
+            await _adminMutationService.DeleteGeographyMappingAsync(code, mappingId, cancellationToken);
+            await WriteChangeAuditAsync("delete", "geography_mapping", mappingId.ToString(), code, $"Deleted geography mapping row from {code}.", new { AreaCode = code, MappingId = mappingId }, cancellationToken);
             return NoContent();
         }
         catch (InvalidOperationException ex)
@@ -279,7 +438,134 @@ public sealed class AdminController : ControllerBase
         try
         {
             var result = await _adminMutationService.UploadRateCardAsync(channel, supplierOrStation, documentTitle, notes, file, cancellationToken);
+            await WriteChangeAuditAsync("create", "rate_card_import", result.SourceFile, result.DocumentTitle, $"Uploaded rate card {result.DocumentTitle}.", new { result.SourceFile, result.Channel, result.SupplierOrStation }, cancellationToken);
             return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPut("imports/rate-card/{sourceFile}")]
+    public async Task<IActionResult> UpdateRateCard(string sourceFile, [FromBody] UpdateAdminRateCardRequest request, CancellationToken cancellationToken)
+    {
+        var gateResult = await EnsureAdminAsync(cancellationToken);
+        if (gateResult is not null)
+        {
+            return gateResult;
+        }
+
+        try
+        {
+            await _adminMutationService.UpdateRateCardAsync(sourceFile, request, cancellationToken);
+            await WriteChangeAuditAsync("update", "rate_card_import", sourceFile, request.DocumentTitle ?? sourceFile, $"Updated rate card metadata for {sourceFile}.", new { SourceFile = sourceFile, request.Channel, request.SupplierOrStation, request.DocumentTitle }, cancellationToken);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpDelete("imports/rate-card/{sourceFile}")]
+    public async Task<IActionResult> DeleteRateCard(string sourceFile, CancellationToken cancellationToken)
+    {
+        var gateResult = await EnsureAdminAsync(cancellationToken);
+        if (gateResult is not null)
+        {
+            return gateResult;
+        }
+
+        try
+        {
+            await _adminMutationService.DeleteRateCardAsync(sourceFile, cancellationToken);
+            await WriteChangeAuditAsync("delete", "rate_card_import", sourceFile, sourceFile, $"Deleted rate card import {sourceFile}.", new { SourceFile = sourceFile }, cancellationToken);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("package-settings")]
+    public async Task<ActionResult<object>> CreatePackageSetting([FromBody] CreateAdminPackageSettingRequest request, CancellationToken cancellationToken)
+    {
+        var gateResult = await EnsureAdminAsync(cancellationToken);
+        if (gateResult is not null)
+        {
+            return gateResult;
+        }
+
+        try
+        {
+            var id = await _adminMutationService.CreatePackageSettingAsync(request, cancellationToken);
+            await WriteChangeAuditAsync("create", "package_setting", id.ToString(), request.Name, $"Created package band {request.Name}.", new { PackageSettingId = id, request.Code, request.Name }, cancellationToken);
+            return Ok(new { id });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPut("package-settings/{packageSettingId:guid}")]
+    public async Task<IActionResult> UpdatePackageSetting(Guid packageSettingId, [FromBody] UpdateAdminPackageSettingRequest request, CancellationToken cancellationToken)
+    {
+        var gateResult = await EnsureAdminAsync(cancellationToken);
+        if (gateResult is not null)
+        {
+            return gateResult;
+        }
+
+        try
+        {
+            await _adminMutationService.UpdatePackageSettingAsync(packageSettingId, request, cancellationToken);
+            await WriteChangeAuditAsync("update", "package_setting", packageSettingId.ToString(), request.Name, $"Updated package band {request.Name}.", new { PackageSettingId = packageSettingId, request.Code, request.Name }, cancellationToken);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpDelete("package-settings/{packageSettingId:guid}")]
+    public async Task<IActionResult> DeletePackageSetting(Guid packageSettingId, CancellationToken cancellationToken)
+    {
+        var gateResult = await EnsureAdminAsync(cancellationToken);
+        if (gateResult is not null)
+        {
+            return gateResult;
+        }
+
+        try
+        {
+            await _adminMutationService.DeletePackageSettingAsync(packageSettingId, cancellationToken);
+            await WriteChangeAuditAsync("delete", "package_setting", packageSettingId.ToString(), packageSettingId.ToString(), $"Deleted package band {packageSettingId}.", new { PackageSettingId = packageSettingId }, cancellationToken);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPut("engine-settings/{packageCode}")]
+    public async Task<IActionResult> UpdateEnginePolicy(string packageCode, [FromBody] UpdateAdminEnginePolicyRequest request, CancellationToken cancellationToken)
+    {
+        var gateResult = await EnsureAdminAsync(cancellationToken);
+        if (gateResult is not null)
+        {
+            return gateResult;
+        }
+
+        try
+        {
+            await _adminMutationService.UpdateEnginePolicyAsync(packageCode, request, cancellationToken);
+            await WriteChangeAuditAsync("update", "engine_policy", packageCode, packageCode, $"Updated engine policy for {packageCode}.", request, cancellationToken);
+            return NoContent();
         }
         catch (InvalidOperationException ex)
         {
@@ -299,6 +585,7 @@ public sealed class AdminController : ControllerBase
         try
         {
             await _adminMutationService.UpdatePreviewRuleAsync(packageCode, tierCode, request, cancellationToken);
+            await WriteChangeAuditAsync("update", "preview_rule", $"{packageCode}:{tierCode}", request.TierLabel, $"Updated preview rule {tierCode} for {packageCode}.", new { PackageCode = packageCode, TierCode = tierCode, request.TierLabel }, cancellationToken);
             return NoContent();
         }
         catch (InvalidOperationException ex)
@@ -321,7 +608,10 @@ public sealed class AdminController : ControllerBase
             .OrderBy(x => x.FullName)
             .ToArrayAsync(cancellationToken);
 
-        return Ok(users.Select(MapAdminUser).ToArray());
+        var assignments = await _db.AgentAreaAssignments.AsNoTracking().ToArrayAsync(cancellationToken);
+        var areaLabelsByCode = await GetAreaLabelsByCodeAsync(cancellationToken);
+
+        return Ok(users.Select(user => MapAdminUser(user, assignments, areaLabelsByCode)).ToArray());
     }
 
     [HttpPost("users")]
@@ -335,10 +625,14 @@ public sealed class AdminController : ControllerBase
 
         try
         {
+            await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
             var user = await BuildUserAsync(request.FullName, request.Email, request.Phone, request.Password, request.Role, request.AccountStatus, request.IsSaCitizen, request.EmailVerified, request.PhoneVerified, cancellationToken);
             _db.UserAccounts.Add(user);
             await _db.SaveChangesAsync(cancellationToken);
-            return Ok(MapAdminUser(user));
+            await SyncAgentAreaAssignmentsAsync(user.Id, user.Role, request.AssignedAreaCodes, cancellationToken);
+            await WriteChangeAuditAsync("create", "user_account", user.Id.ToString(), user.FullName, $"Created user account {user.FullName}.", new { user.Email, request.Role, request.AccountStatus, request.AssignedAreaCodes }, cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return Ok(await BuildAdminUserResponseAsync(user, cancellationToken));
         }
         catch (InvalidOperationException ex)
         {
@@ -357,6 +651,7 @@ public sealed class AdminController : ControllerBase
 
         try
         {
+            await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
             var user = await _db.UserAccounts.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
             if (user is null)
             {
@@ -382,11 +677,14 @@ public sealed class AdminController : ControllerBase
 
             if (!string.IsNullOrWhiteSpace(request.Password))
             {
-                user.PasswordHash = HashPassword(request.Password);
+                user.PasswordHash = _passwordHashingService.HashPassword(user, request.Password);
             }
 
             await _db.SaveChangesAsync(cancellationToken);
-            return Ok(MapAdminUser(user));
+            await SyncAgentAreaAssignmentsAsync(user.Id, user.Role, request.AssignedAreaCodes, cancellationToken);
+            await WriteChangeAuditAsync("update", "user_account", user.Id.ToString(), user.FullName, $"Updated user account {user.FullName}.", new { user.Email, request.Role, request.AccountStatus, request.AssignedAreaCodes }, cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return Ok(await BuildAdminUserResponseAsync(user, cancellationToken));
         }
         catch (InvalidOperationException ex)
         {
@@ -435,6 +733,7 @@ public sealed class AdminController : ControllerBase
 
         _db.UserAccounts.Remove(user);
         await _db.SaveChangesAsync(cancellationToken);
+        await WriteChangeAuditAsync("delete", "user_account", user.Id.ToString(), user.FullName, $"Deleted user account {user.FullName}.", new { user.Email }, cancellationToken);
         return NoContent();
     }
 
@@ -447,41 +746,73 @@ public sealed class AdminController : ControllerBase
             return gateResult;
         }
 
-        var requestLogs = await _db.PaymentProviderRequests
+        var changeLogRows = await _db.ChangeAuditLogs
+            .AsNoTracking()
+            .OrderByDescending(x => x.CreatedAt)
+            .Take(20)
+            .ToArrayAsync(cancellationToken);
+
+        var changeLogs = changeLogRows
+            .Select(x => new AdminAuditEntryResponse
+            {
+                Id = x.Id,
+                Source = FormatAuditSource(x.Scope),
+                ActorName = string.IsNullOrWhiteSpace(x.ActorName) ? "System" : x.ActorName,
+                ActorRole = x.ActorRole,
+                EventType = x.Action,
+                EntityType = x.EntityType,
+                EntityLabel = x.EntityLabel,
+                Context = x.Summary,
+                StatusLabel = null,
+                CreatedAt = x.CreatedAt,
+            })
+            .ToArray();
+
+        var requestLogRows = await _db.PaymentProviderRequests
             .AsNoTracking()
             .OrderByDescending(x => x.CreatedAt)
             .Take(10)
+            .ToArrayAsync(cancellationToken);
+
+        var requestLogs = requestLogRows
             .Select(x => new AdminAuditEntryResponse
             {
                 Id = x.Id,
                 Source = "Payment request",
-                Provider = x.Provider,
+                ActorName = "System",
+                ActorRole = "integration",
                 EventType = x.EventType,
-                ExternalReference = x.ExternalReference,
-                RequestUrl = x.RequestUrl,
-                ResponseStatusCode = x.ResponseStatusCode,
+                EntityType = "package_order",
+                EntityLabel = x.ExternalReference,
+                Context = x.RequestUrl,
+                StatusLabel = x.ResponseStatusCode?.ToString(),
                 CreatedAt = x.CreatedAt,
             })
-            .ToArrayAsync(cancellationToken);
+            .ToArray();
 
-        var webhookLogs = await _db.PaymentProviderWebhooks
+        var webhookLogRows = await _db.PaymentProviderWebhooks
             .AsNoTracking()
             .OrderByDescending(x => x.CreatedAt)
             .Take(10)
+            .ToArrayAsync(cancellationToken);
+
+        var webhookLogs = webhookLogRows
             .Select(x => new AdminAuditEntryResponse
             {
                 Id = x.Id,
                 Source = "Payment webhook",
-                Provider = x.Provider,
+                ActorName = "System",
+                ActorRole = "integration",
                 EventType = x.ProcessedStatus,
-                ExternalReference = x.PackageOrderId.HasValue ? x.PackageOrderId.Value.ToString() : null,
-                RequestUrl = x.WebhookPath,
-                ResponseStatusCode = null,
+                EntityType = "package_order",
+                EntityLabel = x.PackageOrderId.HasValue ? x.PackageOrderId.Value.ToString() : null,
+                Context = x.WebhookPath,
+                StatusLabel = x.ProcessedStatus,
                 CreatedAt = x.CreatedAt,
             })
-            .ToArrayAsync(cancellationToken);
+            .ToArray();
 
-        var combined = requestLogs.Concat(webhookLogs)
+        var combined = changeLogs.Concat(requestLogs).Concat(webhookLogs)
             .OrderByDescending(x => x.CreatedAt)
             .Take(20)
             .ToArray();
@@ -537,6 +868,128 @@ public sealed class AdminController : ControllerBase
         return null;
     }
 
+    private static string FormatAuditSource(string? scope)
+    {
+        if (string.IsNullOrWhiteSpace(scope))
+        {
+            return "System change";
+        }
+
+        var normalizedScope = scope.Trim().ToLowerInvariant();
+        return $"{char.ToUpperInvariant(normalizedScope[0])}{normalizedScope.Substring(1)} change";
+    }
+
+    private async Task WriteChangeAuditAsync(
+        string action,
+        string entityType,
+        string entityId,
+        string? entityLabel,
+        string summary,
+        object? metadata,
+        CancellationToken cancellationToken)
+    {
+        var currentUserId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
+        await _changeAuditService.WriteAsync(currentUserId, "admin", action, entityType, entityId, entityLabel, summary, metadata, cancellationToken);
+    }
+
+    private async Task<AdminUserResponse> BuildAdminUserResponseAsync(UserAccount user, CancellationToken cancellationToken)
+    {
+        var assignments = await _db.AgentAreaAssignments
+            .AsNoTracking()
+            .Where(x => x.AgentUserId == user.Id)
+            .ToArrayAsync(cancellationToken);
+        var areaLabelsByCode = await GetAreaLabelsByCodeAsync(cancellationToken);
+        return MapAdminUser(user, assignments, areaLabelsByCode);
+    }
+
+    private async Task<Dictionary<string, string>> GetAreaLabelsByCodeAsync(CancellationToken cancellationToken)
+    {
+        var rows = await _db.Database
+            .SqlQueryRaw<AreaLabelLookup>("select cluster_code as Code, display_name as Label from package_area_profiles where is_active = true;")
+            .ToArrayAsync(cancellationToken);
+
+        return rows.ToDictionary(x => x.Code, x => x.Label, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private async Task SyncAgentAreaAssignmentsAsync(Guid userId, UserRole role, IReadOnlyList<string> areaCodes, CancellationToken cancellationToken)
+    {
+        var existingAssignments = await _db.AgentAreaAssignments
+            .Where(x => x.AgentUserId == userId)
+            .ToArrayAsync(cancellationToken);
+
+        if (role != UserRole.Agent)
+        {
+            if (existingAssignments.Length > 0)
+            {
+                _db.AgentAreaAssignments.RemoveRange(existingAssignments);
+                await _db.SaveChangesAsync(cancellationToken);
+            }
+
+            return;
+        }
+
+        var normalizedCodes = areaCodes
+            .Where(code => !string.IsNullOrWhiteSpace(code))
+            .Select(code => code.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        var validAreaCodes = await _db.Database
+            .SqlQueryRaw<AreaCodeLookup>("select cluster_code as Code from package_area_profiles where is_active = true;")
+            .Select(x => x.Code)
+            .ToArrayAsync(cancellationToken);
+
+        var invalidCodes = normalizedCodes
+            .Where(code => !validAreaCodes.Contains(code, StringComparer.OrdinalIgnoreCase))
+            .ToArray();
+
+        if (invalidCodes.Length > 0)
+        {
+            throw new InvalidOperationException($"Unknown area code(s): {string.Join(", ", invalidCodes)}.");
+        }
+
+        var conflictingAssignments = await _db.AgentAreaAssignments
+            .AsNoTracking()
+            .Where(x => x.AgentUserId != userId && normalizedCodes.Contains(x.AreaCode))
+            .ToArrayAsync(cancellationToken);
+
+        if (conflictingAssignments.Length > 0)
+        {
+            throw new InvalidOperationException($"These areas are already assigned to another agent: {string.Join(", ", conflictingAssignments.Select(x => x.AreaCode).OrderBy(x => x))}.");
+        }
+
+        var toRemove = existingAssignments
+            .Where(x => !normalizedCodes.Contains(x.AreaCode, StringComparer.OrdinalIgnoreCase))
+            .ToArray();
+
+        if (toRemove.Length > 0)
+        {
+            _db.AgentAreaAssignments.RemoveRange(toRemove);
+        }
+
+        var existingCodes = existingAssignments
+            .Select(x => x.AreaCode)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var areaCode in normalizedCodes)
+        {
+            if (existingCodes.Contains(areaCode))
+            {
+                continue;
+            }
+
+            _db.AgentAreaAssignments.Add(new AgentAreaAssignment
+            {
+                Id = Guid.NewGuid(),
+                AgentUserId = userId,
+                AreaCode = areaCode,
+                CreatedAt = DateTime.UtcNow
+            });
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
     private async Task<UserAccount> BuildUserAsync(
         string fullName,
         string email,
@@ -557,13 +1010,12 @@ public sealed class AdminController : ControllerBase
         }
 
         var now = DateTime.UtcNow;
-        return new UserAccount
+        var user = new UserAccount
         {
             Id = Guid.NewGuid(),
             FullName = RequireValue(fullName, "Full name"),
             Email = normalizedEmail,
             Phone = RequireValue(phone, "Phone"),
-            PasswordHash = HashPassword(password),
             Role = ParseUserRole(role),
             AccountStatus = ParseAccountStatus(accountStatus),
             IsSaCitizen = isSaCitizen,
@@ -572,10 +1024,19 @@ public sealed class AdminController : ControllerBase
             CreatedAt = now,
             UpdatedAt = now,
         };
+        user.PasswordHash = _passwordHashingService.HashPassword(user, password);
+        return user;
     }
 
-    private static AdminUserResponse MapAdminUser(UserAccount user)
+    private static AdminUserResponse MapAdminUser(UserAccount user, IEnumerable<AgentAreaAssignment> assignments, IReadOnlyDictionary<string, string> areaLabelsByCode)
     {
+        var assignedAreaCodes = assignments
+            .Where(x => x.AgentUserId == user.Id)
+            .Select(x => x.AreaCode)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(x => x)
+            .ToArray();
+
         return new AdminUserResponse
         {
             Id = user.Id,
@@ -587,9 +1048,22 @@ public sealed class AdminController : ControllerBase
             IsSaCitizen = user.IsSaCitizen,
             EmailVerified = user.EmailVerified,
             PhoneVerified = user.PhoneVerified,
+            AssignedAreaCodes = assignedAreaCodes,
+            AssignedAreaLabels = assignedAreaCodes.Select(code => areaLabelsByCode.TryGetValue(code, out var label) ? label : code).ToArray(),
             CreatedAt = user.CreatedAt,
             UpdatedAt = user.UpdatedAt,
         };
+    }
+
+    private sealed class AreaCodeLookup
+    {
+        public string Code { get; set; } = string.Empty;
+    }
+
+    private sealed class AreaLabelLookup
+    {
+        public string Code { get; set; } = string.Empty;
+        public string Label { get; set; } = string.Empty;
     }
 
     private static UserRole ParseUserRole(string role)
@@ -634,15 +1108,4 @@ public sealed class AdminController : ControllerBase
         return normalized;
     }
 
-    private static string HashPassword(string password)
-    {
-        var normalizedPassword = password.Trim();
-        if (string.IsNullOrWhiteSpace(normalizedPassword))
-        {
-            throw new InvalidOperationException("Password is required.");
-        }
-
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(normalizedPassword));
-        return Convert.ToHexString(bytes);
-    }
 }

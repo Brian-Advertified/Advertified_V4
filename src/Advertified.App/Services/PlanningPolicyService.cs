@@ -2,17 +2,15 @@ using Advertified.App.Configuration;
 using Advertified.App.Contracts.Campaigns;
 using Advertified.App.Domain.Campaigns;
 using Advertified.App.Services.Abstractions;
-using Microsoft.Extensions.Options;
-
 namespace Advertified.App.Services;
 
 public sealed class PlanningPolicyService : IPlanningPolicyService
 {
     private readonly PlanningPolicyOptions _policyOptions;
 
-    public PlanningPolicyService(IOptions<PlanningPolicyOptions> policyOptions)
+    public PlanningPolicyService(PlanningPolicySnapshotProvider snapshotProvider)
     {
-        _policyOptions = policyOptions.Value;
+        _policyOptions = snapshotProvider.GetCurrent();
     }
 
     public PlanningPolicyOutcome ApplyHigherBandRadioEligibility(List<InventoryCandidate> candidates, CampaignPlanningRequest request)
@@ -174,4 +172,3 @@ public sealed class PlanningPolicyService : IPlanningPolicyService
         return GetPricingModel(candidate).Equals("fixed_placement_total", StringComparison.OrdinalIgnoreCase);
     }
 }
-
