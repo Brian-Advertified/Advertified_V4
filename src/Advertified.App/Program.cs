@@ -197,6 +197,13 @@ builder.Services.AddScoped<SaveCampaignBriefRequestValidator>();
 
 var app = builder.Build();
 
+if (app.Environment.IsDevelopment())
+{
+    await using var initializationScope = app.Services.CreateAsyncScope();
+    var initializationDb = initializationScope.ServiceProvider.GetRequiredService<AppDbContext>();
+    await initializationDb.Database.EnsureCreatedAsync();
+}
+
 await DatabaseSchemaInitializer.InitializeAsync(app.Services, app.Environment);
 await EmailTemplateInitializer.InitializeAsync(app.Services);
 await PackageCatalogInitializer.InitializeAsync(app.Services);

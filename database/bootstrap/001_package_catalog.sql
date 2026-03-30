@@ -1,3 +1,30 @@
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+CREATE TABLE IF NOT EXISTS package_bands (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    code VARCHAR(50) NOT NULL UNIQUE,
+    name VARCHAR(100) NOT NULL,
+    min_budget NUMERIC(12,2) NOT NULL,
+    max_budget NUMERIC(12,2) NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+INSERT INTO package_bands (code, name, min_budget, max_budget, sort_order, is_active)
+VALUES
+    ('launch', 'Launch', 15000.00, 49999.99, 1, TRUE),
+    ('boost', 'Boost', 50000.00, 149999.99, 2, TRUE),
+    ('scale', 'Scale', 150000.00, 499999.99, 3, TRUE),
+    ('dominance', 'Dominance', 500000.00, 5000000.00, 4, TRUE)
+ON CONFLICT (code) DO UPDATE
+SET
+    name = EXCLUDED.name,
+    min_budget = EXCLUDED.min_budget,
+    max_budget = EXCLUDED.max_budget,
+    sort_order = EXCLUDED.sort_order,
+    is_active = EXCLUDED.is_active;
+
 CREATE TABLE IF NOT EXISTS package_band_profiles (
     package_band_id UUID PRIMARY KEY REFERENCES package_bands(id) ON DELETE CASCADE,
     description TEXT NOT NULL,

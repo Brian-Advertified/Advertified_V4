@@ -20,6 +20,7 @@ internal static class DatabaseSchemaInitializer
         foreach (var relativePath in new[]
                  {
                      Path.Combine("database", "bootstrap", "001_package_catalog.sql"),
+                     Path.Combine("database", "media_import", "001_create_tables.sql"),
                      Path.Combine("database", "bootstrap", "002_normalized_media_catalog.sql"),
                      Path.Combine("database", "bootstrap", "003_payment_audit.sql"),
                      Path.Combine("database", "bootstrap", "004_invoicing.sql"),

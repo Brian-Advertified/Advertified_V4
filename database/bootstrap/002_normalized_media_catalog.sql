@@ -52,6 +52,19 @@ CREATE TABLE IF NOT EXISTS region_clusters (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+INSERT INTO region_clusters (code, name, description)
+VALUES
+    ('gauteng', 'Gauteng', 'Johannesburg, Pretoria, and surrounding commuter corridors.'),
+    ('kzn', 'KwaZulu-Natal', 'Durban, Pietermaritzburg, and surrounding coastal commuter markets.'),
+    ('western-cape', 'Western Cape', 'Cape Town and surrounding retail, lifestyle, and tourism markets.'),
+    ('eastern-cape', 'Eastern Cape', 'Gqeberha, East London, and regional coastal commuter markets.'),
+    ('national', 'National', 'Multi-province or nationwide package coverage.')
+ON CONFLICT (code) DO UPDATE
+SET
+    name = EXCLUDED.name,
+    description = EXCLUDED.description,
+    updated_at = NOW();
+
 CREATE TABLE IF NOT EXISTS region_cluster_mappings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     cluster_id UUID NOT NULL REFERENCES region_clusters(id) ON DELETE CASCADE,
