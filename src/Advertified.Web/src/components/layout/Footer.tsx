@@ -26,6 +26,7 @@ export function Footer() {
               <Link to="/media-partners" className="transition hover:text-brand">Media Partners</Link>
               <Link to="/packages" className="transition hover:text-brand">Packages</Link>
               <Link to="/about" className="transition hover:text-brand">About Us</Link>
+              <Link to="/faq" className="transition hover:text-brand">FAQ</Link>
               <Link to="/how-it-works" className="transition hover:text-brand">How It Works</Link>
             </div>
           </div>
@@ -61,6 +62,7 @@ export function Footer() {
             <Link to="/privacy" className="transition hover:text-brand">Privacy Policy</Link>
             <Link to="/terms-of-service" className="transition hover:text-brand">Terms of Service</Link>
             <Link to="/cookie-policy" className="transition hover:text-brand">Cookie Policy</Link>
+            <Link to="/faq" className="transition hover:text-brand">FAQ</Link>
             <button type="button" onClick={openConsentPreferences} className="cursor-pointer border-0 bg-transparent p-0 text-left transition hover:text-brand">
               Cookie settings
             </button>

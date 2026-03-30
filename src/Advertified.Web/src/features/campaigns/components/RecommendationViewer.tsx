@@ -1,9 +1,8 @@
 import { Download } from 'lucide-react';
 import { titleCase, formatCurrency } from '../../../lib/utils';
+import { advertifiedApi } from '../../../services/advertifiedApi';
 import type { CampaignRecommendation } from '../../../types/domain';
 import { StatusBadge } from '../../../components/ui/StatusBadge';
-
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:5050';
 
 export function RecommendationViewer({ recommendation, recommendationPdfUrl }: { recommendation: CampaignRecommendation; recommendationPdfUrl?: string }) {
   const baseItems = recommendation.items.filter((item) => item.type === 'base');
@@ -38,15 +37,19 @@ export function RecommendationViewer({ recommendation, recommendationPdfUrl }: {
         <div className="space-y-3">
           <StatusBadge status={recommendation.status} />
           {recommendationPdfUrl ? (
-            <a
-              href={`${API_BASE_URL}${recommendationPdfUrl}`}
-              target="_blank"
-              rel="noreferrer"
+            <button
+              type="button"
+              onClick={() => {
+                void advertifiedApi.downloadProtectedFile(
+                  recommendationPdfUrl,
+                  `recommendation-${recommendation.campaignId}.pdf`,
+                );
+              }}
               className="inline-flex items-center gap-2 rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink-soft transition hover:border-brand/30 hover:text-ink"
             >
               <Download className="size-4" />
               Download detailed PDF
-            </a>
+            </button>
           ) : null}
           <div className="rounded-2xl bg-brand-soft px-4 py-3 text-right">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Campaign total</p>

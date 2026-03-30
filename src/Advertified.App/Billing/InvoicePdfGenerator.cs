@@ -10,6 +10,8 @@ namespace Advertified.App.Billing;
 internal static class InvoicePdfGenerator
 {
     private const decimal VatRate = 0.15m;
+    private const int ProcessingTimelineBusinessDays = 5;
+    private const string TermsUrl = "https://advertified.com/terms-of-service";
 
     internal static byte[] Generate(InvoiceIssuerProfile issuer, Invoice invoice, string? logoPath)
     {
@@ -17,6 +19,7 @@ internal static class InvoicePdfGenerator
         var lineItems = GetEffectiveLineItems(invoice);
         var subtotal = lineItems.Sum(x => x.SubtotalAmount);
         var vatAmount = lineItems.Sum(x => x.VatAmount);
+        var placeholders = BuildPlaceholders(issuer, invoice);
 
         return Document.Create(document =>
         {
@@ -134,6 +137,57 @@ internal static class InvoicePdfGenerator
                             ? $"Paid at: {invoice.PaidAtUtc:dd MMM yyyy HH:mm} UTC"
                             : $"Due at: {invoice.DueAtUtc:dd MMM yyyy}").FontColor("#4B5563");
                     });
+
+                    column.Item().Border(1).BorderColor("#D1D5DB").Padding(10).Column(terms =>
+                    {
+                        terms.Item().Text("TERMS SUMMARY").FontSize(8).FontColor("#4B5563").SemiBold();
+                        var shortTerms = BuildShortTermsSummary(placeholders);
+                        for (var index = 0; index < shortTerms.Length; index++)
+                        {
+                            terms.Item().PaddingTop(4).Text($"{index + 1}. {shortTerms[index]}").FontColor("#374151");
+                        }
+
+                        terms.Item().PaddingTop(6).Text("By paying this invoice, the client accepts Advertified terms and applicable supplier terms.")
+                            .FontColor("#111827").SemiBold();
+                        terms.Item().PaddingTop(6).Text($"Full terms and conditions continue on page 2 of this invoice and online at {TermsUrl}.")
+                            .FontColor("#0F766E")
+                            .SemiBold();
+                    });
+                });
+
+                page.Footer().AlignCenter().Text(text =>
+                {
+                    text.Span("Terms and conditions: ").FontColor("#4B5563");
+                    text.Span($"{TermsUrl} | Legal annex on page 2").FontColor("#0F766E").SemiBold();
+                });
+            });
+
+            document.Page(page =>
+            {
+                page.Size(PageSizes.A4);
+                page.Margin(36);
+                page.DefaultTextStyle(text => text.FontSize(10).FontColor("#111111").FontFamily("Arial"));
+
+                page.Header().Column(header =>
+                {
+                    header.Item().Text("LEGAL ANNEX: INVOICE TERMS AND CAMPAIGN EXECUTION CONDITIONS").SemiBold().FontSize(12);
+                    header.Item().Text($"Reference invoice: {invoice.InvoiceNumber}").FontColor("#4B5563");
+                });
+
+                page.Content().PaddingTop(12).Column(content =>
+                {
+                    content.Spacing(8);
+                    foreach (var clause in BuildLegalAnnexClauses(placeholders))
+                    {
+                        content.Item().Text(clause.Heading).SemiBold().FontSize(10);
+                        content.Item().Text(clause.Body).FontColor("#374151").LineHeight(1.35f);
+                    }
+                });
+
+                page.Footer().AlignCenter().Text(text =>
+                {
+                    text.Span("Advertified Terms of Service: ").FontColor("#4B5563");
+                    text.Span(TermsUrl).FontColor("#0F766E").SemiBold();
                 });
             });
         }).GeneratePdf();
@@ -241,5 +295,90 @@ internal static class InvoicePdfGenerator
                 CreatedAtUtc = invoice.CreatedAtUtc
             }
         };
+    }
+
+    private static Dictionary<string, string> BuildPlaceholders(InvoiceIssuerProfile issuer, Invoice invoice)
+    {
+        return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["InvoiceNumber"] = invoice.InvoiceNumber,
+            ["CampaignName"] = string.IsNullOrWhiteSpace(invoice.CampaignName) ? "Campaign" : invoice.CampaignName.Trim(),
+            ["PackageName"] = string.IsNullOrWhiteSpace(invoice.PackageName) ? "Package" : invoice.PackageName.Trim(),
+            ["Provider"] = string.IsNullOrWhiteSpace(invoice.Provider) ? "Payment provider" : invoice.Provider.Trim(),
+            ["IssuerName"] = string.IsNullOrWhiteSpace(issuer.LegalName) ? "Advertified" : issuer.LegalName.Trim(),
+            ["ClientName"] = string.IsNullOrWhiteSpace(invoice.CustomerName) ? "Client" : invoice.CustomerName.Trim(),
+            ["Amount"] = FormatCurrency(invoice.TotalAmount),
+            ["ProcessingTimelineBusinessDays"] = ProcessingTimelineBusinessDays.ToString(CultureInfo.InvariantCulture),
+            ["TermsUrl"] = TermsUrl,
+        };
+    }
+
+    private static string ResolveTemplate(string template, IReadOnlyDictionary<string, string> placeholders)
+    {
+        var output = template;
+        foreach (var entry in placeholders)
+        {
+            output = output.Replace($"{{{entry.Key}}}", entry.Value, StringComparison.OrdinalIgnoreCase);
+        }
+
+        return output;
+    }
+
+    private static string[] BuildShortTermsSummary(IReadOnlyDictionary<string, string> placeholders)
+    {
+        var templates = new[]
+        {
+            "Campaign onboarding and supplier booking may take up to {ProcessingTimelineBusinessDays} business days after cleared payment and receipt of required materials.",
+            "Media inventory is subject to final supplier availability at booking time.",
+            "If selected inventory is unavailable, {IssuerName} may substitute equivalent inventory of similar value/reach, with client notice.",
+            "Package value remains fixed at {Amount}; channel mix and line items may vary within package policy and availability.",
+            "Campaign activation begins after payment confirmation, recommendation approval, and required creative/material delivery.",
+            "Processing times may be affected by payment providers, supplier systems, and external platform/webhook behavior.",
+            "Refund and cancellation outcomes depend on campaign stage and supplier commitments; booked media and third-party fees may be non-refundable.",
+            "Supplier booking, artwork, cancellation, and make-good terms are incorporated by reference and apply per line item."
+        };
+
+        return templates.Select(template => ResolveTemplate(template, placeholders)).ToArray();
+    }
+
+    private static (string Heading, string Body)[] BuildLegalAnnexClauses(IReadOnlyDictionary<string, string> placeholders)
+    {
+        var clauses = new (string Heading, string Body)[]
+        {
+            ("1. Definitions",
+                "\"Issuer\" means {IssuerName}. \"Client\" means the invoiced party. \"Campaign\" means the services and media execution linked to invoice {InvoiceNumber}. \"Inventory\" means media placements or equivalent purchasable media units. \"Supplier\" means third-party media owners, stations, platforms, and partners."),
+            ("2. Acceptance and Scope",
+                "Payment of this invoice confirms acceptance of these terms. This invoice covers package value and campaign services captured in the order records for {CampaignName} under package {PackageName}. Supplier-specific terms applicable to booked inventory are incorporated by reference. The current online terms are available at {TermsUrl}."),
+            ("3. Processing Timeline",
+                "Campaign onboarding and booking operations may take up to {ProcessingTimelineBusinessDays} business days from the later of cleared payment and receipt of all required campaign inputs/materials. Time estimates are targets, not guarantees, where third-party dependencies apply."),
+            ("4. Payment and Package Value",
+                "Package pricing remains fixed at the paid invoice amount ({Amount}) unless explicitly amended in writing. Budget allocation and channel mix may change during planning and optimization while preserving package value and policy constraints."),
+            ("5. Inventory Availability and Substitution",
+                "All inventory is subject to real-time supplier availability at booking. Availability shown during planning/recommendation is indicative until supplier acceptance. If selected inventory becomes unavailable, issuer may substitute inventory of comparable value, fit, and delivery intent, with notice where practicable."),
+            ("6. Activation Preconditions",
+                "Campaign activation requires payment confirmation, recommendation approval where applicable, and compliant final creative/assets. Delays in approvals, briefing, or material delivery may shift start dates and delivery windows."),
+            ("7. Supplier and Third-Party Dependencies",
+                "Processing and execution may be affected by supplier cutoffs, booking queues, technical outages, and external integration/webhook timing. Issuer is not liable for delays caused by systems outside reasonable control."),
+            ("8. Payment Provider Terms",
+                "Outcomes for provider flows, including approval, decline, reversal, cancellation, timeout, or reconciliation, are governed by provider rules. Callback/webhook behavior and timing are provider-dependent."),
+            ("9. Recommendation and Performance",
+                "Recommendations, projected reach, and estimated outcomes are planning tools and not guaranteed performance commitments. Actual results may vary with market, audience, and platform conditions."),
+            ("10. Proof, Reporting, and Documentation",
+                "Proof of booking, delivery updates, and reporting are supplied as available from supplier and system records. Reporting cadence and granularity may vary by channel and supplier capability."),
+            ("11. Cancellations, Changes, and Refunds",
+                "Refund eligibility depends on campaign stage and supplier commitments. Once bookings are placed or media has begun, portions may be non-refundable. Non-recoverable third-party costs and applicable retained gateway/provider fees may be deducted."),
+            ("12. Compliance and Materials",
+                "Client warrants it has rights to submitted materials and claims, and that content complies with law, platform policy, and supplier standards. Issuer may reject or request amendment of non-compliant content."),
+            ("13. Limitation of Liability",
+                "To the maximum extent permitted by law, issuer liability is limited to amounts paid under this invoice. Issuer is not liable for indirect or consequential damages arising from third-party media delivery/platform behavior."),
+            ("14. Terms Hierarchy and Notices",
+                "Where conflict exists, precedence is: signed master agreement (if any), this invoice and annex, then channel/supplier-specific booking terms. Operational notices may be sent via email and in-platform status updates.")
+        };
+
+        return clauses
+            .Select(clause => (
+                Heading: clause.Heading,
+                Body: ResolveTemplate(clause.Body, placeholders)))
+            .ToArray();
     }
 }

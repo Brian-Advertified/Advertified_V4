@@ -3,8 +3,6 @@ import { useMemo, useRef } from 'react';
 import { BadgeCheck, CircleAlert, Clock3, FileText } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import advertifiedLogo from '../../assets/advertified-logo-v3.png';
-import lulaLogo from '../../assets/lula.png';
-import vodaLogo from '../../assets/voda.jpeg';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { useToast } from '../../components/ui/toast';
 import { useAuth } from '../../features/auth/auth-context';
@@ -189,9 +187,8 @@ export function CheckoutConfirmationPage() {
     };
   })();
 
-  const providerArtwork = provider === 'lula'
-    ? { src: lulaLogo, alt: 'Lula logo', label: 'Lula Application Pending' }
-    : { src: vodaLogo, alt: 'VodaPay logo', label: 'Payment through VodaPay' };
+  const paymentMethodLabel = provider === 'lula' ? 'Pay Later' : 'Pay Now';
+  const paymentMethodCaption = provider === 'lula' ? 'Powered by Lula' : 'Powered by VodaPay';
   const lulaNextStepMessage = provider === 'lula' && order.paymentStatus === 'pending'
     ? `Your order is pending Lula approval. Review can take up to 24 hours. Lula will contact you on ${user.email}, ${user.phone ?? 'your registered cellphone'} to process your application further.`
     : null;
@@ -201,8 +198,9 @@ export function CheckoutConfirmationPage() {
       <div className="checkout-status-card">
         <div className="checkout-status-brand-strip checkout-status-animate checkout-status-delay-0">
           <div className="checkout-status-brand-card">
-            <img src={providerArtwork.src} alt={providerArtwork.alt} className="checkout-status-brand-logo" />
-            <span>{providerArtwork.label}</span>
+            <span>{paymentMethodLabel}</span>
+            <span aria-hidden="true">•</span>
+            <span>{paymentMethodCaption}</span>
           </div>
           <div className="checkout-status-brand-separator" />
           <img src={advertifiedLogo} alt="Advertified logo" className="checkout-status-brand-logo checkout-status-brand-logo-advertified" />
@@ -253,8 +251,8 @@ export function CheckoutConfirmationPage() {
             </span>
           </div>
           <div className="checkout-status-summary-entry">
-            <span className="checkout-status-summary-entry-label">Payment Provider</span>
-            <span className="checkout-status-summary-entry-value">{order.paymentProvider}</span>
+            <span className="checkout-status-summary-entry-label">Payment method</span>
+            <span className="checkout-status-summary-entry-value">{paymentMethodLabel}</span>
           </div>
           <div className="checkout-status-summary-entry">
             <span className="checkout-status-summary-entry-label">Date / Time</span>

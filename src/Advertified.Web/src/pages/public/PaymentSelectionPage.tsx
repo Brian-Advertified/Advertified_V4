@@ -2,8 +2,6 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { ArrowLeft, ArrowRight, Lock } from 'lucide-react';
 import * as React from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
-import lulaLogo from '../../assets/lula.png';
-import vodaLogo from '../../assets/voda.jpeg';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { ProcessingOverlay } from '../../components/ui/ProcessingOverlay';
 import { PageHero } from '../../components/marketing/PageHero';
@@ -19,26 +17,20 @@ type ProviderOption = {
   name: string;
   caption: string;
   description: string;
-  assetSrc: string;
-  assetAlt: string;
 };
 
 const providerOptions: ProviderOption[] = [
   {
-    id: 'vodapay',
-    name: 'VodaPay',
-    caption: 'Wallet and mobile checkout',
-    description: 'Redirect customers to a live hosted checkout with branded payment instructions.',
-    assetSrc: vodaLogo,
-    assetAlt: 'VodaPay logo',
+    id: 'lula',
+    name: 'Pay Later',
+    caption: 'Powered by Lula',
+    description: 'Create a downloadable invoice that the admin team can send to Lula manually.',
   },
   {
-    id: 'lula',
-    name: 'Lula',
-    caption: 'Business account payment',
-    description: 'Create a downloadable invoice that the admin team can send to Lula manually.',
-    assetSrc: lulaLogo,
-    assetAlt: 'Lula logo',
+    id: 'vodapay',
+    name: 'Pay Now',
+    caption: 'Powered by VodaPay',
+    description: 'Redirect customers to a live hosted checkout to complete payment immediately.',
   },
 ];
 
@@ -50,7 +42,7 @@ export function PaymentSelectionPage() {
   const packageBandId = searchParams.get('packageBandId') ?? '';
   const amount = Number(searchParams.get('amount') ?? '0');
   const selectedArea = searchParams.get('area') ?? 'gauteng';
-  const [selectedProvider, setSelectedProvider] = React.useState<PaymentProvider>('vodapay');
+  const [selectedProvider, setSelectedProvider] = React.useState<PaymentProvider>('lula');
   const [isResendingActivation, setIsResendingActivation] = React.useState(false);
 
   const packagesQuery = useQuery({ queryKey: ['packages'], queryFn: advertifiedApi.getPackages });
@@ -140,20 +132,15 @@ export function PaymentSelectionPage() {
                 className={`payment-option-card w-full text-left ${selected ? 'payment-option-card-selected' : ''}`}
                 onClick={() => setSelectedProvider(provider.id)}
               >
-                <div className="flex items-center gap-4">
-                  <div className="payment-option-logo-shell">
-                    <img src={provider.assetSrc} alt={provider.assetAlt} className="payment-option-logo" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-lg font-semibold tracking-tight text-ink">{provider.name}</p>
-                        <p className="text-sm text-ink-soft">{provider.caption}</p>
-                      </div>
-                      <div className={`payment-option-indicator ${selected ? 'payment-option-indicator-selected' : ''}`} />
+                <div className="min-w-0">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-lg font-semibold tracking-tight text-ink">{provider.name}</p>
+                      <p className="text-sm text-ink-soft">{provider.caption}</p>
                     </div>
-                    <p className="mt-3 text-sm leading-7 text-ink-soft">{provider.description}</p>
+                    <div className={`payment-option-indicator ${selected ? 'payment-option-indicator-selected' : ''}`} />
                   </div>
+                  <p className="mt-3 text-sm leading-7 text-ink-soft">{provider.description}</p>
                 </div>
               </button>
             );
@@ -220,8 +207,8 @@ export function PaymentSelectionPage() {
               className="button-primary flex w-full items-center justify-center gap-2 px-5 py-3 disabled:opacity-60"
             >
               {checkoutMutation.isPending
-                ? `${selectedProvider === 'lula' ? 'Creating Lula invoice' : 'Starting VodaPay'}...`
-                : `${selectedProvider === 'lula' ? 'Create Lula invoice' : 'Continue with VodaPay'}`}
+                ? `${selectedProvider === 'lula' ? 'Preparing Pay Later' : 'Starting Pay Now'}...`
+                : `${selectedProvider === 'lula' ? 'Continue with Pay Later' : 'Continue with Pay Now'}`}
               <ArrowRight className="size-4" />
             </button>
           )}

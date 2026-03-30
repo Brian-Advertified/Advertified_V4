@@ -1,7 +1,7 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Eye, Pencil, PlusCircle, Save, Trash2, X } from 'lucide-react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useToast } from '../../components/ui/toast';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import type { AdminCreateOutletInput, AdminUpdateOutletInput } from '../../types/domain';
@@ -17,6 +17,7 @@ const TARGET_AUDIENCE_OPTIONS = ['General audience', 'Youth audience', 'Working 
 
 export function AdminStationsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const query = useAdminDashboardQuery();
   const queryClient = useQueryClient();
   const { pushToast } = useToast();
@@ -112,12 +113,27 @@ export function AdminStationsPage() {
     }
   };
 
+  const openPricingForOutlet = (code?: string | null) => {
+    const outletCode = code?.trim();
+    if (!outletCode) {
+      return;
+    }
+
+    closeDialog();
+    navigate(`/admin/pricing?outlet=${encodeURIComponent(outletCode)}`);
+  };
+
   const buildOutletPayload = (): AdminCreateOutletInput & AdminUpdateOutletInput => ({
     code: outletForm.code,
     name: outletForm.name,
     mediaType: outletForm.mediaType,
     coverageType: outletForm.coverageType,
-    catalogHealth: outletForm.catalogHealth,
+    catalogHealth: deriveCatalogHealthForSave(
+      outletForm.catalogHealth,
+      outletForm.hasPricing,
+      selectedOutletQuery.data?.packageCount ?? 0,
+      selectedOutletQuery.data?.slotRateCount ?? 0,
+    ),
     operatorName: outletForm.operatorName || undefined,
     isNational: outletForm.isNational,
     hasPricing: outletForm.hasPricing,
@@ -172,6 +188,20 @@ export function AdminStationsPage() {
     void openExistingDialog(outletFromSearch, modeFromSearch);
   }
 
+  useEffect(() => {
+    if (dialogMode !== 'edit' && dialogMode !== 'create') {
+      return;
+    }
+
+    const packageCount = selectedOutletQuery.data?.packageCount ?? 0;
+    const slotRateCount = selectedOutletQuery.data?.slotRateCount ?? 0;
+    const cannotBeStrong = !outletForm.hasPricing || (packageCount === 0 && slotRateCount === 0);
+
+    if (cannotBeStrong && outletForm.catalogHealth === 'strong') {
+      setOutletForm((current) => ({ ...current, catalogHealth: 'mixed_not_fully_healthy' }));
+    }
+  }, [dialogMode, outletForm.catalogHealth, outletForm.hasPricing, selectedOutletQuery.data?.packageCount, selectedOutletQuery.data?.slotRateCount]);
+
   return (
     <AdminQueryBoundary query={query}>
       {(dashboard) => {
@@ -194,6 +224,13 @@ export function AdminStationsPage() {
         });
         const isReadOnly = dialogMode === 'view';
         const activeDetail = dialogMode === 'create' ? null : selectedOutletQuery.data;
+        const effectiveCatalogHealth = deriveCatalogHealthForSave(
+          outletForm.catalogHealth,
+          outletForm.hasPricing,
+          activeDetail?.packageCount ?? 0,
+          activeDetail?.slotRateCount ?? 0,
+        );
+        const canMarkStrong = outletForm.hasPricing && ((activeDetail?.packageCount ?? 0) > 0 || (activeDetail?.slotRateCount ?? 0) > 0);
 
         return (
         <AdminPageShell title="Stations and channels" description="Manage live broadcast outlets, add new stations, and review health, coverage, geography, and pricing signals.">
@@ -256,7 +293,7 @@ export function AdminStationsPage() {
                       <option value="national">National</option>
                     </select>
                     <select disabled={isReadOnly} className="input-base disabled:bg-slate-50" value={outletForm.catalogHealth} onChange={(event) => setOutletForm((current) => ({ ...current, catalogHealth: event.target.value }))}>
-                      <option value="strong">Strong</option>
+                      <option value="strong" disabled={!canMarkStrong}>Strong</option>
                       <option value="mixed_not_fully_healthy">Mixed not fully healthy</option>
                       <option value="weak_unpriced">Weak unpriced</option>
                       <option value="weak_no_inventory">Weak no inventory</option>
@@ -326,6 +363,23 @@ export function AdminStationsPage() {
                     <label className="inline-flex items-center gap-2"><input disabled={isReadOnly} type="checkbox" checked={outletForm.hasPricing} onChange={(event) => setOutletForm((current) => ({ ...current, hasPricing: event.target.checked }))} /> Pricing already available</label>
                     {activeDetail ? <span>Min package {activeDetail.minPackagePrice ? new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 }).format(activeDetail.minPackagePrice) : 'N/A'}</span> : null}
                     {activeDetail ? <span>Min slot {activeDetail.minSlotRate ? new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 }).format(activeDetail.minSlotRate) : 'N/A'}</span> : null}
+                    <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${tone(effectiveCatalogHealth)}`}>
+                      Effective health: {titleize(effectiveCatalogHealth)}
+                    </span>
+                    {!canMarkStrong ? (
+                      <span className="text-xs">
+                        Strong requires pricing enabled and at least one package or slot-rate row.
+                      </span>
+                    ) : null}
+                    {!isReadOnly && hasText(outletForm.code) ? (
+                      <button
+                        type="button"
+                        className="rounded-full border border-brand/20 bg-brand-soft px-3 py-1 text-xs font-semibold text-brand transition hover:border-brand/40"
+                        onClick={() => openPricingForOutlet(outletForm.code)}
+                      >
+                        Open pricing setup
+                      </button>
+                    ) : null}
                   </div>
                   <div className="mt-6 flex flex-wrap items-center justify-end gap-3">
                     <button type="button" className="button-secondary px-5 py-3" onClick={closeDialog}>Close</button>
@@ -381,5 +435,22 @@ function LabeledMultiSelect({
       <span className="mt-2 block text-xs font-normal text-ink-soft">{help}</span>
     </label>
   );
+}
+
+function deriveCatalogHealthForSave(
+  requestedHealth: string,
+  hasPricing: boolean,
+  packageCount: number,
+  slotRateCount: number,
+) {
+  if (!hasPricing) {
+    return 'weak_unpriced';
+  }
+
+  if (packageCount === 0 && slotRateCount === 0) {
+    return 'weak_no_inventory';
+  }
+
+  return requestedHealth;
 }
 

@@ -173,6 +173,21 @@ export function CampaignDetailPage() {
       : 'overview';
   const campaignBasePath = `/campaigns/${campaign.id}`;
 
+  async function handleDownloadRecommendationPdf() {
+    if (!campaign.recommendationPdfUrl) {
+      return;
+    }
+
+    try {
+      await advertifiedApi.downloadProtectedFile(campaign.recommendationPdfUrl, `recommendation-${campaign.id}.pdf`);
+    } catch (error) {
+      pushToast({
+        title: 'Could not download recommendation PDF.',
+        description: error instanceof Error ? error.message : 'Please sign in again and retry.',
+      }, 'error');
+    }
+  }
+
   return (
     <ClientCampaignShell
       campaign={campaign}
@@ -429,7 +444,7 @@ export function CampaignDetailPage() {
                 <div className="flex flex-wrap gap-3">
                   <Link to={`${campaignBasePath}/messages`} className="user-btn-primary">Ask question</Link>
                   {campaign.recommendationPdfUrl ? (
-                    <a href={campaign.recommendationPdfUrl} className="user-btn-secondary">Open document</a>
+                    <button type="button" onClick={() => void handleDownloadRecommendationPdf()} className="user-btn-secondary">Open document</button>
                   ) : null}
                 </div>
               )}

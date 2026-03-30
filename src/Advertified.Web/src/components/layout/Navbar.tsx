@@ -10,6 +10,7 @@ const publicLinks = [
   { label: 'Packages', href: '/packages' },
   { label: 'Media Partners', href: '/media-partners' },
   { label: 'About Us', href: '/about' },
+  { label: 'FAQ', href: '/faq' },
 ];
 
 const workspaceLinksByRole: Record<UserRole, { label: string; href: string }> = {

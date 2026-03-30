@@ -41,7 +41,6 @@ import { advertifiedApi } from '../../services/advertifiedApi';
 import type { RecommendationItem, SelectedPlanInventoryItem } from '../../types/domain';
 
 type DisplayPlanItem = SelectedPlanInventoryItem | RecommendationItem;
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:5050';
 
 function formatFallbackFlag(flag: string) {
   const normalized = flag.trim().toLowerCase();
@@ -428,6 +427,23 @@ export function AgentCampaignDetailPage() {
   const executionAssets = campaign.assets ?? [];
   const supplierBookings = campaign.supplierBookings ?? [];
   const deliveryReports = campaign.deliveryReports ?? [];
+
+  async function handleDownloadRecommendationPdf() {
+    const pdfUrl = campaign?.recommendationPdfUrl;
+    const campaignId = campaign?.id;
+    if (!pdfUrl || !campaignId) {
+      return;
+    }
+
+    try {
+      await advertifiedApi.downloadProtectedFile(pdfUrl, `recommendation-${campaignId}.pdf`);
+    } catch (error) {
+      pushToast({
+        title: 'Could not open recommendation PDF.',
+        description: error instanceof Error ? error.message : 'Please try again.',
+      }, 'error');
+    }
+  }
 
   function toggleInventoryItem(item: SelectedPlanInventoryItem) {
     if (!canModifyPlan) {
@@ -959,15 +975,14 @@ export function AgentCampaignDetailPage() {
               </button>
             )}
             {campaign.recommendationPdfUrl ? (
-              <a
-                href={`${API_BASE_URL}${campaign.recommendationPdfUrl}`}
-                target="_blank"
-                rel="noreferrer"
+              <button
+                type="button"
+                onClick={() => void handleDownloadRecommendationPdf()}
                 className="button-secondary inline-flex items-center gap-2 px-5 py-3"
               >
                 <Download className="size-4" />
                 Preview client PDF
-              </a>
+              </button>
             ) : null}
             <button
               type="button"

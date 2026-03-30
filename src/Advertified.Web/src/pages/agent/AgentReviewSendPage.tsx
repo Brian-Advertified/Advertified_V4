@@ -10,7 +10,7 @@ import {
   titleize,
   useAgentCampaignsQuery,
 } from './agentWorkspace';
-import { API_BASE_URL, ActionIconButton } from './agentSectionShared';
+import { ActionIconButton } from './agentSectionShared';
 
 export function AgentReviewSendPage() {
   const campaignsQuery = useAgentCampaignsQuery();
@@ -94,9 +94,19 @@ export function AgentReviewSendPage() {
                                 <Pencil className="size-4" />
                               </Link>
                               {campaign.recommendationPdfUrl ? (
-                                <a href={`${API_BASE_URL}${campaign.recommendationPdfUrl}`} target="_blank" rel="noreferrer" className="button-secondary p-2" title={`Preview client PDF for ${campaign.campaignName}`}>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    void advertifiedApi.downloadProtectedFile(
+                                      campaign.recommendationPdfUrl!,
+                                      `recommendation-${campaign.id}.pdf`,
+                                    );
+                                  }}
+                                  className="button-secondary p-2"
+                                  title={`Preview client PDF for ${campaign.campaignName}`}
+                                >
                                   <Download className="size-4" />
-                                </a>
+                                </button>
                               ) : null}
                               {active?.status === 'draft' ? (
                                 <ActionIconButton
