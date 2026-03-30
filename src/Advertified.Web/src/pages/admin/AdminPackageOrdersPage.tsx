@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Download } from 'lucide-react';
 import { LoadingState } from '../../components/ui/LoadingState';
+import { useToast } from '../../components/ui/toast';
 import { invalidateAdminOperationsQueries, queryKeys } from '../../lib/queryKeys';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import { AdminPageShell, fmtCurrency, titleize } from './adminWorkspace';
@@ -9,6 +10,7 @@ import { AdminPackageOrderEditModal } from './AdminPackageOrderEditModal';
 
 export function AdminPackageOrdersPage() {
   const queryClient = useQueryClient();
+  const { pushToast } = useToast();
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
 
   const query = useQuery({
@@ -24,10 +26,32 @@ export function AdminPackageOrdersPage() {
       notes: string;
       file: File;
     }) => advertifiedApi.updateAdminPackageOrderPaymentStatus(input),
-    onSuccess: async () => {
+    onSuccess: async (_, variables) => {
       await invalidateAdminOperationsQueries(queryClient);
-      setEditingOrderId(null);
+      const refreshed = await queryClient.fetchQuery({
+        queryKey: queryKeys.admin.packageOrders,
+        queryFn: advertifiedApi.getAdminPackageOrders,
+      });
+
+      const nextPending = refreshed.find((item) => item.canUpdateLulaStatus && item.orderId !== variables.orderId);
+      if (nextPending) {
+        setEditingOrderId(nextPending.orderId);
+        pushToast({
+          title: 'Payment status saved.',
+          description: 'Opening the next pending Lula order in the queue.',
+        });
+      } else {
+        setEditingOrderId(null);
+        pushToast({
+          title: 'Payment status saved.',
+          description: 'No more pending Lula orders in the queue.',
+        });
+      }
     },
+    onError: (error) => pushToast({
+      title: 'Could not update payment status.',
+      description: error instanceof Error ? error.message : 'Please try again.',
+    }, 'error'),
   });
 
   const items = query.data ?? [];
