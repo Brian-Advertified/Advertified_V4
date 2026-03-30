@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MessageSquareText, Sparkles } from 'lucide-react';
 import { useState } from 'react';
-import { Link, Navigate, useLocation, useParams } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { useToast } from '../../components/ui/toast';
@@ -16,6 +16,7 @@ import { ClientCampaignShell, getCampaignProgressPercent, getPrimaryRecommendati
 export function CampaignDetailPage() {
   const { id = '' } = useParams();
   const location = useLocation();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { pushToast } = useToast();
   const queryClient = useQueryClient();
@@ -33,6 +34,7 @@ export function CampaignDetailPage() {
         title: 'Recommendation approved.',
         description: 'Advertified will now move this campaign into creative production.',
       });
+      navigate(`/campaigns/${id}`);
     },
     onError: (error) => {
       pushToast({
@@ -51,6 +53,7 @@ export function CampaignDetailPage() {
         title: 'Change request sent.',
         description: 'Your feedback has been sent to the Advertified team.',
       });
+      navigate(`/campaigns/${id}/messages`);
     },
     onError: (error) => {
       pushToast({
@@ -68,6 +71,7 @@ export function CampaignDetailPage() {
         title: 'Creative approved.',
         description: 'Final creative approval has been captured for this campaign.',
       });
+      navigate(`/campaigns/${id}`);
     },
     onError: (error) => {
       pushToast({
@@ -86,6 +90,7 @@ export function CampaignDetailPage() {
         title: 'Creative changes requested.',
         description: 'Your creative feedback has been sent back for revision.',
       });
+      navigate(`/campaigns/${id}/messages`);
     },
     onError: (error) => {
       pushToast({
