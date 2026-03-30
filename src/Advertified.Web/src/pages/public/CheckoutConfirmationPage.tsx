@@ -190,7 +190,7 @@ export function CheckoutConfirmationPage() {
   })();
 
   const providerArtwork = provider === 'lula'
-    ? { src: lulaLogo, alt: 'Lula logo', label: 'Paid through Lula' }
+    ? { src: lulaLogo, alt: 'Lula logo', label: 'Lula Application Pending' }
     : { src: vodaLogo, alt: 'VodaPay logo', label: 'Paid through VodaPay' };
   const lulaNextStepMessage = provider === 'lula' && order.paymentStatus === 'pending'
     ? `Your order is pending Lula Approval. Lula will contact you on ${user.email}, ${user.phone ?? 'your registered cellphone'} to process your application further.`

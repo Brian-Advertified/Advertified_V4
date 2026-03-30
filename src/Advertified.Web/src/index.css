@@ -1359,3 +1359,13 @@ textarea {
     grid-column: 2;
   }
 }
+
+@media (max-width: 767px) {
+  .page-shell {
+    @apply px-3;
+  }
+
+  .panel {
+    border-radius: 20px;
+  }
+}

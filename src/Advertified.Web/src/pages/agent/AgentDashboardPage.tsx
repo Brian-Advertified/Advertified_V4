@@ -189,7 +189,7 @@ export function AgentDashboardPage() {
                     <Link to="/agent/campaigns" className="button-secondary px-4 py-2">Open pipeline</Link>
                   </div>
                   <div className="mt-5 overflow-hidden rounded-[22px] border border-line">
-                    <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_140px_120px] bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">
+                    <div className="hidden grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_140px_120px] bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft md:grid">
                       <div>Campaign</div>
                       <div>Client / Budget</div>
                       <div>Status</div>
@@ -197,21 +197,39 @@ export function AgentDashboardPage() {
                     </div>
                     <div className="divide-y divide-line">
                       {recentItems.length > 0 ? recentItems.map((item) => (
-                        <div key={item.id} className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_140px_120px] items-start gap-4 px-4 py-4 text-sm">
-                          <div>
-                            <p className="font-semibold text-ink">{item.campaignName}</p>
-                            <p className="mt-1 text-xs text-ink-soft">{item.packageBandName}</p>
-                            <p className="mt-2 text-xs text-ink-soft">{item.nextAction}</p>
+                        <div key={item.id} className="px-4 py-4 text-sm">
+                          <div className="space-y-3 md:hidden">
+                            <div>
+                              <p className="font-semibold text-ink">{item.campaignName}</p>
+                              <p className="mt-1 text-xs text-ink-soft">{item.packageBandName}</p>
+                            </div>
+                            <p className="text-xs text-ink-soft">{item.nextAction}</p>
+                            <div className="flex items-center justify-between gap-3">
+                              <div>
+                                <p className="font-medium text-ink">{item.clientName}</p>
+                                <p className="mt-1 text-xs text-ink-soft">{fmtCurrency(item.selectedBudget)}</p>
+                              </div>
+                              <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${queueTone(item.queueStage)}`}>{item.queueLabel}</span>
+                            </div>
+                            <Link to={`/agent/campaigns/${item.id}`} className="button-secondary inline-flex px-3 py-2">Open campaign</Link>
                           </div>
-                          <div>
-                            <p className="font-medium text-ink">{item.clientName}</p>
-                            <p className="mt-1 text-xs text-ink-soft">{fmtCurrency(item.selectedBudget)}</p>
-                          </div>
-                          <div>
-                            <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${queueTone(item.queueStage)}`}>{item.queueLabel}</span>
-                          </div>
-                          <div>
-                            <Link to={`/agent/campaigns/${item.id}`} className="button-secondary px-3 py-2">Open</Link>
+
+                          <div className="hidden grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_140px_120px] items-start gap-4 md:grid">
+                            <div>
+                              <p className="font-semibold text-ink">{item.campaignName}</p>
+                              <p className="mt-1 text-xs text-ink-soft">{item.packageBandName}</p>
+                              <p className="mt-2 text-xs text-ink-soft">{item.nextAction}</p>
+                            </div>
+                            <div>
+                              <p className="font-medium text-ink">{item.clientName}</p>
+                              <p className="mt-1 text-xs text-ink-soft">{fmtCurrency(item.selectedBudget)}</p>
+                            </div>
+                            <div>
+                              <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${queueTone(item.queueStage)}`}>{item.queueLabel}</span>
+                            </div>
+                            <div>
+                              <Link to={`/agent/campaigns/${item.id}`} className="button-secondary px-3 py-2">Open</Link>
+                            </div>
                           </div>
                         </div>
                       )) : (

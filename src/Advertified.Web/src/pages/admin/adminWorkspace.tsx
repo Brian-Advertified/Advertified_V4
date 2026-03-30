@@ -50,9 +50,27 @@ export function AdminPageShell({ title, description, children }: AdminPageShellP
   const { user, logout } = useAuth();
 
   return (
-    <section className="page-shell space-y-10">
-      <div className="grid gap-8 xl:grid-cols-[260px_1fr]">
-        <aside className="sticky top-24 h-fit rounded-[28px] border border-line bg-white p-6 shadow-[0_18px_60px_rgba(17,24,39,0.04)]">
+    <section className="page-shell space-y-6 sm:space-y-8 lg:space-y-10">
+      <div className="lg:hidden">
+        <div className="panel overflow-hidden p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ink-soft">Admin navigation</p>
+          <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+            {adminNavItems.map((item) => (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                end={item.path === '/admin'}
+                className={({ isActive }) => `shrink-0 rounded-full px-4 py-2 text-xs font-semibold transition ${isActive ? 'bg-brand text-white' : 'border border-line bg-white text-ink hover:bg-brand-soft hover:text-brand'}`}
+              >
+                {item.label}
+              </NavLink>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-8 lg:grid-cols-[260px_1fr]">
+        <aside className="hidden h-fit rounded-[28px] border border-line bg-white p-6 shadow-[0_18px_60px_rgba(17,24,39,0.04)] lg:sticky lg:top-24 lg:block">
           <div className="space-y-6">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-ink-soft">Workspace</p>
@@ -78,7 +96,7 @@ export function AdminPageShell({ title, description, children }: AdminPageShellP
           </div>
         </aside>
 
-        <main className="space-y-10">
+        <main className="space-y-6 sm:space-y-8 lg:space-y-10">
           <PageHero
             kicker="Advertified admin"
             title={title}
