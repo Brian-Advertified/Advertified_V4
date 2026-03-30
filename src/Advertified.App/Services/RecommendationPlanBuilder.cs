@@ -1,3 +1,4 @@
+using Advertified.App.Contracts.Campaigns;
 using Advertified.App.Domain.Campaigns;
 using Advertified.App.Services.Abstractions;
 
@@ -12,8 +13,13 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
         _policyService = policyService;
     }
 
-    public List<PlannedItem> BuildPlan(List<InventoryCandidate> candidates, decimal budget, int? maxItems, bool diversify)
+    public List<PlannedItem> BuildPlan(List<InventoryCandidate> candidates, CampaignPlanningRequest request, bool diversify)
     {
+        if (HasTargetMix(request))
+        {
+            return BuildPlanWithTargetMix(candidates, request);
+        }
+
         var result = new List<PlannedItem>();
         var spent = 0m;
         var usedMediaTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -21,8 +27,8 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
         foreach (var candidate in candidates)
         {
             if (candidate.Cost <= 0) continue;
-            if (spent + candidate.Cost > budget) continue;
-            if (maxItems.HasValue && result.Count >= maxItems.Value) break;
+            if (spent + candidate.Cost > request.SelectedBudget) continue;
+            if (request.MaxMediaItems.HasValue && result.Count >= request.MaxMediaItems.Value) break;
 
             if (diversify && usedMediaTypes.Contains(candidate.MediaType))
             {
@@ -38,13 +44,111 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
             usedMediaTypes.Add(candidate.MediaType);
         }
 
-        FillBudgetGap(result, candidates, budget, maxItems);
+        FillBudgetGap(result, candidates, request.SelectedBudget, request.MaxMediaItems);
 
         if (result.Count == 0)
         {
             foreach (var candidate in candidates)
             {
-                if (candidate.Cost <= budget)
+                if (candidate.Cost <= request.SelectedBudget)
+                {
+                    result.Add(ToPlannedItem(candidate));
+                    break;
+                }
+            }
+        }
+
+        return result;
+    }
+
+    private List<PlannedItem> BuildPlanWithTargetMix(List<InventoryCandidate> candidates, CampaignPlanningRequest request)
+    {
+        var result = new List<PlannedItem>();
+        var usedSourceIds = new HashSet<Guid>();
+        var spentTotal = 0m;
+        var requestedShares = GetRequestedShares(request);
+
+        // First ensure at least one item for each requested channel when inventory allows.
+        foreach (var shareTarget in requestedShares.OrderByDescending(entry => entry.Share))
+        {
+            if (request.MaxMediaItems.HasValue && result.Count >= request.MaxMediaItems.Value)
+            {
+                break;
+            }
+
+            var channelCandidate = candidates
+                .Where(candidate => MatchesChannel(candidate.MediaType, shareTarget.Channel))
+                .Where(candidate => candidate.Cost > 0m)
+                .Where(candidate => !usedSourceIds.Contains(candidate.SourceId))
+                .Where(candidate => spentTotal + candidate.Cost <= request.SelectedBudget)
+                .OrderByDescending(candidate => candidate.Score)
+                .ThenBy(candidate => candidate.Cost)
+                .FirstOrDefault();
+
+            if (channelCandidate is null)
+            {
+                continue;
+            }
+
+            result.Add(ToPlannedItem(channelCandidate));
+            usedSourceIds.Add(channelCandidate.SourceId);
+            spentTotal += channelCandidate.Cost;
+        }
+
+        // Then keep filling each requested channel toward its budget share target.
+        var channelTargetSpend = requestedShares.ToDictionary(
+            entry => entry.Channel,
+            entry => decimal.Round(request.SelectedBudget * entry.Share / 100m, 2),
+            StringComparer.OrdinalIgnoreCase);
+
+        var progressed = true;
+        while (progressed)
+        {
+            progressed = false;
+
+            foreach (var shareTarget in requestedShares.OrderByDescending(entry => entry.Share))
+            {
+                if (request.MaxMediaItems.HasValue && result.Count >= request.MaxMediaItems.Value)
+                {
+                    break;
+                }
+
+                var alreadySpentForChannel = result
+                    .Where(item => MatchesChannel(item.MediaType, shareTarget.Channel))
+                    .Sum(item => item.TotalCost);
+                if (alreadySpentForChannel >= channelTargetSpend[shareTarget.Channel])
+                {
+                    continue;
+                }
+
+                var nextCandidate = candidates
+                    .Where(candidate => MatchesChannel(candidate.MediaType, shareTarget.Channel))
+                    .Where(candidate => candidate.Cost > 0m)
+                    .Where(candidate => !usedSourceIds.Contains(candidate.SourceId))
+                    .Where(candidate => spentTotal + candidate.Cost <= request.SelectedBudget)
+                    .OrderByDescending(candidate => candidate.Score)
+                    .ThenBy(candidate => candidate.Cost)
+                    .FirstOrDefault();
+
+                if (nextCandidate is null)
+                {
+                    continue;
+                }
+
+                result.Add(ToPlannedItem(nextCandidate));
+                usedSourceIds.Add(nextCandidate.SourceId);
+                spentTotal += nextCandidate.Cost;
+                progressed = true;
+            }
+        }
+
+        FillBudgetGap(result, candidates, request.SelectedBudget, request.MaxMediaItems);
+
+        if (result.Count == 0)
+        {
+            foreach (var candidate in candidates)
+            {
+                if (candidate.Cost <= request.SelectedBudget)
                 {
                     result.Add(ToPlannedItem(candidate));
                     break;
@@ -222,5 +326,46 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
 
         result.Add(ToPlannedItem(candidate));
     }
-}
 
+    private static bool HasTargetMix(CampaignPlanningRequest request)
+    {
+        return request.TargetRadioShare.GetValueOrDefault() > 0
+            || request.TargetOohShare.GetValueOrDefault() > 0
+            || request.TargetDigitalShare.GetValueOrDefault() > 0;
+    }
+
+    private List<(string Channel, int Share)> GetRequestedShares(CampaignPlanningRequest request)
+    {
+        var shares = new List<(string Channel, int Share)>();
+
+        var radio = _policyService.GetTargetShare("radio", request);
+        if (radio.HasValue && radio.Value > 0)
+        {
+            shares.Add(("radio", radio.Value));
+        }
+
+        var ooh = _policyService.GetTargetShare("ooh", request);
+        if (ooh.HasValue && ooh.Value > 0)
+        {
+            shares.Add(("ooh", ooh.Value));
+        }
+
+        var digital = _policyService.GetTargetShare("digital", request);
+        if (digital.HasValue && digital.Value > 0)
+        {
+            shares.Add(("digital", digital.Value));
+        }
+
+        return shares;
+    }
+
+    private static bool MatchesChannel(string? mediaType, string requestedChannel)
+    {
+        if (string.IsNullOrWhiteSpace(mediaType))
+        {
+            return false;
+        }
+
+        return string.Equals(mediaType.Trim(), requestedChannel.Trim(), StringComparison.OrdinalIgnoreCase);
+    }
+}

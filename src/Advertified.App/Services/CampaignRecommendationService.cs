@@ -177,6 +177,11 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
 
     private static IReadOnlyList<ProposalVariant> BuildProposalVariants(CampaignPlanningRequest request)
     {
+        if (HasExplicitTargetMix(request))
+        {
+            return new[] { new ProposalVariant("requested_mix", request) };
+        }
+
         var activeChannels = ResolveActiveChannels(request);
         var proposals = new List<ProposalVariant>
         {
@@ -187,6 +192,13 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         };
 
         return proposals;
+    }
+
+    private static bool HasExplicitTargetMix(CampaignPlanningRequest request)
+    {
+        return request.TargetRadioShare.HasValue
+            || request.TargetOohShare.HasValue
+            || request.TargetDigitalShare.HasValue;
     }
 
     private static CampaignPlanningRequest ApplyChannelTargets(CampaignPlanningRequest source, ChannelTargets targets)

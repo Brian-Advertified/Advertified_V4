@@ -27,6 +27,7 @@ builder.Services.Configure<VodaPayOptions>(builder.Configuration.GetSection(Voda
 builder.Services.Configure<PlanningPolicyOptions>(builder.Configuration.GetSection(PlanningPolicyOptions.SectionName));
 builder.Services.Configure<OpenAIOptions>(builder.Configuration.GetSection(OpenAIOptions.SectionName));
 builder.Services.Configure<StorageOptions>(builder.Configuration.GetSection(StorageOptions.SectionName));
+builder.Services.Configure<InventoryReadinessOptions>(builder.Configuration.GetSection(InventoryReadinessOptions.SectionName));
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(FrontendCorsPolicy, policy =>
@@ -213,6 +214,7 @@ await using (var scope = app.Services.CreateAsyncScope())
     var broadcastInventoryImportService = scope.ServiceProvider.GetRequiredService<IBroadcastInventoryImportService>();
     await broadcastInventoryImportService.SyncAsync(CancellationToken.None);
 }
+await InventoryReadinessValidator.ValidateAsync(app.Services, connectionString, app.Logger, CancellationToken.None);
 
 app.UseMiddleware<ProblemDetailsExceptionHandlingMiddleware>();
 

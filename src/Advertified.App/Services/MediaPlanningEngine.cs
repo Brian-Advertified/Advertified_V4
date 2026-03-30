@@ -54,8 +54,8 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
             .ThenBy(x => x.Cost)
             .ToList();
 
-        var basePlan = _planBuilder.BuildPlan(scored, request.SelectedBudget, request.MaxMediaItems, diversify: true);
-        var recommendedPlan = _planBuilder.BuildPlan(scored, request.SelectedBudget, request.MaxMediaItems, diversify: false);
+        var basePlan = _planBuilder.BuildPlan(scored, request, diversify: true);
+        var recommendedPlan = _planBuilder.BuildPlan(scored, request, diversify: false);
         EnsurePreferredChannelCoverage(recommendedPlan, scored, request);
 
         var upsellBudget = request.OpenToUpsell
