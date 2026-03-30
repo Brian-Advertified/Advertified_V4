@@ -62,7 +62,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
 
             var aiReasoning = await _campaignReasoningService.GenerateAsync(campaign, brief, variant.Request, recommendationResult, cancellationToken);
             var proposalTimestamp = now.AddMilliseconds(index);
-            var recommendation = CreateRecommendationEntity(campaignId, campaign.PlanningMode, variant.Key, recommendationResult, aiReasoning, proposalTimestamp, revisionNumber);
+            var recommendation = CreateRecommendationEntity(campaignId, campaign.PlanningMode, variant.Key, recommendationResult, variant.Request, aiReasoning, proposalTimestamp, revisionNumber);
 
             foreach (var item in recommendationResult.RecommendedPlan)
             {
@@ -154,6 +154,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         string? planningMode,
         string variantKey,
         RecommendationResult recommendationResult,
+        CampaignPlanningRequest planningRequest,
         CampaignReasoningResult? aiReasoning,
         DateTime now,
         int revisionNumber)
@@ -166,7 +167,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             GeneratedBy = "system",
             Status = "draft",
             TotalCost = recommendationResult.RecommendedPlanTotal,
-            Summary = aiReasoning?.Summary ?? BuildSummary(recommendationResult),
+            Summary = aiReasoning?.Summary ?? BuildSummary(recommendationResult, planningRequest),
             Rationale = BuildStoredRationale(recommendationResult, aiReasoning?.Rationale),
             RevisionNumber = revisionNumber,
             CreatedAt = now,
@@ -410,10 +411,11 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         };
     }
 
-    private static string BuildSummary(RecommendationResult result)
+    private static string BuildSummary(RecommendationResult result, CampaignPlanningRequest request)
     {
         var mediaMix = string.Join(", ", result.RecommendedPlan.Select(x => x.MediaType).Distinct());
-        return $"Recommended {result.RecommendedPlan.Count} planned item(s) across {mediaMix}.";
+        var mixSummary = $"Radio {request.TargetRadioShare ?? 0}% | OOH {request.TargetOohShare ?? 0}% | Digital {request.TargetDigitalShare ?? 0}%";
+        return $"Recommended {result.RecommendedPlan.Count} planned item(s) across {mediaMix}. Budget split target: {mixSummary}.";
     }
 
     private static string BuildStoredRationale(RecommendationResult result, string? visibleRationaleOverride)

@@ -29,7 +29,6 @@ import {
   buildToneSummary,
   calculateConfidence,
   formatConfidenceLabel,
-  getConstraintChecks,
   groupGeneratedRecommendationItems,
   groupPlanItems,
   isInventoryRelevant,
@@ -387,7 +386,6 @@ export function AgentCampaignDetailPage() {
     : activeRecommendation?.status
       ? titleCase(activeRecommendation.status)
       : titleCase(campaign.status);
-  const constraints = getConstraintChecks(campaign.brief, selectedPlanItems, isOverBudget, campaign.selectedBudget);
   const recommendationTitle = strategySummary || activeRecommendation?.summary || 'Draft recommendation';
   const canMarkLive = campaign.status === 'creative_approved';
   const canEditDraftRecommendation = activeRecommendation?.status?.toLowerCase() === 'draft';
@@ -742,33 +740,20 @@ export function AgentCampaignDetailPage() {
             </p>
           </div>
 
-          <div className="panel border-line/80 bg-white px-6 py-6 shadow-[0_10px_26px_rgba(17,24,39,0.05)]">
-            <h2 className="text-xl font-semibold text-ink">Validation</h2>
-            <div className="mt-4 space-y-2.5">
-              {constraints.map((constraint) => (
-                <div key={constraint.label} className="flex items-start gap-3 rounded-[14px] border border-line bg-slate-50 px-4 py-3">
-                  {constraint.ok ? (
-                    <CircleCheckBig className={`mt-0.5 size-4 ${constraint.label === 'No national radio' ? 'text-amber-600' : 'text-emerald-600'}`} />
-                  ) : (
-                    <CircleAlert className="mt-0.5 size-4 text-amber-600" />
-                  )}
-                  <div>
-                    <p className={`text-sm font-medium ${constraint.ok && constraint.label !== 'No national radio' ? 'text-emerald-700' : 'text-amber-700'}`}>
-                      {constraint.label === 'No national radio'
-                        ? `Optional national radio check`
-                        : constraint.label}
-                    </p>
-                    <p className="text-sm text-ink-soft">{constraint.detail}</p>
-                  </div>
+          {isOverBudget ? (
+            <div className="panel border-line/80 bg-white px-6 py-6 shadow-[0_10px_26px_rgba(17,24,39,0.05)]">
+              <h2 className="text-xl font-semibold text-ink">Validation</h2>
+              <div className="mt-4 flex items-start gap-3 rounded-[14px] border border-rose-200 bg-rose-50 px-4 py-3">
+                <CircleAlert className="mt-0.5 size-4 text-rose-700" />
+                <div>
+                  <p className="text-sm font-semibold text-rose-800">Budget exceeded</p>
+                  <p className="text-sm text-rose-700">
+                    This draft is {formatCurrency(Math.abs(budgetDelta))} over the client&apos;s budget.
+                  </p>
                 </div>
-              ))}
+              </div>
             </div>
-            {isOverBudget ? (
-              <p className="mt-4 text-sm font-medium text-rose-700">
-                This draft is {formatCurrency(Math.abs(budgetDelta))} over the client&apos;s budget.
-              </p>
-            ) : null}
-          </div>
+          ) : null}
 
           {showExecutionOperations ? (
             <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
