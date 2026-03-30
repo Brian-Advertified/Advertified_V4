@@ -101,6 +101,9 @@ export function App() {
             <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
             <Route path="/orders" element={<ProtectedRoute><OrdersPage /></ProtectedRoute>} />
             <Route path="/campaigns/:id" element={<ProtectedRoute><CampaignDetailPage /></ProtectedRoute>} />
+            <Route path="/campaigns/:id/overview" element={<ProtectedRoute><CampaignDetailPage /></ProtectedRoute>} />
+            <Route path="/campaigns/:id/approvals" element={<ProtectedRoute><CampaignDetailPage /></ProtectedRoute>} />
+            <Route path="/campaigns/:id/messages" element={<ProtectedRoute><CampaignDetailPage /></ProtectedRoute>} />
             <Route path="/campaigns/:id/studio-preview" element={<ProtectedRoute><CreativeStudioPreviewPage /></ProtectedRoute>} />
             <Route path="/creative" element={<ProtectedRoute requireCreativeDirector><CreativeDirectorDashboardPage /></ProtectedRoute>} />
             <Route path="/creative/studio-demo" element={<ProtectedRoute requireCreativeDirector><CreativeStudioDemoPage /></ProtectedRoute>} />

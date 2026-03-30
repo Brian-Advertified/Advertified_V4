@@ -164,25 +164,29 @@ export function ClientCampaignShell({
   description,
   children,
   actions,
+  activeView = 'overview',
 }: PropsWithChildren<{
   campaign: Campaign;
   title: string;
   description: string;
   actions?: ReactNode;
+  activeView?: 'overview' | 'approvals' | 'messages';
 }>) {
+  const workspaceBasePath = `/campaigns/${campaign.id}`;
+
   return (
     <section className="page-shell">
       <div className="user-portal-layout">
         <aside className="user-portal-sidebar">
           <div className="user-nav-group">
             <div className="user-nav-title">Workspace</div>
-            <a href="#overview" className="user-nav-item active">Overview</a>
-            <a href="#approvals" className="user-nav-item">Approvals</a>
-            <a href="#messages" className="user-nav-item">Messages</a>
+            <Link to={`${workspaceBasePath}/overview`} className={cn('user-nav-item', activeView === 'overview' && 'active')}>Overview</Link>
+            <Link to={`${workspaceBasePath}/approvals`} className={cn('user-nav-item', activeView === 'approvals' && 'active')}>Approvals</Link>
+            <Link to={`${workspaceBasePath}/messages`} className={cn('user-nav-item', activeView === 'messages' && 'active')}>Messages</Link>
           </div>
           <div className="user-nav-group">
             <div className="user-nav-title">Help</div>
-            <a href="#messages" className="user-nav-item">Ask your agent</a>
+            <Link to={`${workspaceBasePath}/messages`} className="user-nav-item">Ask your agent</Link>
           </div>
           <Link to="/dashboard" className="user-nav-item">
             Back to Client Portal

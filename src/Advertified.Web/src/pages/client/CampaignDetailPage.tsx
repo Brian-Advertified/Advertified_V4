@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MessageSquareText, Sparkles } from 'lucide-react';
 import { useState } from 'react';
-import { Link, Navigate, useParams } from 'react-router-dom';
+import { Link, Navigate, useLocation, useParams } from 'react-router-dom';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { useToast } from '../../components/ui/toast';
 import { useAuth } from '../../features/auth/auth-context';
+import { RecommendationViewer } from '../../features/campaigns/components/RecommendationViewer';
 import { buildApprovalDetails, getApprovalContent, getHeroContent } from '../../features/campaigns/clientCampaignDetailContent';
 import { invalidateClientCampaignQueries, queryKeys } from '../../lib/queryKeys';
 import { formatDate, titleCase } from '../../lib/utils';
@@ -14,6 +15,7 @@ import { ClientCampaignShell, getCampaignProgressPercent, getPrimaryRecommendati
 
 export function CampaignDetailPage() {
   const { id = '' } = useParams();
+  const location = useLocation();
   const { user } = useAuth();
   const { pushToast } = useToast();
   const queryClient = useQueryClient();
@@ -159,15 +161,24 @@ export function CampaignDetailPage() {
   const approval = getApprovalContent(campaign, recommendation?.status);
   const details = buildApprovalDetails(campaign);
   const latestAgentMessage = [...thread.messages].reverse().find((message) => message.senderRole === 'agent');
+  const activeView = location.pathname.endsWith('/approvals')
+    ? 'approvals'
+    : location.pathname.endsWith('/messages')
+      ? 'messages'
+      : 'overview';
+  const campaignBasePath = `/campaigns/${campaign.id}`;
 
   return (
     <ClientCampaignShell
       campaign={campaign}
       title={campaign.campaignName}
       description="A simplified campaign workspace that only shows the current approval and a direct line to your Advertified team."
+      activeView={activeView}
     >
       <div className="space-y-6">
-        <section id="overview" className="rounded-[30px] border border-line bg-white p-7 shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
+        {activeView === 'overview' ? (
+          <>
+            <section id="overview" className="rounded-[30px] border border-line bg-white p-7 shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
           <div className="inline-flex items-center gap-2 rounded-full bg-brand-soft px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-brand">
             <Sparkles className="size-4" />
             One thing to do
@@ -179,8 +190,8 @@ export function CampaignDetailPage() {
               <h2 className="mt-3 text-3xl font-semibold tracking-tight text-ink">{hero.title}</h2>
               <p className="mt-3 max-w-3xl text-sm leading-7 text-ink-soft">{hero.description}</p>
               <div className="mt-5 flex flex-wrap gap-3">
-                <a href="#approvals" className="user-btn-primary">{hero.primaryAction}</a>
-                <a href="#messages" className="user-btn-secondary">Ask a question</a>
+                <Link to={`${campaignBasePath}/approvals`} className="user-btn-primary">{hero.primaryAction}</Link>
+                <Link to={`${campaignBasePath}/messages`} className="user-btn-secondary">Ask a question</Link>
                 <Link to={`/campaigns/${campaign.id}/studio-preview`} className="user-btn-secondary">Preview studio</Link>
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
@@ -210,11 +221,11 @@ export function CampaignDetailPage() {
                 </div>
               </div>
             </div>
-          </div>
-        </section>
+            </div>
+            </section>
 
-        {campaign.deliveryReports.length > 0 || campaign.supplierBookings.length > 0 || campaign.assets.length > 0 || campaign.daysLeft != null ? (
-          <section className="rounded-[30px] border border-line bg-white p-7 shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
+            {campaign.deliveryReports.length > 0 || campaign.supplierBookings.length > 0 || campaign.assets.length > 0 || campaign.daysLeft != null ? (
+              <section className="rounded-[30px] border border-line bg-white p-7 shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
             <div className="mb-5">
               <h3 className="text-xl font-semibold text-ink">Delivery updates</h3>
               <p className="mt-2 text-sm leading-7 text-ink-soft">
@@ -290,16 +301,29 @@ export function CampaignDetailPage() {
                 </div>
               </div>
             </div>
-          </section>
+              </section>
+            ) : null}
+          </>
         ) : null}
 
-        <section id="approvals" className="rounded-[30px] border border-line bg-white p-7 shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
+        {activeView === 'approvals' ? (
+          <section id="approvals" className="rounded-[30px] border border-line bg-white p-7 shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
           <div className="mb-5">
             <h3 className="text-xl font-semibold text-ink">Approvals</h3>
             <p className="mt-2 text-sm leading-7 text-ink-soft">
               Everything that needs your approval appears here. If there&apos;s nothing here, you&apos;re done for now.
             </p>
           </div>
+
+          {recommendation ? (
+            <div className="mb-6">
+              <RecommendationViewer recommendation={recommendation} recommendationPdfUrl={campaign.recommendationPdfUrl} />
+            </div>
+          ) : (
+            <div className="mb-6 rounded-[18px] border border-line bg-slate-50/70 p-5 text-sm leading-7 text-ink-soft">
+              Your recommendation is still being prepared. Once it is ready, you&apos;ll see the full channel mix and placements here before you approve.
+            </div>
+          )}
 
           <div className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
             <div className={`rounded-[18px] border p-5 ${approval.highlightClass}`}>
@@ -365,7 +389,7 @@ export function CampaignDetailPage() {
                     >
                       {requestChangesMutation.isPending ? 'Sending...' : 'Request changes'}
                     </button>
-                    <a href="#messages" className="user-btn">Ask question</a>
+                    <Link to={`${campaignBasePath}/messages`} className="user-btn">Ask question</Link>
                   </div>
                 </div>
               ) : canApproveCreative ? (
@@ -393,12 +417,12 @@ export function CampaignDetailPage() {
                     >
                       {requestCreativeChangesMutation.isPending ? 'Sending...' : 'Request creative changes'}
                     </button>
-                    <a href="#messages" className="user-btn">Ask question</a>
+                    <Link to={`${campaignBasePath}/messages`} className="user-btn">Ask question</Link>
                   </div>
                 </div>
               ) : (
                 <div className="flex flex-wrap gap-3">
-                  <a href="#messages" className="user-btn-primary">Ask question</a>
+                  <Link to={`${campaignBasePath}/messages`} className="user-btn-primary">Ask question</Link>
                   {campaign.recommendationPdfUrl ? (
                     <a href={campaign.recommendationPdfUrl} className="user-btn-secondary">Open document</a>
                   ) : null}
@@ -406,9 +430,11 @@ export function CampaignDetailPage() {
               )}
             </div>
           </div>
-        </section>
+          </section>
+        ) : null}
 
-        <section id="messages" className="rounded-[30px] border border-line bg-white p-7 shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
+        {activeView === 'messages' ? (
+          <section id="messages" className="rounded-[30px] border border-line bg-white p-7 shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
           <div className="mb-5">
             <h3 className="text-xl font-semibold text-ink">Need help?</h3>
             <p className="mt-2 text-sm leading-7 text-ink-soft">
@@ -434,7 +460,7 @@ export function CampaignDetailPage() {
                 >
                   {sendMessageMutation.isPending ? 'Sending...' : 'Send message'}
                 </button>
-                <a href="#approvals" className="user-btn-secondary">Back to approval</a>
+                <Link to={`${campaignBasePath}/approvals`} className="user-btn-secondary">Back to approval</Link>
               </div>
             </div>
 
@@ -486,7 +512,8 @@ export function CampaignDetailPage() {
               ))}
             </div>
           </div>
-        </section>
+          </section>
+        ) : null}
       </div>
     </ClientCampaignShell>
   );

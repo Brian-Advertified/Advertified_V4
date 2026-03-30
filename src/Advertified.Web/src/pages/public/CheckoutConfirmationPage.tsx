@@ -116,7 +116,7 @@ export function CheckoutConfirmationPage() {
         status: 'pending',
         label: 'Pending Lula approval',
         title: 'Your order is pending Lula approval',
-        description: 'Your invoice has been created and your Lula application is now waiting for manual review.',
+        description: 'Your invoice has been created and your Lula application is now waiting for manual review, which can take up to 24 hours.',
         icon: <FileText className="size-5" />,
         colorVar: 'var(--color-highlight)',
         primaryHref: '/orders',
@@ -191,9 +191,9 @@ export function CheckoutConfirmationPage() {
 
   const providerArtwork = provider === 'lula'
     ? { src: lulaLogo, alt: 'Lula logo', label: 'Lula Application Pending' }
-    : { src: vodaLogo, alt: 'VodaPay logo', label: 'Paid through VodaPay' };
+    : { src: vodaLogo, alt: 'VodaPay logo', label: 'Payment through VodaPay' };
   const lulaNextStepMessage = provider === 'lula' && order.paymentStatus === 'pending'
-    ? `Your order is pending Lula Approval. Lula will contact you on ${user.email}, ${user.phone ?? 'your registered cellphone'} to process your application further.`
+    ? `Your order is pending Lula approval. Review can take up to 24 hours. Lula will contact you on ${user.email}, ${user.phone ?? 'your registered cellphone'} to process your application further.`
     : null;
 
   return (
