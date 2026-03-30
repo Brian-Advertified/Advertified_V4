@@ -14,7 +14,7 @@ import {
   UserX2,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { Link, Navigate, useParams } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { ProcessingOverlay } from '../../components/ui/ProcessingOverlay';
@@ -53,8 +53,29 @@ function formatFallbackFlag(flag: string) {
   return flag.replace(/_/g, ' ');
 }
 
+function buildClientFacingSummary(items: SelectedPlanInventoryItem[]) {
+  if (items.length === 0) {
+    return 'No planned inventory lines selected yet.';
+  }
+
+  const lines = items.map((item) => {
+    const lineCost = item.rate * item.quantity;
+    const timeBand = item.timeBand?.trim() ? ` | ${item.timeBand}` : '';
+    const qty = item.quantity > 1 ? ` | Qty ${item.quantity}` : '';
+    return `- ${titleCase(item.type)}: ${item.station}${timeBand}${qty} | ${formatCurrency(lineCost)}`;
+  });
+  const total = items.reduce((sum, item) => sum + item.rate * item.quantity, 0);
+
+  return [
+    'Recommended inventory plan:',
+    ...lines,
+    `Total planned: ${formatCurrency(total)}`,
+  ].join('\n');
+}
+
 export function AgentCampaignDetailPage() {
   const { id = '' } = useParams();
+  const navigate = useNavigate();
   const { pushToast } = useToast();
   const queryClient = useQueryClient();
   const [selectedPlanItems, setSelectedPlanItems] = useState<SelectedPlanInventoryItem[]>([]);
@@ -86,6 +107,7 @@ export function AgentCampaignDetailPage() {
   });
   const mixPanelRef = useRef<HTMLDivElement | null>(null);
   const hydratedRecommendationKeyRef = useRef<string | null>(null);
+  const autoSummaryRef = useRef('');
 
   const campaignQuery = useQuery({ queryKey: queryKeys.agent.campaign(id), queryFn: () => advertifiedApi.getAgentCampaign(id) });
   const inventoryQuery = useQuery({
@@ -321,10 +343,21 @@ export function AgentCampaignDetailPage() {
     }
 
     hydratedRecommendationKeyRef.current = hydrationKey;
-    setStrategySummary(activeRecommendation.summary ?? '');
+    const autoSummary = buildClientFacingSummary(selectedFromRecommendation);
+    autoSummaryRef.current = autoSummary;
+    setStrategySummary(autoSummary);
     setSelectedPlanItems(selectedFromRecommendation);
     setDraftApprovalCaptured(false);
   }, [campaign, activeRecommendation, inventoryItems]);
+
+  useEffect(() => {
+    const autoSummary = buildClientFacingSummary(selectedPlanItems);
+    const hasManualEdits = strategySummary.trim().length > 0 && strategySummary !== autoSummaryRef.current;
+    if (!hasManualEdits) {
+      setStrategySummary(autoSummary);
+    }
+    autoSummaryRef.current = autoSummary;
+  }, [selectedPlanItems, strategySummary]);
 
   if (campaignQuery.isLoading || inventoryQuery.isLoading || !campaign) {
     return <LoadingState label="Loading agent campaign detail..." />;
@@ -389,11 +422,20 @@ export function AgentCampaignDetailPage() {
   const recommendationTitle = strategySummary || activeRecommendation?.summary || 'Draft recommendation';
   const canMarkLive = campaign.status === 'creative_approved';
   const canEditDraftRecommendation = activeRecommendation?.status?.toLowerCase() === 'draft';
+  const canModifyPlan = canEditDraftRecommendation && !draftApprovalCaptured;
   const executionAssets = campaign.assets ?? [];
   const supplierBookings = campaign.supplierBookings ?? [];
   const deliveryReports = campaign.deliveryReports ?? [];
 
   function toggleInventoryItem(item: SelectedPlanInventoryItem) {
+    if (!canModifyPlan) {
+      pushToast({
+        title: 'Recommendation locked after approval.',
+        description: 'Create a new draft revision if you need to change plan lines.',
+      }, 'info');
+      return;
+    }
+
     setSelectedPlanItems((current) => {
       const existing = current.find((value) => value.id === item.id);
       if (existing) {
@@ -453,8 +495,9 @@ export function AgentCampaignDetailPage() {
     setDraftApprovalCaptured(true);
     pushToast({
       title: 'Recommendation approved.',
-      description: 'The approved draft is saved. Next step: send it to the client.',
+      description: 'The approved draft is saved. Opening Review & Send next.',
     });
+    navigate('/agent/review-send');
   }
 
   function handleRegenerate() {
@@ -699,7 +742,7 @@ export function AgentCampaignDetailPage() {
                               </>
                             ) : null}
                           </div>
-                          {'station' in item ? (
+                          {'station' in item && canModifyPlan ? (
                             <button
                               type="button"
                               onClick={() => handleReplace(item.id)}
@@ -710,7 +753,7 @@ export function AgentCampaignDetailPage() {
                             </button>
                           ) : (
                             <span className="inline-flex rounded-full border border-brand/15 bg-white px-2.5 py-1 text-[11px] font-semibold text-brand">
-                              AI draft
+                              {'station' in item ? 'Locked' : 'AI draft'}
                             </span>
                           )}
                         </div>
@@ -728,7 +771,10 @@ export function AgentCampaignDetailPage() {
           </div>
 
           <div className="panel border-line/80 bg-white px-6 py-6 shadow-[0_10px_26px_rgba(17,24,39,0.05)]">
-            <h2 className="text-xl font-semibold text-ink">Strategy</h2>
+            <h2 className="text-xl font-semibold text-ink">Client-facing summary</h2>
+            <p className="mt-2 text-sm text-ink-soft">
+              This summary includes all selected inventory lines. You can refine the wording before sending to the client.
+            </p>
             <textarea
               value={strategySummary}
               onChange={(event) => setStrategySummary(event.target.value)}
@@ -968,7 +1014,7 @@ export function AgentCampaignDetailPage() {
               <InventoryTable
                 items={visibleInventoryItems}
                 selectedItemIds={selectedInventoryIds}
-                onToggleItem={(item) => toggleInventoryItem(item as SelectedPlanInventoryItem)}
+                onToggleItem={canModifyPlan ? ((item) => toggleInventoryItem(item as SelectedPlanInventoryItem)) : undefined}
               />
             </div>
           </details>
