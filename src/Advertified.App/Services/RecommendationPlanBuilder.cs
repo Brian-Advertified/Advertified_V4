@@ -208,8 +208,15 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
             return;
         }
 
-        var maxDepth = Math.Min(6, Math.Max(2, maxItems.GetValueOrDefault(result.Count + 3)));
-        var exactFill = TryBuildExactFill(fillCandidates, remaining, maxDepth, maxItems, result);
+        // Exact-fill backtracking can become expensive when candidate pools are large.
+        // Guard it to keep recommendation generation responsive in production traffic.
+        var shouldAttemptExactFill = fillCandidates.Count <= 40;
+        var maxDepth = shouldAttemptExactFill
+            ? Math.Min(4, Math.Max(2, maxItems.GetValueOrDefault(result.Count + 2)))
+            : 0;
+        var exactFill = shouldAttemptExactFill
+            ? TryBuildExactFill(fillCandidates, remaining, maxDepth, maxItems, result)
+            : Array.Empty<InventoryCandidate>();
 
         if (exactFill.Count > 0)
         {
