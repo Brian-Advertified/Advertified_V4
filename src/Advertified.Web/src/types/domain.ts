@@ -329,6 +329,7 @@ export interface NotificationSummaryItem {
   description: string;
   href: string;
   tone: 'info' | 'success' | 'warning';
+  isRead: boolean;
 }
 
 export interface NotificationSummary {

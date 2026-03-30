@@ -7,6 +7,14 @@ import { advertifiedApi } from '../../services/advertifiedApi';
 import type { AdminCreateOutletInput, AdminUpdateOutletInput } from '../../types/domain';
 import { AdminPageShell, AdminQueryBoundary, splitList, titleize, tone, useAdminDashboardQuery } from './adminWorkspace';
 import { ActionButton, hasText } from './adminSectionShared';
+
+const LANGUAGE_OPTIONS = ['English', 'Xitsonga', 'isiZulu', 'isiXhosa', 'Sesotho', 'Setswana', 'Afrikaans', 'Sepedi', 'Tshivenda'];
+const PROVINCE_OPTIONS = ['Eastern Cape', 'Free State', 'Gauteng', 'KwaZulu-Natal', 'Limpopo', 'Mpumalanga', 'North West', 'Northern Cape', 'Western Cape'];
+const CITY_OPTIONS = ['Johannesburg', 'Pretoria', 'Sandton', 'Randburg', 'Soweto', 'Cape Town', 'Bellville', 'Durban', 'Umhlanga', 'Pietermaritzburg', 'Gqeberha', 'East London', 'Bloemfontein', 'Polokwane', 'Mbombela', 'Rustenburg'];
+const AUDIENCE_KEYWORD_OPTIONS = ['Commuters', 'Professionals', 'Youth', 'Families', 'Shoppers', 'SMEs', 'Mass market', 'Premium audience', 'Pan-African'];
+const BROADCAST_FREQUENCY_OPTIONS = ['Hourly', 'Daily', 'Weekdays only', 'Weekends only', 'Drive time', 'All day rotation'];
+const TARGET_AUDIENCE_OPTIONS = ['General audience', 'Youth audience', 'Working professionals', 'Households and families', 'Business decision-makers', 'Pan-African / beyond-SA audience'];
+
 export function AdminStationsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const query = useAdminDashboardQuery();
@@ -253,14 +261,66 @@ export function AdminStationsPage() {
                       <option value="weak_unpriced">Weak unpriced</option>
                       <option value="weak_no_inventory">Weak no inventory</option>
                     </select>
-                    <input disabled={isReadOnly} className="input-base disabled:bg-slate-50" placeholder="Primary languages, comma separated" value={outletForm.primaryLanguages} onChange={(event) => setOutletForm((current) => ({ ...current, primaryLanguages: event.target.value }))} />
-                    <input disabled={isReadOnly} className="input-base disabled:bg-slate-50" placeholder="Province codes, comma separated" value={outletForm.provinceCodes} onChange={(event) => setOutletForm((current) => ({ ...current, provinceCodes: event.target.value }))} />
-                    <input disabled={isReadOnly} className="input-base disabled:bg-slate-50" placeholder="City labels, comma separated" value={outletForm.cityLabels} onChange={(event) => setOutletForm((current) => ({ ...current, cityLabels: event.target.value }))} />
-                    <input disabled={isReadOnly} className="input-base disabled:bg-slate-50" placeholder="Audience keywords, comma separated" value={outletForm.audienceKeywords} onChange={(event) => setOutletForm((current) => ({ ...current, audienceKeywords: event.target.value }))} />
-                    <input disabled={isReadOnly} className="input-base disabled:bg-slate-50" placeholder="Broadcast frequency" value={outletForm.broadcastFrequency} onChange={(event) => setOutletForm((current) => ({ ...current, broadcastFrequency: event.target.value }))} />
-                    <input disabled={isReadOnly} className="input-base disabled:bg-slate-50" placeholder="Target audience" value={outletForm.targetAudience} onChange={(event) => setOutletForm((current) => ({ ...current, targetAudience: event.target.value }))} />
+                    <LabeledMultiSelect
+                      disabled={isReadOnly}
+                      label="Primary languages"
+                      help="Choose the languages this outlet mainly serves."
+                      options={LANGUAGE_OPTIONS}
+                      value={outletForm.primaryLanguages}
+                      onChange={(value) => setOutletForm((current) => ({ ...current, primaryLanguages: value }))}
+                    />
+                    <LabeledMultiSelect
+                      disabled={isReadOnly}
+                      label="Province coverage"
+                      help="Choose the provinces this outlet covers."
+                      options={PROVINCE_OPTIONS}
+                      value={outletForm.provinceCodes}
+                      onChange={(value) => setOutletForm((current) => ({ ...current, provinceCodes: value }))}
+                    />
+                    <LabeledMultiSelect
+                      disabled={isReadOnly}
+                      label="City coverage"
+                      help="Choose the main cities or metros this outlet reaches."
+                      options={CITY_OPTIONS}
+                      value={outletForm.cityLabels}
+                      onChange={(value) => setOutletForm((current) => ({ ...current, cityLabels: value }))}
+                    />
+                    <LabeledMultiSelect
+                      disabled={isReadOnly}
+                      label="Audience keywords"
+                      help="Choose the closest audience descriptors."
+                      options={AUDIENCE_KEYWORD_OPTIONS}
+                      value={outletForm.audienceKeywords}
+                      onChange={(value) => setOutletForm((current) => ({ ...current, audienceKeywords: value }))}
+                    />
+                    <label className="block text-sm font-semibold text-ink">
+                      Broadcast frequency
+                      <select
+                        disabled={isReadOnly}
+                        className="input-base mt-2 disabled:bg-slate-50"
+                        value={outletForm.broadcastFrequency}
+                        onChange={(event) => setOutletForm((current) => ({ ...current, broadcastFrequency: event.target.value }))}
+                      >
+                        <option value="">Choose frequency</option>
+                        {BROADCAST_FREQUENCY_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+                      </select>
+                      <span className="mt-2 block text-xs font-normal text-ink-soft">Use this when the station follows a known broadcast rhythm.</span>
+                    </label>
+                    <label className="block text-sm font-semibold text-ink">
+                      Target audience
+                      <select
+                        disabled={isReadOnly}
+                        className="input-base mt-2 disabled:bg-slate-50"
+                        value={outletForm.targetAudience}
+                        onChange={(event) => setOutletForm((current) => ({ ...current, targetAudience: event.target.value }))}
+                      >
+                        <option value="">Choose target audience</option>
+                        {TARGET_AUDIENCE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+                      </select>
+                      <span className="mt-2 block text-xs font-normal text-ink-soft">Pick the closest audience profile instead of writing a custom phrase.</span>
+                    </label>
                   </div>
-                  <textarea disabled={isReadOnly} className="input-base mt-4 min-h-[120px] disabled:bg-slate-50" placeholder="Language notes" value={outletForm.languageNotes} onChange={(event) => setOutletForm((current) => ({ ...current, languageNotes: event.target.value }))} />
+                  <textarea disabled={isReadOnly} className="input-base mt-4 min-h-[120px] disabled:bg-slate-50" placeholder="Language or coverage notes. Example: Strong commuter listenership in Gauteng mornings." value={outletForm.languageNotes} onChange={(event) => setOutletForm((current) => ({ ...current, languageNotes: event.target.value }))} />
                   <div className="mt-4 flex flex-wrap items-center gap-5 text-sm text-ink-soft">
                     <label className="inline-flex items-center gap-2"><input disabled={isReadOnly} type="checkbox" checked={outletForm.isNational} onChange={(event) => setOutletForm((current) => ({ ...current, isNational: event.target.checked }))} /> National capable</label>
                     <label className="inline-flex items-center gap-2"><input disabled={isReadOnly} type="checkbox" checked={outletForm.hasPricing} onChange={(event) => setOutletForm((current) => ({ ...current, hasPricing: event.target.checked }))} /> Pricing already available</label>
@@ -283,6 +343,43 @@ export function AdminStationsPage() {
         </AdminPageShell>
       )}}
     </AdminQueryBoundary>
+  );
+}
+
+function LabeledMultiSelect({
+  disabled,
+  label,
+  help,
+  options,
+  value,
+  onChange,
+}: {
+  disabled: boolean;
+  label: string;
+  help: string;
+  options: string[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const selectedValues = splitList(value);
+
+  return (
+    <label className="block text-sm font-semibold text-ink">
+      {label}
+      <select
+        multiple
+        disabled={disabled}
+        className="input-base mt-2 min-h-[120px] disabled:bg-slate-50"
+        value={selectedValues}
+        onChange={(event) => {
+          const next = Array.from(event.target.selectedOptions).map((option) => option.value).join(', ');
+          onChange(next);
+        }}
+      >
+        {options.map((option) => <option key={option} value={option}>{option}</option>)}
+      </select>
+      <span className="mt-2 block text-xs font-normal text-ink-soft">{help}</span>
+    </label>
   );
 }
 

@@ -30,26 +30,147 @@ public sealed class NotificationsController : ControllerBase
     [HttpGet("summary")]
     public async Task<ActionResult<NotificationSummaryResponse>> GetSummary(CancellationToken cancellationToken)
     {
+        var currentUser = await GetCurrentUserAsync(cancellationToken);
+        var items = await GetCurrentNotificationItemsAsync(currentUser, cancellationToken);
+
+        return Ok(new NotificationSummaryResponse
+        {
+            UnreadCount = items.Count(item => !item.IsRead),
+            Items = items
+        });
+    }
+
+    [HttpPost("{id}/read")]
+    public async Task<IActionResult> MarkRead(string id, CancellationToken cancellationToken)
+    {
+        var currentUser = await GetCurrentUserAsync(cancellationToken);
+        var items = await GetCurrentNotificationItemsAsync(currentUser, cancellationToken);
+        if (!items.Any(item => string.Equals(item.Id, id, StringComparison.Ordinal)))
+        {
+            return NotFound(new { message = "Notification could not be found." });
+        }
+
+        await MarkNotificationsReadAsync(currentUser.Id, new[] { id }, cancellationToken);
+        return NoContent();
+    }
+
+    [HttpPost("read-all")]
+    public async Task<IActionResult> MarkAllRead(CancellationToken cancellationToken)
+    {
+        var currentUser = await GetCurrentUserAsync(cancellationToken);
+        var items = await GetCurrentNotificationItemsAsync(currentUser, cancellationToken);
+        var unreadIds = items
+            .Where(item => !item.IsRead)
+            .Select(item => item.Id)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        if (unreadIds.Length > 0)
+        {
+            await MarkNotificationsReadAsync(currentUser.Id, unreadIds, cancellationToken);
+        }
+
+        return NoContent();
+    }
+
+    private async Task<UserAccount> GetCurrentUserAsync(CancellationToken cancellationToken)
+    {
         var currentUserId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
-        var currentUser = await _db.UserAccounts
+        return await _db.UserAccounts
             .AsNoTracking()
             .FirstOrDefaultAsync(user => user.Id == currentUserId, cancellationToken)
             ?? throw new InvalidOperationException("Authenticated user account could not be found.");
+    }
 
+    private async Task<NotificationSummaryItemResponse[]> GetCurrentNotificationItemsAsync(UserAccount currentUser, CancellationToken cancellationToken)
+    {
         var items = currentUser.Role switch
         {
-            UserRole.Client => await BuildClientNotificationsAsync(currentUserId, cancellationToken),
-            UserRole.Agent => await BuildAgentNotificationsAsync(currentUserId, false, cancellationToken),
+            UserRole.Client => await BuildClientNotificationsAsync(currentUser.Id, cancellationToken),
+            UserRole.Agent => await BuildAgentNotificationsAsync(currentUser.Id, false, cancellationToken),
             UserRole.CreativeDirector => await BuildCreativeNotificationsAsync(cancellationToken),
             UserRole.Admin => await BuildAdminNotificationsAsync(cancellationToken),
             _ => Array.Empty<NotificationSummaryItemResponse>()
         };
 
-        return Ok(new NotificationSummaryResponse
+        return await ApplyReadStateAsync(currentUser.Id, items, cancellationToken);
+    }
+
+    private async Task<NotificationSummaryItemResponse[]> ApplyReadStateAsync(
+        Guid userId,
+        IReadOnlyList<NotificationSummaryItemResponse> items,
+        CancellationToken cancellationToken)
+    {
+        if (items.Count == 0)
         {
-            UnreadCount = items.Length,
-            Items = items
-        });
+            return Array.Empty<NotificationSummaryItemResponse>();
+        }
+
+        var itemIds = items
+            .Select(item => item.Id)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        var readIds = await _db.NotificationReadReceipts
+            .AsNoTracking()
+            .Where(receipt => receipt.UserId == userId && itemIds.Contains(receipt.NotificationId))
+            .Select(receipt => receipt.NotificationId)
+            .ToListAsync(cancellationToken);
+
+        var readIdSet = readIds.ToHashSet(StringComparer.Ordinal);
+        return items
+            .Select(item => new NotificationSummaryItemResponse
+            {
+                Id = item.Id,
+                Title = item.Title,
+                Description = item.Description,
+                Href = item.Href,
+                Tone = item.Tone,
+                IsRead = readIdSet.Contains(item.Id)
+            })
+            .ToArray();
+    }
+
+    private async Task MarkNotificationsReadAsync(Guid userId, IReadOnlyCollection<string> notificationIds, CancellationToken cancellationToken)
+    {
+        if (notificationIds.Count == 0)
+        {
+            return;
+        }
+
+        var distinctIds = notificationIds
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        if (distinctIds.Length == 0)
+        {
+            return;
+        }
+
+        var existingIds = await _db.NotificationReadReceipts
+            .Where(receipt => receipt.UserId == userId && distinctIds.Contains(receipt.NotificationId))
+            .Select(receipt => receipt.NotificationId)
+            .ToListAsync(cancellationToken);
+
+        var existingIdSet = existingIds.ToHashSet(StringComparer.Ordinal);
+        var newReceipts = distinctIds
+            .Where(id => !existingIdSet.Contains(id))
+            .Select(id => new NotificationReadReceipt
+            {
+                UserId = userId,
+                NotificationId = id,
+                ReadAt = DateTime.UtcNow
+            })
+            .ToArray();
+
+        if (newReceipts.Length == 0)
+        {
+            return;
+        }
+
+        _db.NotificationReadReceipts.AddRange(newReceipts);
+        await _db.SaveChangesAsync(cancellationToken);
     }
 
     private async Task<NotificationSummaryItemResponse[]> BuildClientNotificationsAsync(Guid userId, CancellationToken cancellationToken)
@@ -254,7 +375,8 @@ public sealed class NotificationsController : ControllerBase
             Title = title,
             Description = description,
             Href = href,
-            Tone = tone
+            Tone = tone,
+            IsRead = false
         };
     }
 }

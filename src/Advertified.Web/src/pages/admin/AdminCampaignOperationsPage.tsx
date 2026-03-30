@@ -1,6 +1,7 @@
-import { useState, type Dispatch, type SetStateAction } from 'react';
+import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PauseCircle, PlayCircle, RotateCcw } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { invalidateAdminOperationsQueries, queryKeys } from '../../lib/queryKeys';
 import { advertifiedApi } from '../../services/advertifiedApi';
@@ -18,6 +19,7 @@ type DraftState = {
 export function AdminCampaignOperationsPage() {
   const queryClient = useQueryClient();
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>();
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, DraftState>>({});
 
   const query = useQuery({
@@ -41,6 +43,14 @@ export function AdminCampaignOperationsPage() {
     onSuccess: () => invalidateAdminOperationsQueries(queryClient),
   });
 
+  const items = query.data ?? [];
+  const selected = items.find((item) => item.campaignId === selectedCampaignId) ?? items[0];
+  const selectedDraft = selected ? getDraft(selected, drafts) : undefined;
+
+  useEffect(() => {
+    setIsEditorOpen(false);
+  }, [selected?.campaignId]);
+
   if (query.isLoading) {
     return (
       <AdminPageShell title="Campaign controls" description="Process refunds, pause campaigns, resume campaigns, and track days left with real operational data.">
@@ -59,10 +69,6 @@ export function AdminCampaignOperationsPage() {
       </AdminPageShell>
     );
   }
-
-  const items = query.data ?? [];
-  const selected = items.find((item) => item.campaignId === selectedCampaignId) ?? items[0];
-  const selectedDraft = selected ? getDraft(selected, drafts) : undefined;
 
   const pausedCount = items.filter((item) => item.isPaused).length;
   const refundAttentionCount = items.filter((item) => item.canProcessRefund && item.refundPolicyStage === 'post_delivery_or_live').length;
@@ -141,13 +147,24 @@ export function AdminCampaignOperationsPage() {
                 <div className="panel p-6">
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-ink-soft">Selected campaign</p>
-                      <h2 className="mt-3 text-2xl font-semibold text-ink">{selected.campaignName}</h2>
+                      <h2 className="text-2xl font-semibold text-ink">{selected.campaignName}</h2>
                       <p className="mt-2 text-sm text-ink-soft">{selected.clientName} | {selected.clientEmail}</p>
+                      <p className="mt-1 text-xs text-ink-soft">
+                        Status {selected.isPaused ? 'Paused' : titleize(selected.campaignStatus)} | Refund {titleize(selected.refundStatus)}
+                      </p>
                     </div>
-                    <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${selected.isPaused ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
-                      {selected.isPaused ? 'Paused' : titleize(selected.campaignStatus)}
-                    </span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Link to={`/campaigns/${selected.campaignId}`} className="button-secondary rounded-full px-4 py-2">
+                        View campaign
+                      </Link>
+                      <button
+                        type="button"
+                        className="button-primary rounded-full px-4 py-2"
+                        onClick={() => setIsEditorOpen((current) => !current)}
+                      >
+                        {isEditorOpen ? 'Close edit' : 'Edit'}
+                      </button>
+                    </div>
                   </div>
 
                   <div className="mt-6 grid gap-3 text-sm text-ink-soft">
@@ -162,121 +179,125 @@ export function AdminCampaignOperationsPage() {
                   </div>
                 </div>
 
-                <div className="panel p-6">
-                  <div className="flex items-center gap-3">
-                    <RotateCcw className="size-5 text-brand" />
-                    <div>
-                      <h3 className="text-lg font-semibold text-ink">Refund controls</h3>
-                      <p className="mt-1 text-sm text-ink-soft">{selected.refundPolicyLabel}</p>
+                {isEditorOpen ? (
+                  <div className="panel p-6">
+                    <div className="flex items-center gap-3">
+                      <RotateCcw className="size-5 text-brand" />
+                      <div>
+                        <h3 className="text-lg font-semibold text-ink">Edit campaign</h3>
+                        <p className="mt-1 text-sm text-ink-soft">Use one place to refund, pause, or resume this campaign.</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 grid gap-6 xl:grid-cols-2">
+                      <div className="space-y-4 rounded-[24px] border border-line p-5">
+                        <div>
+                          <p className="text-sm font-semibold text-ink">Refund</p>
+                          <p className="mt-1 text-sm leading-6 text-ink-soft">{selected.refundPolicySummary}</p>
+                        </div>
+                        <div className="grid gap-3 text-sm text-ink-soft">
+                          <InfoRow label="Suggested refund" value={fmtCurrency(selected.suggestedRefundAmount)} />
+                          <InfoRow label="Maximum manual refund" value={fmtCurrency(selected.maxManualRefundAmount)} />
+                          <InfoRow label="Gateway fee retained" value={fmtCurrency(selected.gatewayFeeRetainedAmount)} />
+                        </div>
+                        <label className="block text-sm font-semibold text-ink">
+                          Refund amount
+                          <input
+                            className="input-base mt-2"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={selectedDraft?.amount ?? ''}
+                            onChange={(event) => updateDraft(selected, drafts, setDrafts, 'amount', event.target.value)}
+                          />
+                        </label>
+                        <label className="block text-sm font-semibold text-ink">
+                          Retained gateway fee
+                          <input
+                            className="input-base mt-2"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={selectedDraft?.gatewayFee ?? ''}
+                            onChange={(event) => updateDraft(selected, drafts, setDrafts, 'gatewayFee', event.target.value)}
+                          />
+                        </label>
+                        <label className="block text-sm font-semibold text-ink">
+                          Refund reason
+                          <textarea
+                            className="input-base mt-2 min-h-28"
+                            value={selectedDraft?.refundReason ?? ''}
+                            onChange={(event) => updateDraft(selected, drafts, setDrafts, 'refundReason', event.target.value)}
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          className="button-primary inline-flex w-full items-center justify-center rounded-full"
+                          disabled={!selected.canProcessRefund || refundMutation.isPending}
+                          onClick={() => {
+                            if (!window.confirm(`Process refund for ${selected.campaignName}?`)) {
+                              return;
+                            }
+
+                            refundMutation.mutate({
+                              campaignId: selected.campaignId,
+                              amount: parseOptionalNumber(selectedDraft?.amount),
+                              gatewayFeeRetainedAmount: parseOptionalNumber(selectedDraft?.gatewayFee),
+                              reason: emptyToUndefined(selectedDraft?.refundReason),
+                            });
+                          }}
+                        >
+                          Process refund
+                        </button>
+                      </div>
+
+                      <div className="space-y-4 rounded-[24px] border border-line p-5">
+                        <div>
+                          <p className="text-sm font-semibold text-ink">Pause or resume</p>
+                          <p className="mt-1 text-sm leading-6 text-ink-soft">Pausing freezes the remaining day count until the campaign is resumed.</p>
+                        </div>
+                        <label className="block text-sm font-semibold text-ink">
+                          Pause reason
+                          <textarea
+                            className="input-base mt-2 min-h-24"
+                            value={selectedDraft?.pauseReason ?? ''}
+                            onChange={(event) => updateDraft(selected, drafts, setDrafts, 'pauseReason', event.target.value)}
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          className="button-secondary inline-flex w-full items-center justify-center gap-2 rounded-full"
+                          disabled={!selected.canPause || pauseMutation.isPending}
+                          onClick={() => pauseMutation.mutate({ campaignId: selected.campaignId, reason: emptyToUndefined(selectedDraft?.pauseReason) })}
+                        >
+                          <PauseCircle className="size-4" />
+                          Pause campaign
+                        </button>
+
+                        <label className="block text-sm font-semibold text-ink">
+                          Resume note
+                          <textarea
+                            className="input-base mt-2 min-h-24"
+                            value={selectedDraft?.resumeReason ?? ''}
+                            onChange={(event) => updateDraft(selected, drafts, setDrafts, 'resumeReason', event.target.value)}
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          className="button-primary inline-flex w-full items-center justify-center gap-2 rounded-full"
+                          disabled={!selected.canUnpause || unpauseMutation.isPending}
+                          onClick={() => unpauseMutation.mutate({ campaignId: selected.campaignId, reason: emptyToUndefined(selectedDraft?.resumeReason) })}
+                        >
+                          <PlayCircle className="size-4" />
+                          Resume campaign
+                        </button>
+
+                        {selected.pauseReason ? <p className="text-xs leading-5 text-ink-soft">Latest pause note: {selected.pauseReason}</p> : null}
+                        {selected.pausedAt ? <p className="text-xs leading-5 text-ink-soft">Paused at {fmtDate(selected.pausedAt)}</p> : null}
+                      </div>
                     </div>
                   </div>
-
-                  <p className="mt-4 text-sm leading-6 text-ink-soft">{selected.refundPolicySummary}</p>
-
-                  <div className="mt-5 grid gap-3 text-sm text-ink-soft">
-                    <InfoRow label="Suggested refund" value={fmtCurrency(selected.suggestedRefundAmount)} />
-                    <InfoRow label="Maximum manual refund" value={fmtCurrency(selected.maxManualRefundAmount)} />
-                    <InfoRow label="Gateway fee retained" value={fmtCurrency(selected.gatewayFeeRetainedAmount)} />
-                  </div>
-
-                  <div className="mt-5 space-y-3">
-                    <label className="block text-sm font-semibold text-ink">
-                      Refund amount
-                      <input
-                        className="input-base mt-2"
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={selectedDraft?.amount ?? ''}
-                        onChange={(event) => updateDraft(selected, drafts, setDrafts, 'amount', event.target.value)}
-                      />
-                    </label>
-                    <label className="block text-sm font-semibold text-ink">
-                      Retained gateway fee
-                      <input
-                        className="input-base mt-2"
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={selectedDraft?.gatewayFee ?? ''}
-                        onChange={(event) => updateDraft(selected, drafts, setDrafts, 'gatewayFee', event.target.value)}
-                      />
-                    </label>
-                    <label className="block text-sm font-semibold text-ink">
-                      Refund reason
-                      <textarea
-                        className="input-base mt-2 min-h-28"
-                        value={selectedDraft?.refundReason ?? ''}
-                        onChange={(event) => updateDraft(selected, drafts, setDrafts, 'refundReason', event.target.value)}
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      className="button-primary inline-flex w-full items-center justify-center rounded-full"
-                      disabled={!selected.canProcessRefund || refundMutation.isPending}
-                      onClick={() => {
-                        if (!window.confirm(`Process refund for ${selected.campaignName}?`)) {
-                          return;
-                        }
-
-                        refundMutation.mutate({
-                          campaignId: selected.campaignId,
-                          amount: parseOptionalNumber(selectedDraft?.amount),
-                          gatewayFeeRetainedAmount: parseOptionalNumber(selectedDraft?.gatewayFee),
-                          reason: emptyToUndefined(selectedDraft?.refundReason),
-                        });
-                      }}
-                    >
-                      Process refund
-                    </button>
-                  </div>
-                </div>
-
-                <div className="panel p-6">
-                  <h3 className="text-lg font-semibold text-ink">Pause controls</h3>
-                  <p className="mt-2 text-sm text-ink-soft">Pausing a campaign freezes the remaining day count until the campaign is resumed.</p>
-
-                  <div className="mt-5 space-y-4">
-                    <label className="block text-sm font-semibold text-ink">
-                      Pause reason
-                      <textarea
-                        className="input-base mt-2 min-h-24"
-                        value={selectedDraft?.pauseReason ?? ''}
-                        onChange={(event) => updateDraft(selected, drafts, setDrafts, 'pauseReason', event.target.value)}
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      className="button-secondary inline-flex w-full items-center justify-center gap-2 rounded-full"
-                      disabled={!selected.canPause || pauseMutation.isPending}
-                      onClick={() => pauseMutation.mutate({ campaignId: selected.campaignId, reason: emptyToUndefined(selectedDraft?.pauseReason) })}
-                    >
-                      <PauseCircle className="size-4" />
-                      Pause campaign
-                    </button>
-
-                    <label className="block text-sm font-semibold text-ink">
-                      Resume note
-                      <textarea
-                        className="input-base mt-2 min-h-24"
-                        value={selectedDraft?.resumeReason ?? ''}
-                        onChange={(event) => updateDraft(selected, drafts, setDrafts, 'resumeReason', event.target.value)}
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      className="button-primary inline-flex w-full items-center justify-center gap-2 rounded-full"
-                      disabled={!selected.canUnpause || unpauseMutation.isPending}
-                      onClick={() => unpauseMutation.mutate({ campaignId: selected.campaignId, reason: emptyToUndefined(selectedDraft?.resumeReason) })}
-                    >
-                      <PlayCircle className="size-4" />
-                      Resume campaign
-                    </button>
-                  </div>
-
-                  {selected.pauseReason ? <p className="mt-4 text-xs leading-5 text-ink-soft">Latest pause note: {selected.pauseReason}</p> : null}
-                  {selected.pausedAt ? <p className="mt-2 text-xs leading-5 text-ink-soft">Paused at {fmtDate(selected.pausedAt)}</p> : null}
-                </div>
+                ) : null}
               </>
             ) : (
               <div className="panel p-8">

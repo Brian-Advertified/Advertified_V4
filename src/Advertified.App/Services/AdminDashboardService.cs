@@ -2,6 +2,7 @@ using System.Text.Json;
 using Advertified.App.Configuration;
 using Advertified.App.Contracts.Admin;
 using Advertified.App.Data;
+using Advertified.App.Data.Enums;
 using Advertified.App.Services.Abstractions;
 using Advertified.App.Support;
 using Dapper;
@@ -272,7 +273,13 @@ public sealed class AdminDashboardService : IAdminDashboardService
             FullName = x.FullName,
             Email = x.Email,
             Phone = x.Phone,
-            Role = x.Role.ToString().ToLowerInvariant(),
+            Role = x.Role switch
+            {
+                UserRole.CreativeDirector => "creative_director",
+                UserRole.Agent => "agent",
+                UserRole.Admin => "admin",
+                _ => "client"
+            },
             AccountStatus = x.AccountStatus.ToString(),
             IsSaCitizen = x.IsSaCitizen,
             EmailVerified = x.EmailVerified,

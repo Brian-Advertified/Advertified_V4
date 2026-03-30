@@ -13,4 +13,5 @@ public sealed class NotificationSummaryItemResponse
     public string Description { get; init; } = string.Empty;
     public string Href { get; init; } = string.Empty;
     public string Tone { get; init; } = "info";
+    public bool IsRead { get; init; }
 }

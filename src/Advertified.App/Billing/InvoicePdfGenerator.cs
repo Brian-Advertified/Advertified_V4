@@ -47,6 +47,19 @@ internal static class InvoicePdfGenerator
                         col.Item().Text(invoice.Status == InvoiceStatuses.Paid
                             ? $"Paid: {invoice.PaidAtUtc:dd MMM yyyy HH:mm} UTC"
                             : $"Issued: {invoice.CreatedAtUtc:dd MMM yyyy HH:mm} UTC").FontColor("#4B5563");
+                        col.Item().PaddingTop(10).AlignRight().Element(container =>
+                        {
+                            container
+                                .Border(2)
+                                .BorderColor(GetStampColor(invoice))
+                                .Background(GetStampBackground(invoice))
+                                .PaddingVertical(6)
+                                .PaddingHorizontal(14)
+                                .Text(GetStatusStamp(invoice))
+                                .SemiBold()
+                                .FontSize(18)
+                                .FontColor(GetStampColor(invoice));
+                        });
                     });
                 });
 
@@ -182,6 +195,21 @@ internal static class InvoicePdfGenerator
     private static string FormatCurrency(decimal amount)
     {
         return $"R {amount.ToString("N2", CultureInfo.GetCultureInfo("en-ZA"))}";
+    }
+
+    private static string GetStatusStamp(Invoice invoice)
+    {
+        return invoice.Status == InvoiceStatuses.Paid ? "PAID" : "UNPAID";
+    }
+
+    private static string GetStampColor(Invoice invoice)
+    {
+        return invoice.Status == InvoiceStatuses.Paid ? "#15803D" : "#B91C1C";
+    }
+
+    private static string GetStampBackground(Invoice invoice)
+    {
+        return invoice.Status == InvoiceStatuses.Paid ? "#F0FDF4" : "#FEF2F2";
     }
 
     private static IReadOnlyList<InvoiceLineItem> GetEffectiveLineItems(Invoice invoice)

@@ -1,5 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Eye, EyeOff } from 'lucide-react';
 import { useForm } from 'react-hook-form';
+import { useState } from 'react';
 import type { LoginSchema } from '../schemas';
 import { loginSchema } from '../schemas';
 
@@ -10,6 +12,7 @@ export function LoginForm({
   onSubmit: (values: LoginSchema) => Promise<void>;
   loading: boolean;
 }) {
+  const [showPassword, setShowPassword] = useState(false);
   const {
     register,
     handleSubmit,
@@ -31,7 +34,23 @@ export function LoginForm({
       </div>
       <div>
         <label className="label-base">Password</label>
-        <input {...register('password')} type="password" className="input-base" placeholder="Enter your password" />
+        <div className="relative">
+          <input
+            {...register('password')}
+            type={showPassword ? 'text' : 'password'}
+            className="input-base pr-16"
+            placeholder="Enter your password"
+          />
+          <button
+            type="button"
+            className="absolute right-4 top-1/2 inline-flex -translate-y-1/2 items-center gap-1 text-xs font-semibold text-ink-soft transition hover:text-ink"
+            onClick={() => setShowPassword((current) => !current)}
+            aria-label={showPassword ? 'Hide password' : 'Show password'}
+          >
+            {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+            <span>{showPassword ? 'Hide' : 'Show'}</span>
+          </button>
+        </div>
         {errors.password ? <p className="helper-text text-rose-600">{errors.password.message}</p> : null}
       </div>
       <button type="submit" disabled={loading} className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand disabled:opacity-60">

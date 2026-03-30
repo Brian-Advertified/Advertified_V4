@@ -14,6 +14,10 @@ import type {
 } from '../../types/domain';
 import { AdminPageShell, AdminQueryBoundary, fmtCurrency, titleize, useAdminDashboardQuery } from './adminWorkspace';
 import { ActionButton, EmptyTableState, ReadOnlyNotice, hasText } from './adminSectionShared';
+
+const PRICING_PACKAGE_TYPE_OPTIONS = ['Station package', 'Sponsorship package', 'Promo package', 'Bundle package', 'Seasonal package'];
+const PRICING_SOURCE_OPTIONS = ['Rate card', 'Supplier quote', 'Manual admin entry', 'Media owner pricing sheet'];
+
 export function AdminPricingPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const query = useAdminDashboardQuery();
@@ -603,8 +607,22 @@ export function AdminPricingPage() {
                     {packageDialog.mode === 'view' && selectedPackage ? <ReadOnlyNotice label={`Viewing ${selectedPackage.packageName}. Use the edit icon or the button below to switch this record into edit mode.`} /> : null}
                     <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                       <input disabled={packageDialog.mode === 'view'} className="input-base disabled:bg-slate-50" placeholder="Package name" value={packageForm.packageName} onChange={(event) => setPackageForm((current) => ({ ...current, packageName: event.target.value }))} />
-                      <input disabled={packageDialog.mode === 'view'} className="input-base disabled:bg-slate-50" placeholder="Package type" value={packageForm.packageType ?? ''} onChange={(event) => setPackageForm((current) => ({ ...current, packageType: event.target.value }))} />
-                      <input disabled={packageDialog.mode === 'view'} className="input-base disabled:bg-slate-50" placeholder="Source name" value={packageForm.sourceName ?? ''} onChange={(event) => setPackageForm((current) => ({ ...current, sourceName: event.target.value }))} />
+                      <label className="block text-sm font-semibold text-ink">
+                        Package type
+                        <select disabled={packageDialog.mode === 'view'} className="input-base mt-2 disabled:bg-slate-50" value={packageForm.packageType ?? ''} onChange={(event) => setPackageForm((current) => ({ ...current, packageType: event.target.value }))}>
+                          <option value="">Choose package type</option>
+                          {PRICING_PACKAGE_TYPE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+                        </select>
+                        <span className="mt-2 block text-xs font-normal text-ink-soft">What kind of commercial package is this?</span>
+                      </label>
+                      <label className="block text-sm font-semibold text-ink">
+                        Source name
+                        <select disabled={packageDialog.mode === 'view'} className="input-base mt-2 disabled:bg-slate-50" value={packageForm.sourceName ?? ''} onChange={(event) => setPackageForm((current) => ({ ...current, sourceName: event.target.value }))}>
+                          <option value="">Choose pricing source</option>
+                          {PRICING_SOURCE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+                        </select>
+                        <span className="mt-2 block text-xs font-normal text-ink-soft">Where did this pricing record come from?</span>
+                      </label>
                       <input disabled={packageDialog.mode === 'view'} className="input-base disabled:bg-slate-50" type="number" placeholder="Investment ZAR" value={packageForm.investmentZar ?? ''} onChange={(event) => setPackageForm((current) => ({ ...current, investmentZar: parseNumber(event.target.value) }))} />
                       <input disabled={packageDialog.mode === 'view'} className="input-base disabled:bg-slate-50" type="number" placeholder="Cost per month ZAR" value={packageForm.costPerMonthZar ?? ''} onChange={(event) => setPackageForm((current) => ({ ...current, costPerMonthZar: parseNumber(event.target.value) }))} />
                       <input disabled={packageDialog.mode === 'view'} className="input-base disabled:bg-slate-50" type="number" placeholder="Value ZAR" value={packageForm.valueZar ?? ''} onChange={(event) => setPackageForm((current) => ({ ...current, valueZar: parseNumber(event.target.value) }))} />
@@ -615,7 +633,7 @@ export function AdminPricingPage() {
                       <input disabled={packageDialog.mode === 'view'} className="input-base disabled:bg-slate-50" type="number" placeholder="Duration weeks" value={packageForm.durationWeeks ?? ''} onChange={(event) => setPackageForm((current) => ({ ...current, durationWeeks: parseNumber(event.target.value) }))} />
                       <label className="inline-flex items-center gap-2 rounded-full border border-line px-4 py-3 text-sm text-ink-soft"><input disabled={packageDialog.mode === 'view'} type="checkbox" checked={packageForm.isActive} onChange={(event) => setPackageForm((current) => ({ ...current, isActive: event.target.checked }))} /> Active</label>
                     </div>
-                    <textarea disabled={packageDialog.mode === 'view'} className="input-base mt-4 min-h-[110px] disabled:bg-slate-50" placeholder="Notes" value={packageForm.notes ?? ''} onChange={(event) => setPackageForm((current) => ({ ...current, notes: event.target.value }))} />
+                    <textarea disabled={packageDialog.mode === 'view'} className="input-base mt-4 min-h-[110px] disabled:bg-slate-50" placeholder="Notes. Example: Includes drive-time mentions and social support." value={packageForm.notes ?? ''} onChange={(event) => setPackageForm((current) => ({ ...current, notes: event.target.value }))} />
                     {!packageFormIsValid ? <p className="mt-3 text-sm text-rose-600">Package name is required before saving.</p> : null}
                     <div className="mt-6 flex justify-end gap-3"><button type="button" className="button-secondary px-5 py-3" onClick={() => setPackageDialog(null)}>Close</button>{packageDialog.mode === 'view' && selectedPackage ? <button type="button" className="button-secondary px-5 py-3" onClick={() => openPackageDialog('edit', selectedPackage.id)}>Edit package</button> : null}{packageDialog.mode === 'create' ? <button type="button" className="button-primary px-5 py-3" disabled={!packageFormIsValid || createPackageMutation.isPending} onClick={() => createPackageMutation.mutate()}>Save package</button> : packageDialog.mode === 'edit' ? <button type="button" className="button-primary px-5 py-3" disabled={!packageFormIsValid || updatePackageMutation.isPending} onClick={() => updatePackageMutation.mutate()}>Update package</button> : null}</div>
                   </div>

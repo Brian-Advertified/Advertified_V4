@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Eye, Pencil, PlusCircle, Trash2, X } from 'lucide-react';
+import { Eye, EyeOff, Pencil, PlusCircle, Trash2, X } from 'lucide-react';
 import { useToast } from '../../components/ui/toast';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import { ActionButton, ReadOnlyNotice, type AdminUserFormState, hasText } from './adminSectionShared';
@@ -11,6 +11,7 @@ export function AdminUsersPage() {
   const queryClient = useQueryClient();
   const { pushToast } = useToast();
   const [userDialog, setUserDialog] = useState<{ mode: 'create' | 'view' | 'edit'; id?: string } | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
   const [userForm, setUserForm] = useState<AdminUserFormState>({
     fullName: '',
     email: '',
@@ -27,6 +28,7 @@ export function AdminUsersPage() {
   const userUpdateIsValid = hasText(userForm.fullName) && hasText(userForm.email) && hasText(userForm.phone);
 
   const resetUserForm = () => {
+    setShowPassword(false);
     setUserForm({
       fullName: '',
       email: '',
@@ -135,7 +137,27 @@ export function AdminUsersPage() {
                       <input disabled={isReadOnly} className="input-base disabled:bg-slate-50" placeholder="Full name" value={userForm.fullName} onChange={(event) => setUserForm((current: AdminUserFormState) => ({ ...current, fullName: event.target.value }))} />
                       <input disabled={isReadOnly} className="input-base disabled:bg-slate-50" placeholder="Email" value={userForm.email} onChange={(event) => setUserForm((current: AdminUserFormState) => ({ ...current, email: event.target.value }))} />
                       <input disabled={isReadOnly} className="input-base disabled:bg-slate-50" placeholder="Phone" value={userForm.phone} onChange={(event) => setUserForm((current: AdminUserFormState) => ({ ...current, phone: event.target.value }))} />
-                      <input disabled={isReadOnly} className="input-base disabled:bg-slate-50" placeholder={userDialog.mode === 'edit' ? 'New password (optional)' : 'Password'} type="password" value={userForm.password ?? ''} onChange={(event) => setUserForm((current: AdminUserFormState) => ({ ...current, password: event.target.value }))} />
+                      <div className="relative">
+                        <input
+                          disabled={isReadOnly}
+                          className="input-base pr-16 disabled:bg-slate-50"
+                          placeholder={userDialog.mode === 'edit' ? 'New password (optional)' : 'Password'}
+                          type={showPassword ? 'text' : 'password'}
+                          value={userForm.password ?? ''}
+                          onChange={(event) => setUserForm((current: AdminUserFormState) => ({ ...current, password: event.target.value }))}
+                        />
+                        {!isReadOnly ? (
+                          <button
+                            type="button"
+                            className="absolute right-4 top-1/2 inline-flex -translate-y-1/2 items-center gap-1 text-xs font-semibold text-ink-soft transition hover:text-ink"
+                            onClick={() => setShowPassword((current) => !current)}
+                            aria-label={showPassword ? 'Hide password' : 'Show password'}
+                          >
+                            {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                            <span>{showPassword ? 'Hide' : 'Show'}</span>
+                          </button>
+                        ) : null}
+                      </div>
                       <select disabled={isReadOnly} className="input-base disabled:bg-slate-50" value={userForm.role} onChange={(event) => setUserForm((current: AdminUserFormState) => {
                         const nextRole = event.target.value as AdminUserFormState['role'];
                         return { ...current, role: nextRole, assignedAreaCodes: nextRole === 'agent' ? current.assignedAreaCodes : [] };

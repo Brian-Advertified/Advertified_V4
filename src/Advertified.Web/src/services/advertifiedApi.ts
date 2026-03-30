@@ -1605,6 +1605,20 @@ export const advertifiedApi = {
     return apiRequest<NotificationSummaryResponse>('/notifications/summary');
   },
 
+  async markNotificationRead(notificationId: string) {
+    await apiRequest(`/notifications/${encodeURIComponent(notificationId)}/read`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+  },
+
+  async markAllNotificationsRead() {
+    await apiRequest('/notifications/read-all', {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+  },
+
   async getAgentCampaign(campaignId: string) {
     const response = await apiRequest<CampaignResponse>(`/agent/campaigns/${campaignId}`);
     return mapCampaign(response);

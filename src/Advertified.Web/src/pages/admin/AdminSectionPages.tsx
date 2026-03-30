@@ -23,6 +23,7 @@ export function AdminImportsPage() {
   const { pushToast } = useToast();
   const rateCardFileInputRef = useRef<HTMLInputElement | null>(null);
   const [importDialog, setImportDialog] = useState<{ mode: 'view' | 'edit'; sourceFile: string } | null>(null);
+  const [isUploadFormOpen, setIsUploadFormOpen] = useState(false);
   const [rateCardForm, setRateCardForm] = useState({
     channel: 'radio',
     supplierOrStation: '',
@@ -55,6 +56,7 @@ export function AdminImportsPage() {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] });
       setUploadAttempted(false);
+      setIsUploadFormOpen(false);
       setRateCardForm({
         channel: 'radio',
         supplierOrStation: '',
@@ -117,41 +119,54 @@ export function AdminImportsPage() {
                   <h3 className="text-lg font-semibold text-ink">Upload rate card</h3>
                   <p className="mt-2 text-sm text-ink-soft">Store a real rate-card file, create the import manifest record, and attach its metadata in the live import tables.</p>
                 </div>
-                <span className="pill"><Upload className="mr-2 inline size-4" />Live upload</span>
-              </div>
-              <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <select className="input-base" value={rateCardForm.channel} onChange={(event) => setRateCardForm((current) => ({ ...current, channel: event.target.value }))}>
-                  <option value="radio">Radio</option>
-                  <option value="tv">TV</option>
-                  <option value="ooh">OOH</option>
-                  <option value="digital">Digital</option>
-                </select>
-                <input className="input-base" placeholder="Supplier or station" value={rateCardForm.supplierOrStation} onChange={(event) => setRateCardForm((current) => ({ ...current, supplierOrStation: event.target.value }))} />
-                <input className="input-base" placeholder="Document title" value={rateCardForm.documentTitle} onChange={(event) => setRateCardForm((current) => ({ ...current, documentTitle: event.target.value }))} />
-                <div className="flex min-h-[60px] items-center justify-between gap-3 rounded-[20px] border border-line bg-white px-4 py-3">
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Rate-card file</p>
-                    <p className="mt-1 truncate text-sm text-ink">{rateCardForm.file?.name ?? 'No file selected yet'}</p>
-                  </div>
-                  <input
-                    ref={rateCardFileInputRef}
-                    type="file"
-                    className="hidden"
-                    onChange={(event) => setRateCardForm((current) => ({ ...current, file: event.target.files?.[0] ?? null }))}
-                  />
-                  <button type="button" className="button-secondary shrink-0 px-4 py-2" onClick={() => rateCardFileInputRef.current?.click()}>
-                    {rateCardForm.file ? 'Change file' : 'Choose file'}
-                  </button>
-                </div>
-              </div>
-              <textarea className="input-base mt-4 min-h-[100px]" placeholder="Notes" value={rateCardForm.notes} onChange={(event) => setRateCardForm((current) => ({ ...current, notes: event.target.value }))} />
-              {uploadAttempted && !uploadFormIsValid ? <p className="mt-3 text-sm text-rose-600">Choose a channel and file before uploading a rate card.</p> : <p className="mt-3 text-sm text-ink-soft">Upload a source file once the channel and file are ready.</p>}
-              <div className="mt-5 flex justify-end">
-                <button type="button" className="button-primary inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60" onClick={() => uploadRateCardMutation.mutate()} disabled={uploadRateCardMutation.isPending || !uploadFormIsValid}>
-                  <Upload className="size-4" />
-                  Upload rate card
+                <button
+                  type="button"
+                  className="pill"
+                  onClick={() => setIsUploadFormOpen((current) => !current)}
+                >
+                  <Upload className="mr-2 inline size-4" />
+                  {isUploadFormOpen ? 'Hide upload' : 'Live upload'}
                 </button>
               </div>
+              {isUploadFormOpen ? (
+                <>
+                  <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                    <select className="input-base" value={rateCardForm.channel} onChange={(event) => setRateCardForm((current) => ({ ...current, channel: event.target.value }))}>
+                      <option value="radio">Radio</option>
+                      <option value="tv">TV</option>
+                      <option value="ooh">OOH</option>
+                      <option value="digital">Digital</option>
+                    </select>
+                    <input className="input-base" placeholder="Supplier or station" value={rateCardForm.supplierOrStation} onChange={(event) => setRateCardForm((current) => ({ ...current, supplierOrStation: event.target.value }))} />
+                    <input className="input-base" placeholder="Document title" value={rateCardForm.documentTitle} onChange={(event) => setRateCardForm((current) => ({ ...current, documentTitle: event.target.value }))} />
+                    <div className="flex min-h-[60px] items-center justify-between gap-3 rounded-[20px] border border-line bg-white px-4 py-3">
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Rate-card file</p>
+                        <p className="mt-1 truncate text-sm text-ink">{rateCardForm.file?.name ?? 'No file selected yet'}</p>
+                      </div>
+                      <input
+                        ref={rateCardFileInputRef}
+                        type="file"
+                        className="hidden"
+                        onChange={(event) => setRateCardForm((current) => ({ ...current, file: event.target.files?.[0] ?? null }))}
+                      />
+                      <button type="button" className="button-secondary shrink-0 px-4 py-2" onClick={() => rateCardFileInputRef.current?.click()}>
+                        {rateCardForm.file ? 'Change file' : 'Choose file'}
+                      </button>
+                    </div>
+                  </div>
+                  <textarea className="input-base mt-4 min-h-[100px]" placeholder="Notes" value={rateCardForm.notes} onChange={(event) => setRateCardForm((current) => ({ ...current, notes: event.target.value }))} />
+                  {uploadAttempted && !uploadFormIsValid ? <p className="mt-3 text-sm text-rose-600">Choose a channel and file before uploading a rate card.</p> : <p className="mt-3 text-sm text-ink-soft">Upload a source file once the channel and file are ready.</p>}
+                  <div className="mt-5 flex justify-end">
+                    <button type="button" className="button-primary inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60" onClick={() => uploadRateCardMutation.mutate()} disabled={uploadRateCardMutation.isPending || !uploadFormIsValid}>
+                      <Upload className="size-4" />
+                      Upload rate card
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <p className="mt-4 text-sm text-ink-soft">Click live upload when you want to add a new rate card.</p>
+              )}
             </div>
             <div className="overflow-hidden rounded-[28px] border border-line">
               <table className="w-full border-collapse text-sm">

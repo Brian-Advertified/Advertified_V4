@@ -10,7 +10,62 @@ import type {
   AdminUpsertGeographyMappingInput,
 } from '../../types/domain';
 import { ActionButton, EmptyTableState, ReadOnlyNotice, hasText } from './adminSectionShared';
-import { AdminPageShell, AdminQueryBoundary, splitList, useAdminDashboardQuery } from './adminWorkspace';
+import { AdminPageShell, AdminQueryBoundary, useAdminDashboardQuery } from './adminWorkspace';
+
+const PROVINCE_OPTIONS = ['Eastern Cape', 'Free State', 'Gauteng', 'KwaZulu-Natal', 'Limpopo', 'Mpumalanga', 'North West', 'Northern Cape', 'Western Cape'];
+const CITY_OPTIONS = ['Johannesburg', 'Pretoria', 'Sandton', 'Randburg', 'Soweto', 'Cape Town', 'Bellville', 'Durban', 'Umhlanga', 'Pietermaritzburg', 'Gqeberha', 'East London', 'Bloemfontein', 'Polokwane', 'Mbombela', 'Rustenburg'];
+const SORT_ORDER_OPTIONS = [
+  { value: 1, label: '1 - Featured area priority' },
+  { value: 10, label: '10 - High priority' },
+  { value: 50, label: '50 - Standard priority' },
+  { value: 100, label: '100 - Lower priority' },
+];
+
+function normalizeAreaCode(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function LabeledMultiSelect({
+  label,
+  helperText,
+  value,
+  options,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  helperText?: string;
+  value: string[];
+  options: string[];
+  disabled?: boolean;
+  onChange: (value: string[]) => void;
+}) {
+  return (
+    <label className="block text-sm font-semibold text-ink">
+      {label}
+      <select
+        multiple
+        disabled={disabled}
+        className="input-base mt-2 min-h-[148px] disabled:bg-slate-50"
+        value={value}
+        onChange={(event) => onChange(Array.from(event.target.selectedOptions).map((option) => option.value))}
+      >
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+      <p className="mt-2 text-xs font-normal leading-5 text-ink-soft">
+        {helperText ?? 'Hold Ctrl or Cmd to choose more than one option.'}
+      </p>
+    </label>
+  );
+}
 
 export function AdminGeographyPage() {
   const query = useAdminDashboardQuery();
@@ -27,7 +82,6 @@ export function AdminGeographyPage() {
     sortOrder: 100,
     isActive: true,
   });
-  const [fallbackLocationsInput, setFallbackLocationsInput] = useState('');
   const [mappingForm, setMappingForm] = useState<AdminUpsertGeographyMappingInput>({
     province: '',
     city: '',
@@ -121,7 +175,6 @@ export function AdminGeographyPage() {
         const openAreaDialog = (mode: 'create' | 'view' | 'edit', detail?: AdminGeographyDetail | null) => {
           if (mode === 'create' || !detail) {
             setAreaForm({ code: '', label: '', description: '', fallbackLocations: [], sortOrder: 100, isActive: true });
-            setFallbackLocationsInput('');
             setAreaDialog({ mode });
             return;
           }
@@ -134,7 +187,6 @@ export function AdminGeographyPage() {
             sortOrder: detail.sortOrder,
             isActive: detail.isActive,
           });
-          setFallbackLocationsInput(detail.fallbackLocations.join(', '));
           setAreaDialog({ mode });
         };
         const openMappingDialog = (mode: 'create' | 'view' | 'edit', mapping?: AdminGeographyDetail['mappings'][number] | null) => {
@@ -220,13 +272,72 @@ export function AdminGeographyPage() {
                     <div className="flex items-center justify-between gap-4"><h3 className="text-xl font-semibold text-ink">{areaDialog.mode === 'create' ? 'Add area' : areaDialog.mode === 'view' ? 'View area' : 'Edit area'}</h3><button type="button" className="button-secondary p-3" onClick={() => setAreaDialog(null)}><X className="size-4" /></button></div>
                     {areaDialog.mode === 'view' ? <ReadOnlyNotice label="This area is open in view mode. Switch to edit mode to change profile details or fallback locations." /> : null}
                     <div className="mt-6 grid gap-4 md:grid-cols-2">
-                      <input disabled={areaDialog.mode === 'view'} className="input-base disabled:bg-slate-50" placeholder="Area code" value={areaForm.code} onChange={(event) => setAreaForm((current) => ({ ...current, code: event.target.value }))} />
-                      <input disabled={areaDialog.mode === 'view'} className="input-base disabled:bg-slate-50" placeholder="Area label" value={areaForm.label} onChange={(event) => setAreaForm((current) => ({ ...current, label: event.target.value }))} />
-                      <input disabled={areaDialog.mode === 'view'} className="input-base md:col-span-2 disabled:bg-slate-50" placeholder="Fallback locations, comma separated" value={fallbackLocationsInput} onChange={(event) => { setFallbackLocationsInput(event.target.value); setAreaForm((current) => ({ ...current, fallbackLocations: splitList(event.target.value) })); }} />
-                      <input disabled={areaDialog.mode === 'view'} className="input-base disabled:bg-slate-50" type="number" placeholder="Sort order" value={areaForm.sortOrder} onChange={(event) => setAreaForm((current) => ({ ...current, sortOrder: Number(event.target.value) }))} />
-                      <label className="inline-flex items-center gap-2 rounded-full border border-line px-4 py-3 text-sm text-ink-soft"><input disabled={areaDialog.mode === 'view'} type="checkbox" checked={areaForm.isActive} onChange={(event) => setAreaForm((current) => ({ ...current, isActive: event.target.checked }))} /> Active</label>
+                      <label className="block text-sm font-semibold text-ink">
+                        Area code
+                        <input
+                          disabled={areaDialog.mode === 'view'}
+                          className="input-base mt-2 disabled:bg-slate-50"
+                          placeholder="e.g. gauteng"
+                          value={areaForm.code}
+                          onChange={(event) => setAreaForm((current) => ({ ...current, code: normalizeAreaCode(event.target.value) }))}
+                        />
+                        <p className="mt-2 text-xs font-normal text-ink-soft">Short internal code used by packages and planning logic.</p>
+                      </label>
+                      <label className="block text-sm font-semibold text-ink">
+                        Area label
+                        <input
+                          disabled={areaDialog.mode === 'view'}
+                          className="input-base mt-2 disabled:bg-slate-50"
+                          placeholder="e.g. Gauteng"
+                          value={areaForm.label}
+                          onChange={(event) => {
+                            const nextLabel = event.target.value;
+                            setAreaForm((current) => {
+                              const nextCode = areaDialog.mode === 'create' || current.code === normalizeAreaCode(current.label)
+                                ? normalizeAreaCode(nextLabel)
+                                : current.code;
+                              return { ...current, label: nextLabel, code: nextCode };
+                            });
+                          }}
+                        />
+                        <p className="mt-2 text-xs font-normal text-ink-soft">The customer-facing name shown in package selectors and planning views.</p>
+                      </label>
+                      <LabeledMultiSelect
+                        label="Fallback locations"
+                        helperText="Choose the key cities or commuter hubs this area should fall back to when inventory matching is broader than one suburb."
+                        value={areaForm.fallbackLocations}
+                        options={CITY_OPTIONS}
+                        disabled={areaDialog.mode === 'view'}
+                        onChange={(value) => setAreaForm((current) => ({ ...current, fallbackLocations: value }))}
+                      />
+                      <label className="block text-sm font-semibold text-ink">
+                        Display priority
+                        <select
+                          disabled={areaDialog.mode === 'view'}
+                          className="input-base mt-2 disabled:bg-slate-50"
+                          value={String(areaForm.sortOrder)}
+                          onChange={(event) => setAreaForm((current) => ({ ...current, sortOrder: Number(event.target.value) }))}
+                        >
+                          {SORT_ORDER_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="mt-2 text-xs font-normal text-ink-soft">Lower numbers appear earlier in planning and package area choices.</p>
+                      </label>
+                      <label className="inline-flex items-center gap-3 rounded-[20px] border border-line px-4 py-3 text-sm text-ink-soft">
+                        <input disabled={areaDialog.mode === 'view'} type="checkbox" checked={areaForm.isActive} onChange={(event) => setAreaForm((current) => ({ ...current, isActive: event.target.checked }))} />
+                        <span>
+                          <span className="block font-semibold text-ink">Active area</span>
+                          <span className="block text-xs text-ink-soft">Inactive areas stay in admin but no longer appear in live planning choices.</span>
+                        </span>
+                      </label>
                     </div>
-                    <textarea disabled={areaDialog.mode === 'view'} className="input-base mt-4 min-h-[120px] disabled:bg-slate-50" placeholder="Description" value={areaForm.description} onChange={(event) => setAreaForm((current) => ({ ...current, description: event.target.value }))} />
+                    <label className="mt-4 block text-sm font-semibold text-ink">
+                      Area description
+                      <textarea disabled={areaDialog.mode === 'view'} className="input-base mt-2 min-h-[120px] disabled:bg-slate-50" placeholder="Describe the corridors, audience movement, or planning logic this area should represent." value={areaForm.description} onChange={(event) => setAreaForm((current) => ({ ...current, description: event.target.value }))} />
+                    </label>
                     {!areaPayloadIsValid ? <p className="mt-3 text-sm text-rose-600">Area code and label are required before you can save.</p> : null}
                     <div className="mt-6 flex justify-end gap-3">
                       <button type="button" className="button-secondary px-5 py-3" onClick={() => setAreaDialog(null)}>Close</button>
@@ -245,9 +356,21 @@ export function AdminGeographyPage() {
                     <div className="flex items-center justify-between gap-4"><h3 className="text-xl font-semibold text-ink">{mappingDialog.mode === 'create' ? 'Add mapping' : mappingDialog.mode === 'view' ? 'View mapping' : 'Edit mapping'}</h3><button type="button" className="button-secondary p-3" onClick={() => setMappingDialog(null)}><X className="size-4" /></button></div>
                     {mappingDialog.mode === 'view' ? <ReadOnlyNotice label="This mapping row is open in view mode. Switch to edit mode to change province, city, or station targeting." /> : null}
                     <div className="mt-6 grid gap-4 md:grid-cols-2">
-                      <input disabled={mappingDialog.mode === 'view'} className="input-base disabled:bg-slate-50" placeholder="Province" value={mappingForm.province ?? ''} onChange={(event) => setMappingForm((current) => ({ ...current, province: event.target.value }))} />
-                      <input disabled={mappingDialog.mode === 'view'} className="input-base disabled:bg-slate-50" placeholder="City" value={mappingForm.city ?? ''} onChange={(event) => setMappingForm((current) => ({ ...current, city: event.target.value }))} />
-                      <input disabled={mappingDialog.mode === 'view'} className="input-base md:col-span-2 disabled:bg-slate-50" placeholder="Station or channel name" value={mappingForm.stationOrChannelName ?? ''} onChange={(event) => setMappingForm((current) => ({ ...current, stationOrChannelName: event.target.value }))} />
+                      <label className="block text-sm font-semibold text-ink">
+                        Province
+                        <select disabled={mappingDialog.mode === 'view'} className="input-base mt-2 disabled:bg-slate-50" value={mappingForm.province ?? ''} onChange={(event) => setMappingForm((current) => ({ ...current, province: event.target.value }))}>
+                          <option value="">Choose province</option>
+                          {PROVINCE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+                        </select>
+                      </label>
+                      <label className="block text-sm font-semibold text-ink">
+                        City
+                        <select disabled={mappingDialog.mode === 'view'} className="input-base mt-2 disabled:bg-slate-50" value={mappingForm.city ?? ''} onChange={(event) => setMappingForm((current) => ({ ...current, city: event.target.value }))}>
+                          <option value="">Choose city</option>
+                          {CITY_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+                        </select>
+                      </label>
+                      <input disabled={mappingDialog.mode === 'view'} className="input-base md:col-span-2 disabled:bg-slate-50" placeholder="Station or channel name. Example: Jozi FM" value={mappingForm.stationOrChannelName ?? ''} onChange={(event) => setMappingForm((current) => ({ ...current, stationOrChannelName: event.target.value }))} />
                     </div>
                     {!mappingPayloadIsValid ? <p className="mt-3 text-sm text-rose-600">Provide at least one of province, city, or station/channel name before saving.</p> : null}
                     <div className="mt-6 flex justify-end gap-3">

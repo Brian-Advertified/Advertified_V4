@@ -230,6 +230,13 @@ export function CheckoutConfirmationPage() {
           {statusContent.label}
         </div>
 
+        {lulaNextStepMessage ? (
+          <div className="checkout-status-next-step checkout-status-animate checkout-status-delay-110">
+            <div className="checkout-status-next-step-head">Next Step</div>
+            <p className="checkout-status-next-step-copy">{lulaNextStepMessage}</p>
+          </div>
+        ) : null}
+
         <h1 className="checkout-status-title checkout-status-animate checkout-status-delay-110">{statusContent.title}</h1>
         <p className="checkout-status-description checkout-status-animate checkout-status-delay-150">{statusContent.description}</p>
 
@@ -262,13 +269,6 @@ export function CheckoutConfirmationPage() {
             </span>
           </div>
         </div>
-
-        {lulaNextStepMessage ? (
-          <div className="checkout-status-summary-panel checkout-status-animate checkout-status-delay-200">
-            <div className="checkout-status-summary-head">Next Step</div>
-            <p className="text-sm leading-7 text-ink-soft">{lulaNextStepMessage}</p>
-          </div>
-        ) : null}
 
         <div className="checkout-status-button-row checkout-status-animate checkout-status-delay-250">
           {statusContent.secondaryHref.startsWith('http') ? (

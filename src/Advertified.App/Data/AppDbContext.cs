@@ -54,6 +54,8 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<InvoiceLineItem> InvoiceLineItems { get; set; }
 
+    public virtual DbSet<NotificationReadReceipt> NotificationReadReceipts { get; set; }
+
     public virtual DbSet<PackageBand> PackageBands { get; set; }
 
     public virtual DbSet<PackageOrder> PackageOrders { get; set; }
@@ -659,6 +661,35 @@ public partial class AppDbContext : DbContext
             entity.HasOne(d => d.User).WithOne(p => p.IdentityProfile)
                 .HasForeignKey<IdentityProfile>(d => d.UserId)
                 .HasConstraintName("identity_profiles_user_id_fkey");
+        });
+
+        modelBuilder.Entity<NotificationReadReceipt>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("notification_read_receipts_pkey");
+
+            entity.ToTable("notification_read_receipts");
+
+            entity.HasIndex(e => e.UserId, "ix_notification_read_receipts_user_id");
+
+            entity.HasIndex(e => new { e.UserId, e.NotificationId }, "uq_notification_read_receipts_user_notification")
+                .IsUnique();
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.UserId).HasColumnName("user_id");
+            entity.Property(e => e.NotificationId)
+                .HasMaxLength(200)
+                .HasColumnName("notification_id");
+            entity.Property(e => e.ReadAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("read_at");
+
+            entity.HasOne<UserAccount>()
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("notification_read_receipts_user_id_fkey");
         });
 
         modelBuilder.Entity<PackageBand>(entity =>

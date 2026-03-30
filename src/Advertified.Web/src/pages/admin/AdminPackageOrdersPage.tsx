@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Download } from 'lucide-react';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { invalidateAdminOperationsQueries, queryKeys } from '../../lib/queryKeys';
 import { advertifiedApi } from '../../services/advertifiedApi';
@@ -29,6 +30,13 @@ export function AdminPackageOrdersPage() {
     },
   });
 
+  const items = query.data ?? [];
+  const editingOrder = items.find((item) => item.orderId === editingOrderId) ?? null;
+
+  const pendingLulaCount = items.filter((item) => item.canUpdateLulaStatus).length;
+  const paidCount = items.filter((item) => item.paymentStatus === 'paid').length;
+  const failedCount = items.filter((item) => item.paymentStatus === 'failed').length;
+
   if (query.isLoading) {
     return (
       <AdminPageShell title="Payments & Orders" description="Review every package order, invoice, and Lula settlement from one operational queue.">
@@ -48,16 +56,6 @@ export function AdminPackageOrdersPage() {
     );
   }
 
-  const items = query.data ?? [];
-  const editingOrder = useMemo(
-    () => items.find((item) => item.orderId === editingOrderId) ?? null,
-    [editingOrderId, items],
-  );
-
-  const pendingLulaCount = items.filter((item) => item.canUpdateLulaStatus).length;
-  const paidCount = items.filter((item) => item.paymentStatus === 'paid').length;
-  const failedCount = items.filter((item) => item.paymentStatus === 'failed').length;
-
   return (
     <AdminPageShell
       title="Payments & Orders"
@@ -74,7 +72,7 @@ export function AdminPackageOrdersPage() {
         <div className="panel overflow-hidden p-0">
           <div className="border-b border-line px-6 py-5">
             <h2 className="text-xl font-semibold text-ink">Order queue</h2>
-            <p className="mt-2 text-sm text-ink-soft">Use edit to open the full order details, invoice actions, supporting PDF upload, and Lula payment status update workflow.</p>
+            <p className="mt-2 text-sm text-ink-soft">Only pending Lula orders can be edited here. VodaPay orders are read-only and handled by the gateway workflow.</p>
           </div>
 
           <div className="overflow-x-auto">
@@ -115,13 +113,28 @@ export function AdminPackageOrdersPage() {
                       {item.invoiceStatus ? titleize(item.invoiceStatus) : 'No invoice yet'}
                     </td>
                     <td className="px-4 py-4 align-top text-right">
-                      <button
-                        type="button"
-                        className="button-secondary rounded-full"
-                        onClick={() => setEditingOrderId(item.orderId)}
-                      >
-                        Edit
-                      </button>
+                      {item.canUpdateLulaStatus ? (
+                        <button
+                          type="button"
+                          className="button-secondary rounded-full"
+                          onClick={() => setEditingOrderId(item.orderId)}
+                        >
+                          Edit
+                        </button>
+                      ) : item.paymentStatus === 'paid' && item.invoicePdfUrl ? (
+                        <button
+                          type="button"
+                          className="button-secondary inline-flex items-center gap-2 rounded-full"
+                          onClick={() => advertifiedApi.downloadProtectedFile(item.invoicePdfUrl!, `${item.invoiceId ?? item.orderId}-invoice.pdf`)}
+                        >
+                          <Download className="size-4" />
+                          Paid invoice
+                        </button>
+                      ) : (
+                        <span className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">
+                          Read only
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))}

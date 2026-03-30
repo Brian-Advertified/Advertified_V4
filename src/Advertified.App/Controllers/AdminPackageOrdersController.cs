@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Advertified.App.Contracts.Admin;
+using Advertified.App.Configuration;
 using Advertified.App.Data;
 using Advertified.App.Data.Entities;
 using Advertified.App.Data.Enums;
@@ -7,6 +8,7 @@ using Advertified.App.Services.Abstractions;
 using Advertified.App.Support;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Advertified.App.Controllers;
 
@@ -17,21 +19,33 @@ public sealed class AdminPackageOrdersController : ControllerBase
     private readonly AppDbContext _db;
     private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly IPackagePurchaseService _packagePurchaseService;
+    private readonly IInvoiceService _invoiceService;
     private readonly IPrivateDocumentStorage _privateDocumentStorage;
     private readonly IChangeAuditService _changeAuditService;
+    private readonly ITemplatedEmailService _emailService;
+    private readonly FrontendOptions _frontendOptions;
+    private readonly ILogger<AdminPackageOrdersController> _logger;
 
     public AdminPackageOrdersController(
         AppDbContext db,
         ICurrentUserAccessor currentUserAccessor,
         IPackagePurchaseService packagePurchaseService,
+        IInvoiceService invoiceService,
         IPrivateDocumentStorage privateDocumentStorage,
-        IChangeAuditService changeAuditService)
+        IChangeAuditService changeAuditService,
+        ITemplatedEmailService emailService,
+        IOptions<FrontendOptions> frontendOptions,
+        ILogger<AdminPackageOrdersController> logger)
     {
         _db = db;
         _currentUserAccessor = currentUserAccessor;
         _packagePurchaseService = packagePurchaseService;
+        _invoiceService = invoiceService;
         _privateDocumentStorage = privateDocumentStorage;
         _changeAuditService = changeAuditService;
+        _emailService = emailService;
+        _frontendOptions = frontendOptions.Value;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -123,8 +137,21 @@ public sealed class AdminPackageOrdersController : ControllerBase
 
         if (normalizedStatus == "failed" && refreshedOrder.Invoice is not null)
         {
-            refreshedOrder.Invoice.Status = InvoiceStatuses.Cancelled;
-            refreshedOrder.Invoice.PaymentReference = paymentReference ?? refreshedOrder.Invoice.PaymentReference;
+            await _invoiceService.EnsureInvoiceAsync(
+                refreshedOrder,
+                refreshedOrder.PackageBand,
+                refreshedOrder.User,
+                refreshedOrder.User.BusinessProfile,
+                invoiceType: refreshedOrder.Invoice.InvoiceType,
+                status: InvoiceStatuses.Cancelled,
+                dueAtUtc: refreshedOrder.Invoice.DueAtUtc,
+                paidAtUtc: null,
+                paymentReference: paymentReference ?? refreshedOrder.Invoice.PaymentReference,
+                sendInvoiceEmail: false,
+                cancellationToken);
+
+            refreshedOrder = await LoadOrderAsync(orderId, cancellationToken)
+                ?? throw new InvalidOperationException("Package order not found after invoice refresh.");
         }
 
         if (!LooksLikePdf(file))
@@ -157,6 +184,8 @@ public sealed class AdminPackageOrdersController : ControllerBase
             note: note,
             uploadedDocument: refreshedOrder.Invoice?.SupportingDocumentFileName,
             cancellationToken);
+
+        await SendLulaStatusEmailAsync(refreshedOrder, note, normalizedStatus, cancellationToken);
 
         return Ok(MapResponse(refreshedOrder));
     }
@@ -192,6 +221,7 @@ public sealed class AdminPackageOrdersController : ControllerBase
     {
         return await _db.PackageOrders
             .Include(x => x.User)
+                .ThenInclude(x => x.BusinessProfile)
             .Include(x => x.PackageBand)
             .Include(x => x.Invoice)
             .Include(x => x.Campaign)
@@ -235,6 +265,66 @@ public sealed class AdminPackageOrdersController : ControllerBase
                 Note = note
             },
             cancellationToken);
+    }
+
+    private async Task SendLulaStatusEmailAsync(PackageOrder order, string note, string normalizedStatus, CancellationToken cancellationToken)
+    {
+        if (order.Invoice is null)
+        {
+            return;
+        }
+
+        var templateName = normalizedStatus == "paid" ? "payment-approved-lula" : "payment-declined-lula";
+
+        try
+        {
+            await _emailService.SendAsync(
+                templateName,
+                order.User.Email,
+                "billing",
+                new Dictionary<string, string?>
+                {
+                    ["ClientName"] = order.User.FullName,
+                    ["CampaignName"] = order.Campaign?.CampaignName?.Trim() ?? $"{order.PackageBand.Name} campaign",
+                    ["InvoiceNumber"] = order.Invoice.InvoiceNumber,
+                    ["PackageName"] = order.PackageBand.Name,
+                    ["Amount"] = FormatCurrency(order.Amount),
+                    ["PaymentReference"] = order.PaymentReference ?? "-",
+                    ["AdminNoteBlock"] = BuildAdminNoteBlock(note),
+                    ["OrdersUrl"] = BuildFrontendUrl("/orders")
+                },
+                null,
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send Lula status email for package order {PackageOrderId}.", order.Id);
+        }
+    }
+
+    private string BuildFrontendUrl(string path)
+    {
+        return _frontendOptions.BaseUrl.TrimEnd('/') + path;
+    }
+
+    private static string BuildAdminNoteBlock(string? note)
+    {
+        var normalized = NormalizeOptionalText(note);
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return string.Empty;
+        }
+
+        return $@"
+            <div style=""margin:24px 0;padding:18px 20px;border:1px solid #d8e9e1;border-radius:18px;background:#f8fcfa;"">
+              <p style=""margin:0 0 8px;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Admin note</p>
+              <p style=""margin:0;font-size:15px;line-height:1.7;color:#4b635a;"">{System.Net.WebUtility.HtmlEncode(normalized)}</p>
+            </div>";
+    }
+
+    private static string FormatCurrency(decimal amount)
+    {
+        return $"R {amount:N2}";
     }
 
     private static AdminPackageOrderItemResponse MapResponse(PackageOrder order)

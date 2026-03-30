@@ -947,6 +947,8 @@ public sealed class AdminController : ControllerBase
 
     private async Task SyncAgentAreaAssignmentsAsync(Guid userId, UserRole role, IReadOnlyList<string> areaCodes, CancellationToken cancellationToken)
     {
+        areaCodes ??= Array.Empty<string>();
+
         var existingAssignments = await _db.AgentAreaAssignments
             .Where(x => x.AgentUserId == userId)
             .ToArrayAsync(cancellationToken);
@@ -1077,7 +1079,7 @@ public sealed class AdminController : ControllerBase
             FullName = user.FullName,
             Email = user.Email,
             Phone = user.Phone,
-            Role = user.Role.ToString().ToLowerInvariant(),
+            Role = FormatUserRole(user.Role),
             AccountStatus = user.AccountStatus.ToString(),
             IsSaCitizen = user.IsSaCitizen,
             EmailVerified = user.EmailVerified,
@@ -1102,7 +1104,8 @@ public sealed class AdminController : ControllerBase
 
     private static UserRole ParseUserRole(string role)
     {
-        if (Enum.TryParse<UserRole>(role.Trim(), true, out var parsedRole))
+        var normalizedRole = NormalizeEnumToken(role);
+        if (Enum.TryParse<UserRole>(normalizedRole, true, out var parsedRole))
         {
             return parsedRole;
         }
@@ -1112,7 +1115,8 @@ public sealed class AdminController : ControllerBase
 
     private static AccountStatus ParseAccountStatus(string accountStatus)
     {
-        if (Enum.TryParse<AccountStatus>(accountStatus.Trim(), true, out var parsedStatus))
+        var normalizedStatus = NormalizeEnumToken(accountStatus);
+        if (Enum.TryParse<AccountStatus>(normalizedStatus, true, out var parsedStatus))
         {
             return parsedStatus;
         }
@@ -1122,7 +1126,7 @@ public sealed class AdminController : ControllerBase
 
     private static string NormalizeEmail(string email)
     {
-        var normalizedEmail = email.Trim().ToLowerInvariant();
+        var normalizedEmail = email?.Trim().ToLowerInvariant();
         if (string.IsNullOrWhiteSpace(normalizedEmail))
         {
             throw new InvalidOperationException("Email is required.");
@@ -1133,13 +1137,39 @@ public sealed class AdminController : ControllerBase
 
     private static string RequireValue(string value, string label)
     {
-        var normalized = value.Trim();
+        var normalized = value?.Trim();
         if (string.IsNullOrWhiteSpace(normalized))
         {
             throw new InvalidOperationException($"{label} is required.");
         }
 
         return normalized;
+    }
+
+    private static string NormalizeEnumToken(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        var parts = value
+            .Trim()
+            .Split(new[] { '_', '-', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+
+        return string.Concat(parts.Select(static part =>
+            char.ToUpperInvariant(part[0]) + part.Substring(1).ToLowerInvariant()));
+    }
+
+    private static string FormatUserRole(UserRole role)
+    {
+        return role switch
+        {
+            UserRole.CreativeDirector => "creative_director",
+            UserRole.Agent => "agent",
+            UserRole.Admin => "admin",
+            _ => "client"
+        };
     }
 
 }
