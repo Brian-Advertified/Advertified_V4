@@ -1,4 +1,5 @@
 name: Deploy DEV to EC2
+# trigger-note: keep this file in path filters so no-op edits can retrigger DEV deploy safely.
 
 on:
   workflow_dispatch:
