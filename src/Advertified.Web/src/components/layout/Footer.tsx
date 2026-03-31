@@ -23,24 +23,22 @@ export function Footer() {
           <div>
             <h3 className="text-sm font-semibold text-ink">Product</h3>
             <div className="mt-4 flex flex-col gap-2.5 text-sm text-ink-soft">
-              <Link id="footer-media-partners" to="/media-partners" className="transition hover:text-brand">Media Partners</Link>
               <Link to="/packages" className="transition hover:text-brand">Packages</Link>
-              <Link to="/about" className="transition hover:text-brand">About Us</Link>
-              <Link id="footer-faq" to="/faq" className="transition hover:text-brand">FAQ</Link>
               <Link to="/how-it-works" className="transition hover:text-brand">How It Works</Link>
+              <Link id="footer-faq" to="/faq" className="transition hover:text-brand">FAQ</Link>
             </div>
           </div>
 
           <div>
             <h3 className="text-sm font-semibold text-ink">Company</h3>
             <div className="mt-4 flex flex-col gap-2.5 text-sm text-ink-soft">
-              <Link to="/register" className="transition hover:text-brand">Get Started</Link>
-              <Link to="/partner-enquiry" className="transition hover:text-brand">Contact</Link>
+              <Link to="/about" className="transition hover:text-brand">About Us</Link>
+              <Link id="footer-media-partners" to="/media-partners" className="transition hover:text-brand">Media Partners</Link>
             </div>
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold text-ink">Contact Info</h3>
+            <h3 className="text-sm font-semibold text-ink">Contact</h3>
             <div className="mt-4 space-y-2.5 text-sm text-ink-soft">
               <p>Office 301, Elkestad Mall</p>
               <p>43 Andringa Stellenbosch</p>
@@ -59,7 +57,6 @@ export function Footer() {
             <Link to="/privacy" className="transition hover:text-brand">Privacy Policy</Link>
             <Link to="/terms-of-service" className="transition hover:text-brand">Terms of Service</Link>
             <Link to="/cookie-policy" className="transition hover:text-brand">Cookie Policy</Link>
-            <Link to="/faq" className="transition hover:text-brand">FAQ</Link>
             <button type="button" onClick={openConsentPreferences} className="cursor-pointer border-0 bg-transparent p-0 text-left transition hover:text-brand">
               Cookie settings
             </button>
