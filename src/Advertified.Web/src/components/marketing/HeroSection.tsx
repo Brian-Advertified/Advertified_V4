@@ -7,7 +7,7 @@ export function HeroSection() {
       <div className="hero-mint overflow-hidden rounded-[32px] px-6 py-10 sm:px-10 sm:py-14 lg:px-14">
         <div className="grid gap-10 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
           <div>
-            <div className="hero-kicker">Advertise with clarity</div>
+            <div className="hero-kicker">Advertise Now. Pay Later.</div>
             <h1 className="mt-6 max-w-3xl text-4xl font-semibold tracking-tight text-ink sm:text-6xl">
               Unlock Premium Advertising Without Breaking Your Cash Flow
             </h1>

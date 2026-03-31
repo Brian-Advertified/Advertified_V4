@@ -60,7 +60,7 @@ export function AdminPageShell({ title, description, children }: AdminPageShellP
                 key={item.path}
                 to={item.path}
                 end={item.path === '/admin'}
-                className={({ isActive }) => `shrink-0 rounded-full px-4 py-2 text-xs font-semibold transition ${isActive ? 'bg-brand text-white' : 'border border-line bg-white text-ink hover:bg-brand-soft hover:text-brand'}`}
+                className={({ isActive }) => `shrink-0 px-4 py-2 text-xs font-semibold ${isActive ? 'button-primary' : 'button-secondary'}`}
               >
                 {item.label}
               </NavLink>
@@ -83,7 +83,7 @@ export function AdminPageShell({ title, description, children }: AdminPageShellP
                   key={item.path}
                   to={item.path}
                   end={item.path === '/admin'}
-                  className={({ isActive }) => `block rounded-2xl px-4 py-3 text-sm font-semibold transition ${isActive ? 'bg-brand text-white' : 'text-ink hover:bg-brand-soft hover:text-brand'}`}
+                  className={({ isActive }) => `block w-full rounded-2xl px-4 py-3 text-sm font-semibold ${isActive ? 'button-primary' : 'button-secondary text-ink'}`}
                 >
                   {item.label}
                 </NavLink>

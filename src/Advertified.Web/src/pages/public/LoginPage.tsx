@@ -40,14 +40,14 @@ export function LoginPage() {
     <section className="page-shell">
       {loading ? <ProcessingOverlay label="Signing you in..." /> : null}
       <div className="mx-auto grid max-w-5xl gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
-        <div className="panel hero-glow px-6 py-8 text-white sm:px-8">
-          <div className="pill border-white/10 bg-white/10 text-white/75">Client, agent, and creative access</div>
-          <h1 className="mt-5 text-4xl font-semibold tracking-tight sm:text-5xl">Sign in to continue your package or planning journey.</h1>
-          <p className="mt-4 text-base leading-8 text-white/75">
+        <div className="hero-mint overflow-hidden rounded-[32px] px-6 py-8 sm:px-8 sm:py-10">
+          <div className="hero-kicker">Client, agent, and creative access</div>
+          <h1 className="mt-5 text-4xl font-semibold tracking-tight text-ink sm:text-5xl">Sign in to continue your package or planning journey.</h1>
+          <p className="mt-4 text-base leading-8 text-ink-soft">
             Clients can continue from package purchase into campaign briefing. Agents can move into campaign operations, while creative directors move straight into the production studio.
           </p>
           {activated ? (
-            <div className="mt-6 rounded-[22px] border border-brand/35 bg-brand/15 px-4 py-4 text-sm text-white/85">
+            <div className="mt-6 rounded-[22px] border border-brand/20 bg-brand-soft px-4 py-4 text-sm text-brand">
               Your email has been verified. Sign in to continue.
             </div>
           ) : null}

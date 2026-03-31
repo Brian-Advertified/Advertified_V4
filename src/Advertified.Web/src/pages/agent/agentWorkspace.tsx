@@ -128,7 +128,7 @@ export function AgentPageShell({ title, description, children }: AgentPageShellP
                 key={item.path}
                 to={item.path}
                 end={item.end}
-                className={({ isActive }) => `shrink-0 rounded-full px-4 py-2 text-xs font-semibold transition ${isActive ? 'bg-brand text-white' : 'border border-line bg-white text-ink hover:bg-brand-soft hover:text-brand'}`}
+                className={({ isActive }) => `shrink-0 px-4 py-2 text-xs font-semibold ${isActive ? 'button-primary' : 'button-secondary'}`}
               >
                 {item.label}
               </NavLink>
@@ -157,7 +157,7 @@ export function AgentPageShell({ title, description, children }: AgentPageShellP
                           key={item.path}
                           to={item.path}
                           end={item.end}
-                          className={({ isActive }) => `flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold transition ${isActive ? 'bg-brand text-white' : 'text-ink hover:bg-brand-soft hover:text-brand'}`}
+                          className={({ isActive }) => `flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold ${isActive ? 'button-primary' : 'button-secondary text-ink'}`}
                         >
                           <Icon className="size-4" />
                           {item.label}

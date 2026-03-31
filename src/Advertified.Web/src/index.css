@@ -261,6 +261,60 @@ textarea {
   @apply rounded-[24px] px-5 py-5;
 }
 
+@keyframes ai-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes ai-soft-float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes ai-sheen {
+  from {
+    transform: translateX(-120%);
+  }
+  to {
+    transform: translateX(120%);
+  }
+}
+
+.ai-fade-up {
+  animation: ai-fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.ai-delay-1 { animation-delay: 0.12s; }
+.ai-delay-2 { animation-delay: 0.24s; }
+.ai-delay-3 { animation-delay: 0.36s; }
+
+.ai-float {
+  animation: ai-soft-float 4.2s ease-in-out infinite;
+}
+
+.ai-sheen {
+  position: relative;
+  overflow: hidden;
+}
+
+.ai-sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 25%, rgba(255,255,255,0.12) 50%, transparent 75%);
+  animation: ai-sheen 2.6s linear infinite;
+}
+
 .payment-option-card {
   @apply rounded-[24px] border border-line bg-white px-5 py-5 transition;
   box-shadow:

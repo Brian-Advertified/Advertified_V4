@@ -53,7 +53,7 @@ export function LoginForm({
         </div>
         {errors.password ? <p className="helper-text text-rose-600">{errors.password.message}</p> : null}
       </div>
-      <button type="submit" disabled={loading} className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand disabled:opacity-60">
+      <button type="submit" disabled={loading} className="button-primary px-5 py-3 disabled:opacity-60">
         {loading ? 'Signing you in...' : 'Log in'}
       </button>
     </form>
