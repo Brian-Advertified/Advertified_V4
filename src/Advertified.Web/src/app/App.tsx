@@ -50,10 +50,8 @@ const AgentMessagesNotesPage = lazyPage(() => import('../pages/agent/AgentMessag
 const AgentRecommendationBuilderPage = lazyPage(() => import('../pages/agent/AgentRecommendationBuilderPage'), 'AgentRecommendationBuilderPage');
 const AgentReviewSendPage = lazyPage(() => import('../pages/agent/AgentReviewSendPage'), 'AgentReviewSendPage');
 
-const CreativeDirectorDashboardPage = lazyPage(() => import('../pages/creative/CreativeDirectorPages'), 'CreativeDirectorDashboardPage');
 const CreativeDirectorStudioPage = lazyPage(() => import('../pages/creative/CreativeDirectorPages'), 'CreativeDirectorStudioPage');
 const CreativeStudioPreviewPage = lazyPage(() => import('../pages/creative/CreativeDirectorPages'), 'CreativeStudioPreviewPage');
-const CreativeStudioDemoPage = lazyPage(() => import('../pages/creative/CreativeDirectorPages'), 'CreativeStudioDemoPage');
 
 const AdminDashboardPage = lazyPage(() => import('../pages/admin/AdminDashboardPage'), 'AdminDashboardPage');
 const AdminCampaignOperationsPage = lazyPage(() => import('../pages/admin/AdminCampaignOperationsPage'), 'AdminCampaignOperationsPage');
@@ -104,8 +102,8 @@ export function App() {
             <Route path="/campaigns/:id/approvals" element={<ProtectedRoute><CampaignDetailPage /></ProtectedRoute>} />
             <Route path="/campaigns/:id/messages" element={<ProtectedRoute><CampaignDetailPage /></ProtectedRoute>} />
             <Route path="/campaigns/:id/studio-preview" element={<ProtectedRoute><CreativeStudioPreviewPage /></ProtectedRoute>} />
-            <Route path="/creative" element={<ProtectedRoute requireCreativeDirector><CreativeDirectorDashboardPage /></ProtectedRoute>} />
-            <Route path="/creative/studio-demo" element={<ProtectedRoute requireCreativeDirector><CreativeStudioDemoPage /></ProtectedRoute>} />
+            <Route path="/creative" element={<ProtectedRoute requireCreativeDirector><AiStudioPage /></ProtectedRoute>} />
+            <Route path="/creative/studio-demo" element={<ProtectedRoute requireCreativeDirector><AiStudioPage /></ProtectedRoute>} />
             <Route path="/creative/campaigns/:id/studio" element={<ProtectedRoute requireCreativeDirector><CreativeDirectorStudioPage /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute requireAdmin><AdminDashboardPage /></ProtectedRoute>} />
             <Route path="/admin/package-orders" element={<ProtectedRoute requireAdmin><AdminPackageOrdersPage /></ProtectedRoute>} />

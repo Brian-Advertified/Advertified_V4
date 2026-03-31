@@ -81,6 +81,27 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
         _db.PackageOrders.Add(order);
         await _db.SaveChangesAsync(cancellationToken);
 
+        var existingCampaign = await _db.Campaigns
+            .FirstOrDefaultAsync(x => x.PackageOrderId == order.Id, cancellationToken);
+
+        if (existingCampaign is null)
+        {
+            _db.Campaigns.Add(new Campaign
+            {
+                Id = Guid.NewGuid(),
+                UserId = order.UserId,
+                PackageOrderId = order.Id,
+                PackageBandId = order.PackageBandId,
+                Status = "awaiting_purchase",
+                AiUnlocked = false,
+                AgentAssistanceRequested = false,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            });
+
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+
         if (string.Equals(paymentProvider, "lula", StringComparison.OrdinalIgnoreCase))
         {
             var invoice = await _invoiceService.EnsureInvoiceAsync(
@@ -184,6 +205,12 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
             _db.Campaigns.Add(campaign);
             await _db.SaveChangesAsync(cancellationToken);
             order.Campaign = campaign;
+        }
+        else if (string.Equals(order.Campaign.Status, "awaiting_purchase", StringComparison.OrdinalIgnoreCase))
+        {
+            order.Campaign.Status = CampaignStatuses.Paid;
+            order.Campaign.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync(cancellationToken);
         }
 
         if (order.Campaign is not null)

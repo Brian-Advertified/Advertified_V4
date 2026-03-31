@@ -137,6 +137,7 @@ export function AgentCreateRecommendationPage() {
     ?? filteredCampaigns[0]
     ?? availableCampaigns[0]
     ?? null;
+  const selectedCampaignIsProspective = selectedCampaign?.status === 'awaiting_purchase';
   const selectedPackageBand = useMemo(
     () => packagesQuery.data?.find((item) => item.id === selectedCampaign?.packageBandId) ?? null,
     [packagesQuery.data, selectedCampaign?.packageBandId],
@@ -215,7 +216,7 @@ export function AgentCreateRecommendationPage() {
   const initializeMutation = useMutation({
     mutationFn: async ({ submitBrief }: { submitBrief: boolean }) => {
       if (!selectedCampaign) {
-        throw new Error('Choose an order first.');
+        throw new Error('Choose a client campaign first.');
       }
 
       const campaign = await advertifiedApi.initializeAgentRecommendation(selectedCampaign.id, {
@@ -262,7 +263,7 @@ export function AgentCreateRecommendationPage() {
   const interpretMutation = useMutation({
     mutationFn: async () => {
       if (!selectedCampaign) {
-        throw new Error('Choose an order first.');
+        throw new Error('Choose a client campaign first.');
       }
 
       return advertifiedApi.interpretAgentBrief(selectedCampaign.id, {
@@ -346,8 +347,8 @@ export function AgentCreateRecommendationPage() {
   const handleGenerate = async () => {
     if (!selectedCampaign) {
       pushToast({
-        title: 'Choose an order first.',
-        description: 'Select a client and paid package before generating a recommendation.',
+        title: 'Choose a campaign first.',
+        description: 'Select a client campaign before generating a recommendation.',
       }, 'info');
       return;
     }
@@ -405,7 +406,7 @@ export function AgentCreateRecommendationPage() {
             <div className="pill border-brand/10 bg-brand text-white">Create recommendation</div>
             <h1 className="mt-4 text-3xl font-semibold tracking-tight text-ink">Build a new client recommendation</h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-ink-soft md:text-base">
-              Link the recommendation to a purchased package, capture campaign intent, and let AI generate a draft the agent can refine.
+              Build a recommendation for paid or prospective campaigns, capture campaign intent, and let AI generate a draft the agent can refine.
             </p>
           </div>
 
@@ -413,7 +414,7 @@ export function AgentCreateRecommendationPage() {
             <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-ink">1. Select order</h2>
-                <p className="mt-1 text-sm text-ink-soft">Start from a paid package or existing client order.</p>
+                <p className="mt-1 text-sm text-ink-soft">Start from an existing client campaign (paid or prospective).</p>
               </div>
               <span className="pill bg-white text-ink-soft">Required</span>
             </div>
@@ -430,12 +431,13 @@ export function AgentCreateRecommendationPage() {
               </label>
 
               <label className="block">
-                <span className="label-base">Paid package / order</span>
+                <span className="label-base">Package / campaign</span>
                 <select value={selectedCampaign?.id ?? ''} onChange={(event) => setSelectedCampaignIdState(event.target.value)} className="input-base">
-                  <option value="">Select paid package</option>
+                  <option value="">Select campaign</option>
                   {filteredCampaigns.map((campaign) => (
                     <option key={campaign.id} value={campaign.id}>
-                      {campaign.packageBandName} · {formatCurrency(campaign.selectedBudget)} · {campaign.queueLabel}
+                      {campaign.packageBandName} | {formatCurrency(campaign.selectedBudget)} | {campaign.queueLabel}
+                      {campaign.status === 'awaiting_purchase' ? ' | Prospective (unpaid)' : ''}
                     </option>
                   ))}
                 </select>
@@ -528,7 +530,7 @@ export function AgentCreateRecommendationPage() {
                   );
                 })}
               </div>
-              <p className="helper-text">Only channels included in the purchased package can be selected here.</p>
+              <p className="helper-text">Only channels included in the selected package can be selected here.</p>
             </div>
 
             <div className="mt-5 grid gap-4 md:grid-cols-2">
@@ -653,7 +655,7 @@ export function AgentCreateRecommendationPage() {
               <div className="rounded-[22px] border border-line bg-white px-4 py-4">
                 <p className="text-xs uppercase tracking-[0.18em] text-ink-soft">Package rules applied</p>
                 <ul className="mt-3 space-y-2 text-sm text-ink-soft">
-                  <li>• Recommendation must stay within the paid package budget.</li>
+                  <li>• Recommendation must stay within the selected package budget.</li>
                   <li>• Geography comes from campaign input, not package purchase.</li>
                   <li>• National radio is only available for Scale or Dominance when policy allows it.</li>
                   <li>• Final inventory selection is validated in the planning workspace.</li>
@@ -670,6 +672,9 @@ export function AgentCreateRecommendationPage() {
             <p className="mt-1 text-sm text-white/75">
               {selectedCampaign ? `${selectedCampaign.queueLabel} · ${formatCurrency(selectedCampaign.selectedBudget)} budget band` : 'Choose a campaign to continue'}
             </p>
+            {selectedCampaignIsProspective ? (
+              <p className="mt-2 text-xs text-amber-200">Prospective campaign: recommendation can be prepared and shared before payment.</p>
+            ) : null}
 
             <div className="mt-5 space-y-3 text-sm text-white/75">
               <div className="flex items-center justify-between border-b border-white/10 pb-3">

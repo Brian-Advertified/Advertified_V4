@@ -633,16 +633,62 @@ public sealed class AgentCampaignsController : ControllerBase
         var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
         var currentUserId = currentUser.Id;
         var campaign = await _db.Campaigns
-            .AsNoTracking()
+            .Include(x => x.PackageOrder)
+            .Include(x => x.CampaignBrief)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw new InvalidOperationException("Campaign not found.");
 
-        await _campaignBriefService.SaveDraftAsync(campaign.UserId, id, request.Brief, cancellationToken);
-
-        if (request.SubmitBrief)
+        var isOrderOperationallyActive = CampaignOperationsPolicy.IsOrderOperationallyActive(campaign.PackageOrder);
+        if (isOrderOperationallyActive)
         {
-            await _campaignBriefService.SubmitAsync(campaign.UserId, id, cancellationToken);
-            await _campaignBriefService.SetPlanningModeAsync(campaign.UserId, id, request.PlanningMode, cancellationToken);
+            await _campaignBriefService.SaveDraftAsync(campaign.UserId, id, request.Brief, cancellationToken);
+            if (request.SubmitBrief)
+            {
+                await _campaignBriefService.SubmitAsync(campaign.UserId, id, cancellationToken);
+                await _campaignBriefService.SetPlanningModeAsync(campaign.UserId, id, request.PlanningMode, cancellationToken);
+            }
+        }
+        else
+        {
+            var now = DateTime.UtcNow;
+            var brief = campaign.CampaignBrief;
+            if (brief is null)
+            {
+                brief = new CampaignBrief
+                {
+                    Id = Guid.NewGuid(),
+                    CampaignId = campaign.Id,
+                    CreatedAt = now
+                };
+                _db.CampaignBriefs.Add(brief);
+            }
+
+            MapBrief(brief, request.Brief, now);
+
+            if (!string.IsNullOrWhiteSpace(request.CampaignName))
+            {
+                campaign.CampaignName = request.CampaignName.Trim();
+            }
+
+            campaign.PlanningMode = request.PlanningMode;
+            campaign.AgentAssistanceRequested = request.PlanningMode is "agent_assisted" or "hybrid";
+            campaign.AiUnlocked = request.SubmitBrief;
+            if (request.SubmitBrief)
+            {
+                campaign.Status = CampaignStatuses.PlanningInProgress;
+            }
+            else if (string.Equals(campaign.Status, "awaiting_purchase", StringComparison.OrdinalIgnoreCase))
+            {
+                campaign.Status = CampaignStatuses.BriefInProgress;
+            }
+            campaign.UpdatedAt = now;
+
+            if (request.SubmitBrief)
+            {
+                brief.SubmittedAt ??= now;
+            }
+
+            await _db.SaveChangesAsync(cancellationToken);
         }
 
         _db.ChangeTracker.Clear();
@@ -691,6 +737,43 @@ public sealed class AgentCampaignsController : ControllerBase
             cancellationToken);
 
         return Ok(response);
+    }
+
+    private static void MapBrief(CampaignBrief brief, SaveCampaignBriefRequest request, DateTime now)
+    {
+        brief.Objective = request.Objective;
+        brief.StartDate = request.StartDate;
+        brief.EndDate = request.EndDate;
+        brief.DurationWeeks = request.DurationWeeks;
+        brief.GeographyScope = request.GeographyScope;
+        brief.ProvincesJson = Serialize(request.Provinces);
+        brief.CitiesJson = Serialize(request.Cities);
+        brief.SuburbsJson = Serialize(request.Suburbs);
+        brief.AreasJson = Serialize(request.Areas);
+        brief.TargetAgeMin = request.TargetAgeMin;
+        brief.TargetAgeMax = request.TargetAgeMax;
+        brief.TargetGender = request.TargetGender;
+        brief.TargetLanguagesJson = Serialize(request.TargetLanguages);
+        brief.TargetLsmMin = request.TargetLsmMin;
+        brief.TargetLsmMax = request.TargetLsmMax;
+        brief.TargetInterestsJson = Serialize(request.TargetInterests);
+        brief.TargetAudienceNotes = request.TargetAudienceNotes;
+        brief.PreferredMediaTypesJson = Serialize(request.PreferredMediaTypes);
+        brief.ExcludedMediaTypesJson = Serialize(request.ExcludedMediaTypes);
+        brief.MustHaveAreasJson = Serialize(request.MustHaveAreas);
+        brief.ExcludedAreasJson = Serialize(request.ExcludedAreas);
+        brief.CreativeReady = request.CreativeReady;
+        brief.CreativeNotes = request.CreativeNotes;
+        brief.MaxMediaItems = request.MaxMediaItems;
+        brief.OpenToUpsell = request.OpenToUpsell;
+        brief.AdditionalBudget = request.AdditionalBudget;
+        brief.SpecialRequirements = request.SpecialRequirements;
+        brief.UpdatedAt = now;
+    }
+
+    private static string? Serialize<T>(T value)
+    {
+        return value == null ? null : JsonSerializer.Serialize(value);
     }
 
     [HttpPost("{id:guid}/generate-recommendation")]
