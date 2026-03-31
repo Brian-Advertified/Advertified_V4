@@ -41,19 +41,14 @@ const CampaignDetailPage = lazyPage(() => import('../pages/client/CampaignDetail
 
 const AgentCampaignDetailPage = lazyPage(() => import('../pages/agent/AgentCampaignDetailPage'), 'AgentCampaignDetailPage');
 const AgentCreateRecommendationPage = lazyPage(() => import('../pages/agent/AgentCreateRecommendationPage'), 'AgentCreateRecommendationPage');
-const AgentInventoryPage = lazyPage(() => import('../pages/agent/AgentInventoryPage'), 'AgentInventoryPage');
 const AgentApprovalsPage = lazyPage(() => import('../pages/agent/AgentApprovalsPage'), 'AgentApprovalsPage');
 const AgentBriefsPage = lazyPage(() => import('../pages/agent/AgentBriefsPage'), 'AgentBriefsPage');
 const AgentCampaignsPage = lazyPage(() => import('../pages/agent/AgentCampaignsPage'), 'AgentCampaignsPage');
-const AgentCheckoutStatusPage = lazyPage(() => import('../pages/agent/AgentCheckoutStatusPage'), 'AgentCheckoutStatusPage');
 const AgentDashboardPage = lazyPage(() => import('../pages/agent/AgentDashboardPage'), 'AgentDashboardPage');
 const AgentLeadsClientsPage = lazyPage(() => import('../pages/agent/AgentLeadsClientsPage'), 'AgentLeadsClientsPage');
 const AgentMessagesNotesPage = lazyPage(() => import('../pages/agent/AgentMessagesNotesPage'), 'AgentMessagesNotesPage');
-const AgentPackageSelectionPage = lazyPage(() => import('../pages/agent/AgentPackageSelectionPage'), 'AgentPackageSelectionPage');
-const AgentPerformancePage = lazyPage(() => import('../pages/agent/AgentPerformancePage'), 'AgentPerformancePage');
 const AgentRecommendationBuilderPage = lazyPage(() => import('../pages/agent/AgentRecommendationBuilderPage'), 'AgentRecommendationBuilderPage');
 const AgentReviewSendPage = lazyPage(() => import('../pages/agent/AgentReviewSendPage'), 'AgentReviewSendPage');
-const AgentTasksPage = lazyPage(() => import('../pages/agent/AgentTasksPage'), 'AgentTasksPage');
 
 const CreativeDirectorDashboardPage = lazyPage(() => import('../pages/creative/CreativeDirectorPages'), 'CreativeDirectorDashboardPage');
 const CreativeDirectorStudioPage = lazyPage(() => import('../pages/creative/CreativeDirectorPages'), 'CreativeDirectorStudioPage');
@@ -128,19 +123,19 @@ export function App() {
             <Route path="/admin/integrations" element={<ProtectedRoute requireAdmin><AdminIntegrationsPage /></ProtectedRoute>} />
             <Route path="/agent" element={<ProtectedRoute requireAgent><AgentDashboardPage /></ProtectedRoute>} />
             <Route path="/agent/leads" element={<ProtectedRoute requireAgent><AgentLeadsClientsPage /></ProtectedRoute>} />
-            <Route path="/agent/packages" element={<ProtectedRoute requireAgent><AgentPackageSelectionPage /></ProtectedRoute>} />
-            <Route path="/agent/checkout" element={<ProtectedRoute requireAgent><AgentCheckoutStatusPage /></ProtectedRoute>} />
             <Route path="/agent/briefs" element={<ProtectedRoute requireAgent><AgentBriefsPage /></ProtectedRoute>} />
             <Route path="/agent/recommendation-builder" element={<ProtectedRoute requireAgent><AgentRecommendationBuilderPage /></ProtectedRoute>} />
             <Route path="/agent/review-send" element={<ProtectedRoute requireAgent><AgentReviewSendPage /></ProtectedRoute>} />
             <Route path="/agent/approvals" element={<ProtectedRoute requireAgent><AgentApprovalsPage /></ProtectedRoute>} />
             <Route path="/agent/messages" element={<ProtectedRoute requireAgent><AgentMessagesNotesPage /></ProtectedRoute>} />
-            <Route path="/agent/tasks" element={<ProtectedRoute requireAgent><AgentTasksPage /></ProtectedRoute>} />
-            <Route path="/agent/performance" element={<ProtectedRoute requireAgent><AgentPerformancePage /></ProtectedRoute>} />
             <Route path="/agent/recommendations/new" element={<ProtectedRoute requireAgent><AgentCreateRecommendationPage /></ProtectedRoute>} />
             <Route path="/agent/campaigns" element={<ProtectedRoute requireAgent><AgentCampaignsPage /></ProtectedRoute>} />
             <Route path="/agent/campaigns/:id" element={<ProtectedRoute requireAgent><AgentCampaignDetailPage /></ProtectedRoute>} />
-            <Route path="/agent/inventory" element={<ProtectedRoute requireAgent><AgentInventoryPage /></ProtectedRoute>} />
+            <Route path="/agent/packages" element={<Navigate to="/agent/campaigns" replace />} />
+            <Route path="/agent/checkout" element={<Navigate to="/agent/campaigns" replace />} />
+            <Route path="/agent/tasks" element={<Navigate to="/agent/campaigns" replace />} />
+            <Route path="/agent/performance" element={<Navigate to="/agent/campaigns" replace />} />
+            <Route path="/agent/inventory" element={<Navigate to="/agent/campaigns" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>

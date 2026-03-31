@@ -1,4 +1,4 @@
-import { ArrowRight, BriefcaseBusiness, CircleAlert, Clock3, FolderKanban, ReceiptText, Send, Sparkles, UserRoundSearch, UsersRound } from 'lucide-react';
+import { ArrowRight, BriefcaseBusiness, CircleAlert, Clock3, FolderKanban, Send, Sparkles, UserRoundSearch, UsersRound } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import {
   AgentPageShell,
@@ -19,7 +19,7 @@ export function AgentDashboardPage() {
 
   return (
     <AgentQueryBoundary query={inboxQuery} loadingLabel="Loading agent dashboard...">
-      <AgentPageShell title="Agent dashboard" description="Daily sales activity, planning queue, approvals, and the client work that needs attention next.">
+      <AgentPageShell title="Agent dashboard" description="Client-assist activity, planning queue, approvals, and campaign work that needs attention next.">
         {(() => {
           const inbox = inboxQuery.data;
           if (!inbox) {
@@ -38,7 +38,7 @@ export function AgentDashboardPage() {
             { label: 'Leads & Clients', href: '/agent/leads', icon: UserRoundSearch, helper: 'Track active prospects and client activity.' },
             { label: 'Campaign Pipeline', href: '/agent/campaigns', icon: FolderKanban, helper: 'Open the full live campaign queue.' },
             { label: 'Recommendation Builder', href: '/agent/recommendation-builder', icon: BriefcaseBusiness, helper: 'Move straight into planning work.' },
-            { label: 'Purchase / Checkout', href: '/agent/checkout', icon: ReceiptText, helper: 'Follow up on payments and checkout progress.' },
+            { label: 'Review & Send', href: '/agent/review-send', icon: Send, helper: 'Finalize recommendations and send to clients.' },
           ];
           const recentItems = inbox.items.slice(0, 6);
 
@@ -62,8 +62,8 @@ export function AgentDashboardPage() {
                       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Search</p>
                       <p className="mt-2 text-sm text-ink">Clients, campaigns, and queue items</p>
                     </div>
-                    <Link to="/agent/tasks" className="rounded-2xl border border-white/80 bg-white/80 px-4 py-3 transition hover:border-brand/30 hover:bg-brand-soft/30">
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Tasks</p>
+                    <Link to="/agent/campaigns" className="rounded-2xl border border-white/80 bg-white/80 px-4 py-3 transition hover:border-brand/30 hover:bg-brand-soft/30">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Focus queue</p>
                       <p className="mt-2 text-sm font-semibold text-ink">{tasks.urgent.length + tasks.review.length + tasks.waiting.length} active follow-ups</p>
                     </Link>
                     <Link to="/agent/leads" className="rounded-2xl border border-white/80 bg-white/80 px-4 py-3 transition hover:border-brand/30 hover:bg-brand-soft/30">
@@ -133,8 +133,8 @@ export function AgentDashboardPage() {
 
                 <div className="space-y-4">
                   <div className="rounded-[30px] border border-line bg-white p-6 shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
-                    <h3 className="text-lg font-semibold text-ink">My tasks</h3>
-                    <p className="mt-2 text-sm text-ink-soft">Pull your next actions from the live queue without replacing the dedicated tasks page.</p>
+                    <h3 className="text-lg font-semibold text-ink">My priorities</h3>
+                    <p className="mt-2 text-sm text-ink-soft">Pull your next actions from the live queue and jump directly into campaign work.</p>
                     <div className="mt-4 space-y-4">
                       {focusTasks.length > 0 ? focusTasks.map((item) => (
                         <div key={item.id} className="rounded-2xl border border-line bg-slate-50/70 p-4">
@@ -150,7 +150,7 @@ export function AgentDashboardPage() {
                       )) : <p className="text-sm text-ink-soft">Nothing urgent or review-heavy right now.</p>}
                     </div>
                     <div className="mt-4">
-                      <Link to="/agent/tasks" className="button-secondary px-4 py-2">Open tasks page</Link>
+                      <Link to="/agent/campaigns" className="button-secondary px-4 py-2">Open campaign queue</Link>
                     </div>
                   </div>
 

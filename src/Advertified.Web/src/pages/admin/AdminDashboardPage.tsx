@@ -81,7 +81,7 @@ export function AdminDashboardPage() {
                       <Link to="/admin/preview-rules" className="button-secondary inline-flex items-center justify-between gap-2 px-4 py-3">Edit preview rules <ArrowRight className="size-4" /></Link>
                       <Link to="/agent/campaigns" className="button-secondary inline-flex items-center justify-between gap-2 px-4 py-3">Review queue <ArrowRight className="size-4" /></Link>
                       <Link to="/agent/recommendations/new" className="button-secondary inline-flex items-center justify-between gap-2 px-4 py-3">Create recommendation <ArrowRight className="size-4" /></Link>
-                      <Link to="/agent/inventory" className="button-secondary inline-flex items-center justify-between gap-2 px-4 py-3">Inspect inventory <ArrowRight className="size-4" /></Link>
+                      <Link to="/admin/stations" className="button-secondary inline-flex items-center justify-between gap-2 px-4 py-3">Inspect inventory <ArrowRight className="size-4" /></Link>
                     </div>
                   </div>
                 </div>

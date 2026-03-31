@@ -8,10 +8,7 @@ import {
   FolderKanban,
   LayoutDashboard,
   MessageSquareText,
-  Package2,
-  ReceiptText,
   Send,
-  TrendingUp,
   UserRoundSearch,
 } from 'lucide-react';
 import { PageHero } from '../../components/marketing/PageHero';
@@ -40,34 +37,15 @@ export const agentNavSections: AgentNavSection[] = [
     ],
   },
   {
-    title: 'Sales',
+    title: 'Client Assist',
     items: [
       { path: '/agent/leads', label: 'Leads & Clients', icon: UserRoundSearch },
-      { path: '/agent/packages', label: 'Package Selection', icon: Package2 },
-      { path: '/agent/checkout', label: 'Purchase / Checkout', icon: ReceiptText },
-    ],
-  },
-  {
-    title: 'Campaigns',
-    items: [
       { path: '/agent/campaigns', label: 'Campaign Pipeline', icon: FolderKanban, end: true },
       { path: '/agent/briefs', label: 'Campaign Brief', icon: ClipboardList },
       { path: '/agent/recommendation-builder', label: 'Recommendation Builder', icon: BriefcaseBusiness },
       { path: '/agent/review-send', label: 'Review & Send', icon: Send },
-    ],
-  },
-  {
-    title: 'Client Management',
-    items: [
       { path: '/agent/approvals', label: 'Approvals & Changes', icon: ArrowRight },
       { path: '/agent/messages', label: 'Messages & Notes', icon: MessageSquareText },
-    ],
-  },
-  {
-    title: 'Performance',
-    items: [
-      { path: '/agent/tasks', label: 'Tasks', icon: ClipboardList },
-      { path: '/agent/performance', label: 'Agent Performance', icon: TrendingUp },
     ],
   },
 ];
@@ -143,7 +121,7 @@ export function AgentPageShell({ title, description, children }: AgentPageShellP
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-ink-soft">Workspace</p>
               <h2 className="mt-4 text-2xl font-semibold text-ink">Agent studio</h2>
-              <p className="mt-2 text-sm leading-6 text-ink-soft">Daily sales workflow, campaign planning, approvals, and client follow-up on live campaign data.</p>
+              <p className="mt-2 text-sm leading-6 text-ink-soft">Client-assist workflow for campaign planning, recommendation review, and sending decisions.</p>
             </div>
             <div className="space-y-5">
               {agentNavSections.map((section) => (
