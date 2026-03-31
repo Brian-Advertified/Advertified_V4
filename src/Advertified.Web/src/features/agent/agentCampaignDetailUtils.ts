@@ -57,8 +57,8 @@ export function normalizeChannelKey(channel: string) {
   const normalized = channel.trim().toLowerCase();
   if (normalized.includes('radio')) return 'RADIO';
   if (normalized.includes('ooh') || normalized.includes('out of home') || normalized.includes('billboard')) return 'OOH';
+  if (normalized.includes('tv') || normalized.includes('television') || normalized.includes('video')) return 'TV';
   if (normalized.includes('digital')) return 'DIGITAL';
-  if (normalized.includes('tv')) return 'TV';
   return channel.trim().toUpperCase();
 }
 
@@ -216,6 +216,7 @@ export function buildTargetChannelMix(groupedTotals: { channel: string; total: n
     return {
       radio: radioShareTarget,
       ooh: 0,
+      tv: 0,
       digital: 0,
     };
   }
@@ -233,6 +234,7 @@ export function buildTargetChannelMix(groupedTotals: { channel: string; total: n
   return {
     radio: radioShareTarget,
     ooh: allocations.get('OOH') ?? 0,
+    tv: allocations.get('TV') ?? 0,
     digital: allocations.get('DIGITAL') ?? 0,
   };
 }

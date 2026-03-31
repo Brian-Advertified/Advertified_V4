@@ -310,11 +310,14 @@ export function AgentCampaignDetailPage() {
           } as SelectedPlanInventoryItem;
         }
 
-        const normalizedType = item.channel.toLowerCase().includes('radio')
+        const normalizedChannel = normalizeChannelKey(item.channel);
+        const normalizedType = normalizedChannel === 'RADIO'
           ? 'radio'
-          : item.channel.toLowerCase().includes('ooh')
+          : normalizedChannel === 'OOH'
             ? 'ooh'
-            : 'digital';
+            : normalizedChannel === 'TV'
+              ? 'tv'
+              : 'digital';
         const fallbackDetails = buildGeneratedInventoryFallback(item, campaign.brief);
 
         return {
@@ -403,10 +406,12 @@ export function AgentCampaignDetailPage() {
   const radioShare = groupedTotals.reduce((sum, entry) => entry.channel === 'RADIO' ? sum + entry.total : sum, 0);
   const oohShare = groupedTotals.reduce((sum, entry) => entry.channel === 'OOH' ? sum + entry.total : sum, 0);
   const digitalShare = groupedTotals.reduce((sum, entry) => entry.channel === 'DIGITAL' ? sum + entry.total : sum, 0);
+  const tvShare = groupedTotals.reduce((sum, entry) => entry.channel === 'TV' ? sum + entry.total : sum, 0);
   const totalGroupedSpend = groupedTotals.reduce((sum, entry) => sum + entry.total, 0);
   const currentRadioShare = totalGroupedSpend > 0 ? Math.round((radioShare / totalGroupedSpend) * 100) : 0;
   const currentOohShare = totalGroupedSpend > 0 ? Math.round((oohShare / totalGroupedSpend) * 100) : 0;
   const currentDigitalShare = totalGroupedSpend > 0 ? Math.round((digitalShare / totalGroupedSpend) * 100) : 0;
+  const currentTvShare = totalGroupedSpend > 0 ? Math.round((tvShare / totalGroupedSpend) * 100) : 0;
   const targetMix = buildTargetChannelMix(groupedTotals, mixBalance);
   const confidenceScore = calculateConfidence(campaign.brief);
   const audienceSummary = buildAudienceSummary(campaign.brief);
@@ -716,10 +721,10 @@ export function AgentCampaignDetailPage() {
                   className="mt-4 w-full accent-brand"
                 />
                 <p className="mt-3 text-sm text-ink-soft">
-                  Target mix: Radio {targetMix.radio}% | OOH {targetMix.ooh}% | Digital {targetMix.digital}%
+                  Target mix: Radio {targetMix.radio}% | OOH {targetMix.ooh}% | TV {targetMix.tv}% | Digital {targetMix.digital}%
                 </p>
                 <p className="mt-1 text-sm text-ink-soft">
-                  Current draft: Radio {currentRadioShare}% | OOH {currentOohShare}% | Digital {currentDigitalShare}%
+                  Current draft: Radio {currentRadioShare}% | OOH {currentOohShare}% | TV {currentTvShare}% | Digital {currentDigitalShare}%
                 </p>
               </div>
 
