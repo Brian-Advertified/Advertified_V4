@@ -37,7 +37,7 @@ Pay over terms – aligned with your business cycles, not upfront. Access TV, Ra
             <div className="hero-glass-card rounded-[24px] p-5 text-ink">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Positioning</p>
               <p className="mt-3 text-2xl font-semibold tracking-tight">
-                Choose your package. Pay. Tell us about your campaign. Get your tailored media.
+                Choose your package. Tell us about your campaign. Get your tailored media.
               </p>
             </div>
           </div>
