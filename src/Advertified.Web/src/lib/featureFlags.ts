@@ -17,5 +17,8 @@ function isDevRuntimeHost() {
 }
 
 export const publicAiStudioEnabled =
-  publicAiStudioOverride === 'true' &&
-  (import.meta.env.DEV || isDevRuntimeHost());
+  publicAiStudioOverride === 'true'
+    ? true
+    : publicAiStudioOverride === 'false'
+      ? false
+      : (import.meta.env.DEV || isDevRuntimeHost());
