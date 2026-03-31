@@ -42,15 +42,12 @@ export function Footer() {
           <div>
             <h3 className="text-sm font-semibold text-ink">Contact Info</h3>
             <div className="mt-4 space-y-2.5 text-sm text-ink-soft">
-              <p>Office 501, Elskadi Mall</p>
-              <p>45 Andring Street</p>
+              <p>Office 301, Elkestad Mall</p>
+              <p>43 Andringa Stellenbosch</p>
               <p>Stellenbosch</p>
-              <p>7599</p>
+              <p>Cape Town, 7559</p>
               <p>
                 <a href="mailto:info@advertified.com" className="transition hover:text-brand">info@advertified.com</a>
-              </p>
-              <p>
-                <a href="tel:+27110401195" className="transition hover:text-brand">+27 11 040 1195</a>
               </p>
             </div>
           </div>

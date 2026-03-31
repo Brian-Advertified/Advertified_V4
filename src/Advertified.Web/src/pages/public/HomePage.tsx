@@ -56,7 +56,6 @@ export function HomePage() {
         <div className="panel overflow-hidden px-6 py-8 sm:px-8 sm:py-10">
           <div className="grid gap-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)] lg:items-start">
             <div className="max-w-2xl">
-              <div className="pill self-start bg-highlight-soft px-3 py-1 text-[11px] tracking-[0.16em] text-highlight">About Advertified</div>
               <h2 className="mt-4 max-w-2xl text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
                 Built to make media buying feel more guided, more flexible, and less intimidating.
               </h2>
