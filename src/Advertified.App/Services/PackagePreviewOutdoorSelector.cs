@@ -19,7 +19,7 @@ public sealed class PackagePreviewOutdoorSelector : IPackagePreviewOutdoorSelect
             : candidates.Where(candidate => MatchesArea(candidate, selectedArea)).ToList();
         var targetPlacementCost = budget * (0.08m + (budgetRatio * 0.18m));
 
-        return filteredCandidates
+        var scoredCandidates = filteredCandidates
             .OrderByDescending(candidate => ScoreCandidate(candidate, targetPlacementCost, budgetRatio))
             .ThenByDescending(candidate => candidate.TrafficCount)
             .Take(12)
@@ -28,6 +28,10 @@ public sealed class PackagePreviewOutdoorSelector : IPackagePreviewOutdoorSelect
                 .OrderByDescending(candidate => ScoreCandidate(candidate, targetPlacementCost, budgetRatio))
                 .ThenByDescending(candidate => candidate.TrafficCount)
                 .First())
+            .ToList();
+
+        return scoredCandidates
+            .OrderBy(_ => Random.Shared.Next())
             .Take(3)
             .ToList();
     }

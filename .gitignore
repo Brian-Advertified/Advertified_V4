@@ -16,3 +16,4 @@ src/Advertified.App/appsettings.Development.json
 src/Advertified.Web/.env.local
 src/Advertified.App/App_Data/invoices/
 src/Advertified.App/App_Data/email_outbox/
+.tmp/

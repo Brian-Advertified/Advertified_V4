@@ -26,7 +26,7 @@ public sealed class RecommendationExplainabilityService : IRecommendationExplain
 
     public string BuildRationale(List<PlannedItem> basePlan, List<PlannedItem> recommendedPlan, CampaignPlanningRequest request)
     {
-        var mediaMix = string.Join(", ", recommendedPlan.Select(x => x.MediaType).Distinct());
+        var mediaMix = string.Join(", ", recommendedPlan.Select(x => ToDisplayMediaType(x.MediaType)).Distinct());
         var targetMix = _policyService.BuildRequestedMixLabel(request);
         return string.IsNullOrWhiteSpace(targetMix)
             ? $"Plan built within budget of {request.SelectedBudget:n0}, prioritising geography fit, audience fit, media preference, and available inventory. Selected mix: {mediaMix}."
@@ -86,7 +86,7 @@ public sealed class RecommendationExplainabilityService : IRecommendationExplain
 
         if (candidate.MediaType.Equals("OOH", StringComparison.OrdinalIgnoreCase))
         {
-            reasons.Add("OOH prioritized for visibility");
+            reasons.Add("Billboards and digital screens prioritized for visibility");
             reasons.Add("Adds visible market presence");
         }
 
@@ -135,5 +135,17 @@ public sealed class RecommendationExplainabilityService : IRecommendationExplain
     {
         if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right)) return false;
         return string.Equals(left.Trim(), right.Trim(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string ToDisplayMediaType(string? mediaType)
+    {
+        if (string.IsNullOrWhiteSpace(mediaType))
+        {
+            return string.Empty;
+        }
+
+        return mediaType.Equals("OOH", StringComparison.OrdinalIgnoreCase)
+            ? "Billboards and digital screens"
+            : mediaType;
     }
 }

@@ -145,24 +145,45 @@ function getServerSnapshot() {
   return null;
 }
 
+function hasSessionProfileChanged(previous: SessionUser, next: SessionUser) {
+  return (
+    previous.id !== next.id
+    || previous.fullName !== next.fullName
+    || previous.email !== next.email
+    || previous.phone !== next.phone
+    || previous.role !== next.role
+    || previous.emailVerified !== next.emailVerified
+    || previous.identityComplete !== next.identityComplete
+    || previous.businessName !== next.businessName
+    || previous.city !== next.city
+    || previous.province !== next.province
+  );
+}
+
 export function AuthProvider({ children }: PropsWithChildren) {
   const { pushToast } = useToast();
   const user = useSyncExternalStore(subscribeToSession, getSessionSnapshot, getServerSnapshot);
 
   useEffect(() => {
-    if (!user?.sessionToken || (user.identityComplete !== undefined && user.phone !== undefined)) {
+    if (!user?.sessionToken) {
       return;
     }
 
     let cancelled = false;
     advertifiedApi.getMe()
       .then((freshUser) => {
-        if (!cancelled) {
-          persistUser({
-            ...user,
-            ...freshUser,
-            sessionToken: user.sessionToken,
-          });
+        if (cancelled) {
+          return;
+        }
+
+        const nextUser: SessionUser = {
+          ...user,
+          ...freshUser,
+          sessionToken: user.sessionToken,
+        };
+
+        if (hasSessionProfileChanged(user, nextUser)) {
+          persistUser(nextUser);
         }
       })
       .catch(() => {

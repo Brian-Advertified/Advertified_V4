@@ -36,12 +36,13 @@ public sealed class PackagePreviewBroadcastSelector : IPackagePreviewBroadcastSe
             .Take(8)
             .ToList();
 
-        return candidates
+        var labels = candidates
             .Select(candidate => BuildRadioSupportLabel(candidate.Record, budget))
             .Where(static label => !string.IsNullOrWhiteSpace(label))
             .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Take(3)
             .ToList();
+
+        return TakeRandomExamples(labels, 3);
     }
 
     public IReadOnlyList<string> BuildTvSupportExamples(
@@ -70,13 +71,14 @@ public sealed class PackagePreviewBroadcastSelector : IPackagePreviewBroadcastSe
             .Select(candidate => BuildTvSupportLabel(candidate.Record, budget))
             .Where(static label => !string.IsNullOrWhiteSpace(label))
             .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Take(selectedArea.Code == "national" ? 3 : 2)
             .ToList();
 
         if (labels.Count == 0)
         {
             return labels;
         }
+
+        labels = TakeRandomExamples(labels, selectedArea.Code == "national" ? 3 : 2).ToList();
 
         if (selectedArea.Code != "national")
         {
@@ -86,6 +88,19 @@ public sealed class PackagePreviewBroadcastSelector : IPackagePreviewBroadcastSe
         return labels
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Take(3)
+            .ToList();
+    }
+
+    private static IReadOnlyList<string> TakeRandomExamples(IReadOnlyList<string> labels, int count)
+    {
+        if (labels.Count <= count)
+        {
+            return labels;
+        }
+
+        return labels
+            .OrderBy(_ => Random.Shared.Next())
+            .Take(count)
             .ToList();
     }
 

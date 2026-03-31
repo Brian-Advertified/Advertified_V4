@@ -20,9 +20,17 @@ export function buildGeoSummary(brief?: CampaignBrief) {
 }
 
 export function buildChannelSummary(brief?: CampaignBrief, selectedPlanItems?: SelectedPlanInventoryItem[]) {
-  if (brief?.preferredMediaTypes?.length) return brief.preferredMediaTypes.map((x) => x.toUpperCase()).join(' + ');
+  if (brief?.preferredMediaTypes?.length) {
+    return brief.preferredMediaTypes
+      .map((x) => formatChannelLabel(x.toUpperCase()))
+      .join(' + ');
+  }
   const channels = Array.from(new Set((selectedPlanItems ?? []).map((item) => item.type.toUpperCase())));
-  return channels.length > 0 ? channels.join(' + ') : 'Not selected yet';
+  return channels.length > 0 ? channels.map((channel) => formatChannelLabel(channel)).join(' + ') : 'Not selected yet';
+}
+
+function formatChannelLabel(channel: string) {
+  return channel === 'OOH' ? 'BILLBOARDS AND DIGITAL SCREENS' : channel;
 }
 
 export function buildToneSummary(brief?: CampaignBrief) {

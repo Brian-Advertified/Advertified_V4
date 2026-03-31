@@ -7,6 +7,10 @@ import {
   useAgentCampaignsQuery,
 } from './agentWorkspace';
 
+function formatChannelLabel(value: string) {
+  return value.replace(/\booh\b/gi, 'Billboards and digital screens');
+}
+
 export function AgentBriefsPage() {
   const campaignsQuery = useAgentCampaignsQuery();
 
@@ -50,7 +54,9 @@ export function AgentBriefsPage() {
                           </span>
                         </td>
                         <td className="px-4 py-4 text-ink-soft">
-                          {campaign.brief ? `${titleize(campaign.brief.objective)} | ${titleize(campaign.brief.geographyScope)} | ${(campaign.brief.preferredMediaTypes ?? []).join(', ') || 'No channels set'}` : 'No planning inputs captured yet.'}
+                          {campaign.brief
+                            ? `${titleize(campaign.brief.objective)} | ${titleize(campaign.brief.geographyScope)} | ${(campaign.brief.preferredMediaTypes ?? []).map(formatChannelLabel).join(', ') || 'No channels set'}`
+                            : 'No planning inputs captured yet.'}
                         </td>
                         <td className="px-4 py-4 text-ink-soft">{campaign.nextAction}</td>
                         <td className="px-4 py-4">

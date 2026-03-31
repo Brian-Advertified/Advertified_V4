@@ -125,7 +125,7 @@ internal static class RecommendationPdfGenerator
                                     {
                                         row.RelativeItem().Column(col =>
                                         {
-                                            col.Item().Text($"{item.Channel} | {item.Title}").SemiBold();
+                                            col.Item().Text($"{FormatChannelLabel(item.Channel)} | {item.Title}").SemiBold();
                                             if (!string.IsNullOrWhiteSpace(item.Rationale))
                                             {
                                                 col.Item().Text(item.Rationale).FontColor("#4B5563");
@@ -166,10 +166,6 @@ internal static class RecommendationPdfGenerator
                                         itemCol.Item().Text($"Why selected: {string.Join(" | ", item.SelectionReasons)}").FontColor("#4B5563");
                                     }
 
-                                    if (item.PolicyFlags.Count > 0)
-                                    {
-                                        itemCol.Item().Text($"Policy flags: {string.Join(", ", item.PolicyFlags)}").FontColor("#9A3412");
-                                    }
                                 });
                             }
                         });
@@ -193,6 +189,18 @@ internal static class RecommendationPdfGenerator
     private static string FormatCurrency(decimal amount)
     {
         return $"R {amount.ToString("N2", CultureInfo.GetCultureInfo("en-ZA"))}";
+    }
+
+    private static string FormatChannelLabel(string? channel)
+    {
+        if (string.IsNullOrWhiteSpace(channel))
+        {
+            return string.Empty;
+        }
+
+        return string.Equals(channel.Trim(), "OOH", StringComparison.OrdinalIgnoreCase)
+            ? "Billboards and digital screens"
+            : channel.Trim();
     }
 }
 
@@ -225,7 +233,7 @@ public static class RecommendationPdfPreviewFactory
                     {
                         new RecommendationLineDocumentModel
                         {
-                            Channel = "OOH",
+                            Channel = "Billboards and digital screens",
                             Title = "Sandton Drive digital screen",
                             Rationale = "Premium commuter visibility close to retail and corporate traffic.",
                             Quantity = 1,

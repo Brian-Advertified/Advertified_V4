@@ -4,6 +4,10 @@ import { getPrimaryRecommendation } from '../../pages/client/clientWorkspace';
 
 type Campaign = Awaited<ReturnType<typeof advertifiedApi.getCampaign>>;
 
+function formatChannelLabel(value: string) {
+  return value.replace(/\booh\b/gi, 'Billboards and digital screens');
+}
+
 export function getHeroContent(campaign: Campaign, recommendationStatus?: string) {
   if (campaign.status === 'launched') {
     return {
@@ -182,7 +186,7 @@ export function buildApprovalDetails(campaign: Campaign) {
   }
 
   if (channels.length) {
-    details.push(`Channels: ${channels.join(', ')}`);
+    details.push(`Channels: ${channels.map(formatChannelLabel).join(', ')}`);
   }
 
   if (campaign.brief?.durationWeeks) {

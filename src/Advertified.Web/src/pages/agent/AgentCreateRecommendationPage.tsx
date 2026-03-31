@@ -18,6 +18,11 @@ const STEP_CONFIG = [
 ] as const;
 
 const CHANNEL_OPTIONS: ChannelOption[] = ['Radio', 'OOH', 'TV'];
+const CHANNEL_LABELS: Record<ChannelOption, string> = {
+  Radio: 'Radio',
+  OOH: 'Billboards and digital screens',
+  TV: 'TV',
+};
 
 function getAllowedChannels(campaign?: {
   includeRadio: 'yes' | 'optional' | 'no';
@@ -226,12 +231,7 @@ export function AgentCreateRecommendationPage() {
 
       return campaign;
     },
-    onSuccess: async (campaign, variables) => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['agent-inbox'] }),
-        queryClient.invalidateQueries({ queryKey: ['agent-campaign', campaign.id] }),
-        queryClient.invalidateQueries({ queryKey: ['campaign', campaign.id] }),
-      ]);
+    onSuccess: (campaign, variables) => {
       setPendingAction(null);
       pushToast({
         title: variables.submitBrief ? 'Recommendation generated.' : 'Draft saved.',
@@ -240,6 +240,15 @@ export function AgentCreateRecommendationPage() {
           : 'The campaign brief has been saved for the agent workflow.',
       });
 
+      if (variables.submitBrief) {
+        navigate(`/agent/campaigns/${campaign.id}`);
+      }
+
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['agent-inbox'] }),
+        queryClient.invalidateQueries({ queryKey: ['agent-campaign', campaign.id] }),
+        queryClient.invalidateQueries({ queryKey: ['campaign', campaign.id] }),
+      ]);
     },
     onError: (error) => {
       setPendingAction(null);
@@ -352,8 +361,7 @@ export function AgentCreateRecommendationPage() {
     }
 
     setPendingAction('generate');
-    const campaign = await initializeMutation.mutateAsync({ submitBrief: true });
-    navigate(`/agent/campaigns/${campaign.id}`);
+    await initializeMutation.mutateAsync({ submitBrief: true });
   };
 
   if (inboxQuery.isLoading || packagesQuery.isLoading) {
@@ -514,7 +522,7 @@ export function AgentCreateRecommendationPage() {
                         onChange={() => toggleChannel(channel)}
                         className="size-4 rounded border-slate-300 accent-brand"
                       />
-                      <span>{channel}</span>
+                      <span>{CHANNEL_LABELS[channel]}</span>
                       {!isAllowed ? <span className="text-[11px] font-semibold uppercase tracking-[0.14em]">Not in package</span> : null}
                     </label>
                   );

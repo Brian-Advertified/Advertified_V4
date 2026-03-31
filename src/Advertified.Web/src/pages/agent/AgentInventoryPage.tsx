@@ -42,7 +42,7 @@ export function AgentInventoryPage() {
         <select value={type} onChange={(event) => setType(event.target.value)} className="input-base max-w-[220px]">
           <option value="all">All media types</option>
           <option value="radio">Radio</option>
-          <option value="ooh">OOH</option>
+          <option value="ooh">Billboards and digital screens</option>
           <option value="tv">TV</option>
           <option value="digital">Digital</option>
         </select>

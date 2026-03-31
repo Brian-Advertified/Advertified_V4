@@ -134,7 +134,7 @@ export function AdminImportsPage() {
                     <select className="input-base" value={rateCardForm.channel} onChange={(event) => setRateCardForm((current) => ({ ...current, channel: event.target.value }))}>
                       <option value="radio">Radio</option>
                       <option value="tv">TV</option>
-                      <option value="ooh">OOH</option>
+                      <option value="ooh">Billboards and digital screens</option>
                       <option value="digital">Digital</option>
                     </select>
                     <input className="input-base" placeholder="Supplier or station" value={rateCardForm.supplierOrStation} onChange={(event) => setRateCardForm((current) => ({ ...current, supplierOrStation: event.target.value }))} />
@@ -172,7 +172,7 @@ export function AdminImportsPage() {
               <table className="w-full border-collapse text-sm">
                 <thead className="bg-brand-soft text-left text-xs uppercase tracking-[0.18em] text-ink-soft"><tr><th className="px-4 py-4">Document</th><th className="px-4 py-4">Channel</th><th className="px-4 py-4">Supplier / Station</th><th className="px-4 py-4">Pages</th><th className="px-4 py-4">Imported</th><th className="px-4 py-4 text-right">Actions</th></tr></thead>
                 <tbody>
-                  {dashboard.recentImports.map((item) => <tr key={`${item.sourceFile}-${item.importedAt}`} className="border-t border-line"><td className="px-4 py-4"><p className="font-semibold text-ink">{item.documentTitle ?? item.sourceFile}</p><p className="text-xs text-ink-soft">{item.sourceFile}</p></td><td className="px-4 py-4 text-ink-soft">{titleize(item.channel)}</td><td className="px-4 py-4 text-ink-soft">{item.supplierOrStation ?? 'Not classified yet'}</td><td className="px-4 py-4 text-ink-soft">{item.pageCount ?? 0}</td><td className="px-4 py-4 text-ink-soft">{fmtDate(item.importedAt)}</td><td className="px-4 py-4"><div className="flex justify-end gap-2"><ActionButton label={`View ${item.documentTitle ?? item.sourceFile}`} icon={Eye} onClick={() => openImportDialog('view', item)} /><ActionButton label={`Edit ${item.documentTitle ?? item.sourceFile}`} icon={Pencil} onClick={() => openImportDialog('edit', item)} /><ActionButton label={`Delete ${item.documentTitle ?? item.sourceFile}`} icon={Trash2} variant="danger" disabled={deleteRateCardMutation.isPending} onClick={() => { if (window.confirm(`Delete ${item.documentTitle ?? item.sourceFile}? This removes the stored file and import metadata.`)) { deleteRateCardMutation.mutate(item.sourceFile); } }} /></div></td></tr>)}
+                  {dashboard.recentImports.map((item) => <tr key={`${item.sourceFile}-${item.importedAt}`} className="border-t border-line"><td className="px-4 py-4"><p className="font-semibold text-ink">{item.documentTitle ?? item.sourceFile}</p><p className="text-xs text-ink-soft">{item.sourceFile}</p></td><td className="px-4 py-4 text-ink-soft">{item.channel.toLowerCase() === 'ooh' ? 'Billboards and digital screens' : titleize(item.channel)}</td><td className="px-4 py-4 text-ink-soft">{item.supplierOrStation ?? 'Not classified yet'}</td><td className="px-4 py-4 text-ink-soft">{item.pageCount ?? 0}</td><td className="px-4 py-4 text-ink-soft">{fmtDate(item.importedAt)}</td><td className="px-4 py-4"><div className="flex justify-end gap-2"><ActionButton label={`View ${item.documentTitle ?? item.sourceFile}`} icon={Eye} onClick={() => openImportDialog('view', item)} /><ActionButton label={`Edit ${item.documentTitle ?? item.sourceFile}`} icon={Pencil} onClick={() => openImportDialog('edit', item)} /><ActionButton label={`Delete ${item.documentTitle ?? item.sourceFile}`} icon={Trash2} variant="danger" disabled={deleteRateCardMutation.isPending} onClick={() => { if (window.confirm(`Delete ${item.documentTitle ?? item.sourceFile}? This removes the stored file and import metadata.`)) { deleteRateCardMutation.mutate(item.sourceFile); } }} /></div></td></tr>)}
                 </tbody>
               </table>
             </div>
@@ -187,7 +187,7 @@ export function AdminImportsPage() {
                     <select disabled={importDialog.mode === 'view'} className="input-base disabled:bg-slate-50" value={importForm.channel} onChange={(event) => setImportForm((current) => ({ ...current, channel: event.target.value }))}>
                       <option value="radio">Radio</option>
                       <option value="tv">TV</option>
-                      <option value="ooh">OOH</option>
+                      <option value="ooh">Billboards and digital screens</option>
                       <option value="digital">Digital</option>
                     </select>
                     <input disabled={importDialog.mode === 'view'} className="input-base disabled:bg-slate-50" placeholder="Supplier or station" value={importForm.supplierOrStation} onChange={(event) => setImportForm((current) => ({ ...current, supplierOrStation: event.target.value }))} />

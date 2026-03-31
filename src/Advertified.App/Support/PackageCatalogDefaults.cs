@@ -25,7 +25,7 @@ internal static class PackageCatalogDefaults
                 "Growing SMEs entering a market or announcing a new offer.",
                 "Local visibility for smaller campaign starts.",
                 "Best for first-time advertisers, local campaigns, and single-area visibility.",
-                "optional",
+                "yes",
                 "no",
                 "5 business days",
                 35000m,

@@ -70,16 +70,14 @@ export function HomePage() {
                 Advertified keeps the public experience simple, then reveals more planning support only when your package, payment, and brief are in place.
               </p>
             </div>
-            <div className="grid gap-4">
+            <div className="grid gap-4 lg:grid-cols-5">
               {steps.map(([title, copy], index) => (
-                <div key={title} className="flex gap-4 rounded-[24px] border border-line bg-white px-5 py-5">
-                  <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-ink text-sm font-bold text-white">
+                <div key={title} className="rounded-[24px] border border-line bg-white px-5 py-5">
+                  <div className="flex size-10 items-center justify-center rounded-2xl bg-ink text-sm font-bold text-white">
                     {index + 1}
                   </div>
-                  <div>
-                    <p className="text-base font-semibold text-ink">{title}</p>
-                    <p className="mt-2 text-sm leading-7 text-ink-soft">{copy}</p>
-                  </div>
+                  <p className="mt-4 text-base font-semibold text-ink">{title}</p>
+                  <p className="mt-2 text-sm leading-6 text-ink-soft">{copy}</p>
                 </div>
               ))}
             </div>

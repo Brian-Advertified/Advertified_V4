@@ -285,7 +285,7 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
         return variantKey switch
         {
             "balanced" => ("Proposal A", "Balanced mix"),
-            "ooh_focus" => ("Proposal B", "OOH-led reach"),
+            "ooh_focus" => ("Proposal B", "Billboards and digital screens-led reach"),
             "radio_focus" => ("Proposal C", "Radio-led frequency"),
             "digital_focus" => ("Proposal C", "Digital-led amplification"),
             _ => ("Proposal", "Recommendation option")

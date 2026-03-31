@@ -4,6 +4,10 @@ import { Link } from 'react-router-dom';
 import { cn, formatCurrency, formatDate, titleCase } from '../../lib/utils';
 import type { Campaign, CampaignRecommendation, PackageBand, PackageOrder } from '../../types/domain';
 
+function formatChannelLabel(value: string) {
+  return value.replace(/\booh\b/gi, 'Billboards and digital screens');
+}
+
 export function getPrimaryRecommendation(campaign: Campaign) {
   return campaign.recommendations[0] ?? campaign.recommendation;
 }
@@ -130,7 +134,7 @@ export function buildPackageSummary(campaign: Campaign, order?: PackageOrder, pa
     { label: 'Budget', value: formatCurrency(campaign.selectedBudget) },
     { label: 'Coverage', value: geography[0] ? geography.join(', ') : 'Not added yet' },
     { label: 'Objective', value: campaign.brief?.objective || packageBand?.packagePurpose || 'Not added yet' },
-    { label: 'Included channels', value: recommendedChannels[0] ? recommendedChannels.join(', ') : 'Recommendation not ready yet' },
+    { label: 'Included channels', value: recommendedChannels[0] ? recommendedChannels.map(formatChannelLabel).join(', ') : 'Recommendation not ready yet' },
     { label: 'Payment status', value: titleCase(order?.paymentStatus ?? 'paid') },
   ];
 }
@@ -139,7 +143,7 @@ export function buildRecommendationRows(campaign: Campaign) {
   const recommendation = getPrimaryRecommendation(campaign);
 
   return (recommendation?.items ?? []).map((item) => ({
-    channel: item.channel,
+    channel: formatChannelLabel(item.channel),
     placement: item.title,
     flight: item.flighting ?? item.duration ?? item.startDate ?? 'In current plan',
     reason: item.selectionReasons[0] ?? item.rationale,
@@ -153,7 +157,7 @@ export function buildCreativeProgressRows(campaign: Campaign) {
   return (recommendation?.items ?? []).map((item) => ({
     format: item.title,
     status: titleCase(status),
-    source: item.channel,
+    source: formatChannelLabel(item.channel),
     nextStep: campaign.status === 'creative_sent_to_client_for_approval' ? 'Review finished media' : campaign.nextAction,
   }));
 }
