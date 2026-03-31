@@ -363,6 +363,16 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
             shares.Add(("digital", digital.Value));
         }
 
+        var explicitTotal = shares.Sum(entry => entry.Share);
+        var includeTv = request.PreferredMediaTypes
+            .Any(media => string.Equals(media?.Trim(), "tv", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(media?.Trim(), "television", StringComparison.OrdinalIgnoreCase));
+        var tvShare = Math.Max(0, 100 - explicitTotal);
+        if (includeTv && tvShare > 0)
+        {
+            shares.Add(("tv", tvShare));
+        }
+
         return shares;
     }
 
