@@ -489,7 +489,6 @@ export function AgentCampaignDetailPage() {
       .slice(0, 2)
       .map((item) => item.station);
 
-    document.getElementById('agent-inventory-table')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     pushToast({
       title: 'Pick a replacement below.',
       description: suggestions.length > 0
@@ -529,7 +528,6 @@ export function AgentCampaignDetailPage() {
   }
 
   function handleAdjustMix() {
-    mixPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     pushToast({
       title: 'Adjust the target mix below.',
       description: 'Use the budget split slider, then regenerate when you want a new draft from the same saved campaign inputs.',

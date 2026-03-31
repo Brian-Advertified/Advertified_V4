@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { ArrowRight, Lock } from 'lucide-react';
-import { useDeferredValue, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ProcessingOverlay } from '../../components/ui/ProcessingOverlay';
 import { PageHero } from '../../components/marketing/PageHero';
@@ -12,7 +12,7 @@ import { useAuth } from '../../features/auth/auth-context';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import { formatCompactBudget, formatCurrency } from '../../lib/utils';
 import { useToast } from '../../components/ui/toast';
-import { canBuyPackage } from '../../lib/access';
+import { canBuyPackage, getPackagePurchaseRestriction } from '../../lib/access';
 
 export function PackagesPage() {
   const [searchParams] = useSearchParams();
@@ -20,12 +20,12 @@ export function PackagesPage() {
   const packageAreasQuery = useQuery({ queryKey: ['package-areas'], queryFn: advertifiedApi.getPackageAreas });
   const [selectedPackageIdState, setSelectedPackageIdState] = useState<string>();
   const { user } = useAuth();
+  const purchaseRestriction = getPackagePurchaseRestriction(user);
   const navigate = useNavigate();
   const { pushToast } = useToast();
   const [stepState, setStepState] = useState<1 | 2>();
   const [selectedAreaState, setSelectedAreaState] = useState('');
   const [isResendingActivation, setIsResendingActivation] = useState(false);
-  const scrolledSectionKeyRef = useRef<string | null>(null);
   const requestedBandCode = searchParams.get('band')?.trim().toLowerCase();
   const requestedBand = requestedBandCode
     ? packagesQuery.data?.find((item) => item.code.toLowerCase() === requestedBandCode)
@@ -126,22 +126,7 @@ export function PackagesPage() {
       </div>
 
       {selectedBand && step === 2 ? (
-        <div
-          ref={(node) => {
-            if (!node) {
-              return;
-            }
-
-            const sectionKey = `${selectedBand.id}:${step}`;
-            if (scrolledSectionKeyRef.current === sectionKey) {
-              return;
-            }
-
-            scrolledSectionKeyRef.current = sectionKey;
-            node.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          }}
-          className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]"
-        >
+        <div className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
           <div className="space-y-4">
             <BudgetSelector
               band={selectedBand}
@@ -178,28 +163,41 @@ export function PackagesPage() {
                 <div className="flex flex-col gap-3 md:flex-row md:items-center">
                   <div className="flex items-start gap-2 text-sm text-amber-700">
                     <Lock className="mt-0.5 size-4 shrink-0" />
-                    <span>Verify your email before you can buy this package.</span>
+                    <span>
+                      {purchaseRestriction === 'identity_incomplete'
+                        ? 'Complete your identity details before you can buy this package.'
+                        : 'Verify your email before you can buy this package.'}
+                    </span>
                   </div>
-                  <button
-                    type="button"
-                    className="button-primary px-5 py-3"
-                    onClick={async () => {
-                      try {
-                        setIsResendingActivation(true);
-                        await advertifiedApi.resendVerification(user.email);
-                        pushToast({
-                          title: 'A fresh activation email is on its way.',
-                          description: 'Check your inbox for the new activation link.',
-                        });
-                        navigate(`/verify-email?email=${encodeURIComponent(user.email)}`);
-                      } finally {
-                        setIsResendingActivation(false);
-                      }
-                    }}
-                    disabled={isResendingActivation}
-                  >
-                    {isResendingActivation ? 'Resending activation...' : 'Resend activation'}
-                  </button>
+                  {purchaseRestriction === 'identity_incomplete' ? (
+                    <a
+                      href="mailto:support@advertified.com?subject=Identity%20details%20required%20for%20checkout"
+                      className="button-primary px-5 py-3 text-center"
+                    >
+                      Contact support
+                    </a>
+                  ) : (
+                    <button
+                      type="button"
+                      className="button-primary px-5 py-3"
+                      onClick={async () => {
+                        try {
+                          setIsResendingActivation(true);
+                          await advertifiedApi.resendVerification(user.email);
+                          pushToast({
+                            title: 'A fresh activation email is on its way.',
+                            description: 'Check your inbox for the new activation link.',
+                          });
+                          navigate(`/verify-email?email=${encodeURIComponent(user.email)}`);
+                        } finally {
+                          setIsResendingActivation(false);
+                        }
+                      }}
+                      disabled={isResendingActivation}
+                    >
+                      {isResendingActivation ? 'Resending activation...' : 'Resend activation'}
+                    </button>
+                  )}
                 </div>
               ) : (
                 <button
