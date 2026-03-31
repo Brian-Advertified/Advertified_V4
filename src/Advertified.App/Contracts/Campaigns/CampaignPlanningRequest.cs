@@ -19,5 +19,6 @@ public sealed class CampaignPlanningRequest
     public int? MaxMediaItems { get; set; }
     public int? TargetRadioShare { get; set; }
     public int? TargetOohShare { get; set; }
+    public int? TargetTvShare { get; set; }
     public int? TargetDigitalShare { get; set; }
 }

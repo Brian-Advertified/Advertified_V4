@@ -204,10 +204,19 @@ export function isInventoryRelevant(item: SelectedPlanInventoryItem, brief?: Cam
   return geoTerms.some((term) => haystack.includes(term));
 }
 
-export function buildTargetChannelMix(groupedTotals: { channel: string; total: number }[], radioShareTarget: number) {
-  const activeNonRadioChannels = groupedTotals
-    .map((entry) => normalizeChannelKey(entry.channel))
+export function buildTargetChannelMix(
+  groupedTotals: { channel: string; total: number }[],
+  radioShareTarget: number,
+  preferredMediaTypes?: string[] | null,
+) {
+  const preferredChannels = (preferredMediaTypes ?? [])
+    .map((channel) => normalizeChannelKey(channel))
     .filter((channel) => channel !== 'RADIO');
+  const activeNonRadioChannels = preferredChannels.length > 0
+    ? preferredChannels
+    : groupedTotals
+      .map((entry) => normalizeChannelKey(entry.channel))
+      .filter((channel) => channel !== 'RADIO');
 
   const uniqueNonRadioChannels = Array.from(new Set(activeNonRadioChannels));
   const remaining = Math.max(0, 100 - radioShareTarget);

@@ -340,6 +340,7 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
     {
         return request.TargetRadioShare.GetValueOrDefault() > 0
             || request.TargetOohShare.GetValueOrDefault() > 0
+            || request.TargetTvShare.GetValueOrDefault() > 0
             || request.TargetDigitalShare.GetValueOrDefault() > 0;
     }
 
@@ -365,12 +366,19 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
             shares.Add(("digital", digital.Value));
         }
 
+        var tv = _policyService.GetTargetShare("tv", request);
+        if (tv.HasValue && tv.Value > 0)
+        {
+            shares.Add(("tv", tv.Value));
+        }
+
         var explicitTotal = shares.Sum(entry => entry.Share);
+        var hasExplicitTvShare = tv.HasValue && tv.Value > 0;
         var includeTv = request.PreferredMediaTypes
             .Any(media => string.Equals(media?.Trim(), "tv", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(media?.Trim(), "television", StringComparison.OrdinalIgnoreCase));
         var tvShare = Math.Max(0, 100 - explicitTotal);
-        if (includeTv && tvShare > 0)
+        if (!hasExplicitTvShare && includeTv && tvShare > 0)
         {
             shares.Add(("tv", tvShare));
         }

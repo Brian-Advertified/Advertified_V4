@@ -19,6 +19,7 @@ public sealed class CampaignPlanningRequestValidator : AbstractValidator<Campaig
         "radio",
         "radio_slot",
         "radio_package",
+        "tv",
         "digital"
     };
 

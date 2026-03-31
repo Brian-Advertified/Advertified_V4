@@ -131,6 +131,7 @@ public sealed class PlanningPolicyService : IPlanningPolicyService
         {
             "radio" => request.TargetRadioShare,
             "ooh" => request.TargetOohShare,
+            "tv" => request.TargetTvShare,
             "digital" => request.TargetDigitalShare,
             _ => null
         };
@@ -141,6 +142,7 @@ public sealed class PlanningPolicyService : IPlanningPolicyService
         var parts = new List<string>();
         if (request.TargetRadioShare.HasValue) parts.Add($"Radio {request.TargetRadioShare.Value}%");
         if (request.TargetOohShare.HasValue) parts.Add($"OOH {request.TargetOohShare.Value}%");
+        if (request.TargetTvShare.HasValue) parts.Add($"TV {request.TargetTvShare.Value}%");
         if (request.TargetDigitalShare.HasValue) parts.Add($"Digital {request.TargetDigitalShare.Value}%");
         return parts.Count > 0 ? string.Join(" | ", parts) : null;
     }

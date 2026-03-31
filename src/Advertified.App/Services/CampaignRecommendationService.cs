@@ -145,6 +145,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             MaxMediaItems = brief.MaxMediaItems,
             TargetRadioShare = request?.TargetRadioShare,
             TargetOohShare = request?.TargetOohShare,
+            TargetTvShare = request?.TargetTvShare,
             TargetDigitalShare = request?.TargetDigitalShare
         };
     }
@@ -183,12 +184,24 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         }
 
         var activeChannels = ResolveActiveChannels(request);
+        var secondaryFocusChannel = activeChannels.Contains("digital", StringComparer.OrdinalIgnoreCase)
+            ? "digital"
+            : activeChannels.Contains("tv", StringComparer.OrdinalIgnoreCase)
+                ? "tv"
+                : "radio";
+        var secondaryFocusLabel = secondaryFocusChannel switch
+        {
+            "digital" => "digital_focus",
+            "tv" => "tv_focus",
+            _ => "radio_focus"
+        };
+
         var proposals = new List<ProposalVariant>
         {
             new("balanced", ApplyChannelTargets(request, BuildBalancedTargets(activeChannels))),
             new("ooh_focus", ApplyChannelTargets(request, BuildFocusedTargets(activeChannels, "ooh"))),
-            new(activeChannels.Contains("digital", StringComparer.OrdinalIgnoreCase) ? "digital_focus" : "radio_focus",
-                ApplyChannelTargets(request, BuildFocusedTargets(activeChannels, activeChannels.Contains("digital", StringComparer.OrdinalIgnoreCase) ? "digital" : "radio")))
+            new(secondaryFocusLabel,
+                ApplyChannelTargets(request, BuildFocusedTargets(activeChannels, secondaryFocusChannel)))
         };
 
         return proposals;
@@ -198,6 +211,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
     {
         return request.TargetRadioShare.HasValue
             || request.TargetOohShare.HasValue
+            || request.TargetTvShare.HasValue
             || request.TargetDigitalShare.HasValue;
     }
 
@@ -222,6 +236,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             MaxMediaItems = source.MaxMediaItems,
             TargetRadioShare = targets.Radio,
             TargetOohShare = targets.Ooh,
+            TargetTvShare = targets.Tv,
             TargetDigitalShare = targets.Digital
         };
     }
@@ -230,11 +245,12 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
     {
         var preferred = request.PreferredMediaTypes
             .Select(channel => channel.Trim().ToLowerInvariant())
-            .Where(channel => channel is "radio" or "ooh" or "digital")
+            .Where(channel => channel is "radio" or "ooh" or "digital" or "tv" or "television")
+            .Select(channel => channel is "television" ? "tv" : channel)
             .Distinct()
             .ToArray();
 
-        return preferred.Length > 0 ? preferred : new[] { "ooh", "radio" };
+        return preferred.Length > 0 ? preferred : new[] { "ooh", "radio", "tv" };
     }
 
     private static ChannelTargets BuildBalancedTargets(IReadOnlyList<string> activeChannels)
@@ -254,6 +270,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         return new ChannelTargets(
             targets.GetValueOrDefault("radio"),
             targets.GetValueOrDefault("ooh"),
+            targets.GetValueOrDefault("tv"),
             targets.GetValueOrDefault("digital"));
     }
 
@@ -262,7 +279,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         var targets = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         if (activeChannels.Count == 0)
         {
-            return new ChannelTargets(0, 0, 0);
+            return new ChannelTargets(0, 0, 0, 0);
         }
 
         if (!activeChannels.Contains(primaryChannel, StringComparer.OrdinalIgnoreCase))
@@ -295,6 +312,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         return new ChannelTargets(
             targets.GetValueOrDefault("radio"),
             targets.GetValueOrDefault("ooh"),
+            targets.GetValueOrDefault("tv"),
             targets.GetValueOrDefault("digital"));
     }
 
@@ -426,7 +444,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
     private static string BuildSummary(RecommendationResult result, CampaignPlanningRequest request)
     {
         var mediaMix = string.Join(", ", result.RecommendedPlan.Select(x => x.MediaType).Distinct());
-        var mixSummary = $"Radio {request.TargetRadioShare ?? 0}% | OOH {request.TargetOohShare ?? 0}% | Digital {request.TargetDigitalShare ?? 0}%";
+        var mixSummary = $"Radio {request.TargetRadioShare ?? 0}% | OOH {request.TargetOohShare ?? 0}% | TV {request.TargetTvShare ?? 0}% | Digital {request.TargetDigitalShare ?? 0}%";
         return $"Recommended {result.RecommendedPlan.Count} planned item(s) across {mediaMix}. Budget split target: {mixSummary}.";
     }
 
@@ -448,5 +466,5 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
     }
 
     private sealed record ProposalVariant(string Key, CampaignPlanningRequest Request);
-    private sealed record ChannelTargets(int Radio, int Ooh, int Digital);
+    private sealed record ChannelTargets(int Radio, int Ooh, int Tv, int Digital);
 }

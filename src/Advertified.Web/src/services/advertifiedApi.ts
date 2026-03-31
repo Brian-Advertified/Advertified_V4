@@ -1900,6 +1900,7 @@ export const advertifiedApi = {
     payload?: {
       targetRadioShare?: number;
       targetOohShare?: number;
+      targetTvShare?: number;
       targetDigitalShare?: number;
     },
   ) {

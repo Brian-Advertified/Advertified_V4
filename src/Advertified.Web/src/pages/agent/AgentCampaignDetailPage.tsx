@@ -159,13 +159,14 @@ export function AgentCampaignDetailPage() {
     mutationFn: () => advertifiedApi.generateAgentRecommendation(id, {
       targetRadioShare: targetMix.radio,
       targetOohShare: targetMix.ooh,
+      targetTvShare: targetMix.tv,
       targetDigitalShare: targetMix.digital,
     }),
     onSuccess: async () => {
       await invalidateAgentCampaignQueries(queryClient, id);
       pushToast({
         title: 'Recommendation regenerated.',
-        description: `A fresh AI draft was prepared using target mix Radio ${targetMix.radio}% | OOH ${targetMix.ooh}% | Digital ${targetMix.digital}%.`,
+        description: `A fresh AI draft was prepared using target mix Radio ${targetMix.radio}% | OOH ${targetMix.ooh}% | TV ${targetMix.tv}% | Digital ${targetMix.digital}%.`,
       });
     },
     onError: (error) => pushToast({
@@ -412,7 +413,7 @@ export function AgentCampaignDetailPage() {
   const currentOohShare = totalGroupedSpend > 0 ? Math.round((oohShare / totalGroupedSpend) * 100) : 0;
   const currentDigitalShare = totalGroupedSpend > 0 ? Math.round((digitalShare / totalGroupedSpend) * 100) : 0;
   const currentTvShare = totalGroupedSpend > 0 ? Math.round((tvShare / totalGroupedSpend) * 100) : 0;
-  const targetMix = buildTargetChannelMix(groupedTotals, mixBalance);
+  const targetMix = buildTargetChannelMix(groupedTotals, mixBalance, campaign.brief?.preferredMediaTypes);
   const confidenceScore = calculateConfidence(campaign.brief);
   const audienceSummary = buildAudienceSummary(campaign.brief);
   const geoSummary = buildGeoSummary(campaign.brief);
