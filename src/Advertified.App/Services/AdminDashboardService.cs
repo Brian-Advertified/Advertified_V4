@@ -652,6 +652,28 @@ public sealed class AdminDashboardService : IAdminDashboardService
                 }
             }
         }
+        else if (pricing.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in pricing.EnumerateArray())
+            {
+                if (item.TryGetProperty("price_zar", out var price)
+                    && price.ValueKind == JsonValueKind.Number
+                    && price.TryGetDecimal(out var priceValue)
+                    && priceValue > 0)
+                {
+                    values.Add(priceValue);
+                    continue;
+                }
+
+                if (item.TryGetProperty("rate_zar", out var rate)
+                    && rate.ValueKind == JsonValueKind.Number
+                    && rate.TryGetDecimal(out var rateValue)
+                    && rateValue > 0)
+                {
+                    values.Add(rateValue);
+                }
+            }
+        }
 
         return values;
     }

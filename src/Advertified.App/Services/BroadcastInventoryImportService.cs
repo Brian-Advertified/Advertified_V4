@@ -387,6 +387,8 @@ public sealed class BroadcastInventoryImportService : IBroadcastInventoryImportS
 
     private static IEnumerable<ImportRateRow> EnumerateRates(BroadcastInventoryRecord record)
     {
+        var emittedAny = false;
+
         if (record.Pricing.ValueKind == JsonValueKind.Object)
         {
             foreach (var group in record.Pricing.EnumerateObject())
@@ -412,6 +414,7 @@ public sealed class BroadcastInventoryImportService : IBroadcastInventoryImportS
                         RateZar = rate,
                         RateType = "spot"
                     };
+                    emittedAny = true;
                 }
             }
         }
@@ -448,6 +451,15 @@ public sealed class BroadcastInventoryImportService : IBroadcastInventoryImportS
                     RateZar = rate,
                     RateType = rateType
                 };
+                emittedAny = true;
+            }
+        }
+
+        if (!emittedAny)
+        {
+            foreach (var fallback in EnumerateSportFallbackRates(record))
+            {
+                yield return fallback;
             }
         }
     }
@@ -562,6 +574,55 @@ public sealed class BroadcastInventoryImportService : IBroadcastInventoryImportS
         return true;
     }
 
+    private static IEnumerable<ImportRateRow> EnumerateSportFallbackRates(BroadcastInventoryRecord record)
+    {
+        if (!record.MediaType.Equals("tv", StringComparison.OrdinalIgnoreCase))
+        {
+            yield break;
+        }
+
+        if (!record.Station.Contains("SABC Sport", StringComparison.OrdinalIgnoreCase))
+        {
+            yield break;
+        }
+
+        var estimatedRate = ResolveSportFallbackRate(record);
+        if (estimatedRate <= 0m)
+        {
+            yield break;
+        }
+
+        foreach (var program in SportFallbackPrograms)
+        {
+            yield return new ImportRateRow
+            {
+                DayGroup = "schedule",
+                StartTime = TimeSpan.Zero,
+                EndTime = new TimeSpan(23, 59, 0),
+                AdDurationSeconds = 30,
+                RateZar = estimatedRate,
+                RateType = program
+            };
+        }
+    }
+
+    private static decimal ResolveSportFallbackRate(BroadcastInventoryRecord record)
+    {
+        if (record.Packages.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var package in record.Packages.EnumerateArray())
+            {
+                var average = GetDecimal(package, "average_cost_per_spot_zar");
+                if (average.HasValue && average.Value > 0m)
+                {
+                    return average.Value;
+                }
+            }
+        }
+
+        return 3000m;
+    }
+
     private static string InferPackageType(string? packageName, string? notes)
     {
         var text = $"{packageName} {notes}".ToLowerInvariant();
@@ -646,5 +707,50 @@ public sealed class BroadcastInventoryImportService : IBroadcastInventoryImportS
         public decimal RateZar { get; init; }
         public string RateType { get; init; } = string.Empty;
     }
+
+    private static readonly string[] SportFallbackPrograms =
+    {
+        "Soccerzone",
+        "Soccerzone Extra",
+        "Top 14 H/Ls",
+        "The Greatest Of All Times",
+        "Liverpool TV",
+        "TotalEnergies AFCON Qualifiers",
+        "Sport Playback",
+        "Hollywoodbets Super League",
+        "CAF CCC / CCL",
+        "Retro Match",
+        "Sports Wrap",
+        "Final Analysis",
+        "Boxing World Weekly",
+        "Racing Today",
+        "Sportsbuzz",
+        "Fut Afrique",
+        "NBA Action",
+        "Redbull Clip Show",
+        "Bundesliga Review",
+        "Game On",
+        "G.O.A.Ts Like Us",
+        "TKO Boxing",
+        "Redbull Soapbox",
+        "Sports Preview 411",
+        "Redbull Doccies",
+        "Soccer Premier League (2000/1)",
+        "NBA Match",
+        "Redbull Signature",
+        "SAFA TV",
+        "Magazine",
+        "Premier League Stories",
+        "VS Gaming",
+        "Laduma",
+        "Build Up",
+        "Playing For The Coach",
+        "NBA Lifestyle",
+        "Bundesliga Match",
+        "Bundesliga Preview",
+        "EFC Live Fight",
+        "Redbull Ultimate Rush",
+        "Top 14 Rugby"
+    };
 
 }

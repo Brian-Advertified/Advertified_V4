@@ -192,49 +192,92 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
 
     private IEnumerable<BroadcastPlanningInventorySeed> CreateBroadcastRateCandidates(BroadcastInventoryRecord record, PricingSettingsSnapshot pricingSettings)
     {
-        if (record.Pricing.ValueKind != JsonValueKind.Object)
+        if (record.Pricing.ValueKind == JsonValueKind.Object)
         {
-            yield break;
-        }
-
-        foreach (var dayGroup in record.Pricing.EnumerateObject())
-        {
-            if (dayGroup.Value.ValueKind != JsonValueKind.Object)
+            foreach (var dayGroup in record.Pricing.EnumerateObject())
             {
-                continue;
-            }
-
-            foreach (var slot in dayGroup.Value.EnumerateObject())
-            {
-                if (!TryGetRate(slot.Value, out var rate))
+                if (dayGroup.Value.ValueKind != JsonValueKind.Object)
                 {
                     continue;
                 }
 
+                foreach (var slot in dayGroup.Value.EnumerateObject())
+                {
+                    if (!TryGetRate(slot.Value, out var rate))
+                    {
+                        continue;
+                    }
+
+                    var normalized = record.MediaType.Equals("tv", StringComparison.OrdinalIgnoreCase)
+                        ? _costNormalizer.NormalizeTvRate(record.Station, null, slot.Name, dayGroup.Name, rate)
+                        : _costNormalizer.NormalizeRadioRate(record.Station, slot.Name, dayGroup.Name, rate);
+
+                    if (normalized.MonthlyCostEstimateZar <= 0m)
+                    {
+                        continue;
+                    }
+
+                    var markedUpRate = PricingPolicy.ApplyMarkup(normalized.MonthlyCostEstimateZar, record.MediaType, slot.Name, pricingSettings);
+                    if (markedUpRate <= 0m)
+                    {
+                        continue;
+                    }
+
+                    yield return new BroadcastPlanningInventorySeed
+                    {
+                        Record = record,
+                        SourceId = CreateDeterministicGuid($"{record.Id}:rate:{dayGroup.Name}:{slot.Name}"),
+                        SourceType = record.MediaType.Equals("tv", StringComparison.OrdinalIgnoreCase) ? "tv_slot" : "radio_slot",
+                        DisplayName = $"{record.Station} - {slot.Name}",
+                        SlotType = "spot",
+                        Cost = markedUpRate,
+                        Metadata = CreateMetadata(record, normalized, markedUpRate, pricingSettings, "spot", dayGroup.Name, slot.Name, false, null, null)
+                    };
+                }
+            }
+        }
+        else if (record.Pricing.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var row in record.Pricing.EnumerateArray())
+            {
+                if (!TryGetRateFromArrayRow(row, out var rate))
+                {
+                    continue;
+                }
+
+                var slotLabel = GetString(row, "slot")
+                    ?? GetString(row, "time")
+                    ?? BuildSlotLabelFromTimes(GetString(row, "start_time"), GetString(row, "end_time"))
+                    ?? "selected slot";
+                var dayGroup = GetString(row, "group") ?? GetString(row, "day_group") ?? "schedule";
+                var programmeName = GetString(row, "program") ?? GetString(row, "programme") ?? GetString(row, "rate_type");
+
                 var normalized = record.MediaType.Equals("tv", StringComparison.OrdinalIgnoreCase)
-                    ? _costNormalizer.NormalizeTvRate(record.Station, null, slot.Name, dayGroup.Name, rate)
-                    : _costNormalizer.NormalizeRadioRate(record.Station, slot.Name, dayGroup.Name, rate);
+                    ? _costNormalizer.NormalizeTvRate(record.Station, programmeName, slotLabel, dayGroup, rate)
+                    : _costNormalizer.NormalizeRadioRate(record.Station, slotLabel, dayGroup, rate);
 
                 if (normalized.MonthlyCostEstimateZar <= 0m)
                 {
                     continue;
                 }
 
-                var markedUpRate = PricingPolicy.ApplyMarkup(normalized.MonthlyCostEstimateZar, record.MediaType, slot.Name, pricingSettings);
+                var markupKey = programmeName ?? slotLabel;
+                var markedUpRate = PricingPolicy.ApplyMarkup(normalized.MonthlyCostEstimateZar, record.MediaType, markupKey, pricingSettings);
                 if (markedUpRate <= 0m)
                 {
                     continue;
                 }
 
+                var displaySlot = string.IsNullOrWhiteSpace(programmeName) ? slotLabel : $"{programmeName} ({slotLabel})";
                 yield return new BroadcastPlanningInventorySeed
                 {
                     Record = record,
-                    SourceId = CreateDeterministicGuid($"{record.Id}:rate:{dayGroup.Name}:{slot.Name}"),
+                    SourceId = CreateDeterministicGuid($"{record.Id}:rate:{dayGroup}:{slotLabel}:{programmeName}:{rate}"),
                     SourceType = record.MediaType.Equals("tv", StringComparison.OrdinalIgnoreCase) ? "tv_slot" : "radio_slot",
-                    DisplayName = $"{record.Station} - {slot.Name}",
+                    DisplayName = $"{record.Station} - {displaySlot}",
                     SlotType = "spot",
                     Cost = markedUpRate,
-                    Metadata = CreateMetadata(record, normalized, markedUpRate, pricingSettings, "spot", dayGroup.Name, slot.Name, false, null, null)
+                    Metadata = CreateMetadata(record, normalized, markedUpRate, pricingSettings, "spot", dayGroup, slotLabel, false, null, null)
                 };
             }
         }
@@ -320,6 +363,32 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
             JsonValueKind.String => decimal.TryParse(element.GetString(), NumberStyles.Number, CultureInfo.InvariantCulture, out rate),
             _ => false
         };
+    }
+
+    private static bool TryGetRateFromArrayRow(JsonElement row, out decimal rate)
+    {
+        rate = 0m;
+        if (row.TryGetProperty("price_zar", out var price) && TryGetRate(price, out rate))
+        {
+            return true;
+        }
+
+        if (row.TryGetProperty("rate_zar", out var rateZar) && TryGetRate(rateZar, out rate))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static string? BuildSlotLabelFromTimes(string? startTime, string? endTime)
+    {
+        if (string.IsNullOrWhiteSpace(startTime) || string.IsNullOrWhiteSpace(endTime))
+        {
+            return null;
+        }
+
+        return $"{startTime.Trim()}-{endTime.Trim()}";
     }
 
     private static Guid CreateDeterministicGuid(string input)

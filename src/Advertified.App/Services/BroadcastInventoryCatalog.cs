@@ -259,20 +259,24 @@ public sealed class BroadcastInventoryCatalog : IBroadcastInventoryCatalog
     {
         if (rates.Count == 0)
         {
-            return JsonDocument.Parse("{}").RootElement.Clone();
+            return JsonDocument.Parse("[]").RootElement.Clone();
         }
 
-        var payload = new Dictionary<string, Dictionary<string, decimal>>(StringComparer.OrdinalIgnoreCase);
-        foreach (var rate in rates)
-        {
-            if (!payload.TryGetValue(rate.DayGroup, out var slots))
+        var payload = rates
+            .OrderBy(static rate => rate.DayGroup, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(static rate => rate.StartTime)
+            .ThenBy(static rate => rate.EndTime)
+            .ThenBy(static rate => rate.RateType, StringComparer.OrdinalIgnoreCase)
+            .Select(static rate => new Dictionary<string, object?>
             {
-                slots = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
-                payload[rate.DayGroup] = slots;
-            }
-
-            slots[$"{rate.StartTime:HH\\:mm}-{rate.EndTime:HH\\:mm}"] = rate.RateZar;
-        }
+                ["group"] = rate.DayGroup,
+                ["slot"] = $"{rate.StartTime:HH\\:mm}-{rate.EndTime:HH\\:mm}",
+                ["start_time"] = $"{rate.StartTime:HH\\:mm}",
+                ["end_time"] = $"{rate.EndTime:HH\\:mm}",
+                ["rate_zar"] = rate.RateZar,
+                ["rate_type"] = rate.RateType
+            })
+            .ToList();
 
         return JsonSerializer.SerializeToElement(payload);
     }
