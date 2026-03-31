@@ -58,7 +58,7 @@ function getPackageInclusions(band: PackageBand) {
   }
 
   if (band.includeTv !== 'no') {
-    inclusions.push(band.includeTv === 'optional' ? 'TV support' : 'TV');
+    inclusions.push(band.includeTv === 'optional' ? 'TV (optional)' : 'TV (included)');
   }
 
   if (!isLaunchBand(band)) {
