@@ -42,9 +42,12 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
 
         var brief = campaign.CampaignBrief
             ?? throw new InvalidOperationException("Campaign brief not found.");
+        var packageProfile = await _db.PackageBandProfiles
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.PackageBandId == campaign.PackageBandId, cancellationToken);
 
         var now = DateTime.UtcNow;
-        var planningRequest = BuildRequest(campaign, brief, request);
+        var planningRequest = BuildRequest(campaign, brief, request, packageProfile);
         var proposalVariants = BuildProposalVariants(planningRequest);
         Guid? primaryRecommendationId = null;
         var revisionNumber = RecommendationRevisionSupport.GetNextRevisionNumber(campaign.CampaignRecommendations);
@@ -122,8 +125,21 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         return builder.ToString();
     }
 
-    private static CampaignPlanningRequest BuildRequest(CampaignEntity campaign, CampaignBriefEntity brief, GenerateRecommendationRequest? request)
+    private static CampaignPlanningRequest BuildRequest(
+        CampaignEntity campaign,
+        CampaignBriefEntity brief,
+        GenerateRecommendationRequest? request,
+        PackageBandProfile? packageProfile)
     {
+        var preferredMediaTypes = brief.GetList(nameof(CampaignBriefEntity.PreferredMediaTypesJson)).ToList();
+        if (string.Equals(packageProfile?.IncludeTv, "yes", StringComparison.OrdinalIgnoreCase)
+            && !preferredMediaTypes.Any(media =>
+                string.Equals(media?.Trim(), "tv", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(media?.Trim(), "television", StringComparison.OrdinalIgnoreCase)))
+        {
+            preferredMediaTypes.Add("tv");
+        }
+
         return new CampaignPlanningRequest
         {
             CampaignId = campaign.Id,
@@ -135,7 +151,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             Cities = brief.GetList(nameof(CampaignBriefEntity.CitiesJson)),
             Suburbs = brief.GetList(nameof(CampaignBriefEntity.SuburbsJson)),
             Areas = brief.GetList(nameof(CampaignBriefEntity.AreasJson)),
-            PreferredMediaTypes = brief.GetList(nameof(CampaignBriefEntity.PreferredMediaTypesJson)),
+            PreferredMediaTypes = preferredMediaTypes,
             ExcludedMediaTypes = brief.GetList(nameof(CampaignBriefEntity.ExcludedMediaTypesJson)),
             TargetLanguages = brief.GetList(nameof(CampaignBriefEntity.TargetLanguagesJson)),
             TargetLsmMin = brief.TargetLsmMin,
