@@ -1,5 +1,7 @@
 import type { Campaign, SessionUser } from '../types/domain';
 
+export type PackagePurchaseRestriction = 'none' | 'email_unverified' | 'identity_incomplete';
+
 export function isAgent(user: SessionUser | null) {
   return user?.role === 'agent';
 }
@@ -21,15 +23,27 @@ export function canAccessCreativeStudio(user: SessionUser | null) {
 }
 
 export function canBuyPackage(user: SessionUser | null) {
+  return getPackagePurchaseRestriction(user) === 'none';
+}
+
+export function getPackagePurchaseRestriction(user: SessionUser | null): PackagePurchaseRestriction {
   if (!user) {
-    return false;
+    return 'email_unverified';
   }
 
   if (isAdmin(user) || isAgent(user) || isCreativeDirector(user)) {
-    return true;
+    return 'none';
   }
 
-  return Boolean(user.emailVerified && user.identityComplete);
+  if (!user.emailVerified) {
+    return 'email_unverified';
+  }
+
+  if (!user.identityComplete) {
+    return 'identity_incomplete';
+  }
+
+  return 'none';
 }
 
 export function canOpenBrief(campaign?: Campaign | null) {
