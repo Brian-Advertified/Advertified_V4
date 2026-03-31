@@ -26,6 +26,7 @@ function reloadAfterChunkFailure() {
     return;
   }
 
+  // Guard against reload loops: refresh only once per tab/session.
   const alreadyReloaded = window.sessionStorage.getItem(CHUNK_RELOAD_GUARD_KEY) === '1';
   if (alreadyReloaded) {
     return;
