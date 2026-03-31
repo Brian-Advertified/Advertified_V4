@@ -1,4 +1,4 @@
-import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
+import { useState, type Dispatch, type SetStateAction } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PauseCircle, PlayCircle, RotateCcw } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -19,7 +19,7 @@ type DraftState = {
 export function AdminCampaignOperationsPage() {
   const queryClient = useQueryClient();
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>();
-  const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [editorState, setEditorState] = useState<{ campaignId?: string; isOpen: boolean }>({ isOpen: false });
   const [drafts, setDrafts] = useState<Record<string, DraftState>>({});
 
   const query = useQuery({
@@ -45,11 +45,8 @@ export function AdminCampaignOperationsPage() {
 
   const items = query.data ?? [];
   const selected = items.find((item) => item.campaignId === selectedCampaignId) ?? items[0];
+  const isEditorOpen = Boolean(selected?.campaignId && editorState.isOpen && editorState.campaignId === selected.campaignId);
   const selectedDraft = selected ? getDraft(selected, drafts) : undefined;
-
-  useEffect(() => {
-    setIsEditorOpen(false);
-  }, [selected?.campaignId]);
 
   if (query.isLoading) {
     return (
@@ -107,7 +104,10 @@ export function AdminCampaignOperationsPage() {
                     <tr
                       key={item.campaignId}
                       className={`cursor-pointer border-t border-line transition ${selected?.campaignId === item.campaignId ? 'bg-brand-soft/50' : 'hover:bg-slate-50'}`}
-                      onClick={() => setSelectedCampaignId(item.campaignId)}
+                      onClick={() => {
+                        setSelectedCampaignId(item.campaignId);
+                        setEditorState({ campaignId: item.campaignId, isOpen: false });
+                      }}
                     >
                       <td className="px-4 py-4 align-top">
                         <p className="font-semibold text-ink">{item.campaignName}</p>
@@ -160,7 +160,10 @@ export function AdminCampaignOperationsPage() {
                       <button
                         type="button"
                         className="button-primary rounded-full px-4 py-2"
-                        onClick={() => setIsEditorOpen((current) => !current)}
+                        onClick={() => setEditorState((current) => ({
+                          campaignId: selected.campaignId,
+                          isOpen: current.campaignId === selected.campaignId ? !current.isOpen : true,
+                        }))}
                       >
                         {isEditorOpen ? 'Close edit' : 'Edit'}
                       </button>

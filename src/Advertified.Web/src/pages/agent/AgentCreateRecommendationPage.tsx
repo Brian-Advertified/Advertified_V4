@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, ChevronRight, Sparkles, Wand2 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -60,6 +60,11 @@ type ProspectFormState = {
   campaignName: string;
 };
 
+type ScopedFormState = {
+  key: string;
+  value: CampaignFormState;
+};
+
 function parseBudgetInput(value: string) {
   const normalized = value.replace(/[^\d.]/g, '');
   if (!normalized) {
@@ -104,9 +109,9 @@ export function AgentCreateRecommendationPage() {
   const [selectedCampaignIdState, setSelectedCampaignIdState] = useState<string>('');
   const [selectedClientIdState, setSelectedClientIdState] = useState<string>('');
   const [pendingAction, setPendingAction] = useState<'draft' | 'generate' | null>(null);
-  const [aiInterpretationSummary, setAiInterpretationSummary] = useState('');
-  const hydratedCampaignIdRef = useRef<string | null>(null);
-  const [form, setForm] = useState<CampaignFormState>({
+  const [scopedAiInterpretationSummary, setScopedAiInterpretationSummary] = useState<{ key: string; summary: string } | null>(null);
+  const [scopedForm, setScopedForm] = useState<ScopedFormState | null>(null);
+  const emptyForm: CampaignFormState = {
     objective: '',
     audience: '',
     scope: '',
@@ -115,7 +120,7 @@ export function AgentCreateRecommendationPage() {
     tone: '',
     brief: '',
     channels: ['Radio', 'OOH'],
-  });
+  };
   const [showProspectForm, setShowProspectForm] = useState(false);
   const [prospectForm, setProspectForm] = useState<ProspectFormState>({
     fullName: '',
@@ -177,27 +182,27 @@ export function AgentCreateRecommendationPage() {
   const selectedCampaignHydrationKey = selectedCampaign
     ? `${selectedCampaign.id}:${selectedPackageBand?.includeRadio ?? 'optional'}:${selectedPackageBand?.includeTv ?? 'no'}`
     : null;
-
-  useEffect(() => {
-    if (!selectedCampaign || !selectedCampaignHydrationKey) {
-      return;
-    }
-
-    if (hydratedCampaignIdRef.current === selectedCampaignHydrationKey) {
-      return;
-    }
-
-    hydratedCampaignIdRef.current = selectedCampaignHydrationKey;
-    setForm(inferInitialForm({
+  const activeFormKey = selectedCampaignHydrationKey ?? '__no-campaign__';
+  const inferredForm = selectedCampaign
+    ? inferInitialForm({
       ...selectedCampaign,
       includeRadio: selectedPackageBand?.includeRadio ?? 'optional',
       includeTv: selectedPackageBand?.includeTv ?? 'no',
-    }));
-    setAiInterpretationSummary('');
-  }, [selectedCampaign, selectedCampaignHydrationKey, selectedPackageBand?.includeRadio, selectedPackageBand?.includeTv]);
+    })
+    : emptyForm;
+  const form = scopedForm?.key === activeFormKey ? scopedForm.value : inferredForm;
+  const aiInterpretationSummary = scopedAiInterpretationSummary?.key === activeFormKey
+    ? scopedAiInterpretationSummary.summary
+    : '';
 
   const handleFormChange = <K extends keyof CampaignFormState>(key: K, value: CampaignFormState[K]) => {
-    setForm((current) => ({ ...current, [key]: value }));
+    setScopedForm({
+      key: activeFormKey,
+      value: {
+        ...form,
+        [key]: value,
+      },
+    });
   };
 
   const toggleChannel = (channel: ChannelOption) => {
@@ -205,12 +210,15 @@ export function AgentCreateRecommendationPage() {
       return;
     }
 
-    setForm((current) => ({
-      ...current,
-      channels: current.channels.includes(channel)
-        ? current.channels.filter((item) => item !== channel)
-        : [...current.channels, channel],
-    }));
+    setScopedForm({
+      key: activeFormKey,
+      value: {
+        ...form,
+        channels: form.channels.includes(channel)
+          ? form.channels.filter((item) => item !== channel)
+          : [...form.channels, channel],
+      },
+    });
   };
 
   const handleClientChange = (userId: string) => {
@@ -361,18 +369,21 @@ export function AgentCreateRecommendationPage() {
       const interpretedChannels = result.channels
         .filter((channel): channel is ChannelOption => CHANNEL_OPTIONS.includes(channel as ChannelOption));
 
-      setForm((current) => ({
-        ...current,
-        objective: result.objective || current.objective,
-        audience: result.audience || current.audience,
-        scope: result.scope || current.scope,
-        geography: result.geography || current.geography,
-        tone: result.tone || current.tone,
-        brandName: result.campaignName || current.brandName,
-        channels: (interpretedChannels.length > 0 ? interpretedChannels : current.channels)
+      setScopedForm({
+        key: activeFormKey,
+        value: {
+          ...form,
+          objective: result.objective || form.objective,
+          audience: result.audience || form.audience,
+          scope: result.scope || form.scope,
+          geography: result.geography || form.geography,
+          tone: result.tone || form.tone,
+          brandName: result.campaignName || form.brandName,
+          channels: (interpretedChannels.length > 0 ? interpretedChannels : form.channels)
           .filter((channel) => allowedChannels.includes(channel)),
-      }));
-      setAiInterpretationSummary(result.summary);
+        },
+      });
+      setScopedAiInterpretationSummary({ key: activeFormKey, summary: result.summary });
       pushToast({
         title: 'AI inputs updated.',
         description: 'The brief has been interpreted into structured campaign inputs you can refine before generating the draft.',

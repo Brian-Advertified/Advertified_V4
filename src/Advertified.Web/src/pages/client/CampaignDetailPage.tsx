@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MessageSquareText, Sparkles } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { LoadingState } from '../../components/ui/LoadingState';
@@ -31,19 +31,9 @@ export function CampaignDetailPage() {
   const [messageDraft, setMessageDraft] = useState('');
   const [changeNotes, setChangeNotes] = useState('');
   const [selectedRecommendationId, setSelectedRecommendationId] = useState('');
-
-  useEffect(() => {
-    if (recommendations.length === 0) {
-      return;
-    }
-
-    if (recommendations.some((item) => item.id === selectedRecommendationId)) {
-      return;
-    }
-
-    const preferred = recommendations.find((item) => item.status === 'sent_to_client') ?? recommendations[0];
-    setSelectedRecommendationId(preferred.id);
-  }, [recommendations, selectedRecommendationId]);
+  const resolvedRecommendationId = recommendations.some((item) => item.id === selectedRecommendationId)
+    ? selectedRecommendationId
+    : (recommendations.find((item) => item.status === 'sent_to_client')?.id ?? recommendations[0]?.id ?? '');
 
   const approveMutation = useMutation({
     mutationFn: (recommendationId?: string) => advertifiedApi.approveRecommendation(id, recommendationId),
@@ -181,7 +171,7 @@ export function CampaignDetailPage() {
 
   const campaign = campaignQuery.data;
   const thread = threadQuery.data;
-  const recommendation = recommendations.find((item) => item.id === selectedRecommendationId) ?? recommendations[0];
+  const recommendation = recommendations.find((item) => item.id === resolvedRecommendationId) ?? recommendations[0];
   const progress = getCampaignProgressPercent(campaign);
   const campaignReadiness = campaign.status === 'launched'
     ? 100

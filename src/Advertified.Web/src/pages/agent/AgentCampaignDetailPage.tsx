@@ -15,7 +15,7 @@ import {
   UserX2,
   X,
 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useDeferredValue, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { LoadingState } from '../../components/ui/LoadingState';
@@ -64,8 +64,8 @@ export function AgentCampaignDetailPage() {
   const navigate = useNavigate();
   const { pushToast } = useToast();
   const queryClient = useQueryClient();
-  const [selectedPlanItems, setSelectedPlanItems] = useState<SelectedPlanInventoryItem[]>([]);
-  const [draftApprovalCaptured, setDraftApprovalCaptured] = useState(false);
+  const [selectedPlanState, setSelectedPlanState] = useState<{ key: string; items: SelectedPlanInventoryItem[] } | null>(null);
+  const [draftApprovalState, setDraftApprovalState] = useState<{ key: string; captured: boolean } | null>(null);
   const [mixBalance, setMixBalance] = useState(60);
   const [selectedRecommendationIdState, setSelectedRecommendationIdState] = useState('');
   const [inventoryModalOpen, setInventoryModalOpen] = useState(false);
@@ -73,7 +73,6 @@ export function AgentCampaignDetailPage() {
   const [inventoryRegionFilter, setInventoryRegionFilter] = useState('all');
   const [inventoryLanguageFilter, setInventoryLanguageFilter] = useState('all');
   const [inventorySearchInput, setInventorySearchInput] = useState('');
-  const [inventorySearchQuery, setInventorySearchQuery] = useState('');
   const [opsAssetFile, setOpsAssetFile] = useState<File | null>(null);
   const [opsAssetType, setOpsAssetType] = useState('proof_of_booking');
   const [bookingDraft, setBookingDraft] = useState({
@@ -97,7 +96,6 @@ export function AgentCampaignDetailPage() {
     evidenceAssetId: '',
   });
   const mixPanelRef = useRef<HTMLDivElement | null>(null);
-  const hydratedRecommendationKeyRef = useRef<string | null>(null);
 
   const campaignQuery = useQuery({ queryKey: queryKeys.agent.campaign(id), queryFn: () => advertifiedApi.getAgentCampaign(id) });
   const inventoryQuery = useQuery({
@@ -279,14 +277,18 @@ export function AgentCampaignDetailPage() {
     : (campaign?.recommendation ? [campaign.recommendation] : []);
   const selectedRecommendationId = selectedRecommendationIdState || recommendations[0]?.id || '';
   const activeRecommendation = recommendations.find((item) => item.id === selectedRecommendationId) ?? recommendations[0];
-
-  useEffect(() => {
+  const recommendationItemsKey = activeRecommendation?.items
+    .map((item) => `${item.id}:${item.sourceInventoryId ?? ''}:${item.quantity ?? 1}:${item.cost}`)
+    .join('|') ?? '';
+  const inventoryItemsKey = inventoryItems.map((item) => item.id).join('|');
+  const hydrationKey = `${campaign?.id ?? 'no-campaign'}:${activeRecommendation?.id ?? 'no-recommendation'}:${inventoryItemsKey}:${recommendationItemsKey}`;
+  const hydratedSelectedPlanItems = useMemo(() => {
     if (!campaign || !activeRecommendation) {
-      return;
+      return [] as SelectedPlanInventoryItem[];
     }
 
     const byId = new Map(inventoryItems.map((item) => [item.id, item]));
-    const selectedFromRecommendation = activeRecommendation.items
+    return activeRecommendation.items
       .map((item) => {
         const quantity = item.quantity || 1;
         const inventoryMatch = item.sourceInventoryId ? byId.get(item.sourceInventoryId) : undefined;
@@ -332,16 +334,14 @@ export function AgentCampaignDetailPage() {
         } as SelectedPlanInventoryItem;
       })
       .filter((item): item is SelectedPlanInventoryItem => item !== null);
-
-    const hydrationKey = `${campaign.id}:${activeRecommendation.id}:${inventoryItems.map((item) => item.id).join('|')}`;
-    if (hydratedRecommendationKeyRef.current === hydrationKey) {
-      return;
-    }
-
-    hydratedRecommendationKeyRef.current = hydrationKey;
-    setSelectedPlanItems(selectedFromRecommendation);
-    setDraftApprovalCaptured(false);
   }, [campaign, activeRecommendation, inventoryItems]);
+  const selectedPlanItems = selectedPlanState?.key === hydrationKey
+    ? selectedPlanState.items
+    : hydratedSelectedPlanItems;
+  const draftApprovalCaptured = draftApprovalState?.key === hydrationKey
+    ? draftApprovalState.captured
+    : false;
+  const deferredInventorySearchInput = useDeferredValue(inventorySearchInput);
 
   if (campaignQuery.isLoading || inventoryQuery.isLoading || !campaign) {
     return <LoadingState label="Loading agent campaign detail..." />;
@@ -361,7 +361,8 @@ export function AgentCampaignDetailPage() {
   const inventoryTypeOptions = Array.from(new Set(visibleInventoryItems.map((item) => item.type))).sort();
   const inventoryRegionOptions = Array.from(new Set(visibleInventoryItems.map((item) => item.region).filter((value) => value?.trim()))).sort();
   const inventoryLanguageOptions = Array.from(new Set(visibleInventoryItems.map((item) => item.language).filter((value) => value?.trim()))).sort();
-  const inventorySearchActive = inventorySearchQuery.trim().length >= 3;
+  const inventorySearchQuery = deferredInventorySearchInput.trim();
+  const inventorySearchActive = inventorySearchQuery.length >= 3;
   const filteredInventoryItems = visibleInventoryItems.filter((item) => {
     if (inventoryTypeFilter !== 'all' && item.type !== inventoryTypeFilter) {
       return false;
@@ -466,13 +467,6 @@ export function AgentCampaignDetailPage() {
     }
   }
 
-  useEffect(() => {
-    const raw = inventorySearchInput.trim();
-    const nextQuery = raw.length >= 3 ? raw : '';
-    const timeout = window.setTimeout(() => setInventorySearchQuery(nextQuery), 250);
-    return () => window.clearTimeout(timeout);
-  }, [inventorySearchInput]);
-
   function handleSendToClient() {
     if (!hasSendableProposal) {
       pushToast({
@@ -494,23 +488,32 @@ export function AgentCampaignDetailPage() {
       return;
     }
 
-    setSelectedPlanItems((current) => {
-      const existing = current.find((value) => value.id === item.id);
+    setSelectedPlanState((currentState) => {
+      const currentItems = currentState?.key === hydrationKey
+        ? currentState.items
+        : hydratedSelectedPlanItems;
+      const existing = currentItems.find((value) => value.id === item.id);
       if (existing) {
-        return current.filter((value) => value.id !== item.id);
+        return {
+          key: hydrationKey,
+          items: currentItems.filter((value) => value.id !== item.id),
+        };
       }
 
-      return [
-        ...current,
-        {
-          ...item,
-          quantity: 1,
-          flighting: '',
-          notes: '',
-          startDate: '',
-          endDate: '',
-        },
-      ];
+      return {
+        key: hydrationKey,
+        items: [
+          ...currentItems,
+          {
+            ...item,
+            quantity: 1,
+            flighting: '',
+            notes: '',
+            startDate: '',
+            endDate: '',
+          },
+        ],
+      };
     });
   }
 
@@ -549,7 +552,7 @@ export function AgentCampaignDetailPage() {
     }
 
     await saveMutation.mutateAsync();
-    setDraftApprovalCaptured(true);
+    setDraftApprovalState({ key: hydrationKey, captured: true });
     pushToast({
       title: 'Draft finalized.',
       description: 'The selected proposal draft is locked and ready for client review handoff.',

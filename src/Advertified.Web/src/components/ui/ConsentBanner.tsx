@@ -1,12 +1,48 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ShieldCheck } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { Link } from 'react-router-dom';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import { OPEN_CONSENT_PREFERENCES_EVENT } from './consentPreferences';
 import { useToast } from './toast';
 
 const BROWSER_ID_STORAGE_KEY = 'advertified-browser-id';
+const consentPreferenceListeners = new Set<() => void>();
+let openConsentPreferencesTick = 0;
+let consentPreferencesListenerAttached = false;
+
+function notifyConsentPreferenceListeners() {
+  openConsentPreferencesTick += 1;
+  for (const listener of consentPreferenceListeners) {
+    listener();
+  }
+}
+
+function handleOpenConsentPreferencesEvent() {
+  notifyConsentPreferenceListeners();
+}
+
+function subscribeToOpenConsentPreferences(listener: () => void) {
+  consentPreferenceListeners.add(listener);
+
+  if (typeof window !== 'undefined' && !consentPreferencesListenerAttached) {
+    window.addEventListener(OPEN_CONSENT_PREFERENCES_EVENT, handleOpenConsentPreferencesEvent);
+    consentPreferencesListenerAttached = true;
+  }
+
+  return () => {
+    consentPreferenceListeners.delete(listener);
+
+    if (typeof window !== 'undefined' && consentPreferencesListenerAttached && consentPreferenceListeners.size === 0) {
+      window.removeEventListener(OPEN_CONSENT_PREFERENCES_EVENT, handleOpenConsentPreferencesEvent);
+      consentPreferencesListenerAttached = false;
+    }
+  };
+}
+
+function getOpenConsentPreferencesSnapshot() {
+  return openConsentPreferencesTick;
+}
 
 function getBrowserId() {
   const existing = localStorage.getItem(BROWSER_ID_STORAGE_KEY);
@@ -22,10 +58,17 @@ function getBrowserId() {
 export function ConsentBanner() {
   const { pushToast } = useToast();
   const queryClient = useQueryClient();
-  const [forceOpen, setForceOpen] = useState(false);
-  const [manageOpen, setManageOpen] = useState(false);
-  const [analyticsCookies, setAnalyticsCookies] = useState(false);
-  const [marketingCookies, setMarketingCookies] = useState(false);
+  const openPreferencesEventTick = useSyncExternalStore(
+    subscribeToOpenConsentPreferences,
+    getOpenConsentPreferencesSnapshot,
+    getOpenConsentPreferencesSnapshot,
+  );
+  const [bannerUiState, setBannerUiState] = useState<{ ackTick: number; forceOpen: boolean; manageOpen: boolean }>({
+    ackTick: 0,
+    forceOpen: false,
+    manageOpen: false,
+  });
+  const [preferenceDraftState, setPreferenceDraftState] = useState<{ key: string; analyticsCookies: boolean; marketingCookies: boolean } | null>(null);
   const browserId = getBrowserId();
 
   const consentQuery = useQuery({
@@ -41,11 +84,14 @@ export function ConsentBanner() {
       privacyAccepted: true,
     }),
     onSuccess: (result) => {
-      setAnalyticsCookies(result.analyticsCookies);
-      setMarketingCookies(result.marketingCookies);
+      const resultKey = `${result.analyticsCookies ? '1' : '0'}:${result.marketingCookies ? '1' : '0'}:${result.hasSavedPreferences ? '1' : '0'}`;
+      setPreferenceDraftState({
+        key: resultKey,
+        analyticsCookies: result.analyticsCookies,
+        marketingCookies: result.marketingCookies,
+      });
       queryClient.setQueryData(['consent-preferences', browserId], result);
-      setForceOpen(false);
-      setManageOpen(false);
+      setBannerUiState({ ackTick: openPreferencesEventTick, forceOpen: false, manageOpen: false });
       pushToast({
         title: 'Preferences saved.',
         description: 'Your cookie and privacy choices have been saved.',
@@ -59,32 +105,20 @@ export function ConsentBanner() {
     },
   });
 
-  useEffect(() => {
-    function handleOpenPreferences() {
-      setForceOpen(true);
-      setManageOpen(true);
-    }
-
-    window.addEventListener(OPEN_CONSENT_PREFERENCES_EVENT, handleOpenPreferences);
-
-    return () => {
-      window.removeEventListener(OPEN_CONSENT_PREFERENCES_EVENT, handleOpenPreferences);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!consentQuery.data) {
-      return;
-    }
-
-    setAnalyticsCookies(consentQuery.data.analyticsCookies);
-    setMarketingCookies(consentQuery.data.marketingCookies);
-  }, [consentQuery.data]);
-
   if (consentQuery.isLoading || !consentQuery.data) {
     return null;
   }
 
+  const preferenceKey = `${consentQuery.data.analyticsCookies ? '1' : '0'}:${consentQuery.data.marketingCookies ? '1' : '0'}:${consentQuery.data.hasSavedPreferences ? '1' : '0'}`;
+  const analyticsCookies = preferenceDraftState?.key === preferenceKey
+    ? preferenceDraftState.analyticsCookies
+    : consentQuery.data.analyticsCookies;
+  const marketingCookies = preferenceDraftState?.key === preferenceKey
+    ? preferenceDraftState.marketingCookies
+    : consentQuery.data.marketingCookies;
+  const eventForcedOpen = openPreferencesEventTick > bannerUiState.ackTick;
+  const forceOpen = eventForcedOpen ? true : bannerUiState.forceOpen;
+  const manageOpen = eventForcedOpen ? true : bannerUiState.manageOpen;
   const shouldShowBanner = forceOpen || !consentQuery.data.hasSavedPreferences;
 
   if (!shouldShowBanner) {
@@ -128,7 +162,11 @@ export function ConsentBanner() {
             </button>
             <button
               type="button"
-              onClick={() => setManageOpen((current) => !current)}
+              onClick={() => setBannerUiState((current) => ({
+                ackTick: openPreferencesEventTick,
+                forceOpen: current.forceOpen,
+                manageOpen: !manageOpen,
+              }))}
               className="user-btn px-4 py-2"
             >
               {manageOpen ? 'Hide options' : 'Manage'}
@@ -137,8 +175,7 @@ export function ConsentBanner() {
               <button
                 type="button"
                 onClick={() => {
-                  setForceOpen(false);
-                  setManageOpen(false);
+                  setBannerUiState({ ackTick: openPreferencesEventTick, forceOpen: false, manageOpen: false });
                 }}
                 className="user-btn px-4 py-2"
               >
@@ -169,7 +206,11 @@ export function ConsentBanner() {
                 <input
                   type="checkbox"
                   checked={analyticsCookies}
-                  onChange={(event) => setAnalyticsCookies(event.target.checked)}
+                  onChange={(event) => setPreferenceDraftState({
+                    key: preferenceKey,
+                    analyticsCookies: event.target.checked,
+                    marketingCookies,
+                  })}
                   className="mt-1 size-4 accent-brand"
                 />
               </div>
@@ -184,7 +225,11 @@ export function ConsentBanner() {
                 <input
                   type="checkbox"
                   checked={marketingCookies}
-                  onChange={(event) => setMarketingCookies(event.target.checked)}
+                  onChange={(event) => setPreferenceDraftState({
+                    key: preferenceKey,
+                    analyticsCookies,
+                    marketingCookies: event.target.checked,
+                  })}
                   className="mt-1 size-4 accent-brand"
                 />
               </div>

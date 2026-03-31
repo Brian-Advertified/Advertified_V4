@@ -737,7 +737,7 @@ function mapRecommendation(response?: CampaignRecommendationResponse | null): Ca
       fallbackFlags: response.fallbackFlags ?? [],
       status: response.status,
       totalCost: response.totalCost,
-      items: response.items.map((item) => ({
+      items: (response.items ?? []).map((item) => ({
         ...item,
         sourceInventoryId: item.sourceInventoryId ?? undefined,
         region: item.region ?? undefined,

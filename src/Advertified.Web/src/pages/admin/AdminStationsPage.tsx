@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Eye, Pencil, PlusCircle, Save, Trash2, X } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -188,20 +188,6 @@ export function AdminStationsPage() {
     void openExistingDialog(outletFromSearch, modeFromSearch);
   }
 
-  useEffect(() => {
-    if (dialogMode !== 'edit' && dialogMode !== 'create') {
-      return;
-    }
-
-    const packageCount = selectedOutletQuery.data?.packageCount ?? 0;
-    const slotRateCount = selectedOutletQuery.data?.slotRateCount ?? 0;
-    const cannotBeStrong = !outletForm.hasPricing || (packageCount === 0 && slotRateCount === 0);
-
-    if (cannotBeStrong && outletForm.catalogHealth === 'strong') {
-      setOutletForm((current) => ({ ...current, catalogHealth: 'mixed_not_fully_healthy' }));
-    }
-  }, [dialogMode, outletForm.catalogHealth, outletForm.hasPricing, selectedOutletQuery.data?.packageCount, selectedOutletQuery.data?.slotRateCount]);
-
   return (
     <AdminQueryBoundary query={query}>
       {(dashboard) => {
@@ -231,6 +217,9 @@ export function AdminStationsPage() {
           activeDetail?.slotRateCount ?? 0,
         );
         const canMarkStrong = outletForm.hasPricing && ((activeDetail?.packageCount ?? 0) > 0 || (activeDetail?.slotRateCount ?? 0) > 0);
+        const displayCatalogHealth = canMarkStrong || outletForm.catalogHealth !== 'strong'
+          ? outletForm.catalogHealth
+          : 'mixed_not_fully_healthy';
 
         return (
         <AdminPageShell title="Stations and channels" description="Manage live broadcast outlets, add new stations, and review health, coverage, geography, and pricing signals.">
@@ -292,7 +281,7 @@ export function AdminStationsPage() {
                       <option value="regional">Regional</option>
                       <option value="national">National</option>
                     </select>
-                    <select disabled={isReadOnly} className="input-base disabled:bg-slate-50" value={outletForm.catalogHealth} onChange={(event) => setOutletForm((current) => ({ ...current, catalogHealth: event.target.value }))}>
+                    <select disabled={isReadOnly} className="input-base disabled:bg-slate-50" value={displayCatalogHealth} onChange={(event) => setOutletForm((current) => ({ ...current, catalogHealth: event.target.value }))}>
                       <option value="strong" disabled={!canMarkStrong}>Strong</option>
                       <option value="mixed_not_fully_healthy">Mixed not fully healthy</option>
                       <option value="weak_unpriced">Weak unpriced</option>

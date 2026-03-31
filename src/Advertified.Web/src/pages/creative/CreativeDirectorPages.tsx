@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, CheckCircle2, ClipboardList, ImagePlus, Palette, RadioTower, Sparkles, WandSparkles } from 'lucide-react';
 import type { ChangeEvent, ReactNode } from 'react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link, NavLink, useParams } from 'react-router-dom';
 import { PageHero } from '../../components/marketing/PageHero';
 import { EmptyState } from '../../components/ui/EmptyState';
@@ -706,17 +706,18 @@ function CreativeStudioContent({
   const [channelsInput, setChannelsInput] = useState(channelMood.join(', '));
   const [ctaInput, setCtaInput] = useState('');
   const [constraintsInput, setConstraintsInput] = useState(brief?.specialRequirements ?? '');
-  const [creativeSystem, setCreativeSystem] = useState<Awaited<ReturnType<typeof advertifiedApi.generateCreativeSystem>> | null>(campaign.latestCreativeSystem?.output ?? null);
-  const [lastIterationLabel, setLastIterationLabel] = useState<string | null>(campaign.latestCreativeSystem?.iterationLabel ?? null);
-
-  useEffect(() => {
-    if (!campaign.latestCreativeSystem) {
-      return;
-    }
-
-    setCreativeSystem(campaign.latestCreativeSystem.output);
-    setLastIterationLabel(campaign.latestCreativeSystem.iterationLabel ?? null);
-  }, [campaign.latestCreativeSystem]);
+  const [scopedCreativeState, setScopedCreativeState] = useState<{
+    key: string;
+    creativeSystem: Awaited<ReturnType<typeof advertifiedApi.generateCreativeSystem>> | null;
+    lastIterationLabel: string | null;
+  } | null>(null);
+  const creativeStateKey = campaign.latestCreativeSystem?.id ?? `campaign:${campaign.id}:none`;
+  const creativeSystem = scopedCreativeState?.key === creativeStateKey
+    ? scopedCreativeState.creativeSystem
+    : (campaign.latestCreativeSystem?.output ?? null);
+  const lastIterationLabel = scopedCreativeState?.key === creativeStateKey
+    ? scopedCreativeState.lastIterationLabel
+    : (campaign.latestCreativeSystem?.iterationLabel ?? null);
 
   const creativeSystemMutation = useMutation({
     mutationFn: async (variables: { iterationLabel?: string; iterationInstruction?: string } = {}) => {
@@ -739,8 +740,11 @@ function CreativeStudioContent({
       });
     },
     onSuccess: (result, variables) => {
-      setCreativeSystem(result);
-      setLastIterationLabel(variables.iterationLabel ?? null);
+      setScopedCreativeState({
+        key: creativeStateKey,
+        creativeSystem: result,
+        lastIterationLabel: variables.iterationLabel ?? null,
+      });
       queryClient.invalidateQueries({ queryKey: queryKeys.creative.campaign(campaign.id) }).catch(() => {});
       pushToast({
         title: variables.iterationLabel ? `Creative system updated: ${variables.iterationLabel}.` : 'Creative system generated.',
@@ -1092,9 +1096,12 @@ function CreativeStudioContent({
                   key={savedSystem.id}
                   type="button"
                   onClick={() => {
-                    setCreativeSystem(savedSystem.output);
+                    setScopedCreativeState({
+                      key: creativeStateKey,
+                      creativeSystem: savedSystem.output,
+                      lastIterationLabel: savedSystem.iterationLabel ?? null,
+                    });
                     setPrompt(savedSystem.prompt);
-                    setLastIterationLabel(savedSystem.iterationLabel ?? null);
                   }}
                   className="rounded-[22px] border border-slate-200/80 bg-slate-50/70 p-4 text-left transition hover:border-brand/40 hover:bg-white"
                 >

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { FileDown, ReceiptText, X } from 'lucide-react';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import type { AdminPackageOrder } from '../../types/domain';
@@ -25,28 +25,46 @@ export function AdminPackageOrderEditModal({
   onClose,
   onSave,
 }: AdminPackageOrderEditModalProps) {
-  const [paymentStatus, setPaymentStatus] = useState<'paid' | 'failed' | ''>('');
-  const [paymentReference, setPaymentReference] = useState('');
-  const [notes, setNotes] = useState('');
-  const [file, setFile] = useState<File | undefined>();
-
-  useEffect(() => {
-    if (!order || !isOpen) {
-      return;
-    }
-
-    setPaymentStatus('');
-    setPaymentReference(order.paymentReference ?? '');
-    setNotes('');
-    setFile(undefined);
-  }, [isOpen, order]);
+  const [scopedDraft, setScopedDraft] = useState<{
+    key: string;
+    paymentStatus: 'paid' | 'failed' | '';
+    paymentReference: string;
+    notes: string;
+    file: File | undefined;
+  } | null>(null);
 
   if (!isOpen || !order) {
     return null;
   }
 
+  const modalKey = order.orderId;
+  const paymentReference = scopedDraft?.key === modalKey ? scopedDraft.paymentReference : (order.paymentReference ?? '');
+  const notes = scopedDraft?.key === modalKey ? scopedDraft.notes : '';
+  const file = scopedDraft?.key === modalKey ? scopedDraft.file : undefined;
+  const currentPaymentStatus = scopedDraft?.key === modalKey ? scopedDraft.paymentStatus : '';
+  const setDraftValue = (
+    key: 'paymentStatus' | 'paymentReference' | 'notes' | 'file',
+    value: 'paid' | 'failed' | '' | string | File | undefined,
+  ) => {
+    setScopedDraft((current) => ({
+      key: modalKey,
+      paymentStatus: key === 'paymentStatus'
+        ? value as ('paid' | 'failed' | '')
+        : (current?.key === modalKey ? current.paymentStatus : ''),
+      paymentReference: key === 'paymentReference'
+        ? String(value ?? '')
+        : (current?.key === modalKey ? current.paymentReference : (order.paymentReference ?? '')),
+      notes: key === 'notes'
+        ? String(value ?? '')
+        : (current?.key === modalKey ? current.notes : ''),
+      file: key === 'file'
+        ? value as (File | undefined)
+        : (current?.key === modalKey ? current.file : undefined),
+    }));
+  };
+
   const fileIsInvalid = Boolean(file && file.type && file.type !== 'application/pdf');
-  const canSave = Boolean(order.canUpdateLulaStatus && paymentStatus && notes.trim() && file && !fileIsInvalid);
+  const canSave = Boolean(order.canUpdateLulaStatus && currentPaymentStatus && notes.trim() && file && !fileIsInvalid);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-8">
@@ -122,8 +140,8 @@ export function AdminPackageOrderEditModal({
                   Payment status
                   <select
                     className="input-base mt-2"
-                    value={paymentStatus}
-                    onChange={(event) => setPaymentStatus(event.target.value as 'paid' | 'failed' | '')}
+                    value={currentPaymentStatus}
+                    onChange={(event) => setDraftValue('paymentStatus', event.target.value as 'paid' | 'failed' | '')}
                   >
                     <option value="">Choose status</option>
                     <option value="paid">Successful</option>
@@ -136,7 +154,7 @@ export function AdminPackageOrderEditModal({
                   <input
                     className="input-base mt-2"
                     value={paymentReference}
-                    onChange={(event) => setPaymentReference(event.target.value)}
+                    onChange={(event) => setDraftValue('paymentReference', event.target.value)}
                     placeholder="Lula settlement reference"
                   />
                 </label>
@@ -146,7 +164,7 @@ export function AdminPackageOrderEditModal({
                   <textarea
                     className="input-base mt-2 min-h-28"
                     value={notes}
-                    onChange={(event) => setNotes(event.target.value)}
+                    onChange={(event) => setDraftValue('notes', event.target.value)}
                     placeholder="Required comment for the audit trail"
                   />
                 </label>
@@ -157,7 +175,7 @@ export function AdminPackageOrderEditModal({
                     className="input-base mt-2"
                     type="file"
                     accept="application/pdf,.pdf"
-                    onChange={(event) => setFile(event.target.files?.[0])}
+                    onChange={(event) => setDraftValue('file', event.target.files?.[0])}
                   />
                   <span className="mt-2 block text-xs font-normal text-ink-soft">PDF files only. Upload the Lula confirmation or settlement document.</span>
                 </label>
@@ -181,13 +199,13 @@ export function AdminPackageOrderEditModal({
             className="button-primary rounded-full"
             disabled={!canSave || isSaving}
             onClick={() => {
-              if (!file || !paymentStatus) {
+              if (!file || !currentPaymentStatus) {
                 return;
               }
 
               onSave({
                 orderId: order.orderId,
-                paymentStatus,
+                paymentStatus: currentPaymentStatus,
                 paymentReference: emptyToUndefined(paymentReference),
                 notes: notes.trim(),
                 file,
