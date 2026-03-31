@@ -58,11 +58,11 @@ function getPackageInclusions(band: PackageBand) {
   }
 
   if (band.includeTv !== 'no') {
-    inclusions.push(band.includeTv === 'optional' ? 'TV (optional)' : 'TV (included)');
+    inclusions.push('TV');
   }
 
   if (!isLaunchBand(band)) {
-    inclusions.push('Advertified AI Studio Creative');
+    inclusions.push('Advertified Studio');
   }
 
   return inclusions;

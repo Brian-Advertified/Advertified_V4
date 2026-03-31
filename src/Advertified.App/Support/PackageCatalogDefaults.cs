@@ -42,7 +42,7 @@ internal static class PackageCatalogDefaults
                 "More reach and frequency across selected areas.",
                 "Best for growing brands needing more reach, repetition, and selected multi-area visibility.",
                 "yes",
-                "optional",
+                "yes",
                 "7 business days",
                 75000m,
                 true,
