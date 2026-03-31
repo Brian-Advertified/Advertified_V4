@@ -207,6 +207,7 @@ textarea {
   background: linear-gradient(135deg, rgba(255, 247, 218, 0.96), rgba(255, 255, 255, 0.94));
   border: 1px solid rgba(181, 139, 32, 0.18);
   color: #8b6610;
+  margin-right: 0.25rem;
 }
 
 .budget-stat {
