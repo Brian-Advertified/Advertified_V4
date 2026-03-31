@@ -81,7 +81,8 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
                 .Where(candidate => candidate.Cost > 0m)
                 .Where(candidate => !usedSourceIds.Contains(candidate.SourceId))
                 .Where(candidate => spentTotal + candidate.Cost <= request.SelectedBudget)
-                .OrderByDescending(candidate => candidate.Score)
+                .OrderBy(candidate => GetStationSelectionCount(result, candidate, shareTarget.Channel))
+                .ThenByDescending(candidate => candidate.Score)
                 .ThenBy(candidate => candidate.Cost)
                 .FirstOrDefault();
 
@@ -126,7 +127,8 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
                     .Where(candidate => candidate.Cost > 0m)
                     .Where(candidate => !usedSourceIds.Contains(candidate.SourceId))
                     .Where(candidate => spentTotal + candidate.Cost <= request.SelectedBudget)
-                    .OrderByDescending(candidate => candidate.Score)
+                    .OrderBy(candidate => GetStationSelectionCount(result, candidate, shareTarget.Channel))
+                    .ThenByDescending(candidate => candidate.Score)
                     .ThenBy(candidate => candidate.Cost)
                     .FirstOrDefault();
 
@@ -384,5 +386,42 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
         }
 
         return string.Equals(mediaType.Trim(), requestedChannel.Trim(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static int GetStationSelectionCount(
+        IReadOnlyList<PlannedItem> currentPlan,
+        InventoryCandidate candidate,
+        string requestedChannel)
+    {
+        if (!string.Equals(requestedChannel, "tv", StringComparison.OrdinalIgnoreCase))
+        {
+            return 0;
+        }
+
+        var station = GetStationKey(candidate.DisplayName);
+        if (string.IsNullOrWhiteSpace(station))
+        {
+            return 0;
+        }
+
+        return currentPlan.Count(item =>
+            string.Equals(item.MediaType?.Trim(), "tv", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(GetStationKey(item.DisplayName), station, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string GetStationKey(string? displayName)
+    {
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            return string.Empty;
+        }
+
+        var separator = displayName.IndexOf(" - ", StringComparison.Ordinal);
+        if (separator <= 0)
+        {
+            return displayName.Trim();
+        }
+
+        return displayName[..separator].Trim();
     }
 }
