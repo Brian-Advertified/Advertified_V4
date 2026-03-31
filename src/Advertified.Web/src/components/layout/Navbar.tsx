@@ -6,12 +6,16 @@ import { NotificationCenter } from '../../features/notifications/NotificationCen
 import advertifiedLogo from '../../assets/advertified-logo-v3.png';
 import type { UserRole } from '../../types/domain';
 
+type PublicLink =
+  | { label: string; href: string; mode: 'route' }
+  | { label: string; targetId: string; mode: 'footer-scroll' };
+
 const publicLinks = [
-  { label: 'Packages', href: '/packages' },
-  { label: 'Media Partners', href: '/media-partners' },
-  { label: 'About Us', href: '/about' },
-  { label: 'FAQ', href: '/faq' },
-];
+  { label: 'Packages', href: '/packages', mode: 'route' },
+  { label: 'Media Partners', targetId: 'footer-media-partners', mode: 'footer-scroll' },
+  { label: 'Advertified', href: '/about', mode: 'route' },
+  { label: 'FAQs', targetId: 'footer-faq', mode: 'footer-scroll' },
+] as const satisfies ReadonlyArray<PublicLink>;
 
 const workspaceLinksByRole: Record<UserRole, { label: string; href: string }> = {
   client: { label: 'Dashboard', href: '/dashboard' },
@@ -29,6 +33,15 @@ export function Navbar() {
   const isWorkspaceLinkActive = workspaceLink
     ? location.pathname === workspaceLink.href || location.pathname.startsWith(`${workspaceLink.href}/`)
     : false;
+  const handleFooterScroll = (targetId: string) => {
+    const target = document.getElementById(targetId);
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+
+    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+  };
 
   return (
     <header className="site-header sticky top-0 z-40">
@@ -43,9 +56,20 @@ export function Navbar() {
 
         <nav className="hidden items-center gap-7 text-sm font-medium lg:flex">
           {publicLinks.map((item) => (
-            <NavLink key={item.href} to={item.href} className="nav-link">
-              {item.label}
-            </NavLink>
+            item.mode === 'route' ? (
+              <NavLink key={item.href} to={item.href} className="nav-link">
+                {item.label}
+              </NavLink>
+            ) : (
+              <button
+                key={item.label}
+                type="button"
+                className="nav-link border-0 bg-transparent p-0"
+                onClick={() => handleFooterScroll(item.targetId)}
+              >
+                {item.label}
+              </button>
+            )
           ))}
         </nav>
 
@@ -93,9 +117,23 @@ export function Navbar() {
         <div className="border-t border-line bg-white lg:hidden">
           <div className="page-shell flex flex-col gap-4 py-4 text-sm font-medium text-ink">
             {publicLinks.map((item) => (
-              <NavLink key={item.href} to={item.href} className="nav-link" onClick={() => setOpen(false)}>
-                {item.label}
-              </NavLink>
+              item.mode === 'route' ? (
+                <NavLink key={item.href} to={item.href} className="nav-link" onClick={() => setOpen(false)}>
+                  {item.label}
+                </NavLink>
+              ) : (
+                <button
+                  key={item.label}
+                  type="button"
+                  className="nav-link border-0 bg-transparent p-0 text-left"
+                  onClick={() => {
+                    handleFooterScroll(item.targetId);
+                    setOpen(false);
+                  }}
+                >
+                  {item.label}
+                </button>
+              )
             ))}
             {workspaceLink ? (
               <Link
