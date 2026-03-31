@@ -97,8 +97,8 @@ public sealed class RecommendationExplainabilityService : IRecommendationExplain
     {
         var flags = new List<string>();
 
-        if (request.SelectedBudget >= 500000m) flags.Add("dominance_policy");
-        else if (request.SelectedBudget >= 150000m) flags.Add("scale_policy");
+        if (request.SelectedBudget >= 1000000m) flags.Add("dominance_policy");
+        else if (request.SelectedBudget >= 500000m) flags.Add("scale_policy");
 
         if (request.PreferredMediaTypes.Count > 0) flags.Add("preferred_media_applied");
         if (candidate.MediaType.Equals("Radio", StringComparison.OrdinalIgnoreCase) && _policyService.IsNationalCapableRadioCandidate(candidate, request))
@@ -137,4 +137,3 @@ public sealed class RecommendationExplainabilityService : IRecommendationExplain
         return string.Equals(left.Trim(), right.Trim(), StringComparison.OrdinalIgnoreCase);
     }
 }
-

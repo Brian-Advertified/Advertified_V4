@@ -156,8 +156,8 @@ public sealed class CampaignBriefInterpretationService : ICampaignBriefInterpret
             : lower.Contains("business") || lower.Contains("professional") ? "business"
             : "mass-market";
 
-        var scope = request.SelectedBudget >= 500000m || lower.Contains("national") ? "national"
-            : request.SelectedBudget >= 150000m ? "regional"
+        var scope = request.SelectedBudget >= 1000000m || lower.Contains("national") ? "national"
+            : request.SelectedBudget >= 500000m ? "regional"
             : "local";
 
         var geography = lower.Contains("western cape") ? "western-cape"

@@ -13,10 +13,10 @@ CREATE TABLE IF NOT EXISTS package_bands (
 
 INSERT INTO package_bands (code, name, min_budget, max_budget, sort_order, is_active)
 VALUES
-    ('launch', 'Launch', 15000.00, 49999.99, 1, TRUE),
-    ('boost', 'Boost', 50000.00, 149999.99, 2, TRUE),
-    ('scale', 'Scale', 150000.00, 499999.99, 3, TRUE),
-    ('dominance', 'Dominance', 500000.00, 5000000.00, 4, TRUE)
+    ('launch', 'Launch', 20000.00, 100000.00, 1, TRUE),
+    ('boost', 'Boost', 100000.00, 500000.00, 2, TRUE),
+    ('scale', 'Scale', 500000.00, 1000000.00, 3, TRUE),
+    ('dominance', 'Dominance', 1000000.00, 5000000.00, 4, TRUE)
 ON CONFLICT (code) DO UPDATE
 SET
     name = EXCLUDED.name,

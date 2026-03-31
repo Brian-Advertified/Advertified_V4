@@ -53,16 +53,16 @@ public sealed class PackagePreviewFormatter : IPackagePreviewFormatter
 
         return normalizedCode switch
         {
-            "launch" => budget <= 35000m
+            "launch" => budget <= 65000m
                 ? new List<string> { "1-2 local outdoor or digital placements", "Starter radio support", "Single-area visibility" }
                 : new List<string> { "1-2 stronger local placements", "Small mixed-media route", "More concentrated local reach" },
-            "boost" => budget <= 90000m
+            "boost" => budget <= 250000m
                 ? new List<string> { "2-3 media items", "Outdoor footprint plus radio support", "Selected multi-area coverage" }
                 : new List<string> { "2-4 media items", "Stronger outdoor and radio balance", "Broader regional visibility" },
-            "scale" => budget <= 275000m
+            "scale" => budget <= 750000m
                 ? new List<string> { "Multi-channel media mix", "Balanced radio plus outdoor support", "Regional campaign coverage" }
                 : new List<string> { "Stronger multi-channel plan", "Higher frequency support", "Broader target-zone coverage" },
-            _ => budget <= 1200000m
+            _ => budget <= 1600000m
                 ? new List<string> { "Premium outdoor placements", "Radio support in key markets", "Broader regional reach" }
                 : new List<string> { "Premium outdoor, radio, and selected digital placements", "Multi-region or national-scale options", "Higher-frequency exposure" }
         };
