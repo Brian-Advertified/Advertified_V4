@@ -8,10 +8,12 @@ import {
   Download,
   MessageSquareQuote,
   RefreshCcw,
+  Search,
   Send,
   SlidersHorizontal,
   UserPlus2,
   UserX2,
+  X,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
@@ -57,36 +59,21 @@ function formatFallbackFlag(flag: string) {
   return flag.replace(/_/g, ' ');
 }
 
-function buildClientFacingSummary(items: SelectedPlanInventoryItem[]) {
-  if (items.length === 0) {
-    return 'No planned inventory lines selected yet.';
-  }
-
-  const lines = items.map((item) => {
-    const lineCost = item.rate * item.quantity;
-    const timeBand = item.timeBand?.trim() ? ` | ${item.timeBand}` : '';
-    const qty = item.quantity > 1 ? ` | Qty ${item.quantity}` : '';
-    return `- ${formatChannelLabel(item.type)}: ${item.station}${timeBand}${qty} | ${formatCurrency(lineCost)}`;
-  });
-  const total = items.reduce((sum, item) => sum + item.rate * item.quantity, 0);
-
-  return [
-    'Recommended inventory plan:',
-    ...lines,
-    `Total planned: ${formatCurrency(total)}`,
-  ].join('\n');
-}
-
 export function AgentCampaignDetailPage() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const { pushToast } = useToast();
   const queryClient = useQueryClient();
   const [selectedPlanItems, setSelectedPlanItems] = useState<SelectedPlanInventoryItem[]>([]);
-  const [strategySummary, setStrategySummary] = useState('');
   const [draftApprovalCaptured, setDraftApprovalCaptured] = useState(false);
   const [mixBalance, setMixBalance] = useState(60);
   const [selectedRecommendationIdState, setSelectedRecommendationIdState] = useState('');
+  const [inventoryModalOpen, setInventoryModalOpen] = useState(false);
+  const [inventoryTypeFilter, setInventoryTypeFilter] = useState('all');
+  const [inventoryRegionFilter, setInventoryRegionFilter] = useState('all');
+  const [inventoryLanguageFilter, setInventoryLanguageFilter] = useState('all');
+  const [inventorySearchInput, setInventorySearchInput] = useState('');
+  const [inventorySearchQuery, setInventorySearchQuery] = useState('');
   const [opsAssetFile, setOpsAssetFile] = useState<File | null>(null);
   const [opsAssetType, setOpsAssetType] = useState('proof_of_booking');
   const [bookingDraft, setBookingDraft] = useState({
@@ -111,7 +98,6 @@ export function AgentCampaignDetailPage() {
   });
   const mixPanelRef = useRef<HTMLDivElement | null>(null);
   const hydratedRecommendationKeyRef = useRef<string | null>(null);
-  const autoSummaryRef = useRef('');
 
   const campaignQuery = useQuery({ queryKey: queryKeys.agent.campaign(id), queryFn: () => advertifiedApi.getAgentCampaign(id) });
   const inventoryQuery = useQuery({
@@ -120,7 +106,7 @@ export function AgentCampaignDetailPage() {
   });
 
   const saveMutation = useMutation({
-    mutationFn: (notes: string) => advertifiedApi.updateRecommendation(id, activeRecommendation?.id, notes, selectedPlanItems),
+    mutationFn: () => advertifiedApi.updateRecommendation(id, activeRecommendation?.id, '', selectedPlanItems),
     onSuccess: async () => {
       await invalidateAgentCampaignQueries(queryClient, id);
       pushToast({
@@ -353,21 +339,9 @@ export function AgentCampaignDetailPage() {
     }
 
     hydratedRecommendationKeyRef.current = hydrationKey;
-    const autoSummary = buildClientFacingSummary(selectedFromRecommendation);
-    autoSummaryRef.current = autoSummary;
-    setStrategySummary(autoSummary);
     setSelectedPlanItems(selectedFromRecommendation);
     setDraftApprovalCaptured(false);
   }, [campaign, activeRecommendation, inventoryItems]);
-
-  useEffect(() => {
-    const autoSummary = buildClientFacingSummary(selectedPlanItems);
-    const hasManualEdits = strategySummary.trim().length > 0 && strategySummary !== autoSummaryRef.current;
-    if (!hasManualEdits) {
-      setStrategySummary(autoSummary);
-    }
-    autoSummaryRef.current = autoSummary;
-  }, [selectedPlanItems, strategySummary]);
 
   if (campaignQuery.isLoading || inventoryQuery.isLoading || !campaign) {
     return <LoadingState label="Loading agent campaign detail..." />;
@@ -384,6 +358,41 @@ export function AgentCampaignDetailPage() {
     ...selectedPlanItems.filter((item) => !inventoryItems.some((inventoryRow) => inventoryRow.id === item.id)),
     ...relevantInventoryItems,
   ];
+  const inventoryTypeOptions = Array.from(new Set(visibleInventoryItems.map((item) => item.type))).sort();
+  const inventoryRegionOptions = Array.from(new Set(visibleInventoryItems.map((item) => item.region).filter((value) => value?.trim()))).sort();
+  const inventoryLanguageOptions = Array.from(new Set(visibleInventoryItems.map((item) => item.language).filter((value) => value?.trim()))).sort();
+  const inventorySearchActive = inventorySearchQuery.trim().length >= 3;
+  const filteredInventoryItems = visibleInventoryItems.filter((item) => {
+    if (inventoryTypeFilter !== 'all' && item.type !== inventoryTypeFilter) {
+      return false;
+    }
+
+    if (inventoryRegionFilter !== 'all' && item.region !== inventoryRegionFilter) {
+      return false;
+    }
+
+    if (inventoryLanguageFilter !== 'all' && item.language !== inventoryLanguageFilter) {
+      return false;
+    }
+
+    if (!inventorySearchActive) {
+      return true;
+    }
+
+    const haystack = [
+      item.type,
+      item.station,
+      item.region,
+      item.language,
+      item.showDaypart,
+      item.timeBand,
+      item.slotType,
+      item.duration,
+      item.restrictions,
+    ].join(' ').toLowerCase();
+
+    return haystack.includes(inventorySearchQuery.trim().toLowerCase());
+  });
   const groupedItems = groupPlanItems(selectedPlanItems);
   const generatedRecommendationItems = activeRecommendation?.items ?? [];
   const groupedGeneratedItems = groupGeneratedRecommendationItems(generatedRecommendationItems);
@@ -431,10 +440,11 @@ export function AgentCampaignDetailPage() {
     : activeRecommendation?.status
       ? titleCase(activeRecommendation.status)
       : titleCase(campaign.status);
-  const recommendationTitle = strategySummary || activeRecommendation?.summary || 'Draft recommendation';
+  const recommendationTitle = activeRecommendation?.summary || 'Draft recommendation';
   const canMarkLive = campaign.status === 'creative_approved';
   const canEditDraftRecommendation = activeRecommendation?.status?.toLowerCase() === 'draft';
   const canModifyPlan = canEditDraftRecommendation && !draftApprovalCaptured;
+  const hasSendableProposal = recommendations.length >= 1;
   const executionAssets = campaign.assets ?? [];
   const supplierBookings = campaign.supplierBookings ?? [];
   const deliveryReports = campaign.deliveryReports ?? [];
@@ -454,6 +464,25 @@ export function AgentCampaignDetailPage() {
         description: error instanceof Error ? error.message : 'Please try again.',
       }, 'error');
     }
+  }
+
+  useEffect(() => {
+    const raw = inventorySearchInput.trim();
+    const nextQuery = raw.length >= 3 ? raw : '';
+    const timeout = window.setTimeout(() => setInventorySearchQuery(nextQuery), 250);
+    return () => window.clearTimeout(timeout);
+  }, [inventorySearchInput]);
+
+  function handleSendToClient() {
+    if (!hasSendableProposal) {
+      pushToast({
+        title: 'No proposal available yet.',
+        description: 'Create at least one proposal option before sending to the client.',
+      }, 'info');
+      return;
+    }
+
+    sendMutation.mutate();
   }
 
   function toggleInventoryItem(item: SelectedPlanInventoryItem) {
@@ -519,11 +548,11 @@ export function AgentCampaignDetailPage() {
       return;
     }
 
-    await saveMutation.mutateAsync(strategySummary);
+    await saveMutation.mutateAsync();
     setDraftApprovalCaptured(true);
     pushToast({
-      title: 'Recommendation approved.',
-      description: 'The approved draft is saved. Opening Review & Send next.',
+      title: 'Draft finalized.',
+      description: 'The selected proposal draft is locked and ready for client review handoff.',
     });
     navigate('/agent/review-send');
   }
@@ -735,7 +764,7 @@ export function AgentCampaignDetailPage() {
               {Object.entries(displayedGroups).length > 0 ? Object.entries(displayedGroups).map(([channel, items]) => (
                 <div key={channel}>
                   <p className="mb-3 text-sm font-semibold text-ink">{formatChannelLabel(channel)}</p>
-                  <div className="flex flex-wrap gap-2.5">
+                  <div className="grid gap-2.5 md:grid-cols-2">
                     {items.map((item) => (
                       <div
                         key={item.id}
@@ -795,19 +824,6 @@ export function AgentCampaignDetailPage() {
                 />
               )}
             </div>
-          </div>
-
-          <div className="panel border-line/80 bg-white px-6 py-6 shadow-[0_10px_26px_rgba(17,24,39,0.05)]">
-            <h2 className="text-xl font-semibold text-ink">Client-facing summary</h2>
-            <p className="mt-2 text-sm text-ink-soft">
-              This summary includes all selected inventory lines. You can refine the wording before sending to the client.
-            </p>
-            <textarea
-              value={strategySummary}
-              onChange={(event) => setStrategySummary(event.target.value)}
-              className="input-base mt-4 min-h-[170px]"
-              placeholder="This campaign focuses on high-frequency commuter exposure across key Gauteng routes and stations aligned to the target audience."
-            />
           </div>
 
           {isOverBudget ? (
@@ -955,11 +971,7 @@ export function AgentCampaignDetailPage() {
                 </div>
               </div>
             </div>
-          ) : (
-            <div className="panel border-line/80 bg-white px-6 py-6 text-sm text-ink-soft shadow-[0_10px_26px_rgba(17,24,39,0.05)]">
-              Execution tools unlock after recommendation approval. For now, focus on recommendation quality and client sign-off.
-            </div>
-          )}
+          ) : null}
 
           <div className="flex flex-wrap justify-end gap-3">
             {campaign.isAssignedToCurrentUser ? (
@@ -995,8 +1007,8 @@ export function AgentCampaignDetailPage() {
             ) : null}
             <button
               type="button"
-              disabled={sendMutation.isPending || isOverBudget}
-              onClick={() => sendMutation.mutate()}
+              disabled={sendMutation.isPending || isOverBudget || !hasSendableProposal}
+              onClick={handleSendToClient}
               className="button-secondary inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60"
             >
               <Send className="size-4" />
@@ -1009,7 +1021,7 @@ export function AgentCampaignDetailPage() {
               className="button-primary inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60"
             >
               <CircleCheckBig className="size-4" />
-              {draftApprovalCaptured ? 'Approved' : 'Approve recommendation'}
+              {draftApprovalCaptured ? 'Draft finalized' : 'Finalize draft'}
             </button>
             {canMarkLive ? (
               <button
@@ -1024,26 +1036,82 @@ export function AgentCampaignDetailPage() {
             ) : null}
           </div>
 
-          <details id="agent-inventory-table" className="panel overflow-hidden">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-6 py-5">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand">Matching inventory</p>
-                <p className="mt-2 text-sm leading-7 text-ink-soft">
-                  These rows are matched against this campaign&apos;s budget, channels, and geography so the agent can mix and match with real supplier inventory.
-                </p>
-              </div>
-              <div className="rounded-full bg-brand-soft px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-brand">
-                {selectedPlanItems.length} selected
-              </div>
-            </summary>
-            <div className="border-t border-line px-6 py-6">
-              <InventoryTable
-                items={visibleInventoryItems}
-                selectedItemIds={selectedInventoryIds}
-                onToggleItem={canModifyPlan ? ((item) => toggleInventoryItem(item as SelectedPlanInventoryItem)) : undefined}
-              />
+          <button
+            type="button"
+            onClick={() => setInventoryModalOpen(true)}
+            className="panel flex w-full items-center justify-between gap-4 px-6 py-5 text-left transition hover:border-brand/30"
+          >
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand">Matching inventory</p>
+              <p className="mt-2 text-sm leading-7 text-ink-soft">
+                Click to open inventory, apply filters, and search supplier rows.
+              </p>
             </div>
-          </details>
+            <div className="rounded-full bg-brand-soft px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-brand">
+              {selectedPlanItems.length} selected
+            </div>
+          </button>
+
+          {inventoryModalOpen ? (
+            <div className="fixed inset-0 z-[90] bg-slate-950/45 backdrop-blur-[1px]">
+              <div className="mx-auto mt-8 flex h-[calc(100vh-4rem)] w-[min(1300px,95vw)] flex-col rounded-[24px] border border-line bg-white shadow-[0_25px_60px_rgba(15,23,42,0.22)]">
+                <div className="flex items-center justify-between gap-3 border-b border-line px-6 py-4">
+                  <div>
+                    <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand">Matching inventory</p>
+                    <p className="mt-1 text-sm text-ink-soft">Search starts filtering from the 3rd keystroke.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setInventoryModalOpen(false)}
+                    className="button-secondary inline-flex items-center gap-2 px-3 py-2"
+                  >
+                    <X className="size-4" />
+                    Close
+                  </button>
+                </div>
+
+                <div className="grid gap-3 border-b border-line px-6 py-4 md:grid-cols-[1.3fr_0.8fr_0.8fr_0.8fr]">
+                  <label className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-soft" />
+                    <input
+                      type="search"
+                      value={inventorySearchInput}
+                      onChange={(event) => setInventorySearchInput(event.target.value)}
+                      placeholder="Search station, region, language, daypart..."
+                      className="input-base pl-9"
+                    />
+                  </label>
+                  <select className="input-base" value={inventoryTypeFilter} onChange={(event) => setInventoryTypeFilter(event.target.value)}>
+                    <option value="all">All types</option>
+                    {inventoryTypeOptions.map((value) => <option key={value} value={value}>{formatChannelLabel(value)}</option>)}
+                  </select>
+                  <select className="input-base" value={inventoryRegionFilter} onChange={(event) => setInventoryRegionFilter(event.target.value)}>
+                    <option value="all">All regions</option>
+                    {inventoryRegionOptions.map((value) => <option key={value} value={value}>{value}</option>)}
+                  </select>
+                  <select className="input-base" value={inventoryLanguageFilter} onChange={(event) => setInventoryLanguageFilter(event.target.value)}>
+                    <option value="all">All languages</option>
+                    {inventoryLanguageOptions.map((value) => <option key={value} value={value}>{value}</option>)}
+                  </select>
+                </div>
+
+                <div className="flex items-center justify-between gap-3 px-6 py-3 text-xs text-ink-soft">
+                  <span>
+                    Showing {filteredInventoryItems.length} of {visibleInventoryItems.length} inventory row(s)
+                  </span>
+                  <span>{inventorySearchInput.trim().length > 0 && inventorySearchInput.trim().length < 3 ? 'Type at least 3 characters to start search filtering.' : ''}</span>
+                </div>
+
+                <div className="min-h-0 flex-1 overflow-auto px-6 pb-6">
+                  <InventoryTable
+                    items={filteredInventoryItems}
+                    selectedItemIds={selectedInventoryIds}
+                    onToggleItem={canModifyPlan ? ((item) => toggleInventoryItem(item as SelectedPlanInventoryItem)) : undefined}
+                  />
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
     </section>

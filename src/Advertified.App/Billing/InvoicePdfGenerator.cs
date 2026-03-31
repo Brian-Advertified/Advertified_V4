@@ -114,8 +114,8 @@ internal static class InvoicePdfGenerator
                         foreach (var item in lineItems)
                         {
                             DataCell(table, item.Description, false);
-                            DataCell(table, item.Quantity.ToString("N2", CultureInfo.GetCultureInfo("en-ZA")), true);
-                            DataCell(table, FormatCurrency(item.TotalAmount), true);
+                            DataCell(table, IsStudioIncludedLine(item) ? "Included" : item.Quantity.ToString("N2", CultureInfo.GetCultureInfo("en-ZA")), true);
+                            DataCell(table, IsStudioIncludedLine(item) ? string.Empty : FormatCurrency(item.TotalAmount), true);
                         }
                     });
 
@@ -270,7 +270,13 @@ internal static class InvoicePdfGenerator
     {
         if (invoice.LineItems.Count > 0)
         {
-            return invoice.LineItems.OrderBy(x => x.SortOrder).ThenBy(x => x.CreatedAtUtc).ToList();
+            var existing = invoice.LineItems.OrderBy(x => x.SortOrder).ThenBy(x => x.CreatedAtUtc).ToList();
+            if (ShouldIncludeAiStudioLine(invoice) && !existing.Any(IsStudioIncludedLine))
+            {
+                existing.Add(CreateAiStudioIncludedLine(invoice, existing.Count));
+            }
+
+            return existing;
         }
 
         var subtotal = Math.Round(invoice.TotalAmount / (1m + VatRate), 2, MidpointRounding.AwayFromZero);
@@ -278,7 +284,7 @@ internal static class InvoicePdfGenerator
         var packageLabel = string.IsNullOrWhiteSpace(invoice.PackageName) ? "Campaign package" : invoice.PackageName.Trim();
         var campaignLabel = string.IsNullOrWhiteSpace(invoice.CampaignName) ? "Advertified campaign" : invoice.CampaignName.Trim();
 
-        return new List<InvoiceLineItem>
+        var lineItems = new List<InvoiceLineItem>
         {
             new InvoiceLineItem
             {
@@ -294,6 +300,41 @@ internal static class InvoicePdfGenerator
                 SortOrder = 0,
                 CreatedAtUtc = invoice.CreatedAtUtc
             }
+        };
+
+        if (ShouldIncludeAiStudioLine(invoice))
+        {
+            lineItems.Add(CreateAiStudioIncludedLine(invoice, lineItems.Count));
+        }
+
+        return lineItems;
+    }
+
+    private static bool ShouldIncludeAiStudioLine(Invoice invoice)
+    {
+        return PricingPolicy.IncludesAiCreative(null, invoice.PackageName);
+    }
+
+    private static bool IsStudioIncludedLine(InvoiceLineItem item)
+    {
+        return string.Equals(item.LineType, "ai_studio_included", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static InvoiceLineItem CreateAiStudioIncludedLine(Invoice invoice, int sortOrder)
+    {
+        return new InvoiceLineItem
+        {
+            Id = Guid.Empty,
+            InvoiceId = invoice.Id,
+            LineType = "ai_studio_included",
+            Description = "AI Studio services",
+            Quantity = 1m,
+            UnitAmount = 0m,
+            SubtotalAmount = 0m,
+            VatAmount = 0m,
+            TotalAmount = 0m,
+            SortOrder = sortOrder,
+            CreatedAtUtc = invoice.CreatedAtUtc
         };
     }
 

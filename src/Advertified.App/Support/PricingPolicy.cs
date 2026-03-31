@@ -41,7 +41,10 @@ public static class PricingPolicy
             return 0m;
         }
 
-        return Math.Max(0m, Math.Round(selectedBudget - Math.Max(0m, aiStudioReserveAmount), 2, MidpointRounding.AwayFromZero));
+        // Planning and recommendation views should use the full selected budget.
+        // The reserve is still tracked on the order, but no longer deducted from planning totals.
+        _ = aiStudioReserveAmount;
+        return Math.Round(selectedBudget, 2, MidpointRounding.AwayFromZero);
     }
 
     public static bool IncludesAiCreative(string? packageCode, string? packageName)

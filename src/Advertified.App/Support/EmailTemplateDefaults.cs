@@ -316,19 +316,19 @@ internal static class EmailTemplateDefaults
                   </div>
                 </div>
                 ", nowUtc),
-            Build("recommendation-ready", "Your Advertified recommendation is ready for {{CampaignName}}", @"
+            Build("recommendation-ready", "Your Advertified recommendation options are ready for {{CampaignName}}", @"
                 <div style=""background:#f4fbf8;padding:32px;font-family:Arial,sans-serif;color:#12211D;"">
                   <div style=""max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #d8e9e1;border-radius:24px;overflow:hidden;"">
                     <div style=""padding:28px 32px;background:linear-gradient(180deg,#eefbf5 0%, #ffffff 100%);border-bottom:1px solid #d8e9e1;"">
-                      <div style=""font-size:14px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Advertified recommendation</div>
-                      <h1 style=""margin:12px 0 0;font-size:30px;line-height:1.2;color:#123A33;"">Your campaign recommendation is ready to review</h1>
+                      <div style=""font-size:14px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Advertified recommendations</div>
+                      <h1 style=""margin:12px 0 0;font-size:30px;line-height:1.2;color:#123A33;"">Your campaign recommendations are ready to review</h1>
                     </div>
                     <div style=""padding:28px 32px;"">
                       <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">
-                        Hi {{ClientName}}, your Advertified strategist has prepared a recommendation for <strong>{{CampaignName}}</strong>.
+                        Hi {{ClientName}}, your Advertified strategist has prepared recommendation options for <strong>{{CampaignName}}</strong>.
                       </p>
                       <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">
-                        This recommendation explains the suggested channel mix, the draft media plan, and how the proposal aligns with your selected package and campaign goals. Please review it and let us know whether you would like to approve it or request changes.
+                        {{ProposalSummary}} Each option explains the suggested channel mix, draft media plan, and how it aligns with your selected package and campaign goals. Please review the options and let us know whether you would like to approve one or request changes.
                       </p>
                       {{RecommendationPackBlock}}
                       <div style=""margin:24px 0;padding:18px 20px;border:1px solid #d8e9e1;border-radius:18px;background:#f8fcfa;"">
@@ -336,15 +336,16 @@ internal static class EmailTemplateDefaults
                         <p style=""margin:10px 0 0;font-size:15px;line-height:1.6;""><strong>Campaign:</strong> {{CampaignName}}</p>
                         <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Package:</strong> {{PackageName}}</p>
                         <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Selected budget:</strong> {{Budget}}</p>
+                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Options prepared:</strong> {{ProposalCount}}</p>
                         <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Status:</strong> Ready for your review</p>
                       </div>
                       {{AgentMessageBlock}}
                       <p style=""margin:0 0 18px;font-size:15px;line-height:1.7;color:#4b635a;"">
-                        When you are ready, open your campaign review page below. You can approve the recommendation if it reflects what you want to run, or send it back with notes if you would like us to adjust it.
+                        When you are ready, open your campaign review page below. You can approve your preferred option if it reflects what you want to run, or send all options back with notes if you would like us to adjust them.
                       </p>
                       <div style=""margin:22px 0 20px;"">
                         <a href=""{{ReviewUrl}}"" style=""display:inline-block;padding:12px 18px;border-radius:14px;background:#123A33;color:#ffffff;text-decoration:none;font-weight:700;"">
-                          Review recommendation
+                          Review recommendation options
                         </a>
                       </div>
                       <p style=""margin:0;font-size:14px;line-height:1.7;color:#4b635a;"">
@@ -755,6 +756,45 @@ internal static class EmailTemplateDefaults
                       </p>
                     </div>
                   </div>
+                </div>
+                ", nowUtc)
+                ,
+            Build("creative-queue-update", "Creative queue update: {{CampaignName}}", @"
+                <div style=""background:#f4fbf8;padding:32px;font-family:Arial,sans-serif;color:#12211D;"">
+                  <div style=""max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #d8e9e1;border-radius:24px;overflow:hidden;"">
+                    <div style=""padding:28px 32px;background:linear-gradient(180deg,#eefbf5 0%, #ffffff 100%);border-bottom:1px solid #d8e9e1;"">
+                      <div style=""font-size:14px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Advertified internal update</div>
+                      <h1 style=""margin:12px 0 0;font-size:30px;line-height:1.2;color:#123A33;"">{{EventTitle}}</h1>
+                    </div>
+                    <div style=""padding:28px 32px;"">
+                      <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">Campaign <strong>{{CampaignName}}</strong> has a new workflow update.</p>
+                      <div style=""margin:24px 0;padding:18px 20px;border:1px solid #d8e9e1;border-radius:18px;background:#f8fcfa;"">
+                        <p style=""margin:0;font-size:15px;line-height:1.6;""><strong>Package:</strong> {{PackageName}}</p>
+                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Budget:</strong> {{Budget}}</p>
+                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Update:</strong> {{EventBody}}</p>
+                      </div>
+                      <p style=""margin:24px 0 0;"">
+                        <a href=""{{ActionUrl}}"" style=""display:inline-block;padding:12px 18px;background:#123A33;color:#ffffff;text-decoration:none;border-radius:12px;font-weight:700;"">Open workflow</a>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                ", nowUtc),
+            Build("admin-sale-alert", "New package sale: {{CampaignName}} ({{PaymentProvider}})", @"
+                <div style=""font-family:Arial,sans-serif;color:#111827;line-height:1.6"">
+                  <h2 style=""margin:0 0 16px 0"">New package sale alert</h2>
+                  <p style=""margin:0 0 16px 0"">A new package order was created and requires tracking.</p>
+                  <table style=""border-collapse:collapse;width:100%;max-width:720px"">
+                    <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Client</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{ClientName}} ({{ClientEmail}})</td></tr>
+                    <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Campaign</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{CampaignName}}</td></tr>
+                    <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Package</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{PackageName}}</td></tr>
+                    <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Selected budget</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{SelectedBudget}}</td></tr>
+                    <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Charged amount</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{ChargedAmount}}</td></tr>
+                    <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Provider</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{PaymentProvider}}</td></tr>
+                    <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Order status</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{PaymentStatus}}</td></tr>
+                    <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Action</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{ActionNote}}</td></tr>
+                    <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Admin URL</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{AdminUrl}}</td></tr>
+                  </table>
                 </div>
                 ", nowUtc)
         };

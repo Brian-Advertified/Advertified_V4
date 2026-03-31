@@ -1,4 +1,4 @@
-import { ArrowRight, BriefcaseBusiness, CircleAlert, Clock3, FolderKanban, Send, Sparkles, UserRoundSearch, UsersRound } from 'lucide-react';
+import { ArrowRight, BriefcaseBusiness, CircleAlert, CircleDollarSign, Clock3, FolderKanban, Send, Sparkles, UserRoundSearch, UsersRound } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import {
   AgentPageShell,
@@ -36,6 +36,7 @@ export function AgentDashboardPage() {
             .slice(0, 4);
           const quickLinks = [
             { label: 'Leads & Clients', href: '/agent/leads', icon: UserRoundSearch, helper: 'Track active prospects and client activity.' },
+            { label: 'My Sales', href: '/agent/sales', icon: CircleDollarSign, helper: 'View every paid sale assigned to you.' },
             { label: 'Campaign Pipeline', href: '/agent/campaigns', icon: FolderKanban, helper: 'Open the full live campaign queue.' },
             { label: 'Recommendation Builder', href: '/agent/recommendation-builder', icon: BriefcaseBusiness, helper: 'Move straight into planning work.' },
             { label: 'Review & Send', href: '/agent/review-send', icon: Send, helper: 'Finalize recommendations and send to clients.' },

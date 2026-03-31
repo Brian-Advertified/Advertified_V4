@@ -1,6 +1,8 @@
 import type {
   AgentInbox,
   AgentInboxItem,
+  AgentSales,
+  AgentSaleItem,
   CampaignAsset,
   Campaign,
   CampaignConversationListItem,
@@ -521,6 +523,30 @@ type AgentInboxResponse = {
   items: AgentInboxItemResponse[];
 };
 
+type AgentSaleItemResponse = {
+  campaignId: string;
+  packageOrderId: string;
+  campaignName: string;
+  clientName: string;
+  clientEmail: string;
+  packageBandName: string;
+  selectedBudget: number;
+  chargedAmount: number;
+  paymentProvider: string;
+  paymentReference?: string | null;
+  convertedFromProspect: boolean;
+  purchasedAt: string;
+  createdAt: string;
+};
+
+type AgentSalesResponse = {
+  totalSalesCount: number;
+  convertedProspectSalesCount: number;
+  totalChargedAmount: number;
+  totalSelectedBudget: number;
+  items: AgentSaleItemResponse[];
+};
+
 type InterpretedCampaignBriefResponse = {
   objective: string;
   audience: string;
@@ -986,6 +1012,34 @@ function mapAgentInbox(response: AgentInboxResponse): AgentInbox {
     waitingOnClientCount: response.waitingOnClientCount,
     completedCount: response.completedCount,
     items: response.items.map(mapAgentInboxItem),
+  };
+}
+
+function mapAgentSaleItem(response: AgentSaleItemResponse): AgentSaleItem {
+  return {
+    campaignId: response.campaignId,
+    packageOrderId: response.packageOrderId,
+    campaignName: response.campaignName,
+    clientName: response.clientName,
+    clientEmail: response.clientEmail,
+    packageBandName: response.packageBandName,
+    selectedBudget: response.selectedBudget,
+    chargedAmount: response.chargedAmount,
+    paymentProvider: response.paymentProvider,
+    paymentReference: response.paymentReference ?? undefined,
+    convertedFromProspect: response.convertedFromProspect,
+    purchasedAt: response.purchasedAt,
+    createdAt: response.createdAt,
+  };
+}
+
+function mapAgentSales(response: AgentSalesResponse): AgentSales {
+  return {
+    totalSalesCount: response.totalSalesCount,
+    convertedProspectSalesCount: response.convertedProspectSalesCount,
+    totalChargedAmount: response.totalChargedAmount,
+    totalSelectedBudget: response.totalSelectedBudget,
+    items: response.items.map(mapAgentSaleItem),
   };
 }
 
@@ -1626,6 +1680,22 @@ export const advertifiedApi = {
     return mapCampaign(response);
   },
 
+  async createAgentProspectCampaign(payload: {
+    fullName: string;
+    email: string;
+    phone: string;
+    packageBandId: string;
+    selectedBudget: number;
+    campaignName?: string;
+  }) {
+    const response = await apiRequest<CampaignResponse>('/agent/campaigns/prospects', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+
+    return mapCampaign(response);
+  },
+
   async saveCampaignBrief(campaignId: string, brief: CampaignBrief) {
     await apiRequest(`/campaigns/${campaignId}/brief`, {
       method: 'PUT',
@@ -1710,6 +1780,11 @@ export const advertifiedApi = {
   async getAgentInbox() {
     const response = await apiRequest<AgentInboxResponse>('/agent/campaigns/inbox');
     return mapAgentInbox(response);
+  },
+
+  async getAgentSales() {
+    const response = await apiRequest<AgentSalesResponse>('/agent/campaigns/sales');
+    return mapAgentSales(response);
   },
 
   async getCreativeInbox() {
@@ -1955,6 +2030,15 @@ export const advertifiedApi = {
     });
 
     return this.getAgentCampaign(campaignId);
+  },
+
+  async convertProspectToSale(campaignId: string, payload?: { paymentReference?: string }) {
+    const response = await apiRequest<CampaignResponse>(`/agent/campaigns/${campaignId}/convert-to-sale`, {
+      method: 'POST',
+      body: JSON.stringify(payload ?? {}),
+    });
+
+    return mapCampaign(response);
   },
 
   async getInventory(campaignId?: string) {

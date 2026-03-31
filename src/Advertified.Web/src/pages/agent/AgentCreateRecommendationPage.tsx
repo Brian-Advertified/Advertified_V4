@@ -51,6 +51,25 @@ type CampaignFormState = {
   channels: ChannelOption[];
 };
 
+type ProspectFormState = {
+  fullName: string;
+  email: string;
+  phone: string;
+  packageBandId: string;
+  selectedBudget: string;
+  campaignName: string;
+};
+
+function parseBudgetInput(value: string) {
+  const normalized = value.replace(/[^\d.]/g, '');
+  if (!normalized) {
+    return Number.NaN;
+  }
+
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
+}
+
 function inferInitialForm(campaign: {
   clientName: string;
   packageBandName: string;
@@ -96,6 +115,15 @@ export function AgentCreateRecommendationPage() {
     tone: '',
     brief: '',
     channels: ['Radio', 'OOH'],
+  });
+  const [showProspectForm, setShowProspectForm] = useState(false);
+  const [prospectForm, setProspectForm] = useState<ProspectFormState>({
+    fullName: '',
+    email: '',
+    phone: '',
+    packageBandId: '',
+    selectedBudget: '',
+    campaignName: '',
   });
 
   const availableCampaigns = useMemo(() => (inboxQuery.data?.items ?? []).filter((item) => (
@@ -190,6 +218,63 @@ export function AgentCreateRecommendationPage() {
     const nextCampaign = availableCampaigns.find((item) => item.userId === userId);
     setSelectedCampaignIdState(nextCampaign?.id ?? '');
   };
+
+  const createProspectMutation = useMutation({
+    mutationFn: async () => {
+      const selectedBudget = parseBudgetInput(prospectForm.selectedBudget);
+      if (!Number.isFinite(selectedBudget) || selectedBudget <= 0) {
+        throw new Error('Enter a valid prospect budget.');
+      }
+
+      return advertifiedApi.createAgentProspectCampaign({
+        fullName: prospectForm.fullName.trim(),
+        email: prospectForm.email.trim(),
+        phone: prospectForm.phone.trim(),
+        packageBandId: prospectForm.packageBandId,
+        selectedBudget,
+        campaignName: prospectForm.campaignName.trim() || undefined,
+      });
+    },
+    onSuccess: async (campaign) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['agent-inbox'] }),
+        queryClient.invalidateQueries({ queryKey: ['agent-campaigns'] }),
+      ]);
+      await inboxQuery.refetch();
+
+      setSelectedClientIdState(campaign.userId);
+      setSelectedCampaignIdState(campaign.id);
+      setShowProspectForm(false);
+      setProspectForm({
+        fullName: '',
+        email: '',
+        phone: '',
+        packageBandId: '',
+        selectedBudget: '',
+        campaignName: '',
+      });
+      pushToast({
+        title: 'Prospect campaign created.',
+        description: 'You can now generate and send a recommendation before payment.',
+      });
+    },
+    onError: (error) => {
+      pushToast({
+        title: 'Could not create prospect campaign.',
+        description: error instanceof Error ? error.message : 'Please try again.',
+      }, 'error');
+    },
+  });
+
+  const parsedProspectBudget = parseBudgetInput(prospectForm.selectedBudget);
+  const canCreateProspectCampaign = Boolean(
+    prospectForm.fullName.trim()
+    && prospectForm.email.trim()
+    && prospectForm.phone.trim()
+    && prospectForm.packageBandId
+    && Number.isFinite(parsedProspectBudget)
+    && parsedProspectBudget > 0,
+  );
 
   function buildBriefPayload(): CampaignBrief {
     const provinceMap: Record<string, string> = {
@@ -443,6 +528,65 @@ export function AgentCreateRecommendationPage() {
                 </select>
               </label>
             </div>
+            <div className="mt-4">
+              <button
+                type="button"
+                onClick={() => setShowProspectForm((current) => !current)}
+                className="button-secondary px-4 py-2"
+              >
+                {showProspectForm ? 'Hide prospective client form' : 'Add prospective client (not registered)'}
+              </button>
+            </div>
+            {showProspectForm ? (
+              <div className="mt-4 rounded-2xl border border-line bg-slate-50 p-4">
+                <p className="text-sm font-semibold text-ink">Create prospective client campaign</p>
+                <p className="mt-1 text-xs text-ink-soft">This creates an unpaid campaign so you can prepare and send a recommendation before checkout.</p>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <label className="block">
+                    <span className="label-base">Full name</span>
+                    <input value={prospectForm.fullName} onChange={(event) => setProspectForm((current) => ({ ...current, fullName: event.target.value }))} className="input-base" />
+                  </label>
+                  <label className="block">
+                    <span className="label-base">Email</span>
+                    <input value={prospectForm.email} onChange={(event) => setProspectForm((current) => ({ ...current, email: event.target.value }))} className="input-base" type="email" />
+                  </label>
+                  <label className="block">
+                    <span className="label-base">Phone</span>
+                    <input value={prospectForm.phone} onChange={(event) => setProspectForm((current) => ({ ...current, phone: event.target.value }))} className="input-base" />
+                  </label>
+                  <label className="block">
+                    <span className="label-base">Package</span>
+                    <select value={prospectForm.packageBandId} onChange={(event) => setProspectForm((current) => ({ ...current, packageBandId: event.target.value }))} className="input-base">
+                      <option value="">Select package</option>
+                      {(packagesQuery.data ?? []).map((item) => (
+                        <option key={item.id} value={item.id}>{item.name} | {formatCurrency(item.minBudget)} - {formatCurrency(item.maxBudget)}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="label-base">Budget</span>
+                    <input value={prospectForm.selectedBudget} onChange={(event) => setProspectForm((current) => ({ ...current, selectedBudget: event.target.value }))} className="input-base" placeholder="450000" />
+                    {prospectForm.selectedBudget.trim() && (!Number.isFinite(parsedProspectBudget) || parsedProspectBudget <= 0) ? (
+                      <p className="mt-1 text-xs text-rose-700">Enter a valid amount, for example `450000` or `R 450,000`.</p>
+                    ) : null}
+                  </label>
+                  <label className="block">
+                    <span className="label-base">Campaign name (optional)</span>
+                    <input value={prospectForm.campaignName} onChange={(event) => setProspectForm((current) => ({ ...current, campaignName: event.target.value }))} className="input-base" />
+                  </label>
+                </div>
+                <div className="mt-4">
+                  <button
+                    type="button"
+                    onClick={() => createProspectMutation.mutate()}
+                    disabled={createProspectMutation.isPending || !canCreateProspectCampaign}
+                    className="button-primary px-4 py-2 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {createProspectMutation.isPending ? 'Creating...' : 'Create prospective campaign'}
+                  </button>
+                </div>
+              </div>
+            ) : null}
           </div>
 
           <div className="panel border-line/90 px-6 py-6 md:px-7">

@@ -2,6 +2,8 @@ using Advertified.App.Contracts.Campaigns;
 using Advertified.App.Campaigns;
 using Advertified.App.Configuration;
 using Advertified.App.Data;
+using Advertified.App.Data.Entities;
+using Advertified.App.Data.Enums;
 using Advertified.App.Services.Abstractions;
 using Advertified.App.Support;
 using Advertified.App.Validation;
@@ -185,6 +187,7 @@ public sealed class CampaignsController : ControllerBase
             .Include(x => x.User)
             .Include(x => x.PackageBand)
             .Include(x => x.PackageOrder)
+            .Include(x => x.AssignedAgentUser)
             .FirstOrDefaultAsync(x => x.Id == id && x.UserId == userId, cancellationToken)
             ?? throw new InvalidOperationException("Campaign not found.");
 
@@ -203,6 +206,13 @@ public sealed class CampaignsController : ControllerBase
         await _db.SaveChangesAsync(cancellationToken);
         await SendRecommendationApprovedEmailAsync(campaign, cancellationToken);
         await SendActivationInProgressEmailAsync(campaign, cancellationToken);
+        await SendInternalCreativeQueueUpdateAsync(
+            campaign,
+            eventTitle: "Creative production can now begin",
+            eventBody: "Recommendation approved by client. Move into studio production and prepare the creative system.",
+            actionPath: $"/creative/campaigns/{campaign.Id}/studio",
+            includeAssignedAgent: true,
+            cancellationToken);
 
         return Accepted(new
         {
@@ -256,6 +266,7 @@ public sealed class CampaignsController : ControllerBase
             .Include(x => x.User)
             .Include(x => x.PackageBand)
             .Include(x => x.PackageOrder)
+            .Include(x => x.AssignedAgentUser)
             .FirstOrDefaultAsync(x => x.Id == id && x.UserId == userId, cancellationToken)
             ?? throw new InvalidOperationException("Campaign not found.");
 
@@ -272,6 +283,13 @@ public sealed class CampaignsController : ControllerBase
         campaign.Status = CampaignStatuses.CreativeApproved;
         campaign.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
+        await SendInternalCreativeQueueUpdateAsync(
+            campaign,
+            eventTitle: "Client approved final creative",
+            eventBody: "Final creative approval captured. Agent operations can now proceed with activation workflow.",
+            actionPath: $"/agent/campaigns/{campaign.Id}",
+            includeAssignedAgent: true,
+            cancellationToken);
 
         return Accepted(new
         {
@@ -288,6 +306,9 @@ public sealed class CampaignsController : ControllerBase
         var campaign = await _db.Campaigns
             .Include(x => x.CampaignConversation!)
                 .ThenInclude(x => x.Messages)
+            .Include(x => x.PackageBand)
+            .Include(x => x.PackageOrder)
+            .Include(x => x.AssignedAgentUser)
             .FirstOrDefaultAsync(x => x.Id == id && x.UserId == userId, cancellationToken)
             ?? throw new InvalidOperationException("Campaign not found.");
 
@@ -338,6 +359,13 @@ public sealed class CampaignsController : ControllerBase
         }
 
         await _db.SaveChangesAsync(cancellationToken);
+        await SendInternalCreativeQueueUpdateAsync(
+            campaign,
+            eventTitle: "Creative revisions requested by client",
+            eventBody: "Client requested creative changes. Review notes and issue a revised handoff.",
+            actionPath: $"/creative/campaigns/{campaign.Id}/studio",
+            includeAssignedAgent: true,
+            cancellationToken);
 
         return Accepted(new
         {
@@ -405,5 +433,80 @@ public sealed class CampaignsController : ControllerBase
     private static string FormatCurrency(decimal amount)
     {
         return $"R {amount.ToString("N2", CultureInfo.GetCultureInfo("en-ZA"))}";
+    }
+
+    private async Task SendInternalCreativeQueueUpdateAsync(
+        Campaign campaign,
+        string eventTitle,
+        string eventBody,
+        string actionPath,
+        bool includeAssignedAgent,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var recipientEmails = await GetInternalCreativeNotificationRecipientsAsync(campaign, includeAssignedAgent, cancellationToken);
+            if (recipientEmails.Length == 0)
+            {
+                return;
+            }
+
+            var campaignName = string.IsNullOrWhiteSpace(campaign.CampaignName)
+                ? $"{campaign.PackageBand.Name} campaign"
+                : campaign.CampaignName.Trim();
+            var actionUrl = BuildFrontendUrl(actionPath);
+
+            foreach (var email in recipientEmails)
+            {
+                await _emailService.SendAsync(
+                    "creative-queue-update",
+                    email,
+                    "campaigns",
+                    new Dictionary<string, string?>
+                    {
+                        ["CampaignName"] = campaignName,
+                        ["PackageName"] = campaign.PackageBand.Name,
+                        ["Budget"] = FormatCurrency(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount),
+                        ["EventTitle"] = eventTitle,
+                        ["EventBody"] = eventBody,
+                        ["ActionUrl"] = actionUrl
+                    },
+                    null,
+                    cancellationToken);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send internal creative queue update email for campaign {CampaignId}.", campaign.Id);
+        }
+    }
+
+    private async Task<string[]> GetInternalCreativeNotificationRecipientsAsync(
+        Campaign campaign,
+        bool includeAssignedAgent,
+        CancellationToken cancellationToken)
+    {
+        var recipients = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        var creativeDirectorEmails = await _db.UserAccounts
+            .AsNoTracking()
+            .Where(x => x.Role == UserRole.CreativeDirector && x.AccountStatus == AccountStatus.Active)
+            .Select(x => x.Email)
+            .ToArrayAsync(cancellationToken);
+
+        foreach (var email in creativeDirectorEmails)
+        {
+            if (!string.IsNullOrWhiteSpace(email))
+            {
+                recipients.Add(email.Trim());
+            }
+        }
+
+        if (includeAssignedAgent && !string.IsNullOrWhiteSpace(campaign.AssignedAgentUser?.Email))
+        {
+            recipients.Add(campaign.AssignedAgentUser.Email.Trim());
+        }
+
+        return recipients.ToArray();
     }
 }

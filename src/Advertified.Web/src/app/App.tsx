@@ -4,6 +4,7 @@ import { Footer } from '../components/layout/Footer';
 import { Navbar } from '../components/layout/Navbar';
 import { LoadingState } from '../components/ui/LoadingState';
 import { ProtectedRoute } from '../components/ui/ProtectedRoute';
+import { publicAiStudioEnabled } from '../lib/featureFlags';
 
 function lazyPage<TModule extends Record<string, unknown>, TExport extends keyof TModule>(
   load: () => Promise<TModule>,
@@ -49,6 +50,7 @@ const AgentLeadsClientsPage = lazyPage(() => import('../pages/agent/AgentLeadsCl
 const AgentMessagesNotesPage = lazyPage(() => import('../pages/agent/AgentMessagesNotesPage'), 'AgentMessagesNotesPage');
 const AgentRecommendationBuilderPage = lazyPage(() => import('../pages/agent/AgentRecommendationBuilderPage'), 'AgentRecommendationBuilderPage');
 const AgentReviewSendPage = lazyPage(() => import('../pages/agent/AgentReviewSendPage'), 'AgentReviewSendPage');
+const AgentSalesPage = lazyPage(() => import('../pages/agent/AgentSalesPage'), 'AgentSalesPage');
 
 const CreativeDirectorStudioPage = lazyPage(() => import('../pages/creative/CreativeDirectorPages'), 'CreativeDirectorStudioPage');
 const CreativeStudioPreviewPage = lazyPage(() => import('../pages/creative/CreativeDirectorPages'), 'CreativeStudioPreviewPage');
@@ -85,7 +87,7 @@ export function App() {
             <Route path="/packages" element={<PackagesPage />} />
             <Route path="/how-it-works" element={<HowItWorksPage />} />
             <Route path="/about" element={<AboutUsPage />} />
-            <Route path="/ai-studio" element={<AiStudioPage />} />
+            <Route path="/ai-studio" element={publicAiStudioEnabled ? <AiStudioPage /> : <Navigate to="/" replace />} />
             <Route path="/faq" element={<FaqPage />} />
             <Route path="/media-partners" element={<MediaPartnersPage />} />
             <Route path="/partner-enquiry" element={<PartnerEnquiryPage />} />
@@ -126,6 +128,7 @@ export function App() {
             <Route path="/agent/review-send" element={<ProtectedRoute requireAgent><AgentReviewSendPage /></ProtectedRoute>} />
             <Route path="/agent/approvals" element={<ProtectedRoute requireAgent><AgentApprovalsPage /></ProtectedRoute>} />
             <Route path="/agent/messages" element={<ProtectedRoute requireAgent><AgentMessagesNotesPage /></ProtectedRoute>} />
+            <Route path="/agent/sales" element={<ProtectedRoute requireAgent><AgentSalesPage /></ProtectedRoute>} />
             <Route path="/agent/recommendations/new" element={<ProtectedRoute requireAgent><AgentCreateRecommendationPage /></ProtectedRoute>} />
             <Route path="/agent/campaigns" element={<ProtectedRoute requireAgent><AgentCampaignsPage /></ProtectedRoute>} />
             <Route path="/agent/campaigns/:id" element={<ProtectedRoute requireAgent><AgentCampaignDetailPage /></ProtectedRoute>} />

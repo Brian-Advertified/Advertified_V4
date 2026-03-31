@@ -85,7 +85,7 @@ export function RecommendationViewer({ recommendation, recommendationPdfUrl }: {
           </div>
         </div>
       </div>
-      <div className="grid gap-4">
+      <div className="grid gap-4 md:grid-cols-2">
         {recommendation.items.map((item) => (
           <div key={item.id} className="rounded-[24px] border border-line bg-slate-50 px-5 py-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

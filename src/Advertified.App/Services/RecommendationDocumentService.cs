@@ -92,6 +92,16 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
     private static RecommendationProposalDocumentModel MapProposal(CampaignRecommendation recommendation)
     {
         var (label, strategy) = GetProposalDetails(recommendation.RecommendationType);
+        var lines = recommendation.RecommendationItems.Select(MapLine).ToList();
+        lines.Add(new RecommendationLineDocumentModel
+        {
+            Channel = "Studio",
+            Title = "AI Studio services",
+            Rationale = "Creative support and studio services included in campaign workflow.",
+            Quantity = 1,
+            Restrictions = "Included service line item."
+        });
+
         return new RecommendationProposalDocumentModel
         {
             Label = label,
@@ -99,7 +109,7 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
             Summary = recommendation.Summary ?? string.Empty,
             Rationale = RemoveInternalMarkers(recommendation.Rationale),
             TotalCost = recommendation.TotalCost,
-            Items = recommendation.RecommendationItems.Select(MapLine).ToArray()
+            Items = lines.ToArray()
         };
     }
 

@@ -481,6 +481,30 @@ export interface AgentInbox {
   items: AgentInboxItem[];
 }
 
+export interface AgentSaleItem {
+  campaignId: string;
+  packageOrderId: string;
+  campaignName: string;
+  clientName: string;
+  clientEmail: string;
+  packageBandName: string;
+  selectedBudget: number;
+  chargedAmount: number;
+  paymentProvider: string;
+  paymentReference?: string;
+  convertedFromProspect: boolean;
+  purchasedAt: string;
+  createdAt: string;
+}
+
+export interface AgentSales {
+  totalSalesCount: number;
+  convertedProspectSalesCount: number;
+  totalChargedAmount: number;
+  totalSelectedBudget: number;
+  items: AgentSaleItem[];
+}
+
 export interface AdminUser {
   id: string;
   fullName: string;

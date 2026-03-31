@@ -79,7 +79,7 @@ export function AgentReviewSendPage() {
                           </td>
                           <td className="px-4 py-4 text-ink-soft">
                             <p>{active?.proposalLabel ?? 'Recommendation draft'}</p>
-                            <p className="text-xs">{titleize(active?.status ?? 'draft')} | {fmtCurrency(active?.totalCost)}</p>
+                            <p className="text-xs">{titleize(active?.status ?? 'draft')} | {fmtCurrency(active?.totalCost)} | {campaign.recommendations.length} option(s)</p>
                           </td>
                           <td className="px-4 py-4 text-ink-soft">
                             {active?.clientFeedbackNotes ?? campaign.nextAction}
@@ -111,7 +111,7 @@ export function AgentReviewSendPage() {
                               {active?.status === 'draft' ? (
                                 <ActionIconButton
                                   title={`Send ${campaign.campaignName} to client`}
-                                  disabled={sendMutation.isPending}
+                                  disabled={sendMutation.isPending || campaign.recommendations.length < 3}
                                   onClick={() => sendMutation.mutate(campaign.id)}
                                 >
                                   <Send className="size-4" />

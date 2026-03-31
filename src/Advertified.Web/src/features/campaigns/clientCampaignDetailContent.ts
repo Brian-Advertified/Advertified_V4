@@ -176,8 +176,8 @@ export function getApprovalContent(campaign: Campaign, recommendationStatus?: st
   };
 }
 
-export function buildApprovalDetails(campaign: Campaign) {
-  const recommendation = getPrimaryRecommendation(campaign);
+export function buildApprovalDetails(campaign: Campaign, recommendationOverride?: Campaign['recommendations'][number]) {
+  const recommendation = recommendationOverride ?? getPrimaryRecommendation(campaign);
   const channels = Array.from(new Set(recommendation?.items.map((item) => item.channel).filter(Boolean) ?? []));
   const details: string[] = [];
 

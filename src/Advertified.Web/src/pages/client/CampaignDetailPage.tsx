@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MessageSquareText, Sparkles } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { LoadingState } from '../../components/ui/LoadingState';
@@ -11,7 +11,7 @@ import { buildApprovalDetails, getApprovalContent, getHeroContent } from '../../
 import { invalidateClientCampaignQueries, queryKeys } from '../../lib/queryKeys';
 import { formatDate, titleCase } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
-import { ClientCampaignShell, getCampaignProgressPercent, getPrimaryRecommendation } from './clientWorkspace';
+import { ClientCampaignShell, getCampaignProgressPercent } from './clientWorkspace';
 
 export function CampaignDetailPage() {
   const { id = '' } = useParams();
@@ -22,9 +22,28 @@ export function CampaignDetailPage() {
   const queryClient = useQueryClient();
   const campaignQuery = useQuery({ queryKey: queryKeys.campaigns.detail(id), queryFn: () => advertifiedApi.getCampaign(id) });
   const threadQuery = useQuery({ queryKey: queryKeys.campaigns.messages(id), queryFn: () => advertifiedApi.getCampaignMessages(id) });
+  const recommendations = campaignQuery.data
+    ? (campaignQuery.data.recommendations.length > 0
+      ? campaignQuery.data.recommendations
+      : (campaignQuery.data.recommendation ? [campaignQuery.data.recommendation] : []))
+    : [];
 
   const [messageDraft, setMessageDraft] = useState('');
   const [changeNotes, setChangeNotes] = useState('');
+  const [selectedRecommendationId, setSelectedRecommendationId] = useState('');
+
+  useEffect(() => {
+    if (recommendations.length === 0) {
+      return;
+    }
+
+    if (recommendations.some((item) => item.id === selectedRecommendationId)) {
+      return;
+    }
+
+    const preferred = recommendations.find((item) => item.status === 'sent_to_client') ?? recommendations[0];
+    setSelectedRecommendationId(preferred.id);
+  }, [recommendations, selectedRecommendationId]);
 
   const approveMutation = useMutation({
     mutationFn: (recommendationId?: string) => advertifiedApi.approveRecommendation(id, recommendationId),
@@ -45,7 +64,7 @@ export function CampaignDetailPage() {
   });
 
   const requestChangesMutation = useMutation({
-    mutationFn: () => advertifiedApi.requestRecommendationChanges(id, changeNotes.trim()),
+    mutationFn: (notes: string) => advertifiedApi.requestRecommendationChanges(id, notes),
     onSuccess: async () => {
       setChangeNotes('');
       await invalidateClientCampaignQueries(queryClient, id, user?.id);
@@ -58,6 +77,25 @@ export function CampaignDetailPage() {
     onError: (error) => {
       pushToast({
         title: 'Could not request changes.',
+        description: error instanceof Error ? error.message : 'Please try again.',
+      }, 'error');
+    },
+  });
+
+  const rejectAllMutation = useMutation({
+    mutationFn: (notes: string) => advertifiedApi.requestRecommendationChanges(id, notes),
+    onSuccess: async () => {
+      setChangeNotes('');
+      await invalidateClientCampaignQueries(queryClient, id, user?.id);
+      pushToast({
+        title: 'All proposals rejected.',
+        description: 'Your agent will prepare a fresh proposal set based on your notes.',
+      });
+      navigate(`/campaigns/${id}/messages`);
+    },
+    onError: (error) => {
+      pushToast({
+        title: 'Could not reject all proposals.',
         description: error instanceof Error ? error.message : 'Please try again.',
       }, 'error');
     },
@@ -143,7 +181,7 @@ export function CampaignDetailPage() {
 
   const campaign = campaignQuery.data;
   const thread = threadQuery.data;
-  const recommendation = getPrimaryRecommendation(campaign);
+  const recommendation = recommendations.find((item) => item.id === selectedRecommendationId) ?? recommendations[0];
   const progress = getCampaignProgressPercent(campaign);
   const campaignReadiness = campaign.status === 'launched'
     ? 100
@@ -152,8 +190,10 @@ export function CampaignDetailPage() {
       : campaign.status === 'creative_approved'
         ? Math.max(progress, 96)
         : progress;
+  const recommendationAwaitingDecision = recommendation?.status === 'sent_to_client';
   const canApproveRecommendation = Boolean(
     recommendation
+      && recommendationAwaitingDecision
       && campaign.status !== 'approved'
       && campaign.status !== 'creative_changes_requested'
       && campaign.status !== 'creative_sent_to_client_for_approval'
@@ -164,7 +204,7 @@ export function CampaignDetailPage() {
   const canApproveCreative = campaign.status === 'creative_sent_to_client_for_approval';
   const hero = getHeroContent(campaign, recommendation?.status);
   const approval = getApprovalContent(campaign, recommendation?.status);
-  const details = buildApprovalDetails(campaign);
+  const details = buildApprovalDetails(campaign, recommendation);
   const latestAgentMessage = [...thread.messages].reverse().find((message) => message.senderRole === 'agent');
   const activeView = location.pathname.endsWith('/approvals')
     ? 'approvals'
@@ -172,6 +212,15 @@ export function CampaignDetailPage() {
       ? 'messages'
       : 'overview';
   const campaignBasePath = `/campaigns/${campaign.id}`;
+
+  function buildSelectedProposalFeedback(noteBody: string) {
+    const selectedLabel = recommendation?.proposalLabel ?? recommendation?.id ?? 'Selected proposal';
+    return `Client selected proposal for revision: ${selectedLabel}\nClient notes: ${noteBody.trim()}`;
+  }
+
+  function buildRejectAllFeedback(noteBody: string) {
+    return `Client rejected all proposals.\nReason: ${noteBody.trim()}`;
+  }
 
   async function handleDownloadRecommendationPdf() {
     if (!campaign.recommendationPdfUrl) {
@@ -243,7 +292,6 @@ export function CampaignDetailPage() {
             </div>
             </div>
             </section>
-
             {campaign.deliveryReports.length > 0 || campaign.supplierBookings.length > 0 || campaign.assets.length > 0 || campaign.daysLeft != null ? (
               <section className="rounded-[30px] border border-line bg-white p-7 shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
             <div className="mb-5">
@@ -335,6 +383,34 @@ export function CampaignDetailPage() {
             </p>
           </div>
 
+          {recommendations.length > 1 ? (
+            <div className="mb-6 rounded-[18px] border border-line bg-slate-50/70 p-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Proposal options</p>
+              <p className="mt-2 text-sm text-ink-soft">Select the proposal you want to accept or revise. You can also reject all with comments.</p>
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                {recommendations.map((proposal, index) => {
+                  const selected = proposal.id === recommendation?.id;
+                  return (
+                    <button
+                      key={proposal.id}
+                      type="button"
+                      onClick={() => setSelectedRecommendationId(proposal.id)}
+                      className={`rounded-[14px] border px-4 py-3 text-left transition ${
+                        selected ? 'border-brand bg-white' : 'border-line bg-white hover:border-brand/35'
+                      }`}
+                    >
+                      <p className="text-sm font-semibold text-ink">{proposal.proposalLabel ?? `Proposal ${index + 1}`}</p>
+                      <p className="mt-1 text-xs text-ink-soft">{proposal.proposalStrategy ?? 'Media plan option'}</p>
+                      <p className="mt-2 text-[11px] uppercase tracking-[0.12em] text-ink-soft">
+                        {titleCase(proposal.status.replace(/_/g, ' '))}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
           {recommendation ? (
             <div className="mb-6">
               <RecommendationViewer recommendation={recommendation} recommendationPdfUrl={campaign.recommendationPdfUrl} />
@@ -390,24 +466,32 @@ export function CampaignDetailPage() {
                     value={changeNotes}
                     onChange={(event) => setChangeNotes(event.target.value)}
                     className="input-base min-h-[120px]"
-                    placeholder="Optional notes if you want changes before approval..."
+                    placeholder="Comments for revisions, or reason if rejecting all proposals..."
                   />
                   <div className="flex flex-wrap gap-3">
                     <button
                       type="button"
                       onClick={() => approveMutation.mutate(recommendation?.id)}
-                      disabled={approveMutation.isPending || requestChangesMutation.isPending}
+                      disabled={approveMutation.isPending || requestChangesMutation.isPending || rejectAllMutation.isPending}
                       className="user-btn-primary disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {approveMutation.isPending ? 'Approving...' : 'Looks good - approve'}
+                      {approveMutation.isPending ? 'Accepting...' : 'Accept as final'}
                     </button>
                     <button
                       type="button"
-                      onClick={() => requestChangesMutation.mutate()}
-                      disabled={approveMutation.isPending || requestChangesMutation.isPending || !changeNotes.trim()}
+                      onClick={() => requestChangesMutation.mutate(buildSelectedProposalFeedback(changeNotes))}
+                      disabled={approveMutation.isPending || requestChangesMutation.isPending || rejectAllMutation.isPending || !changeNotes.trim()}
                       className="user-btn-secondary disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {requestChangesMutation.isPending ? 'Sending...' : 'Request changes'}
+                      {requestChangesMutation.isPending ? 'Sending...' : 'Request changes on selected proposal'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => rejectAllMutation.mutate(buildRejectAllFeedback(changeNotes))}
+                      disabled={approveMutation.isPending || requestChangesMutation.isPending || rejectAllMutation.isPending || !changeNotes.trim()}
+                      className="user-btn-secondary disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {rejectAllMutation.isPending ? 'Sending...' : 'Reject all proposals'}
                     </button>
                     <Link to={`${campaignBasePath}/messages`} className="user-btn">Ask question</Link>
                   </div>

@@ -27,6 +27,9 @@ public sealed class AgentCampaignsController : ControllerBase
     private readonly ICampaignRecommendationService _campaignRecommendationService;
     private readonly ICampaignBriefInterpretationService _campaignBriefInterpretationService;
     private readonly IRecommendationDocumentService _recommendationDocumentService;
+    private readonly IPackagePurchaseService _packagePurchaseService;
+    private readonly IPasswordHashingService _passwordHashingService;
+    private readonly IEmailVerificationService _emailVerificationService;
     private readonly IPublicAssetStorage _assetStorage;
     private readonly ITemplatedEmailService _emailService;
     private readonly IChangeAuditService _changeAuditService;
@@ -40,6 +43,9 @@ public sealed class AgentCampaignsController : ControllerBase
         ICampaignRecommendationService campaignRecommendationService,
         ICampaignBriefInterpretationService campaignBriefInterpretationService,
         IRecommendationDocumentService recommendationDocumentService,
+        IPackagePurchaseService packagePurchaseService,
+        IPasswordHashingService passwordHashingService,
+        IEmailVerificationService emailVerificationService,
         IPublicAssetStorage assetStorage,
         ITemplatedEmailService emailService,
         IChangeAuditService changeAuditService,
@@ -52,6 +58,9 @@ public sealed class AgentCampaignsController : ControllerBase
         _campaignRecommendationService = campaignRecommendationService;
         _campaignBriefInterpretationService = campaignBriefInterpretationService;
         _recommendationDocumentService = recommendationDocumentService;
+        _packagePurchaseService = packagePurchaseService;
+        _passwordHashingService = passwordHashingService;
+        _emailVerificationService = emailVerificationService;
         _assetStorage = assetStorage;
         _emailService = emailService;
         _changeAuditService = changeAuditService;
@@ -233,6 +242,48 @@ public sealed class AgentCampaignsController : ControllerBase
         return Ok(response);
     }
 
+    [HttpGet("sales")]
+    public async Task<IActionResult> GetSales(CancellationToken cancellationToken)
+    {
+        var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
+        var currentUserId = currentUser.Id;
+        var sales = await _db.Campaigns
+            .AsNoTracking()
+            .Where(x => x.AssignedAgentUserId == currentUserId && x.PackageOrder.PaymentStatus == "paid")
+            .OrderByDescending(x => x.PackageOrder.PurchasedAt)
+            .ThenByDescending(x => x.CreatedAt)
+            .Select(x => new AgentSaleItemResponse
+            {
+                CampaignId = x.Id,
+                PackageOrderId = x.PackageOrderId,
+                CampaignName = string.IsNullOrWhiteSpace(x.CampaignName) ? $"{x.PackageBand.Name} campaign" : x.CampaignName.Trim(),
+                ClientName = x.User.FullName,
+                ClientEmail = x.User.Email,
+                PackageBandName = x.PackageBand.Name,
+                SelectedBudget = PricingPolicy.ResolvePlanningBudget(
+                    x.PackageOrder.SelectedBudget ?? x.PackageOrder.Amount,
+                    x.PackageOrder.AiStudioReserveAmount),
+                ChargedAmount = x.PackageOrder.Amount,
+                PaymentProvider = x.PackageOrder.PaymentProvider ?? "unknown",
+                PaymentReference = x.PackageOrder.PaymentReference,
+                ConvertedFromProspect = x.PackageOrder.PaymentProvider == "prospect",
+                PurchasedAt = new DateTimeOffset(x.PackageOrder.PurchasedAt ?? x.CreatedAt, TimeSpan.Zero),
+                CreatedAt = new DateTimeOffset(x.CreatedAt, TimeSpan.Zero)
+            })
+            .ToArrayAsync(cancellationToken);
+
+        var response = new AgentSalesResponse
+        {
+            TotalSalesCount = sales.Length,
+            ConvertedProspectSalesCount = sales.Count(x => x.ConvertedFromProspect),
+            TotalChargedAmount = sales.Sum(x => x.ChargedAmount),
+            TotalSelectedBudget = sales.Sum(x => x.SelectedBudget),
+            Items = sales
+        };
+
+        return Ok(response);
+    }
+
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(Guid id, CancellationToken cancellationToken)
     {
@@ -271,6 +322,155 @@ public sealed class AgentCampaignsController : ControllerBase
         return Ok(response);
     }
 
+    [HttpPost("prospects")]
+    public async Task<IActionResult> CreateProspectCampaign([FromBody] CreateProspectCampaignRequest request, CancellationToken cancellationToken)
+    {
+        var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
+        var currentUserId = currentUser.Id;
+
+        var fullName = request.FullName?.Trim() ?? string.Empty;
+        var email = (request.Email?.Trim() ?? string.Empty).ToLowerInvariant();
+        var phone = request.Phone?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(fullName))
+        {
+            throw new InvalidOperationException("Prospect full name is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            throw new InvalidOperationException("Prospect email is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(phone))
+        {
+            throw new InvalidOperationException("Prospect phone is required.");
+        }
+
+        var packageBand = await _db.PackageBands
+            .FirstOrDefaultAsync(x => x.Id == request.PackageBandId && x.IsActive, cancellationToken)
+            ?? throw new InvalidOperationException("Package band not found.");
+
+        if (request.SelectedBudget < packageBand.MinBudget || request.SelectedBudget > packageBand.MaxBudget)
+        {
+            throw new InvalidOperationException($"Selected budget must be between {packageBand.MinBudget:0.##} and {packageBand.MaxBudget:0.##}.");
+        }
+
+        var user = await _db.UserAccounts
+            .Include(x => x.BusinessProfile)
+            .FirstOrDefaultAsync(x => x.Email == email, cancellationToken);
+
+        var createdNewUser = false;
+        if (user is null)
+        {
+            var nowUtc = DateTime.UtcNow;
+            user = new UserAccount
+            {
+                Id = Guid.NewGuid(),
+                FullName = fullName,
+                Email = email,
+                Phone = phone,
+                IsSaCitizen = true,
+                Role = UserRole.Client,
+                AccountStatus = AccountStatus.PendingVerification,
+                EmailVerified = false,
+                PhoneVerified = false,
+                CreatedAt = nowUtc,
+                UpdatedAt = nowUtc
+            };
+            user.PasswordHash = _passwordHashingService.HashPassword(user, Guid.NewGuid().ToString("N"));
+            _db.UserAccounts.Add(user);
+            createdNewUser = true;
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+
+        var now = DateTime.UtcNow;
+        var packageOrder = new PackageOrder
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            PackageBandId = packageBand.Id,
+            Amount = request.SelectedBudget,
+            SelectedBudget = request.SelectedBudget,
+            AiStudioReservePercent = 0m,
+            AiStudioReserveAmount = 0m,
+            Currency = "ZAR",
+            PaymentProvider = "prospect",
+            PaymentStatus = "pending",
+            RefundStatus = "none",
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+        _db.PackageOrders.Add(packageOrder);
+
+        var campaignName = string.IsNullOrWhiteSpace(request.CampaignName)
+            ? $"{packageBand.Name} prospect campaign"
+            : request.CampaignName.Trim();
+
+        var campaign = new Campaign
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            PackageOrderId = packageOrder.Id,
+            PackageBandId = packageBand.Id,
+            CampaignName = campaignName,
+            Status = "awaiting_purchase",
+            AiUnlocked = false,
+            AgentAssistanceRequested = true,
+            AssignedAgentUserId = currentUserId,
+            AssignedAt = now,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+        _db.Campaigns.Add(campaign);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        if (createdNewUser)
+        {
+            await _emailVerificationService.QueueActivationEmailAsync(user, cancellationToken);
+        }
+
+        var refreshedCampaign = await _db.Campaigns
+            .AsNoTracking()
+            .AsSplitQuery()
+            .Include(x => x.User)
+                .ThenInclude(x => x.BusinessProfile)
+            .Include(x => x.AssignedAgentUser)
+            .Include(x => x.PackageBand)
+            .Include(x => x.PackageOrder)
+            .Include(x => x.CampaignBrief)
+            .Include(x => x.CampaignAssets)
+            .Include(x => x.CampaignSupplierBookings)
+                .ThenInclude(x => x.ProofAsset)
+            .Include(x => x.CampaignDeliveryReports)
+                .ThenInclude(x => x.EvidenceAsset)
+            .Include(x => x.CampaignPauseWindows)
+            .Include(x => x.CampaignRecommendations)
+                .ThenInclude(x => x.RecommendationItems)
+            .FirstOrDefaultAsync(x => x.Id == campaign.Id, cancellationToken)
+            ?? throw new InvalidOperationException("Campaign not found.");
+
+        await WriteChangeAuditAsync(
+            "create_prospect_campaign",
+            "campaign",
+            refreshedCampaign.Id.ToString(),
+            ResolveCampaignLabel(refreshedCampaign),
+            $"Created prospect campaign {ResolveCampaignLabel(refreshedCampaign)}.",
+            new
+            {
+                CampaignId = refreshedCampaign.Id,
+                ProspectEmail = email,
+                PackageBand = packageBand.Name,
+                request.SelectedBudget,
+                CreatedNewUser = createdNewUser
+            },
+            cancellationToken);
+
+        var response = refreshedCampaign.ToDetail(currentUserId);
+        var queueStage = CampaignWorkflowPolicy.ResolveAgentQueueStage(refreshedCampaign);
+        response.NextAction = CampaignWorkflowPolicy.GetAgentNextAction(refreshedCampaign, queueStage, currentUserId);
+        return Ok(response);
+    }
+
     [HttpPost("{id:guid}/assign")]
     public async Task<IActionResult> Assign(Guid id, [FromBody] AssignCampaignRequest request, CancellationToken cancellationToken)
     {
@@ -297,6 +497,98 @@ public sealed class AgentCampaignsController : ControllerBase
         await SendAssignmentEmailIfNeededAsync(campaign.Id, cancellationToken);
 
         return Accepted(new { CampaignId = id, AssignedAgentUserId = agentUserId, Message = "Campaign assigned." });
+    }
+
+    [HttpPost("{id:guid}/convert-to-sale")]
+    public async Task<IActionResult> ConvertProspectToSale(Guid id, [FromBody] ConvertProspectToSaleRequest request, CancellationToken cancellationToken)
+    {
+        var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
+        var campaign = await _db.Campaigns
+            .Include(x => x.PackageOrder)
+            .Include(x => x.PackageBand)
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+            ?? throw new InvalidOperationException("Campaign not found.");
+
+        if (currentUser.Role == UserRole.Agent && campaign.AssignedAgentUserId != currentUser.Id)
+        {
+            throw new InvalidOperationException("Only the assigned agent can convert this campaign to a sale.");
+        }
+
+        if (!string.Equals(campaign.Status, "awaiting_purchase", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Only prospective campaigns can be converted to a sale.");
+        }
+
+        if (string.Equals(campaign.PackageOrder.PaymentStatus, "paid", StringComparison.OrdinalIgnoreCase))
+        {
+            var paidCampaign = await _db.Campaigns
+                .AsNoTracking()
+                .AsSplitQuery()
+                .Include(x => x.User)
+                    .ThenInclude(x => x.BusinessProfile)
+                .Include(x => x.AssignedAgentUser)
+                .Include(x => x.PackageBand)
+                .Include(x => x.PackageOrder)
+                .Include(x => x.CampaignBrief)
+                .Include(x => x.CampaignCreativeSystems)
+                .Include(x => x.CampaignAssets)
+                .Include(x => x.CampaignSupplierBookings)
+                    .ThenInclude(x => x.ProofAsset)
+                .Include(x => x.CampaignDeliveryReports)
+                    .ThenInclude(x => x.EvidenceAsset)
+                .Include(x => x.CampaignPauseWindows)
+                .Include(x => x.CampaignRecommendations)
+                    .ThenInclude(x => x.RecommendationItems)
+                .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+                ?? throw new InvalidOperationException("Campaign not found.");
+
+            return Ok(paidCampaign.ToDetail(currentUser.Id));
+        }
+
+        var paymentReference = NormalizeOptionalText(request.PaymentReference)
+            ?? $"agent-sale-{DateTime.UtcNow:yyyyMMddHHmmss}-{campaign.Id.ToString("N")[..8]}";
+
+        await _packagePurchaseService.MarkOrderPaidAsync(campaign.PackageOrderId, paymentReference, cancellationToken);
+
+        var refreshedCampaign = await _db.Campaigns
+            .AsNoTracking()
+            .AsSplitQuery()
+            .Include(x => x.User)
+                .ThenInclude(x => x.BusinessProfile)
+            .Include(x => x.AssignedAgentUser)
+            .Include(x => x.PackageBand)
+            .Include(x => x.PackageOrder)
+            .Include(x => x.CampaignBrief)
+            .Include(x => x.CampaignCreativeSystems)
+            .Include(x => x.CampaignAssets)
+            .Include(x => x.CampaignSupplierBookings)
+                .ThenInclude(x => x.ProofAsset)
+            .Include(x => x.CampaignDeliveryReports)
+                .ThenInclude(x => x.EvidenceAsset)
+            .Include(x => x.CampaignPauseWindows)
+            .Include(x => x.CampaignRecommendations)
+                .ThenInclude(x => x.RecommendationItems)
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+            ?? throw new InvalidOperationException("Campaign not found.");
+
+        await WriteChangeAuditAsync(
+            "convert_prospect_to_sale",
+            "campaign",
+            refreshedCampaign.Id.ToString(),
+            ResolveCampaignLabel(refreshedCampaign),
+            $"Converted prospect campaign {ResolveCampaignLabel(refreshedCampaign)} into a paid sale.",
+            new
+            {
+                CampaignId = refreshedCampaign.Id,
+                PackageOrderId = refreshedCampaign.PackageOrderId,
+                paymentReference
+            },
+            cancellationToken);
+
+        var response = refreshedCampaign.ToDetail(currentUser.Id);
+        var queueStage = CampaignWorkflowPolicy.ResolveAgentQueueStage(refreshedCampaign);
+        response.NextAction = CampaignWorkflowPolicy.GetAgentNextAction(refreshedCampaign, queueStage, currentUser.Id);
+        return Ok(response);
     }
 
     [HttpPost("{id:guid}/unassign")]

@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Eye, Pencil, Search, UserPlus2, UserX2 } from 'lucide-react';
+import { Eye, Pencil, Search, UserPlus2, UserX2, WalletCards } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useToast } from '../../components/ui/toast';
 import { advertifiedApi } from '../../services/advertifiedApi';
@@ -13,7 +13,7 @@ import {
 } from './agentWorkspace';
 import { ActionIconButton } from './agentSectionShared';
 
-type QueueStageFilter = 'all' | 'newly_paid' | 'brief_waiting' | 'planning_ready' | 'agent_review' | 'ready_to_send' | 'waiting_on_client' | 'completed';
+type QueueStageFilter = 'all' | 'prospects' | 'newly_paid' | 'brief_waiting' | 'planning_ready' | 'agent_review' | 'ready_to_send' | 'waiting_on_client' | 'completed';
 type OwnershipFilter = 'all' | 'assigned_to_me' | 'unassigned';
 
 function formatBuildSource(planningMode?: 'ai_assisted' | 'agent_assisted' | 'hybrid') {
@@ -52,6 +52,30 @@ export function AgentCampaignsPage() {
     },
     onError: (error) => pushToast({ title: 'Could not unassign campaign.', description: error instanceof Error ? error.message : 'Please try again.' }, 'error'),
   });
+  const handleConvertToSale = (campaignId: string) => {
+    const paymentReference = window.prompt('Enter payment reference (optional)')?.trim();
+    if (paymentReference === undefined) {
+      return;
+    }
+
+    convertSaleMutation.mutate({
+      campaignId,
+      paymentReference: paymentReference.length > 0 ? paymentReference : undefined,
+    });
+  };
+  const convertSaleMutation = useMutation({
+    mutationFn: ({ campaignId, paymentReference }: { campaignId: string; paymentReference?: string }) => (
+      advertifiedApi.convertProspectToSale(campaignId, { paymentReference })
+    ),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['agent-inbox'] }),
+        queryClient.invalidateQueries({ queryKey: ['agent-sales'] }),
+      ]);
+      pushToast({ title: 'Campaign converted to sale.', description: 'Payment is marked as paid and this sale is now tracked in My Sales.' });
+    },
+    onError: (error) => pushToast({ title: 'Could not convert to sale.', description: error instanceof Error ? error.message : 'Please try again.' }, 'error'),
+  });
 
   return (
     <AgentQueryBoundary query={inboxQuery} loadingLabel="Loading agent inbox...">
@@ -63,6 +87,7 @@ export function AgentCampaignsPage() {
           }
           const queueTabs = [
             { id: 'all' as const, label: 'All', count: inbox.totalCampaigns },
+            { id: 'prospects' as const, label: 'Prospects', count: inbox.items.filter((item) => item.status === 'awaiting_purchase').length },
             { id: 'newly_paid' as const, label: 'Newly paid', count: inbox.newlyPaidCount },
             { id: 'brief_waiting' as const, label: 'Brief waiting', count: inbox.briefWaitingCount },
             { id: 'planning_ready' as const, label: 'Needs planning', count: inbox.planningReadyCount },
@@ -74,7 +99,9 @@ export function AgentCampaignsPage() {
 
           const campaigns = inbox.items.filter((item) => {
             const matchesSearch = `${item.campaignName} ${item.packageBandName} ${item.clientName} ${item.clientEmail}`.toLowerCase().includes(search.toLowerCase());
-            const matchesStage = stageFilter === 'all' || item.queueStage === stageFilter;
+            const matchesStage = stageFilter === 'all'
+              || (stageFilter === 'prospects' && item.status === 'awaiting_purchase')
+              || item.queueStage === stageFilter;
             const matchesOwnership = ownershipFilter === 'all'
               || (ownershipFilter === 'assigned_to_me' && item.isAssignedToCurrentUser)
               || (ownershipFilter === 'unassigned' && item.isUnassigned);
@@ -176,6 +203,11 @@ export function AgentCampaignsPage() {
                             <Link to={`/agent/recommendations/new?campaignId=${campaign.id}`} className="button-secondary p-2" title={`Edit ${campaign.campaignName}`}>
                               <Pencil className="size-4" />
                             </Link>
+                            {campaign.status === 'awaiting_purchase' && campaign.isAssignedToCurrentUser ? (
+                              <ActionIconButton title={`Convert ${campaign.campaignName} to sale`} onClick={() => handleConvertToSale(campaign.id)} disabled={convertSaleMutation.isPending}>
+                                <WalletCards className="size-4" />
+                              </ActionIconButton>
+                            ) : null}
                             {campaign.isAssignedToCurrentUser ? (
                               <ActionIconButton title={`Unassign ${campaign.campaignName}`} onClick={() => unassignMutation.mutate(campaign.id)} disabled={unassignMutation.isPending}>
                                 <UserX2 className="size-4" />

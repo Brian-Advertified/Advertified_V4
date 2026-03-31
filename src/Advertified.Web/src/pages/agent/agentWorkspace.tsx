@@ -3,6 +3,7 @@ import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { NavLink } from 'react-router-dom';
 import {
   ArrowRight,
+  CircleDollarSign,
   BriefcaseBusiness,
   ClipboardList,
   FolderKanban,
@@ -43,6 +44,7 @@ export const agentNavSections: AgentNavSection[] = [
       { path: '/agent/campaigns', label: 'Campaign Pipeline', icon: FolderKanban, end: true },
       { path: '/agent/briefs', label: 'Campaign Brief', icon: ClipboardList },
       { path: '/agent/recommendation-builder', label: 'Recommendation Builder', icon: BriefcaseBusiness },
+      { path: '/agent/sales', label: 'My Sales', icon: CircleDollarSign },
       { path: '/agent/review-send', label: 'Review & Send', icon: Send },
       { path: '/agent/approvals', label: 'Approvals & Changes', icon: ArrowRight },
       { path: '/agent/messages', label: 'Messages & Notes', icon: MessageSquareText },

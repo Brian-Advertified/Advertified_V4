@@ -1,9 +1,13 @@
 using Advertified.App.Contracts.Packages;
 using Advertified.App.Data;
 using Advertified.App.Data.Entities;
+using Advertified.App.Data.Enums;
+using Advertified.App.Configuration;
 using Advertified.App.Services.Abstractions;
 using Advertified.App.Support;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using System.Globalization;
 
 namespace Advertified.App.Services;
 
@@ -16,6 +20,9 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
     private readonly IPaymentStateCache _paymentStateCache;
     private readonly IAgentAreaRoutingService _agentAreaRoutingService;
     private readonly IPricingSettingsProvider _pricingSettingsProvider;
+    private readonly ITemplatedEmailService _emailService;
+    private readonly FrontendOptions _frontendOptions;
+    private readonly ILogger<PackagePurchaseService> _logger;
 
     public PackagePurchaseService(
         AppDbContext db,
@@ -24,7 +31,10 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
         IVodaPayCheckoutService vodaPayCheckoutService,
         IPaymentStateCache paymentStateCache,
         IAgentAreaRoutingService agentAreaRoutingService,
-        IPricingSettingsProvider pricingSettingsProvider)
+        IPricingSettingsProvider pricingSettingsProvider,
+        ITemplatedEmailService emailService,
+        IOptions<FrontendOptions> frontendOptions,
+        ILogger<PackagePurchaseService> logger)
     {
         _db = db;
         _accessService = accessService;
@@ -33,6 +43,9 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
         _paymentStateCache = paymentStateCache;
         _agentAreaRoutingService = agentAreaRoutingService;
         _pricingSettingsProvider = pricingSettingsProvider;
+        _emailService = emailService;
+        _frontendOptions = frontendOptions.Value;
+        _logger = logger;
     }
 
     public async Task<CreatePackageOrderResponse> CreatePendingOrderAsync(Guid userId, CreatePackageOrderRequest request, CancellationToken cancellationToken)
@@ -101,6 +114,10 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
 
             await _db.SaveChangesAsync(cancellationToken);
         }
+
+        var campaignForOrder = existingCampaign
+            ?? await _db.Campaigns.FirstOrDefaultAsync(x => x.PackageOrderId == order.Id, cancellationToken);
+        await SendAdminSaleAlertAsync(order, band, user, paymentProvider, campaignForOrder, cancellationToken);
 
         if (string.Equals(paymentProvider, "lula", StringComparison.OrdinalIgnoreCase))
         {
@@ -274,5 +291,75 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
             PackageOrderId = order.Id,
             UpdatedAtUtc = DateTime.UtcNow
         }, cancellationToken);
+    }
+
+    private async Task SendAdminSaleAlertAsync(
+        PackageOrder order,
+        PackageBand band,
+        UserAccount user,
+        string paymentProvider,
+        Campaign? campaign,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var adminEmails = await _db.UserAccounts
+                .AsNoTracking()
+                .Where(x => x.Role == UserRole.Admin && x.AccountStatus == AccountStatus.Active)
+                .Select(x => x.Email)
+                .Distinct()
+                .ToArrayAsync(cancellationToken);
+
+            if (adminEmails.Length == 0)
+            {
+                return;
+            }
+
+            var campaignName = campaign is not null && !string.IsNullOrWhiteSpace(campaign.CampaignName)
+                ? campaign.CampaignName.Trim()
+                : $"{band.Name} campaign";
+            var isLula = string.Equals(paymentProvider, "lula", StringComparison.OrdinalIgnoreCase);
+            var adminUrl = BuildFrontendUrl("/admin/package-orders");
+            var actionNote = isLula
+                ? "Lula order created. Review in admin package orders and follow up on settlement workflow."
+                : "Track payment progression and campaign activation readiness.";
+
+            foreach (var email in adminEmails)
+            {
+                await _emailService.SendAsync(
+                    "admin-sale-alert",
+                    email,
+                    "admin-sales",
+                    new Dictionary<string, string?>
+                    {
+                        ["ClientName"] = user.FullName,
+                        ["ClientEmail"] = user.Email,
+                        ["CampaignName"] = campaignName,
+                        ["PackageName"] = band.Name,
+                        ["SelectedBudget"] = FormatCurrency(order.SelectedBudget ?? order.Amount),
+                        ["ChargedAmount"] = FormatCurrency(order.Amount),
+                        ["PaymentProvider"] = order.PaymentProvider ?? paymentProvider,
+                        ["PaymentStatus"] = order.PaymentStatus,
+                        ["ActionNote"] = actionNote,
+                        ["AdminUrl"] = adminUrl
+                    },
+                    null,
+                    cancellationToken);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send admin sale alert for package order {PackageOrderId}.", order.Id);
+        }
+    }
+
+    private string BuildFrontendUrl(string path)
+    {
+        return _frontendOptions.BaseUrl.TrimEnd('/') + path;
+    }
+
+    private static string FormatCurrency(decimal amount)
+    {
+        return $"R {amount.ToString("N2", CultureInfo.GetCultureInfo("en-ZA"))}";
     }
 }
