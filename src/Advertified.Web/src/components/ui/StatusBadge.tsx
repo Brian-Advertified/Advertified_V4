@@ -2,18 +2,18 @@ import { cn } from '../../lib/utils';
 
 const toneMap: Record<string, string> = {
   pending: 'bg-amber-100 text-amber-700',
-  paid: 'bg-emerald-100 text-emerald-700',
+  paid: 'bg-brand-soft text-brand',
   failed: 'bg-rose-100 text-rose-700',
   paid_campaign: 'bg-blue-100 text-blue-700',
   brief_in_progress: 'bg-orange-100 text-orange-700',
   brief_submitted: 'bg-indigo-100 text-indigo-700',
-  planning_in_progress: 'bg-sky-100 text-sky-700',
-  review_ready: 'bg-violet-100 text-violet-700',
+  planning_in_progress: 'bg-brand-soft text-brand',
+  review_ready: 'bg-brand-soft text-brand',
   sent_to_client: 'bg-cyan-100 text-cyan-700',
-  approved: 'bg-emerald-100 text-emerald-700',
-  creative_sent_to_client_for_approval: 'bg-sky-100 text-sky-700',
+  approved: 'bg-brand-soft text-brand',
+  creative_sent_to_client_for_approval: 'bg-brand-soft text-brand',
   creative_changes_requested: 'bg-amber-100 text-amber-700',
-  creative_approved: 'bg-teal-100 text-teal-700',
+  creative_approved: 'bg-brand-soft text-brand',
   launched: 'bg-brand-soft text-brand',
 };
 

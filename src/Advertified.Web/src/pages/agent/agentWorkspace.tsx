@@ -79,14 +79,14 @@ export const titleize = (value?: string) => value ? value.replace(/_/g, ' ').rep
 export function queueTone(queueStage: string) {
   switch (queueStage) {
     case 'completed':
-      return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+      return 'border-brand/20 bg-brand-soft text-brand';
     case 'waiting_on_client':
       return 'border-amber-200 bg-amber-50 text-amber-700';
     case 'agent_review':
     case 'ready_to_send':
-      return 'border-sky-200 bg-sky-50 text-sky-700';
+      return 'border-brand/20 bg-brand-soft text-brand';
     case 'planning_ready':
-      return 'border-violet-200 bg-violet-50 text-violet-700';
+      return 'border-brand/20 bg-brand-soft text-brand';
     case 'newly_paid':
     case 'brief_waiting':
       return 'border-brand/20 bg-brand-soft text-brand';

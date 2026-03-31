@@ -49,7 +49,7 @@ export function AgentBriefsPage() {
                           <p className="text-xs text-ink-soft">{campaign.clientName ?? campaign.businessName ?? 'Client account'}</p>
                         </td>
                         <td className="px-4 py-4">
-                          <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${campaign.brief ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
+                          <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${campaign.brief ? 'border-brand/20 bg-brand-soft text-brand' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
                             {campaign.brief ? 'Brief complete' : 'Brief missing'}
                           </span>
                         </td>

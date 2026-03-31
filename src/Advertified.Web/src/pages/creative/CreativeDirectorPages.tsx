@@ -175,7 +175,7 @@ export function CreativeDirectorDashboardPage() {
                     <h3 className="mt-3 text-2xl font-semibold text-ink">{item.campaignName}</h3>
                     <p className="mt-2 text-sm text-ink-soft">{item.clientName} · {item.packageBandName}</p>
                   </div>
-                  <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                  <span className="rounded-full border border-brand/20 bg-brand-soft px-3 py-1 text-xs font-semibold text-brand">
                     {item.queueLabel}
                   </span>
                 </div>
@@ -276,13 +276,13 @@ export function CreativeDirectorStudioPage() {
       icon: RadioTower,
       title: 'Channel mood',
       body: channelMood.length ? channelMood.join(' • ') : 'The approved media mix will appear here once placements are attached.',
-      accent: 'from-sky-100 via-white to-cyan-100',
+      accent: 'from-brand-soft via-white to-brand-soft',
     },
     {
       icon: ClipboardList,
       title: 'Production notes',
       body: brief?.specialRequirements ?? 'No production notes were captured. Build from the approved recommendation and package envelope.',
-      accent: 'from-emerald-100 via-white to-lime-100',
+      accent: 'from-brand-soft via-white to-brand-soft',
     },
   ];
   const productionSignals = [
@@ -387,13 +387,13 @@ export function CreativeStudioPreviewPage() {
       icon: RadioTower,
       title: 'Channel mood',
       body: channelMood.length ? channelMood.join(' • ') : 'The approved media mix will appear here once placements are attached.',
-      accent: 'from-sky-100 via-white to-cyan-100',
+      accent: 'from-brand-soft via-white to-brand-soft',
     },
     {
       icon: ClipboardList,
       title: 'Production notes',
       body: brief?.specialRequirements ?? 'No production notes were captured. Build from the approved recommendation and package envelope.',
-      accent: 'from-emerald-100 via-white to-lime-100',
+      accent: 'from-brand-soft via-white to-brand-soft',
     },
   ];
   const productionSignals = [
@@ -602,13 +602,13 @@ export function CreativeStudioDemoPage() {
       icon: RadioTower,
       title: 'Channel mood',
       body: channelMood.length ? channelMood.join(' • ') : 'The approved media mix will appear here once placements are attached.',
-      accent: 'from-sky-100 via-white to-cyan-100',
+      accent: 'from-brand-soft via-white to-brand-soft',
     },
     {
       icon: ClipboardList,
       title: 'Production notes',
       body: brief?.specialRequirements ?? 'No production notes were captured. Build from the approved recommendation and package envelope.',
-      accent: 'from-emerald-100 via-white to-lime-100',
+      accent: 'from-brand-soft via-white to-brand-soft',
     },
   ];
   const productionSignals = [
@@ -765,7 +765,7 @@ function CreativeStudioContent({
           <div className="grid gap-8 lg:grid-cols-[1.5fr_0.9fr]">
             <div className="space-y-5">
               <div className="inline-flex items-center gap-2 rounded-full border border-white/80 bg-white/75 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.35em] text-slate-700">
-                <Sparkles className="h-4 w-4 text-emerald-500" />
+                <Sparkles className="h-4 w-4 text-brand" />
                 {isPreview ? 'Creative Studio Preview' : 'Creative Director Studio'}
               </div>
               <div className="space-y-3">
@@ -777,7 +777,7 @@ function CreativeStudioContent({
               <div className="grid gap-4 sm:grid-cols-3">
                 {productionSignals.map((signal) => (
                   <div key={signal.label} className="rounded-[24px] border border-white/80 bg-white/80 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
-                    <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+                    <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-brand-soft text-brand">
                       <CheckCircle2 className="h-5 w-5" />
                     </div>
                     <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">{signal.label}</div>
@@ -840,7 +840,7 @@ function CreativeStudioContent({
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <div className="rounded-[24px] border border-slate-200/80 bg-slate-50/70 p-5">
                 <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-                  <RadioTower className="h-4 w-4 text-sky-500" />
+                  <RadioTower className="h-4 w-4 text-brand" />
                   Approved Channel Mix
                 </div>
                 <div className="text-sm leading-7 text-slate-700">{channelMood.length ? channelMood.join(' • ') : 'Channel mix will appear here when approved placements are available.'}</div>
@@ -854,7 +854,7 @@ function CreativeStudioContent({
               </div>
               <div className="rounded-[24px] border border-slate-200/80 bg-slate-50/70 p-5 md:col-span-2">
                 <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-                  <ClipboardList className="h-4 w-4 text-emerald-500" />
+                  <ClipboardList className="h-4 w-4 text-brand" />
                   Creative Objective Frame
                 </div>
                 <div className="text-sm leading-7 text-slate-700">{recommendation?.summary ?? 'The approved recommendation summary will appear here as the strategic anchor for production.'}</div>
@@ -866,8 +866,8 @@ function CreativeStudioContent({
             <h3>Client approval handoff</h3>
             <div className="mt-4 space-y-4">
               {isPreview ? (
-                <div className="rounded-[24px] border border-sky-100 bg-sky-50/70 p-4">
-                  <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.24em] text-sky-700">
+                <div className="rounded-[24px] border border-brand/20 bg-brand-soft/70 p-4">
+                  <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.24em] text-brand">
                     <WandSparkles className="h-4 w-4" />
                     Preview mode
                   </div>
@@ -876,8 +876,8 @@ function CreativeStudioContent({
                   </p>
                 </div>
               ) : null}
-              <div className="rounded-[24px] border border-emerald-100 bg-emerald-50/70 p-4">
-                <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.24em] text-emerald-700">
+              <div className="rounded-[24px] border border-brand/20 bg-brand-soft/70 p-4">
+                <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.24em] text-brand">
                   <WandSparkles className="h-4 w-4" />
                   Role boundary
                 </div>

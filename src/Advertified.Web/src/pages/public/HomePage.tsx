@@ -54,7 +54,7 @@ export function HomePage() {
 
       <section className="page-shell">
         <div className="panel overflow-hidden px-6 py-8 sm:px-8 sm:py-10">
-          <div className="grid gap-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(300px,0.8fr)] lg:items-center">
+          <div className="grid gap-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)] lg:items-start">
             <div className="max-w-2xl">
               <div className="pill self-start bg-highlight-soft px-3 py-1 text-[11px] tracking-[0.16em] text-highlight">About Advertified</div>
               <h2 className="mt-4 max-w-2xl text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
@@ -75,8 +75,8 @@ export function HomePage() {
                 </Link>
               </div>
             </div>
-            <div className="rounded-[28px] border border-line bg-white/70 p-5 sm:p-6">
-              <div className="mx-auto w-full max-w-[280px] overflow-hidden rounded-[30px] border border-line bg-slate-950 shadow-[0_12px_24px_rgba(15,23,42,0.11)] sm:max-w-[320px]">
+            <div className="rounded-[28px] border border-line bg-white/70 p-4 sm:p-5">
+              <div className="mx-auto w-full max-w-[240px] overflow-hidden rounded-[30px] border border-line bg-slate-950 shadow-[0_12px_24px_rgba(15,23,42,0.11)] sm:max-w-[280px]">
                 <video
                   className="aspect-[9/15] w-full bg-slate-950"
                   controls

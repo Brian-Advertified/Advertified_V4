@@ -44,16 +44,16 @@ export function ToastProvider({ children }: PropsWithChildren) {
               item.tone === 'error'
                 ? 'border-rose-200 bg-rose-50'
                 : item.tone === 'info'
-                  ? 'border-sky-200 bg-sky-50'
-                  : 'border-emerald-200 bg-white'
+                  ? 'border-brand/20 bg-brand-soft'
+                  : 'border-brand/20 bg-white'
             }`}
           >
             {item.tone === 'error' ? (
               <CircleAlert className="mt-0.5 size-5 text-rose-600" />
             ) : item.tone === 'info' ? (
-              <Info className="mt-0.5 size-5 text-sky-600" />
+              <Info className="mt-0.5 size-5 text-brand" />
             ) : (
-              <CheckCircle2 className="mt-0.5 size-5 text-emerald-600" />
+              <CheckCircle2 className="mt-0.5 size-5 text-brand" />
             )}
             <div className="flex-1 space-y-1">
               <p className="text-sm font-semibold text-ink">{item.title}</p>

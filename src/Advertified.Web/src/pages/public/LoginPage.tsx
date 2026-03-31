@@ -47,7 +47,7 @@ export function LoginPage() {
             Clients can continue from package purchase into campaign briefing. Agents can move into campaign operations, while creative directors move straight into the production studio.
           </p>
           {activated ? (
-            <div className="mt-6 rounded-[22px] border border-emerald-200/40 bg-emerald-400/10 px-4 py-4 text-sm text-white/85">
+            <div className="mt-6 rounded-[22px] border border-brand/35 bg-brand/15 px-4 py-4 text-sm text-white/85">
               Your email has been verified. Sign in to continue.
             </div>
           ) : null}

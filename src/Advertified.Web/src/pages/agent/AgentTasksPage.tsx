@@ -21,7 +21,7 @@ export function AgentTasksPage() {
           const tasks = buildTasks(inbox);
           const columns = [
             { title: 'Urgent', items: tasks.urgent, tone: 'border-rose-200 bg-rose-50' },
-            { title: 'Needs review', items: tasks.review, tone: 'border-sky-200 bg-sky-50' },
+            { title: 'Needs review', items: tasks.review, tone: 'border-brand/20 bg-brand-soft' },
             { title: 'Waiting on client', items: tasks.waiting, tone: 'border-amber-200 bg-amber-50' },
           ];
           return (

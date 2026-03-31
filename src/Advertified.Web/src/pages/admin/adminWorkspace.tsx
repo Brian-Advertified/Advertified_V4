@@ -32,7 +32,7 @@ export const tone = (value: string) => {
   const normalized = value.toLowerCase();
   if (normalized.includes('critical') || normalized.includes('weak') || normalized.includes('missing')) return 'border-rose-200 bg-rose-50 text-rose-700';
   if (normalized.includes('warning') || normalized.includes('mixed')) return 'border-amber-200 bg-amber-50 text-amber-700';
-  return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+  return 'border-brand/20 bg-brand-soft text-brand';
 };
 export const splitList = (value: string) => value.split(',').map((item) => item.trim()).filter(Boolean);
 

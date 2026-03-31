@@ -25,6 +25,7 @@ const VerifyEmailPage = lazyPage(() => import('../pages/public/VerifyEmailPage')
 const PackagesPage = lazyPage(() => import('../pages/public/PackagesPage'), 'PackagesPage');
 const HowItWorksPage = lazyPage(() => import('../pages/public/HowItWorksPage'), 'HowItWorksPage');
 const AboutUsPage = lazyPage(() => import('../pages/public/AboutUsPage'), 'AboutUsPage');
+const AiStudioPage = lazyPage(() => import('../pages/public/AiStudioPage'), 'AiStudioPage');
 const FaqPage = lazyPage(() => import('../pages/public/FaqPage'), 'FaqPage');
 const MediaPartnersPage = lazyPage(() => import('../pages/public/MediaPartnersPage'), 'MediaPartnersPage');
 const PartnerEnquiryPage = lazyPage(() => import('../pages/public/PartnerEnquiryPage'), 'PartnerEnquiryPage');
@@ -91,6 +92,7 @@ export function App() {
             <Route path="/packages" element={<PackagesPage />} />
             <Route path="/how-it-works" element={<HowItWorksPage />} />
             <Route path="/about" element={<AboutUsPage />} />
+            <Route path="/ai-studio" element={<AiStudioPage />} />
             <Route path="/faq" element={<FaqPage />} />
             <Route path="/media-partners" element={<MediaPartnersPage />} />
             <Route path="/partner-enquiry" element={<PartnerEnquiryPage />} />

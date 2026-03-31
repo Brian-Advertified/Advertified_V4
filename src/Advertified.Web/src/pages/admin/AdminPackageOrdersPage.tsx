@@ -196,7 +196,7 @@ function MetricCard({ label, value, note }: { label: string; value: string; note
 
 function statusTone(status: string) {
   if (status === 'paid') {
-    return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+    return 'border-brand/20 bg-brand-soft text-brand';
   }
 
   if (status === 'failed') {
