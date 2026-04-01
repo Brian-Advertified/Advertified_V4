@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { ArrowRight, Lock } from 'lucide-react';
-import { useDeferredValue, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ProcessingOverlay } from '../../components/ui/ProcessingOverlay';
 import { PageHero } from '../../components/marketing/PageHero';
@@ -26,7 +26,6 @@ export function PackagesPage() {
   const [stepState, setStepState] = useState<1 | 2>();
   const [selectedAreaState, setSelectedAreaState] = useState('');
   const [isResendingActivation, setIsResendingActivation] = useState(false);
-  const mapSectionAnchorRef = useRef<HTMLDivElement | null>(null);
   const requestedBandCode = searchParams.get('band')?.trim().toLowerCase();
   const requestedBand = requestedBandCode
     ? packagesQuery.data?.find((item) => item.code.toLowerCase() === requestedBandCode)
@@ -74,17 +73,6 @@ export function PackagesPage() {
 
   const showMobilePackageGrid = step === 1;
 
-  useLayoutEffect(() => {
-    if (typeof window === 'undefined' || step !== 2 || !selectedBand) {
-      return;
-    }
-
-    const isMobile = window.matchMedia('(max-width: 639px)').matches;
-    if (isMobile) {
-      mapSectionAnchorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  }, [step, selectedBand?.id]);
-
   if (packagesQuery.isLoading) {
     return <LoadingState label="Loading package bands..." />;
   }
@@ -122,7 +110,7 @@ export function PackagesPage() {
         </div>
       ) : null}
 
-      <div className={`${showMobilePackageGrid ? 'card-grid' : 'hidden card-grid sm:grid'}`}>
+      <div className={`${showMobilePackageGrid ? 'card-grid' : 'hidden card-grid lg:grid'}`}>
           {packagesQuery.data?.map((band) => (
             <PackageCard
               key={band.id}
@@ -150,12 +138,7 @@ export function PackagesPage() {
               onChange={(value) => setSpendState(Math.min(selectedBand.maxBudget, Math.max(selectedBand.minBudget, value || selectedBand.minBudget)))}
             />
           </div>
-          <SpendPreviewPanel
-            band={selectedBand}
-            selectedSpend={clampedSpend}
-            livePreview={previewQuery.data}
-            mapAnchorRef={mapSectionAnchorRef}
-          />
+          <SpendPreviewPanel band={selectedBand} selectedSpend={clampedSpend} livePreview={previewQuery.data} />
         </div>
       ) : null}
 
