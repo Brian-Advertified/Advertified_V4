@@ -1,8 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, Lock } from 'lucide-react';
 import { useDeferredValue, useMemo, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { ProcessingOverlay } from '../../components/ui/ProcessingOverlay';
+import { useSearchParams } from 'react-router-dom';
 import { PageHero } from '../../components/marketing/PageHero';
 import { BudgetSelector } from '../../features/packages/components/BudgetSelector';
 import { PackageCard } from '../../features/packages/components/PackageCard';
@@ -10,9 +8,7 @@ import { SpendPreviewPanel } from '../../features/packages/components/SpendPrevi
 import { LoadingState } from '../../components/ui/LoadingState';
 import { useAuth } from '../../features/auth/auth-context';
 import { advertifiedApi } from '../../services/advertifiedApi';
-import { formatCompactBudget, formatCurrency } from '../../lib/utils';
-import { useToast } from '../../components/ui/toast';
-import { canBuyPackage, getPackagePurchaseRestriction } from '../../lib/access';
+import { formatCompactBudget } from '../../lib/utils';
 
 export function PackagesPage() {
   const [searchParams] = useSearchParams();
@@ -20,12 +16,8 @@ export function PackagesPage() {
   const packageAreasQuery = useQuery({ queryKey: ['package-areas'], queryFn: advertifiedApi.getPackageAreas });
   const [selectedPackageIdState, setSelectedPackageIdState] = useState<string>();
   const { user } = useAuth();
-  const purchaseRestriction = getPackagePurchaseRestriction(user);
-  const navigate = useNavigate();
-  const { pushToast } = useToast();
   const [stepState, setStepState] = useState<1 | 2>();
   const [selectedAreaState, setSelectedAreaState] = useState('');
-  const [isResendingActivation, setIsResendingActivation] = useState(false);
   const requestedBandCode = searchParams.get('band')?.trim().toLowerCase();
   const requestedBand = requestedBandCode
     ? packagesQuery.data?.find((item) => item.code.toLowerCase() === requestedBandCode)
@@ -79,7 +71,6 @@ export function PackagesPage() {
 
   return (
     <section className="page-shell space-y-8 pb-36">
-      {isResendingActivation ? <ProcessingOverlay label="Sending a fresh activation email..." /> : null}
       <PageHero
         kicker="Packages"
         title="Choose your package, then set the exact spend that fits your campaign."
@@ -110,19 +101,24 @@ export function PackagesPage() {
         </div>
       ) : null}
 
-      <div className={`${showMobilePackageGrid ? 'card-grid' : 'hidden card-grid lg:grid'}`}>
+      <div className={showMobilePackageGrid ? '' : 'hidden lg:block'}>
+        <div className="card-grid">
           {packagesQuery.data?.map((band) => (
             <PackageCard
               key={band.id}
               band={band}
               selected={band.id === selectedBand?.id}
               onSelect={() => {
+                if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
+                  document.activeElement.blur();
+                }
                 setSelectedPackageIdState(band.id);
                 setSpendState(band.minBudget);
                 setStepState(2);
               }}
             />
           ))}
+        </div>
       </div>
 
       {selectedBand && step === 2 ? (
@@ -142,81 +138,6 @@ export function PackagesPage() {
         </div>
       ) : null}
 
-      {selectedBand && step === 2 ? (
-        <div className="sticky bottom-4 z-20">
-          <div className="mx-auto max-w-4xl rounded-[26px] border border-line bg-white/92 px-4 py-4 shadow-[0_24px_70px_rgba(17,24,39,0.14)] backdrop-blur">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <div className="min-w-0">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-brand">Your package</p>
-                <p className="mt-1 text-lg font-semibold tracking-tight text-ink">
-                  {selectedBand.name} <span className="text-ink-soft">at {formatCurrency(clampedSpend)}</span>
-                </p>
-                <p className="mt-1 text-sm text-ink-soft">Final plan confirmed after payment and brief submission.</p>
-              </div>
-
-              {!user ? (
-                <div className="flex flex-col gap-3 md:flex-row">
-                  <Link to="/register" className="button-primary px-5 py-3 text-center">Register to continue</Link>
-                  <Link to="/login" className="button-secondary px-5 py-3 text-center">Log in</Link>
-                </div>
-              ) : !canBuyPackage(user) ? (
-                <div className="flex flex-col gap-3 md:flex-row md:items-center">
-                  <div className="flex items-start gap-2 text-sm text-amber-700">
-                    <Lock className="mt-0.5 size-4 shrink-0" />
-                    <span>
-                      {purchaseRestriction === 'identity_incomplete'
-                        ? 'Complete your identity details before you can buy this package.'
-                        : 'Verify your email before you can buy this package.'}
-                    </span>
-                  </div>
-                  {purchaseRestriction === 'identity_incomplete' ? (
-                    <a
-                      href="mailto:support@advertified.com?subject=Identity%20details%20required%20for%20checkout"
-                      className="button-primary px-5 py-3 text-center"
-                    >
-                      Contact support
-                    </a>
-                  ) : (
-                    <button
-                      type="button"
-                      className="button-primary px-5 py-3"
-                      onClick={async () => {
-                        try {
-                          setIsResendingActivation(true);
-                          await advertifiedApi.resendVerification(user.email);
-                          pushToast({
-                            title: 'A fresh activation email is on its way.',
-                            description: 'Check your inbox for the new activation link.',
-                          });
-                          navigate(`/verify-email?email=${encodeURIComponent(user.email)}`);
-                        } finally {
-                          setIsResendingActivation(false);
-                        }
-                      }}
-                      disabled={isResendingActivation}
-                    >
-                      {isResendingActivation ? 'Resending activation...' : 'Resend activation'}
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() =>
-                    navigate(
-                      `/checkout/payment?packageBandId=${encodeURIComponent(selectedBand.id)}&amount=${encodeURIComponent(String(clampedSpend))}&area=${encodeURIComponent(selectedArea)}`,
-                    )
-                  }
-                  className="button-primary inline-flex items-center justify-center gap-2 px-5 py-3"
-                >
-                  Choose payment method
-                  <ArrowRight className="size-4" />
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      ) : null}
     </section>
   );
 }
