@@ -43,7 +43,19 @@ export function AiStudioPage() {
   const [assetCampaignId, setAssetCampaignId] = useState('');
   const [assetCreativeId, setAssetCreativeId] = useState('');
   const [assetVoiceScript, setAssetVoiceScript] = useState('');
+  const [assetProduct, setAssetProduct] = useState('Advertified AI Creative Studio');
+  const [assetIndustry, setAssetIndustry] = useState('Advertising');
+  const [assetGoal, setAssetGoal] = useState('conversion');
+  const [assetPlatform, setAssetPlatform] = useState('radio');
+  const [assetLanguage, setAssetLanguage] = useState('english');
+  const [assetBudgetTier, setAssetBudgetTier] = useState('mid');
+  const [assetAudience, setAssetAudience] = useState('SME owners and growth-focused businesses');
+  const [assetObjective, setAssetObjective] = useState('Awareness');
+  const [assetPackageBudget, setAssetPackageBudget] = useState(50000);
+  const [assetCampaignTier, setAssetCampaignTier] = useState('standard');
   const [assetVoicePackId, setAssetVoicePackId] = useState('');
+  const [assetAllowTierUpsell, setAssetAllowTierUpsell] = useState(false);
+  const [assetGenerateVariants, setAssetGenerateVariants] = useState(true);
   const [assetVisualDirection, setAssetVisualDirection] = useState('');
   const [assetVideoSceneJson, setAssetVideoSceneJson] = useState('{"scene":1,"visual":"Product hero shot","audio":"Upbeat track"}');
   const [assetVideoScript, setAssetVideoScript] = useState('');
@@ -106,8 +118,45 @@ export function AiStudioPage() {
   });
 
   const voicePacksQuery = useQuery({
-    queryKey: ['ai-platform-voice-packs'],
-    queryFn: () => advertifiedApi.getAiPlatformVoicePacks('ElevenLabs'),
+    queryKey: ['ai-platform-voice-packs', assetCampaignId, assetPackageBudget, assetCampaignTier],
+    queryFn: () => advertifiedApi.getAiPlatformVoicePacks('ElevenLabs', {
+      campaignId: assetCampaignId.trim() || undefined,
+      packageBudget: assetPackageBudget,
+      campaignTier: assetCampaignTier,
+    }),
+  });
+
+  const recommendVoicePackMutation = useMutation({
+    mutationFn: () => advertifiedApi.getAiPlatformVoicePackRecommendation({
+      campaignId: assetCampaignId.trim(),
+      audience: assetAudience.trim(),
+      objective: assetObjective.trim(),
+      packageBudget: assetPackageBudget,
+      campaignTier: assetCampaignTier,
+    }),
+    onSuccess: (response) => setAssetVoicePackId(response.voicePackId),
+  });
+
+  const autoTemplateMutation = useMutation({
+    mutationFn: () => advertifiedApi.selectAiPlatformVoiceTemplate({
+      campaignId: assetCampaignId.trim(),
+      product: assetProduct.trim(),
+      industry: assetIndustry.trim(),
+      audience: assetAudience.trim(),
+      goal: assetGoal.trim(),
+      budgetTier: assetBudgetTier.trim(),
+      language: assetLanguage.trim(),
+      platform: assetPlatform.trim(),
+      objective: assetObjective.trim(),
+      brand: 'Advertified',
+      business: 'Advertified',
+    }),
+    onSuccess: (response) => {
+      setAssetVoiceScript(response.finalPrompt);
+      if (response.primaryVoicePackId) {
+        setAssetVoicePackId(response.primaryVoicePackId);
+      }
+    },
   });
 
   const queueVoiceAssetMutation = useMutation({
@@ -118,6 +167,13 @@ export function AiStudioPage() {
       voicePackId: assetVoicePackId || undefined,
       voiceType: 'Standard',
       language: 'English',
+      audience: assetAudience.trim(),
+      objective: assetObjective.trim(),
+      packageBudget: assetPackageBudget,
+      campaignTier: assetCampaignTier,
+      allowTierUpsell: assetAllowTierUpsell,
+      generateSaLanguageVariants: assetGenerateVariants,
+      requestedLanguages: ['Zulu', 'Afrikaans'],
     }),
     onSuccess: (response) => setAssetJobId(response.jobId),
   });
@@ -387,6 +443,16 @@ export function AiStudioPage() {
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <input value={assetCampaignId} onChange={(event) => setAssetCampaignId(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white" placeholder="Campaign Id" />
                 <input value={assetCreativeId} onChange={(event) => setAssetCreativeId(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white" placeholder="Creative Id" />
+                <input value={assetProduct} onChange={(event) => setAssetProduct(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white" placeholder="Product" />
+                <input value={assetIndustry} onChange={(event) => setAssetIndustry(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white" placeholder="Industry" />
+                <input value={assetGoal} onChange={(event) => setAssetGoal(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white" placeholder="Goal (awareness/conversion/engagement)" />
+                <input value={assetPlatform} onChange={(event) => setAssetPlatform(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white" placeholder="Platform (radio/social/billboard/tv)" />
+                <input value={assetLanguage} onChange={(event) => setAssetLanguage(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white" placeholder="Language (english/zulu/afrikaans/mixed)" />
+                <input value={assetBudgetTier} onChange={(event) => setAssetBudgetTier(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white" placeholder="Budget tier (low/mid/high)" />
+                <input value={assetAudience} onChange={(event) => setAssetAudience(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white md:col-span-2" placeholder="Audience summary" />
+                <input value={assetObjective} onChange={(event) => setAssetObjective(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white" placeholder="Objective" />
+                <input value={assetCampaignTier} onChange={(event) => setAssetCampaignTier(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white" placeholder="Campaign tier (standard/premium/exclusive)" />
+                <input value={assetPackageBudget} onChange={(event) => setAssetPackageBudget(Number(event.target.value) || 0)} type="number" className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white" placeholder="Package budget" />
                 <select value={assetVoicePackId} onChange={(event) => setAssetVoicePackId(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white md:col-span-2">
                   <option value="">Select voice pack (optional)</option>
                   {(voicePacksQuery.data ?? []).map((pack) => (
@@ -415,9 +481,25 @@ export function AiStudioPage() {
                 </select>
               </div>
               <div className="mt-4 flex flex-wrap gap-3">
+                <button type="button" onClick={() => autoTemplateMutation.mutate()} disabled={!assetCampaignId.trim() || !assetProduct.trim() || autoTemplateMutation.isPending} className="rounded-xl border border-emerald-400/40 bg-emerald-500/10 px-5 py-3 text-sm font-semibold text-emerald-200 disabled:opacity-50">
+                  {autoTemplateMutation.isPending ? 'Selecting...' : 'Auto template + voice'}
+                </button>
+                <button type="button" onClick={() => recommendVoicePackMutation.mutate()} disabled={!assetCampaignId.trim() || recommendVoicePackMutation.isPending} className="rounded-xl border border-brand/40 bg-brand/10 px-5 py-3 text-sm font-semibold text-brand-soft disabled:opacity-50">
+                  {recommendVoicePackMutation.isPending ? 'Recommending...' : 'Recommend voice pack'}
+                </button>
                 <button type="button" onClick={() => queueVoiceAssetMutation.mutate()} disabled={!canQueueAssetJob || !assetVoiceScript.trim() || queueVoiceAssetMutation.isPending} className="rounded-xl border border-slate-600 bg-slate-950 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">Queue voice</button>
                 <button type="button" onClick={() => queueImageAssetMutation.mutate()} disabled={!canQueueAssetJob || !assetVisualDirection.trim() || queueImageAssetMutation.isPending} className="rounded-xl border border-slate-600 bg-slate-950 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">Queue image</button>
                 <button type="button" onClick={() => queueVideoAssetMutation.mutate()} disabled={!canQueueAssetJob || !assetVideoScript.trim() || queueVideoAssetMutation.isPending} className="rounded-xl border border-slate-600 bg-slate-950 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">Queue video</button>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-4 text-xs text-slate-300">
+                <label className="inline-flex items-center gap-2">
+                  <input type="checkbox" checked={assetAllowTierUpsell} onChange={(event) => setAssetAllowTierUpsell(event.target.checked)} />
+                  Allow tier upsell
+                </label>
+                <label className="inline-flex items-center gap-2">
+                  <input type="checkbox" checked={assetGenerateVariants} onChange={(event) => setAssetGenerateVariants(event.target.checked)} />
+                  Auto Zulu/Afrikaans variants
+                </label>
               </div>
               <div className="mt-4 flex gap-3">
                 <input value={assetJobId} onChange={(event) => setAssetJobId(event.target.value)} className="flex-1 rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white" placeholder="Asset job id" />
@@ -427,6 +509,17 @@ export function AiStudioPage() {
                 <p><span className="text-slate-400">Job status:</span> {assetStatusQuery.data?.status ?? 'not started'}</p>
                 <p><span className="text-slate-400">Asset kind:</span> {assetStatusQuery.data?.assetKind ?? '-'}</p>
                 <p><span className="text-slate-400">Asset URL:</span> {assetStatusQuery.data?.assetUrl ?? '-'}</p>
+                <p><span className="text-slate-400">Applied language:</span> {queueVoiceAssetMutation.data?.appliedLanguage ?? '-'}</p>
+                <p><span className="text-slate-400">Upsell:</span> {queueVoiceAssetMutation.data?.upsellRequired ? queueVoiceAssetMutation.data?.upsellMessage ?? 'Required' : 'Not required'}</p>
+                {queueVoiceAssetMutation.data?.voiceQa ? (
+                  <p><span className="text-slate-400">Voice QA:</span> A {queueVoiceAssetMutation.data.voiceQa.authenticity} | C {queueVoiceAssetMutation.data.voiceQa.clarity} | Conv {queueVoiceAssetMutation.data.voiceQa.conversionPotential}</p>
+                ) : null}
+                {queueVoiceAssetMutation.data?.variantJobIds?.length ? (
+                  <p><span className="text-slate-400">Variant jobs:</span> {queueVoiceAssetMutation.data.variantJobIds.join(', ')}</p>
+                ) : null}
+                {autoTemplateMutation.data ? (
+                  <p><span className="text-slate-400">Template:</span> #{autoTemplateMutation.data.templateNumber} {autoTemplateMutation.data.templateName}</p>
+                ) : null}
               </div>
             </div>
           ) : null}

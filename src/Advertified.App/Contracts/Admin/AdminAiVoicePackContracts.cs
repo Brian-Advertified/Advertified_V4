@@ -14,6 +14,11 @@ public sealed class AdminAiVoicePackResponse
     public string? SampleAudioUrl { get; set; }
     public string PromptTemplate { get; set; } = string.Empty;
     public string PricingTier { get; set; } = "standard";
+    public bool IsClientSpecific { get; set; }
+    public Guid? ClientUserId { get; set; }
+    public bool IsClonedVoice { get; set; }
+    public string[] AudienceTags { get; set; } = Array.Empty<string>();
+    public string[] ObjectiveTags { get; set; } = Array.Empty<string>();
     public bool IsActive { get; set; } = true;
     public int SortOrder { get; set; }
     public DateTime CreatedAt { get; set; }
@@ -33,6 +38,11 @@ public sealed class UpsertAdminAiVoicePackRequest
     public string? SampleAudioUrl { get; set; }
     public string PromptTemplate { get; set; } = string.Empty;
     public string PricingTier { get; set; } = "standard";
+    public bool IsClientSpecific { get; set; }
+    public Guid? ClientUserId { get; set; }
+    public bool IsClonedVoice { get; set; }
+    public string[] AudienceTags { get; set; } = Array.Empty<string>();
+    public string[] ObjectiveTags { get; set; } = Array.Empty<string>();
     public bool IsActive { get; set; } = true;
     public int SortOrder { get; set; }
 }

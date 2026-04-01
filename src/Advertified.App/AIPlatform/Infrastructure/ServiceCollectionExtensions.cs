@@ -34,6 +34,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ICreativeFeedbackRegenerationService, CreativeFeedbackRegenerationService>();
         services.AddScoped<IMultiAiProviderOrchestrator, MultiAiProviderOrchestrator>();
         services.AddScoped<IAiProviderStrategyFactory, AiProviderStrategyFactory>();
+        services.AddScoped<IVoicePackPolicyService, VoicePackPolicyService>();
+        services.AddScoped<IVoiceTemplateSelectionService, VoiceTemplateSelectionService>();
 
         services.AddScoped<IAiProviderStrategy, OpenAiProviderStrategy>();
         services.AddScoped<IAiProviderStrategy, ElevenLabsProviderStrategy>();

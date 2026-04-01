@@ -235,3 +235,27 @@ public interface IMultiAiProviderOrchestrator
         string inputJson,
         CancellationToken cancellationToken);
 }
+
+public interface IVoicePackPolicyService
+{
+    Task<VoicePackPolicyDecision> EvaluateAsync(
+        Guid campaignId,
+        Guid? voicePackId,
+        VoicePackPolicyInput input,
+        CancellationToken cancellationToken);
+
+    Task<VoicePackRecommendationResult?> RecommendAsync(
+        Guid campaignId,
+        string provider,
+        string? audience,
+        string? objective,
+        decimal? packageBudget,
+        string? campaignTier,
+        CancellationToken cancellationToken);
+}
+
+public interface IVoiceTemplateSelectionService
+{
+    Task<IReadOnlyList<VoiceTemplateSelectionItem>> ListAsync(CancellationToken cancellationToken);
+    Task<VoiceTemplateSelectionResult> SelectAsync(VoiceTemplateSelectionInput input, CancellationToken cancellationToken);
+}

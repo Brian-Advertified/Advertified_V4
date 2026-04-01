@@ -14,6 +14,7 @@ public partial class AppDbContext
     public virtual DbSet<AiUsageLog> AiUsageLogs { get; set; } = null!;
     public virtual DbSet<AiVoiceProfile> AiVoiceProfiles { get; set; } = null!;
     public virtual DbSet<AiVoicePack> AiVoicePacks { get; set; } = null!;
+    public virtual DbSet<AiVoicePromptTemplate> AiVoicePromptTemplates { get; set; } = null!;
 }
 
 internal static class AppDbContextAiPlatformModelBuilderExtensions
@@ -327,6 +328,56 @@ internal static class AppDbContextAiPlatformModelBuilderExtensions
                 .HasMaxLength(20)
                 .HasDefaultValue("standard")
                 .HasColumnName("pricing_tier");
+            entity.Property(e => e.IsClientSpecific)
+                .HasDefaultValue(false)
+                .HasColumnName("is_client_specific");
+            entity.Property(e => e.ClientUserId)
+                .HasColumnName("client_user_id");
+            entity.Property(e => e.IsClonedVoice)
+                .HasDefaultValue(false)
+                .HasColumnName("is_cloned_voice");
+            entity.Property(e => e.AudienceTagsJson)
+                .HasColumnType("jsonb")
+                .HasDefaultValueSql("'[]'::jsonb")
+                .HasColumnName("audience_tags_json");
+            entity.Property(e => e.ObjectiveTagsJson)
+                .HasColumnType("jsonb")
+                .HasDefaultValueSql("'[]'::jsonb")
+                .HasColumnName("objective_tags_json");
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true)
+                .HasColumnName("is_active");
+            entity.Property(e => e.SortOrder)
+                .HasDefaultValue(0)
+                .HasColumnName("sort_order");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+        });
+
+        modelBuilder.Entity<AiVoicePromptTemplate>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("ai_voice_prompt_templates_pkey");
+            entity.ToTable("ai_voice_prompt_templates");
+            entity.HasIndex(e => e.TemplateNumber, "uq_ai_voice_prompt_templates_template_number").IsUnique();
+            entity.HasIndex(e => e.Category, "ix_ai_voice_prompt_templates_category");
+            entity.HasIndex(e => new { e.IsActive, e.SortOrder, e.TemplateNumber }, "ix_ai_voice_prompt_templates_active_sort");
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.TemplateNumber).HasColumnName("template_number");
+            entity.Property(e => e.Category).HasColumnName("category");
+            entity.Property(e => e.Name).HasColumnName("name");
+            entity.Property(e => e.PromptTemplate).HasColumnName("prompt_template");
+            entity.Property(e => e.PrimaryVoicePackName).HasColumnName("primary_voice_pack_name");
+            entity.Property(e => e.FallbackVoicePackNamesJson)
+                .HasColumnType("jsonb")
+                .HasDefaultValueSql("'[]'::jsonb")
+                .HasColumnName("fallback_voice_pack_names_json");
             entity.Property(e => e.IsActive)
                 .HasDefaultValue(true)
                 .HasColumnName("is_active");

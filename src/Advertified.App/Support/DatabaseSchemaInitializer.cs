@@ -48,7 +48,9 @@ internal static class DatabaseSchemaInitializer
                      Path.Combine("database", "bootstrap", "026_ai_platform_production_hardening.sql"),
                      Path.Combine("database", "bootstrap", "027_ai_voice_profiles.sql"),
                      Path.Combine("database", "bootstrap", "028_campaign_brief_video_preferences.sql"),
-                     Path.Combine("database", "bootstrap", "029_ai_voice_packs.sql")
+                     Path.Combine("database", "bootstrap", "029_ai_voice_packs.sql"),
+                     Path.Combine("database", "bootstrap", "030_ai_voice_pack_phase2_phase3.sql"),
+                     Path.Combine("database", "bootstrap", "031_ai_voice_prompt_library.sql")
                     })
         {
             var fullPath = baseDirectories

@@ -631,6 +631,20 @@ type AiPlatformAssetJobResponse = {
   error?: string | null;
   updatedAt: string;
   completedAt?: string | null;
+  appliedVoicePackId?: string | null;
+  appliedLanguage?: string | null;
+  upsellRequired?: boolean | null;
+  upsellMessage?: string | null;
+  voiceQa?: {
+    authenticity: number;
+    clarity: number;
+    conversionPotential: number;
+    notes: string[];
+    moderationPassed: boolean;
+    moderationFlags: string[];
+    moderationSuggestions: string[];
+  } | null;
+  variantJobIds?: string[] | null;
 };
 type AiPlatformCampaignCostSummaryResponse = {
   campaignId: string;
@@ -672,6 +686,11 @@ type AdminAiVoicePackResponse = {
   sampleAudioUrl?: string | null;
   promptTemplate: string;
   pricingTier: 'standard' | 'premium' | 'exclusive';
+  isClientSpecific: boolean;
+  clientUserId?: string | null;
+  isClonedVoice: boolean;
+  audienceTags: string[];
+  objectiveTags: string[];
   isActive: boolean;
   sortOrder: number;
   createdAt: string;
@@ -689,6 +708,34 @@ type AdminUpsertAiVoicePackInput = {
   sampleAudioUrl?: string;
   promptTemplate: string;
   pricingTier?: 'standard' | 'premium' | 'exclusive';
+  isClientSpecific?: boolean;
+  clientUserId?: string;
+  isClonedVoice?: boolean;
+  audienceTags?: string[];
+  objectiveTags?: string[];
+  isActive?: boolean;
+  sortOrder?: number;
+};
+type AdminAiVoiceTemplateResponse = {
+  id: string;
+  templateNumber: number;
+  category: string;
+  name: string;
+  promptTemplate: string;
+  primaryVoicePackName: string;
+  fallbackVoicePackNames: string[];
+  isActive: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+};
+type AdminUpsertAiVoiceTemplateInput = {
+  templateNumber: number;
+  category: string;
+  name: string;
+  promptTemplate: string;
+  primaryVoicePackName: string;
+  fallbackVoicePackNames?: string[];
   isActive?: boolean;
   sortOrder?: number;
 };
@@ -704,7 +751,35 @@ type AiVoicePackResponse = {
   sampleAudioUrl?: string | null;
   promptTemplate: string;
   pricingTier: 'standard' | 'premium' | 'exclusive';
+  isClientSpecific: boolean;
+  isClonedVoice: boolean;
+  audienceTags: string[];
+  objectiveTags: string[];
   sortOrder: number;
+};
+type AiVoicePackRecommendationResponse = {
+  voicePackId: string;
+  reason: string;
+  matchScore: number;
+};
+type AiVoiceTemplateResponse = {
+  id: string;
+  templateNumber: number;
+  category: string;
+  name: string;
+  promptTemplate: string;
+  primaryVoicePackName: string;
+  fallbackVoicePackNames: string[];
+};
+type AiVoiceTemplateSelectionResponse = {
+  templateNumber: number;
+  templateName: string;
+  promptTemplate: string;
+  finalPrompt: string;
+  primaryVoicePackName: string;
+  primaryVoicePackId?: string | null;
+  fallbackVoicePackNames: string[];
+  fallbackVoicePackIds: string[];
 };
 
 function getStoredSession(): SessionUser | null {
@@ -1683,6 +1758,30 @@ export const advertifiedApi = {
     });
   },
 
+  async getAdminAiVoiceTemplates() {
+    return apiRequest<AdminAiVoiceTemplateResponse[]>('/admin/ai/voice-templates');
+  },
+
+  async createAdminAiVoiceTemplate(input: AdminUpsertAiVoiceTemplateInput) {
+    return apiRequest<AdminAiVoiceTemplateResponse>('/admin/ai/voice-templates', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  },
+
+  async updateAdminAiVoiceTemplate(id: string, input: AdminUpsertAiVoiceTemplateInput) {
+    return apiRequest<AdminAiVoiceTemplateResponse>(`/admin/ai/voice-templates/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    });
+  },
+
+  async deleteAdminAiVoiceTemplate(id: string) {
+    return apiRequest(`/admin/ai/voice-templates/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+  },
+
   async getAdminCampaignOperations() {
     const response = await apiRequest<{ items: AdminCampaignOperationsItem[] }>('/admin/campaign-operations');
     return response.items;
@@ -2289,6 +2388,13 @@ export const advertifiedApi = {
     voiceType?: string;
     voicePackId?: string;
     language?: string;
+    audience?: string;
+    objective?: string;
+    packageBudget?: number;
+    campaignTier?: string;
+    allowTierUpsell?: boolean;
+    generateSaLanguageVariants?: boolean;
+    requestedLanguages?: string[];
   }) {
     return apiRequest<AiPlatformAssetJobResponse>('/api/v2/ai-platform/assets/voice', {
       method: 'POST',
@@ -2296,8 +2402,74 @@ export const advertifiedApi = {
     });
   },
 
-  async getAiPlatformVoicePacks(provider = 'ElevenLabs') {
-    return apiRequest<AiVoicePackResponse[]>(`/api/v2/ai-platform/voice-packs?provider=${encodeURIComponent(provider)}`);
+  async getAiPlatformVoicePacks(provider = 'ElevenLabs', options?: {
+    campaignId?: string;
+    packageBudget?: number;
+    campaignTier?: string;
+  }) {
+    const query = new URLSearchParams();
+    query.set('provider', provider);
+    if (options?.campaignId) {
+      query.set('campaignId', options.campaignId);
+    }
+    if (typeof options?.packageBudget === 'number') {
+      query.set('packageBudget', String(options.packageBudget));
+    }
+    if (options?.campaignTier) {
+      query.set('campaignTier', options.campaignTier);
+    }
+    return apiRequest<AiVoicePackResponse[]>(`/api/v2/ai-platform/voice-packs?${query.toString()}`);
+  },
+
+  async getAiPlatformVoicePackRecommendation(params: {
+    campaignId: string;
+    provider?: string;
+    audience?: string;
+    objective?: string;
+    packageBudget?: number;
+    campaignTier?: string;
+  }) {
+    const query = new URLSearchParams();
+    query.set('campaignId', params.campaignId);
+    query.set('provider', params.provider ?? 'ElevenLabs');
+    if (params.audience) {
+      query.set('audience', params.audience);
+    }
+    if (params.objective) {
+      query.set('objective', params.objective);
+    }
+    if (typeof params.packageBudget === 'number') {
+      query.set('packageBudget', String(params.packageBudget));
+    }
+    if (params.campaignTier) {
+      query.set('campaignTier', params.campaignTier);
+    }
+    return apiRequest<AiVoicePackRecommendationResponse>(`/api/v2/ai-platform/voice-packs/recommendation?${query.toString()}`);
+  },
+
+  async getAiPlatformVoiceTemplates() {
+    return apiRequest<AiVoiceTemplateResponse[]>('/api/v2/ai-platform/voice-templates');
+  },
+
+  async selectAiPlatformVoiceTemplate(payload: {
+    campaignId: string;
+    product: string;
+    industry?: string;
+    audience?: string;
+    goal?: string;
+    budgetTier?: string;
+    language?: string;
+    platform?: string;
+    objective?: string;
+    brand?: string;
+    business?: string;
+    eventName?: string;
+    offer?: string;
+  }) {
+    return apiRequest<AiVoiceTemplateSelectionResponse>('/api/v2/ai-platform/voice-templates/select', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
   },
 
   async queueAiPlatformImageAsset(payload: {

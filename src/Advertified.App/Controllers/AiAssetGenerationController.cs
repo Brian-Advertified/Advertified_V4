@@ -2,6 +2,7 @@ using Advertified.App.AIPlatform.Api;
 using Advertified.App.AIPlatform.Application;
 using Advertified.App.AIPlatform.Domain;
 using Advertified.App.Data;
+using Advertified.App.Data.Entities;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,6 +18,7 @@ public sealed class AiAssetGenerationController : ControllerBase
     private readonly IAssetJobService _assetJobService;
     private readonly IAiCostEstimator _aiCostEstimator;
     private readonly IAiCostControlService _aiCostControlService;
+    private readonly IVoicePackPolicyService _voicePackPolicyService;
     private readonly AppDbContext _db;
 
     public AiAssetGenerationController(
@@ -26,6 +28,7 @@ public sealed class AiAssetGenerationController : ControllerBase
         IAssetJobService assetJobService,
         IAiCostEstimator aiCostEstimator,
         IAiCostControlService aiCostControlService,
+        IVoicePackPolicyService voicePackPolicyService,
         AppDbContext db)
     {
         _voiceAssetGenerationService = voiceAssetGenerationService;
@@ -34,6 +37,7 @@ public sealed class AiAssetGenerationController : ControllerBase
         _assetJobService = assetJobService;
         _aiCostEstimator = aiCostEstimator;
         _aiCostControlService = aiCostControlService;
+        _voicePackPolicyService = voicePackPolicyService;
         _db = db;
     }
 
@@ -53,23 +57,40 @@ public sealed class AiAssetGenerationController : ControllerBase
         }
 
         string resolvedVoiceType;
-        string resolvedLanguage;
+        Guid? resolvedVoicePackId = null;
+        AiVoicePack? resolvedPack = null;
         if (request.VoicePackId.HasValue)
         {
-            var pack = await _db.AiVoicePacks
+            resolvedPack = await _db.AiVoicePacks
                 .AsNoTracking()
                 .FirstOrDefaultAsync(item => item.Id == request.VoicePackId.Value && item.IsActive, cancellationToken)
                 ?? throw new InvalidOperationException("Voice pack not found or inactive.");
 
-            resolvedVoiceType = pack.VoiceId;
-            resolvedLanguage = string.IsNullOrWhiteSpace(request.Language)
-                ? pack.Language ?? "English"
-                : request.Language;
+            resolvedVoiceType = resolvedPack.VoiceId;
+            resolvedVoicePackId = resolvedPack.Id;
         }
         else
         {
             resolvedVoiceType = request.VoiceType;
-            resolvedLanguage = request.Language;
+        }
+
+        var policy = await _voicePackPolicyService.EvaluateAsync(
+            request.CampaignId,
+            request.VoicePackId,
+            new VoicePackPolicyInput(
+                request.Script,
+                request.Language,
+                request.Audience,
+                request.Objective,
+                request.PackageBudget,
+                request.CampaignTier,
+                request.AllowTierUpsell),
+            cancellationToken);
+
+        if (!policy.Moderation.IsAllowed)
+        {
+            throw new InvalidOperationException(
+                $"Script blocked by SA moderation policy: {string.Join("; ", policy.Moderation.Flags)}");
         }
 
         var decision = await _aiCostControlService.GuardAsync(new AiCostGuardRequest(
@@ -90,13 +111,35 @@ public sealed class AiAssetGenerationController : ControllerBase
                 request.CreativeId,
                 request.Script,
                 resolvedVoiceType,
-                resolvedLanguage), cancellationToken);
+                policy.AppliedLanguage), cancellationToken);
+
+            var variantJobIds = new List<Guid>();
+            if (request.GenerateSaLanguageVariants)
+            {
+                var targetVariants = ResolveSaVariantLanguages(policy.AppliedLanguage, request.RequestedLanguages);
+                foreach (var variantLanguage in targetVariants)
+                {
+                    var variant = await _voiceAssetGenerationService.QueueAsync(new VoiceAssetRequest(
+                        request.CampaignId,
+                        request.CreativeId,
+                        request.Script,
+                        resolvedVoiceType,
+                        variantLanguage), cancellationToken);
+                    variantJobIds.Add(variant.JobId);
+                }
+            }
+
             if (decision.UsageLogId.HasValue)
             {
                 await _aiCostControlService.CompleteAsync(decision.UsageLogId.Value, _aiCostEstimator.EstimateAssetCost("voice"), "Voice asset queued.", cancellationToken);
             }
 
-            return Accepted(MapQueued(queued));
+            return Accepted(MapQueued(
+                queued,
+                resolvedVoicePackId,
+                policy.AppliedLanguage,
+                policy,
+                variantJobIds.ToArray()));
         }
         catch (Exception)
         {
@@ -244,7 +287,12 @@ public sealed class AiAssetGenerationController : ControllerBase
         });
     }
 
-    private static AssetJobResponse MapQueued(AssetJobQueuedResult queued)
+    private static AssetJobResponse MapQueued(
+        AssetJobQueuedResult queued,
+        Guid? appliedVoicePackId = null,
+        string? appliedLanguage = null,
+        VoicePackPolicyDecision? policyDecision = null,
+        Guid[]? variantJobIds = null)
     {
         return new AssetJobResponse
         {
@@ -254,7 +302,37 @@ public sealed class AiAssetGenerationController : ControllerBase
             AssetKind = queued.AssetKind,
             Status = queued.Status,
             RetryAttemptCount = 0,
-            UpdatedAt = queued.QueuedAt
+            UpdatedAt = queued.QueuedAt,
+            AppliedVoicePackId = appliedVoicePackId,
+            AppliedLanguage = appliedLanguage,
+            UpsellRequired = policyDecision?.UpsellRequired,
+            UpsellMessage = policyDecision?.UpsellMessage,
+            VoiceQa = policyDecision is null
+                ? null
+                : new VoiceQaResponse
+                {
+                    Authenticity = policyDecision.QaScore.Authenticity,
+                    Clarity = policyDecision.QaScore.Clarity,
+                    ConversionPotential = policyDecision.QaScore.ConversionPotential,
+                    Notes = policyDecision.QaScore.Notes,
+                    ModerationPassed = policyDecision.Moderation.IsAllowed,
+                    ModerationFlags = policyDecision.Moderation.Flags,
+                    ModerationSuggestions = policyDecision.Moderation.Suggestions
+                },
+            VariantJobIds = variantJobIds
         };
+    }
+
+    private static string[] ResolveSaVariantLanguages(string primaryLanguage, string[]? requested)
+    {
+        var normalizedPrimary = primaryLanguage.Trim().ToLowerInvariant();
+        var baseLanguages = (requested is { Length: > 0 } ? requested : new[] { "Zulu", "Afrikaans" })
+            .Select(item => item.Trim())
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Where(item => !string.Equals(item, normalizedPrimary, StringComparison.OrdinalIgnoreCase))
+            .Take(2)
+            .ToArray();
+        return baseLanguages;
     }
 }

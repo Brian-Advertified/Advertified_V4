@@ -17,6 +17,11 @@ type VoicePack = {
   sampleAudioUrl?: string | null;
   promptTemplate: string;
   pricingTier: 'standard' | 'premium' | 'exclusive';
+  isClientSpecific: boolean;
+  clientUserId?: string | null;
+  isClonedVoice: boolean;
+  audienceTags: string[];
+  objectiveTags: string[];
   isActive: boolean;
   sortOrder: number;
   createdAt: string;
@@ -35,6 +40,11 @@ type VoicePackForm = {
   sampleAudioUrl: string;
   promptTemplate: string;
   pricingTier: 'standard' | 'premium' | 'exclusive';
+  isClientSpecific: boolean;
+  clientUserId: string;
+  isClonedVoice: boolean;
+  audienceTags: string;
+  objectiveTags: string;
   isActive: boolean;
   sortOrder: number;
 };
@@ -51,6 +61,11 @@ const emptyForm: VoicePackForm = {
   sampleAudioUrl: '',
   promptTemplate: '',
   pricingTier: 'standard',
+  isClientSpecific: false,
+  clientUserId: '',
+  isClonedVoice: false,
+  audienceTags: '',
+  objectiveTags: '',
   isActive: true,
   sortOrder: 0,
 };
@@ -88,6 +103,11 @@ export function AdminAiVoicePacksPage() {
         sampleAudioUrl: form.sampleAudioUrl || undefined,
         promptTemplate: form.promptTemplate,
         pricingTier: form.pricingTier,
+        isClientSpecific: form.isClientSpecific,
+        clientUserId: form.clientUserId || undefined,
+        isClonedVoice: form.isClonedVoice,
+        audienceTags: splitUseCases(form.audienceTags),
+        objectiveTags: splitUseCases(form.objectiveTags),
         isActive: form.isActive,
         sortOrder: form.sortOrder,
       };
@@ -117,8 +137,12 @@ export function AdminAiVoicePacksPage() {
   });
 
   const canSave = useMemo(
-    () => form.name.trim().length > 0 && form.voiceId.trim().length > 0 && form.promptTemplate.trim().length > 0 && !saveMutation.isPending,
-    [form.name, form.voiceId, form.promptTemplate, saveMutation.isPending],
+    () => form.name.trim().length > 0
+      && form.voiceId.trim().length > 0
+      && form.promptTemplate.trim().length > 0
+      && (!form.isClientSpecific || form.clientUserId.trim().length > 0)
+      && !saveMutation.isPending,
+    [form.name, form.voiceId, form.promptTemplate, form.isClientSpecific, form.clientUserId, saveMutation.isPending],
   );
 
   const startEdit = (item: VoicePack) => {
@@ -135,6 +159,11 @@ export function AdminAiVoicePacksPage() {
       sampleAudioUrl: item.sampleAudioUrl ?? '',
       promptTemplate: item.promptTemplate,
       pricingTier: item.pricingTier,
+      isClientSpecific: item.isClientSpecific,
+      clientUserId: item.clientUserId ?? '',
+      isClonedVoice: item.isClonedVoice,
+      audienceTags: item.audienceTags.join(', '),
+      objectiveTags: item.objectiveTags.join(', '),
       isActive: item.isActive,
       sortOrder: item.sortOrder,
     });
@@ -178,6 +207,10 @@ export function AdminAiVoicePacksPage() {
                 </select>
               </label>
               <label className="space-y-1 text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">
+                Client user id (optional)
+                <input className="input-base" value={form.clientUserId} onChange={(event) => setForm((current) => ({ ...current, clientUserId: event.target.value }))} />
+              </label>
+              <label className="space-y-1 text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">
                 Accent
                 <input className="input-base" value={form.accent} onChange={(event) => setForm((current) => ({ ...current, accent: event.target.value }))} />
               </label>
@@ -198,6 +231,14 @@ export function AdminAiVoicePacksPage() {
                 <input className="input-base" value={form.useCases} onChange={(event) => setForm((current) => ({ ...current, useCases: event.target.value }))} />
               </label>
               <label className="space-y-1 text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">
+                Audience tags (comma separated)
+                <input className="input-base" value={form.audienceTags} onChange={(event) => setForm((current) => ({ ...current, audienceTags: event.target.value }))} />
+              </label>
+              <label className="space-y-1 text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">
+                Objective tags (comma separated)
+                <input className="input-base" value={form.objectiveTags} onChange={(event) => setForm((current) => ({ ...current, objectiveTags: event.target.value }))} />
+              </label>
+              <label className="space-y-1 text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">
                 Sample audio URL
                 <input className="input-base" value={form.sampleAudioUrl} onChange={(event) => setForm((current) => ({ ...current, sampleAudioUrl: event.target.value }))} />
               </label>
@@ -212,6 +253,14 @@ export function AdminAiVoicePacksPage() {
               <label className="flex items-center gap-2 text-sm text-ink">
                 <input type="checkbox" checked={form.isActive} onChange={(event) => setForm((current) => ({ ...current, isActive: event.target.checked }))} />
                 Active
+              </label>
+              <label className="flex items-center gap-2 text-sm text-ink">
+                <input type="checkbox" checked={form.isClientSpecific} onChange={(event) => setForm((current) => ({ ...current, isClientSpecific: event.target.checked }))} />
+                Client specific pack
+              </label>
+              <label className="flex items-center gap-2 text-sm text-ink">
+                <input type="checkbox" checked={form.isClonedVoice} onChange={(event) => setForm((current) => ({ ...current, isClonedVoice: event.target.checked }))} />
+                Cloned/client voice
               </label>
             </div>
 
@@ -276,4 +325,3 @@ export function AdminAiVoicePacksPage() {
     </AdminQueryBoundary>
   );
 }
-

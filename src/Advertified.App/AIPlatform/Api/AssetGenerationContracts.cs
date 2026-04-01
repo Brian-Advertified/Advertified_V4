@@ -8,6 +8,13 @@ public sealed class QueueVoiceAssetRequest
     public string VoiceType { get; set; } = "Standard";
     public Guid? VoicePackId { get; set; }
     public string Language { get; set; } = "English";
+    public string? Audience { get; set; }
+    public string? Objective { get; set; }
+    public decimal? PackageBudget { get; set; }
+    public string? CampaignTier { get; set; }
+    public bool AllowTierUpsell { get; set; }
+    public bool GenerateSaLanguageVariants { get; set; }
+    public string[]? RequestedLanguages { get; set; }
 }
 
 public sealed class QueueImageAssetRequest
@@ -44,4 +51,21 @@ public sealed class AssetJobResponse
     public string? LastFailure { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
     public DateTimeOffset? CompletedAt { get; set; }
+    public Guid? AppliedVoicePackId { get; set; }
+    public string? AppliedLanguage { get; set; }
+    public bool? UpsellRequired { get; set; }
+    public string? UpsellMessage { get; set; }
+    public VoiceQaResponse? VoiceQa { get; set; }
+    public Guid[]? VariantJobIds { get; set; }
+}
+
+public sealed class VoiceQaResponse
+{
+    public decimal Authenticity { get; set; }
+    public decimal Clarity { get; set; }
+    public decimal ConversionPotential { get; set; }
+    public string[] Notes { get; set; } = Array.Empty<string>();
+    public bool ModerationPassed { get; set; }
+    public string[] ModerationFlags { get; set; } = Array.Empty<string>();
+    public string[] ModerationSuggestions { get; set; } = Array.Empty<string>();
 }

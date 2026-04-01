@@ -1094,6 +1094,10 @@ public sealed class AdminController : ControllerBase
             var voiceId = RequireValue(request.VoiceId, "Voice ID");
             var promptTemplate = RequireValue(request.PromptTemplate, "Prompt template");
             var pricingTier = NormalizePricingTier(request.PricingTier);
+            if (request.IsClientSpecific && !request.ClientUserId.HasValue)
+            {
+                throw new InvalidOperationException("Client user id is required for client-specific voice packs.");
+            }
 
             var exists = await _db.AiVoicePacks.AnyAsync(
                 item => item.Provider == provider && item.Name == name,
@@ -1118,6 +1122,11 @@ public sealed class AdminController : ControllerBase
                 SampleAudioUrl = TrimOrNull(request.SampleAudioUrl),
                 PromptTemplate = promptTemplate,
                 PricingTier = pricingTier,
+                IsClientSpecific = request.IsClientSpecific,
+                ClientUserId = request.ClientUserId,
+                IsClonedVoice = request.IsClonedVoice,
+                AudienceTagsJson = SerializeList(request.AudienceTags),
+                ObjectiveTagsJson = SerializeList(request.ObjectiveTags),
                 IsActive = request.IsActive,
                 SortOrder = request.SortOrder,
                 CreatedAt = now,
@@ -1132,7 +1141,7 @@ public sealed class AdminController : ControllerBase
                 row.Id.ToString(),
                 row.Name,
                 $"Created AI voice pack {row.Name}.",
-                new { row.Provider, row.Name, row.PricingTier, row.IsActive, row.SortOrder },
+                new { row.Provider, row.Name, row.PricingTier, row.IsClientSpecific, row.ClientUserId, row.IsClonedVoice, row.IsActive, row.SortOrder },
                 cancellationToken);
 
             return Ok(MapAdminAiVoicePack(row));
@@ -1168,6 +1177,10 @@ public sealed class AdminController : ControllerBase
             var voiceId = RequireValue(request.VoiceId, "Voice ID");
             var promptTemplate = RequireValue(request.PromptTemplate, "Prompt template");
             var pricingTier = NormalizePricingTier(request.PricingTier);
+            if (request.IsClientSpecific && !request.ClientUserId.HasValue)
+            {
+                throw new InvalidOperationException("Client user id is required for client-specific voice packs.");
+            }
 
             var duplicate = await _db.AiVoicePacks.AnyAsync(
                 item => item.Id != id && item.Provider == provider && item.Name == name,
@@ -1188,6 +1201,11 @@ public sealed class AdminController : ControllerBase
             row.SampleAudioUrl = TrimOrNull(request.SampleAudioUrl);
             row.PromptTemplate = promptTemplate;
             row.PricingTier = pricingTier;
+            row.IsClientSpecific = request.IsClientSpecific;
+            row.ClientUserId = request.ClientUserId;
+            row.IsClonedVoice = request.IsClonedVoice;
+            row.AudienceTagsJson = SerializeList(request.AudienceTags);
+            row.ObjectiveTagsJson = SerializeList(request.ObjectiveTags);
             row.IsActive = request.IsActive;
             row.SortOrder = request.SortOrder;
             row.UpdatedAt = DateTime.UtcNow;
@@ -1199,7 +1217,7 @@ public sealed class AdminController : ControllerBase
                 row.Id.ToString(),
                 row.Name,
                 $"Updated AI voice pack {row.Name}.",
-                new { row.Provider, row.Name, row.PricingTier, row.IsActive, row.SortOrder },
+                new { row.Provider, row.Name, row.PricingTier, row.IsClientSpecific, row.ClientUserId, row.IsClonedVoice, row.IsActive, row.SortOrder },
                 cancellationToken);
 
             return Ok(MapAdminAiVoicePack(row));
@@ -1238,6 +1256,184 @@ public sealed class AdminController : ControllerBase
         return NoContent();
     }
 
+    [HttpGet("ai/voice-templates")]
+    public async Task<ActionResult<IReadOnlyList<AdminAiVoiceTemplateResponse>>> GetAiVoiceTemplates(CancellationToken cancellationToken)
+    {
+        var gateResult = await EnsureAdminAsync(cancellationToken);
+        if (gateResult is not null)
+        {
+            return gateResult;
+        }
+
+        var rows = await _db.AiVoicePromptTemplates
+            .AsNoTracking()
+            .OrderBy(item => item.SortOrder)
+            .ThenBy(item => item.TemplateNumber)
+            .ToArrayAsync(cancellationToken);
+
+        return Ok(rows.Select(MapAdminAiVoiceTemplate).ToArray());
+    }
+
+    [HttpPost("ai/voice-templates")]
+    public async Task<ActionResult<AdminAiVoiceTemplateResponse>> CreateAiVoiceTemplate(
+        [FromBody] UpsertAdminAiVoiceTemplateRequest request,
+        CancellationToken cancellationToken)
+    {
+        var gateResult = await EnsureAdminAsync(cancellationToken);
+        if (gateResult is not null)
+        {
+            return gateResult;
+        }
+
+        try
+        {
+            if (request.TemplateNumber <= 0)
+            {
+                throw new InvalidOperationException("Template number must be greater than zero.");
+            }
+
+            var category = RequireValue(request.Category, "Category");
+            var name = RequireValue(request.Name, "Name");
+            var promptTemplate = RequireValue(request.PromptTemplate, "Prompt template");
+            var primaryVoicePackName = RequireValue(request.PrimaryVoicePackName, "Primary voice pack name");
+
+            var exists = await _db.AiVoicePromptTemplates.AnyAsync(
+                item => item.TemplateNumber == request.TemplateNumber,
+                cancellationToken);
+            if (exists)
+            {
+                throw new InvalidOperationException("A template with this template number already exists.");
+            }
+
+            var now = DateTime.UtcNow;
+            var row = new AiVoicePromptTemplate
+            {
+                Id = Guid.NewGuid(),
+                TemplateNumber = request.TemplateNumber,
+                Category = category,
+                Name = name,
+                PromptTemplate = promptTemplate,
+                PrimaryVoicePackName = primaryVoicePackName,
+                FallbackVoicePackNamesJson = SerializeList(request.FallbackVoicePackNames),
+                IsActive = request.IsActive,
+                SortOrder = request.SortOrder,
+                CreatedAt = now,
+                UpdatedAt = now
+            };
+
+            _db.AiVoicePromptTemplates.Add(row);
+            await _db.SaveChangesAsync(cancellationToken);
+            await WriteChangeAuditAsync(
+                "create",
+                "ai_voice_prompt_template",
+                row.Id.ToString(),
+                row.Name,
+                $"Created AI voice template #{row.TemplateNumber} {row.Name}.",
+                new { row.TemplateNumber, row.Category, row.Name, row.PrimaryVoicePackName, row.IsActive, row.SortOrder },
+                cancellationToken);
+
+            return Ok(MapAdminAiVoiceTemplate(row));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPut("ai/voice-templates/{id:guid}")]
+    public async Task<ActionResult<AdminAiVoiceTemplateResponse>> UpdateAiVoiceTemplate(
+        Guid id,
+        [FromBody] UpsertAdminAiVoiceTemplateRequest request,
+        CancellationToken cancellationToken)
+    {
+        var gateResult = await EnsureAdminAsync(cancellationToken);
+        if (gateResult is not null)
+        {
+            return gateResult;
+        }
+
+        try
+        {
+            var row = await _db.AiVoicePromptTemplates.FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+            if (row is null)
+            {
+                return NotFound();
+            }
+
+            if (request.TemplateNumber <= 0)
+            {
+                throw new InvalidOperationException("Template number must be greater than zero.");
+            }
+
+            var category = RequireValue(request.Category, "Category");
+            var name = RequireValue(request.Name, "Name");
+            var promptTemplate = RequireValue(request.PromptTemplate, "Prompt template");
+            var primaryVoicePackName = RequireValue(request.PrimaryVoicePackName, "Primary voice pack name");
+
+            var duplicate = await _db.AiVoicePromptTemplates.AnyAsync(
+                item => item.Id != id && item.TemplateNumber == request.TemplateNumber,
+                cancellationToken);
+            if (duplicate)
+            {
+                throw new InvalidOperationException("A template with this template number already exists.");
+            }
+
+            row.TemplateNumber = request.TemplateNumber;
+            row.Category = category;
+            row.Name = name;
+            row.PromptTemplate = promptTemplate;
+            row.PrimaryVoicePackName = primaryVoicePackName;
+            row.FallbackVoicePackNamesJson = SerializeList(request.FallbackVoicePackNames);
+            row.IsActive = request.IsActive;
+            row.SortOrder = request.SortOrder;
+            row.UpdatedAt = DateTime.UtcNow;
+
+            await _db.SaveChangesAsync(cancellationToken);
+            await WriteChangeAuditAsync(
+                "update",
+                "ai_voice_prompt_template",
+                row.Id.ToString(),
+                row.Name,
+                $"Updated AI voice template #{row.TemplateNumber} {row.Name}.",
+                new { row.TemplateNumber, row.Category, row.Name, row.PrimaryVoicePackName, row.IsActive, row.SortOrder },
+                cancellationToken);
+
+            return Ok(MapAdminAiVoiceTemplate(row));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpDelete("ai/voice-templates/{id:guid}")]
+    public async Task<IActionResult> DeleteAiVoiceTemplate(Guid id, CancellationToken cancellationToken)
+    {
+        var gateResult = await EnsureAdminAsync(cancellationToken);
+        if (gateResult is not null)
+        {
+            return gateResult;
+        }
+
+        var row = await _db.AiVoicePromptTemplates.FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+        if (row is null)
+        {
+            return NotFound();
+        }
+
+        _db.AiVoicePromptTemplates.Remove(row);
+        await _db.SaveChangesAsync(cancellationToken);
+        await WriteChangeAuditAsync(
+            "delete",
+            "ai_voice_prompt_template",
+            id.ToString(),
+            row.Name,
+            $"Deleted AI voice template #{row.TemplateNumber} {row.Name}.",
+            new { row.TemplateNumber, row.Category, row.Name },
+            cancellationToken);
+        return NoContent();
+    }
+
     private static AdminAiVoiceProfileResponse MapAdminAiVoiceProfile(AiVoiceProfile row)
     {
         return new AdminAiVoiceProfileResponse
@@ -1270,6 +1466,29 @@ public sealed class AdminController : ControllerBase
             SampleAudioUrl = row.SampleAudioUrl,
             PromptTemplate = row.PromptTemplate,
             PricingTier = row.PricingTier,
+            IsClientSpecific = row.IsClientSpecific,
+            ClientUserId = row.ClientUserId,
+            IsClonedVoice = row.IsClonedVoice,
+            AudienceTags = DeserializeList(row.AudienceTagsJson),
+            ObjectiveTags = DeserializeList(row.ObjectiveTagsJson),
+            IsActive = row.IsActive,
+            SortOrder = row.SortOrder,
+            CreatedAt = row.CreatedAt,
+            UpdatedAt = row.UpdatedAt
+        };
+    }
+
+    private static AdminAiVoiceTemplateResponse MapAdminAiVoiceTemplate(AiVoicePromptTemplate row)
+    {
+        return new AdminAiVoiceTemplateResponse
+        {
+            Id = row.Id,
+            TemplateNumber = row.TemplateNumber,
+            Category = row.Category,
+            Name = row.Name,
+            PromptTemplate = row.PromptTemplate,
+            PrimaryVoicePackName = row.PrimaryVoicePackName,
+            FallbackVoicePackNames = DeserializeList(row.FallbackVoicePackNamesJson),
             IsActive = row.IsActive,
             SortOrder = row.SortOrder,
             CreatedAt = row.CreatedAt,
