@@ -16,6 +16,8 @@ const toneOptions = ['Balanced', 'Energetic', 'Premium', 'Urgent', 'Conversation
 const languageOptions = ['English', 'Zulu', 'Xhosa', 'Afrikaans'] as const;
 const channelOptions = ['Radio', 'Tv', 'Billboard', 'Newspaper', 'Digital'] as const;
 
+type ConsoleStep = 'queue' | 'brief' | 'qa' | 'assets' | 'regenerate';
+
 export function AiStudioPage() {
   const [campaignId, setCampaignId] = useState('');
   const [promptOverride, setPromptOverride] = useState('');
@@ -44,6 +46,8 @@ export function AiStudioPage() {
   const [assetVideoScript, setAssetVideoScript] = useState('');
   const [assetJobId, setAssetJobId] = useState('');
 
+  const [activeConsoleStep, setActiveConsoleStep] = useState<ConsoleStep>('queue');
+
   const submitJobMutation = useMutation({
     mutationFn: () => advertifiedApi.submitAiPlatformJob({
       campaignId: campaignId.trim(),
@@ -51,6 +55,7 @@ export function AiStudioPage() {
     }),
     onSuccess: (response) => {
       setActiveJobId(response.jobId);
+      setActiveConsoleStep('brief');
     },
   });
 
@@ -86,6 +91,7 @@ export function AiStudioPage() {
         channels: briefChannels,
       },
     }),
+    onSuccess: () => setActiveConsoleStep('qa'),
   });
 
   const qaQuery = useQuery({
@@ -209,10 +215,10 @@ export function AiStudioPage() {
           <div className="rounded-[30px] border border-slate-800 bg-[#0A0A0A] p-7 sm:p-8">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Studio Flow</p>
             <div className="mt-5 space-y-3 text-sm text-slate-200">
-              <div className="rounded-2xl border border-slate-700 bg-slate-900/60 px-4 py-3">1. Campaign builder: brief and audience</div>
-              <div className="rounded-2xl border border-slate-700 bg-slate-900/60 px-4 py-3">2. Plan builder: channels and language mix</div>
-              <div className="rounded-2xl border border-slate-700 bg-slate-900/60 px-4 py-3">3. Creative engine + QA scoring</div>
-              <div className="rounded-2xl border border-slate-700 bg-slate-900/60 px-4 py-3">4. Voice, image, and video asset jobs</div>
+              <div className="rounded-2xl border border-slate-700 bg-slate-900/60 px-4 py-3">1. Queue campaign job</div>
+              <div className="rounded-2xl border border-slate-700 bg-slate-900/60 px-4 py-3">2. Generate from brief</div>
+              <div className="rounded-2xl border border-slate-700 bg-slate-900/60 px-4 py-3">3. Review QA signals</div>
+              <div className="rounded-2xl border border-slate-700 bg-slate-900/60 px-4 py-3">4. Queue voice/image/video assets</div>
             </div>
           </div>
         </div>
@@ -244,158 +250,161 @@ export function AiStudioPage() {
 
       <section className="page-shell px-6 pb-20 sm:px-10">
         <div className="rounded-[30px] border border-slate-800 bg-[#0A0A0A] p-6 sm:p-8">
-          <h3 className="text-2xl font-semibold text-slate-100">AI Platform Console (React)</h3>
-          <p className="mt-2 text-sm text-slate-400">Queue generation jobs, generate from brief, run QA checks, and produce assets.</p>
+          <h3 className="text-2xl font-semibold text-slate-100">AI Platform Console</h3>
+          <p className="mt-2 text-sm text-slate-400">This console is now step-based. Start at step 1 and move right.</p>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-2">
-            <label className="block">
-              <span className="text-xs uppercase tracking-[0.2em] text-slate-400">Campaign Id</span>
-              <input value={campaignId} onChange={(event) => setCampaignId(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white" placeholder="e.g. 4cc22ac0-0f3e-4d00-8c87-2e0188f8e9d5" />
-            </label>
-            <label className="block">
-              <span className="text-xs uppercase tracking-[0.2em] text-slate-400">Prompt Override (Optional)</span>
-              <input value={promptOverride} onChange={(event) => setPromptOverride(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white" placeholder="Add urgency and discount-led CTA" />
-            </label>
+          <div className="mt-5 rounded-2xl border border-slate-800 bg-slate-900/50 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">How To Use</p>
+            <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-slate-300">
+              <li>Enter campaign id and queue job.</li>
+              <li>Generate creatives from brief.</li>
+              <li>Load QA, confirm quality.</li>
+              <li>Queue assets and monitor status.</li>
+              <li>Regenerate only when feedback is needed.</li>
+            </ol>
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-3">
-            <button type="button" onClick={() => submitJobMutation.mutate()} disabled={!canSubmit} className="rounded-xl bg-gradient-to-r from-brand to-[#14b86e] px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
-              {submitJobMutation.isPending ? 'Queueing...' : 'Queue AI job'}
-            </button>
-            <input value={activeJobId} onChange={(event) => setActiveJobId(event.target.value)} className="min-w-[320px] flex-1 rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white" placeholder="Paste job id to track status" />
+          <div className="mt-5 flex flex-wrap gap-2">
+            {[
+              ['queue', '1. Queue'],
+              ['brief', '2. Brief'],
+              ['qa', '3. QA'],
+              ['assets', '4. Assets'],
+              ['regenerate', '5. Regenerate'],
+            ].map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setActiveConsoleStep(id as ConsoleStep)}
+                className={`rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] ${activeConsoleStep === id ? 'border-brand bg-brand/20 text-brand-soft' : 'border-slate-700 bg-slate-950 text-slate-300'}`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
 
-          <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-sm">
-            <p><span className="text-slate-400">Job status:</span> {statusQuery.data?.status ?? 'not started'}</p>
-            <p><span className="text-slate-400">Campaign:</span> {statusQuery.data?.campaignId ?? '-'}</p>
-            <p><span className="text-slate-400">Updated:</span> {statusQuery.data?.updatedAt ?? '-'}</p>
-            {statusQuery.data?.error ? <p className="text-rose-300"><span className="text-slate-400">Error:</span> {statusQuery.data.error}</p> : null}
-          </div>
-
-          <div className="mt-8 border-t border-slate-800 pt-6">
-            <h4 className="text-lg font-semibold text-slate-100">Regenerate With Feedback</h4>
-            <div className="mt-4 grid gap-4 md:grid-cols-3">
-              <input value={regenCreativeId} onChange={(event) => setRegenCreativeId(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white" placeholder="Creative Id" />
-              <input value={regenCampaignId} onChange={(event) => setRegenCampaignId(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white" placeholder="Campaign Id" />
-              <input value={regenFeedback} onChange={(event) => setRegenFeedback(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white" placeholder="Make it more urgent and include discount" />
-            </div>
-            <button type="button" onClick={() => regenerateMutation.mutate()} disabled={!canRegenerate} className="mt-4 rounded-xl border border-slate-600 bg-slate-950 px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
-              {regenerateMutation.isPending ? 'Regenerating...' : 'Regenerate creative'}
-            </button>
-            {regenerateMutation.data ? <p className="mt-3 text-sm text-emerald-300">Regeneration complete. Job: {regenerateMutation.data.jobId}, Creatives: {regenerateMutation.data.creativeCount}, Assets: {regenerateMutation.data.assetCount}</p> : null}
-          </div>
-
-          <div className="mt-8 border-t border-slate-800 pt-6">
-            <h4 className="text-lg font-semibold text-slate-100">Creative Engine (From Brief)</h4>
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <input value={briefBrand} onChange={(event) => setBriefBrand(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white" placeholder="Brand" />
-              <select value={briefObjective} onChange={(event) => setBriefObjective(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white">
-                {objectiveOptions.map((objective) => <option key={objective} value={objective}>{objective}</option>)}
-              </select>
-              <select value={briefTone} onChange={(event) => setBriefTone(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white">
-                {toneOptions.map((tone) => <option key={tone} value={tone}>{tone}</option>)}
-              </select>
-              <input value={briefCta} onChange={(event) => setBriefCta(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white" placeholder="CTA" />
-              <input value={briefAudience} onChange={(event) => setBriefAudience(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white" placeholder="Audience insights (comma-separated)" />
-              <input value={briefMessage} onChange={(event) => setBriefMessage(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white md:col-span-2" placeholder="Key message" />
-
-              <div className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white">
-                <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Languages</p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {languageOptions.map((language) => (
-                    <button
-                      key={language}
-                      type="button"
-                      onClick={() => toggleBriefLanguage(language)}
-                      className={`rounded-full border px-3 py-1 text-xs ${briefLanguages.includes(language) ? 'border-brand bg-brand/20 text-brand-soft' : 'border-slate-600 text-slate-300'}`}
-                    >
-                      {language}
-                    </button>
-                  ))}
-                </div>
+          {activeConsoleStep === 'queue' ? (
+            <div className="mt-6">
+              <h4 className="text-lg font-semibold text-slate-100">Queue AI Job</h4>
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <input value={campaignId} onChange={(event) => setCampaignId(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white" placeholder="Campaign Id" />
+                <input value={promptOverride} onChange={(event) => setPromptOverride(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white" placeholder="Prompt override (optional)" />
               </div>
-
-              <div className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white">
-                <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Channels</p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {channelOptions.map((channel) => (
-                    <button
-                      key={channel}
-                      type="button"
-                      onClick={() => toggleBriefChannel(channel)}
-                      className={`rounded-full border px-3 py-1 text-xs ${briefChannels.includes(channel) ? 'border-brand bg-brand/20 text-brand-soft' : 'border-slate-600 text-slate-300'}`}
-                    >
-                      {channel}
-                    </button>
-                  ))}
-                </div>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <button type="button" onClick={() => submitJobMutation.mutate()} disabled={!canSubmit} className="rounded-xl bg-gradient-to-r from-brand to-[#14b86e] px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
+                  {submitJobMutation.isPending ? 'Queueing...' : 'Queue AI job'}
+                </button>
+                <input value={activeJobId} onChange={(event) => setActiveJobId(event.target.value)} className="min-w-[320px] flex-1 rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white" placeholder="Job id to track" />
+              </div>
+              <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-sm">
+                <p><span className="text-slate-400">Status:</span> {statusQuery.data?.status ?? 'not started'}</p>
+                <p><span className="text-slate-400">Campaign:</span> {statusQuery.data?.campaignId ?? '-'}</p>
+                {statusQuery.data?.error ? <p className="text-rose-300"><span className="text-slate-400">Error:</span> {statusQuery.data.error}</p> : null}
               </div>
             </div>
+          ) : null}
 
-            <button type="button" onClick={() => generateFromBriefMutation.mutate()} disabled={!canGenerateFromBrief} className="mt-4 rounded-xl bg-gradient-to-r from-brand to-[#14b86e] px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
-              {generateFromBriefMutation.isPending ? 'Generating...' : 'Generate creatives from brief'}
-            </button>
-
-            {generateFromBriefMutation.data ? (
-              <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-left text-sm">
-                <p><span className="text-slate-400">Generated creatives:</span> {generateFromBriefMutation.data.creatives.length}</p>
-                <div className="mt-2 space-y-2">
-                  {generateFromBriefMutation.data.creatives.map((item) => (
-                    <div key={item.creativeId} className="rounded-lg border border-slate-800 bg-slate-950/60 p-3">
-                      <p className="text-slate-300">{item.channel} · {item.language}</p>
-                      <p className="mt-1 font-mono text-xs text-slate-400">{item.creativeId}</p>
-                    </div>
-                  ))}
+          {activeConsoleStep === 'brief' ? (
+            <div className="mt-6 border-t border-slate-800 pt-6">
+              <h4 className="text-lg font-semibold text-slate-100">Generate Creatives From Brief</h4>
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <input value={briefBrand} onChange={(event) => setBriefBrand(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white" placeholder="Brand" />
+                <select value={briefObjective} onChange={(event) => setBriefObjective(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white">
+                  {objectiveOptions.map((objective) => <option key={objective} value={objective}>{objective}</option>)}
+                </select>
+                <select value={briefTone} onChange={(event) => setBriefTone(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white">
+                  {toneOptions.map((tone) => <option key={tone} value={tone}>{tone}</option>)}
+                </select>
+                <input value={briefCta} onChange={(event) => setBriefCta(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white" placeholder="CTA" />
+                <input value={briefAudience} onChange={(event) => setBriefAudience(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white" placeholder="Audience insights (comma-separated)" />
+                <input value={briefMessage} onChange={(event) => setBriefMessage(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white" placeholder="Key message" />
+                <div className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3">
+                  <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Languages</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {languageOptions.map((language) => (
+                      <button key={language} type="button" onClick={() => toggleBriefLanguage(language)} className={`rounded-full border px-3 py-1 text-xs ${briefLanguages.includes(language) ? 'border-brand bg-brand/20 text-brand-soft' : 'border-slate-600 text-slate-300'}`}>
+                        {language}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3">
+                  <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Channels</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {channelOptions.map((channel) => (
+                      <button key={channel} type="button" onClick={() => toggleBriefChannel(channel)} className={`rounded-full border px-3 py-1 text-xs ${briefChannels.includes(channel) ? 'border-brand bg-brand/20 text-brand-soft' : 'border-slate-600 text-slate-300'}`}>
+                        {channel}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
-            ) : null}
-          </div>
+              <button type="button" onClick={() => generateFromBriefMutation.mutate()} disabled={!canGenerateFromBrief} className="mt-4 rounded-xl bg-gradient-to-r from-brand to-[#14b86e] px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
+                {generateFromBriefMutation.isPending ? 'Generating...' : 'Generate creatives'}
+              </button>
+              {generateFromBriefMutation.data ? <p className="mt-3 text-sm text-emerald-300">Generated: {generateFromBriefMutation.data.creatives.length} creatives.</p> : null}
+            </div>
+          ) : null}
 
-          <div className="mt-8 border-t border-slate-800 pt-6">
-            <h4 className="text-lg font-semibold text-slate-100">QA Dashboard</h4>
-            <div className="mt-4 flex gap-3">
-              <input value={qaCampaignId} onChange={(event) => setQaCampaignId(event.target.value)} className="flex-1 rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white" placeholder="Campaign Id for QA results" />
-              <button type="button" onClick={() => qaQuery.refetch()} className="rounded-xl border border-slate-600 bg-slate-950 px-5 py-3 text-sm font-semibold text-white">Load QA</button>
+          {activeConsoleStep === 'qa' ? (
+            <div className="mt-6 border-t border-slate-800 pt-6">
+              <h4 className="text-lg font-semibold text-slate-100">QA Dashboard</h4>
+              <div className="mt-4 flex gap-3">
+                <input value={qaCampaignId} onChange={(event) => setQaCampaignId(event.target.value)} className="flex-1 rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white" placeholder="Campaign Id" />
+                <button type="button" onClick={() => qaQuery.refetch()} className="rounded-xl border border-slate-600 bg-slate-950 px-5 py-3 text-sm font-semibold text-white">Load QA</button>
+              </div>
+              <div className="mt-4 space-y-2 text-sm">
+                {(qaQuery.data ?? []).slice(0, 10).map((item) => (
+                  <div key={`${item.creativeId}-${item.createdAt}`} className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+                    <p className="text-slate-200">{item.channel} · {item.language} · <span className="font-semibold">{item.status}</span></p>
+                    <p className="text-slate-400">Score: {item.finalScore} | Risk: {item.riskLevel}</p>
+                  </div>
+                ))}
+              </div>
             </div>
-            <div className="mt-4 space-y-2 text-sm">
-              {(qaQuery.data ?? []).slice(0, 10).map((item) => (
-                <div key={`${item.creativeId}-${item.createdAt}`} className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
-                  <p className="text-slate-200">{item.channel} · {item.language} · <span className="font-semibold">{item.status}</span></p>
-                  <p className="text-slate-400">Score: {item.finalScore} | Risk: {item.riskLevel}</p>
-                  {item.issues.length > 0 ? <p className="text-rose-300">Issues: {item.issues.join('; ')}</p> : null}
-                  {item.suggestions.length > 0 ? <p className="text-emerald-300">Suggestions: {item.suggestions.join('; ')}</p> : null}
-                </div>
-              ))}
-              {qaCampaignId && !qaQuery.isLoading && (qaQuery.data?.length ?? 0) === 0 ? <p className="text-slate-400">No QA results found for this campaign yet.</p> : null}
-            </div>
-          </div>
+          ) : null}
 
-          <div className="mt-8 border-t border-slate-800 pt-6">
-            <h4 className="text-lg font-semibold text-slate-100">Asset Job Queue</h4>
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <input value={assetCampaignId} onChange={(event) => setAssetCampaignId(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white" placeholder="Campaign Id" />
-              <input value={assetCreativeId} onChange={(event) => setAssetCreativeId(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white" placeholder="Creative Id" />
-              <input value={assetVoiceScript} onChange={(event) => setAssetVoiceScript(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white md:col-span-2" placeholder="Voice script" />
-              <input value={assetVisualDirection} onChange={(event) => setAssetVisualDirection(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white md:col-span-2" placeholder="Image visual direction" />
-              <input value={assetVideoSceneJson} onChange={(event) => setAssetVideoSceneJson(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white md:col-span-2" placeholder="Video scene JSON" />
-              <input value={assetVideoScript} onChange={(event) => setAssetVideoScript(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white md:col-span-2" placeholder="Video script" />
+          {activeConsoleStep === 'assets' ? (
+            <div className="mt-6 border-t border-slate-800 pt-6">
+              <h4 className="text-lg font-semibold text-slate-100">Asset Queue</h4>
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <input value={assetCampaignId} onChange={(event) => setAssetCampaignId(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white" placeholder="Campaign Id" />
+                <input value={assetCreativeId} onChange={(event) => setAssetCreativeId(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white" placeholder="Creative Id" />
+                <input value={assetVoiceScript} onChange={(event) => setAssetVoiceScript(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white md:col-span-2" placeholder="Voice script" />
+                <input value={assetVisualDirection} onChange={(event) => setAssetVisualDirection(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white md:col-span-2" placeholder="Image visual direction" />
+                <input value={assetVideoSceneJson} onChange={(event) => setAssetVideoSceneJson(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white md:col-span-2" placeholder="Video scene JSON" />
+                <input value={assetVideoScript} onChange={(event) => setAssetVideoScript(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white md:col-span-2" placeholder="Video script" />
+              </div>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <button type="button" onClick={() => queueVoiceAssetMutation.mutate()} disabled={!canQueueAssetJob || !assetVoiceScript.trim() || queueVoiceAssetMutation.isPending} className="rounded-xl border border-slate-600 bg-slate-950 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">Queue voice</button>
+                <button type="button" onClick={() => queueImageAssetMutation.mutate()} disabled={!canQueueAssetJob || !assetVisualDirection.trim() || queueImageAssetMutation.isPending} className="rounded-xl border border-slate-600 bg-slate-950 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">Queue image</button>
+                <button type="button" onClick={() => queueVideoAssetMutation.mutate()} disabled={!canQueueAssetJob || !assetVideoScript.trim() || queueVideoAssetMutation.isPending} className="rounded-xl border border-slate-600 bg-slate-950 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">Queue video</button>
+              </div>
+              <div className="mt-4 flex gap-3">
+                <input value={assetJobId} onChange={(event) => setAssetJobId(event.target.value)} className="flex-1 rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white" placeholder="Asset job id" />
+                <button type="button" onClick={() => assetStatusQuery.refetch()} className="rounded-xl border border-slate-600 bg-slate-950 px-5 py-3 text-sm font-semibold text-white">Check job</button>
+              </div>
+              <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-sm">
+                <p><span className="text-slate-400">Job status:</span> {assetStatusQuery.data?.status ?? 'not started'}</p>
+                <p><span className="text-slate-400">Asset kind:</span> {assetStatusQuery.data?.assetKind ?? '-'}</p>
+                <p><span className="text-slate-400">Asset URL:</span> {assetStatusQuery.data?.assetUrl ?? '-'}</p>
+              </div>
             </div>
-            <div className="mt-4 flex flex-wrap gap-3">
-              <button type="button" onClick={() => queueVoiceAssetMutation.mutate()} disabled={!canQueueAssetJob || !assetVoiceScript.trim() || queueVoiceAssetMutation.isPending} className="rounded-xl border border-slate-600 bg-slate-950 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">Queue voice</button>
-              <button type="button" onClick={() => queueImageAssetMutation.mutate()} disabled={!canQueueAssetJob || !assetVisualDirection.trim() || queueImageAssetMutation.isPending} className="rounded-xl border border-slate-600 bg-slate-950 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">Queue image</button>
-              <button type="button" onClick={() => queueVideoAssetMutation.mutate()} disabled={!canQueueAssetJob || !assetVideoScript.trim() || queueVideoAssetMutation.isPending} className="rounded-xl border border-slate-600 bg-slate-950 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">Queue video</button>
+          ) : null}
+
+          {activeConsoleStep === 'regenerate' ? (
+            <div className="mt-6 border-t border-slate-800 pt-6">
+              <h4 className="text-lg font-semibold text-slate-100">Regenerate With Feedback</h4>
+              <div className="mt-4 grid gap-4 md:grid-cols-3">
+                <input value={regenCreativeId} onChange={(event) => setRegenCreativeId(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white" placeholder="Creative Id" />
+                <input value={regenCampaignId} onChange={(event) => setRegenCampaignId(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white" placeholder="Campaign Id" />
+                <input value={regenFeedback} onChange={(event) => setRegenFeedback(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white" placeholder="Feedback" />
+              </div>
+              <button type="button" onClick={() => regenerateMutation.mutate()} disabled={!canRegenerate} className="mt-4 rounded-xl border border-slate-600 bg-slate-950 px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
+                {regenerateMutation.isPending ? 'Regenerating...' : 'Regenerate creative'}
+              </button>
             </div>
-            <div className="mt-4 flex gap-3">
-              <input value={assetJobId} onChange={(event) => setAssetJobId(event.target.value)} className="flex-1 rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white" placeholder="Asset job id" />
-              <button type="button" onClick={() => assetStatusQuery.refetch()} className="rounded-xl border border-slate-600 bg-slate-950 px-5 py-3 text-sm font-semibold text-white">Check job</button>
-            </div>
-            <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-sm">
-              <p><span className="text-slate-400">Job status:</span> {assetStatusQuery.data?.status ?? 'not started'}</p>
-              <p><span className="text-slate-400">Asset kind:</span> {assetStatusQuery.data?.assetKind ?? '-'}</p>
-              <p><span className="text-slate-400">Asset URL:</span> {assetStatusQuery.data?.assetUrl ?? '-'}</p>
-              {assetStatusQuery.data?.error ? <p className="text-rose-300"><span className="text-slate-400">Error:</span> {assetStatusQuery.data.error}</p> : null}
-            </div>
-          </div>
+          ) : null}
         </div>
       </section>
 
@@ -420,3 +429,4 @@ export function AiStudioPage() {
     </div>
   );
 }
+
