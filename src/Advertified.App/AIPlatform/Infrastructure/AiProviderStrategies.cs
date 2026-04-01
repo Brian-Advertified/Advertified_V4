@@ -2,6 +2,7 @@ using System.Text.Json;
 using Advertified.App.AIPlatform.Application;
 using Advertified.App.AIPlatform.Domain;
 using Advertified.App.Configuration;
+using Advertified.App.Services.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace Advertified.App.AIPlatform.Infrastructure;
@@ -147,19 +148,132 @@ public sealed class OpenAiProviderStrategy : IAiProviderStrategy
 
 public sealed class ElevenLabsProviderStrategy : IAiProviderStrategy
 {
+    private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web)
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly ElevenLabsOptions _options;
+    private readonly IPublicAssetStorage _publicAssetStorage;
+    private readonly ILogger<ElevenLabsProviderStrategy> _logger;
+
     public string ProviderName => "ElevenLabs";
+
+    public ElevenLabsProviderStrategy(
+        IHttpClientFactory httpClientFactory,
+        IOptions<ElevenLabsOptions> options,
+        IPublicAssetStorage publicAssetStorage,
+        ILogger<ElevenLabsProviderStrategy> logger)
+    {
+        _httpClientFactory = httpClientFactory;
+        _options = options.Value;
+        _publicAssetStorage = publicAssetStorage;
+        _logger = logger;
+    }
 
     public bool CanHandle(AdvertisingChannel channel, string operation)
     {
         return channel == AdvertisingChannel.Radio && operation == "asset-voice";
     }
 
-    public Task<string> ExecuteAsync(string inputJson, CancellationToken cancellationToken)
+    public async Task<string> ExecuteAsync(string inputJson, CancellationToken cancellationToken)
     {
-        var payload = JsonSerializer.Deserialize<Dictionary<string, object?>>(inputJson) ?? new();
-        payload["assetUrl"] = "https://assets.example.com/audio/radio-voice.mp3";
+        if (!_options.Enabled)
+        {
+            var disabledPayload = JsonSerializer.Deserialize<Dictionary<string, object?>>(inputJson, SerializerOptions) ?? new();
+            disabledPayload["assetUrl"] = "https://assets.example.com/audio/radio-voice.mp3";
+            disabledPayload["assetType"] = "voice";
+            disabledPayload["providerStatus"] = "disabled";
+            return JsonSerializer.Serialize(disabledPayload, SerializerOptions);
+        }
+
+        if (string.IsNullOrWhiteSpace(_options.ApiKey))
+        {
+            throw new InvalidOperationException("ElevenLabs:ApiKey is required when ElevenLabs is enabled.");
+        }
+
+        var requestPayload = JsonSerializer.Deserialize<VoiceAssetRequest>(inputJson, SerializerOptions)
+            ?? throw new InvalidOperationException("Voice asset request payload is invalid.");
+
+        var voiceId = ResolveVoiceId(requestPayload.VoiceType);
+        if (string.IsNullOrWhiteSpace(voiceId))
+        {
+            throw new InvalidOperationException("ElevenLabs voice id is missing. Configure ElevenLabs:DefaultVoiceId or pass a valid voice id in VoiceType.");
+        }
+
+        var baseUrl = string.IsNullOrWhiteSpace(_options.BaseUrl)
+            ? "https://api.elevenlabs.io"
+            : _options.BaseUrl.TrimEnd('/');
+
+        var endpoint = $"{baseUrl}/v1/text-to-speech/{Uri.EscapeDataString(voiceId)}";
+        var requestBody = new
+        {
+            text = requestPayload.Script,
+            model_id = string.IsNullOrWhiteSpace(_options.DefaultModelId) ? "eleven_multilingual_v2" : _options.DefaultModelId,
+            voice_settings = new
+            {
+                stability = 0.4,
+                similarity_boost = 0.8
+            }
+        };
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
+        {
+            Content = new StringContent(JsonSerializer.Serialize(requestBody, SerializerOptions), System.Text.Encoding.UTF8, "application/json")
+        };
+        request.Headers.TryAddWithoutValidation("xi-api-key", _options.ApiKey);
+        request.Headers.Accept.ParseAdd("audio/mpeg");
+
+        var client = _httpClientFactory.CreateClient(nameof(ElevenLabsProviderStrategy));
+        if (_options.TimeoutSeconds > 0)
+        {
+            client.Timeout = TimeSpan.FromSeconds(_options.TimeoutSeconds);
+        }
+
+        using var response = await client.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
+            _logger.LogWarning(
+                "ElevenLabs returned non-success status {StatusCode}: {Response}",
+                (int)response.StatusCode,
+                errorBody);
+            throw new InvalidOperationException($"ElevenLabs request failed with status {(int)response.StatusCode}.");
+        }
+
+        var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+        if (bytes.Length == 0)
+        {
+            throw new InvalidOperationException("ElevenLabs returned an empty audio payload.");
+        }
+
+        var objectKey = BuildObjectKey(requestPayload.CampaignId, requestPayload.CreativeId);
+        var storedKey = await _publicAssetStorage.SaveAsync(objectKey, bytes, "audio/mpeg", cancellationToken);
+        var publicUrl = _publicAssetStorage.GetPublicUrl(storedKey) ?? storedKey;
+
+        var payload = JsonSerializer.Deserialize<Dictionary<string, object?>>(inputJson, SerializerOptions) ?? new();
+        payload["assetStorageKey"] = storedKey;
+        payload["assetUrl"] = publicUrl;
         payload["assetType"] = "voice";
-        return Task.FromResult(JsonSerializer.Serialize(payload));
+        payload["providerStatus"] = "completed";
+        return JsonSerializer.Serialize(payload, SerializerOptions);
+    }
+
+    private string ResolveVoiceId(string? voiceType)
+    {
+        if (!string.IsNullOrWhiteSpace(voiceType) && voiceType.Contains('_', StringComparison.Ordinal))
+        {
+            return voiceType.Trim();
+        }
+
+        return _options.DefaultVoiceId.Trim();
+    }
+
+    private static string BuildObjectKey(Guid campaignId, Guid creativeId)
+    {
+        var stamp = DateTime.UtcNow.ToString("yyyyMMddHHmmssfff");
+        return $"ai-platform/voice/{campaignId:D}/{creativeId:D}/{stamp}-{Guid.NewGuid():N}.mp3";
     }
 }
 
