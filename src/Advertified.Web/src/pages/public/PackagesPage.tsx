@@ -26,7 +26,7 @@ export function PackagesPage() {
   const [stepState, setStepState] = useState<1 | 2>();
   const [selectedAreaState, setSelectedAreaState] = useState('');
   const [isResendingActivation, setIsResendingActivation] = useState(false);
-  const spendStepAnchorRef = useRef<HTMLDivElement | null>(null);
+  const mapSectionAnchorRef = useRef<HTMLDivElement | null>(null);
   const requestedBandCode = searchParams.get('band')?.trim().toLowerCase();
   const requestedBand = requestedBandCode
     ? packagesQuery.data?.find((item) => item.code.toLowerCase() === requestedBandCode)
@@ -79,7 +79,10 @@ export function PackagesPage() {
       return;
     }
 
-    spendStepAnchorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const isMobile = window.matchMedia('(max-width: 639px)').matches;
+    if (isMobile) {
+      mapSectionAnchorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   }, [step, selectedBand?.id]);
 
   if (packagesQuery.isLoading) {
@@ -101,7 +104,7 @@ export function PackagesPage() {
       </div>
 
       {selectedBand && step === 2 ? (
-        <div ref={spendStepAnchorRef} className="panel flex items-center justify-between gap-4 px-5 py-4 sm:hidden">
+        <div className="panel flex items-center justify-between gap-4 px-5 py-4 sm:hidden">
           <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-brand">Selected package</p>
             <p className="mt-2 text-xl font-semibold tracking-tight text-ink">{selectedBand.name}</p>
@@ -147,7 +150,12 @@ export function PackagesPage() {
               onChange={(value) => setSpendState(Math.min(selectedBand.maxBudget, Math.max(selectedBand.minBudget, value || selectedBand.minBudget)))}
             />
           </div>
-          <SpendPreviewPanel band={selectedBand} selectedSpend={clampedSpend} livePreview={previewQuery.data} />
+          <SpendPreviewPanel
+            band={selectedBand}
+            selectedSpend={clampedSpend}
+            livePreview={previewQuery.data}
+            mapAnchorRef={mapSectionAnchorRef}
+          />
         </div>
       ) : null}
 

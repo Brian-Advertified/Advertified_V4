@@ -112,7 +112,7 @@ export function PrivacyPolicyPage() {
       </LegalSection>
 
       <LegalSection title="Contact">
-        <p>General enquiries: info@advertified.com</p>
+        <p>General enquiries: ad@advertified.com</p>
         <p>Support: support@advertified.com</p>
         <p>Phone: +27 11 040 1195</p>
       </LegalSection>
@@ -182,7 +182,7 @@ export function TermsPage() {
 
       <LegalSection title="Contact and legal administration">
         <p>Information Officer: Nkonzo Mabetha.</p>
-        <p>General contact: info@advertified.com</p>
+        <p>General contact: ad@advertified.com</p>
         <p>Support contact: support@advertified.com</p>
       </LegalSection>
     </LegalLayout>

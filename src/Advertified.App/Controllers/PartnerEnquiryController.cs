@@ -31,7 +31,7 @@ public sealed class PartnerEnquiryController : ControllerBase
 
         await _emailService.SendAsync(
             "partner-enquiry-notification",
-            "info@advertified.com",
+            "ad@advertified.com",
             "support",
             new Dictionary<string, string?>
             {

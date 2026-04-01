@@ -9,34 +9,25 @@ export function SpendPreviewPanel({
   band,
   selectedSpend,
   livePreview,
+  mapAnchorRef,
 }: {
   band: PackageBand;
   selectedSpend: number;
   livePreview?: PackagePreview;
+  mapAnchorRef?: React.RefObject<HTMLDivElement | null>;
 }) {
   const tierToneClass = getTierToneClass(getTierForSpend(band, selectedSpend));
 
   return (
     <div className="panel flex flex-col gap-5 px-6 py-6">
       <div className={`spend-preview-hero ${tierToneClass} rounded-[24px] px-5 py-5`}>
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Your package</p>
-            <p className="mt-3 text-2xl font-semibold tracking-tight text-ink">{band.name}</p>
-            <div className="mt-3">
-              <span className={`spend-tier-badge ${tierToneClass}`}>{livePreview?.tierLabel ?? `${band.name} package`}</span>
-            </div>
-          </div>
-          <div className="text-right">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Selected spend</p>
-            <p className="mt-2 text-3xl font-semibold tracking-tight text-ink">{formatCurrency(selectedSpend)}</p>
-          </div>
-        </div>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Selected spend</p>
+        <p className="mt-2 text-3xl font-semibold tracking-tight text-ink">{formatCurrency(selectedSpend)}</p>
       </div>
 
       {livePreview ? (
         <>
-          <Section title="Includes" icon={<CheckCircle2 className="size-4 text-brand" />}>
+          <Section title="Includes" icon={<CheckCircle2 className="size-4 text-brand" />} defaultOpen>
             <div className="flex flex-wrap gap-2">
               {getPackageInclusions(band).map((item) => (
                 <span
@@ -61,6 +52,7 @@ export function SpendPreviewPanel({
             </div>
           </Section>
 
+          <div ref={mapAnchorRef} />
           <Suspense
             fallback={(
               <section className="rounded-[22px] border border-line bg-white px-4 py-4">

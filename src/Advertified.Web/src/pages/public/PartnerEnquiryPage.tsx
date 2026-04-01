@@ -65,7 +65,7 @@ export function PartnerEnquiryPage() {
       <PageHero
         kicker="Partner enquiry"
         title="Tell us about your inventory and how you would like to work with Advertified."
-        description="Use this form to introduce your media supply, venue footprint, or channel network. Our team will review the enquiry and respond directly at info@advertified.com."
+        description="Use this form to introduce your media supply, venue footprint, or channel network. Our team will review the enquiry and respond directly at ad@advertified.com."
         aside={(
           <div className="space-y-4">
             <div className="rounded-[20px] border border-line bg-white/80 px-4 py-4">
@@ -74,7 +74,7 @@ export function PartnerEnquiryPage() {
               <p className="mt-2 text-sm leading-7 text-ink-soft">Partner type, market coverage, inventory footprint, and any commercial or operational notes that matter.</p>
             </div>
             <div className="rounded-[20px] border border-line bg-white/80 px-4 py-4 text-sm leading-7 text-ink-soft">
-              Your enquiry will be sent to <span className="font-semibold text-ink">info@advertified.com</span>.
+              Your enquiry will be sent to <span className="font-semibold text-ink">ad@advertified.com</span>.
             </div>
           </div>
         )}
@@ -164,7 +164,7 @@ export function PartnerEnquiryPage() {
               <div>
                 <p className="text-base font-semibold text-ink">Email destination</p>
                 <p className="mt-2 text-sm leading-7 text-ink-soft">
-                  Every enquiry is delivered to <span className="font-semibold text-ink">info@advertified.com</span> for review and follow-up.
+                  Every enquiry is delivered to <span className="font-semibold text-ink">ad@advertified.com</span> for review and follow-up.
                 </p>
               </div>
             </div>

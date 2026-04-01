@@ -45,7 +45,7 @@ export function Footer() {
               <p>Stellenbosch</p>
               <p>Cape Town, 7559</p>
               <p>
-                <a href="mailto:info@advertified.com" className="transition hover:text-brand">info@advertified.com</a>
+                <a href="mailto:ad@advertified.com" className="transition hover:text-brand">ad@advertified.com</a>
               </p>
             </div>
           </div>
