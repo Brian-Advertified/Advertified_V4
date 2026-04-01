@@ -1,4 +1,5 @@
 using Advertified.App.Configuration;
+using Advertified.App.AIPlatform.Infrastructure;
 using Advertified.App.Data;
 using Advertified.App.Data.Enums;
 using Advertified.App.Middleware;
@@ -26,6 +27,7 @@ builder.Services.Configure<UpstashRedisOptions>(builder.Configuration.GetSection
 builder.Services.Configure<VodaPayOptions>(builder.Configuration.GetSection(VodaPayOptions.SectionName));
 builder.Services.Configure<PlanningPolicyOptions>(builder.Configuration.GetSection(PlanningPolicyOptions.SectionName));
 builder.Services.Configure<OpenAIOptions>(builder.Configuration.GetSection(OpenAIOptions.SectionName));
+builder.Services.Configure<AiPlatformOptions>(builder.Configuration.GetSection(AiPlatformOptions.SectionName));
 builder.Services.Configure<StorageOptions>(builder.Configuration.GetSection(StorageOptions.SectionName));
 builder.Services.Configure<InventoryReadinessOptions>(builder.Configuration.GetSection(InventoryReadinessOptions.SectionName));
 builder.Services.AddCors(options =>
@@ -71,6 +73,8 @@ builder.Services.AddScoped<IAgentAreaRoutingService, AgentAreaRoutingService>();
 builder.Services.AddScoped<ICampaignBriefService, CampaignBriefService>();
 builder.Services.AddScoped<ICampaignRecommendationService, CampaignRecommendationService>();
 builder.Services.AddScoped<IRecommendationDocumentService, RecommendationDocumentService>();
+builder.Services.AddScoped<ICreativeGenerationOrchestrator, CreativeGenerationOrchestrator>();
+builder.Services.AddScoped<ICreativeStudioIntelligenceService, CreativeStudioIntelligenceService>();
 builder.Services.AddHttpClient<IPublicAssetStorage, PublicAssetStorageService>();
 builder.Services.AddHttpClient<IPrivateDocumentStorage, PrivateDocumentStorageService>();
 builder.Services.AddSingleton<IBroadcastInventoryCatalog>(_ => new BroadcastInventoryCatalog(connectionString));
@@ -94,19 +98,6 @@ builder.Services.AddHttpClient<ICampaignBriefInterpretationService, CampaignBrie
     }
 });
 builder.Services.AddHttpClient<ICampaignReasoningService, OpenAICampaignReasoningService>((serviceProvider, client) =>
-{
-    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<OpenAIOptions>>().Value;
-    if (!string.IsNullOrWhiteSpace(options.BaseUrl))
-    {
-        client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
-    }
-
-    if (options.TimeoutSeconds > 0)
-    {
-        client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
-    }
-});
-builder.Services.AddHttpClient<ICreativeStudioIntelligenceService, CreativeStudioIntelligenceService>((serviceProvider, client) =>
 {
     var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<OpenAIOptions>>().Value;
     if (!string.IsNullOrWhiteSpace(options.BaseUrl))
@@ -200,6 +191,7 @@ builder.Services.AddHttpClient<ITemplatedEmailService, ResendEmailService>((serv
 builder.Services.AddScoped<CampaignPlanningRequestValidator>();
 builder.Services.AddScoped<RegisterRequestValidator>();
 builder.Services.AddScoped<SaveCampaignBriefRequestValidator>();
+builder.Services.AddAiAdvertisingPlatform();
 
 var app = builder.Build();
 

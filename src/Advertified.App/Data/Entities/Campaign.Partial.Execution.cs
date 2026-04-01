@@ -6,6 +6,8 @@ public partial class Campaign
 {
     public virtual ICollection<CampaignCreativeSystem> CampaignCreativeSystems { get; set; } = new List<CampaignCreativeSystem>();
 
+    public virtual ICollection<CampaignCreative> CampaignCreatives { get; set; } = new List<CampaignCreative>();
+
     public virtual ICollection<CampaignAsset> CampaignAssets { get; set; } = new List<CampaignAsset>();
 
     public virtual ICollection<CampaignSupplierBooking> CampaignSupplierBookings { get; set; } = new List<CampaignSupplierBooking>();

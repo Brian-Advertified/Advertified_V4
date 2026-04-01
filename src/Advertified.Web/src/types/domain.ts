@@ -794,6 +794,23 @@ export interface AdminMonitoring {
   inventoryRows: number;
   activeAreaCount: number;
   recommendationCount: number;
+  retryAlertThreshold: number;
+  aiJobAlertCount: number;
+  aiCreativeJobAlertCount: number;
+  aiAssetJobAlertCount: number;
+  aiCostCapRejectionCount: number;
+  aiJobAlerts: AdminAiJobAlert[];
+}
+
+export interface AdminAiJobAlert {
+  pipeline: string;
+  jobId: string;
+  campaignId: string;
+  status: string;
+  retryAttemptCount: number;
+  lastFailure?: string;
+  updatedAt: string;
+  alertReason: string;
 }
 
 export interface AdminDashboard {

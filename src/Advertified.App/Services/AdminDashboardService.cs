@@ -63,6 +63,27 @@ public sealed class AdminDashboardService : IAdminDashboardService
         var previewRules = await GetPreviewRulesAsync(cancellationToken);
         var monitoring = await GetMonitoringAsync(areaMappings.Count, cancellationToken);
         var fallbackRatePercent = await GetFallbackRatePercentAsync(cancellationToken);
+        var aiQueueAlerts = monitoring.AiJobAlerts
+            .Take(3)
+            .Select(alert => new AdminAlertResponse
+            {
+                Title = $"AI {alert.Pipeline} job failed",
+                Context = $"Campaign {alert.CampaignId} | Retries {alert.RetryAttemptCount} | {alert.LastFailure ?? "No failure message"}",
+                Severity = alert.RetryAttemptCount >= 5 ? "Critical" : "Warning",
+                Owner = "AI Platform"
+            });
+        var inventoryAlerts = weakOutlets
+            .Take(3)
+            .Select(issue => new AdminAlertResponse
+            {
+                Title = issue.Issue,
+                Context = $"{issue.OutletName} | {issue.Impact}",
+                Severity = issue.Issue.Contains("Missing", StringComparison.OrdinalIgnoreCase) ? "Critical" : "Warning"
+            });
+        var combinedAlerts = aiQueueAlerts
+            .Concat(inventoryAlerts)
+            .Take(6)
+            .ToArray();
 
         return new AdminDashboardResponse
         {
@@ -73,12 +94,7 @@ public sealed class AdminDashboardService : IAdminDashboardService
                 SourceDocuments = sourceDocuments,
                 FallbackRatePercent = fallbackRatePercent
             },
-            Alerts = weakOutlets.Take(3).Select(issue => new AdminAlertResponse
-            {
-                Title = issue.Issue,
-                Context = $"{issue.OutletName} | {issue.Impact}",
-                Severity = issue.Issue.Contains("Missing", StringComparison.OrdinalIgnoreCase) ? "Critical" : "Warning"
-            }).ToArray(),
+            Alerts = combinedAlerts,
             Outlets = outlets,
             RecentImports = recentImports,
             Health = new AdminHealthResponse
@@ -402,6 +418,8 @@ public sealed class AdminDashboardService : IAdminDashboardService
 
     private async Task<AdminMonitoringResponse> GetMonitoringAsync(int activeAreaCount, CancellationToken cancellationToken)
     {
+        const int retryAlertThreshold = 3;
+
         var totalCampaigns = await _db.Campaigns.CountAsync(cancellationToken);
         var planningReadyCount = await _db.Campaigns.CountAsync(
             x => x.Status == CampaignStatuses.BriefSubmitted || x.Status == CampaignStatuses.PlanningInProgress,
@@ -412,6 +430,54 @@ public sealed class AdminDashboardService : IAdminDashboardService
             "select count(*) from inventory_items_final",
             cancellationToken: cancellationToken));
         var recommendationCount = await _db.CampaignRecommendations.CountAsync(cancellationToken);
+        var creativeAlertCount = await _db.AiCreativeJobStatuses
+            .AsNoTracking()
+            .CountAsync(x => x.Status == "failed" && x.RetryAttemptCount >= retryAlertThreshold, cancellationToken);
+        var assetAlertCount = await _db.AiAssetJobs
+            .AsNoTracking()
+            .CountAsync(x => x.Status == "failed" && x.RetryAttemptCount >= retryAlertThreshold, cancellationToken);
+        var aiCostCapRejectionCount = await _db.AiUsageLogs
+            .AsNoTracking()
+            .CountAsync(x => x.Status == "rejected", cancellationToken);
+        var creativeAlerts = await _db.AiCreativeJobStatuses
+            .AsNoTracking()
+            .Where(x => x.Status == "failed" && x.RetryAttemptCount >= retryAlertThreshold)
+            .OrderByDescending(x => x.UpdatedAt)
+            .Take(20)
+            .Select(x => new AdminAiJobAlertResponse
+            {
+                Pipeline = "creative",
+                JobId = x.JobId,
+                CampaignId = x.CampaignId,
+                Status = x.Status,
+                RetryAttemptCount = x.RetryAttemptCount,
+                LastFailure = x.LastFailure ?? x.Error,
+                UpdatedAt = x.UpdatedAt,
+                AlertReason = "Status failed with repeated retries."
+            })
+            .ToArrayAsync(cancellationToken);
+        var assetAlerts = await _db.AiAssetJobs
+            .AsNoTracking()
+            .Where(x => x.Status == "failed" && x.RetryAttemptCount >= retryAlertThreshold)
+            .OrderByDescending(x => x.UpdatedAt)
+            .Take(20)
+            .Select(x => new AdminAiJobAlertResponse
+            {
+                Pipeline = "asset",
+                JobId = x.Id,
+                CampaignId = x.CampaignId,
+                Status = x.Status,
+                RetryAttemptCount = x.RetryAttemptCount,
+                LastFailure = x.LastFailure ?? x.Error,
+                UpdatedAt = x.UpdatedAt,
+                AlertReason = "Status failed with repeated retries."
+            })
+            .ToArrayAsync(cancellationToken);
+        var aiJobAlerts = creativeAlerts
+            .Concat(assetAlerts)
+            .OrderByDescending(x => x.UpdatedAt)
+            .Take(20)
+            .ToArray();
 
         return new AdminMonitoringResponse
         {
@@ -420,7 +486,13 @@ public sealed class AdminDashboardService : IAdminDashboardService
             WaitingOnClientCount = waitingOnClientCount,
             InventoryRows = inventoryRows,
             ActiveAreaCount = activeAreaCount,
-            RecommendationCount = recommendationCount
+            RecommendationCount = recommendationCount,
+            RetryAlertThreshold = retryAlertThreshold,
+            AiCreativeJobAlertCount = creativeAlertCount,
+            AiAssetJobAlertCount = assetAlertCount,
+            AiJobAlertCount = creativeAlertCount + assetAlertCount,
+            AiCostCapRejectionCount = aiCostCapRejectionCount,
+            AiJobAlerts = aiJobAlerts
         };
     }
 

@@ -559,6 +559,85 @@ type InterpretedCampaignBriefResponse = {
 };
 
 type CreativeSystemResponse = CreativeSystem;
+type AiPlatformSubmitJobResponse = {
+  jobId: string;
+  campaignId: string;
+  status: string;
+  queuedAt: string;
+};
+type AiPlatformJobStatusResponse = {
+  jobId: string;
+  campaignId: string;
+  status: string;
+  error?: string | null;
+  updatedAt: string;
+};
+type AiPlatformRegenerateResponse = {
+  jobId: string;
+  campaignId: string;
+  creativeCount: number;
+  assetCount: number;
+  completedAt: string;
+};
+type AiPlatformCampaignCreativeItemResponse = {
+  id: string;
+  campaignId: string;
+  channel: string;
+  language: string;
+  score?: number | null;
+  createdAt: string;
+};
+type AiPlatformCreativeEngineGenerateResponse = {
+  campaignId: string;
+  jobId: string;
+  completedAt: string;
+  creatives: Array<{
+    creativeId: string;
+    channel: string;
+    language: string;
+    payloadJson: string;
+  }>;
+};
+type AiPlatformQaResultResponse = {
+  creativeId: string;
+  campaignId: string;
+  channel: string;
+  language: string;
+  clarity: number;
+  attention: number;
+  emotionalImpact: number;
+  ctaStrength: number;
+  brandFit: number;
+  channelFit: number;
+  finalScore: number;
+  status: string;
+  riskLevel: string;
+  issues: string[];
+  suggestions: string[];
+  riskFlags: string[];
+  improvedPayloadJson?: string | null;
+  createdAt: string;
+};
+type AiPlatformAssetJobResponse = {
+  jobId: string;
+  campaignId: string;
+  creativeId: string;
+  assetKind: string;
+  status: string;
+  assetUrl?: string | null;
+  assetType?: string | null;
+  error?: string | null;
+  updatedAt: string;
+  completedAt?: string | null;
+};
+type AiPlatformCampaignCostSummaryResponse = {
+  campaignId: string;
+  campaignBudgetZar: number;
+  maxAllowedCostZar: number;
+  committedCostZar: number;
+  remainingBudgetZar: number;
+  utilizationPercent: number;
+};
 
 function getStoredSession(): SessionUser | null {
   const raw = localStorage.getItem(SESSION_STORAGE_KEY);
@@ -2012,6 +2091,125 @@ export const advertifiedApi = {
     });
 
     return normalizeCreativeSystem(response);
+  },
+
+  async submitAiPlatformJob(payload: {
+    campaignId: string;
+    promptOverride?: string;
+  }) {
+    return apiRequest<AiPlatformSubmitJobResponse>('/api/v2/ai-platform/jobs', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async getAiPlatformJobStatus(jobId: string) {
+    return apiRequest<AiPlatformJobStatusResponse>(`/api/v2/ai-platform/jobs/${encodeURIComponent(jobId)}`);
+  },
+
+  async regenerateAiPlatformCreative(payload: {
+    creativeId: string;
+    campaignId: string;
+    feedback: string;
+  }) {
+    return apiRequest<AiPlatformRegenerateResponse>('/api/v2/ai-platform/regenerate', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async getAiPlatformCampaignCreatives(campaignId: string) {
+    return apiRequest<AiPlatformCampaignCreativeItemResponse[]>(
+      `/api/v2/ai-platform/campaigns/${encodeURIComponent(campaignId)}/creatives`,
+    );
+  },
+
+  async generateAiPlatformCreatives(payload: {
+    campaignId: string;
+    promptOverride?: string;
+    persistOutputs?: boolean;
+    idempotencyKey?: string;
+  }) {
+    return apiRequest<AiPlatformCreativeEngineGenerateResponse>('/api/v2/ai-platform/creative-engine/generate', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async generateAiPlatformCreativesFromBrief(payload: {
+    brief: {
+      campaignId: string;
+      brand: string;
+      objective?: string;
+      tone?: string;
+      keyMessage?: string;
+      callToAction?: string;
+      audienceInsights?: string[];
+      languages?: string[];
+      channels?: string[];
+      promptVersion?: number;
+    };
+  }) {
+    return apiRequest<AiPlatformCreativeEngineGenerateResponse>('/api/v2/ai-platform/creative-engine/generate-from-brief', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async getAiPlatformQaResults(campaignId: string) {
+    return apiRequest<AiPlatformQaResultResponse[]>(
+      `/api/v2/ai-platform/qa/campaigns/${encodeURIComponent(campaignId)}`,
+    );
+  },
+
+  async queueAiPlatformVoiceAsset(payload: {
+    campaignId: string;
+    creativeId: string;
+    script: string;
+    voiceType?: string;
+    language?: string;
+  }) {
+    return apiRequest<AiPlatformAssetJobResponse>('/api/v2/ai-platform/assets/voice', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async queueAiPlatformImageAsset(payload: {
+    campaignId: string;
+    creativeId: string;
+    visualDirection: string;
+    style?: string;
+    variations?: number;
+  }) {
+    return apiRequest<AiPlatformAssetJobResponse>('/api/v2/ai-platform/assets/image', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async queueAiPlatformVideoAsset(payload: {
+    campaignId: string;
+    creativeId: string;
+    sceneBreakdownJson: string;
+    script: string;
+    language?: string;
+    durationSeconds?: number;
+  }) {
+    return apiRequest<AiPlatformAssetJobResponse>('/api/v2/ai-platform/assets/video', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async getAiPlatformAssetJobStatus(jobId: string) {
+    return apiRequest<AiPlatformAssetJobResponse>(`/api/v2/ai-platform/assets/jobs/${encodeURIComponent(jobId)}`);
+  },
+
+  async getAiPlatformCampaignCostSummary(campaignId: string) {
+    return apiRequest<AiPlatformCampaignCostSummaryResponse>(
+      `/api/v2/ai-platform/campaigns/${encodeURIComponent(campaignId)}/cost-summary`,
+    );
   },
 
   async assignCampaignToMe(campaignId: string) {

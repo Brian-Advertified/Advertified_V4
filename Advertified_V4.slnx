@@ -1,8 +1,12 @@
-<Solution>
+﻿<Solution>
   <Folder Name="/src/">
     <Project Path="src/Advertified.App/Advertified.App.csproj" />
+    <Project Path="src/Advertified.AIPlatform.Api/Advertified.AIPlatform.Api.csproj" />
+    <Project Path="src/Advertified.AIPlatform.Application/Advertified.AIPlatform.Application.csproj" />
+    <Project Path="src/Advertified.AIPlatform.Domain/Advertified.AIPlatform.Domain.csproj" />
+    <Project Path="src/Advertified.AIPlatform.Infrastructure/Advertified.AIPlatform.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/Advertified.App.Tests/Advertified.App.Tests.csproj" />
+    <Project Path="tests/Advertified.AIPlatform.Tests/Advertified.AIPlatform.Tests.csproj" />
   </Folder>
 </Solution>

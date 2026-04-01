@@ -23,6 +23,19 @@ const CHANNEL_LABELS: Record<ChannelOption, string> = {
   OOH: 'Billboards and digital screens',
   TV: 'TV',
 };
+const OBJECTIVE_OPTIONS = ['awareness', 'launch', 'promotion', 'brand_presence', 'leads'] as const;
+const AUDIENCE_OPTIONS = ['mass-market', 'youth', 'business', 'retail'] as const;
+const SCOPE_OPTIONS = ['local', 'regional', 'national'] as const;
+const GEOGRAPHY_OPTIONS = ['gauteng', 'western-cape', 'kwazulu-natal', 'national'] as const;
+const TONE_OPTIONS = ['premium', 'balanced', 'high-visibility', 'performance'] as const;
+
+function normalizeOption<T extends readonly string[]>(value: string | null | undefined, allowed: T): T[number] | '' {
+  if (!value) {
+    return '';
+  }
+
+  return allowed.includes(value) ? value as T[number] : '';
+}
 
 function getAllowedChannels(campaign?: {
   includeRadio: 'yes' | 'optional' | 'no';
@@ -373,11 +386,11 @@ export function AgentCreateRecommendationPage() {
         key: activeFormKey,
         value: {
           ...form,
-          objective: result.objective || form.objective,
-          audience: result.audience || form.audience,
-          scope: result.scope || form.scope,
-          geography: result.geography || form.geography,
-          tone: result.tone || form.tone,
+          objective: normalizeOption(result.objective, OBJECTIVE_OPTIONS) || form.objective,
+          audience: normalizeOption(result.audience, AUDIENCE_OPTIONS) || form.audience,
+          scope: normalizeOption(result.scope, SCOPE_OPTIONS) || form.scope,
+          geography: normalizeOption(result.geography, GEOGRAPHY_OPTIONS) || form.geography,
+          tone: normalizeOption(result.tone, TONE_OPTIONS) || form.tone,
           brandName: result.campaignName || form.brandName,
           channels: (interpretedChannels.length > 0 ? interpretedChannels : form.channels)
           .filter((channel) => allowedChannels.includes(channel)),

@@ -1,0 +1,6 @@
+@Advertified.AIPlatform.Api_HostAddress = http://localhost:5195
+
+GET {{Advertified.AIPlatform.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

@@ -48,9 +48,9 @@ internal static class PackageCatalogDefaults
                 true,
                 new[] { "Regional reach planning", "Structured upsell options", "Client dashboard progress tracking" },
                 CreateTiers(
-                    ("entry", "Entry Boost mix", new[] { "2-3 media items", "Stronger outdoor footprint", "Potential support in selected markets" }, new[] { "Local-to-regional coverage", "More frequency than Launch", "Better repeat exposure" }),
-                    ("mid", "Balanced Boost mix", new[] { "2-4 media items", "Outdoor plus radio support", "Coverage across more than one area" }, new[] { "Regional promotion support", "Improved audience reach", "Stronger repeat presence" }),
-                    ("premium", "Expanded Boost mix", new[] { "3-4 media items", "Broader outdoor footprint", "More confident multi-area support" }, new[] { "Higher regional visibility", "Stronger frequency", "Broader market coverage" }))),
+                    ("entry", "Entry Boost mix", new[] { "2-3 media items", "Stronger Billboards & Digital Screens footprint", "Potential support in selected markets" }, new[] { "Local-to-regional coverage", "More frequency than Launch", "Better repeat exposure" }),
+                    ("mid", "Balanced Boost mix", new[] { "2-4 media items", "Billboards & Digital Screens plus radio support", "Coverage across more than one area" }, new[] { "Regional promotion support", "Improved audience reach", "Stronger repeat presence" }),
+                    ("premium", "Expanded Boost mix", new[] { "3-4 media items", "Broader Billboards & Digital Screens footprint", "More confident multi-area support" }, new[] { "Higher regional visibility", "Stronger frequency", "Broader market coverage" }))),
             "scale" => new PackageBandProfileSeed(
                 band.Id,
                 "For serious campaign pushes that combine awareness with broader media coordination.",
@@ -64,7 +64,7 @@ internal static class PackageCatalogDefaults
                 false,
                 new[] { "Broader media mix potential", "Hybrid planning support", "More detailed recommendation review" },
                 CreateTiers(
-                    ("entry", "Entry Scale mix", new[] { "3-4 media items", "Multi-channel direction", "Stronger radio and outdoor balance" }, new[] { "Wider regional coverage", "Higher frequency", "More refined targeting" }),
+                    ("entry", "Entry Scale mix", new[] { "3-4 media items", "Multi-channel direction", "Stronger radio and Billboards & Digital Screens balance" }, new[] { "Wider regional coverage", "Higher frequency", "More refined targeting" }),
                     ("mid", "Balanced Scale mix", new[] { "4-5 media items", "More tailored media mix", "Broader reach across target zones" }, new[] { "Stronger sustained presence", "Improved market coverage", "Better audience fit" }),
                     ("premium", "Expanded Scale mix", new[] { "5-6 media items", "Stronger multi-channel plan", "Broader regional support" }, new[] { "Wider and more frequent exposure", "Better premium visibility", "More tailored optimisation potential" }))),
             "dominance" => new PackageBandProfileSeed(
@@ -80,7 +80,7 @@ internal static class PackageCatalogDefaults
                 false,
                 new[] { "Priority planning support", "Agent-led optimisation", "Executive-ready recommendation packs" },
                 CreateTiers(
-                    ("entry", "Entry Dominance mix", new[] { "3-4 media items", "Premium outdoor plus radio direction", "Strong regional presence" }, new[] { "Broader regional coverage", "Higher-frequency exposure", "Stronger premium visibility" }),
+                    ("entry", "Entry Dominance mix", new[] { "3-4 media items", "Premium Billboards & Digital Screens plus radio direction", "Strong regional presence" }, new[] { "Broader regional coverage", "Higher-frequency exposure", "Stronger premium visibility" }),
                     ("mid", "Balanced Dominance mix", new[] { "4-6 media items", "Broader premium mix", "More frequency and stronger multi-region support" }, new[] { "Wider regional footprint", "More premium dayparts and placements", "Stronger sustained awareness" }),
                     ("premium", "National-scale Dominance mix", new[] { "5-7 media items", "Premium multi-channel plan", "Broad market or national-scale options" }, new[] { "Higher visibility across more regions", "More advanced premium mix", "Stronger executive campaign presence" }))),
             _ => null

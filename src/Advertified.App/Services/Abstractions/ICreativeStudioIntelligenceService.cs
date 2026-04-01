@@ -10,5 +10,6 @@ public interface ICreativeStudioIntelligenceService
         CampaignEntity campaign,
         CampaignBriefEntity? brief,
         GenerateCreativeSystemRequest request,
+        Guid? sourceCreativeSystemId,
         CancellationToken cancellationToken);
 }

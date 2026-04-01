@@ -1588,7 +1588,7 @@ public sealed class AgentCampaignsController : ControllerBase
                 };
                 recommendationPackBlock = @"
                     <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">
-                      We have attached a detailed recommendation PDF with media terms, outdoor specifications, locations, and the overall campaign total for easier offline review.
+                      We have attached a detailed recommendation PDF with media terms, Billboards & Digital Screens specifications, locations, and the overall campaign total for easier offline review.
                     </p>";
             }
             catch (Exception ex)

@@ -294,11 +294,17 @@ public sealed class CreativeCampaignsController : ControllerBase
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw new InvalidOperationException("Campaign not found.");
 
-        var result = await _creativeStudioIntelligenceService.GenerateAsync(campaign, campaign.CampaignBrief, request, cancellationToken);
+        var creativeSystemId = Guid.NewGuid();
+        var result = await _creativeStudioIntelligenceService.GenerateAsync(
+            campaign,
+            campaign.CampaignBrief,
+            request,
+            creativeSystemId,
+            cancellationToken);
         var currentUserId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
         var creativeSystem = new CampaignCreativeSystem
         {
-            Id = Guid.NewGuid(),
+            Id = creativeSystemId,
             CampaignId = campaign.Id,
             CreatedByUserId = currentUserId,
             Prompt = request.Prompt.Trim(),

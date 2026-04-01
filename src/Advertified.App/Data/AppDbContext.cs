@@ -26,6 +26,10 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<CampaignCreativeSystem> CampaignCreativeSystems { get; set; }
 
+    public virtual DbSet<CampaignCreative> CampaignCreatives { get; set; }
+
+    public virtual DbSet<CreativeScore> CreativeScores { get; set; }
+
     public virtual DbSet<CampaignConversation> CampaignConversations { get; set; }
 
     public virtual DbSet<CampaignDeliveryReport> CampaignDeliveryReports { get; set; }
@@ -379,6 +383,85 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.CreatedByUserId)
                 .OnDelete(DeleteBehavior.SetNull)
                 .HasConstraintName("campaign_creative_systems_created_by_user_id_fkey");
+        });
+
+        modelBuilder.Entity<CampaignCreative>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("campaign_creatives_pkey");
+
+            entity.ToTable("campaign_creatives");
+
+            entity.HasIndex(e => e.CampaignId, "ix_campaign_creatives_campaign_id");
+            entity.HasIndex(e => e.Channel, "ix_campaign_creatives_channel");
+            entity.HasIndex(e => e.CreatedAt, "ix_campaign_creatives_created_at");
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.CampaignId).HasColumnName("campaign_id");
+            entity.Property(e => e.SourceCreativeSystemId).HasColumnName("source_creative_system_id");
+            entity.Property(e => e.Channel)
+                .HasMaxLength(40)
+                .HasColumnName("channel");
+            entity.Property(e => e.Language)
+                .HasMaxLength(40)
+                .HasDefaultValue("English")
+                .HasColumnName("language");
+            entity.Property(e => e.CreativeType)
+                .HasMaxLength(80)
+                .HasColumnName("creative_type");
+            entity.Property(e => e.JsonPayload)
+                .HasColumnType("jsonb")
+                .HasColumnName("json_payload");
+            entity.Property(e => e.Score)
+                .HasPrecision(5, 2)
+                .HasColumnName("score");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+
+            entity.HasOne(d => d.Campaign).WithMany(p => p.CampaignCreatives)
+                .HasForeignKey(d => d.CampaignId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("campaign_creatives_campaign_id_fkey");
+
+            entity.HasOne(d => d.SourceCreativeSystem).WithMany(p => p.CampaignCreatives)
+                .HasForeignKey(d => d.SourceCreativeSystemId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("campaign_creatives_source_creative_system_id_fkey");
+        });
+
+        modelBuilder.Entity<CreativeScore>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("creative_scores_pkey");
+
+            entity.ToTable("creative_scores");
+
+            entity.HasIndex(e => e.CampaignCreativeId, "ix_creative_scores_campaign_creative_id");
+            entity.HasIndex(e => new { e.CampaignCreativeId, e.MetricName }, "uq_creative_scores_creative_metric")
+                .IsUnique();
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.CampaignCreativeId).HasColumnName("campaign_creative_id");
+            entity.Property(e => e.MetricName)
+                .HasMaxLength(80)
+                .HasColumnName("metric_name");
+            entity.Property(e => e.MetricValue)
+                .HasPrecision(5, 2)
+                .HasColumnName("metric_value");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+
+            entity.HasOne(d => d.CampaignCreative).WithMany(p => p.CreativeScores)
+                .HasForeignKey(d => d.CampaignCreativeId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("creative_scores_campaign_creative_id_fkey");
         });
 
         modelBuilder.Entity<CampaignConversation>(entity =>

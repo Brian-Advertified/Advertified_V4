@@ -4,6 +4,72 @@ import { z } from 'zod';
 import type { ReactNode } from 'react';
 import type { CampaignBrief } from '../../../types/domain';
 
+const objectiveOptions = [
+  { value: 'awareness', label: 'Brand awareness' },
+  { value: 'leads', label: 'Lead generation' },
+  { value: 'foot_traffic', label: 'Foot traffic' },
+  { value: 'promotion', label: 'Promotion' },
+  { value: 'launch', label: 'Product launch' },
+  { value: 'brand_presence', label: 'Brand presence' },
+] as const;
+
+const geographyScopeOptions = [
+  { value: 'local', label: 'Local' },
+  { value: 'regional', label: 'Regional' },
+  { value: 'provincial', label: 'Provincial' },
+  { value: 'national', label: 'National' },
+] as const;
+
+const ageBandOptions = [
+  { value: '', label: 'Select age band' },
+  { value: '18-24', label: '18-24' },
+  { value: '25-34', label: '25-34' },
+  { value: '35-44', label: '35-44' },
+  { value: '45-54', label: '45-54' },
+  { value: '55-100', label: '55+' },
+] as const;
+
+const lsmBandOptions = [
+  { value: '', label: 'Select LSM band' },
+  { value: '1-4', label: 'LSM 1-4 (entry)' },
+  { value: '5-7', label: 'LSM 5-7 (mass middle)' },
+  { value: '7-10', label: 'LSM 7-10 (upper middle)' },
+  { value: '9-10', label: 'LSM 9-10 (premium)' },
+] as const;
+
+const customerTypeOptions = [
+  { value: '', label: 'Select customer type' },
+  { value: 'b2c', label: 'Individuals (B2C)' },
+  { value: 'smb', label: 'Small businesses' },
+  { value: 'corporate', label: 'Corporate / enterprise' },
+  { value: 'government', label: 'Government / institutions' },
+] as const;
+
+const buyingBehaviourOptions = [
+  { value: '', label: 'Select buying behaviour' },
+  { value: 'price_sensitive', label: 'Price-sensitive' },
+  { value: 'quality_focused', label: 'Quality-focused' },
+  { value: 'convenience_driven', label: 'Convenience-driven' },
+  { value: 'brand_conscious', label: 'Brand-conscious' },
+  { value: 'urgency_driven', label: 'Urgency-driven' },
+] as const;
+
+const decisionCycleOptions = [
+  { value: '', label: 'Select decision cycle' },
+  { value: 'same_day', label: 'Immediate (same day)' },
+  { value: '1_7_days', label: 'Short (1-7 days)' },
+  { value: '1_4_weeks', label: 'Medium (1-4 weeks)' },
+  { value: '1_6_months', label: 'Long (1-6 months+)' },
+] as const;
+
+const growthTargetOptions = [
+  { value: '', label: 'Select growth target' },
+  { value: 'maintain', label: 'Maintain current level' },
+  { value: '2x', label: '2x growth' },
+  { value: '3x', label: '3x growth' },
+  { value: '5x_plus', label: 'Aggressive scale (5x+)' },
+] as const;
+
 const briefSchema = z
   .object({
     objective: z.string().min(1, 'Objective is required.'),
@@ -33,6 +99,12 @@ const briefSchema = z
     openToUpsell: z.boolean(),
     additionalBudget: z.string().optional(),
     specialRequirements: z.string().optional(),
+    targetAgeBand: z.string().optional(),
+    targetLsmBand: z.string().optional(),
+    customerType: z.string().optional(),
+    buyingBehaviour: z.string().optional(),
+    decisionCycle: z.string().optional(),
+    growthTarget: z.string().optional(),
   })
   .refine((value) => !value.startDate || !value.endDate || new Date(value.endDate) >= new Date(value.startDate), {
     message: 'Campaign end date must be after the start date.',
@@ -72,6 +144,7 @@ export function CampaignBriefForm({
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors },
   } = useForm<FormShape>({
     resolver: zodResolver(briefSchema),
@@ -103,10 +176,51 @@ export function CampaignBriefForm({
       openToUpsell: initialValue?.openToUpsell ?? true,
       additionalBudget: initialValue?.additionalBudget?.toString(),
       specialRequirements: initialValue?.specialRequirements,
+      targetAgeBand: '',
+      targetLsmBand: '',
+      customerType: '',
+      buyingBehaviour: '',
+      decisionCycle: '',
+      growthTarget: '',
     },
   });
 
+  function mergeLines(base: string | undefined, lines: string[]) {
+    const keptBase = base?.trim() ?? '';
+    const normalizedBase = keptBase.toLowerCase();
+    const freshLines = lines.filter((line) => line && !normalizedBase.includes(line.toLowerCase()));
+    const merged = [keptBase, ...freshLines].filter(Boolean).join('\n');
+    return merged || undefined;
+  }
+
+  function setAgeBand(value: string) {
+    if (!value) {
+      return;
+    }
+
+    const [min, max] = value.split('-');
+    setValue('targetAgeMin', min);
+    setValue('targetAgeMax', max);
+  }
+
+  function setLsmBand(value: string) {
+    if (!value) {
+      return;
+    }
+
+    const [min, max] = value.split('-');
+    setValue('targetLsmMin', min);
+    setValue('targetLsmMax', max);
+  }
+
   function map(values: FormShape): CampaignBrief {
+    const strategyLines = [
+      values.customerType ? `Customer type: ${values.customerType}` : '',
+      values.buyingBehaviour ? `Buying behaviour: ${values.buyingBehaviour}` : '',
+      values.decisionCycle ? `Decision cycle: ${values.decisionCycle}` : '',
+      values.growthTarget ? `Growth target: ${values.growthTarget}` : '',
+    ].filter(Boolean);
+
     return {
       objective: values.objective,
       geographyScope: values.geographyScope,
@@ -124,7 +238,7 @@ export function CampaignBriefForm({
       targetLsmMin: optionalNumber(values.targetLsmMin),
       targetLsmMax: optionalNumber(values.targetLsmMax),
       targetInterests: splitList(values.targetInterests),
-      targetAudienceNotes: values.targetAudienceNotes,
+      targetAudienceNotes: mergeLines(values.targetAudienceNotes, strategyLines),
       preferredMediaTypes: splitList(values.preferredMediaTypes),
       excludedMediaTypes: splitList(values.excludedMediaTypes),
       mustHaveAreas: splitList(values.mustHaveAreas),
@@ -134,7 +248,7 @@ export function CampaignBriefForm({
       maxMediaItems: optionalNumber(values.maxMediaItems),
       openToUpsell: values.openToUpsell,
       additionalBudget: optionalNumber(values.additionalBudget),
-      specialRequirements: values.specialRequirements,
+      specialRequirements: mergeLines(values.specialRequirements, []),
     };
   }
 
@@ -142,8 +256,22 @@ export function CampaignBriefForm({
     <form className="space-y-6">
       <BriefSection title="Campaign setup" description="Frame the commercial objective, timing, and location in the simplest possible way.">
         <Grid>
-          <Field label="Objective" error={errors.objective?.message}><input {...register('objective')} className="input-base" placeholder="awareness, leads, foot_traffic..." /></Field>
-          <Field label="Geography scope" error={errors.geographyScope?.message}><input {...register('geographyScope')} className="input-base" placeholder="local, regional, provincial, national" /></Field>
+          <Field label="Objective" error={errors.objective?.message}>
+            <select {...register('objective')} className="input-base">
+              <option value="">Select objective</option>
+              {objectiveOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Geography scope" error={errors.geographyScope?.message}>
+            <select {...register('geographyScope')} className="input-base">
+              <option value="">Select geography scope</option>
+              {geographyScopeOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </Field>
           <Field label="Start date" error={errors.startDate?.message}><input {...register('startDate')} type="date" className="input-base" /></Field>
           <Field label="End date" error={errors.endDate?.message}><input {...register('endDate')} type="date" className="input-base" /></Field>
           <Field label="Duration weeks" error={errors.durationWeeks?.message}><input {...register('durationWeeks')} type="number" className="input-base" /></Field>
@@ -155,13 +283,77 @@ export function CampaignBriefForm({
 
       <BriefSection title="Audience" description="Tell us who matters most so the recommendation can stay focused.">
         <Grid>
+          <Field label="Quick age band">
+            <select
+              {...register('targetAgeBand')}
+              className="input-base"
+              onChange={(event) => {
+                register('targetAgeBand').onChange(event);
+                setAgeBand(event.target.value);
+              }}
+            >
+              {ageBandOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Quick LSM band">
+            <select
+              {...register('targetLsmBand')}
+              className="input-base"
+              onChange={(event) => {
+                register('targetLsmBand').onChange(event);
+                setLsmBand(event.target.value);
+              }}
+            >
+              {lsmBandOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </Field>
           <Field label="Target age min"><input {...register('targetAgeMin')} type="number" className="input-base" /></Field>
           <Field label="Target age max"><input {...register('targetAgeMax')} type="number" className="input-base" /></Field>
-          <Field label="Target gender"><input {...register('targetGender')} className="input-base" placeholder="all, female, male..." /></Field>
+          <Field label="Target gender">
+            <select {...register('targetGender')} className="input-base">
+              <option value="">Select target gender</option>
+              <option value="all">All</option>
+              <option value="female">Female</option>
+              <option value="male">Male</option>
+              <option value="mixed">Mixed</option>
+            </select>
+          </Field>
           <Field label="Target languages"><input {...register('targetLanguages')} className="input-base" placeholder="English, Zulu" /></Field>
           <Field label="Target LSM min"><input {...register('targetLsmMin')} type="number" className="input-base" /></Field>
           <Field label="Target LSM max"><input {...register('targetLsmMax')} type="number" className="input-base" /></Field>
           <Field label="Target interests"><input {...register('targetInterests')} className="input-base" placeholder="Retail, family, commuters" /></Field>
+          <Field label="Current customer type">
+            <select {...register('customerType')} className="input-base">
+              {customerTypeOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Buying behaviour">
+            <select {...register('buyingBehaviour')} className="input-base">
+              {buyingBehaviourOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Decision cycle">
+            <select {...register('decisionCycle')} className="input-base">
+              {decisionCycleOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Growth target (6 months)">
+            <select {...register('growthTarget')} className="input-base">
+              {growthTargetOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </Field>
           <Field label="Audience notes"><textarea {...register('targetAudienceNotes')} className="input-base min-h-[120px]" placeholder="Any audience nuance we should keep in mind?" /></Field>
         </Grid>
       </BriefSection>

@@ -43,7 +43,9 @@ internal static class DatabaseSchemaInitializer
                      Path.Combine("database", "bootstrap", "021_campaign_creative_systems.sql"),
                      Path.Combine("database", "bootstrap", "022_invoice_supporting_documents.sql"),
                      Path.Combine("database", "bootstrap", "023_notification_read_receipts.sql"),
-                     Path.Combine("database", "bootstrap", "024_seed_ooh_baseline.sql")
+                     Path.Combine("database", "bootstrap", "024_seed_ooh_baseline.sql"),
+                     Path.Combine("database", "bootstrap", "025_creative_generation_pipeline.sql"),
+                     Path.Combine("database", "bootstrap", "026_ai_platform_production_hardening.sql")
                     })
         {
             var fullPath = baseDirectories

@@ -481,5 +481,7 @@ public partial class AppDbContext
                 .OnDelete(DeleteBehavior.SetNull)
                 .HasConstraintName("change_audit_log_actor_user_id_fkey");
         });
+
+        modelBuilder.ConfigureAiPlatformPersistence();
     }
 }

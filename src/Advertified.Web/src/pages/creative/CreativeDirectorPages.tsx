@@ -706,6 +706,9 @@ function CreativeStudioContent({
   const [channelsInput, setChannelsInput] = useState(channelMood.join(', '));
   const [ctaInput, setCtaInput] = useState('');
   const [constraintsInput, setConstraintsInput] = useState(brief?.specialRequirements ?? '');
+  const [activeAiJobId, setActiveAiJobId] = useState('');
+  const [regenCreativeId, setRegenCreativeId] = useState('');
+  const [regenFeedback, setRegenFeedback] = useState('');
   const [scopedCreativeState, setScopedCreativeState] = useState<{
     key: string;
     creativeSystem: Awaited<ReturnType<typeof advertifiedApi.generateCreativeSystem>> | null;
@@ -754,6 +757,63 @@ function CreativeStudioContent({
     onError: (error) => {
       pushToast({
         title: 'Creative system could not be generated.',
+        description: error instanceof Error ? error.message : 'Please try again.',
+      }, 'error');
+    },
+  });
+
+  const campaignCreativesQuery = useQuery({
+    queryKey: ['ai-platform-campaign-creatives', campaign.id],
+    queryFn: () => advertifiedApi.getAiPlatformCampaignCreatives(campaign.id),
+    enabled: !isPreview,
+  });
+
+  const submitAiJobMutation = useMutation({
+    mutationFn: async () => advertifiedApi.submitAiPlatformJob({
+      campaignId: campaign.id,
+      promptOverride: prompt.trim() || undefined,
+    }),
+    onSuccess: (response) => {
+      setActiveAiJobId(response.jobId);
+      pushToast({
+        title: 'AI platform job queued.',
+        description: `Job ${response.jobId.slice(0, 8)} is running in the queue.`,
+      });
+    },
+    onError: (error) => {
+      pushToast({
+        title: 'Could not queue AI platform job.',
+        description: error instanceof Error ? error.message : 'Please try again.',
+      }, 'error');
+    },
+  });
+
+  const aiJobStatusQuery = useQuery({
+    queryKey: ['ai-platform-job-status', activeAiJobId],
+    queryFn: () => advertifiedApi.getAiPlatformJobStatus(activeAiJobId),
+    enabled: activeAiJobId.trim().length > 0,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status?.toLowerCase();
+      return status === 'completed' || status === 'failed' ? false : 3000;
+    },
+  });
+
+  const regenerateAiMutation = useMutation({
+    mutationFn: async () => advertifiedApi.regenerateAiPlatformCreative({
+      creativeId: regenCreativeId.trim(),
+      campaignId: campaign.id,
+      feedback: regenFeedback.trim(),
+    }),
+    onSuccess: (response) => {
+      campaignCreativesQuery.refetch().catch(() => {});
+      pushToast({
+        title: 'AI creative regenerated.',
+        description: `Created ${response.creativeCount} creatives and ${response.assetCount} assets.`,
+      });
+    },
+    onError: (error) => {
+      pushToast({
+        title: 'Regeneration failed.',
         description: error instanceof Error ? error.message : 'Please try again.',
       }, 'error');
     },
@@ -1024,6 +1084,96 @@ function CreativeStudioContent({
                 {isPreview
                   ? 'Preview mode keeps generation disabled, but this is where the Creative Manager brief controls live in the real studio.'
                   : `Use the base generation first, then push quick creative shifts with the iteration buttons without rebuilding the whole brief.${campaign.creativeSystems.length ? ` ${campaign.creativeSystems.length} saved version${campaign.creativeSystems.length === 1 ? '' : 's'} available for this campaign.` : ''}`}
+              </div>
+
+              <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/70 p-4">
+                <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">AI Queue Orchestration</div>
+                <p className="mt-2 text-sm leading-7 text-slate-700">
+                  Queue the multi-provider AI pipeline and track job execution directly from the studio.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => submitAiJobMutation.mutate()}
+                    disabled={isPreview || !prompt.trim() || submitAiJobMutation.isPending}
+                    className="user-btn-secondary disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {submitAiJobMutation.isPending ? 'Queueing job...' : 'Queue AI platform job'}
+                  </button>
+                  <input
+                    value={activeAiJobId}
+                    onChange={(event) => setActiveAiJobId(event.target.value)}
+                    disabled={isPreview}
+                    className="input-base min-w-[260px] flex-1"
+                    placeholder="Paste job id to track status"
+                  />
+                </div>
+                <div className="mt-3 text-sm leading-7 text-slate-700">
+                  <div><strong>Status:</strong> {aiJobStatusQuery.data?.status ?? 'not started'}</div>
+                  <div><strong>Updated:</strong> {aiJobStatusQuery.data?.updatedAt ?? '-'}</div>
+                  {aiJobStatusQuery.data?.error ? <div><strong>Error:</strong> {aiJobStatusQuery.data.error}</div> : null}
+                </div>
+              </div>
+
+              <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/70 p-4">
+                <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Feedback Regeneration</div>
+                <p className="mt-2 text-sm leading-7 text-slate-700">
+                  Regenerate by feedback using a creative id from the generated inventory pipeline.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const latestId = campaignCreativesQuery.data?.[0]?.id ?? '';
+                      if (latestId) {
+                        setRegenCreativeId(latestId);
+                      }
+                    }}
+                    disabled={isPreview || !campaignCreativesQuery.data?.length}
+                    className="user-btn-secondary disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Use latest creative id
+                  </button>
+                  <select
+                    value={regenCreativeId}
+                    onChange={(event) => setRegenCreativeId(event.target.value)}
+                    disabled={isPreview || !campaignCreativesQuery.data?.length}
+                    className="input-base min-w-[340px]"
+                  >
+                    <option value="">Select creative id</option>
+                    {(campaignCreativesQuery.data ?? []).map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.id.slice(0, 8)} | {item.channel} | {item.language} | {item.score ?? '-'} | {new Date(item.createdAt).toLocaleString()}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  <input
+                    value={regenCreativeId}
+                    onChange={(event) => setRegenCreativeId(event.target.value)}
+                    disabled={isPreview}
+                    className="input-base"
+                    placeholder="Creative id"
+                  />
+                  <input
+                    value={regenFeedback}
+                    onChange={(event) => setRegenFeedback(event.target.value)}
+                    disabled={isPreview}
+                    className="input-base"
+                    placeholder="Make it more urgent and add discount CTA"
+                  />
+                </div>
+                <div className="mt-3">
+                  <button
+                    type="button"
+                    onClick={() => regenerateAiMutation.mutate()}
+                    disabled={isPreview || !regenCreativeId.trim() || !regenFeedback.trim() || regenerateAiMutation.isPending}
+                    className="user-btn-secondary disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {regenerateAiMutation.isPending ? 'Regenerating...' : 'Regenerate with feedback'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

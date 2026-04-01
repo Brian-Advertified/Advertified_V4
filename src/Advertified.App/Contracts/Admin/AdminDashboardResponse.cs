@@ -147,4 +147,22 @@ public sealed class AdminMonitoringResponse
     public int InventoryRows { get; set; }
     public int ActiveAreaCount { get; set; }
     public int RecommendationCount { get; set; }
+    public int RetryAlertThreshold { get; set; } = 3;
+    public int AiJobAlertCount { get; set; }
+    public int AiCreativeJobAlertCount { get; set; }
+    public int AiAssetJobAlertCount { get; set; }
+    public int AiCostCapRejectionCount { get; set; }
+    public IReadOnlyList<AdminAiJobAlertResponse> AiJobAlerts { get; set; } = Array.Empty<AdminAiJobAlertResponse>();
+}
+
+public sealed class AdminAiJobAlertResponse
+{
+    public string Pipeline { get; set; } = string.Empty;
+    public Guid JobId { get; set; }
+    public Guid CampaignId { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public int RetryAttemptCount { get; set; }
+    public string? LastFailure { get; set; }
+    public DateTime UpdatedAt { get; set; }
+    public string AlertReason { get; set; } = string.Empty;
 }
