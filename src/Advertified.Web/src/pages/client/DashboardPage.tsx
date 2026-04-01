@@ -152,7 +152,7 @@ export function DashboardPage() {
         <div className="mt-6">
           <EmptyState
             title="No campaigns yet"
-            description="Buy your first package to unlock the new client portal workflow."
+            description="Secure your first package to unlock the new client portal workflow."
             ctaHref="/packages"
             ctaLabel="Browse packages"
           />

@@ -98,8 +98,8 @@ export function HomePage() {
             <div className="pill bg-brand-soft text-brand">Ready to begin?</div>
             <h2 className="section-title mt-4">Choose your package, pay, then unlock planning.</h2>
           </div>
-          <Link to="/packages" className="button-primary px-6 py-3">
-            Buy your package
+          <Link to="/packages" className="button-primary px-5 py-3">
+            Secure your package
           </Link>
         </div>
       </section>

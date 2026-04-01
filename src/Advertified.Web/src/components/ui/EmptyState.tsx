@@ -22,7 +22,7 @@ export function EmptyState({
       {ctaLabel && ctaHref ? (
         <Link
           to={ctaHref}
-          className="inline-flex items-center gap-2 rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand"
+          className="button-primary inline-flex items-center gap-2 px-5 py-3"
         >
           {ctaLabel}
           <ArrowRight className="size-4" />
