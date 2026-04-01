@@ -1,7 +1,9 @@
 using Advertified.App.AIPlatform.Api;
 using Advertified.App.AIPlatform.Application;
 using Advertified.App.AIPlatform.Domain;
+using Advertified.App.Data;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace Advertified.App.Controllers;
 
@@ -15,6 +17,7 @@ public sealed class AiAssetGenerationController : ControllerBase
     private readonly IAssetJobService _assetJobService;
     private readonly IAiCostEstimator _aiCostEstimator;
     private readonly IAiCostControlService _aiCostControlService;
+    private readonly AppDbContext _db;
 
     public AiAssetGenerationController(
         IVoiceAssetGenerationService voiceAssetGenerationService,
@@ -22,7 +25,8 @@ public sealed class AiAssetGenerationController : ControllerBase
         IVideoAssetGenerationService videoAssetGenerationService,
         IAssetJobService assetJobService,
         IAiCostEstimator aiCostEstimator,
-        IAiCostControlService aiCostControlService)
+        IAiCostControlService aiCostControlService,
+        AppDbContext db)
     {
         _voiceAssetGenerationService = voiceAssetGenerationService;
         _imageAssetGenerationService = imageAssetGenerationService;
@@ -30,6 +34,7 @@ public sealed class AiAssetGenerationController : ControllerBase
         _assetJobService = assetJobService;
         _aiCostEstimator = aiCostEstimator;
         _aiCostControlService = aiCostControlService;
+        _db = db;
     }
 
     [HttpPost("voice")]
@@ -40,6 +45,31 @@ public sealed class AiAssetGenerationController : ControllerBase
         if (request.CampaignId == Guid.Empty || request.CreativeId == Guid.Empty)
         {
             throw new InvalidOperationException("campaignId and creativeId are required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Script))
+        {
+            throw new InvalidOperationException("script is required.");
+        }
+
+        string resolvedVoiceType;
+        string resolvedLanguage;
+        if (request.VoicePackId.HasValue)
+        {
+            var pack = await _db.AiVoicePacks
+                .AsNoTracking()
+                .FirstOrDefaultAsync(item => item.Id == request.VoicePackId.Value && item.IsActive, cancellationToken)
+                ?? throw new InvalidOperationException("Voice pack not found or inactive.");
+
+            resolvedVoiceType = pack.VoiceId;
+            resolvedLanguage = string.IsNullOrWhiteSpace(request.Language)
+                ? pack.Language ?? "English"
+                : request.Language;
+        }
+        else
+        {
+            resolvedVoiceType = request.VoiceType;
+            resolvedLanguage = request.Language;
         }
 
         var decision = await _aiCostControlService.GuardAsync(new AiCostGuardRequest(
@@ -59,8 +89,8 @@ public sealed class AiAssetGenerationController : ControllerBase
                 request.CampaignId,
                 request.CreativeId,
                 request.Script,
-                request.VoiceType,
-                request.Language), cancellationToken);
+                resolvedVoiceType,
+                resolvedLanguage), cancellationToken);
             if (decision.UsageLogId.HasValue)
             {
                 await _aiCostControlService.CompleteAsync(decision.UsageLogId.Value, _aiCostEstimator.EstimateAssetCost("voice"), "Voice asset queued.", cancellationToken);

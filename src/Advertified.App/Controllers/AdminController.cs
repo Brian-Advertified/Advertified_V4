@@ -5,6 +5,7 @@ using Advertified.App.Data.Enums;
 using Advertified.App.Services.Abstractions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 namespace Advertified.App.Controllers;
 
@@ -12,6 +13,7 @@ namespace Advertified.App.Controllers;
 [Route("admin")]
 public sealed class AdminController : ControllerBase
 {
+    private static readonly string[] AllowedVoicePackPricingTiers = { "standard", "premium", "exclusive" };
     private readonly AppDbContext _db;
     private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly IAdminDashboardService _adminDashboardService;
@@ -1052,6 +1054,190 @@ public sealed class AdminController : ControllerBase
         return NoContent();
     }
 
+    [HttpGet("ai/voice-packs")]
+    public async Task<ActionResult<IReadOnlyList<AdminAiVoicePackResponse>>> GetAiVoicePacks(
+        [FromQuery] string? provider,
+        CancellationToken cancellationToken)
+    {
+        var gateResult = await EnsureAdminAsync(cancellationToken);
+        if (gateResult is not null)
+        {
+            return gateResult;
+        }
+
+        var normalizedProvider = string.IsNullOrWhiteSpace(provider) ? "ElevenLabs" : provider.Trim();
+        var rows = await _db.AiVoicePacks
+            .AsNoTracking()
+            .Where(item => item.Provider == normalizedProvider)
+            .OrderBy(item => item.SortOrder)
+            .ThenBy(item => item.Name)
+            .ToArrayAsync(cancellationToken);
+
+        return Ok(rows.Select(MapAdminAiVoicePack).ToArray());
+    }
+
+    [HttpPost("ai/voice-packs")]
+    public async Task<ActionResult<AdminAiVoicePackResponse>> CreateAiVoicePack(
+        [FromBody] UpsertAdminAiVoicePackRequest request,
+        CancellationToken cancellationToken)
+    {
+        var gateResult = await EnsureAdminAsync(cancellationToken);
+        if (gateResult is not null)
+        {
+            return gateResult;
+        }
+
+        try
+        {
+            var provider = string.IsNullOrWhiteSpace(request.Provider) ? "ElevenLabs" : request.Provider.Trim();
+            var name = RequireValue(request.Name, "Name");
+            var voiceId = RequireValue(request.VoiceId, "Voice ID");
+            var promptTemplate = RequireValue(request.PromptTemplate, "Prompt template");
+            var pricingTier = NormalizePricingTier(request.PricingTier);
+
+            var exists = await _db.AiVoicePacks.AnyAsync(
+                item => item.Provider == provider && item.Name == name,
+                cancellationToken);
+            if (exists)
+            {
+                throw new InvalidOperationException("A voice pack with this name already exists for the provider.");
+            }
+
+            var now = DateTime.UtcNow;
+            var row = new AiVoicePack
+            {
+                Id = Guid.NewGuid(),
+                Provider = provider,
+                Name = name,
+                Accent = TrimOrNull(request.Accent),
+                Language = TrimOrNull(request.Language),
+                Tone = TrimOrNull(request.Tone),
+                Persona = TrimOrNull(request.Persona),
+                UseCasesJson = SerializeList(request.UseCases),
+                VoiceId = voiceId,
+                SampleAudioUrl = TrimOrNull(request.SampleAudioUrl),
+                PromptTemplate = promptTemplate,
+                PricingTier = pricingTier,
+                IsActive = request.IsActive,
+                SortOrder = request.SortOrder,
+                CreatedAt = now,
+                UpdatedAt = now
+            };
+
+            _db.AiVoicePacks.Add(row);
+            await _db.SaveChangesAsync(cancellationToken);
+            await WriteChangeAuditAsync(
+                "create",
+                "ai_voice_pack",
+                row.Id.ToString(),
+                row.Name,
+                $"Created AI voice pack {row.Name}.",
+                new { row.Provider, row.Name, row.PricingTier, row.IsActive, row.SortOrder },
+                cancellationToken);
+
+            return Ok(MapAdminAiVoicePack(row));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPut("ai/voice-packs/{id:guid}")]
+    public async Task<ActionResult<AdminAiVoicePackResponse>> UpdateAiVoicePack(
+        Guid id,
+        [FromBody] UpsertAdminAiVoicePackRequest request,
+        CancellationToken cancellationToken)
+    {
+        var gateResult = await EnsureAdminAsync(cancellationToken);
+        if (gateResult is not null)
+        {
+            return gateResult;
+        }
+
+        try
+        {
+            var row = await _db.AiVoicePacks.FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+            if (row is null)
+            {
+                return NotFound();
+            }
+
+            var provider = string.IsNullOrWhiteSpace(request.Provider) ? "ElevenLabs" : request.Provider.Trim();
+            var name = RequireValue(request.Name, "Name");
+            var voiceId = RequireValue(request.VoiceId, "Voice ID");
+            var promptTemplate = RequireValue(request.PromptTemplate, "Prompt template");
+            var pricingTier = NormalizePricingTier(request.PricingTier);
+
+            var duplicate = await _db.AiVoicePacks.AnyAsync(
+                item => item.Id != id && item.Provider == provider && item.Name == name,
+                cancellationToken);
+            if (duplicate)
+            {
+                throw new InvalidOperationException("A voice pack with this name already exists for the provider.");
+            }
+
+            row.Provider = provider;
+            row.Name = name;
+            row.Accent = TrimOrNull(request.Accent);
+            row.Language = TrimOrNull(request.Language);
+            row.Tone = TrimOrNull(request.Tone);
+            row.Persona = TrimOrNull(request.Persona);
+            row.UseCasesJson = SerializeList(request.UseCases);
+            row.VoiceId = voiceId;
+            row.SampleAudioUrl = TrimOrNull(request.SampleAudioUrl);
+            row.PromptTemplate = promptTemplate;
+            row.PricingTier = pricingTier;
+            row.IsActive = request.IsActive;
+            row.SortOrder = request.SortOrder;
+            row.UpdatedAt = DateTime.UtcNow;
+
+            await _db.SaveChangesAsync(cancellationToken);
+            await WriteChangeAuditAsync(
+                "update",
+                "ai_voice_pack",
+                row.Id.ToString(),
+                row.Name,
+                $"Updated AI voice pack {row.Name}.",
+                new { row.Provider, row.Name, row.PricingTier, row.IsActive, row.SortOrder },
+                cancellationToken);
+
+            return Ok(MapAdminAiVoicePack(row));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpDelete("ai/voice-packs/{id:guid}")]
+    public async Task<IActionResult> DeleteAiVoicePack(Guid id, CancellationToken cancellationToken)
+    {
+        var gateResult = await EnsureAdminAsync(cancellationToken);
+        if (gateResult is not null)
+        {
+            return gateResult;
+        }
+
+        var row = await _db.AiVoicePacks.FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+        if (row is null)
+        {
+            return NotFound();
+        }
+
+        _db.AiVoicePacks.Remove(row);
+        await _db.SaveChangesAsync(cancellationToken);
+        await WriteChangeAuditAsync(
+            "delete",
+            "ai_voice_pack",
+            id.ToString(),
+            row.Name,
+            $"Deleted AI voice pack {row.Name}.",
+            new { row.Provider, row.Name },
+            cancellationToken);
+        return NoContent();
+    }
+
     private static AdminAiVoiceProfileResponse MapAdminAiVoiceProfile(AiVoiceProfile row)
     {
         return new AdminAiVoiceProfileResponse
@@ -1066,6 +1252,73 @@ public sealed class AdminController : ControllerBase
             CreatedAt = row.CreatedAt,
             UpdatedAt = row.UpdatedAt
         };
+    }
+
+    private static AdminAiVoicePackResponse MapAdminAiVoicePack(AiVoicePack row)
+    {
+        return new AdminAiVoicePackResponse
+        {
+            Id = row.Id,
+            Provider = row.Provider,
+            Name = row.Name,
+            Accent = row.Accent,
+            Language = row.Language,
+            Tone = row.Tone,
+            Persona = row.Persona,
+            UseCases = DeserializeList(row.UseCasesJson),
+            VoiceId = row.VoiceId,
+            SampleAudioUrl = row.SampleAudioUrl,
+            PromptTemplate = row.PromptTemplate,
+            PricingTier = row.PricingTier,
+            IsActive = row.IsActive,
+            SortOrder = row.SortOrder,
+            CreatedAt = row.CreatedAt,
+            UpdatedAt = row.UpdatedAt
+        };
+    }
+
+    private static string SerializeList(IEnumerable<string>? values)
+    {
+        var normalized = (values ?? Array.Empty<string>())
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .Select(item => item.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        return JsonSerializer.Serialize(normalized);
+    }
+
+    private static string[] DeserializeList(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return Array.Empty<string>();
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<string[]>(json) ?? Array.Empty<string>();
+        }
+        catch (JsonException)
+        {
+            return Array.Empty<string>();
+        }
+    }
+
+    private static string NormalizePricingTier(string? value)
+    {
+        var normalized = (value ?? "standard").Trim().ToLowerInvariant();
+        if (!AllowedVoicePackPricingTiers.Contains(normalized))
+        {
+            throw new InvalidOperationException("Pricing tier is invalid.");
+        }
+
+        return normalized;
+    }
+
+    private static string? TrimOrNull(string? value)
+    {
+        var normalized = value?.Trim();
+        return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
     }
 
     private async Task<ActionResult?> EnsureAdminAsync(CancellationToken cancellationToken)

@@ -20,6 +20,7 @@ export const adminNavItems = [
   { path: '/admin/engine', label: 'Engine Settings' },
   { path: '/admin/preview-rules', label: 'Preview Rules' },
   { path: '/admin/ai-voices', label: 'AI Voices' },
+  { path: '/admin/ai-voice-packs', label: 'AI Voice Packs' },
   { path: '/admin/monitoring', label: 'Monitoring' },
   { path: '/admin/users', label: 'Users & Roles' },
   { path: '/admin/audit', label: 'Audit Log' },

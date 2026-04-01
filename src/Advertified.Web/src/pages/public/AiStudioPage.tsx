@@ -43,6 +43,7 @@ export function AiStudioPage() {
   const [assetCampaignId, setAssetCampaignId] = useState('');
   const [assetCreativeId, setAssetCreativeId] = useState('');
   const [assetVoiceScript, setAssetVoiceScript] = useState('');
+  const [assetVoicePackId, setAssetVoicePackId] = useState('');
   const [assetVisualDirection, setAssetVisualDirection] = useState('');
   const [assetVideoSceneJson, setAssetVideoSceneJson] = useState('{"scene":1,"visual":"Product hero shot","audio":"Upbeat track"}');
   const [assetVideoScript, setAssetVideoScript] = useState('');
@@ -104,11 +105,17 @@ export function AiStudioPage() {
     enabled: qaCampaignId.trim().length > 0,
   });
 
+  const voicePacksQuery = useQuery({
+    queryKey: ['ai-platform-voice-packs'],
+    queryFn: () => advertifiedApi.getAiPlatformVoicePacks('ElevenLabs'),
+  });
+
   const queueVoiceAssetMutation = useMutation({
     mutationFn: () => advertifiedApi.queueAiPlatformVoiceAsset({
       campaignId: assetCampaignId.trim(),
       creativeId: assetCreativeId.trim(),
       script: assetVoiceScript.trim(),
+      voicePackId: assetVoicePackId || undefined,
       voiceType: 'Standard',
       language: 'English',
     }),
@@ -174,6 +181,11 @@ export function AiStudioPage() {
   const canQueueAssetJob = useMemo(
     () => assetCampaignId.trim().length > 0 && assetCreativeId.trim().length > 0,
     [assetCampaignId, assetCreativeId],
+  );
+
+  const selectedVoicePack = useMemo(
+    () => (voicePacksQuery.data ?? []).find((item) => item.id === assetVoicePackId),
+    [assetVoicePackId, voicePacksQuery.data],
   );
 
   const toggleBriefLanguage = (language: string) => {
@@ -375,6 +387,18 @@ export function AiStudioPage() {
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <input value={assetCampaignId} onChange={(event) => setAssetCampaignId(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white" placeholder="Campaign Id" />
                 <input value={assetCreativeId} onChange={(event) => setAssetCreativeId(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white" placeholder="Creative Id" />
+                <select value={assetVoicePackId} onChange={(event) => setAssetVoicePackId(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white md:col-span-2">
+                  <option value="">Select voice pack (optional)</option>
+                  {(voicePacksQuery.data ?? []).map((pack) => (
+                    <option key={pack.id} value={pack.id}>{`${pack.name} (${pack.pricingTier})`}</option>
+                  ))}
+                </select>
+                {selectedVoicePack ? (
+                  <div className="rounded-xl border border-slate-700 bg-slate-900/70 px-4 py-3 text-xs text-slate-300 md:col-span-2">
+                    <p className="font-semibold text-slate-100">{selectedVoicePack.name}</p>
+                    <p>{selectedVoicePack.promptTemplate}</p>
+                  </div>
+                ) : null}
                 <input value={assetVoiceScript} onChange={(event) => setAssetVoiceScript(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white md:col-span-2" placeholder="Voice script" />
                 <input value={assetVisualDirection} onChange={(event) => setAssetVisualDirection(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white md:col-span-2" placeholder="Image visual direction" />
                 <input value={assetVideoSceneJson} onChange={(event) => setAssetVideoSceneJson(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white md:col-span-2" placeholder="Video scene JSON" />

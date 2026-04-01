@@ -659,6 +659,53 @@ type AdminUpsertAiVoiceProfileInput = {
   isActive?: boolean;
   sortOrder?: number;
 };
+type AdminAiVoicePackResponse = {
+  id: string;
+  provider: string;
+  name: string;
+  accent?: string | null;
+  language?: string | null;
+  tone?: string | null;
+  persona?: string | null;
+  useCases: string[];
+  voiceId: string;
+  sampleAudioUrl?: string | null;
+  promptTemplate: string;
+  pricingTier: 'standard' | 'premium' | 'exclusive';
+  isActive: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+};
+type AdminUpsertAiVoicePackInput = {
+  provider?: string;
+  name: string;
+  accent?: string;
+  language?: string;
+  tone?: string;
+  persona?: string;
+  useCases?: string[];
+  voiceId: string;
+  sampleAudioUrl?: string;
+  promptTemplate: string;
+  pricingTier?: 'standard' | 'premium' | 'exclusive';
+  isActive?: boolean;
+  sortOrder?: number;
+};
+type AiVoicePackResponse = {
+  id: string;
+  provider: string;
+  name: string;
+  accent?: string | null;
+  language?: string | null;
+  tone?: string | null;
+  persona?: string | null;
+  useCases: string[];
+  sampleAudioUrl?: string | null;
+  promptTemplate: string;
+  pricingTier: 'standard' | 'premium' | 'exclusive';
+  sortOrder: number;
+};
 
 function getStoredSession(): SessionUser | null {
   const raw = localStorage.getItem(SESSION_STORAGE_KEY);
@@ -1610,6 +1657,32 @@ export const advertifiedApi = {
     });
   },
 
+  async getAdminAiVoicePacks(provider = 'ElevenLabs') {
+    return apiRequest<AdminAiVoicePackResponse[]>(
+      `/admin/ai/voice-packs?provider=${encodeURIComponent(provider)}`,
+    );
+  },
+
+  async createAdminAiVoicePack(input: AdminUpsertAiVoicePackInput) {
+    return apiRequest<AdminAiVoicePackResponse>('/admin/ai/voice-packs', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  },
+
+  async updateAdminAiVoicePack(id: string, input: AdminUpsertAiVoicePackInput) {
+    return apiRequest<AdminAiVoicePackResponse>(`/admin/ai/voice-packs/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    });
+  },
+
+  async deleteAdminAiVoicePack(id: string) {
+    return apiRequest(`/admin/ai/voice-packs/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+  },
+
   async getAdminCampaignOperations() {
     const response = await apiRequest<{ items: AdminCampaignOperationsItem[] }>('/admin/campaign-operations');
     return response.items;
@@ -2214,12 +2287,17 @@ export const advertifiedApi = {
     creativeId: string;
     script: string;
     voiceType?: string;
+    voicePackId?: string;
     language?: string;
   }) {
     return apiRequest<AiPlatformAssetJobResponse>('/api/v2/ai-platform/assets/voice', {
       method: 'POST',
       body: JSON.stringify(payload),
     });
+  },
+
+  async getAiPlatformVoicePacks(provider = 'ElevenLabs') {
+    return apiRequest<AiVoicePackResponse[]>(`/api/v2/ai-platform/voice-packs?provider=${encodeURIComponent(provider)}`);
   },
 
   async queueAiPlatformImageAsset(payload: {

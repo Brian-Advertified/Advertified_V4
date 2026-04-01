@@ -6,6 +6,7 @@ public sealed class QueueVoiceAssetRequest
     public Guid CreativeId { get; set; }
     public string Script { get; set; } = string.Empty;
     public string VoiceType { get; set; } = "Standard";
+    public Guid? VoicePackId { get; set; }
     public string Language { get; set; } = "English";
 }
 

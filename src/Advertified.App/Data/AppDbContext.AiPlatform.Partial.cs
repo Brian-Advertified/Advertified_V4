@@ -13,6 +13,7 @@ public partial class AppDbContext
     public virtual DbSet<AiIdempotencyRecord> AiIdempotencyRecords { get; set; } = null!;
     public virtual DbSet<AiUsageLog> AiUsageLogs { get; set; } = null!;
     public virtual DbSet<AiVoiceProfile> AiVoiceProfiles { get; set; } = null!;
+    public virtual DbSet<AiVoicePack> AiVoicePacks { get; set; } = null!;
 }
 
 internal static class AppDbContextAiPlatformModelBuilderExtensions
@@ -271,6 +272,61 @@ internal static class AppDbContextAiPlatformModelBuilderExtensions
             entity.Property(e => e.Language)
                 .HasMaxLength(40)
                 .HasColumnName("language");
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true)
+                .HasColumnName("is_active");
+            entity.Property(e => e.SortOrder)
+                .HasDefaultValue(0)
+                .HasColumnName("sort_order");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+        });
+
+        modelBuilder.Entity<AiVoicePack>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("ai_voice_packs_pkey");
+            entity.ToTable("ai_voice_packs");
+            entity.HasIndex(e => new { e.Provider, e.Name }, "uq_ai_voice_packs_provider_name").IsUnique();
+            entity.HasIndex(e => new { e.Provider, e.IsActive, e.SortOrder }, "ix_ai_voice_packs_provider_active_sort");
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.Provider)
+                .HasMaxLength(40)
+                .HasColumnName("provider");
+            entity.Property(e => e.Name)
+                .HasMaxLength(120)
+                .HasColumnName("name");
+            entity.Property(e => e.Accent)
+                .HasMaxLength(80)
+                .HasColumnName("accent");
+            entity.Property(e => e.Language)
+                .HasMaxLength(40)
+                .HasColumnName("language");
+            entity.Property(e => e.Tone)
+                .HasMaxLength(80)
+                .HasColumnName("tone");
+            entity.Property(e => e.Persona)
+                .HasMaxLength(120)
+                .HasColumnName("persona");
+            entity.Property(e => e.UseCasesJson)
+                .HasColumnType("jsonb")
+                .HasDefaultValueSql("'[]'::jsonb")
+                .HasColumnName("use_cases_json");
+            entity.Property(e => e.VoiceId)
+                .HasMaxLength(120)
+                .HasColumnName("voice_id");
+            entity.Property(e => e.SampleAudioUrl).HasColumnName("sample_audio_url");
+            entity.Property(e => e.PromptTemplate).HasColumnName("prompt_template");
+            entity.Property(e => e.PricingTier)
+                .HasMaxLength(20)
+                .HasDefaultValue("standard")
+                .HasColumnName("pricing_tier");
             entity.Property(e => e.IsActive)
                 .HasDefaultValue(true)
                 .HasColumnName("is_active");
