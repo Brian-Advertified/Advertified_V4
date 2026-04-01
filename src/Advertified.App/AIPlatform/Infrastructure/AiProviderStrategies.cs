@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Advertified.App.AIPlatform.Application;
 using Advertified.App.AIPlatform.Domain;
 using Advertified.App.Configuration;
@@ -262,12 +263,29 @@ public sealed class ElevenLabsProviderStrategy : IAiProviderStrategy
 
     private string ResolveVoiceId(string? voiceType)
     {
-        if (!string.IsNullOrWhiteSpace(voiceType) && voiceType.Contains('_', StringComparison.Ordinal))
+        if (!string.IsNullOrWhiteSpace(voiceType))
         {
-            return voiceType.Trim();
+            var candidate = voiceType.Trim();
+            if (VoiceIdRegex.IsMatch(candidate))
+            {
+                return candidate;
+            }
+
+            foreach (var pair in _options.Voices)
+            {
+                if (string.Equals(NormalizeLabel(pair.Key), NormalizeLabel(candidate), StringComparison.Ordinal))
+                {
+                    return pair.Value?.Trim() ?? string.Empty;
+                }
+            }
         }
 
         return _options.DefaultVoiceId.Trim();
+    }
+
+    private static string NormalizeLabel(string value)
+    {
+        return value.Trim().ToLowerInvariant().Replace(" ", string.Empty).Replace("_", string.Empty).Replace("-", string.Empty);
     }
 
     private static string BuildObjectKey(Guid campaignId, Guid creativeId)
@@ -348,3 +366,4 @@ public sealed class AiProviderStrategyFactory : IAiProviderStrategyFactory
             ?? throw new InvalidOperationException($"No provider strategy is registered for channel '{channel}' and operation '{operation}'.");
     }
 }
+    private static readonly Regex VoiceIdRegex = new("^[A-Za-z0-9]{20,64}$", RegexOptions.Compiled);

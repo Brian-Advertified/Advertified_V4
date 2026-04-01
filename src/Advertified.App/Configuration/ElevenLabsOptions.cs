@@ -10,5 +10,5 @@ public sealed class ElevenLabsOptions
     public string DefaultVoiceId { get; set; } = string.Empty;
     public string DefaultModelId { get; set; } = "eleven_multilingual_v2";
     public int TimeoutSeconds { get; set; } = 60;
+    public Dictionary<string, string> Voices { get; set; } = new();
 }
-
