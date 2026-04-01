@@ -154,7 +154,9 @@ internal static class ControllerMappings
             MaxMediaItems = brief.MaxMediaItems,
             OpenToUpsell = brief.OpenToUpsell,
             AdditionalBudget = brief.AdditionalBudget,
-            SpecialRequirements = brief.SpecialRequirements
+            SpecialRequirements = brief.SpecialRequirements,
+            PreferredVideoAspectRatio = brief.PreferredVideoAspectRatio,
+            PreferredVideoDurationSeconds = brief.PreferredVideoDurationSeconds
         };
     }
 

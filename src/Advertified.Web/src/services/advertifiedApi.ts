@@ -302,6 +302,8 @@ type CampaignBriefResponse = {
   openToUpsell: boolean;
   additionalBudget?: number;
   specialRequirements?: string;
+  preferredVideoAspectRatio?: string;
+  preferredVideoDurationSeconds?: number;
 };
 
 type RecommendationItemResponse = {
@@ -2239,6 +2241,7 @@ export const advertifiedApi = {
     sceneBreakdownJson: string;
     script: string;
     language?: string;
+    aspectRatio?: string;
     durationSeconds?: number;
   }) {
     return apiRequest<AiPlatformAssetJobResponse>('/api/v2/ai-platform/assets/video', {

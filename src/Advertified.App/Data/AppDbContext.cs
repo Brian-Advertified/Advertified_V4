@@ -246,6 +246,10 @@ public partial class AppDbContext : DbContext
                 .HasMaxLength(100)
                 .HasColumnName("objective");
             entity.Property(e => e.OpenToUpsell).HasColumnName("open_to_upsell");
+            entity.Property(e => e.PreferredVideoAspectRatio)
+                .HasMaxLength(10)
+                .HasColumnName("preferred_video_aspect_ratio");
+            entity.Property(e => e.PreferredVideoDurationSeconds).HasColumnName("preferred_video_duration_seconds");
             entity.Property(e => e.PreferredMediaTypesJson)
                 .HasColumnType("jsonb")
                 .HasColumnName("preferred_media_types_json");

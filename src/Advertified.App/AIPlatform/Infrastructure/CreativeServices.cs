@@ -256,6 +256,7 @@ public sealed class StrategyAssetGenerationPipeline : IAssetGenerationPipeline
                     request.PayloadJson,
                     request.PayloadJson,
                     "English",
+                    "16:9",
                     30), cancellationToken),
                 AdvertisingChannel.Digital => await _videoAssetGenerationService.QueueAsync(new VideoAssetRequest(
                     request.CampaignId,
@@ -263,6 +264,7 @@ public sealed class StrategyAssetGenerationPipeline : IAssetGenerationPipeline
                     request.PayloadJson,
                     request.PayloadJson,
                     "English",
+                    "9:16",
                     15), cancellationToken),
                 _ => await _imageAssetGenerationService.QueueAsync(new ImageAssetRequest(
                     request.CampaignId,

@@ -20,6 +20,7 @@ public sealed record VideoAssetRequest(
     string SceneBreakdownJson,
     string Script,
     string Language,
+    string AspectRatio,
     int DurationSeconds);
 
 public sealed record AssetJobQueuedResult(

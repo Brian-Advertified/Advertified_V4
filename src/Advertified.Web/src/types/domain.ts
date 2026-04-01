@@ -155,6 +155,8 @@ export interface CampaignBrief {
   openToUpsell: boolean;
   additionalBudget?: number;
   specialRequirements?: string;
+  preferredVideoAspectRatio?: string;
+  preferredVideoDurationSeconds?: number;
 }
 
 export interface RecommendationItem {

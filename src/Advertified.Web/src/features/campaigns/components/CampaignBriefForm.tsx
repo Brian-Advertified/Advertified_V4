@@ -20,6 +20,24 @@ const geographyScopeOptions = [
   { value: 'national', label: 'National' },
 ] as const;
 
+const videoAspectRatioOptions = [
+  { value: '', label: 'Select video aspect ratio' },
+  { value: '16:9', label: '16:9 (landscape)' },
+  { value: '9:16', label: '9:16 (portrait)' },
+  { value: '1:1', label: '1:1 (square)' },
+  { value: '4:5', label: '4:5 (feed)' },
+] as const;
+
+const videoDurationOptions = [
+  { value: '', label: 'Select video duration' },
+  { value: '6', label: '6 seconds' },
+  { value: '10', label: '10 seconds' },
+  { value: '15', label: '15 seconds' },
+  { value: '30', label: '30 seconds' },
+  { value: '45', label: '45 seconds' },
+  { value: '60', label: '60 seconds' },
+] as const;
+
 const ageBandOptions = [
   { value: '', label: 'Select age band' },
   { value: '18-24', label: '18-24' },
@@ -99,6 +117,8 @@ const briefSchema = z
     openToUpsell: z.boolean(),
     additionalBudget: z.string().optional(),
     specialRequirements: z.string().optional(),
+    preferredVideoAspectRatio: z.string().optional(),
+    preferredVideoDurationSeconds: z.string().optional(),
     targetAgeBand: z.string().optional(),
     targetLsmBand: z.string().optional(),
     customerType: z.string().optional(),
@@ -176,6 +196,8 @@ export function CampaignBriefForm({
       openToUpsell: initialValue?.openToUpsell ?? true,
       additionalBudget: initialValue?.additionalBudget?.toString(),
       specialRequirements: initialValue?.specialRequirements,
+      preferredVideoAspectRatio: initialValue?.preferredVideoAspectRatio,
+      preferredVideoDurationSeconds: initialValue?.preferredVideoDurationSeconds?.toString(),
       targetAgeBand: '',
       targetLsmBand: '',
       customerType: '',
@@ -249,6 +271,8 @@ export function CampaignBriefForm({
       openToUpsell: values.openToUpsell,
       additionalBudget: optionalNumber(values.additionalBudget),
       specialRequirements: mergeLines(values.specialRequirements, []),
+      preferredVideoAspectRatio: values.preferredVideoAspectRatio || undefined,
+      preferredVideoDurationSeconds: optionalNumber(values.preferredVideoDurationSeconds),
     };
   }
 
@@ -275,6 +299,20 @@ export function CampaignBriefForm({
           <Field label="Start date" error={errors.startDate?.message}><input {...register('startDate')} type="date" className="input-base" /></Field>
           <Field label="End date" error={errors.endDate?.message}><input {...register('endDate')} type="date" className="input-base" /></Field>
           <Field label="Duration weeks" error={errors.durationWeeks?.message}><input {...register('durationWeeks')} type="number" className="input-base" /></Field>
+          <Field label="Preferred video aspect ratio">
+            <select {...register('preferredVideoAspectRatio')} className="input-base">
+              {videoAspectRatioOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Preferred video duration">
+            <select {...register('preferredVideoDurationSeconds')} className="input-base">
+              {videoDurationOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </Field>
           <Field label="Provinces" error={errors.provinces?.message}><input {...register('provinces')} className="input-base" placeholder="Western Cape, Gauteng" /></Field>
           <Field label="Cities"><input {...register('cities')} className="input-base" placeholder="Cape Town, Johannesburg" /></Field>
           <Field label="Areas / suburbs"><input {...register('areas')} className="input-base" placeholder="Sea Point, Sandton..." /></Field>

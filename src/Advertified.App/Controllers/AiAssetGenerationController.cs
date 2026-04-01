@@ -166,6 +166,7 @@ public sealed class AiAssetGenerationController : ControllerBase
                 request.SceneBreakdownJson,
                 request.Script,
                 request.Language,
+                request.AspectRatio,
                 request.DurationSeconds), cancellationToken);
             if (decision.UsageLogId.HasValue)
             {

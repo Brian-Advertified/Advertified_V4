@@ -15,6 +15,8 @@ const objectiveOptions = ['Awareness', 'FootTraffic', 'Leads', 'Sales'] as const
 const toneOptions = ['Balanced', 'Energetic', 'Premium', 'Urgent', 'Conversational'] as const;
 const languageOptions = ['English', 'Zulu', 'Xhosa', 'Afrikaans'] as const;
 const channelOptions = ['Radio', 'Tv', 'Billboard', 'Newspaper', 'Digital'] as const;
+const videoAspectRatioOptions = ['16:9', '9:16', '1:1', '4:5'] as const;
+const videoDurationOptions = [6, 10, 15, 30, 45, 60] as const;
 
 type ConsoleStep = 'queue' | 'brief' | 'qa' | 'assets' | 'regenerate';
 
@@ -44,6 +46,8 @@ export function AiStudioPage() {
   const [assetVisualDirection, setAssetVisualDirection] = useState('');
   const [assetVideoSceneJson, setAssetVideoSceneJson] = useState('{"scene":1,"visual":"Product hero shot","audio":"Upbeat track"}');
   const [assetVideoScript, setAssetVideoScript] = useState('');
+  const [assetVideoAspectRatio, setAssetVideoAspectRatio] = useState('16:9');
+  const [assetVideoDurationSeconds, setAssetVideoDurationSeconds] = useState(30);
   const [assetJobId, setAssetJobId] = useState('');
 
   const [activeConsoleStep, setActiveConsoleStep] = useState<ConsoleStep>('queue');
@@ -129,7 +133,8 @@ export function AiStudioPage() {
       sceneBreakdownJson: assetVideoSceneJson.trim(),
       script: assetVideoScript.trim(),
       language: 'English',
-      durationSeconds: 30,
+      aspectRatio: assetVideoAspectRatio,
+      durationSeconds: assetVideoDurationSeconds,
     }),
     onSuccess: (response) => setAssetJobId(response.jobId),
   });
@@ -374,6 +379,16 @@ export function AiStudioPage() {
                 <input value={assetVisualDirection} onChange={(event) => setAssetVisualDirection(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white md:col-span-2" placeholder="Image visual direction" />
                 <input value={assetVideoSceneJson} onChange={(event) => setAssetVideoSceneJson(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white md:col-span-2" placeholder="Video scene JSON" />
                 <input value={assetVideoScript} onChange={(event) => setAssetVideoScript(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white md:col-span-2" placeholder="Video script" />
+                <select value={assetVideoAspectRatio} onChange={(event) => setAssetVideoAspectRatio(event.target.value)} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white">
+                  {videoAspectRatioOptions.map((ratio) => (
+                    <option key={ratio} value={ratio}>{`Video aspect ratio: ${ratio}`}</option>
+                  ))}
+                </select>
+                <select value={assetVideoDurationSeconds} onChange={(event) => setAssetVideoDurationSeconds(Number(event.target.value))} className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white">
+                  {videoDurationOptions.map((seconds) => (
+                    <option key={seconds} value={seconds}>{`Video duration: ${seconds}s`}</option>
+                  ))}
+                </select>
               </div>
               <div className="mt-4 flex flex-wrap gap-3">
                 <button type="button" onClick={() => queueVoiceAssetMutation.mutate()} disabled={!canQueueAssetJob || !assetVoiceScript.trim() || queueVoiceAssetMutation.isPending} className="rounded-xl border border-slate-600 bg-slate-950 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">Queue voice</button>

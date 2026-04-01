@@ -31,6 +31,8 @@ public sealed class CampaignBrief
     public bool OpenToUpsell { get; set; }
     public decimal? AdditionalBudget { get; set; }
     public string? SpecialRequirements { get; set; }
+    public string? PreferredVideoAspectRatio { get; set; }
+    public int? PreferredVideoDurationSeconds { get; set; }
     public DateTimeOffset? SubmittedAt { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }

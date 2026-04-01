@@ -25,6 +25,7 @@ public sealed class QueueVideoAssetRequest
     public string SceneBreakdownJson { get; set; } = "{}";
     public string Script { get; set; } = string.Empty;
     public string Language { get; set; } = "English";
+    public string AspectRatio { get; set; } = "16:9";
     public int DurationSeconds { get; set; } = 30;
 }
 

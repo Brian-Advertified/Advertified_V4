@@ -29,4 +29,6 @@ public sealed class SaveCampaignBriefRequest
     public bool OpenToUpsell { get; set; }
     public decimal? AdditionalBudget { get; set; }
     public string? SpecialRequirements { get; set; }
+    public string? PreferredVideoAspectRatio { get; set; }
+    public int? PreferredVideoDurationSeconds { get; set; }
 }

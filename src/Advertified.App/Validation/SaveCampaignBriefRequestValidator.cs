@@ -23,6 +23,24 @@ public sealed class SaveCampaignBriefRequestValidator : AbstractValidator<SaveCa
         "national"
     };
 
+    private static readonly HashSet<string> AllowedVideoAspectRatios = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "16:9",
+        "9:16",
+        "1:1",
+        "4:5"
+    };
+
+    private static readonly HashSet<int> AllowedVideoDurations = new()
+    {
+        6,
+        10,
+        15,
+        30,
+        45,
+        60
+    };
+
     public SaveCampaignBriefRequestValidator()
     {
         RuleFor(x => x.Objective)
@@ -62,5 +80,13 @@ public sealed class SaveCampaignBriefRequestValidator : AbstractValidator<SaveCa
         RuleFor(x => x)
             .Must(x => !x.StartDate.HasValue || !x.EndDate.HasValue || x.EndDate >= x.StartDate)
             .WithMessage("Campaign end date must be after the start date.");
+
+        RuleFor(x => x.PreferredVideoAspectRatio)
+            .Must(value => string.IsNullOrWhiteSpace(value) || AllowedVideoAspectRatios.Contains(value))
+            .WithMessage("Select a valid video aspect ratio.");
+
+        RuleFor(x => x.PreferredVideoDurationSeconds)
+            .Must(value => !value.HasValue || AllowedVideoDurations.Contains(value.Value))
+            .WithMessage("Select a valid video duration.");
     }
 }

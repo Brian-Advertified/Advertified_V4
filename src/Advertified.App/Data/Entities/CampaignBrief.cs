@@ -63,6 +63,10 @@ public partial class CampaignBrief
 
     public string? SpecialRequirements { get; set; }
 
+    public string? PreferredVideoAspectRatio { get; set; }
+
+    public int? PreferredVideoDurationSeconds { get; set; }
+
     public DateTime? SubmittedAt { get; set; }
 
     public DateTime CreatedAt { get; set; }

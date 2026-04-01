@@ -1060,6 +1060,8 @@ public sealed class AgentCampaignsController : ControllerBase
         brief.OpenToUpsell = request.OpenToUpsell;
         brief.AdditionalBudget = request.AdditionalBudget;
         brief.SpecialRequirements = request.SpecialRequirements;
+        brief.PreferredVideoAspectRatio = request.PreferredVideoAspectRatio;
+        brief.PreferredVideoDurationSeconds = request.PreferredVideoDurationSeconds;
         brief.UpdatedAt = now;
     }
 
