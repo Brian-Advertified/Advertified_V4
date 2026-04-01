@@ -153,6 +153,7 @@ public sealed class ElevenLabsProviderStrategy : IAiProviderStrategy
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
+    private static readonly Regex VoiceIdRegex = new("^[A-Za-z0-9]{20,64}$", RegexOptions.Compiled);
 
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ElevenLabsOptions _options;
@@ -366,4 +367,3 @@ public sealed class AiProviderStrategyFactory : IAiProviderStrategyFactory
             ?? throw new InvalidOperationException($"No provider strategy is registered for channel '{channel}' and operation '{operation}'.");
     }
 }
-    private static readonly Regex VoiceIdRegex = new("^[A-Za-z0-9]{20,64}$", RegexOptions.Compiled);
