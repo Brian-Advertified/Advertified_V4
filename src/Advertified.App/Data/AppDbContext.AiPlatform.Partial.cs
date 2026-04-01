@@ -12,6 +12,7 @@ public partial class AppDbContext
     public virtual DbSet<AiCreativeJobDeadLetter> AiCreativeJobDeadLetters { get; set; } = null!;
     public virtual DbSet<AiIdempotencyRecord> AiIdempotencyRecords { get; set; } = null!;
     public virtual DbSet<AiUsageLog> AiUsageLogs { get; set; } = null!;
+    public virtual DbSet<AiVoiceProfile> AiVoiceProfiles { get; set; } = null!;
 }
 
 internal static class AppDbContextAiPlatformModelBuilderExtensions
@@ -240,6 +241,42 @@ internal static class AppDbContextAiPlatformModelBuilderExtensions
                 .HasMaxLength(20)
                 .HasColumnName("status");
             entity.Property(e => e.Details).HasColumnName("details");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+        });
+
+        modelBuilder.Entity<AiVoiceProfile>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("ai_voice_profiles_pkey");
+            entity.ToTable("ai_voice_profiles");
+            entity.HasIndex(e => new { e.Provider, e.Label }, "uq_ai_voice_profiles_provider_label").IsUnique();
+            entity.HasIndex(e => new { e.Provider, e.IsActive, e.SortOrder }, "ix_ai_voice_profiles_provider_active_sort");
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.Provider)
+                .HasMaxLength(40)
+                .HasColumnName("provider");
+            entity.Property(e => e.Label)
+                .HasMaxLength(120)
+                .HasColumnName("label");
+            entity.Property(e => e.VoiceId)
+                .HasMaxLength(120)
+                .HasColumnName("voice_id");
+            entity.Property(e => e.Language)
+                .HasMaxLength(40)
+                .HasColumnName("language");
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true)
+                .HasColumnName("is_active");
+            entity.Property(e => e.SortOrder)
+                .HasDefaultValue(0)
+                .HasColumnName("sort_order");
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("created_at");

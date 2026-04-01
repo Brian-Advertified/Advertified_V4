@@ -886,6 +886,188 @@ public sealed class AdminController : ControllerBase
         });
     }
 
+    [HttpGet("ai/voices")]
+    public async Task<ActionResult<IReadOnlyList<AdminAiVoiceProfileResponse>>> GetAiVoiceProfiles(
+        [FromQuery] string? provider,
+        CancellationToken cancellationToken)
+    {
+        var gateResult = await EnsureAdminAsync(cancellationToken);
+        if (gateResult is not null)
+        {
+            return gateResult;
+        }
+
+        var normalizedProvider = string.IsNullOrWhiteSpace(provider) ? "ElevenLabs" : provider.Trim();
+        var rows = await _db.AiVoiceProfiles
+            .AsNoTracking()
+            .Where(item => item.Provider == normalizedProvider)
+            .OrderBy(item => item.SortOrder)
+            .ThenBy(item => item.Label)
+            .ToArrayAsync(cancellationToken);
+
+        return Ok(rows.Select(MapAdminAiVoiceProfile).ToArray());
+    }
+
+    [HttpPost("ai/voices")]
+    public async Task<ActionResult<AdminAiVoiceProfileResponse>> CreateAiVoiceProfile(
+        [FromBody] UpsertAdminAiVoiceProfileRequest request,
+        CancellationToken cancellationToken)
+    {
+        var gateResult = await EnsureAdminAsync(cancellationToken);
+        if (gateResult is not null)
+        {
+            return gateResult;
+        }
+
+        try
+        {
+            var provider = string.IsNullOrWhiteSpace(request.Provider) ? "ElevenLabs" : request.Provider.Trim();
+            var label = RequireValue(request.Label, "Label");
+            var voiceId = RequireValue(request.VoiceId, "Voice ID");
+
+            var exists = await _db.AiVoiceProfiles.AnyAsync(
+                item => item.Provider == provider && item.Label == label,
+                cancellationToken);
+            if (exists)
+            {
+                throw new InvalidOperationException("A voice profile with this label already exists for the provider.");
+            }
+
+            var now = DateTime.UtcNow;
+            var row = new AiVoiceProfile
+            {
+                Id = Guid.NewGuid(),
+                Provider = provider,
+                Label = label,
+                VoiceId = voiceId,
+                Language = string.IsNullOrWhiteSpace(request.Language) ? null : request.Language.Trim(),
+                IsActive = request.IsActive,
+                SortOrder = request.SortOrder,
+                CreatedAt = now,
+                UpdatedAt = now
+            };
+
+            _db.AiVoiceProfiles.Add(row);
+            await _db.SaveChangesAsync(cancellationToken);
+            await WriteChangeAuditAsync(
+                "create",
+                "ai_voice_profile",
+                row.Id.ToString(),
+                row.Label,
+                $"Created AI voice profile {row.Label}.",
+                new { row.Provider, row.Label, row.VoiceId, row.IsActive, row.SortOrder },
+                cancellationToken);
+
+            return Ok(MapAdminAiVoiceProfile(row));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPut("ai/voices/{id:guid}")]
+    public async Task<ActionResult<AdminAiVoiceProfileResponse>> UpdateAiVoiceProfile(
+        Guid id,
+        [FromBody] UpsertAdminAiVoiceProfileRequest request,
+        CancellationToken cancellationToken)
+    {
+        var gateResult = await EnsureAdminAsync(cancellationToken);
+        if (gateResult is not null)
+        {
+            return gateResult;
+        }
+
+        try
+        {
+            var row = await _db.AiVoiceProfiles.FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+            if (row is null)
+            {
+                return NotFound();
+            }
+
+            var provider = string.IsNullOrWhiteSpace(request.Provider) ? "ElevenLabs" : request.Provider.Trim();
+            var label = RequireValue(request.Label, "Label");
+            var voiceId = RequireValue(request.VoiceId, "Voice ID");
+
+            var duplicate = await _db.AiVoiceProfiles.AnyAsync(
+                item => item.Id != id && item.Provider == provider && item.Label == label,
+                cancellationToken);
+            if (duplicate)
+            {
+                throw new InvalidOperationException("A voice profile with this label already exists for the provider.");
+            }
+
+            row.Provider = provider;
+            row.Label = label;
+            row.VoiceId = voiceId;
+            row.Language = string.IsNullOrWhiteSpace(request.Language) ? null : request.Language.Trim();
+            row.IsActive = request.IsActive;
+            row.SortOrder = request.SortOrder;
+            row.UpdatedAt = DateTime.UtcNow;
+
+            await _db.SaveChangesAsync(cancellationToken);
+            await WriteChangeAuditAsync(
+                "update",
+                "ai_voice_profile",
+                row.Id.ToString(),
+                row.Label,
+                $"Updated AI voice profile {row.Label}.",
+                new { row.Provider, row.Label, row.VoiceId, row.IsActive, row.SortOrder },
+                cancellationToken);
+
+            return Ok(MapAdminAiVoiceProfile(row));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpDelete("ai/voices/{id:guid}")]
+    public async Task<IActionResult> DeleteAiVoiceProfile(Guid id, CancellationToken cancellationToken)
+    {
+        var gateResult = await EnsureAdminAsync(cancellationToken);
+        if (gateResult is not null)
+        {
+            return gateResult;
+        }
+
+        var row = await _db.AiVoiceProfiles.FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+        if (row is null)
+        {
+            return NotFound();
+        }
+
+        _db.AiVoiceProfiles.Remove(row);
+        await _db.SaveChangesAsync(cancellationToken);
+        await WriteChangeAuditAsync(
+            "delete",
+            "ai_voice_profile",
+            id.ToString(),
+            row.Label,
+            $"Deleted AI voice profile {row.Label}.",
+            new { row.Provider, row.Label },
+            cancellationToken);
+        return NoContent();
+    }
+
+    private static AdminAiVoiceProfileResponse MapAdminAiVoiceProfile(AiVoiceProfile row)
+    {
+        return new AdminAiVoiceProfileResponse
+        {
+            Id = row.Id,
+            Provider = row.Provider,
+            Label = row.Label,
+            VoiceId = row.VoiceId,
+            Language = row.Language,
+            IsActive = row.IsActive,
+            SortOrder = row.SortOrder,
+            CreatedAt = row.CreatedAt,
+            UpdatedAt = row.UpdatedAt
+        };
+    }
+
     private async Task<ActionResult?> EnsureAdminAsync(CancellationToken cancellationToken)
     {
         var currentUserId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);

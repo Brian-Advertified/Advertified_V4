@@ -638,6 +638,25 @@ type AiPlatformCampaignCostSummaryResponse = {
   remainingBudgetZar: number;
   utilizationPercent: number;
 };
+type AdminAiVoiceProfileResponse = {
+  id: string;
+  provider: string;
+  label: string;
+  voiceId: string;
+  language?: string | null;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+};
+type AdminUpsertAiVoiceProfileInput = {
+  provider?: string;
+  label: string;
+  voiceId: string;
+  language?: string;
+  isActive?: boolean;
+  sortOrder?: number;
+};
 
 function getStoredSession(): SessionUser | null {
   const raw = localStorage.getItem(SESSION_STORAGE_KEY);
@@ -1561,6 +1580,32 @@ export const advertifiedApi = {
 
   async getAdminIntegrationStatus() {
     return apiRequest<AdminIntegrationStatus>('/admin/integrations');
+  },
+
+  async getAdminAiVoiceProfiles(provider = 'ElevenLabs') {
+    return apiRequest<AdminAiVoiceProfileResponse[]>(
+      `/admin/ai/voices?provider=${encodeURIComponent(provider)}`,
+    );
+  },
+
+  async createAdminAiVoiceProfile(input: AdminUpsertAiVoiceProfileInput) {
+    return apiRequest<AdminAiVoiceProfileResponse>('/admin/ai/voices', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  },
+
+  async updateAdminAiVoiceProfile(id: string, input: AdminUpsertAiVoiceProfileInput) {
+    return apiRequest<AdminAiVoiceProfileResponse>(`/admin/ai/voices/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    });
+  },
+
+  async deleteAdminAiVoiceProfile(id: string) {
+    return apiRequest(`/admin/ai/voices/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
   },
 
   async getAdminCampaignOperations() {

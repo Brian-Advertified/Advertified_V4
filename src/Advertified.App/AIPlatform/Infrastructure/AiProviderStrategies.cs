@@ -3,7 +3,9 @@ using System.Text.RegularExpressions;
 using Advertified.App.AIPlatform.Application;
 using Advertified.App.AIPlatform.Domain;
 using Advertified.App.Configuration;
+using Advertified.App.Data;
 using Advertified.App.Services.Abstractions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 namespace Advertified.App.AIPlatform.Infrastructure;
@@ -158,6 +160,7 @@ public sealed class ElevenLabsProviderStrategy : IAiProviderStrategy
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ElevenLabsOptions _options;
     private readonly IPublicAssetStorage _publicAssetStorage;
+    private readonly AppDbContext _db;
     private readonly ILogger<ElevenLabsProviderStrategy> _logger;
 
     public string ProviderName => "ElevenLabs";
@@ -166,11 +169,13 @@ public sealed class ElevenLabsProviderStrategy : IAiProviderStrategy
         IHttpClientFactory httpClientFactory,
         IOptions<ElevenLabsOptions> options,
         IPublicAssetStorage publicAssetStorage,
+        AppDbContext db,
         ILogger<ElevenLabsProviderStrategy> logger)
     {
         _httpClientFactory = httpClientFactory;
         _options = options.Value;
         _publicAssetStorage = publicAssetStorage;
+        _db = db;
         _logger = logger;
     }
 
@@ -198,7 +203,7 @@ public sealed class ElevenLabsProviderStrategy : IAiProviderStrategy
         var requestPayload = JsonSerializer.Deserialize<VoiceAssetRequest>(inputJson, SerializerOptions)
             ?? throw new InvalidOperationException("Voice asset request payload is invalid.");
 
-        var voiceId = ResolveVoiceId(requestPayload.VoiceType);
+        var voiceId = await ResolveVoiceIdAsync(requestPayload.VoiceType, cancellationToken);
         if (string.IsNullOrWhiteSpace(voiceId))
         {
             throw new InvalidOperationException("ElevenLabs voice id is missing. Configure ElevenLabs:DefaultVoiceId or pass a valid voice id in VoiceType.");
@@ -262,7 +267,7 @@ public sealed class ElevenLabsProviderStrategy : IAiProviderStrategy
         return JsonSerializer.Serialize(payload, SerializerOptions);
     }
 
-    private string ResolveVoiceId(string? voiceType)
+    private async Task<string> ResolveVoiceIdAsync(string? voiceType, CancellationToken cancellationToken)
     {
         if (!string.IsNullOrWhiteSpace(voiceType))
         {
@@ -270,6 +275,26 @@ public sealed class ElevenLabsProviderStrategy : IAiProviderStrategy
             if (VoiceIdRegex.IsMatch(candidate))
             {
                 return candidate;
+            }
+
+            try
+            {
+                var dbVoices = await _db.AiVoiceProfiles
+                    .AsNoTracking()
+                    .Where(item => item.Provider == "ElevenLabs" && item.IsActive)
+                    .Select(item => new { item.Label, item.VoiceId })
+                    .ToArrayAsync(cancellationToken);
+
+                var normalizedCandidate = NormalizeLabel(candidate);
+                var dbMatch = dbVoices.FirstOrDefault(item => NormalizeLabel(item.Label) == normalizedCandidate);
+                if (dbMatch is not null && !string.IsNullOrWhiteSpace(dbMatch.VoiceId))
+                {
+                    return dbMatch.VoiceId.Trim();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to resolve ElevenLabs voice from DB mapping. Falling back to config mapping.");
             }
 
             foreach (var pair in _options.Voices)

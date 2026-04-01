@@ -19,6 +19,7 @@ export const adminNavItems = [
   { path: '/admin/geography', label: 'Geography Mapping' },
   { path: '/admin/engine', label: 'Engine Settings' },
   { path: '/admin/preview-rules', label: 'Preview Rules' },
+  { path: '/admin/ai-voices', label: 'AI Voices' },
   { path: '/admin/monitoring', label: 'Monitoring' },
   { path: '/admin/users', label: 'Users & Roles' },
   { path: '/admin/audit', label: 'Audit Log' },
