@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { ArrowRight, Lock } from 'lucide-react';
-import { useDeferredValue, useMemo, useState } from 'react';
+import { useDeferredValue, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ProcessingOverlay } from '../../components/ui/ProcessingOverlay';
 import { PageHero } from '../../components/marketing/PageHero';
@@ -26,6 +26,7 @@ export function PackagesPage() {
   const [stepState, setStepState] = useState<1 | 2>();
   const [selectedAreaState, setSelectedAreaState] = useState('');
   const [isResendingActivation, setIsResendingActivation] = useState(false);
+  const spendStepAnchorRef = useRef<HTMLDivElement | null>(null);
   const requestedBandCode = searchParams.get('band')?.trim().toLowerCase();
   const requestedBand = requestedBandCode
     ? packagesQuery.data?.find((item) => item.code.toLowerCase() === requestedBandCode)
@@ -73,6 +74,14 @@ export function PackagesPage() {
 
   const showMobilePackageGrid = step === 1;
 
+  useLayoutEffect(() => {
+    if (typeof window === 'undefined' || step !== 2 || !selectedBand) {
+      return;
+    }
+
+    spendStepAnchorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [step, selectedBand?.id]);
+
   if (packagesQuery.isLoading) {
     return <LoadingState label="Loading package bands..." />;
   }
@@ -92,7 +101,7 @@ export function PackagesPage() {
       </div>
 
       {selectedBand && step === 2 ? (
-        <div className="panel flex items-center justify-between gap-4 px-5 py-5 sm:hidden">
+        <div ref={spendStepAnchorRef} className="panel flex items-center justify-between gap-4 px-5 py-4 sm:hidden">
           <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-brand">Selected package</p>
             <p className="mt-2 text-xl font-semibold tracking-tight text-ink">{selectedBand.name}</p>
@@ -100,9 +109,9 @@ export function PackagesPage() {
               {formatCompactBudget(selectedBand.minBudget)} - {formatCompactBudget(selectedBand.maxBudget)}
             </p>
           </div>
-            <button
+          <button
             type="button"
-            className="button-secondary shrink-0 px-4 py-2"
+            className="button-secondary shrink-0 px-3 py-1.5 text-xs"
             onClick={() => setStepState(1)}
           >
             Change package

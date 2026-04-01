@@ -1,4 +1,4 @@
-import { Suspense, lazy, type ComponentType } from 'react';
+import { Suspense, lazy, useLayoutEffect, type ComponentType } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { Footer } from '../components/layout/Footer';
 import { Navbar } from '../components/layout/Navbar';
@@ -117,6 +117,14 @@ const AdminUsersPage = lazyPage(() => import('../pages/admin/AdminUsersPage'), '
 export function App() {
   const location = useLocation();
   const isAgentRoute = location.pathname.startsWith('/agent') || location.pathname.startsWith('/admin');
+
+  useLayoutEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [location.pathname, location.search]);
 
   return (
     <div className="min-h-screen">

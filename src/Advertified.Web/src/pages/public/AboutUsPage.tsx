@@ -33,7 +33,7 @@ export function AboutUsPage() {
   return (
     <div className="page-shell space-y-8 pb-10">
       <PageHero
-        kicker="About us"
+        kicker="Advertise Now. Pay Later."
         title="A clearer way to buy and run advertising."
         description="Advertified helps businesses move from budget to campaign through a structured process that starts with what you want to spend and builds toward a campaign you can launch with confidence."
         actions={(
