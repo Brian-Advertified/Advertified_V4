@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useDeferredValue, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useSearchParams } from 'react-router-dom';
 import { PageHero } from '../../components/marketing/PageHero';
 import { BudgetSelector } from '../../features/packages/components/BudgetSelector';
@@ -135,6 +136,23 @@ export function PackagesPage() {
             />
           </div>
           <SpendPreviewPanel band={selectedBand} selectedSpend={clampedSpend} livePreview={previewQuery.data} />
+        </div>
+      ) : null}
+
+      {selectedBand && step === 2 ? (
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-white/95 px-4 py-3 backdrop-blur sm:px-6">
+          <div className="mx-auto flex w-full max-w-[1200px] items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand">Selected order</p>
+              <p className="truncate text-sm font-semibold text-ink">{selectedBand.name} | {formatCompactBudget(clampedSpend)}</p>
+            </div>
+            <Link
+              className="button-primary shrink-0 px-5 py-2.5 text-sm"
+              to={`/payment?packageBandId=${encodeURIComponent(selectedBand.id)}&amount=${encodeURIComponent(clampedSpend)}&area=${encodeURIComponent(selectedArea)}`}
+            >
+              Continue to payment
+            </Link>
+          </div>
         </div>
       ) : null}
 
