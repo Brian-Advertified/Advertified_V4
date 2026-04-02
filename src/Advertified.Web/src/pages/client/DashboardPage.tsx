@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { useAuth } from '../../features/auth/auth-context';
+import { canAccessAiStudioForStatus } from '../../features/campaigns/aiStudioAccess';
 import { getCampaignPrimaryAction } from '../../lib/access';
 import { formatCurrency, formatDate, titleCase } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
@@ -143,7 +144,9 @@ export function DashboardPage() {
                 <div className="user-toolbar mt-4">
                   <Link to={`/campaigns/${campaign.id}`} className="user-btn-primary">Open Campaign Workspace</Link>
                   <Link to={action.href} className="user-btn-secondary">Continue Next Step</Link>
-                  <Link to={`/ai-studio?campaignId=${campaign.id}`} className="user-btn-secondary">Prefill from approved recommendation</Link>
+                  {canAccessAiStudioForStatus(campaign.status) ? (
+                    <Link to={`/ai-studio?campaignId=${campaign.id}`} className="user-btn-secondary">Prefill from approved recommendation</Link>
+                  ) : null}
                 </div>
               </div>
             );

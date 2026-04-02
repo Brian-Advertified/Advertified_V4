@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import { MessageSquareText, SendHorizontal } from 'lucide-react';
 import { useToast } from '../../components/ui/toast';
+import { canAccessAiStudioForStatus } from '../../features/campaigns/aiStudioAccess';
 import { formatDate, titleCase } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import {
@@ -119,7 +120,9 @@ export function AgentMessagesNotesPage() {
                           </div>
                           <div className="flex gap-3">
                             <Link to={`/agent/campaigns/${thread.campaignId}`} className="button-secondary px-4 py-2">Open campaign</Link>
-                            <Link to={`/ai-studio?campaignId=${thread.campaignId}`} className="button-secondary px-4 py-2">Prefill AI Studio</Link>
+                            {canAccessAiStudioForStatus(thread.campaignStatus) ? (
+                              <Link to={`/ai-studio?campaignId=${thread.campaignId}`} className="button-secondary px-4 py-2">Prefill AI Studio</Link>
+                            ) : null}
                           </div>
                         </div>
                       </div>

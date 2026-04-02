@@ -121,7 +121,7 @@ const previewDefinitions: Record<string, PackagePreviewDefinition> = {
   dominance: {
     packagePurpose: 'Best for large campaigns needing wide reach, premium visibility, and stronger strategic handling.',
     quickBenefit: 'Premium visibility with broader market coverage.',
-    recommendedSpendLabel: 'Most clients in this package spend around R900 000.',
+    recommendedSpendLabel: 'Most clients in this package spend around R3 000 000.',
     suitableFor: ['Major brand campaigns', 'Large promotions', 'Market-wide visibility', 'High-impact launches'],
     unlocks: ['Advanced AI and agent planning', 'Premium inventory matching', 'Managed recommendation refinement'],
     finalPlanNote: 'Final media plan confirmed after purchase, brief submission, timing checks, and live availability.',

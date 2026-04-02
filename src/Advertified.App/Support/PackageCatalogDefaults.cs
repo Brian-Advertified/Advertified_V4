@@ -76,7 +76,7 @@ internal static class PackageCatalogDefaults
                 "yes",
                 "yes",
                 "14 business days",
-                900000m,
+                3000000m,
                 false,
                 new[] { "Priority planning support", "Agent-led optimisation", "Executive-ready recommendation packs" },
                 CreateTiers(

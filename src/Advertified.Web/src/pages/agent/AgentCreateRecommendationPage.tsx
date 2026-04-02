@@ -7,7 +7,7 @@ import { ProcessingOverlay } from '../../components/ui/ProcessingOverlay';
 import { useToast } from '../../components/ui/toast';
 import { formatCurrency } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
-import type { CampaignBrief } from '../../types/domain';
+import type { CampaignBrief, PackageBand } from '../../types/domain';
 
 type ChannelOption = 'Radio' | 'OOH' | 'TV';
 
@@ -44,6 +44,46 @@ function normalizeOption<T extends readonly string[]>(value: string | null | und
   }
 
   return allowed.includes(value) ? value as T[number] : '';
+}
+
+function normalizeChannelOption(channel: string | null | undefined): ChannelOption | undefined {
+  if (!channel) {
+    return undefined;
+  }
+
+  const normalized = channel.trim().toLowerCase();
+
+  if (normalized === 'television' || normalized === 'tv') {
+    return 'TV';
+  }
+
+  if (normalized === 'ooh') {
+    return 'OOH';
+  }
+
+  if (normalized === 'radio') {
+    return 'Radio';
+  }
+
+  return undefined;
+}
+
+function resolvePackageReferenceBudget(packageBand: PackageBand): number {
+  const recommendedSpend = packageBand.recommendedSpend;
+
+  if (
+    typeof recommendedSpend === 'number'
+    && recommendedSpend >= packageBand.minBudget
+    && recommendedSpend <= packageBand.maxBudget
+  ) {
+    return recommendedSpend;
+  }
+
+  return Math.round((packageBand.minBudget + packageBand.maxBudget) / 2);
+}
+
+function formatPackageRange(packageBand: PackageBand): string {
+  return `${formatCurrency(packageBand.minBudget)} to ${formatCurrency(packageBand.maxBudget)}`;
 }
 
 function getAllowedChannels(campaign?: {
@@ -95,6 +135,8 @@ function inferInitialForm(campaign: {
   clientName: string;
   packageBandName: string;
   selectedBudget: number;
+  packageRangeLabel?: string;
+  isProspective?: boolean;
   queueStage: string;
   nextAction: string;
   includeRadio: 'yes' | 'optional' | 'no';
@@ -109,7 +151,9 @@ function inferInitialForm(campaign: {
     geography: campaign.selectedBudget >= 500000 ? '' : 'gauteng',
     brandName: `${campaign.clientName} ${campaign.packageBandName} Campaign`,
     tone: campaign.packageBandName === 'Dominance' ? 'premium' : 'high-visibility',
-    brief: `Build a ${campaign.packageBandName.toLowerCase()} recommendation for ${campaign.clientName} within ${formatCurrency(campaign.selectedBudget)}. ${campaign.nextAction}`,
+    brief: campaign.isProspective && campaign.packageRangeLabel
+      ? `Build a ${campaign.packageBandName.toLowerCase()} recommendation for ${campaign.clientName} within the ${campaign.packageRangeLabel} package range. Plan around ${formatCurrency(campaign.selectedBudget)} as the initial reference point. ${campaign.nextAction}`
+      : `Build a ${campaign.packageBandName.toLowerCase()} recommendation for ${campaign.clientName} within ${formatCurrency(campaign.selectedBudget)}. ${campaign.nextAction}`,
     channels: ensureRequiredChannels(defaultChannels),
   };
 }
@@ -197,7 +241,7 @@ export function AgentCreateRecommendationPage() {
     [packagesQuery.data, selectedProspectPackageBandId],
   );
   const selectedCampaignReferenceBudget = selectedCampaignIsProspective && selectedPackageBand
-    ? (selectedPackageBand.recommendedSpend ?? Math.round((selectedPackageBand.minBudget + selectedPackageBand.maxBudget) / 2))
+    ? resolvePackageReferenceBudget(selectedPackageBand)
     : (selectedCampaign?.selectedBudget ?? 0);
   const allowedChannels = useMemo(
     () => getAllowedChannels(selectedPackageBand),
@@ -211,6 +255,8 @@ export function AgentCreateRecommendationPage() {
     ? inferInitialForm({
       ...selectedCampaign,
       selectedBudget: selectedCampaignReferenceBudget,
+      packageRangeLabel: selectedPackageBand ? formatPackageRange(selectedPackageBand) : undefined,
+      isProspective: selectedCampaignIsProspective,
       includeRadio: selectedPackageBand?.includeRadio ?? 'optional',
       includeTv: selectedPackageBand?.includeTv ?? 'no',
     })
@@ -345,9 +391,7 @@ export function AgentCreateRecommendationPage() {
     const cities = normalizedScope === 'local' && geography
       ? [cityMap[geography] ?? geography]
       : undefined;
-    const areas = normalizedScope === 'local' && geography
-      ? [cityMap[geography] ?? geography]
-      : undefined;
+    const areas = undefined;
 
     return {
       objective: form.objective || 'awareness',
@@ -433,12 +477,15 @@ export function AgentCreateRecommendationPage() {
       return advertifiedApi.interpretAgentBrief(selectedCampaign.id, {
         brief: form.brief,
         campaignName: form.brandName,
-        selectedBudget: selectedCampaign.selectedBudget,
+        selectedBudget: selectedCampaignIsProspective && selectedPackageBand
+          ? resolvePackageReferenceBudget(selectedPackageBand)
+          : selectedCampaign.selectedBudget,
       });
     },
     onSuccess: (result) => {
       const interpretedChannels = result.channels
-        .filter((channel): channel is ChannelOption => CHANNEL_OPTIONS.includes(channel as ChannelOption));
+        .map(normalizeChannelOption)
+        .filter((channel): channel is ChannelOption => Boolean(channel));
 
       setScopedForm({
         key: activeFormKey,
@@ -643,7 +690,7 @@ export function AgentCreateRecommendationPage() {
                     <option value="">Select price band</option>
                     {(packagesQuery.data ?? []).map((item) => (
                       <option key={item.id} value={item.id}>
-                        {item.name} | {formatCurrency(item.minBudget)} - {formatCurrency(item.maxBudget)}
+                        {item.name} | {formatPackageRange(item)}
                       </option>
                     ))}
                   </select>
@@ -651,6 +698,11 @@ export function AgentCreateRecommendationPage() {
                 <p className="mt-2 text-xs text-ink-soft">
                   Proposal A, B, and C will be generated from this band&apos;s lower, middle, and upper tiers.
                 </p>
+                {selectedPackageBand ? (
+                  <p className="mt-2 text-xs text-ink-soft">
+                    Planning reference: {formatCurrency(selectedCampaignReferenceBudget)} within the {formatPackageRange(selectedPackageBand)} band.
+                  </p>
+                ) : null}
               </div>
             ) : null}
             <div className="mt-4">
@@ -684,7 +736,7 @@ export function AgentCreateRecommendationPage() {
                     <select value={prospectForm.packageBandId} onChange={(event) => setProspectForm((current) => ({ ...current, packageBandId: event.target.value }))} className="input-base">
                       <option value="">Select package</option>
                       {(packagesQuery.data ?? []).map((item) => (
-                        <option key={item.id} value={item.id}>{item.name} | {formatCurrency(item.minBudget)} - {formatCurrency(item.maxBudget)}</option>
+                        <option key={item.id} value={item.id}>{item.name} | {formatPackageRange(item)}</option>
                       ))}
                     </select>
                   </label>
@@ -694,7 +746,7 @@ export function AgentCreateRecommendationPage() {
                   </label>
                 </div>
                 <p className="mt-3 text-xs text-ink-soft">
-                  Budget is now derived automatically from the selected price band.
+                  A planning reference budget is derived automatically from the selected price band.
                 </p>
                 <div className="mt-4">
                   <button
@@ -950,11 +1002,13 @@ export function AgentCreateRecommendationPage() {
             </h3>
             <p className="mt-1 text-sm text-ink-soft">
               {selectedCampaign
-                ? `${selectedCampaign.queueLabel} · ${selectedPackageBand ? `${formatCurrency(selectedPackageBand.minBudget)} to ${formatCurrency(selectedPackageBand.maxBudget)} price band` : formatCurrency(selectedCampaign.selectedBudget)}`
+                ? `${selectedCampaign.queueLabel} · ${selectedPackageBand ? `${formatPackageRange(selectedPackageBand)} price band` : formatCurrency(selectedCampaign.selectedBudget)}`
                 : 'Choose a campaign to continue'}
             </p>
             {selectedCampaignIsProspective ? (
-              <p className="mt-2 text-xs text-amber-700">Prospective campaign: recommendation can be prepared and shared before payment.</p>
+              <p className="mt-2 text-xs text-amber-700">
+                Prospective campaign: recommendation can be prepared and shared before payment. Planning starts from {formatCurrency(selectedCampaignReferenceBudget)} inside the selected band.
+              </p>
             ) : null}
 
             <div className="mt-5 space-y-3 text-sm text-ink-soft">
@@ -981,4 +1035,3 @@ export function AgentCreateRecommendationPage() {
     </section>
   );
 }
-

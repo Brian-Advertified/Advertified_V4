@@ -22,6 +22,7 @@ import { LoadingState } from '../../components/ui/LoadingState';
 import { ProcessingOverlay } from '../../components/ui/ProcessingOverlay';
 import { useToast } from '../../components/ui/toast';
 import {
+  type BudgetConstraintContext,
   buildAudienceSummary,
   buildChannelSummary,
   buildGeneratedInventoryFallback,
@@ -37,6 +38,7 @@ import {
   isInventoryRelevant,
   normalizeChannelKey,
 } from '../../features/agent/agentCampaignDetailUtils';
+import { canAccessAiStudioForStatus } from '../../features/campaigns/aiStudioAccess';
 import { InventoryTable } from '../../features/agent/components/InventoryTable';
 import { invalidateAgentCampaignQueries, queryKeys } from '../../lib/queryKeys';
 import { formatCurrency, titleCase } from '../../lib/utils';
@@ -58,6 +60,10 @@ function formatFallbackFlag(flag: string) {
   }
 
   return flag.replace(/_/g, ' ');
+}
+
+function formatPackageRange(minBudget: number, maxBudget: number) {
+  return `${formatCurrency(minBudget)} to ${formatCurrency(maxBudget)}`;
 }
 
 export function AgentCampaignDetailPage() {
@@ -294,6 +300,7 @@ export function AgentCampaignDetailPage() {
 
   const campaign = campaignQuery.data;
   const inventoryItems = inventoryQuery.data ?? [];
+  const selectedPackageBand = packagesQuery.data?.find((item) => item.id === campaign?.packageBandId) ?? null;
   const recommendations = campaign?.recommendations.length
     ? campaign.recommendations
     : (campaign?.recommendation ? [campaign.recommendation] : []);
@@ -440,8 +447,18 @@ export function AgentCampaignDetailPage() {
   })));
   const plannedTotal = selectedPlanItems.reduce((sum, item) => sum + item.rate * item.quantity, 0);
   const effectivePlannedTotal = plannedTotal > 0 ? plannedTotal : activeRecommendation?.totalCost ?? 0;
+  const isProspectiveCampaign = campaign.status === 'awaiting_purchase';
   const budgetDelta = campaign.selectedBudget - effectivePlannedTotal;
-  const isOverBudget = budgetDelta < 0;
+  const prospectiveBelowBandDelta = isProspectiveCampaign && selectedPackageBand
+    ? selectedPackageBand.minBudget - effectivePlannedTotal
+    : 0;
+  const prospectiveAboveBandDelta = isProspectiveCampaign && selectedPackageBand
+    ? effectivePlannedTotal - selectedPackageBand.maxBudget
+    : 0;
+  const isOutsideProspectBand = isProspectiveCampaign && selectedPackageBand
+    ? effectivePlannedTotal < selectedPackageBand.minBudget || effectivePlannedTotal > selectedPackageBand.maxBudget
+    : false;
+  const isOverBudget = isProspectiveCampaign ? isOutsideProspectBand : budgetDelta < 0;
   const activeProposalLabel = activeRecommendation?.proposalLabel ?? 'Current proposal';
   const showExecutionOperations = (
     campaign.status === 'approved'
@@ -478,8 +495,24 @@ export function AgentCampaignDetailPage() {
   const canModifyPlan = canEditDraftRecommendation && !draftApprovalCaptured;
   const hasSendableProposal = recommendations.length >= 1;
   const hasOohRecommendation = selectedPlanItems.some((item) => normalizeChannelKey(item.type) === 'OOH');
-  const constraintChecks = getConstraintChecks(campaign.brief, selectedPlanItems, isOverBudget, campaign.selectedBudget);
-  const isProspectiveCampaign = campaign.status === 'awaiting_purchase';
+  const budgetConstraint: BudgetConstraintContext = isProspectiveCampaign && selectedPackageBand
+    ? {
+      label: 'Within selected band',
+      ok: !isOutsideProspectBand,
+      detail: !isOutsideProspectBand
+        ? `Inside the selected ${formatPackageRange(selectedPackageBand.minBudget, selectedPackageBand.maxBudget)} package band.`
+        : effectivePlannedTotal > selectedPackageBand.maxBudget
+          ? 'This draft is currently above the selected package band.'
+          : 'This draft is currently below the selected package band.',
+    }
+    : {
+      label: 'Within budget',
+      ok: budgetDelta >= 0,
+      detail: budgetDelta >= 0
+        ? `Inside the paid ${formatCurrency(campaign.selectedBudget)} package.`
+        : 'This draft is currently over budget.',
+    };
+  const constraintChecks = getConstraintChecks(campaign.brief, selectedPlanItems, budgetConstraint);
   const executionAssets = campaign.assets ?? [];
   const supplierBookings = campaign.supplierBookings ?? [];
   const deliveryReports = campaign.deliveryReports ?? [];
@@ -681,7 +714,16 @@ export function AgentCampaignDetailPage() {
           <div className="panel px-5 py-5">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ink-soft">Order</p>
             <h2 className="mt-3 text-xl font-semibold text-ink">{campaign.packageBandName}</h2>
-            <p className="mt-2 text-sm text-ink-soft">Package target: {formatCurrency(campaign.selectedBudget)}</p>
+            <p className="mt-2 text-sm text-ink-soft">
+              {isProspectiveCampaign && selectedPackageBand
+                ? `Package range: ${formatCurrency(selectedPackageBand.minBudget)} to ${formatCurrency(selectedPackageBand.maxBudget)}`
+                : `Package target: ${formatCurrency(campaign.selectedBudget)}`}
+            </p>
+            {isProspectiveCampaign && selectedPackageBand ? (
+              <p className="mt-2 text-sm text-ink-soft">
+                Planning reference: {formatCurrency(campaign.selectedBudget)}
+              </p>
+            ) : null}
             {activeRecommendation ? (
               <p className="mt-2 text-sm font-semibold text-ink">{activeProposalLabel}: {formatCurrency(activeRecommendation.totalCost)}</p>
             ) : null}
@@ -956,7 +998,11 @@ export function AgentCampaignDetailPage() {
             </div>
             {isOverBudget ? (
               <p className="mt-4 text-sm text-rose-700">
-                This draft is {formatCurrency(Math.abs(budgetDelta))} over the client&apos;s budget.
+                {isProspectiveCampaign && selectedPackageBand
+                  ? effectivePlannedTotal > selectedPackageBand.maxBudget
+                    ? `This draft is ${formatCurrency(Math.abs(prospectiveAboveBandDelta))} over the selected package band maximum.`
+                    : `This draft is ${formatCurrency(Math.abs(prospectiveBelowBandDelta))} below the selected package band minimum.`
+                  : `This draft is ${formatCurrency(Math.abs(budgetDelta))} over the client&apos;s budget.`}
               </p>
             ) : null}
           </div>
@@ -1125,13 +1171,15 @@ export function AgentCampaignDetailPage() {
                 Preview client PDF
               </button>
             ) : null}
-            <Link
-              to={`/ai-studio?campaignId=${campaign.id}`}
-              className="button-secondary inline-flex items-center gap-2 px-5 py-3"
-            >
-              <BrainCircuit className="size-4" />
-              Prefill from approved recommendation
-            </Link>
+            {canAccessAiStudioForStatus(campaign.status) ? (
+              <Link
+                to={`/ai-studio?campaignId=${campaign.id}`}
+                className="button-secondary inline-flex items-center gap-2 px-5 py-3"
+              >
+                <BrainCircuit className="size-4" />
+                Prefill from approved recommendation
+              </Link>
+            ) : null}
             <button
               type="button"
               disabled={sendMutation.isPending || isOverBudget || !hasSendableProposal || !hasOohRecommendation}

@@ -1,5 +1,11 @@
-import { formatCurrency, titleCase } from '../../lib/utils';
+import { titleCase } from '../../lib/utils';
 import type { CampaignBrief, RecommendationItem, SelectedPlanInventoryItem } from '../../types/domain';
+
+export type BudgetConstraintContext = {
+  label: string;
+  ok: boolean;
+  detail: string;
+};
 
 export function buildAudienceSummary(brief?: CampaignBrief) {
   if (!brief) return 'Not captured yet';
@@ -128,7 +134,11 @@ export function calculateConfidence(brief?: CampaignBrief) {
   return Math.min(0.96, Number(score.toFixed(2)));
 }
 
-export function getConstraintChecks(brief: CampaignBrief | undefined, selectedPlanItems: SelectedPlanInventoryItem[], isOverBudget: boolean, selectedBudget: number) {
+export function getConstraintChecks(
+  brief: CampaignBrief | undefined,
+  selectedPlanItems: SelectedPlanInventoryItem[],
+  budgetConstraint: BudgetConstraintContext,
+) {
   const hasOoh = selectedPlanItems.some((item) => normalizeChannelKey(item.type) === 'OOH');
   const hasRadio = selectedPlanItems.some((item) => normalizeChannelKey(item.type) === 'RADIO');
   const geoAligned = selectedPlanItems.length === 0
@@ -155,9 +165,9 @@ export function getConstraintChecks(brief: CampaignBrief | undefined, selectedPl
         : 'Add at least one Billboards and Digital Screens line before saving or sending this recommendation.',
     },
     {
-      label: 'Within budget',
-      ok: !isOverBudget,
-      detail: !isOverBudget ? `Inside the paid ${formatCurrency(selectedBudget)} package.` : 'This draft is currently over budget.',
+      label: budgetConstraint.label,
+      ok: budgetConstraint.ok,
+      detail: budgetConstraint.detail,
     },
     {
       label: radioRequested ? 'Radio included' : 'Radio coverage',

@@ -6,6 +6,7 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { useToast } from '../../components/ui/toast';
 import { useAuth } from '../../features/auth/auth-context';
+import { canAccessAiStudioForStatus } from '../../features/campaigns/aiStudioAccess';
 import { RecommendationViewer } from '../../features/campaigns/components/RecommendationViewer';
 import { buildApprovalDetails, getApprovalContent, getHeroContent } from '../../features/campaigns/clientCampaignDetailContent';
 import { invalidateClientCampaignQueries, queryKeys } from '../../lib/queryKeys';
@@ -264,7 +265,9 @@ export function CampaignDetailPage() {
                 <Link to={`${campaignBasePath}/approvals`} className="user-btn-primary">{hero.primaryAction}</Link>
                 <Link to={`${campaignBasePath}/messages`} className="user-btn-secondary">Ask a question</Link>
                 <Link to={`/campaigns/${campaign.id}/studio-preview`} className="user-btn-secondary">Preview studio</Link>
-                <Link to={`/ai-studio?campaignId=${campaign.id}`} className="user-btn-secondary">Prefill from approved recommendation</Link>
+                {canAccessAiStudioForStatus(campaign.status) ? (
+                  <Link to={`/ai-studio?campaignId=${campaign.id}`} className="user-btn-secondary">Prefill from approved recommendation</Link>
+                ) : null}
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
                 <span className="user-pill">{hero.timeLabel}</span>

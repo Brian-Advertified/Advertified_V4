@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { ArrowRight, Sparkles, WandSparkles } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { canAccessAiStudioForStatus, getAiStudioAccessMessage } from '../../features/campaigns/aiStudioAccess';
 import { advertifiedApi } from '../../services/advertifiedApi';
 
 const outputs = [
@@ -72,6 +73,19 @@ export function AiStudioPage() {
   const [prefillMessage, setPrefillMessage] = useState('');
 
   const [activeConsoleStep, setActiveConsoleStep] = useState<ConsoleStep>('queue');
+  const campaignAccessQuery = useQuery({
+    queryKey: ['ai-studio-campaign-access', campaignId],
+    queryFn: () => advertifiedApi.getCampaign(campaignId.trim()),
+    enabled: campaignId.trim().length > 0,
+    retry: false,
+  });
+  const selectedCampaign = campaignAccessQuery.data;
+  const aiStudioAccessAllowed = campaignId.trim().length === 0
+    || !selectedCampaign
+    || canAccessAiStudioForStatus(selectedCampaign.status);
+  const aiStudioAccessMessage = selectedCampaign
+    ? getAiStudioAccessMessage(selectedCampaign.status)
+    : 'AI Studio becomes available only after a purchased campaign is complete and ready to go live.';
 
   const submitJobMutation = useMutation({
     mutationFn: () => advertifiedApi.submitAiPlatformJob({
@@ -221,8 +235,8 @@ export function AiStudioPage() {
   });
 
   const canSubmit = useMemo(
-    () => campaignId.trim().length > 0 && !submitJobMutation.isPending,
-    [campaignId, submitJobMutation.isPending],
+    () => campaignId.trim().length > 0 && aiStudioAccessAllowed && !submitJobMutation.isPending,
+    [campaignId, aiStudioAccessAllowed, submitJobMutation.isPending],
   );
 
   const canRegenerate = useMemo(
@@ -235,21 +249,27 @@ export function AiStudioPage() {
 
   const canGenerateFromBrief = useMemo(
     () => campaignId.trim().length > 0
+      && aiStudioAccessAllowed
       && briefBrand.trim().length > 0
       && briefLanguages.length > 0
       && briefChannels.length > 0
       && !generateFromBriefMutation.isPending,
-    [campaignId, briefBrand, briefLanguages, briefChannels, generateFromBriefMutation.isPending],
+    [campaignId, aiStudioAccessAllowed, briefBrand, briefLanguages, briefChannels, generateFromBriefMutation.isPending],
   );
 
   const canQueueAssetJob = useMemo(
-    () => assetCampaignId.trim().length > 0 && assetCreativeId.trim().length > 0,
-    [assetCampaignId, assetCreativeId],
+    () => assetCampaignId.trim().length > 0 && assetCreativeId.trim().length > 0 && aiStudioAccessAllowed,
+    [assetCampaignId, assetCreativeId, aiStudioAccessAllowed],
   );
 
   const prefillFromCampaignMutation = useMutation({
     mutationFn: async () => advertifiedApi.getCampaign(campaignId.trim()),
     onSuccess: (campaign) => {
+      if (!canAccessAiStudioForStatus(campaign.status)) {
+        setPrefillMessage(getAiStudioAccessMessage(campaign.status));
+        return;
+      }
+
       const recommendation = campaign.recommendations.find((item) => item.status === 'approved')
         ?? (campaign.recommendation?.status === 'approved' ? campaign.recommendation : campaign.recommendations[0] ?? campaign.recommendation);
       const mappedObjective = mapObjectiveToStudio(campaign.brief?.objective);
@@ -394,6 +414,14 @@ export function AiStudioPage() {
           <h3 className="text-2xl font-semibold text-slate-100">AI Platform Console</h3>
           <p className="mt-2 text-sm text-slate-400">This console is now step-based. Start at step 1 and move right.</p>
 
+          <div className={`mt-5 rounded-2xl border p-4 text-sm ${
+            aiStudioAccessAllowed
+              ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
+              : 'border-amber-500/30 bg-amber-500/10 text-amber-200'
+          }`}>
+            {aiStudioAccessMessage}
+          </div>
+
           <div className="mt-5 rounded-2xl border border-slate-800 bg-slate-900/50 p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">How To Use</p>
             <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-slate-300">
@@ -438,7 +466,7 @@ export function AiStudioPage() {
                 <button
                   type="button"
                   onClick={() => prefillFromCampaignMutation.mutate()}
-                  disabled={campaignId.trim().length === 0 || prefillFromCampaignMutation.isPending}
+                  disabled={campaignId.trim().length === 0 || prefillFromCampaignMutation.isPending || campaignAccessQuery.isLoading}
                   className="rounded-xl border border-slate-600 bg-slate-900 px-5 py-3 text-sm font-semibold text-slate-100 transition hover:border-brand/45 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {prefillFromCampaignMutation.isPending ? 'Loading recommendation...' : 'Start from approved recommendation'}
@@ -501,7 +529,7 @@ export function AiStudioPage() {
               <h4 className="text-lg font-semibold text-slate-100">QA Dashboard</h4>
               <div className="mt-4 flex gap-3">
                 <input value={qaCampaignId} onChange={(event) => setQaCampaignId(event.target.value)} className="flex-1 rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white" placeholder="Campaign Id" />
-                <button type="button" onClick={() => qaQuery.refetch()} className="rounded-xl border border-slate-600 bg-slate-950 px-5 py-3 text-sm font-semibold text-white">Load QA</button>
+                <button type="button" onClick={() => qaQuery.refetch()} disabled={!aiStudioAccessAllowed} className="rounded-xl border border-slate-600 bg-slate-950 px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">Load QA</button>
               </div>
               <div className="mt-4 space-y-2 text-sm">
                 {(qaQuery.data ?? []).slice(0, 10).map((item) => (
