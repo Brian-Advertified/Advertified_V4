@@ -140,13 +140,13 @@ public sealed class CreativeStudioIntelligenceService : ICreativeStudioIntellige
         results.AddRange(generated.Creatives.Billboard.Select(item => new CreativeChannelAdaptationResponse
         {
             Channel = "Billboard",
-            Format = "OOH static",
+            Format = "Billboards and Digital Screens static",
             HeadlineOrHook = item.Headline,
             PrimaryCopy = item.Subtext,
             Cta = item.Cta,
             VisualDirection = item.VisualDirection,
             RecommendedDirection = "Keep to seven-word readable headline max.",
-            AdapterPrompt = "Produce single-message OOH copy with clear CTA cue.",
+            AdapterPrompt = "Produce single-message Billboards and Digital Screens copy with clear CTA cue.",
             Sections = new[]
             {
                 new CreativeChannelSectionResponse { Label = "Headline", Content = item.Headline },

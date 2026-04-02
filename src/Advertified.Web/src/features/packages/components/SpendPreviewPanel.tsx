@@ -171,7 +171,7 @@ function MediaGroup({ title, items }: { title: string; items: string[] }) {
 }
 
 function getPackageInclusions(band: PackageBand) {
-  const inclusions = ['Billboards and digital screens'];
+  const inclusions = ['Billboards and Digital Screens'];
 
   if (band.includeRadio !== 'no') {
     inclusions.push(band.includeRadio === 'optional' ? 'Radio support' : 'Radio');
@@ -191,3 +191,4 @@ function getPackageInclusions(band: PackageBand) {
 function isLaunchBand(band: PackageBand) {
   return band.code.toLowerCase() === 'launch' || band.name.toLowerCase().includes('launch');
 }
+

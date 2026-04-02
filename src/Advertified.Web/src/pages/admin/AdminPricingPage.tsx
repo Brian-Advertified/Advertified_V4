@@ -454,7 +454,7 @@ export function AdminPricingPage() {
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <h3 className="text-lg font-semibold text-ink">Platform markups and reserve</h3>
-                    <p className="mt-2 text-sm text-ink-soft">Control the hidden AI Studio reserve collected at checkout and the markup percentages applied to billboards and digital screens, radio, and TV planning costs.</p>
+                    <p className="mt-2 text-sm text-ink-soft">Control the hidden AI Studio reserve collected at checkout and the markup percentages applied to Billboards and Digital Screens, radio, and TV planning costs.</p>
                   </div>
                   <button
                     type="button"
@@ -472,7 +472,7 @@ export function AdminPricingPage() {
                     <input className="input-base" type="number" min="0" max="100" step="0.1" value={pricingSettingsForm.aiStudioReservePercent * 100} onChange={(event) => setPricingSettingsForm((current) => ({ ...current, aiStudioReservePercent: Number(event.target.value) / 100 }))} />
                   </label>
                   <label className="space-y-2">
-                    <span className="text-sm font-medium text-ink">Billboards and digital screens markup %</span>
+                    <span className="text-sm font-medium text-ink">Billboards and Digital Screens markup %</span>
                     <input className="input-base" type="number" min="0" max="100" step="0.1" value={pricingSettingsForm.oohMarkupPercent * 100} onChange={(event) => setPricingSettingsForm((current) => ({ ...current, oohMarkupPercent: Number(event.target.value) / 100 }))} />
                   </label>
                   <label className="space-y-2">
@@ -490,7 +490,7 @@ export function AdminPricingPage() {
                     <p className="mt-2 text-2xl font-semibold text-ink">{(pricingSettingsForm.aiStudioReservePercent * 100).toFixed(1)}%</p>
                   </div>
                   <div className="rounded-[20px] border border-line bg-white px-4 py-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Billboards and digital screens</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Billboards and Digital Screens</p>
                     <p className="mt-2 text-2xl font-semibold text-ink">{(pricingSettingsForm.oohMarkupPercent * 100).toFixed(1)}%</p>
                   </div>
                   <div className="rounded-[20px] border border-line bg-white px-4 py-4">
@@ -669,5 +669,6 @@ export function AdminPricingPage() {
     </AdminQueryBoundary>
   );
 }
+
 
 

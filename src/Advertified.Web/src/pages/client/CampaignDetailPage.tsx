@@ -13,6 +13,10 @@ import { formatDate, titleCase } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import { ClientCampaignShell, getCampaignProgressPercent } from './clientWorkspace';
 
+function formatChannelLabel(value: string) {
+  return value.replace(/\booh\b/gi, 'Billboards and Digital Screens');
+}
+
 export function CampaignDetailPage() {
   const { id = '' } = useParams();
   const location = useLocation();
@@ -311,7 +315,7 @@ export function CampaignDetailPage() {
                       {campaign.supplierBookings.slice(0, 3).map((booking) => (
                         <div key={booking.id} className="user-wire">
                           <strong>{booking.supplierOrStation}</strong>
-                          <div>{booking.channel} | {titleCase(booking.bookingStatus)}</div>
+                          <div>{formatChannelLabel(booking.channel)} | {titleCase(booking.bookingStatus)}</div>
                           <div>{booking.liveFrom || booking.liveTo ? `${booking.liveFrom ?? 'Start TBC'} to ${booking.liveTo ?? 'End TBC'}` : 'Dates still being confirmed'}</div>
                         </div>
                       ))}

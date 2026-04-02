@@ -45,14 +45,14 @@ import type { RecommendationItem, SelectedPlanInventoryItem } from '../../types/
 type DisplayPlanItem = SelectedPlanInventoryItem | RecommendationItem;
 
 function formatChannelLabel(channel: string) {
-  return normalizeChannelKey(channel) === 'OOH' ? 'Billboards and digital screens' : titleCase(channel.toLowerCase());
+  return normalizeChannelKey(channel) === 'OOH' ? 'Billboards and Digital Screens' : titleCase(channel.toLowerCase());
 }
 
 function formatFallbackFlag(flag: string) {
   const normalized = flag.trim().toLowerCase();
   if (normalized.startsWith('preferred_media_unfulfilled:')) {
     const rawChannel = normalized.split(':')[1] ?? 'A preferred channel';
-    const channel = normalizeChannelKey(rawChannel) === 'OOH' ? 'Billboards and digital screens' : rawChannel.toUpperCase();
+    const channel = normalizeChannelKey(rawChannel) === 'OOH' ? 'Billboards and Digital Screens' : rawChannel.toUpperCase();
     return `${channel} was requested, but this package or the available inventory could not support it in the draft.`;
   }
 
@@ -178,7 +178,7 @@ export function AgentCampaignDetailPage() {
       await invalidateAgentCampaignQueries(queryClient, id);
       pushToast({
         title: 'Recommendation regenerated.',
-        description: `A fresh AI draft was prepared using target mix Radio ${targetMix.radio}% | Billboards and digital screens ${targetMix.ooh}% | TV ${targetMix.tv}% | Digital ${targetMix.digital}%.`,
+        description: `A fresh AI draft was prepared using target mix Radio ${targetMix.radio}% | Billboards and Digital Screens ${targetMix.ooh}% | TV ${targetMix.tv}% | Digital ${targetMix.digital}%.`,
       });
     },
     onError: (error) => pushToast({
@@ -853,10 +853,10 @@ export function AgentCampaignDetailPage() {
                   className="mt-4 w-full accent-brand"
                 />
                 <p className="mt-3 text-sm text-ink-soft">
-                  Target mix: Radio {targetMix.radio}% | Billboards and digital screens {targetMix.ooh}% | TV {targetMix.tv}% | Digital {targetMix.digital}%
+                  Target mix: Radio {targetMix.radio}% | Billboards and Digital Screens {targetMix.ooh}% | TV {targetMix.tv}% | Digital {targetMix.digital}%
                 </p>
                 <p className="mt-1 text-sm text-ink-soft">
-                  Current draft: Radio {currentRadioShare}% | Billboards and digital screens {currentOohShare}% | TV {currentTvShare}% | Digital {currentDigitalShare}%
+                  Current draft: Radio {currentRadioShare}% | Billboards and Digital Screens {currentOohShare}% | TV {currentTvShare}% | Digital {currentDigitalShare}%
                 </p>
               </div>
 
@@ -919,7 +919,7 @@ export function AgentCampaignDetailPage() {
               )) : (
                 <EmptyState
                   title="No recommendation lines yet"
-                  description="Generate the recommendation first, or use the inventory table below to add radio, billboards and digital screens, or digital lines manually."
+                  description="Generate the recommendation first, or use the inventory table below to add radio, Billboards and Digital Screens, or digital lines manually."
                 />
               )}
             </div>
@@ -990,7 +990,7 @@ export function AgentCampaignDetailPage() {
                     <input className="input-base" placeholder="Supplier or station" value={bookingDraft.supplierOrStation} onChange={(event) => setBookingDraft((current) => ({ ...current, supplierOrStation: event.target.value }))} />
                     <select className="input-base" value={bookingDraft.channel} onChange={(event) => setBookingDraft((current) => ({ ...current, channel: event.target.value }))}>
                       <option value="radio">Radio</option>
-                      <option value="ooh">Billboards and digital screens</option>
+                      <option value="ooh">Billboards and Digital Screens</option>
                       <option value="tv">TV</option>
                       <option value="digital">Digital</option>
                     </select>
@@ -1225,3 +1225,4 @@ export function AgentCampaignDetailPage() {
     </section>
   );
 }
+

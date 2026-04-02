@@ -142,7 +142,7 @@ function formatClientChannelLabel(value: string) {
     return value;
   }
 
-  return value.replace(/\booh\b/gi, 'Billboards and digital screens');
+  return value.replace(/\booh\b/gi, 'Billboards and Digital Screens');
 }
 
 function toClientFriendlyCopy(value: string) {
@@ -150,5 +150,6 @@ function toClientFriendlyCopy(value: string) {
     return value;
   }
 
-  return value.replace(/\booh\b/gi, 'billboards and digital screens');
+  return value.replace(/\booh\b/gi, 'Billboards and Digital Screens');
 }
+

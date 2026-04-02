@@ -486,7 +486,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
     private static string BuildSummary(RecommendationResult result, CampaignPlanningRequest request)
     {
         var mediaMix = string.Join(", ", result.RecommendedPlan.Select(x => x.MediaType).Distinct());
-        var mixSummary = $"Radio {request.TargetRadioShare ?? 0}% | Billboards and digital screens {request.TargetOohShare ?? 0}% | TV {request.TargetTvShare ?? 0}% | Digital {request.TargetDigitalShare ?? 0}%";
+        var mixSummary = $"Radio {request.TargetRadioShare ?? 0}% | Billboards and Digital Screens {request.TargetOohShare ?? 0}% | TV {request.TargetTvShare ?? 0}% | Digital {request.TargetDigitalShare ?? 0}%";
         return $"Recommended {result.RecommendedPlan.Count} planned item(s) across {mediaMix}. Budget split target: {mixSummary}.";
     }
 
@@ -510,3 +510,4 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
     private sealed record ProposalVariant(string Key, CampaignPlanningRequest Request);
     private sealed record ChannelTargets(int Radio, int Ooh, int Tv, int Digital);
 }
+

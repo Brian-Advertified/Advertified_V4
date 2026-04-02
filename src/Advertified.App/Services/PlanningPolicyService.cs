@@ -137,7 +137,7 @@ public sealed class PlanningPolicyService : IPlanningPolicyService
     {
         var parts = new List<string>();
         if (request.TargetRadioShare.HasValue) parts.Add($"Radio {request.TargetRadioShare.Value}%");
-        if (request.TargetOohShare.HasValue) parts.Add($"Billboards and digital screens {request.TargetOohShare.Value}%");
+        if (request.TargetOohShare.HasValue) parts.Add($"Billboards and Digital Screens {request.TargetOohShare.Value}%");
         if (request.TargetTvShare.HasValue) parts.Add($"TV {request.TargetTvShare.Value}%");
         if (request.TargetDigitalShare.HasValue) parts.Add($"Digital {request.TargetDigitalShare.Value}%");
         return parts.Count > 0 ? string.Join(" | ", parts) : null;
@@ -207,3 +207,4 @@ public sealed class PlanningPolicyService : IPlanningPolicyService
         return GetPricingModel(candidate).Equals("fixed_placement_total", StringComparison.OrdinalIgnoreCase);
     }
 }
+

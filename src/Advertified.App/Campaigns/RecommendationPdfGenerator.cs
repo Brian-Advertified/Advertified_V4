@@ -265,7 +265,7 @@ public static class RecommendationPdfPreviewFactory
                     {
                         new RecommendationLineDocumentModel
                         {
-                            Channel = "Billboards and digital screens",
+                            Channel = "Billboards and Digital Screens",
                             Title = "Sandton Drive digital screen",
                             Rationale = "Premium commuter visibility close to retail and corporate traffic.",
                             Quantity = 1,
@@ -365,3 +365,4 @@ internal sealed class RecommendationLineDocumentModel
     public IReadOnlyList<string> SelectionReasons { get; init; } = Array.Empty<string>();
     public IReadOnlyList<string> PolicyFlags { get; init; } = Array.Empty<string>();
 }
+

@@ -20,6 +20,10 @@ const videoDurationOptions = [6, 10, 15, 30, 45, 60] as const;
 
 type ConsoleStep = 'queue' | 'brief' | 'qa' | 'assets' | 'regenerate';
 
+function formatChannelLabel(value: string) {
+  return value.replace(/\booh\b/gi, 'Billboards and Digital Screens');
+}
+
 export function AiStudioPage() {
   const [searchParams] = useSearchParams();
   const campaignIdFromUrl = searchParams.get('campaignId')?.trim() ?? '';
@@ -502,7 +506,7 @@ export function AiStudioPage() {
               <div className="mt-4 space-y-2 text-sm">
                 {(qaQuery.data ?? []).slice(0, 10).map((item) => (
                   <div key={`${item.creativeId}-${item.createdAt}`} className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
-                    <p className="text-slate-200">{item.channel} · {item.language} · <span className="font-semibold">{item.status}</span></p>
+                    <p className="text-slate-200">{formatChannelLabel(item.channel)} · {item.language} · <span className="font-semibold">{item.status}</span></p>
                     <p className="text-slate-400">Score: {item.finalScore} | Risk: {item.riskLevel}</p>
                   </div>
                 ))}

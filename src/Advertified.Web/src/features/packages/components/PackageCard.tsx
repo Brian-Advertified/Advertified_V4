@@ -65,7 +65,7 @@ export function PackageCard({
 }
 
 function getPackageInclusions(band: PackageBand) {
-  const inclusions = ['Billboards and digital screens'];
+  const inclusions = ['Billboards and Digital Screens'];
 
   if (band.includeRadio !== 'no') {
     inclusions.push(band.includeRadio === 'optional' ? 'Radio support' : 'Radio');
@@ -109,3 +109,4 @@ function getAiStudioCapabilities(band: PackageBand) {
 
   return capabilities;
 }
+

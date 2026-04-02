@@ -48,7 +48,7 @@ export function OutdoorPreviewMap({ points }: { points: PackagePreviewMapPoint[]
     return (
       <div className="overflow-hidden rounded-[22px] border border-line bg-white">
         <div className="border-b border-line px-4 py-3">
-          <p className="text-sm font-semibold text-ink">Billboards and digital screens near this campaign area</p>
+          <p className="text-sm font-semibold text-ink">Billboards and Digital Screens near this campaign area</p>
           <p className="mt-1 text-xs leading-6 text-ink-soft">No mapped inventory points are available for the selected area yet.</p>
         </div>
       </div>
@@ -59,7 +59,7 @@ export function OutdoorPreviewMap({ points }: { points: PackagePreviewMapPoint[]
     return (
       <div className="overflow-hidden rounded-[22px] border border-line bg-white">
         <div className="border-b border-line px-4 py-3">
-          <p className="text-sm font-semibold text-ink">Billboards and digital screens near this campaign area</p>
+          <p className="text-sm font-semibold text-ink">Billboards and Digital Screens near this campaign area</p>
           <p className="mt-1 text-xs leading-6 text-ink-soft">Add a Mapbox token to enable the interactive package map.</p>
         </div>
       </div>
@@ -69,7 +69,7 @@ export function OutdoorPreviewMap({ points }: { points: PackagePreviewMapPoint[]
   return (
     <div className="overflow-hidden rounded-[22px] border border-line bg-white">
       <div className="border-b border-line px-4 py-3">
-        <p className="text-sm font-semibold text-ink">Billboards and digital screens near this campaign area</p>
+        <p className="text-sm font-semibold text-ink">Billboards and Digital Screens near this campaign area</p>
         <p className="mt-1 text-xs leading-6 text-ink-soft">Outdoor pins reflect current preview inventory with supplier GPS coordinates.</p>
       </div>
       <div className="h-[260px] w-full">
@@ -158,3 +158,4 @@ export function OutdoorPreviewMap({ points }: { points: PackagePreviewMapPoint[]
 function getPointKey(point: PackagePreviewMapPoint) {
   return `${point.siteName}-${point.latitude}-${point.longitude}`;
 }
+

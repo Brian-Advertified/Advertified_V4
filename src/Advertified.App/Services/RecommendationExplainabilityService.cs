@@ -86,7 +86,7 @@ public sealed class RecommendationExplainabilityService : IRecommendationExplain
 
         if (candidate.MediaType.Equals("OOH", StringComparison.OrdinalIgnoreCase))
         {
-            reasons.Add("Billboards and digital screens prioritized for visibility");
+            reasons.Add("Billboards and Digital Screens prioritized for visibility");
             reasons.Add("Adds visible market presence");
         }
 
@@ -145,7 +145,8 @@ public sealed class RecommendationExplainabilityService : IRecommendationExplain
         }
 
         return mediaType.Equals("OOH", StringComparison.OrdinalIgnoreCase)
-            ? "Billboards and digital screens"
+            ? "Billboards and Digital Screens"
             : mediaType;
     }
 }
+

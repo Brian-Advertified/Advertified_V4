@@ -23,7 +23,7 @@ public sealed class OohPlanningInventorySource : IOohPlanningInventorySource
 select
     iif.id as SourceId,
     'ooh' as SourceType,
-    coalesce(iif.site_name, 'OOH Site') as DisplayName,
+    coalesce(iif.site_name, 'Billboard or Digital Screen Site') as DisplayName,
     'OOH' as MediaType,
     iif.media_type as Subtype,
     iif.province as Province,

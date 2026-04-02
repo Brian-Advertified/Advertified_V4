@@ -20,7 +20,7 @@ const STEP_CONFIG = [
 const CHANNEL_OPTIONS: ChannelOption[] = ['Radio', 'OOH', 'TV'];
 const CHANNEL_LABELS: Record<ChannelOption, string> = {
   Radio: 'Radio',
-  OOH: 'Billboards and digital screens',
+  OOH: 'Billboards and Digital Screens',
   TV: 'TV',
 };
 const OBJECTIVE_OPTIONS = ['awareness', 'launch', 'promotion', 'brand_presence', 'leads'] as const;
@@ -878,7 +878,7 @@ export function AgentCreateRecommendationPage() {
                   </div>
                   <div>
                     <p className="text-ink-soft">Channels</p>
-                    <p className="font-medium text-ink">{form.channels.join(' + ') || 'None selected'}</p>
+                    <p className="font-medium text-ink">{form.channels.map((channel) => CHANNEL_LABELS[channel]).join(' + ') || 'None selected'}</p>
                   </div>
                 </div>
               </div>
@@ -931,3 +931,4 @@ export function AgentCreateRecommendationPage() {
     </section>
   );
 }
+

@@ -82,8 +82,8 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
                 .Where(candidate => !usedSourceIds.Contains(candidate.SourceId))
                 .Where(candidate => spentTotal + candidate.Cost <= request.SelectedBudget)
                 .OrderBy(candidate => GetStationSelectionCount(result, candidate, shareTarget.Channel))
+                .ThenByDescending(candidate => candidate.Cost)
                 .ThenByDescending(candidate => candidate.Score)
-                .ThenBy(candidate => candidate.Cost)
                 .FirstOrDefault();
 
             if (channelCandidate is null)
@@ -128,8 +128,8 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
                     .Where(candidate => !usedSourceIds.Contains(candidate.SourceId))
                     .Where(candidate => spentTotal + candidate.Cost <= request.SelectedBudget)
                     .OrderBy(candidate => GetStationSelectionCount(result, candidate, shareTarget.Channel))
+                    .ThenByDescending(candidate => candidate.Cost)
                     .ThenByDescending(candidate => candidate.Score)
-                    .ThenBy(candidate => candidate.Cost)
                     .FirstOrDefault();
 
                 if (nextCandidate is null)

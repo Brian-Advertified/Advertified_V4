@@ -50,8 +50,8 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
         }
 
         var scored = eligibleCandidates
-            .OrderByDescending(x => x.Score)
-            .ThenBy(x => x.Cost)
+            .OrderByDescending(x => x.Cost)
+            .ThenByDescending(x => x.Score)
             .ToList();
 
         var basePlan = _planBuilder.BuildPlan(scored, request, diversify: true);
@@ -128,8 +128,8 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
                 .Where(item => NormalizeChannel(item.MediaType).Equals(channel, StringComparison.OrdinalIgnoreCase))
                 .Where(item => item.Cost > 0m)
                 .Where(item => recommendedPlan.All(line => line.SourceId != item.SourceId))
-                .OrderByDescending(item => item.Score)
-                .ThenBy(item => item.Cost)
+                .OrderByDescending(item => item.Cost)
+                .ThenByDescending(item => item.Score)
                 .FirstOrDefault();
 
             if (candidate is null)

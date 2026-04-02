@@ -30,6 +30,10 @@ function parseDelimitedInput(value: string) {
     .filter(Boolean);
 }
 
+function formatChannelLabel(value: string) {
+  return value.replace(/\booh\b/gi, 'Billboards and Digital Screens');
+}
+
 function buildDefaultCreativePrompt({
   campaignName,
   businessName,
@@ -262,7 +266,7 @@ export function CreativeDirectorStudioPage() {
   });
   const recommendation = getPrimaryRecommendation(campaign);
   const brief = campaign.brief;
-  const channelMood = recommendation ? Array.from(new Set(recommendation.items.map((item) => item.channel))).filter(Boolean) : [];
+  const channelMood = recommendation ? Array.from(new Set(recommendation.items.map((item) => formatChannelLabel(item.channel)))).filter(Boolean) : [];
   const geographyFocus = [brief?.areas, brief?.cities, brief?.provinces].flatMap((items) => items ?? []).filter(Boolean);
   const isAwaitingFinalApproval = campaign.status === 'creative_sent_to_client_for_approval';
   const studioCollections = [
@@ -373,7 +377,7 @@ export function CreativeStudioPreviewPage() {
   const campaign = campaignQuery.data;
   const recommendation = getPrimaryRecommendation(campaign);
   const brief = campaign.brief;
-  const channelMood = recommendation ? Array.from(new Set(recommendation.items.map((item) => item.channel))).filter(Boolean) : [];
+  const channelMood = recommendation ? Array.from(new Set(recommendation.items.map((item) => formatChannelLabel(item.channel)))).filter(Boolean) : [];
   const geographyFocus = [brief?.areas, brief?.cities, brief?.provinces].flatMap((items) => items ?? []).filter(Boolean);
   const isAwaitingFinalApproval = campaign.status === 'creative_sent_to_client_for_approval';
   const studioCollections = [
@@ -478,7 +482,7 @@ function buildDemoCampaign(): Campaign {
       targetLsmMax: 10,
       targetInterests: ['Shopping', 'Family', 'Lifestyle'],
       targetAudienceNotes: 'Urban working adults and young families who respond to practical value and strong visual retail cues.',
-      preferredMediaTypes: ['Billboards and digital screens', 'Radio', 'Digital'],
+      preferredMediaTypes: ['Billboards and Digital Screens', 'Radio', 'Digital'],
       excludedMediaTypes: [],
       mustHaveAreas: ['Johannesburg North'],
       excludedAreas: [],
@@ -519,8 +523,8 @@ function buildDemoCampaign(): Campaign {
             quantity: 2,
             flighting: '4 week run',
             itemNotes: 'Primary retail corridor coverage.',
-            title: 'Billboards and digital screens premium roadside',
-            channel: 'Billboards and digital screens',
+            title: 'Billboards and Digital Screens premium roadside',
+            channel: 'Billboards and Digital Screens',
             rationale: 'Delivers broad local visibility and strong route frequency.',
             cost: 0,
             type: 'base',
@@ -589,7 +593,7 @@ export function CreativeStudioDemoPage() {
   const campaign = buildDemoCampaign();
   const recommendation = getPrimaryRecommendation(campaign);
   const brief = campaign.brief;
-  const channelMood = recommendation ? Array.from(new Set(recommendation.items.map((item) => item.channel))).filter(Boolean) : [];
+  const channelMood = recommendation ? Array.from(new Set(recommendation.items.map((item) => formatChannelLabel(item.channel)))).filter(Boolean) : [];
   const geographyFocus = [brief?.areas, brief?.cities, brief?.provinces].flatMap((items) => items ?? []).filter(Boolean);
   const studioCollections = [
     {
@@ -1143,7 +1147,7 @@ function CreativeStudioContent({
                     <option value="">Select creative id</option>
                     {(campaignCreativesQuery.data ?? []).map((item) => (
                       <option key={item.id} value={item.id}>
-                        {item.id.slice(0, 8)} | {item.channel} | {item.language} | {item.score ?? '-'} | {new Date(item.createdAt).toLocaleString()}
+                        {item.id.slice(0, 8)} | {formatChannelLabel(item.channel)} | {item.language} | {item.score ?? '-'} | {new Date(item.createdAt).toLocaleString()}
                       </option>
                     ))}
                   </select>
@@ -1200,7 +1204,7 @@ function CreativeStudioContent({
                       <div><strong>CTA:</strong> {creativeSystem.campaignSummary.cta}</div>
                     </div>
                     <div className="mt-3 text-sm leading-7 text-slate-700">
-                      <strong>Channels:</strong> {creativeSystem.campaignSummary.channels.join(' • ')}
+                      <strong>Channels:</strong> {creativeSystem.campaignSummary.channels.map(formatChannelLabel).join(' • ')}
                     </div>
                     {creativeSystem.campaignSummary.constraints.length ? (
                       <div className="mt-3 text-sm leading-7 text-slate-700">
@@ -1299,7 +1303,7 @@ function CreativeStudioContent({
               <div className="mt-4 space-y-4">
                 {creativeSystem.channelAdaptations.map((adaptation) => (
                   <article key={`${adaptation.channel}-${adaptation.format}`} className="rounded-[22px] border border-slate-200/80 bg-slate-50/70 p-4">
-                    <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">{adaptation.channel} • {adaptation.format}</div>
+                    <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">{formatChannelLabel(adaptation.channel)} • {adaptation.format}</div>
                     <div className="mt-2 text-sm leading-7 text-slate-700"><strong>Headline / hook:</strong> {adaptation.headlineOrHook}</div>
                     <div className="mt-2 text-sm leading-7 text-slate-700"><strong>Primary copy:</strong> {adaptation.primaryCopy}</div>
                     <div className="mt-2 text-sm leading-7 text-slate-700"><strong>CTA:</strong> {adaptation.cta}</div>
@@ -1428,4 +1432,5 @@ function CreativeStudioContent({
     </CreativePageShell>
   );
 }
+
 

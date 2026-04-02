@@ -73,10 +73,10 @@ public sealed class CampaignBriefInterpretationService : ICampaignBriefInterpret
                             "  \"geography\": \"gauteng|western-cape|kwazulu-natal|national\",\n" +
                             "  \"tone\": \"premium|balanced|high-visibility|performance\",\n" +
                             "  \"campaignName\": \"string\",\n" +
-                            "  \"channels\": [\"Radio\", \"OOH\", \"TV\"],\n" +
+                            "  \"channels\": [\"Radio\", \"Billboards and Digital Screens\", \"TV\"],\n" +
                             "  \"summary\": \"short plain-language explanation\"\n" +
                             "}\n" +
-                            "Never return channels outside Radio, OOH, TV."
+                            "Never return channels outside Radio, Billboards and Digital Screens, TV."
                     },
                     new OpenAIChatMessage
                     {
@@ -129,7 +129,8 @@ public sealed class CampaignBriefInterpretationService : ICampaignBriefInterpret
                 : result.CampaignName.Trim();
             result.Summary = string.IsNullOrWhiteSpace(result.Summary)
                 ? "The system interpreted the brief and suggested a structured planning starting point."
-                : result.Summary.Trim();
+                : result.Summary.Trim()
+                    .Replace("OOH", "Billboards and Digital Screens", StringComparison.OrdinalIgnoreCase);
 
             return result;
         }
@@ -235,6 +236,9 @@ public sealed class CampaignBriefInterpretationService : ICampaignBriefInterpret
             {
                 "radio" => "Radio",
                 "ooh" => "OOH",
+                "Billboards and Digital Screens" => "OOH",
+                "billboards" => "OOH",
+                "outdoor" => "OOH",
                 "tv" => "TV",
                 _ => null
             })

@@ -5,7 +5,7 @@ import { getPrimaryRecommendation } from '../../pages/client/clientWorkspace';
 type Campaign = Awaited<ReturnType<typeof advertifiedApi.getCampaign>>;
 
 function formatChannelLabel(value: string) {
-  return value.replace(/\booh\b/gi, 'Billboards and digital screens');
+  return value.replace(/\booh\b/gi, 'Billboards and Digital Screens');
 }
 
 export function getHeroContent(campaign: Campaign, recommendationStatus?: string) {
@@ -203,3 +203,4 @@ export function buildApprovalDetails(campaign: Campaign, recommendationOverride?
 
   return details;
 }
+

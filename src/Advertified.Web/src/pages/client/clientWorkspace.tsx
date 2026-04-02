@@ -5,7 +5,7 @@ import { cn, formatCurrency, formatDate, titleCase } from '../../lib/utils';
 import type { Campaign, CampaignRecommendation, PackageBand, PackageOrder } from '../../types/domain';
 
 function formatChannelLabel(value: string) {
-  return value.replace(/\booh\b/gi, 'Billboards and digital screens');
+  return value.replace(/\booh\b/gi, 'Billboards and Digital Screens');
 }
 
 export function getPrimaryRecommendation(campaign: Campaign) {
@@ -446,3 +446,4 @@ export function StepIcon({ state }: { state: 'complete' | 'current' | 'upcoming'
 
   return <Circle className="size-5 text-slate-300" />;
 }
+
