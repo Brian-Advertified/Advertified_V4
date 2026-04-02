@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useToast } from '../../components/ui/toast';
 import { ProcessingOverlay } from '../../components/ui/ProcessingOverlay';
 import { PageHero } from '../../components/marketing/PageHero';
@@ -11,7 +11,12 @@ export function RegisterPage() {
   const { register } = useAuth();
   const { pushToast } = useToast();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(false);
+  const nextPath = (() => {
+    const candidate = searchParams.get('next')?.trim() ?? '';
+    return candidate.startsWith('/') ? candidate : '';
+  })();
 
   async function handleSubmit(values: RegistrationSchema) {
     try {
@@ -21,7 +26,10 @@ export function RegisterPage() {
         title: 'Your account has been created.',
         description: 'Check your email for the activation link before you sign in.',
       });
-      navigate(`/verify-email?email=${encodeURIComponent(result.email)}`);
+      const verifyUrl = nextPath
+        ? `/verify-email?email=${encodeURIComponent(result.email)}&next=${encodeURIComponent(nextPath)}`
+        : `/verify-email?email=${encodeURIComponent(result.email)}`;
+      navigate(verifyUrl);
     } catch (error) {
       pushToast({
         title: 'We could not create your account.',

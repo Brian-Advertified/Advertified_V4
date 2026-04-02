@@ -13,6 +13,10 @@ export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const activated = useMemo(() => new URLSearchParams(location.search).get('activated') === '1', [location.search]);
+  const nextPath = useMemo(() => {
+    const candidate = new URLSearchParams(location.search).get('next')?.trim() ?? '';
+    return candidate.startsWith('/') ? candidate : '';
+  }, [location.search]);
 
   async function handleSubmit(values: LoginSchema) {
     try {
@@ -24,6 +28,7 @@ export function LoginPage() {
       });
       navigate(
         (location.state as { from?: string } | null)?.from
+          ?? nextPath
           ?? (user.role === 'admin' ? '/admin' : user.role === 'creative_director' ? '/creative/studio-demo' : user.role === 'agent' ? '/agent' : '/dashboard'),
       );
     } catch (error) {

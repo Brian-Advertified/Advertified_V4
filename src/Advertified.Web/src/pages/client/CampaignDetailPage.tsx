@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MessageSquareText, Sparkles } from 'lucide-react';
 import { useState } from 'react';
-import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { useToast } from '../../components/ui/toast';
@@ -20,6 +20,7 @@ function formatChannelLabel(value: string) {
 export function CampaignDetailPage() {
   const { id = '' } = useParams();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuth();
   const { pushToast } = useToast();
@@ -35,8 +36,13 @@ export function CampaignDetailPage() {
   const [messageDraft, setMessageDraft] = useState('');
   const [changeNotes, setChangeNotes] = useState('');
   const [selectedRecommendationId, setSelectedRecommendationId] = useState('');
+  const requestedRecommendationId = searchParams.get('recommendationId')?.trim() ?? '';
+  const requestedAction = searchParams.get('action')?.trim() ?? '';
+  const showRejectAllFlow = requestedAction === 'reject_all';
   const resolvedRecommendationId = recommendations.some((item) => item.id === selectedRecommendationId)
     ? selectedRecommendationId
+    : recommendations.some((item) => item.id === requestedRecommendationId)
+      ? requestedRecommendationId
     : (recommendations.find((item) => item.status === 'sent_to_client')?.id ?? recommendations[0]?.id ?? '');
 
   const approveMutation = useMutation({
@@ -185,9 +191,11 @@ export function CampaignDetailPage() {
         ? Math.max(progress, 96)
         : progress;
   const recommendationAwaitingDecision = recommendation?.status === 'sent_to_client';
+  const paymentRequiredBeforeApproval = campaign.status === 'awaiting_purchase';
   const canApproveRecommendation = Boolean(
     recommendation
       && recommendationAwaitingDecision
+      && !paymentRequiredBeforeApproval
       && campaign.status !== 'approved'
       && campaign.status !== 'creative_changes_requested'
       && campaign.status !== 'creative_sent_to_client_for_approval'
@@ -406,6 +414,21 @@ export function CampaignDetailPage() {
             </div>
           ) : null}
 
+          {requestedRecommendationId && recommendation ? (
+            <div className="mb-6 rounded-[16px] border border-brand/30 bg-brand-soft/40 px-4 py-3 text-sm text-ink">
+              <strong>{recommendation.proposalLabel ?? 'Selected proposal'}</strong> was preselected from your email/PDF link. Review details, then confirm with
+              {' '}
+              <strong>Accept as final</strong>
+              .
+            </div>
+          ) : null}
+
+          {showRejectAllFlow ? (
+            <div className="mb-6 rounded-[16px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              Share why these proposals do not work for you, then click <strong>Reject all and request new set</strong>. Your agent will prepare new options from your notes.
+            </div>
+          ) : null}
+
           {recommendation ? (
             <div className="mb-6">
               <RecommendationViewer recommendation={recommendation} recommendationPdfUrl={campaign.recommendationPdfUrl} />
@@ -450,6 +473,22 @@ export function CampaignDetailPage() {
                 <div className="mb-2 text-sm font-semibold text-ink">What you need to do</div>
                 <p className="text-sm leading-7 text-ink-soft">{approval.guidance}</p>
               </div>
+              {paymentRequiredBeforeApproval ? (
+                <div className="rounded-[18px] border border-amber-200 bg-amber-50 p-5">
+                  <div className="mb-2 text-sm font-semibold text-amber-900">Payment required first</div>
+                  <p className="text-sm leading-7 text-amber-800">
+                    Continue to payment and we will automatically accept the currently selected proposal after payment succeeds.
+                  </p>
+                  <div className="mt-3">
+                    <Link
+                      to={`/checkout/payment?orderId=${encodeURIComponent(campaign.packageOrderId)}&campaignId=${encodeURIComponent(campaign.id)}${recommendation?.id ? `&recommendationId=${encodeURIComponent(recommendation.id)}` : ''}`}
+                      className="user-btn-primary"
+                    >
+                      Pay and accept selected proposal
+                    </Link>
+                  </div>
+                </div>
+              ) : null}
               <div className="rounded-[18px] border border-line bg-slate-50/70 p-5">
                 <div className="mb-2 text-sm font-semibold text-ink">Why this should feel safe</div>
                 <p className="text-sm leading-7 text-ink-soft">{approval.reassurance}</p>
@@ -486,7 +525,7 @@ export function CampaignDetailPage() {
                       disabled={approveMutation.isPending || requestChangesMutation.isPending || rejectAllMutation.isPending || !changeNotes.trim()}
                       className="user-btn-secondary disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {rejectAllMutation.isPending ? 'Sending...' : 'Reject all proposals'}
+                      {rejectAllMutation.isPending ? 'Sending...' : 'Reject all and request new set'}
                     </button>
                     <Link to={`${campaignBasePath}/messages`} className="user-btn">Ask question</Link>
                   </div>

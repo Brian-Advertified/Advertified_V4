@@ -1,10 +1,12 @@
 using System.Text.Json;
 using Advertified.App.Campaigns;
+using Advertified.App.Configuration;
 using Advertified.App.Data;
 using Advertified.App.Data.Entities;
 using Advertified.App.Services.Abstractions;
 using Advertified.App.Support;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Advertified.App.Services;
 
@@ -13,12 +15,18 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
     private readonly AppDbContext _db;
     private readonly IWebHostEnvironment _environment;
     private readonly IPublicAssetStorage _assetStorage;
+    private readonly FrontendOptions _frontendOptions;
 
-    public RecommendationDocumentService(AppDbContext db, IWebHostEnvironment environment, IPublicAssetStorage assetStorage)
+    public RecommendationDocumentService(
+        AppDbContext db,
+        IWebHostEnvironment environment,
+        IPublicAssetStorage assetStorage,
+        IOptions<FrontendOptions> frontendOptions)
     {
         _db = db;
         _environment = environment;
         _assetStorage = assetStorage;
+        _frontendOptions = frontendOptions.Value;
     }
 
     public async Task<byte[]> GetCampaignPdfBytesAsync(Guid campaignId, CancellationToken cancellationToken)
@@ -49,6 +57,7 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
             ClientName = campaign.User.FullName,
             BusinessName = campaign.User.BusinessProfile?.BusinessName,
             CampaignName = ResolveCampaignName(campaign),
+            CampaignApprovalsUrl = BuildFrontendUrl($"/proposal/{campaign.Id}"),
             PackageName = campaign.PackageBand.Name,
             SelectedBudget = ResolveSelectedBudget(campaign),
             GeneratedAtUtc = DateTime.UtcNow,
@@ -56,7 +65,7 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
             SpecialRequirements = campaign.CampaignBrief?.SpecialRequirements ?? campaign.CampaignBrief?.CreativeNotes,
             TargetAreas = BuildTargetAreas(campaign.CampaignBrief),
             TargetLanguages = DeserializeList(campaign.CampaignBrief?.TargetLanguagesJson),
-            Proposals = currentRecommendations.Select(MapProposal).ToArray()
+            Proposals = currentRecommendations.Select((recommendation, index) => MapProposal(campaign.Id, recommendation, index)).ToArray()
         };
 
         var logoPath = Billing.InvoicePdfGenerator.ResolveLogoPath(_environment.ContentRootPath, null);
@@ -101,6 +110,7 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
             ClientName = campaign.User.FullName,
             BusinessName = campaign.User.BusinessProfile?.BusinessName,
             CampaignName = ResolveCampaignName(campaign),
+            CampaignApprovalsUrl = BuildFrontendUrl($"/proposal/{campaign.Id}"),
             PackageName = campaign.PackageBand.Name,
             SelectedBudget = ResolveSelectedBudget(campaign),
             GeneratedAtUtc = DateTime.UtcNow,
@@ -108,7 +118,7 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
             SpecialRequirements = campaign.CampaignBrief?.SpecialRequirements ?? campaign.CampaignBrief?.CreativeNotes,
             TargetAreas = BuildTargetAreas(campaign.CampaignBrief),
             TargetLanguages = DeserializeList(campaign.CampaignBrief?.TargetLanguagesJson),
-            Proposals = new[] { MapProposal(recommendation) }
+            Proposals = new[] { MapProposal(campaign.Id, recommendation, 0) }
         };
 
         var logoPath = Billing.InvoicePdfGenerator.ResolveLogoPath(_environment.ContentRootPath, null);
@@ -125,9 +135,9 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
         return pdfBytes;
     }
 
-    private static RecommendationProposalDocumentModel MapProposal(CampaignRecommendation recommendation)
+    private RecommendationProposalDocumentModel MapProposal(Guid campaignId, CampaignRecommendation recommendation, int proposalIndex)
     {
-        var (label, strategy) = GetProposalDetails(recommendation.RecommendationType);
+        var (label, strategy) = GetProposalDetails(recommendation.RecommendationType, proposalIndex);
         var lines = recommendation.RecommendationItems.Select(MapLine).ToList();
         lines.Add(new RecommendationLineDocumentModel
         {
@@ -142,6 +152,7 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
         {
             Label = label,
             Strategy = strategy,
+            AcceptUrl = BuildFrontendUrl($"/proposal/{campaignId}?recommendationId={recommendation.Id:D}"),
             Summary = recommendation.Summary ?? string.Empty,
             Rationale = RemoveInternalMarkers(recommendation.Rationale),
             TotalCost = recommendation.TotalCost,
@@ -354,7 +365,7 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
             campaign.PackageOrder.AiStudioReserveAmount);
     }
 
-    private static (string Label, string Strategy) GetProposalDetails(string? recommendationType)
+    private static (string Label, string Strategy) GetProposalDetails(string? recommendationType, int proposalIndex)
     {
         var variantKey = recommendationType?
             .Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
@@ -367,7 +378,19 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
             "ooh_focus" => ("Proposal B", "Billboards and Digital Screens-led reach"),
             "radio_focus" => ("Proposal C", "Radio-led frequency"),
             "digital_focus" => ("Proposal C", "Digital-led amplification"),
-            _ => ("Proposal", "Recommendation option")
+            _ => ($"Proposal {GetProposalLetter(proposalIndex)}", "Recommendation option")
         };
+    }
+
+    private static string GetProposalLetter(int index)
+    {
+        return index >= 0 && index < 26
+            ? ((char)('A' + index)).ToString()
+            : (index + 1).ToString();
+    }
+
+    private string BuildFrontendUrl(string path)
+    {
+        return _frontendOptions.BaseUrl.TrimEnd('/') + path;
     }
 }

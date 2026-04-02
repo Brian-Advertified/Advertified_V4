@@ -94,6 +94,14 @@ internal static class RecommendationPdfGenerator
                                     row.RelativeItem().Text($"{proposal.Label} | {ToClientCopy(proposal.Strategy ?? "Recommendation option")}");
                                     row.ConstantItem(150).AlignRight().Text(FormatCurrency(proposal.TotalCost)).SemiBold();
                                 });
+
+                                if (!string.IsNullOrWhiteSpace(proposal.AcceptUrl))
+                                {
+                                    proposalSummary.Item()
+                                        .PaddingBottom(2)
+                                        .Hyperlink(proposal.AcceptUrl)
+                                        .Text($"Accept {proposal.Label}");
+                                }
                             }
                         });
 
@@ -135,6 +143,17 @@ internal static class RecommendationPdfGenerator
                             if (!string.IsNullOrWhiteSpace(proposal.Rationale))
                             {
                                 section.Item().Text(ToClientCopy(proposal.Rationale)).FontColor("#4B5563");
+                            }
+
+                            if (!string.IsNullOrWhiteSpace(proposal.AcceptUrl))
+                            {
+                                section.Item()
+                                    .Border(1)
+                                    .BorderColor("#123A33")
+                                    .Background("#E8F5EF")
+                                    .Padding(8)
+                                    .Hyperlink(proposal.AcceptUrl)
+                                    .Text($"Accept {proposal.Label}");
                             }
 
                             foreach (var item in proposal.Items)
@@ -323,6 +342,7 @@ internal sealed class RecommendationDocumentModel
     public string ClientName { get; init; } = string.Empty;
     public string? BusinessName { get; init; }
     public string CampaignName { get; init; } = string.Empty;
+    public string? CampaignApprovalsUrl { get; init; }
     public string PackageName { get; init; } = string.Empty;
     public decimal SelectedBudget { get; init; }
     public DateTime GeneratedAtUtc { get; init; }
@@ -337,6 +357,7 @@ internal sealed class RecommendationProposalDocumentModel
 {
     public string Label { get; init; } = "Proposal";
     public string? Strategy { get; init; }
+    public string? AcceptUrl { get; init; }
     public string Summary { get; init; } = string.Empty;
     public string Rationale { get; init; } = string.Empty;
     public decimal TotalCost { get; init; }

@@ -17,11 +17,16 @@ export function InventoryTable({
   return (
     <div className="panel overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="min-w-full text-left text-sm">
+        <table className="min-w-[1200px] text-left text-sm">
           <thead className="bg-slate-50 text-ink-soft">
             <tr>
               {['Type', 'Station', 'Region', 'Language', 'Show / Daypart', 'Time band', 'Slot type', 'Duration', 'Rate', 'Restrictions', ...(selectable ? ['Action'] : [])].map((header) => (
-                <th key={header} className="px-4 py-4 font-semibold">{header}</th>
+                <th
+                  key={header}
+                  className={`px-4 py-4 font-semibold ${header === 'Action' ? 'pr-8 whitespace-nowrap' : ''}`}
+                >
+                  {header}
+                </th>
               ))}
             </tr>
           </thead>
@@ -39,11 +44,11 @@ export function InventoryTable({
                 <td className="px-4 py-4 font-semibold text-ink">{formatCurrency(item.rate)}</td>
                 <td className="px-4 py-4 text-ink-soft">{displayValue(item.restrictions)}</td>
                 {selectable ? (
-                  <td className="px-4 py-4">
+                  <td className="px-4 py-4 pr-8 whitespace-nowrap">
                     <button
                       type="button"
                       onClick={() => onToggleItem(item)}
-                      className={`rounded-full px-4 py-2 text-xs font-semibold ${selectedSet.has(item.id) ? 'bg-ink text-white' : 'bg-brand text-white'}`}
+                      className={`whitespace-nowrap rounded-full px-4 py-2 text-xs font-semibold ${selectedSet.has(item.id) ? 'bg-ink text-white' : 'bg-brand text-white'}`}
                     >
                       {selectedSet.has(item.id) ? 'Remove from plan' : 'Add to plan'}
                     </button>

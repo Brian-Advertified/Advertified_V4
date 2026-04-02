@@ -148,7 +148,7 @@ export function PackagesPage() {
             </div>
             <Link
               className="button-primary shrink-0 px-5 py-2.5 text-sm"
-              to={`/payment?packageBandId=${encodeURIComponent(selectedBand.id)}&amount=${encodeURIComponent(clampedSpend)}&area=${encodeURIComponent(selectedArea)}`}
+              to={`/checkout/payment?packageBandId=${encodeURIComponent(selectedBand.id)}&amount=${encodeURIComponent(clampedSpend)}&area=${encodeURIComponent(selectedArea)}`}
             >
               Continue to payment
             </Link>

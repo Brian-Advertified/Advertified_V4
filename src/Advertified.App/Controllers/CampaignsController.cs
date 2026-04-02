@@ -197,6 +197,16 @@ public sealed class CampaignsController : ControllerBase
             ?? currentRecommendations.FirstOrDefault()
             ?? throw new InvalidOperationException("Recommendation not found.");
 
+        if (!CampaignOperationsPolicy.IsOrderOperationallyActive(campaign.PackageOrder))
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Payment required before approval.",
+                Detail = "Please complete payment for this campaign before approving a recommendation.",
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
+
         recommendation.Status = RecommendationStatuses.Approved;
         recommendation.ApprovedAt = DateTime.UtcNow;
         recommendation.UpdatedAt = DateTime.UtcNow;

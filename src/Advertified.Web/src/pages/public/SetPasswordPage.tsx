@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../features/auth/auth-context';
 import { useToast } from '../../components/ui/toast';
 
@@ -7,9 +7,14 @@ export function SetPasswordPage() {
   const { user, setPassword } = useAuth();
   const { pushToast } = useToast();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [password, setPasswordValue] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [saving, setSaving] = useState(false);
+  const nextPath = (() => {
+    const candidate = searchParams.get('next')?.trim() ?? '';
+    return candidate.startsWith('/') ? candidate : '';
+  })();
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -45,7 +50,7 @@ export function SetPasswordPage() {
           : nextUser.role === 'agent'
             ? '/agent'
             : '/dashboard';
-      navigate(targetPath, { replace: true });
+      navigate(nextPath || targetPath, { replace: true });
     } catch (error) {
       pushToast({
         title: 'Could not set password.',

@@ -1755,13 +1755,14 @@ public sealed class AgentCampaignsController : ControllerBase
                     ["CampaignName"] = string.IsNullOrWhiteSpace(campaign.CampaignName) ? $"{campaign.PackageBand.Name} campaign" : campaign.CampaignName.Trim(),
                     ["PackageName"] = campaign.PackageBand.Name,
                     ["Budget"] = FormatCurrency(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount),
-                    ["ReviewUrl"] = BuildFrontendUrl($"/campaigns/{campaign.Id}/review"),
+                    ["ReviewUrl"] = BuildFrontendUrl($"/proposal/{campaign.Id}"),
                     ["ProposalCount"] = proposalCount.ToString(CultureInfo.InvariantCulture),
                     ["ProposalSummary"] = proposalCount > 1
                         ? $"We have prepared {proposalCount} proposal options for you to compare."
                         : "We have prepared your recommendation for review.",
                     ["AgentMessageBlock"] = BuildAgentMessageBlock(agentMessage),
-                    ["RecommendationPackBlock"] = recommendationPackBlock
+                    ["RecommendationPackBlock"] = recommendationPackBlock,
+                    ["ProposalAcceptButtonsBlock"] = BuildProposalAcceptButtonsBlock(campaign.Id, recommendations)
                 },
                 attachments,
                 cancellationToken);
@@ -1795,6 +1796,56 @@ public sealed class AgentCampaignsController : ControllerBase
         }
 
         return $"advertified-recommendation-{campaignId:D}-{safeProposalLabel}.pdf";
+    }
+
+    private string BuildProposalAcceptButtonsBlock(Guid campaignId, IReadOnlyList<CampaignRecommendation> recommendations)
+    {
+        if (recommendations.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var links = recommendations
+            .Select((recommendation, index) =>
+            {
+                var label = ResolveProposalLabel(recommendation.RecommendationType, index);
+                var href = BuildFrontendUrl($"/proposal/{campaignId:D}?recommendationId={recommendation.Id:D}");
+                return $@"<a href=""{href}"" style=""display:inline-block;margin:0 10px 10px 0;padding:11px 16px;border-radius:12px;background:#123A33;color:#ffffff;text-decoration:none;font-weight:700;"">Accept {System.Net.WebUtility.HtmlEncode(label)}</a>";
+            })
+            .ToArray();
+        var rejectHref = BuildFrontendUrl($"/proposal/{campaignId:D}?action=reject_all");
+        var rejectLink = $@"<a href=""{rejectHref}"" style=""display:inline-block;margin:0 10px 10px 0;padding:11px 16px;border-radius:12px;border:1px solid #cbd5e1;background:#ffffff;color:#123A33;text-decoration:none;font-weight:700;"">Request new proposals</a>";
+
+        return $@"
+            <div style=""margin:12px 0 4px 0;"">
+              <div style=""font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;margin-bottom:8px;"">Quick accept</div>
+              {string.Join(string.Empty, links)}
+              {rejectLink}
+            </div>";
+    }
+
+    private static string ResolveProposalLabel(string? recommendationType, int proposalIndex)
+    {
+        var variantKey = recommendationType?
+            .Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .LastOrDefault()?
+            .ToLowerInvariant();
+
+        return variantKey switch
+        {
+            "balanced" => "Proposal A",
+            "ooh_focus" => "Proposal B",
+            "radio_focus" => "Proposal C",
+            "digital_focus" => "Proposal C",
+            _ => $"Proposal {GetProposalLetter(proposalIndex)}"
+        };
+    }
+
+    private static string GetProposalLetter(int index)
+    {
+        return index >= 0 && index < 26
+            ? ((char)('A' + index)).ToString()
+            : (index + 1).ToString();
     }
 
     private static bool IsProspectiveCampaign(Campaign campaign)

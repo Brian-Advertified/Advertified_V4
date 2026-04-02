@@ -77,6 +77,7 @@ const MediaPartnersPage = lazyPage(() => import('../pages/public/MediaPartnersPa
 const PartnerEnquiryPage = lazyPage(() => import('../pages/public/PartnerEnquiryPage'), 'PartnerEnquiryPage');
 const PaymentSelectionPage = lazyPage(() => import('../pages/public/PaymentSelectionPage'), 'PaymentSelectionPage');
 const CheckoutConfirmationPage = lazyPage(() => import('../pages/public/CheckoutConfirmationPage'), 'CheckoutConfirmationPage');
+const ProposalEntryPage = lazyPage(() => import('../pages/public/ProposalEntryPage'), 'ProposalEntryPage');
 const PrivacyPolicyPage = lazyPage(() => import('../pages/public/LegalPages'), 'PrivacyPolicyPage');
 const CookiePolicyPage = lazyPage(() => import('../pages/public/LegalPages'), 'CookiePolicyPage');
 const TermsPage = lazyPage(() => import('../pages/public/LegalPages'), 'TermsPage');
@@ -155,6 +156,7 @@ export function App() {
             <Route path="/terms" element={<Navigate to="/terms-of-service" replace />} />
             <Route path="/checkout/payment" element={<ProtectedRoute><PaymentSelectionPage /></ProtectedRoute>} />
             <Route path="/checkout/confirmation" element={<CheckoutConfirmationPage />} />
+            <Route path="/proposal/:id" element={<ProposalEntryPage />} />
             <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
             <Route path="/orders" element={<ProtectedRoute><OrdersPage /></ProtectedRoute>} />
             <Route path="/campaigns/:id" element={<ProtectedRoute><CampaignDetailPage /></ProtectedRoute>} />

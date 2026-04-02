@@ -13,6 +13,10 @@ export function VerifyEmailPage() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token')?.trim() ?? '';
   const email = searchParams.get('email')?.trim() ?? '';
+  const nextPath = (() => {
+    const candidate = searchParams.get('next')?.trim() ?? '';
+    return candidate.startsWith('/') ? candidate : '';
+  })();
   const [resending, setResending] = useState(false);
   const successToastSentRef = useRef(false);
   const redirectScheduledRef = useRef(false);
@@ -35,6 +39,7 @@ export function VerifyEmailPage() {
       : verificationQuery.isSuccess
         ? 'success'
         : 'error';
+  const requiresPasswordSetup = verificationQuery.data?.requiresPasswordSetup ?? false;
   const errorMessage = verificationQuery.error instanceof Error
     ? verificationQuery.error.message
     : 'We could not activate your account.';
@@ -59,13 +64,18 @@ export function VerifyEmailPage() {
     successToastSentRef.current = true;
     pushToast({
       title: 'Your email has been verified.',
-      description: 'Set your password to finish account setup.',
+      description: requiresPasswordSetup
+        ? 'Set your password to finish account setup.'
+        : 'Your account is active. Redirecting you now.',
     });
   }
 
   if (state === 'success' && !redirectScheduledRef.current) {
     redirectScheduledRef.current = true;
-    window.setTimeout(() => navigate('/set-password'), 1200);
+    const redirectPath = requiresPasswordSetup
+      ? (nextPath ? `/set-password?next=${encodeURIComponent(nextPath)}` : '/set-password')
+      : (nextPath || '/dashboard');
+    window.setTimeout(() => navigate(redirectPath), 1200);
   }
 
   async function handleResend() {
@@ -132,7 +142,7 @@ export function VerifyEmailPage() {
                       <RefreshCw className="size-4" />
                       {resending ? 'Resending...' : 'Resend activation email'}
                     </button>
-                    <Link to="/login" className="hero-secondary-button rounded-full font-semibold">
+                    <Link to={nextPath ? `/login?next=${encodeURIComponent(nextPath)}` : '/login'} className="hero-secondary-button rounded-full font-semibold">
                       Go to login
                     </Link>
                   </div>
@@ -154,7 +164,11 @@ export function VerifyEmailPage() {
                   <ShieldCheck className="mt-1 size-5 text-brand" />
                   <div>
                     <p className="font-semibold text-ink">Your email has been verified successfully.</p>
-                    <p className="mt-2 leading-7">You&apos;re being redirected to set your password before entering your dashboard.</p>
+                    <p className="mt-2 leading-7">
+                      {requiresPasswordSetup
+                        ? "You're being redirected to set your password before entering your dashboard."
+                        : "You're being redirected to your dashboard now."}
+                    </p>
                   </div>
                 </div>
               ) : null}
@@ -175,7 +189,10 @@ export function VerifyEmailPage() {
                       <RefreshCw className="size-4" />
                       {resending ? 'Resending...' : 'Send a new activation link'}
                     </button>
-                    <Link to={`/verify-email${email ? `?email=${encodeURIComponent(email)}` : ''}`} className="hero-secondary-button rounded-full font-semibold">
+                    <Link
+                      to={`/verify-email${email ? `?email=${encodeURIComponent(email)}${nextPath ? `&next=${encodeURIComponent(nextPath)}` : ''}` : ''}`}
+                      className="hero-secondary-button rounded-full font-semibold"
+                    >
                       Back to activation help
                     </Link>
                   </div>

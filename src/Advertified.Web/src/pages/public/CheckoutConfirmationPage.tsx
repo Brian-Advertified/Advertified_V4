@@ -1,5 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
-import { useMemo, useRef } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo, useRef } from 'react';
 import { BadgeCheck, CircleAlert, Clock3, FileText } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import advertifiedLogo from '../../assets/advertified-logo-v3.png';
@@ -20,10 +20,14 @@ export function CheckoutConfirmationPage() {
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const { pushToast } = useToast();
+  const queryClient = useQueryClient();
   const orderId = searchParams.get('orderId') ?? '';
   const provider = (searchParams.get('provider') ?? '').toLowerCase();
+  const requestedCampaignId = searchParams.get('campaignId')?.trim() ?? '';
+  const requestedRecommendationId = searchParams.get('recommendationId')?.trim() ?? '';
   const callbackCapturedRef = useRef(false);
   const statusToastKeyRef = useRef<string | null>(null);
+  const autoApprovalAttemptedKeyRef = useRef<string | null>(null);
   if (provider === 'vodapay' && orderId && !callbackCapturedRef.current) {
     const queryParameters = Object.fromEntries(searchParams.entries());
     callbackCapturedRef.current = true;
@@ -43,6 +47,22 @@ export function CheckoutConfirmationPage() {
     enabled: Boolean(user?.id && order?.paymentStatus === 'paid'),
   });
   const vodaPayReturnData = useMemo(() => parseVodaPayReturnData(searchParams.get('data')), [searchParams]);
+  const storedAutoApproval = useMemo(() => {
+    if (!orderId || typeof window === 'undefined') {
+      return null;
+    }
+
+    const raw = window.sessionStorage.getItem(`advertified:auto-approve:${orderId}`);
+    if (!raw) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(raw) as { campaignId?: string; recommendationId?: string };
+    } catch {
+      return null;
+    }
+  }, [orderId]);
 
   if (!user) {
     return (
@@ -83,6 +103,61 @@ export function CheckoutConfirmationPage() {
 
   const linkedCampaign = (campaignsQuery.data ?? []).find((campaign) => campaign.packageOrderId === order.id);
   const linkedCampaignAction = linkedCampaign ? getCampaignPrimaryAction(linkedCampaign) : null;
+  const effectiveCampaignId = requestedCampaignId || storedAutoApproval?.campaignId || linkedCampaign?.id || '';
+  const effectiveRecommendationId = requestedRecommendationId || storedAutoApproval?.recommendationId || '';
+
+  const autoApproveMutation = useMutation({
+    mutationFn: async () => {
+      if (!effectiveCampaignId || !effectiveRecommendationId) {
+        return null;
+      }
+
+      return advertifiedApi.approveRecommendation(effectiveCampaignId, effectiveRecommendationId);
+    },
+    onSuccess: async () => {
+      if (orderId && typeof window !== 'undefined') {
+        window.sessionStorage.removeItem(`advertified:auto-approve:${orderId}`);
+      }
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['campaigns', user?.id] }),
+        effectiveCampaignId ? queryClient.invalidateQueries({ queryKey: ['campaign', effectiveCampaignId] }) : Promise.resolve(),
+      ]);
+
+      pushToast({
+        title: 'Proposal accepted.',
+        description: 'Your selected proposal was accepted automatically after successful payment.',
+      });
+    },
+    onError: (error) => {
+      pushToast({
+        title: 'Payment succeeded, but proposal acceptance needs attention.',
+        description: error instanceof Error ? error.message : 'Please open campaign approvals and accept manually.',
+      }, 'error');
+    },
+  });
+
+  useEffect(() => {
+    if (!orderId || !effectiveRecommendationId) {
+      return;
+    }
+
+    if (order.paymentStatus !== 'paid') {
+      return;
+    }
+
+    if (!effectiveCampaignId) {
+      return;
+    }
+
+    const attemptKey = `${orderId}:${effectiveCampaignId}:${effectiveRecommendationId}`;
+    if (autoApprovalAttemptedKeyRef.current === attemptKey || autoApproveMutation.isPending) {
+      return;
+    }
+
+    autoApprovalAttemptedKeyRef.current = attemptKey;
+    autoApproveMutation.mutate();
+  }, [order.paymentStatus, effectiveCampaignId, effectiveRecommendationId, orderId, autoApproveMutation]);
 
   const statusKey = `${order.id}:${order.paymentStatus}:${vodaPayReturnData?.responseCode ?? ''}:${vodaPayReturnData?.responseMessage ?? ''}`;
   if (statusToastKeyRef.current !== statusKey) {

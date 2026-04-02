@@ -176,6 +176,103 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
         };
     }
 
+    public async Task<CreatePackageOrderResponse> InitiateCheckoutAsync(Guid userId, Guid packageOrderId, string paymentProvider, CancellationToken cancellationToken)
+    {
+        await _accessService.EnsureCanCreateOrderAsync(userId, cancellationToken);
+        var normalizedProvider = string.IsNullOrWhiteSpace(paymentProvider)
+            ? "vodapay"
+            : paymentProvider.Trim().ToLowerInvariant();
+
+        if (!string.Equals(normalizedProvider, "vodapay", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(normalizedProvider, "lula", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Unsupported payment provider.");
+        }
+
+        var order = await _db.PackageOrders
+            .Include(x => x.PackageBand)
+            .Include(x => x.User)
+                .ThenInclude(x => x.BusinessProfile)
+            .Include(x => x.Campaign)
+            .Include(x => x.Invoice)
+            .FirstOrDefaultAsync(x => x.Id == packageOrderId && x.UserId == userId, cancellationToken)
+            ?? throw new InvalidOperationException("Package order not found.");
+
+        if (string.Equals(order.PaymentStatus, "paid", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("This package order is already paid.");
+        }
+
+        if (order.Campaign is not null
+            && !string.Equals(order.Campaign.Status, "awaiting_purchase", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(order.PaymentStatus, "pending", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(order.PaymentStatus, "failed", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("This package order cannot be checked out in its current state.");
+        }
+
+        order.PaymentProvider = normalizedProvider;
+        order.PaymentStatus = "pending";
+        order.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        if (string.Equals(normalizedProvider, "lula", StringComparison.OrdinalIgnoreCase))
+        {
+            var invoice = await _invoiceService.EnsureInvoiceAsync(
+                order,
+                order.PackageBand,
+                order.User,
+                order.User.BusinessProfile,
+                invoiceType: "manual_lula",
+                status: InvoiceStatuses.Issued,
+                dueAtUtc: DateTime.UtcNow.AddDays(7),
+                paidAtUtc: null,
+                paymentReference: null,
+                sendInvoiceEmail: false,
+                cancellationToken);
+
+            return new CreatePackageOrderResponse
+            {
+                PackageOrderId = order.Id,
+                PackageBandId = order.PackageBandId,
+                PaymentStatus = order.PaymentStatus,
+                Amount = order.Amount,
+                Currency = order.Currency,
+                PaymentProvider = order.PaymentProvider ?? normalizedProvider,
+                InvoiceId = invoice.Id,
+                InvoiceStatus = invoice.Status,
+                InvoicePdfUrl = $"/invoices/{invoice.Id}/pdf"
+            };
+        }
+
+        var checkout = await _vodaPayCheckoutService.InitiateAsync(
+            order,
+            order.PackageBand,
+            order.User,
+            order.User.BusinessProfile,
+            cancellationToken);
+
+        order.PaymentReference = checkout.ProviderReference ?? checkout.SessionId;
+        order.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
+        await UpdatePaymentCacheAsync(order, order.PackageBand.Code, order.PaymentReference, cancellationToken);
+
+        return new CreatePackageOrderResponse
+        {
+            PackageOrderId = order.Id,
+            PackageBandId = order.PackageBandId,
+            PaymentStatus = order.PaymentStatus,
+            Amount = order.Amount,
+            Currency = order.Currency,
+            PaymentProvider = order.PaymentProvider ?? normalizedProvider,
+            CheckoutUrl = checkout.CheckoutUrl,
+            CheckoutSessionId = checkout.SessionId,
+            InvoiceId = order.Invoice?.Id,
+            InvoiceStatus = order.Invoice?.Status,
+            InvoicePdfUrl = order.Invoice is null ? null : $"/invoices/{order.Invoice.Id}/pdf"
+        };
+    }
+
     public Task MarkOrderPaidAsync(Guid packageOrderId, string paymentReference, CancellationToken cancellationToken)
         => MarkOrderPaidInternalAsync(packageOrderId, paymentReference, cancellationToken);
 

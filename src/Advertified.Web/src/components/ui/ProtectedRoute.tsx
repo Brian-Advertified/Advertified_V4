@@ -40,11 +40,11 @@ export function ProtectedRoute({
   }
 
   if (!guestOnly && !isAuthenticated) {
-    return <Navigate to="/login" state={{ from: location.pathname }} replace />;
+    return <Navigate to="/login" state={{ from: `${location.pathname}${location.search}` }} replace />;
   }
 
   if (!guestOnly && user?.requiresPasswordSetup && location.pathname !== '/set-password') {
-    return <Navigate to="/set-password" replace />;
+    return <Navigate to={`/set-password?next=${encodeURIComponent(`${location.pathname}${location.search}`)}`} replace />;
   }
 
   if (requireAgent && !canAccessOperations(user)) {

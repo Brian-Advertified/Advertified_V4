@@ -97,4 +97,30 @@ public sealed class PackageOrdersController : ControllerBase
                 statusCode: StatusCodes.Status400BadRequest);
         }
     }
+
+    [HttpPost("{id:guid}/checkout")]
+    public async Task<ActionResult<CreatePackageOrderResponse>> Checkout(
+        Guid id,
+        [FromBody] CheckoutPackageOrderRequest request,
+        CancellationToken cancellationToken)
+    {
+        var userId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
+
+        try
+        {
+            var result = await _packagePurchaseService.InitiateCheckoutAsync(
+                userId,
+                id,
+                request.PaymentProvider,
+                cancellationToken);
+
+            return Ok(result);
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Problem(
+                title: exception.Message,
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+    }
 }

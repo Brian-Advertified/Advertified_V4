@@ -1521,8 +1521,19 @@ export const advertifiedApi = {
 
     localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(mapSessionUser(response, response.sessionToken)));
     return this.getMe(response.userId)
-      .then((user) => ({ ...user, sessionToken: response.sessionToken, requiresPasswordSetup: true }))
-      .catch(() => ({ ...mapSessionUser(response, response.sessionToken), requiresPasswordSetup: true }));
+      .then((user) => ({
+        ...user,
+        sessionToken: response.sessionToken,
+        // Registered users already have a password; invite/prospect users still need setup.
+        requiresPasswordSetup: !user.identityComplete,
+      }))
+      .catch(() => {
+        const fallbackUser = mapSessionUser(response, response.sessionToken);
+        return {
+          ...fallbackUser,
+          requiresPasswordSetup: !fallbackUser.identityComplete,
+        };
+      });
   },
 
   async setPassword(input: { password: string; confirmPassword: string }) {
@@ -1958,6 +1969,61 @@ export const advertifiedApi = {
           packageBandId,
           amount,
           currency: 'ZAR',
+          paymentProvider,
+        }),
+      },
+      userId,
+    );
+
+    const packages = await this.getPackages();
+    const selectedBand = packages.find((item) => item.id === response.packageBandId);
+
+    return {
+      order: {
+        id: response.packageOrderId,
+        userId,
+        packageBandId: response.packageBandId,
+        packageBandName: selectedBand?.name ?? 'Package',
+        amount: response.amount,
+        currency: response.currency,
+        paymentProvider: response.paymentProvider ?? paymentProvider,
+        paymentStatus: response.paymentStatus as PackageOrder['paymentStatus'],
+        refundStatus: 'none',
+        refundedAmount: 0,
+        gatewayFeeRetainedAmount: 0,
+        createdAt: new Date().toISOString(),
+        refundReason: undefined,
+        refundProcessedAt: undefined,
+        invoiceId: response.invoiceId ?? undefined,
+        invoiceStatus: response.invoiceStatus ?? undefined,
+        invoicePdfUrl: response.invoicePdfUrl ?? undefined,
+      },
+      checkoutUrl: response.checkoutUrl ?? undefined,
+      checkoutSessionId: response.checkoutSessionId ?? undefined,
+      invoiceId: response.invoiceId ?? undefined,
+      invoiceStatus: response.invoiceStatus ?? undefined,
+      invoicePdfUrl: response.invoicePdfUrl ?? undefined,
+    } satisfies PackageCheckoutSession;
+  },
+
+  async initiateOrderCheckout(userId: string, orderId: string, paymentProvider: PaymentProvider) {
+    const response = await apiRequest<{
+      packageOrderId: string;
+      packageBandId: string;
+      paymentStatus: string;
+      amount: number;
+      currency: string;
+      paymentProvider?: string;
+      checkoutUrl?: string | null;
+      checkoutSessionId?: string | null;
+      invoiceId?: string | null;
+      invoiceStatus?: string | null;
+      invoicePdfUrl?: string | null;
+    }>(
+      `/package-orders/${encodeURIComponent(orderId)}/checkout`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
           paymentProvider,
         }),
       },

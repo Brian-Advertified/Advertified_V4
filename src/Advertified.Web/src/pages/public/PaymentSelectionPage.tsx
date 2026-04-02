@@ -40,15 +40,26 @@ export function PaymentSelectionPage() {
   const { user } = useAuth();
   const purchaseRestriction = getPackagePurchaseRestriction(user);
   const { pushToast } = useToast();
+  const orderId = searchParams.get('orderId')?.trim() ?? '';
+  const campaignId = searchParams.get('campaignId')?.trim() ?? '';
+  const recommendationId = searchParams.get('recommendationId')?.trim() ?? '';
   const packageBandId = searchParams.get('packageBandId') ?? '';
   const amount = Number(searchParams.get('amount') ?? '0');
   const selectedArea = searchParams.get('area') ?? 'gauteng';
+  const isExistingOrderCheckout = orderId.length > 0;
   const [selectedProvider, setSelectedProvider] = React.useState<PaymentProvider>('lula');
   const [isResendingActivation, setIsResendingActivation] = React.useState(false);
 
   const packagesQuery = useQuery({ queryKey: ['packages'], queryFn: advertifiedApi.getPackages });
-  const selectedBand = packagesQuery.data?.find((item) => item.id === packageBandId);
-  const chargedAmount = amount;
+  const existingOrderQuery = useQuery({
+    queryKey: ['package-order', user?.id, orderId],
+    queryFn: () => advertifiedApi.getOrder(orderId, user!.id),
+    enabled: Boolean(user && isExistingOrderCheckout),
+  });
+  const selectedBand = isExistingOrderCheckout
+    ? packagesQuery.data?.find((item) => item.id === existingOrderQuery.data?.packageBandId)
+    : packagesQuery.data?.find((item) => item.id === packageBandId);
+  const chargedAmount = isExistingOrderCheckout ? (existingOrderQuery.data?.amount ?? 0) : amount;
 
   const checkoutMutation = useMutation({
     mutationFn: async (paymentProvider: PaymentProvider) => {
@@ -60,14 +71,27 @@ export function PaymentSelectionPage() {
         throw new Error('Choose a package before selecting payment.');
       }
 
-      const checkout = await advertifiedApi.createOrder(user.id, selectedBand.id, amount, paymentProvider);
+      const checkout = isExistingOrderCheckout
+        ? await advertifiedApi.initiateOrderCheckout(user.id, orderId, paymentProvider)
+        : await advertifiedApi.createOrder(user.id, selectedBand.id, amount, paymentProvider);
       if (!checkout.checkoutUrl) {
         if (paymentProvider === 'lula') {
-          navigate(`/checkout/confirmation?provider=lula&orderId=${encodeURIComponent(checkout.order.id)}`);
+          const lulaConfirmationUrl = campaignId
+            ? `/checkout/confirmation?provider=lula&orderId=${encodeURIComponent(checkout.order.id)}&campaignId=${encodeURIComponent(campaignId)}${recommendationId ? `&recommendationId=${encodeURIComponent(recommendationId)}` : ''}`
+            : `/checkout/confirmation?provider=lula&orderId=${encodeURIComponent(checkout.order.id)}`;
+          navigate(lulaConfirmationUrl);
           return checkout;
         }
 
         throw new Error('VodaPay did not return a checkout URL.');
+      }
+
+      if (recommendationId && typeof window !== 'undefined') {
+        const payload = JSON.stringify({
+          campaignId,
+          recommendationId,
+        });
+        window.sessionStorage.setItem(`advertified:auto-approve:${checkout.order.id}`, payload);
       }
 
       window.location.assign(checkout.checkoutUrl);
@@ -81,15 +105,19 @@ export function PaymentSelectionPage() {
     },
   });
 
-  if (!packageBandId || !Number.isFinite(amount) || amount <= 0) {
+  if (!isExistingOrderCheckout && (!packageBandId || !Number.isFinite(amount) || amount <= 0)) {
     return <Navigate to="/packages" replace />;
   }
 
-  if (packagesQuery.isLoading) {
+  if (packagesQuery.isLoading || (isExistingOrderCheckout && existingOrderQuery.isLoading)) {
     return <LoadingState label="Loading payment options..." />;
   }
 
-  if (!selectedBand) {
+  if (isExistingOrderCheckout && (existingOrderQuery.isError || !existingOrderQuery.data)) {
+    return <Navigate to={campaignId ? `/campaigns/${campaignId}/approvals` : '/dashboard'} replace />;
+  }
+
+  if (!selectedBand || chargedAmount <= 0) {
     return <Navigate to="/packages" replace />;
   }
 
@@ -112,11 +140,11 @@ export function PaymentSelectionPage() {
         description={`Select the provider you want to use for ${selectedBand.name} at ${formatCurrency(chargedAmount)}.`}
         actions={(
           <Link
-            to={`/packages?band=${encodeURIComponent(selectedBand.code)}`}
+            to={campaignId ? `/campaigns/${campaignId}/approvals` : `/packages?band=${encodeURIComponent(selectedBand.code)}`}
             className="hero-secondary-button rounded-full font-semibold"
           >
             <ArrowLeft className="size-4" />
-            Back to package selection
+            {campaignId ? 'Back to campaign approvals' : 'Back to package selection'}
           </Link>
         )}
       />

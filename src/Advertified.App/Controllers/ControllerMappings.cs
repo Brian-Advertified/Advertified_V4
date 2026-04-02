@@ -43,7 +43,7 @@ internal static class ControllerMappings
     public static CampaignDetailResponse ToDetail(this Campaign campaign, Guid? currentUserId = null, bool includeLinePricing = true)
     {
         var recommendations = GetCurrentRecommendationSet(campaign)
-            .Select(x => ToResponse(x, includeLinePricing))
+            .Select((recommendation, index) => ToResponse(recommendation, includeLinePricing, index))
             .ToArray();
         var creativeSystems = campaign.CampaignCreativeSystems
             .OrderByDescending(x => x.CreatedAt)
@@ -167,12 +167,12 @@ internal static class ControllerMappings
             : JsonSerializer.Deserialize<List<string>>(json);
     }
 
-    private static CampaignRecommendationResponse ToResponse(CampaignRecommendation recommendation, bool includeLinePricing)
+    private static CampaignRecommendationResponse ToResponse(CampaignRecommendation recommendation, bool includeLinePricing, int proposalIndex)
     {
         var extractedFeedback = ExtractClientFeedbackNotes(recommendation.Rationale);
         var fallbackFlags = ExtractFallbackFlags(recommendation.Rationale);
         var manualReviewRequired = ExtractManualReviewRequired(recommendation.Rationale);
-        var (proposalLabel, proposalStrategy) = GetProposalDetails(recommendation.RecommendationType);
+        var (proposalLabel, proposalStrategy) = GetProposalDetails(recommendation.RecommendationType, proposalIndex);
 
         return new CampaignRecommendationResponse
         {
@@ -256,7 +256,7 @@ internal static class ControllerMappings
         return RecommendationRevisionSupport.GetCurrentRecommendationSet(campaign.CampaignRecommendations);
     }
 
-    private static (string ProposalLabel, string ProposalStrategy) GetProposalDetails(string? recommendationType)
+    private static (string ProposalLabel, string ProposalStrategy) GetProposalDetails(string? recommendationType, int proposalIndex)
     {
         var variantKey = recommendationType?
             .Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
@@ -269,8 +269,15 @@ internal static class ControllerMappings
             "ooh_focus" => ("Proposal B", "Billboards and Digital Screens-led reach"),
             "radio_focus" => ("Proposal C", "Radio-led frequency"),
             "digital_focus" => ("Proposal C", "Digital-led amplification"),
-            _ => ("Proposal", "Recommendation option")
+            _ => ($"Proposal {GetProposalLetter(proposalIndex)}", "Recommendation option")
         };
+    }
+
+    private static string GetProposalLetter(int index)
+    {
+        return index >= 0 && index < 26
+            ? ((char)('A' + index)).ToString()
+            : (index + 1).ToString();
     }
 
     private static int GetProposalRank(string? recommendationType)
