@@ -166,14 +166,13 @@ public sealed class AgentInventoryController : ControllerBase
 
     private static bool MatchesRequestedGeography(InventoryCandidate candidate, CampaignPlanningRequest request)
     {
-        if (string.Equals(request.GeographyScope, "national", StringComparison.OrdinalIgnoreCase))
+        var normalizedScope = NormalizeScope(request.GeographyScope);
+        if (normalizedScope == "national")
         {
             return true;
         }
 
-        var requestedTerms = request.Areas
-            .Concat(request.Cities)
-            .Concat(request.Provinces)
+        var requestedTerms = (normalizedScope == "local" ? request.Areas.Concat(request.Cities) : request.Provinces)
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Select(value => value.Trim().ToLowerInvariant())
             .Distinct()
@@ -194,6 +193,12 @@ public sealed class AgentInventoryController : ControllerBase
         }.Where(value => !string.IsNullOrWhiteSpace(value))).ToLowerInvariant();
 
         return requestedTerms.Any(term => haystack.Contains(term));
+    }
+
+    private static string NormalizeScope(string? scope)
+    {
+        var normalized = (scope ?? string.Empty).Trim().ToLowerInvariant();
+        return normalized == "regional" ? "provincial" : normalized;
     }
 
     private static int GetChannelRank(string mediaType)

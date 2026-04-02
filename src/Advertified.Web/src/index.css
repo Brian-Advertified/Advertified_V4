@@ -52,9 +52,9 @@ textarea {
 
 .hero-glow {
   background:
-    radial-gradient(circle at top left, rgba(20, 184, 110, 0.18), transparent 32%),
-    radial-gradient(circle at bottom right, rgba(15, 118, 110, 0.2), transparent 28%),
-    linear-gradient(135deg, rgba(20, 23, 31, 0.96), rgba(15, 118, 110, 0.92));
+    radial-gradient(circle at top left, rgba(20, 184, 110, 0.14), transparent 32%),
+    radial-gradient(circle at bottom right, rgba(15, 118, 110, 0.16), transparent 28%),
+    linear-gradient(135deg, #0f766e, #115e59);
 }
 
 .panel {
@@ -149,7 +149,7 @@ textarea {
 .button-primary {
   @apply rounded-full text-sm font-semibold text-white transition;
   background: linear-gradient(135deg, #0f766e, #14b86e);
-  box-shadow: 0 16px 36px rgba(15, 118, 110, 0.2);
+  box-shadow: 0 16px 36px rgba(15, 118, 110, 0.18);
 }
 
 .button-primary:hover {
@@ -323,7 +323,7 @@ textarea {
 }
 
 .payment-option-card:hover {
-  border-color: rgba(15, 118, 110, 0.2);
+  border-color: rgba(15, 118, 110, 0.18);
   box-shadow:
     0 24px 60px rgba(15, 118, 110, 0.12),
     inset 0 1px 0 rgba(255, 255, 255, 0.88);
@@ -833,7 +833,7 @@ textarea {
 
 .hero-mint {
   background:
-    radial-gradient(circle at top left, rgba(20, 184, 110, 0.18), transparent 34%),
+    radial-gradient(circle at top left, rgba(20, 184, 110, 0.14), transparent 34%),
     radial-gradient(circle at 88% 18%, rgba(15, 118, 110, 0.14), transparent 26%),
     linear-gradient(135deg, #ffffff 0%, #f7fffb 46%, #e3f9ef 100%);
   border: 1px solid rgba(15, 118, 110, 0.1);

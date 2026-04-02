@@ -158,6 +158,7 @@ public sealed class PlanningPolicyService : IPlanningPolicyService
             || clusterCode.Equals("western-cape", StringComparison.OrdinalIgnoreCase)
             || clusterCode.Equals("eastern-cape", StringComparison.OrdinalIgnoreCase)
             || displayName.Contains("Kaya 959", StringComparison.OrdinalIgnoreCase)
+            || displayName.Contains("YFM", StringComparison.OrdinalIgnoreCase)
             || displayName.Contains("JOZI FM", StringComparison.OrdinalIgnoreCase)
             || displayName.Contains("Smile 90.4FM", StringComparison.OrdinalIgnoreCase)
             || displayName.Contains("ALGOA FM", StringComparison.OrdinalIgnoreCase);

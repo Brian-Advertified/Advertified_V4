@@ -2690,6 +2690,15 @@ export const advertifiedApi = {
     return mapCampaign(response);
   },
 
+  async updateProspectPricing(campaignId: string, payload: { packageBandId: string; selectedBudget: number }) {
+    const response = await apiRequest<CampaignResponse>(`/agent/campaigns/${campaignId}/prospect-pricing`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+
+    return mapCampaign(response);
+  },
+
   async getInventory(campaignId?: string) {
     return apiRequest<InventoryRow[]>(
       campaignId ? `/agent/inventory?campaignId=${encodeURIComponent(campaignId)}` : '/agent/inventory',

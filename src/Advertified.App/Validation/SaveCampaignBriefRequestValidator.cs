@@ -18,7 +18,6 @@ public sealed class SaveCampaignBriefRequestValidator : AbstractValidator<SaveCa
     private static readonly HashSet<string> AllowedGeographyScopes = new(StringComparer.OrdinalIgnoreCase)
     {
         "local",
-        "regional",
         "provincial",
         "national"
     };

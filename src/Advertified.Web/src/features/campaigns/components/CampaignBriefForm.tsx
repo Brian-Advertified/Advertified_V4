@@ -15,7 +15,6 @@ const objectiveOptions = [
 
 const geographyScopeOptions = [
   { value: 'local', label: 'Local' },
-  { value: 'regional', label: 'Regional' },
   { value: 'provincial', label: 'Provincial' },
   { value: 'national', label: 'National' },
 ] as const;
@@ -165,6 +164,7 @@ export function CampaignBriefForm({
     register,
     handleSubmit,
     setValue,
+    watch,
     formState: { errors },
   } = useForm<FormShape>({
     resolver: zodResolver(briefSchema),
@@ -206,6 +206,7 @@ export function CampaignBriefForm({
       growthTarget: '',
     },
   });
+  const geographyScope = watch('geographyScope');
 
   function mergeLines(base: string | undefined, lines: string[]) {
     const keptBase = base?.trim() ?? '';
@@ -289,7 +290,26 @@ export function CampaignBriefForm({
             </select>
           </Field>
           <Field label="Geography scope" error={errors.geographyScope?.message}>
-            <select {...register('geographyScope')} className="input-base">
+            <select
+              {...register('geographyScope')}
+              className="input-base"
+              onChange={(event) => {
+                register('geographyScope').onChange(event);
+                const scopeValue = event.target.value;
+                if (scopeValue === 'national') {
+                  setValue('provinces', '');
+                  setValue('cities', '');
+                  setValue('suburbs', '');
+                  setValue('areas', '');
+                } else if (scopeValue === 'local') {
+                  setValue('provinces', '');
+                } else if (scopeValue === 'provincial') {
+                  setValue('cities', '');
+                  setValue('suburbs', '');
+                  setValue('areas', '');
+                }
+              }}
+            >
               <option value="">Select geography scope</option>
               {geographyScopeOptions.map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
@@ -313,9 +333,17 @@ export function CampaignBriefForm({
               ))}
             </select>
           </Field>
-          <Field label="Provinces" error={errors.provinces?.message}><input {...register('provinces')} className="input-base" placeholder="Western Cape, Gauteng" /></Field>
-          <Field label="Cities"><input {...register('cities')} className="input-base" placeholder="Cape Town, Johannesburg" /></Field>
-          <Field label="Areas / suburbs"><input {...register('areas')} className="input-base" placeholder="Sea Point, Sandton..." /></Field>
+          {geographyScope === 'provincial' ? (
+            <Field label="Primary province" error={errors.provinces?.message}><input {...register('provinces')} className="input-base" placeholder="Gauteng" /></Field>
+          ) : null}
+          {geographyScope === 'local' ? (
+            <Field label="Primary city"><input {...register('cities')} className="input-base" placeholder="Johannesburg" /></Field>
+          ) : null}
+          {geographyScope === 'national' ? (
+            <Field label="Primary geography">
+              <input value="Not required for national scope" className="input-base bg-slate-50 text-slate-500" disabled />
+            </Field>
+          ) : null}
         </Grid>
       </BriefSection>
 

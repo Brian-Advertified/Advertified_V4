@@ -1,6 +1,7 @@
 using Advertified.App.Contracts.Campaigns;
 using Advertified.App.Domain.Campaigns;
 using Advertified.App.Services.Abstractions;
+using System.Text.Json;
 
 namespace Advertified.App.Services;
 
@@ -20,11 +21,60 @@ public sealed class PlanningScoreService : IPlanningScoreService
 
     public decimal GeoScore(InventoryCandidate candidate, CampaignPlanningRequest request)
     {
-        if (request.Suburbs.Any(x => Matches(x, candidate.Suburb) || Matches(x, candidate.Area))) return 30m;
-        if (request.Cities.Any(x => Matches(x, candidate.City))) return 24m;
-        if (request.Provinces.Any(x => Matches(x, candidate.Province))) return 16m;
-        if (request.Areas.Any(x => Matches(x, candidate.Area) || Matches(x, candidate.Suburb))) return 22m;
-        return 4m;
+        var scope = NormalizeScope(request.GeographyScope);
+        var candidateCoverage = ResolveCandidateCoverage(candidate);
+
+        var score = scope switch
+        {
+            "national" => candidateCoverage switch
+            {
+                "national" => 22m,
+                "provincial" => 12m,
+                "local" => 6m,
+                _ => 8m
+            },
+            "provincial" => candidateCoverage switch
+            {
+                "provincial" => 22m,
+                "local" => 14m,
+                "national" => 10m,
+                _ => 8m
+            },
+            "local" => candidateCoverage switch
+            {
+                "local" => 22m,
+                "provincial" => 12m,
+                "national" => 8m,
+                _ => 8m
+            },
+            _ => 8m
+        };
+
+        if (request.Suburbs.Any(x => MatchesGeo(x, candidate.Suburb) || MatchesGeo(x, candidate.Area)))
+        {
+            score += 10m;
+        }
+
+        if (request.Cities.Any(x =>
+            MatchesGeo(x, candidate.City)
+            || MatchesAnyMetadataToken(candidate, x, "cityLabels", "city_labels", "city", "area")))
+        {
+            score += 10m;
+        }
+
+        if (request.Provinces.Any(x =>
+            MatchesGeo(x, candidate.Province)
+            || MatchesAnyMetadataToken(candidate, x, "provinceCodes", "province_codes", "province", "area")))
+        {
+            score += 10m;
+        }
+
+        if (request.Areas.Any(x => MatchesGeo(x, candidate.Area) || MatchesGeo(x, candidate.Suburb)))
+        {
+            score += 8m;
+        }
+
+        return Math.Min(36m, score);
     }
 
     public decimal AudienceScore(InventoryCandidate candidate, CampaignPlanningRequest request)
@@ -197,9 +247,174 @@ public sealed class PlanningScoreService : IPlanningScoreService
         }
     }
 
-    private static bool Matches(string? left, string? right)
+    private static string NormalizeScope(string? scope)
+    {
+        var normalized = (scope ?? string.Empty).Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            "regional" => "provincial",
+            "local" => "local",
+            "provincial" => "provincial",
+            "national" => "national",
+            _ => normalized
+        };
+    }
+
+    private static string ResolveCandidateCoverage(InventoryCandidate candidate)
+    {
+        var scope = (candidate.MarketScope ?? string.Empty).Trim().ToLowerInvariant();
+        if (scope.Contains("national", StringComparison.OrdinalIgnoreCase))
+        {
+            return "national";
+        }
+
+        if (scope.Contains("provincial", StringComparison.OrdinalIgnoreCase)
+            || scope.Contains("regional", StringComparison.OrdinalIgnoreCase)
+            || scope.Contains("province", StringComparison.OrdinalIgnoreCase))
+        {
+            return "provincial";
+        }
+
+        if (scope.Contains("local", StringComparison.OrdinalIgnoreCase)
+            || scope.Contains("city", StringComparison.OrdinalIgnoreCase)
+            || scope.Contains("suburb", StringComparison.OrdinalIgnoreCase))
+        {
+            return "local";
+        }
+
+        if (!string.IsNullOrWhiteSpace(candidate.City) || !string.IsNullOrWhiteSpace(candidate.Suburb))
+        {
+            return "local";
+        }
+
+        if (!string.IsNullOrWhiteSpace(candidate.Province) || !string.IsNullOrWhiteSpace(candidate.RegionClusterCode))
+        {
+            return "provincial";
+        }
+
+        return "unknown";
+    }
+
+    private static bool MatchesGeo(string? left, string? right)
     {
         if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right)) return false;
+        if (string.Equals(left.Trim(), right.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return NormalizeGeoToken(left) == NormalizeGeoToken(right);
+    }
+
+    private static bool Matches(string? left, string? right)
+    {
+        if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right))
+        {
+            return false;
+        }
+
         return string.Equals(left.Trim(), right.Trim(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeGeoToken(string value)
+    {
+        var normalized = value.Trim().ToLowerInvariant()
+            .Replace(" ", string.Empty)
+            .Replace("-", string.Empty)
+            .Replace("_", string.Empty);
+
+        return normalized switch
+        {
+            "zaec" or "ec" => "easterncape",
+            "zafs" or "fs" => "freestate",
+            "zagt" or "gt" => "gauteng",
+            "zakzn" or "kzn" => "kwazulunatal",
+            "zalp" or "lp" => "limpopo",
+            "zamp" or "mp" => "mpumalanga",
+            "zanc" or "nc" => "northerncape",
+            "zanw" or "nw" => "northwest",
+            "zawc" or "wc" => "westerncape",
+            _ => normalized
+        };
+    }
+
+    private static bool MatchesAnyMetadataToken(InventoryCandidate candidate, string requestedValue, params string[] keys)
+    {
+        if (string.IsNullOrWhiteSpace(requestedValue) || candidate.Metadata.Count == 0)
+        {
+            return false;
+        }
+
+        return keys.Any(key =>
+            candidate.Metadata.TryGetValue(key, out var value)
+            && ExtractMetadataTokens(value).Any(token => MatchesGeo(requestedValue, token)));
+    }
+
+    private static IEnumerable<string> ExtractMetadataTokens(object? value)
+    {
+        if (value is null)
+        {
+            yield break;
+        }
+
+        if (value is string text)
+        {
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                yield return text.Trim();
+            }
+
+            yield break;
+        }
+
+        if (value is IEnumerable<string> textValues)
+        {
+            foreach (var entry in textValues)
+            {
+                if (!string.IsNullOrWhiteSpace(entry))
+                {
+                    yield return entry.Trim();
+                }
+            }
+
+            yield break;
+        }
+
+        if (value is JsonElement json)
+        {
+            if (json.ValueKind == JsonValueKind.String)
+            {
+                var jsonText = json.GetString();
+                if (!string.IsNullOrWhiteSpace(jsonText))
+                {
+                    yield return jsonText.Trim();
+                }
+
+                yield break;
+            }
+
+            if (json.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in json.EnumerateArray())
+                {
+                    if (item.ValueKind == JsonValueKind.String)
+                    {
+                        var itemText = item.GetString();
+                        if (!string.IsNullOrWhiteSpace(itemText))
+                        {
+                            yield return itemText.Trim();
+                        }
+                    }
+                }
+            }
+
+            yield break;
+        }
+
+        var fallback = value.ToString();
+        if (!string.IsNullOrWhiteSpace(fallback))
+        {
+            yield return fallback.Trim();
+        }
     }
 }

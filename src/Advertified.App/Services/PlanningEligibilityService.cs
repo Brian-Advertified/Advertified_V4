@@ -62,6 +62,12 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
 
     private static bool MatchesRequestedGeography(InventoryCandidate candidate, CampaignPlanningRequest request)
     {
+        var normalizedScope = NormalizeScope(request.GeographyScope);
+        if (normalizedScope == "national")
+        {
+            return true;
+        }
+
         // National broadcast inventory (radio + TV) should remain eligible across
         // local/provincial briefs. This prevents false preferred-media fallbacks when
         // channels are inherently national even if the brief geography is narrower.
@@ -72,36 +78,41 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
             return true;
         }
 
-        var hasSpecificGeography = request.Suburbs.Count > 0
-            || request.Cities.Count > 0
-            || request.Provinces.Count > 0
-            || request.Areas.Count > 0;
+        var requestedSuburbs = normalizedScope == "local" ? request.Suburbs : new List<string>();
+        var requestedCities = normalizedScope == "local" ? request.Cities : new List<string>();
+        var requestedProvinces = normalizedScope == "provincial" ? request.Provinces : new List<string>();
+        var requestedAreas = normalizedScope == "local" ? request.Areas : new List<string>();
+
+        var hasSpecificGeography = requestedSuburbs.Count() > 0
+            || requestedCities.Count() > 0
+            || requestedProvinces.Count() > 0
+            || requestedAreas.Count() > 0;
 
         if (!hasSpecificGeography)
         {
             return true;
         }
 
-        if (request.Suburbs.Any(x => Matches(x, candidate.Suburb) || Matches(x, candidate.Area)))
+        if (requestedSuburbs.Any(x => Matches(x, candidate.Suburb) || Matches(x, candidate.Area)))
         {
             return true;
         }
 
-        if (request.Cities.Any(x =>
+        if (requestedCities.Any(x =>
             Matches(x, candidate.City)
             || MatchesAnyMetadataToken(candidate, x, "cityLabels", "city_labels", "city", "area")))
         {
             return true;
         }
 
-        if (request.Provinces.Any(x =>
+        if (requestedProvinces.Any(x =>
             Matches(x, candidate.Province)
             || MatchesAnyMetadataToken(candidate, x, "provinceCodes", "province_codes", "province", "area")))
         {
             return true;
         }
 
-        if (request.Areas.Any(x =>
+        if (requestedAreas.Any(x =>
             Matches(x, candidate.Area)
             || Matches(x, candidate.Suburb)
             || MatchesAnyMetadataToken(candidate, x, "provinceCodes", "province_codes", "cityLabels", "city_labels", "area", "province", "city")))
@@ -109,8 +120,8 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
             return true;
         }
 
-        return Matches(request.GeographyScope, candidate.MarketScope)
-            || Matches(request.GeographyScope, candidate.RegionClusterCode);
+        return Matches(normalizedScope, candidate.MarketScope)
+            || Matches(normalizedScope, candidate.RegionClusterCode);
     }
 
     private static bool Matches(string? left, string? right)
@@ -120,7 +131,19 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
             return false;
         }
 
-        return string.Equals(left.Trim(), right.Trim(), StringComparison.OrdinalIgnoreCase);
+        if (string.Equals(left.Trim(), right.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var normalizedLeft = NormalizeGeoToken(left);
+        var normalizedRight = NormalizeGeoToken(right);
+        if (normalizedLeft.Length == 0 || normalizedRight.Length == 0)
+        {
+            return false;
+        }
+
+        return normalizedLeft == normalizedRight;
     }
 
     private static bool MatchesAnyMetadataToken(InventoryCandidate candidate, string requestedValue, params string[] keys)
@@ -201,5 +224,40 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
         {
             yield return fallback.Trim();
         }
+    }
+
+    private static string NormalizeScope(string? scope)
+    {
+        var normalized = (scope ?? string.Empty).Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            "regional" => "provincial",
+            "local" => "local",
+            "provincial" => "provincial",
+            "national" => "national",
+            _ => normalized
+        };
+    }
+
+    private static string NormalizeGeoToken(string value)
+    {
+        var normalized = value.Trim().ToLowerInvariant()
+            .Replace(" ", string.Empty)
+            .Replace("-", string.Empty)
+            .Replace("_", string.Empty);
+
+        return normalized switch
+        {
+            "zaec" or "ec" => "easterncape",
+            "zafs" or "fs" => "freestate",
+            "zagt" or "gt" => "gauteng",
+            "zakzn" or "kzn" => "kwazulunatal",
+            "zalp" or "lp" => "limpopo",
+            "zamp" or "mp" => "mpumalanga",
+            "zanc" or "nc" => "northerncape",
+            "zanw" or "nw" => "northwest",
+            "zawc" or "wc" => "westerncape",
+            _ => normalized
+        };
     }
 }

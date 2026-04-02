@@ -313,6 +313,9 @@ public sealed class AgentCampaignsController : ControllerBase
         var response = campaign.ToDetail(currentUserId);
         var queueStage = CampaignWorkflowPolicy.ResolveAgentQueueStage(campaign);
         response.NextAction = CampaignWorkflowPolicy.GetAgentNextAction(campaign, queueStage, currentUserId);
+        response.RecommendationPdfUrl = response.Recommendations.Count > 0
+            ? $"/agent/campaigns/{campaign.Id}/recommendation-pdf"
+            : null;
 
         if (string.IsNullOrWhiteSpace(response.CampaignName))
         {
@@ -320,6 +323,27 @@ public sealed class AgentCampaignsController : ControllerBase
         }
 
         return Ok(response);
+    }
+
+    [HttpGet("{id:guid}/recommendation-pdf")]
+    public async Task<IActionResult> DownloadRecommendationPdf(Guid id, CancellationToken cancellationToken)
+    {
+        await GetCurrentOperationsUserAsync(cancellationToken);
+
+        var campaignExists = await _db.Campaigns
+            .AsNoTracking()
+            .AnyAsync(x => x.Id == id, cancellationToken);
+        if (!campaignExists)
+        {
+            return NotFound(new ProblemDetails
+            {
+                Title = "Campaign not found.",
+                Status = StatusCodes.Status404NotFound
+            });
+        }
+
+        var bytes = await _recommendationDocumentService.GetCampaignPdfBytesAsync(id, cancellationToken);
+        return File(bytes, "application/pdf", $"recommendation-{id:D}.pdf");
     }
 
     [HttpPost("prospects")]
@@ -584,6 +608,87 @@ public sealed class AgentCampaignsController : ControllerBase
                 paymentReference
             },
             cancellationToken);
+
+        var response = refreshedCampaign.ToDetail(currentUser.Id);
+        var queueStage = CampaignWorkflowPolicy.ResolveAgentQueueStage(refreshedCampaign);
+        response.NextAction = CampaignWorkflowPolicy.GetAgentNextAction(refreshedCampaign, queueStage, currentUser.Id);
+        return Ok(response);
+    }
+
+    [HttpPut("{id:guid}/prospect-pricing")]
+    public async Task<IActionResult> UpdateProspectPricing(Guid id, [FromBody] UpdateProspectPricingRequest request, CancellationToken cancellationToken)
+    {
+        var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
+        var campaign = await _db.Campaigns
+            .Include(x => x.PackageOrder)
+            .Include(x => x.PackageBand)
+            .Include(x => x.User)
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+            ?? throw new InvalidOperationException("Campaign not found.");
+
+        if (currentUser.Role == UserRole.Agent && campaign.AssignedAgentUserId != currentUser.Id)
+        {
+            throw new InvalidOperationException("Only the assigned agent can update this prospect campaign.");
+        }
+
+        if (!string.Equals(campaign.Status, "awaiting_purchase", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Only prospective campaigns can be repriced.");
+        }
+
+        var packageBand = await _db.PackageBands
+            .FirstOrDefaultAsync(x => x.Id == request.PackageBandId && x.IsActive, cancellationToken)
+            ?? throw new InvalidOperationException("Package band not found.");
+
+        if (request.SelectedBudget < packageBand.MinBudget || request.SelectedBudget > packageBand.MaxBudget)
+        {
+            throw new InvalidOperationException($"Selected budget must be between {packageBand.MinBudget:0.##} and {packageBand.MaxBudget:0.##}.");
+        }
+
+        campaign.PackageBandId = packageBand.Id;
+        campaign.PackageOrder.PackageBandId = packageBand.Id;
+        campaign.PackageOrder.Amount = request.SelectedBudget;
+        campaign.PackageOrder.SelectedBudget = request.SelectedBudget;
+        campaign.PackageOrder.UpdatedAt = DateTime.UtcNow;
+        campaign.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await WriteChangeAuditAsync(
+            "update_prospect_pricing",
+            "campaign",
+            campaign.Id.ToString(),
+            ResolveCampaignLabel(campaign),
+            $"Updated prospect package band and budget for {ResolveCampaignLabel(campaign)}.",
+            new
+            {
+                CampaignId = campaign.Id,
+                PackageBandId = packageBand.Id,
+                PackageBandName = packageBand.Name,
+                request.SelectedBudget
+            },
+            cancellationToken);
+
+        _db.ChangeTracker.Clear();
+        var refreshedCampaign = await _db.Campaigns
+            .AsNoTracking()
+            .AsSplitQuery()
+            .Include(x => x.User)
+                .ThenInclude(x => x.BusinessProfile)
+            .Include(x => x.AssignedAgentUser)
+            .Include(x => x.PackageBand)
+            .Include(x => x.PackageOrder)
+            .Include(x => x.CampaignBrief)
+            .Include(x => x.CampaignCreativeSystems)
+            .Include(x => x.CampaignAssets)
+            .Include(x => x.CampaignSupplierBookings)
+                .ThenInclude(x => x.ProofAsset)
+            .Include(x => x.CampaignDeliveryReports)
+                .ThenInclude(x => x.EvidenceAsset)
+            .Include(x => x.CampaignPauseWindows)
+            .Include(x => x.CampaignRecommendations)
+                .ThenInclude(x => x.RecommendationItems)
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+            ?? throw new InvalidOperationException("Campaign not found.");
 
         var response = refreshedCampaign.ToDetail(currentUser.Id);
         var queueStage = CampaignWorkflowPolicy.ResolveAgentQueueStage(refreshedCampaign);
@@ -1033,15 +1138,21 @@ public sealed class AgentCampaignsController : ControllerBase
 
     private static void MapBrief(CampaignBrief brief, SaveCampaignBriefRequest request, DateTime now)
     {
+        var normalizedScope = NormalizeGeographyScope(request.GeographyScope);
+        var normalizedProvinces = NormalizeScopeList(request.Provinces, normalizedScope == "provincial");
+        var normalizedCities = NormalizeScopeList(request.Cities, normalizedScope == "local");
+        var normalizedSuburbs = NormalizeScopeList(request.Suburbs, normalizedScope == "local");
+        var normalizedAreas = NormalizeScopeList(request.Areas, normalizedScope == "local");
+
         brief.Objective = request.Objective;
         brief.StartDate = request.StartDate;
         brief.EndDate = request.EndDate;
         brief.DurationWeeks = request.DurationWeeks;
-        brief.GeographyScope = request.GeographyScope;
-        brief.ProvincesJson = Serialize(request.Provinces);
-        brief.CitiesJson = Serialize(request.Cities);
-        brief.SuburbsJson = Serialize(request.Suburbs);
-        brief.AreasJson = Serialize(request.Areas);
+        brief.GeographyScope = normalizedScope;
+        brief.ProvincesJson = Serialize(normalizedProvinces);
+        brief.CitiesJson = Serialize(normalizedCities);
+        brief.SuburbsJson = Serialize(normalizedSuburbs);
+        brief.AreasJson = Serialize(normalizedAreas);
         brief.TargetAgeMin = request.TargetAgeMin;
         brief.TargetAgeMax = request.TargetAgeMax;
         brief.TargetGender = request.TargetGender;
@@ -1068,6 +1179,34 @@ public sealed class AgentCampaignsController : ControllerBase
     private static string? Serialize<T>(T value)
     {
         return value == null ? null : JsonSerializer.Serialize(value);
+    }
+
+    private static string NormalizeGeographyScope(string? scope)
+    {
+        return (scope ?? string.Empty).Trim().ToLowerInvariant() switch
+        {
+            "regional" => "provincial",
+            "local" => "local",
+            "provincial" => "provincial",
+            "national" => "national",
+            _ => "provincial"
+        };
+    }
+
+    private static IReadOnlyList<string>? NormalizeScopeList(IReadOnlyList<string>? values, bool enabled)
+    {
+        if (!enabled || values is null)
+        {
+            return null;
+        }
+
+        var normalized = values
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return normalized.Length == 0 ? null : normalized;
     }
 
     [HttpPost("{id:guid}/generate-recommendation")]

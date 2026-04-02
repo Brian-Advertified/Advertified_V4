@@ -140,17 +140,31 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             preferredMediaTypes.Add("tv");
         }
 
+        var normalizedScope = NormalizeGeographyScope(brief.GeographyScope);
+        var provinces = normalizedScope == "provincial"
+            ? brief.GetList(nameof(CampaignBriefEntity.ProvincesJson))
+            : new List<string>();
+        var cities = normalizedScope == "local"
+            ? brief.GetList(nameof(CampaignBriefEntity.CitiesJson))
+            : new List<string>();
+        var suburbs = normalizedScope == "local"
+            ? brief.GetList(nameof(CampaignBriefEntity.SuburbsJson))
+            : new List<string>();
+        var areas = normalizedScope == "local"
+            ? brief.GetList(nameof(CampaignBriefEntity.AreasJson))
+            : new List<string>();
+
         return new CampaignPlanningRequest
         {
             CampaignId = campaign.Id,
             SelectedBudget = PricingPolicy.ResolvePlanningBudget(
                 campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
                 campaign.PackageOrder.AiStudioReserveAmount),
-            GeographyScope = brief.GeographyScope,
-            Provinces = brief.GetList(nameof(CampaignBriefEntity.ProvincesJson)),
-            Cities = brief.GetList(nameof(CampaignBriefEntity.CitiesJson)),
-            Suburbs = brief.GetList(nameof(CampaignBriefEntity.SuburbsJson)),
-            Areas = brief.GetList(nameof(CampaignBriefEntity.AreasJson)),
+            GeographyScope = normalizedScope,
+            Provinces = provinces,
+            Cities = cities,
+            Suburbs = suburbs,
+            Areas = areas,
             PreferredMediaTypes = preferredMediaTypes,
             ExcludedMediaTypes = brief.GetList(nameof(CampaignBriefEntity.ExcludedMediaTypesJson)),
             TargetLanguages = brief.GetList(nameof(CampaignBriefEntity.TargetLanguagesJson)),
@@ -163,6 +177,18 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             TargetOohShare = request?.TargetOohShare,
             TargetTvShare = request?.TargetTvShare,
             TargetDigitalShare = request?.TargetDigitalShare
+        };
+    }
+
+    private static string NormalizeGeographyScope(string? scope)
+    {
+        return (scope ?? string.Empty).Trim().ToLowerInvariant() switch
+        {
+            "regional" => "provincial",
+            "local" => "local",
+            "provincial" => "provincial",
+            "national" => "national",
+            _ => "provincial"
         };
     }
 

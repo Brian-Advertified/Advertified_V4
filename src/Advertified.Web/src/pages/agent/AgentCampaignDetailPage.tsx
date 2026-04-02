@@ -15,7 +15,7 @@ import {
   UserX2,
   X,
 } from 'lucide-react';
-import { useDeferredValue, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { LoadingState } from '../../components/ui/LoadingState';
@@ -95,12 +95,18 @@ export function AgentCampaignDetailPage() {
     spendDelivered: '',
     evidenceAssetId: '',
   });
+  const [prospectPackageBandId, setProspectPackageBandId] = useState('');
+  const [prospectBudgetInput, setProspectBudgetInput] = useState('');
   const mixPanelRef = useRef<HTMLDivElement | null>(null);
 
   const campaignQuery = useQuery({ queryKey: queryKeys.agent.campaign(id), queryFn: () => advertifiedApi.getAgentCampaign(id) });
   const inventoryQuery = useQuery({
     queryKey: queryKeys.agent.inventory(id),
     queryFn: () => advertifiedApi.getInventory(id),
+  });
+  const packagesQuery = useQuery({
+    queryKey: queryKeys.packages.all,
+    queryFn: () => advertifiedApi.getPackages(),
   });
 
   const saveMutation = useMutation({
@@ -124,6 +130,23 @@ export function AgentCampaignDetailPage() {
       });
       navigate('/agent/approvals');
     },
+  });
+  const updateProspectPricingMutation = useMutation({
+    mutationFn: () => advertifiedApi.updateProspectPricing(id, {
+      packageBandId: prospectPackageBandId,
+      selectedBudget: Number(prospectBudgetInput),
+    }),
+    onSuccess: async () => {
+      await invalidateAgentCampaignQueries(queryClient, id);
+      pushToast({
+        title: 'Prospect pricing updated.',
+        description: 'Package band and budget were saved for this prospective campaign.',
+      });
+    },
+    onError: (error) => pushToast({
+      title: 'Could not update prospect pricing.',
+      description: error instanceof Error ? error.message : 'Please try again.',
+    }, 'error'),
   });
 
   const markLiveMutation = useMutation({
@@ -342,6 +365,15 @@ export function AgentCampaignDetailPage() {
     ? draftApprovalState.captured
     : false;
   const deferredInventorySearchInput = useDeferredValue(inventorySearchInput);
+
+  useEffect(() => {
+    if (!campaign) {
+      return;
+    }
+
+    setProspectPackageBandId(campaign.packageBandId);
+    setProspectBudgetInput(String(campaign.selectedBudget));
+  }, [campaign?.id, campaign?.packageBandId, campaign?.selectedBudget]);
 
   if (campaignQuery.isLoading || inventoryQuery.isLoading || !campaign) {
     return <LoadingState label="Loading agent campaign detail..." />;
@@ -572,6 +604,27 @@ export function AgentCampaignDetailPage() {
     }, 'info');
   }
 
+  function handleUpdateProspectPricing() {
+    if (!prospectPackageBandId) {
+      pushToast({
+        title: 'Select a package band.',
+        description: 'Choose the package band for this prospect first.',
+      }, 'error');
+      return;
+    }
+
+    const parsedBudget = Number(prospectBudgetInput);
+    if (!Number.isFinite(parsedBudget) || parsedBudget <= 0) {
+      pushToast({
+        title: 'Enter a valid budget.',
+        description: 'The budget must be a positive number.',
+      }, 'error');
+      return;
+    }
+
+    updateProspectPricingMutation.mutate();
+  }
+
   return (
     <section className="page-shell space-y-8">
       {saveMutation.isPending || sendMutation.isPending || assignMutation.isPending || unassignMutation.isPending || regenerateMutation.isPending || markLiveMutation.isPending ? (
@@ -625,6 +678,48 @@ export function AgentCampaignDetailPage() {
               {statusLabel}
             </div>
           </div>
+
+          {isProspectiveCampaign && campaign.isAssignedToCurrentUser ? (
+            <div className="panel px-5 py-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ink-soft">Prospect pricing</p>
+              <p className="mt-2 text-sm leading-7 text-ink-soft">
+                If this prospect was captured on the wrong package band or budget, update it here before conversion.
+              </p>
+              <div className="mt-4 space-y-3">
+                <label className="block">
+                  <span className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Package band</span>
+                  <select
+                    value={prospectPackageBandId}
+                    onChange={(event) => setProspectPackageBandId(event.target.value)}
+                    className="input-base mt-2"
+                  >
+                    <option value="">Select package</option>
+                    {(packagesQuery.data ?? []).map((item) => (
+                      <option key={item.id} value={item.id}>{item.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Budget</span>
+                  <input
+                    value={prospectBudgetInput}
+                    onChange={(event) => setProspectBudgetInput(event.target.value)}
+                    className="input-base mt-2"
+                    type="number"
+                    min="1"
+                  />
+                </label>
+                <button
+                  type="button"
+                  disabled={updateProspectPricingMutation.isPending}
+                  onClick={handleUpdateProspectPricing}
+                  className="button-primary inline-flex w-full items-center justify-center gap-2 px-4 py-2 disabled:opacity-60"
+                >
+                  {updateProspectPricingMutation.isPending ? 'Updating...' : 'Update package and budget'}
+                </button>
+              </div>
+            </div>
+          ) : null}
 
           <div className="panel px-5 py-5">
             <div className="flex items-start gap-3">

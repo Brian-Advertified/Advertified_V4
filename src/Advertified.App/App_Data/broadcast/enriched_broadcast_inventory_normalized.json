@@ -1464,7 +1464,7 @@
     },
     {
       "id": "radio_y",
-      "station": "Y",
+      "station": "YFM 99.2",
       "media_type": "radio",
       "catalog_health": "strong",
       "coverage_type": "regional",
@@ -1499,9 +1499,36 @@
         "kwaito",
         "R&B"
       ],
-      "packages": [],
+      "packages": [
+        {
+          "name": "Live Reads + Digital (1 Week)",
+          "package_type": "weekly",
+          "value_zar": 120875,
+          "investment_zar": 22382,
+          "duration_weeks": 1
+        },
+        {
+          "name": "50 for 50 Package - Generics (4 Weeks)",
+          "package_type": "monthly",
+          "value_zar": 302200,
+          "investment_zar": 51374,
+          "duration_weeks": 4
+        },
+        {
+          "name": "100 for 100 - Generics + Digital (4 Weeks)",
+          "package_type": "monthly",
+          "value_zar": 601400,
+          "investment_zar": 118252,
+          "duration_weeks": 4
+        }
+      ],
       "pricing": {},
       "data_source_enrichment": [
+        {
+          "source_type": "uploaded_file",
+          "source_label": "Y PACKAGES ONE PAGER PDF",
+          "detail": "YFM package pricing and investment values"
+        },
         {
           "source_type": "web",
           "source_label": "Y official site",
@@ -1515,7 +1542,7 @@
           "source_url": "https://broadcast.media.co.za/99-2-yfm/"
         }
       ],
-      "has_pricing": false,
+      "has_pricing": true,
       "is_national": false
     },
     {

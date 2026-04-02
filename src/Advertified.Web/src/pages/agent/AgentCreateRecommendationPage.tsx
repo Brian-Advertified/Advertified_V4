@@ -25,8 +25,17 @@ const CHANNEL_LABELS: Record<ChannelOption, string> = {
 };
 const OBJECTIVE_OPTIONS = ['awareness', 'launch', 'promotion', 'brand_presence', 'leads'] as const;
 const AUDIENCE_OPTIONS = ['mass-market', 'youth', 'business', 'retail'] as const;
-const SCOPE_OPTIONS = ['local', 'regional', 'national'] as const;
-const GEOGRAPHY_OPTIONS = ['gauteng', 'western-cape', 'kwazulu-natal', 'national'] as const;
+const SCOPE_OPTIONS = ['local', 'provincial', 'national'] as const;
+const GEOGRAPHY_OPTIONS = [
+  'johannesburg',
+  'cape-town',
+  'durban',
+  'pretoria',
+  'port-elizabeth',
+  'gauteng',
+  'western-cape',
+  'kwazulu-natal',
+] as const;
 const TONE_OPTIONS = ['premium', 'balanced', 'high-visibility', 'performance'] as const;
 
 function normalizeOption<T extends readonly string[]>(value: string | null | undefined, allowed: T): T[number] | '' {
@@ -102,8 +111,8 @@ function inferInitialForm(campaign: {
   return {
     objective: campaign.queueStage === 'newly_paid' ? 'launch' : 'awareness',
     audience: 'retail',
-    scope: campaign.selectedBudget >= 500000 ? 'national' : campaign.selectedBudget >= 150000 ? 'regional' : 'local',
-    geography: campaign.selectedBudget >= 500000 ? 'national' : 'gauteng',
+    scope: campaign.selectedBudget >= 500000 ? 'national' : 'provincial',
+    geography: campaign.selectedBudget >= 500000 ? '' : 'gauteng',
     brandName: `${campaign.clientName} ${campaign.packageBandName} Campaign`,
     tone: campaign.packageBandName === 'Dominance' ? 'premium' : 'high-visibility',
     brief: `Build a ${campaign.packageBandName.toLowerCase()} recommendation for ${campaign.clientName} within ${formatCurrency(campaign.selectedBudget)}. ${campaign.nextAction}`,
@@ -209,6 +218,19 @@ export function AgentCreateRecommendationPage() {
     : '';
 
   const handleFormChange = <K extends keyof CampaignFormState>(key: K, value: CampaignFormState[K]) => {
+    if (key === 'scope') {
+      const nextScope = value as string;
+      setScopedForm({
+        key: activeFormKey,
+        value: {
+          ...form,
+          scope: nextScope,
+          geography: nextScope === 'national' ? '' : form.geography,
+        },
+      });
+      return;
+    }
+
     setScopedForm({
       key: activeFormKey,
       value: {
@@ -303,12 +325,31 @@ export function AgentCreateRecommendationPage() {
       'western-cape': 'Western Cape',
       'kwazulu-natal': 'KwaZulu-Natal',
     };
+    const cityMap: Record<string, string> = {
+      johannesburg: 'Johannesburg',
+      'cape-town': 'Cape Town',
+      durban: 'Durban',
+      pretoria: 'Pretoria',
+      'port-elizabeth': 'Port Elizabeth',
+    };
+    const normalizedScope = form.scope === 'regional' ? 'provincial' : (form.scope || 'provincial');
+    const geography = form.geography;
+    const provinces = normalizedScope === 'provincial' && geography
+      ? [provinceMap[geography] ?? geography]
+      : undefined;
+    const cities = normalizedScope === 'local' && geography
+      ? [cityMap[geography] ?? geography]
+      : undefined;
+    const areas = normalizedScope === 'local' && geography
+      ? [cityMap[geography] ?? geography]
+      : undefined;
 
     return {
       objective: form.objective || 'awareness',
-      geographyScope: form.scope || 'regional',
-      provinces: form.geography && form.geography !== 'national' ? [provinceMap[form.geography] ?? form.geography] : undefined,
-      areas: form.geography && form.geography !== 'national' ? [form.geography] : undefined,
+      geographyScope: normalizedScope,
+      provinces,
+      cities,
+      areas,
       targetAudienceNotes: [form.audience, form.tone].filter(Boolean).join(' · '),
       preferredMediaTypes: form.channels
         .filter((channel) => allowedChannels.includes(channel))
@@ -388,7 +429,7 @@ export function AgentCreateRecommendationPage() {
           ...form,
           objective: normalizeOption(result.objective, OBJECTIVE_OPTIONS) || form.objective,
           audience: normalizeOption(result.audience, AUDIENCE_OPTIONS) || form.audience,
-          scope: normalizeOption(result.scope, SCOPE_OPTIONS) || form.scope,
+          scope: normalizeOption(result.scope === 'regional' ? 'provincial' : result.scope, SCOPE_OPTIONS) || form.scope,
           geography: normalizeOption(result.geography, GEOGRAPHY_OPTIONS) || form.geography,
           tone: normalizeOption(result.tone, TONE_OPTIONS) || form.tone,
           brandName: result.campaignName || form.brandName,
@@ -412,7 +453,13 @@ export function AgentCreateRecommendationPage() {
 
   const isStep1Complete = Boolean(selectedClientId && selectedCampaign);
   const isStep2Complete = isStep1Complete
-    && Boolean(form.objective && form.audience && form.scope && form.geography && form.brief.trim() && form.channels.length > 0);
+    && Boolean(
+      form.objective
+      && form.audience
+      && form.scope
+      && (form.scope === 'national' || form.geography)
+      && form.brief.trim()
+      && form.channels.length > 0);
   const isGenerating = pendingAction === 'generate' && initializeMutation.isPending;
   const isWorking = initializeMutation.isPending || interpretMutation.isPending;
   const canGenerate = isStep2Complete && !isWorking;
@@ -651,20 +698,32 @@ export function AgentCreateRecommendationPage() {
                 <select value={form.scope} onChange={(event) => handleFormChange('scope', event.target.value)} className="input-base">
                   <option value="">Choose scope</option>
                   <option value="local">Local</option>
-                  <option value="regional">Regional</option>
+                  <option value="provincial">Provincial</option>
                   <option value="national">National</option>
                 </select>
               </label>
 
               <label className="block">
                 <span className="label-base">Primary geography</span>
-                <select value={form.geography} onChange={(event) => handleFormChange('geography', event.target.value)} className="input-base">
-                  <option value="">Select geography</option>
-                  <option value="gauteng">Gauteng</option>
-                  <option value="western-cape">Western Cape</option>
-                  <option value="kwazulu-natal">KwaZulu-Natal</option>
-                  <option value="national">National</option>
-                </select>
+                {form.scope === 'national' ? (
+                  <input value="Not required for national scope" className="input-base bg-slate-50 text-slate-500" disabled />
+                ) : form.scope === 'local' ? (
+                  <select value={form.geography} onChange={(event) => handleFormChange('geography', event.target.value)} className="input-base">
+                    <option value="">Select city</option>
+                    <option value="johannesburg">Johannesburg</option>
+                    <option value="cape-town">Cape Town</option>
+                    <option value="durban">Durban</option>
+                    <option value="pretoria">Pretoria</option>
+                    <option value="port-elizabeth">Port Elizabeth</option>
+                  </select>
+                ) : (
+                  <select value={form.geography} onChange={(event) => handleFormChange('geography', event.target.value)} className="input-base">
+                    <option value="">Select province</option>
+                    <option value="gauteng">Gauteng</option>
+                    <option value="western-cape">Western Cape</option>
+                    <option value="kwazulu-natal">KwaZulu-Natal</option>
+                  </select>
+                )}
               </label>
             </div>
 
