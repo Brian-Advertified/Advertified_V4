@@ -442,6 +442,7 @@ export function AgentCampaignDetailPage() {
   const effectivePlannedTotal = plannedTotal > 0 ? plannedTotal : activeRecommendation?.totalCost ?? 0;
   const budgetDelta = campaign.selectedBudget - effectivePlannedTotal;
   const isOverBudget = budgetDelta < 0;
+  const activeProposalLabel = activeRecommendation?.proposalLabel ?? 'Current proposal';
   const showExecutionOperations = (
     campaign.status === 'approved'
     || campaign.status === 'creative_changes_requested'
@@ -680,7 +681,10 @@ export function AgentCampaignDetailPage() {
           <div className="panel px-5 py-5">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ink-soft">Order</p>
             <h2 className="mt-3 text-xl font-semibold text-ink">{campaign.packageBandName}</h2>
-            <p className="mt-2 text-sm text-ink-soft">{formatCurrency(campaign.selectedBudget)} budget</p>
+            <p className="mt-2 text-sm text-ink-soft">Package target: {formatCurrency(campaign.selectedBudget)}</p>
+            {activeRecommendation ? (
+              <p className="mt-2 text-sm font-semibold text-ink">{activeProposalLabel}: {formatCurrency(activeRecommendation.totalCost)}</p>
+            ) : null}
             <div className="mt-4 inline-flex rounded-full bg-brand-soft px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-brand">
               {statusLabel}
             </div>
@@ -815,7 +819,8 @@ export function AgentCampaignDetailPage() {
                     >
                       <p className="text-sm font-semibold text-ink">{proposal.proposalLabel ?? 'Proposal'}</p>
                       <p className="mt-1 text-sm text-ink-soft">{proposal.proposalStrategy ?? 'Recommendation option'}</p>
-                      <p className="mt-2 text-xs uppercase tracking-[0.14em] text-ink-soft">{proposal.items.length} line item(s)</p>
+                      <p className="mt-2 text-sm font-semibold text-ink">{formatCurrency(proposal.totalCost)}</p>
+                      <p className="mt-1 text-xs uppercase tracking-[0.14em] text-ink-soft">{proposal.items.length} line item(s)</p>
                     </button>
                   );
                 })}

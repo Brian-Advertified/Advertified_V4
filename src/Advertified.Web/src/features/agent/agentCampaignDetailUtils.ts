@@ -130,6 +130,7 @@ export function calculateConfidence(brief?: CampaignBrief) {
 
 export function getConstraintChecks(brief: CampaignBrief | undefined, selectedPlanItems: SelectedPlanInventoryItem[], isOverBudget: boolean, selectedBudget: number) {
   const hasOoh = selectedPlanItems.some((item) => normalizeChannelKey(item.type) === 'OOH');
+  const hasRadio = selectedPlanItems.some((item) => normalizeChannelKey(item.type) === 'RADIO');
   const geoAligned = selectedPlanItems.length === 0
     || selectedPlanItems.some((item) => {
       const region = item.region.toLowerCase();
@@ -141,8 +142,9 @@ export function getConstraintChecks(brief: CampaignBrief | undefined, selectedPl
       );
     });
 
+  const radioRequested = (brief?.preferredMediaTypes ?? []).some((channel) => normalizeChannelKey(channel) === 'RADIO');
   const nationalRadioSelected = selectedPlanItems.some((item) =>
-    item.type === 'radio' && /(metro|5fm|ukhozi|radio 2000)/i.test(item.station));
+    normalizeChannelKey(item.type) === 'RADIO' && /(metro|5fm|ukhozi|radio 2000)/i.test(item.station));
 
   return [
     {
@@ -158,9 +160,11 @@ export function getConstraintChecks(brief: CampaignBrief | undefined, selectedPl
       detail: !isOverBudget ? `Inside the paid ${formatCurrency(selectedBudget)} package.` : 'This draft is currently over budget.',
     },
     {
-      label: 'No national radio',
-      ok: !nationalRadioSelected,
-      detail: nationalRadioSelected ? 'National-capable radio is included.' : 'No national radio selected yet. That is still acceptable here.',
+      label: radioRequested ? 'Radio included' : 'Radio coverage',
+      ok: radioRequested ? hasRadio : true,
+      detail: hasRadio
+        ? (nationalRadioSelected ? 'National-capable radio is included.' : 'Radio is included in this recommendation.')
+        : (radioRequested ? 'Add at least one radio line to match the requested mix.' : 'Radio is optional for this recommendation.'),
     },
     {
       label: 'Geo aligned',

@@ -9,7 +9,7 @@ import { useAuth } from '../../features/auth/auth-context';
 import { RecommendationViewer } from '../../features/campaigns/components/RecommendationViewer';
 import { buildApprovalDetails, getApprovalContent, getHeroContent } from '../../features/campaigns/clientCampaignDetailContent';
 import { invalidateClientCampaignQueries, queryKeys } from '../../lib/queryKeys';
-import { formatDate, titleCase } from '../../lib/utils';
+import { formatCurrency, formatDate, titleCase } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import { ClientCampaignShell, getCampaignProgressPercent } from './clientWorkspace';
 
@@ -404,6 +404,7 @@ export function CampaignDetailPage() {
                     >
                       <p className="text-sm font-semibold text-ink">{proposal.proposalLabel ?? `Proposal ${index + 1}`}</p>
                       <p className="mt-1 text-xs text-ink-soft">{proposal.proposalStrategy ?? 'Media plan option'}</p>
+                      <p className="mt-2 text-sm font-semibold text-ink">{formatCurrency(proposal.totalCost)}</p>
                       <p className="mt-2 text-[11px] uppercase tracking-[0.12em] text-ink-soft">
                         {titleCase(proposal.status.replace(/_/g, ' '))}
                       </p>
