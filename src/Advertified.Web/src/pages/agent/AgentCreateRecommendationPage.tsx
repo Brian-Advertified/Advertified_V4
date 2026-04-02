@@ -127,6 +127,7 @@ export function AgentCreateRecommendationPage() {
   const [pendingAction, setPendingAction] = useState<'draft' | 'generate' | null>(null);
   const [scopedAiInterpretationSummary, setScopedAiInterpretationSummary] = useState<{ key: string; summary: string } | null>(null);
   const [scopedForm, setScopedForm] = useState<ScopedFormState | null>(null);
+  const [selectedProspectPackageBandState, setSelectedProspectPackageBandState] = useState<{ campaignId: string; packageBandId: string } | null>(null);
   const emptyForm: CampaignFormState = {
     objective: '',
     audience: '',
@@ -186,21 +187,30 @@ export function AgentCreateRecommendationPage() {
     ?? availableCampaigns[0]
     ?? null;
   const selectedCampaignIsProspective = selectedCampaign?.status === 'awaiting_purchase';
+  const selectedProspectPackageBandId = selectedCampaignIsProspective
+    ? ((selectedProspectPackageBandState?.campaignId === selectedCampaign?.id
+      ? selectedProspectPackageBandState.packageBandId
+      : selectedCampaign?.packageBandId) || '')
+    : (selectedCampaign?.packageBandId || '');
   const selectedPackageBand = useMemo(
-    () => packagesQuery.data?.find((item) => item.id === selectedCampaign?.packageBandId) ?? null,
-    [packagesQuery.data, selectedCampaign?.packageBandId],
+    () => packagesQuery.data?.find((item) => item.id === selectedProspectPackageBandId) ?? null,
+    [packagesQuery.data, selectedProspectPackageBandId],
   );
+  const selectedCampaignReferenceBudget = selectedCampaignIsProspective && selectedPackageBand
+    ? (selectedPackageBand.recommendedSpend ?? Math.round((selectedPackageBand.minBudget + selectedPackageBand.maxBudget) / 2))
+    : (selectedCampaign?.selectedBudget ?? 0);
   const allowedChannels = useMemo(
     () => getAllowedChannels(selectedPackageBand),
     [selectedPackageBand],
   );
   const selectedCampaignHydrationKey = selectedCampaign
-    ? `${selectedCampaign.id}:${selectedPackageBand?.includeRadio ?? 'optional'}:${selectedPackageBand?.includeTv ?? 'no'}`
+    ? `${selectedCampaign.id}:${selectedProspectPackageBandId}:${selectedPackageBand?.includeRadio ?? 'optional'}:${selectedPackageBand?.includeTv ?? 'no'}`
     : null;
   const activeFormKey = selectedCampaignHydrationKey ?? '__no-campaign__';
   const inferredForm = selectedCampaign
     ? inferInitialForm({
       ...selectedCampaign,
+      selectedBudget: selectedCampaignReferenceBudget,
       includeRadio: selectedPackageBand?.includeRadio ?? 'optional',
       includeTv: selectedPackageBand?.includeTv ?? 'no',
     })
@@ -255,6 +265,16 @@ export function AgentCreateRecommendationPage() {
     setSelectedClientIdState(userId);
     const nextCampaign = availableCampaigns.find((item) => item.userId === userId);
     setSelectedCampaignIdState(nextCampaign?.id ?? '');
+  };
+
+  const handleCampaignChange = (campaignId: string) => {
+    setSelectedCampaignIdState(campaignId);
+    const nextCampaign = availableCampaigns.find((item) => item.id === campaignId) ?? null;
+    setSelectedProspectPackageBandState(
+      nextCampaign?.status === 'awaiting_purchase'
+        ? { campaignId: nextCampaign.id, packageBandId: nextCampaign.packageBandId }
+        : null,
+    );
   };
 
   const createProspectMutation = useMutation({
@@ -351,7 +371,19 @@ export function AgentCreateRecommendationPage() {
         throw new Error('Choose a client campaign first.');
       }
 
-      const campaign = await advertifiedApi.initializeAgentRecommendation(selectedCampaign.id, {
+      let campaignForRecommendationId = selectedCampaign.id;
+      if (
+        selectedCampaign.status === 'awaiting_purchase'
+        && selectedProspectPackageBandId
+        && selectedProspectPackageBandId !== selectedCampaign.packageBandId
+      ) {
+        const updatedCampaign = await advertifiedApi.updateProspectPricing(selectedCampaign.id, {
+          packageBandId: selectedProspectPackageBandId,
+        });
+        campaignForRecommendationId = updatedCampaign.id;
+      }
+
+      const campaign = await advertifiedApi.initializeAgentRecommendation(campaignForRecommendationId, {
         campaignName: form.brandName,
         planningMode: 'hybrid',
         submitBrief,
@@ -359,7 +391,7 @@ export function AgentCreateRecommendationPage() {
       });
 
       if (submitBrief) {
-        return advertifiedApi.generateAgentRecommendation(selectedCampaign.id);
+        return advertifiedApi.generateAgentRecommendation(campaignForRecommendationId);
       }
 
       return campaign;
@@ -579,7 +611,7 @@ export function AgentCreateRecommendationPage() {
 
               <label className="block">
                 <span className="label-base">Package / campaign</span>
-                <select value={selectedCampaign?.id ?? ''} onChange={(event) => setSelectedCampaignIdState(event.target.value)} className="input-base">
+                <select value={selectedCampaign?.id ?? ''} onChange={(event) => handleCampaignChange(event.target.value)} className="input-base">
                   <option value="">Select campaign</option>
                   {filteredCampaigns.map((campaign) => (
                     <option key={campaign.id} value={campaign.id}>
@@ -590,6 +622,37 @@ export function AgentCreateRecommendationPage() {
                 </select>
               </label>
             </div>
+            {selectedCampaignIsProspective && selectedPackageBand ? (
+              <p className="mt-1 text-xs text-ink-soft">
+                Active price band: {selectedPackageBand.name} ({formatCurrency(selectedPackageBand.minBudget)} to {formatCurrency(selectedPackageBand.maxBudget)})
+              </p>
+            ) : null}
+            {selectedCampaignIsProspective ? (
+              <div className="mt-4 max-w-md">
+                <label className="block">
+                  <span className="label-base">Price band</span>
+                  <select
+                    value={selectedProspectPackageBandId}
+                    onChange={(event) => setSelectedProspectPackageBandState(
+                      selectedCampaign
+                        ? { campaignId: selectedCampaign.id, packageBandId: event.target.value }
+                        : null,
+                    )}
+                    className="input-base"
+                  >
+                    <option value="">Select price band</option>
+                    {(packagesQuery.data ?? []).map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name} | {formatCurrency(item.minBudget)} - {formatCurrency(item.maxBudget)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <p className="mt-2 text-xs text-ink-soft">
+                  Proposal A, B, and C will be generated from this band&apos;s lower, middle, and upper tiers.
+                </p>
+              </div>
+            ) : null}
             <div className="mt-4">
               <button
                 type="button"
@@ -617,7 +680,7 @@ export function AgentCreateRecommendationPage() {
                     <input value={prospectForm.phone} onChange={(event) => setProspectForm((current) => ({ ...current, phone: event.target.value }))} className="input-base" />
                   </label>
                   <label className="block">
-                    <span className="label-base">Package</span>
+                    <span className="label-base">Price band</span>
                     <select value={prospectForm.packageBandId} onChange={(event) => setProspectForm((current) => ({ ...current, packageBandId: event.target.value }))} className="input-base">
                       <option value="">Select package</option>
                       {(packagesQuery.data ?? []).map((item) => (
@@ -631,7 +694,7 @@ export function AgentCreateRecommendationPage() {
                   </label>
                 </div>
                 <p className="mt-3 text-xs text-ink-soft">
-                  Budget is now derived automatically from the selected package band.
+                  Budget is now derived automatically from the selected price band.
                 </p>
                 <div className="mt-4">
                   <button
@@ -883,10 +946,12 @@ export function AgentCreateRecommendationPage() {
           <div className="panel hero-mint px-6 py-6 text-ink">
             <p className="text-xs uppercase tracking-[0.18em] text-ink-soft">Selected order</p>
             <h3 className="mt-2 text-2xl font-semibold">
-              {selectedCampaign ? `${selectedCampaign.packageBandName} package` : 'No package selected'}
+              {selectedPackageBand ? `${selectedPackageBand.name} package` : 'No package selected'}
             </h3>
             <p className="mt-1 text-sm text-ink-soft">
-              {selectedCampaign ? `${selectedCampaign.queueLabel} · ${formatCurrency(selectedCampaign.selectedBudget)} budget band` : 'Choose a campaign to continue'}
+              {selectedCampaign
+                ? `${selectedCampaign.queueLabel} · ${selectedPackageBand ? `${formatCurrency(selectedPackageBand.minBudget)} to ${formatCurrency(selectedPackageBand.maxBudget)} price band` : formatCurrency(selectedCampaign.selectedBudget)}`
+                : 'Choose a campaign to continue'}
             </p>
             {selectedCampaignIsProspective ? (
               <p className="mt-2 text-xs text-amber-700">Prospective campaign: recommendation can be prepared and shared before payment.</p>

@@ -984,6 +984,98 @@ public class HttpWorkflowIntegrationTests
     }
 
     [Fact]
+    public async Task AgentGenerateRecommendation_UsesAscendingBandBudgetsForProposalVariants()
+    {
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var clientUser = TestSeed.CreateUser();
+                var agentUser = TestSeed.CreateAgent();
+                var band = new PackageBand
+                {
+                    Id = Guid.NewGuid(),
+                    Code = "launch",
+                    Name = "Launch",
+                    MinBudget = 25000m,
+                    MaxBudget = 100000m,
+                    SortOrder = 1,
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                };
+                var order = new PackageOrder
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = clientUser.Id,
+                    PackageBandId = band.Id,
+                    Amount = 25000m,
+                    SelectedBudget = 25000m,
+                    Currency = "ZAR",
+                    PaymentStatus = "paid",
+                    RefundStatus = "none",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                var campaign = new Campaign
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = clientUser.Id,
+                    PackageOrderId = order.Id,
+                    PackageBandId = band.Id,
+                    CampaignName = "Banded recommendation campaign",
+                    Status = "planning_in_progress",
+                    AiUnlocked = true,
+                    AgentAssistanceRequested = true,
+                    AssignedAgentUserId = agentUser.Id,
+                    AssignedAt = DateTime.UtcNow,
+                    PlanningMode = "hybrid",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow,
+                    CampaignBrief = new CampaignBrief
+                    {
+                        Id = Guid.NewGuid(),
+                        Objective = "launch",
+                        GeographyScope = "regional",
+                        ProvincesJson = "[\"Gauteng\"]",
+                        PreferredMediaTypesJson = "[\"radio\",\"ooh\"]",
+                        OpenToUpsell = false,
+                        SubmittedAt = DateTime.UtcNow,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    }
+                };
+                campaign.CampaignBrief.CampaignId = campaign.Id;
+
+                db.UserAccounts.AddRange(clientUser, agentUser);
+                db.PackageBands.Add(band);
+                db.PackageOrders.Add(order);
+                db.Campaigns.Add(campaign);
+                db.SaveChanges();
+            });
+
+        var campaignId = await harness.ExecuteDbAsync(db => db.Campaigns.Select(x => x.Id).SingleAsync());
+        var agentUserId = await harness.ExecuteDbAsync(db => db.UserAccounts.Where(x => x.Role == UserRole.Agent).Select(x => x.Id).SingleAsync());
+        harness.Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await harness.CreateSessionTokenAsync(agentUserId));
+
+        var response = await harness.Client.PostAsJsonAsync($"/agent/campaigns/{campaignId}/generate-recommendation", new { });
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var recommendations = await harness.ExecuteDbAsync(db => db.CampaignRecommendations
+            .Where(x => x.CampaignId == campaignId)
+            .OrderBy(x => x.CreatedAt)
+            .Select(x => new { x.RecommendationType, x.TotalCost })
+            .ToListAsync());
+
+        recommendations.Should().HaveCount(3);
+        recommendations.Select(x => x.TotalCost).Should().ContainInOrder(37500m, 62500m, 87500m);
+        recommendations.Select(x => x.RecommendationType).Should().Contain(new[]
+        {
+            "hybrid:balanced",
+            "hybrid:ooh_focus",
+            "hybrid:radio_focus"
+        });
+    }
+
+    [Fact]
     public async Task OperationsCanMarkCampaignLaunchedAfterCreativeApproval()
     {
         await using var harness = await TestApiHarness.CreateAsync(
@@ -1770,20 +1862,19 @@ internal sealed class StubMediaPlanningEngine : IMediaPlanningEngine
                 new()
                 {
                     SourceId = Guid.NewGuid(),
-                    SourceType = "radio_slot",
-                    DisplayName = "Metro FM Breakfast",
-                    MediaType = "Radio",
-                    UnitCost = 25000m,
+                    SourceType = "ooh",
+                    DisplayName = "Sandton Digital Billboard",
+                    MediaType = "OOH",
+                    UnitCost = request.SelectedBudget,
                     Quantity = 1,
                     Score = 91m,
                     Metadata = new Dictionary<string, object?>
                     {
-                        ["selectionReasons"] = new[] { "Strong geography match", "Matches requested channel mix" },
+                        ["selectionReasons"] = new[] { "OOH-first package fit", "Matches requested channel mix" },
                         ["confidenceScore"] = 0.86m,
                         ["province"] = "Gauteng",
-                        ["language"] = "English",
-                        ["daypart"] = "Breakfast",
-                        ["durationSeconds"] = 30
+                        ["city"] = "Johannesburg",
+                        ["area"] = "Sandton"
                     }
                 }
             },

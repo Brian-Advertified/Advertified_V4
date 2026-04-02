@@ -34,6 +34,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
     {
         var campaign = await _db.Campaigns
             .Include(x => x.PackageOrder)
+            .Include(x => x.PackageBand)
             .Include(x => x.CampaignBrief)
             .Include(x => x.CampaignRecommendations)
             .FirstOrDefaultAsync(x => x.Id == campaignId, cancellationToken)
@@ -47,7 +48,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
 
         var now = DateTime.UtcNow;
         var planningRequest = BuildRequest(campaign, brief, request, packageProfile);
-        var proposalVariants = BuildProposalVariants(planningRequest);
+        var proposalVariants = BuildProposalVariants(planningRequest, campaign.PackageBand);
         Guid? primaryRecommendationId = null;
         var revisionNumber = RecommendationRevisionSupport.GetNextRevisionNumber(campaign.CampaignRecommendations);
 
@@ -175,7 +176,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         };
     }
 
-    private static IReadOnlyList<ProposalVariant> BuildProposalVariants(CampaignPlanningRequest request)
+    private static IReadOnlyList<ProposalVariant> BuildProposalVariants(CampaignPlanningRequest request, Advertified.App.Data.Entities.PackageBand packageBand)
     {
         if (HasExplicitTargetMix(request))
         {
@@ -194,13 +195,14 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             "tv" => "tv_focus",
             _ => "radio_focus"
         };
+        var budgetBands = BuildProposalBudgetBands(packageBand);
 
         var proposals = new List<ProposalVariant>
         {
-            new("balanced", ApplyChannelTargets(request, BuildBalancedTargets(activeChannels))),
-            new("ooh_focus", ApplyChannelTargets(request, BuildFocusedTargets(activeChannels, "ooh"))),
+            new("balanced", ApplyChannelTargets(request, BuildBalancedTargets(activeChannels), budgetBands[0].PlanningBudget)),
+            new("ooh_focus", ApplyChannelTargets(request, BuildFocusedTargets(activeChannels, "ooh"), budgetBands[1].PlanningBudget)),
             new(secondaryFocusLabel,
-                ApplyChannelTargets(request, BuildFocusedTargets(activeChannels, secondaryFocusChannel)))
+                ApplyChannelTargets(request, BuildFocusedTargets(activeChannels, secondaryFocusChannel), budgetBands[2].PlanningBudget))
         };
 
         return proposals;
@@ -214,12 +216,12 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             || request.TargetDigitalShare.HasValue;
     }
 
-    private static CampaignPlanningRequest ApplyChannelTargets(CampaignPlanningRequest source, ChannelTargets targets)
+    private static CampaignPlanningRequest ApplyChannelTargets(CampaignPlanningRequest source, ChannelTargets targets, decimal selectedBudget)
     {
         return new CampaignPlanningRequest
         {
             CampaignId = source.CampaignId,
-            SelectedBudget = source.SelectedBudget,
+            SelectedBudget = selectedBudget,
             GeographyScope = source.GeographyScope,
             Provinces = source.Provinces.ToList(),
             Cities = source.Cities.ToList(),
@@ -271,6 +273,61 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             targets.GetValueOrDefault("ooh"),
             targets.GetValueOrDefault("tv"),
             targets.GetValueOrDefault("digital"));
+    }
+
+    private static ProposalBudgetBand[] BuildProposalBudgetBands(Advertified.App.Data.Entities.PackageBand packageBand)
+    {
+        var minBudget = packageBand.MinBudget;
+        var maxBudget = packageBand.MaxBudget;
+
+        if (maxBudget <= minBudget)
+        {
+            var singleBudget = RoundCurrency(minBudget);
+            return new[]
+            {
+                new ProposalBudgetBand(singleBudget, singleBudget, singleBudget),
+                new ProposalBudgetBand(singleBudget, singleBudget, singleBudget),
+                new ProposalBudgetBand(singleBudget, singleBudget, singleBudget)
+            };
+        }
+
+        var span = maxBudget - minBudget;
+        var firstUpper = minBudget + (span / 3m);
+        var secondUpper = minBudget + ((span * 2m) / 3m);
+
+        return new[]
+        {
+            CreateProposalBudgetBand(minBudget, firstUpper),
+            CreateProposalBudgetBand(firstUpper, secondUpper),
+            CreateProposalBudgetBand(secondUpper, maxBudget)
+        };
+    }
+
+    private static ProposalBudgetBand CreateProposalBudgetBand(decimal lowerBound, decimal upperBound)
+    {
+        var min = RoundCurrency(lowerBound);
+        var max = RoundCurrency(upperBound);
+        if (max < min)
+        {
+            max = min;
+        }
+
+        var planningBudget = RoundCurrency((min + max) / 2m);
+        if (planningBudget < min)
+        {
+            planningBudget = min;
+        }
+        else if (planningBudget > max)
+        {
+            planningBudget = max;
+        }
+
+        return new ProposalBudgetBand(min, max, planningBudget);
+    }
+
+    private static decimal RoundCurrency(decimal amount)
+    {
+        return Math.Round(amount, 2, MidpointRounding.AwayFromZero);
     }
 
     private static ChannelTargets BuildFocusedTargets(IReadOnlyList<string> activeChannels, string primaryChannel)
@@ -465,6 +522,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
     }
 
     private sealed record ProposalVariant(string Key, CampaignPlanningRequest Request);
+    private sealed record ProposalBudgetBand(decimal MinBudget, decimal MaxBudget, decimal PlanningBudget);
     private sealed record ChannelTargets(int Radio, int Ooh, int Tv, int Digital);
 }
 
