@@ -1,5 +1,6 @@
 begin;
 
+-- Trigger marker: forced DEV user-data reset run.
 do $$
 declare
     table_name text;
