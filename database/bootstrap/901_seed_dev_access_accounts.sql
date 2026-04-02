@@ -113,8 +113,25 @@ with target_users as (
     from user_accounts
     where role not in ('admin', 'agent')
 )
-delete from session_tokens
-where user_id in (select id from target_users);
+do $$
+begin
+    if exists (
+        select 1
+        from information_schema.tables
+        where table_schema = 'public'
+          and table_name = 'session_tokens'
+    ) then
+        execute '
+            with target_users as (
+                select id
+                from user_accounts
+                where role not in (''admin'', ''agent'')
+            )
+            delete from session_tokens
+            where user_id in (select id from target_users)
+        ';
+    end if;
+end $$;
 
 do $$
 begin
