@@ -43,6 +43,20 @@ values
     true,
     now(),
     now()
+),
+(
+    gen_random_uuid(),
+    'Dev Creative Director',
+    'crative@advertified.com',
+    '+27110000003',
+    'AQAAAAIAAYagAAAAEPLQiVI+nt1mhC64ZNkKBR4lH6Rm7LIMOGPY3a1ZsiQvhujpSWGDSD8/WXWxrNLePQ==',
+    'creative_director',
+    'active',
+    true,
+    true,
+    true,
+    now(),
+    now()
 )
 on conflict (email)
 do update set
