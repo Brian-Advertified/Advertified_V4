@@ -192,7 +192,7 @@ export function CampaignDetailPage() {
         ? Math.max(progress, 96)
         : progress;
   const recommendationAwaitingDecision = recommendation?.status === 'sent_to_client';
-  const paymentRequiredBeforeApproval = campaign.status === 'awaiting_purchase';
+  const paymentRequiredBeforeApproval = campaign.paymentStatus !== 'paid';
   const canApproveRecommendation = Boolean(
     recommendation
       && recommendationAwaitingDecision

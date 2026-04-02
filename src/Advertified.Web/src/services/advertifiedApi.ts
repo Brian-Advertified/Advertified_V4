@@ -375,6 +375,7 @@ type CampaignResponse = {
   packageBandId: string;
   packageBandName: string;
   selectedBudget: number;
+  paymentStatus: string;
   status: Campaign['status'];
   planningMode?: PlanningMode;
   aiUnlocked: boolean;
@@ -1192,6 +1193,7 @@ function mapCampaign(response: CampaignResponse): Campaign {
     packageBandId: response.packageBandId,
     packageBandName: response.packageBandName,
     selectedBudget: response.selectedBudget,
+    paymentStatus: response.paymentStatus as Campaign['paymentStatus'],
     status: response.status,
     planningMode: response.planningMode,
     aiUnlocked: response.aiUnlocked,

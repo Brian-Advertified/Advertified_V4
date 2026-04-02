@@ -451,6 +451,7 @@ function buildDemoCampaign(): Campaign {
     packageBandId: 'studio-demo-band',
     packageBandName: 'Scale',
     selectedBudget: 38000,
+    paymentStatus: 'paid',
     status: 'approved',
     planningMode: 'ai_assisted',
     aiUnlocked: true,

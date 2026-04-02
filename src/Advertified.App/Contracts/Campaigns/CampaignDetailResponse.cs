@@ -12,6 +12,7 @@ public sealed class CampaignDetailResponse
     public Guid PackageBandId { get; set; }
     public string PackageBandName { get; set; } = string.Empty;
     public decimal SelectedBudget { get; set; }
+    public string PaymentStatus { get; set; } = string.Empty;
     public string? CampaignName { get; set; }
     public string Status { get; set; } = string.Empty;
     public string? PlanningMode { get; set; }

@@ -266,6 +266,7 @@ export interface Campaign {
   packageBandId: string;
   packageBandName: string;
   selectedBudget: number;
+  paymentStatus: PaymentStatus;
   status: CampaignStatus;
   planningMode?: PlanningMode;
   aiUnlocked: boolean;
