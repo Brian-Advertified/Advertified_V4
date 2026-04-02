@@ -469,7 +469,9 @@ export function AgentCreateRecommendationPage() {
     if (step.id === 1) {
       return {
         ...step,
-        toneClass: isStep1Complete ? 'bg-highlight-soft text-highlight' : 'bg-brand text-white',
+        toneClass: isStep1Complete
+          ? 'border border-brand/20 bg-brand-soft text-brand'
+          : 'bg-brand text-white shadow-[0_10px_24px_rgba(15,118,110,0.24)]',
         displayValue: isStep1Complete ? '✓' : '1',
       };
     }
@@ -479,10 +481,10 @@ export function AgentCreateRecommendationPage() {
       return {
         ...step,
         toneClass: isStep2Complete
-          ? 'bg-highlight-soft text-highlight'
+          ? 'border border-brand/20 bg-brand-soft text-brand'
           : isActive
-            ? 'bg-brand text-white'
-            : 'bg-slate-100 text-slate-500',
+            ? 'bg-brand text-white shadow-[0_10px_24px_rgba(15,118,110,0.24)]'
+            : 'border border-line bg-white text-ink-soft',
         displayValue: isStep2Complete ? '✓' : '2',
       };
     }
@@ -490,7 +492,9 @@ export function AgentCreateRecommendationPage() {
     return {
       ...step,
       label: isGenerating ? 'Generating draft...' : step.label,
-      toneClass: isGenerating ? 'bg-brand text-white' : 'bg-slate-100 text-slate-400',
+      toneClass: isGenerating
+        ? 'bg-brand text-white shadow-[0_10px_24px_rgba(15,118,110,0.24)]'
+        : 'border border-line bg-white text-ink-soft',
       displayValue: isGenerating ? '…' : '3',
     };
   });
@@ -548,7 +552,7 @@ export function AgentCreateRecommendationPage() {
                     {step.displayValue}
                   </div>
                   <span className="hidden text-sm text-ink-soft md:inline">{step.label}</span>
-                  {index < STEP_CONFIG.length - 1 ? <ChevronRight className="size-4 text-slate-300" /> : null}
+                  {index < STEP_CONFIG.length - 1 ? <ChevronRight className="size-4 text-brand/35" /> : null}
                 </div>
               );
             })}
@@ -559,7 +563,7 @@ export function AgentCreateRecommendationPage() {
       <div className="page-shell grid gap-6 py-8 lg:grid-cols-[1.05fr_380px]">
         <div className="space-y-6">
           <div>
-            <div className="pill border-brand/10 bg-brand text-white">Create recommendation</div>
+            <div className="hero-kicker">Create recommendation</div>
             <h1 className="mt-4 text-3xl font-semibold tracking-tight text-ink">Build a new client recommendation</h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-ink-soft md:text-base">
               Build a recommendation for paid or prospective campaigns, capture campaign intent, and let AI generate a draft the agent can refine.
@@ -826,7 +830,7 @@ export function AgentCreateRecommendationPage() {
                   type="button"
                   onClick={handleGenerate}
                   disabled={!canGenerate}
-                  className="inline-flex items-center gap-2 rounded-full bg-brand px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:bg-brand/55"
+                  className="button-primary inline-flex items-center gap-2 px-5 py-3 disabled:cursor-not-allowed disabled:opacity-55"
                 >
                   <Sparkles className="size-4" />
                   {isGenerating ? 'Generating draft...' : 'Generate recommendation'}
@@ -891,34 +895,34 @@ export function AgentCreateRecommendationPage() {
             </div>
           </div>
 
-          <div className="panel hero-glow border-white/10 px-6 py-6 text-white">
-            <p className="text-xs uppercase tracking-[0.18em] text-white/60">Selected order</p>
+          <div className="panel hero-mint px-6 py-6 text-ink">
+            <p className="text-xs uppercase tracking-[0.18em] text-ink-soft">Selected order</p>
             <h3 className="mt-2 text-2xl font-semibold">
               {selectedCampaign ? `${selectedCampaign.packageBandName} package` : 'No package selected'}
             </h3>
-            <p className="mt-1 text-sm text-white/75">
+            <p className="mt-1 text-sm text-ink-soft">
               {selectedCampaign ? `${selectedCampaign.queueLabel} · ${formatCurrency(selectedCampaign.selectedBudget)} budget band` : 'Choose a campaign to continue'}
             </p>
             {selectedCampaignIsProspective ? (
-              <p className="mt-2 text-xs text-amber-200">Prospective campaign: recommendation can be prepared and shared before payment.</p>
+              <p className="mt-2 text-xs text-amber-700">Prospective campaign: recommendation can be prepared and shared before payment.</p>
             ) : null}
 
-            <div className="mt-5 space-y-3 text-sm text-white/75">
-              <div className="flex items-center justify-between border-b border-white/10 pb-3">
+            <div className="mt-5 space-y-3 text-sm text-ink-soft">
+              <div className="flex items-center justify-between border-b border-brand/10 pb-3">
                 <span>Client</span>
-                <span className="font-medium text-white">{selectedCampaign?.clientName ?? '-'}</span>
+                <span className="font-medium text-ink">{selectedCampaign?.clientName ?? '-'}</span>
               </div>
-              <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div className="flex items-center justify-between border-b border-brand/10 pb-3">
                 <span>Order reference</span>
-                <span className="font-medium text-white">{selectedCampaign?.id.slice(0, 8).toUpperCase() ?? '-'}</span>
+                <span className="font-medium text-ink">{selectedCampaign?.id.slice(0, 8).toUpperCase() ?? '-'}</span>
               </div>
-              <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div className="flex items-center justify-between border-b border-brand/10 pb-3">
                 <span>AI review</span>
-                <span className="font-medium text-white">Required before approval</span>
+                <span className="font-medium text-ink">Required before approval</span>
               </div>
               <div className="flex items-center justify-between">
                 <span>Allowed channels</span>
-                <span className="font-medium text-white">{allowedChannels.join(', ') || 'Select channels'}</span>
+                <span className="font-medium text-ink">{allowedChannels.map((channel) => CHANNEL_LABELS[channel]).join(', ') || 'Select channels'}</span>
               </div>
             </div>
           </div>

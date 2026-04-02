@@ -72,13 +72,9 @@ public sealed class PlanningPolicyService : IPlanningPolicyService
 
     public bool IsNationalCapableRadioCandidate(InventoryCandidate candidate, CampaignPlanningRequest request)
     {
-        var marketScope = candidate.MarketScope?.Trim() ?? string.Empty;
         var marketTier = candidate.MarketTier?.Trim() ?? string.Empty;
-        var clusterCode = candidate.RegionClusterCode?.Trim() ?? string.Empty;
-        var displayName = candidate.DisplayName ?? string.Empty;
-
-        var isNational = marketScope.Equals("national", StringComparison.OrdinalIgnoreCase)
-            || clusterCode.Equals("national", StringComparison.OrdinalIgnoreCase);
+        var coverage = ResolveCandidateCoverage(candidate);
+        var isNational = coverage == "national";
         var isFlagshipOrPremium = candidate.IsFlagshipStation
             || candidate.IsPremiumStation
             || marketTier.Equals("flagship", StringComparison.OrdinalIgnoreCase)
@@ -96,7 +92,7 @@ public sealed class PlanningPolicyService : IPlanningPolicyService
             return true;
         }
 
-        return isNational || candidate.IsFlagshipStation || displayName.Contains("Metro FM", StringComparison.OrdinalIgnoreCase);
+        return isNational || candidate.IsFlagshipStation;
     }
 
     public string GetPricingModel(InventoryCandidate candidate)
@@ -149,19 +145,55 @@ public sealed class PlanningPolicyService : IPlanningPolicyService
 
     private static bool IsRegionalOrProvincialRadioCandidate(InventoryCandidate candidate)
     {
-        var marketScope = candidate.MarketScope?.Trim() ?? string.Empty;
-        var clusterCode = candidate.RegionClusterCode?.Trim() ?? string.Empty;
-        var displayName = candidate.DisplayName ?? string.Empty;
+        var coverage = ResolveCandidateCoverage(candidate);
+        return coverage is "provincial" or "local";
+    }
 
-        return marketScope.Equals("regional", StringComparison.OrdinalIgnoreCase)
-            || clusterCode.Equals("gauteng", StringComparison.OrdinalIgnoreCase)
-            || clusterCode.Equals("western-cape", StringComparison.OrdinalIgnoreCase)
-            || clusterCode.Equals("eastern-cape", StringComparison.OrdinalIgnoreCase)
-            || displayName.Contains("Kaya 959", StringComparison.OrdinalIgnoreCase)
-            || displayName.Contains("YFM", StringComparison.OrdinalIgnoreCase)
-            || displayName.Contains("JOZI FM", StringComparison.OrdinalIgnoreCase)
-            || displayName.Contains("Smile 90.4FM", StringComparison.OrdinalIgnoreCase)
-            || displayName.Contains("ALGOA FM", StringComparison.OrdinalIgnoreCase);
+    private static string ResolveCandidateCoverage(InventoryCandidate candidate)
+    {
+        var scope = (candidate.MarketScope ?? string.Empty).Trim().ToLowerInvariant();
+        if (scope.Contains("national", StringComparison.OrdinalIgnoreCase))
+        {
+            return "national";
+        }
+
+        if (scope.Contains("provincial", StringComparison.OrdinalIgnoreCase)
+            || scope.Contains("regional", StringComparison.OrdinalIgnoreCase)
+            || scope.Contains("province", StringComparison.OrdinalIgnoreCase))
+        {
+            return "provincial";
+        }
+
+        if (scope.Contains("local", StringComparison.OrdinalIgnoreCase)
+            || scope.Contains("city", StringComparison.OrdinalIgnoreCase)
+            || scope.Contains("suburb", StringComparison.OrdinalIgnoreCase)
+            || scope.Contains("metro", StringComparison.OrdinalIgnoreCase))
+        {
+            return "local";
+        }
+
+        var clusterCode = (candidate.RegionClusterCode ?? string.Empty).Trim().ToLowerInvariant();
+        if (clusterCode == "national")
+        {
+            return "national";
+        }
+
+        if (!string.IsNullOrWhiteSpace(clusterCode))
+        {
+            return "provincial";
+        }
+
+        if (!string.IsNullOrWhiteSpace(candidate.City) || !string.IsNullOrWhiteSpace(candidate.Suburb))
+        {
+            return "local";
+        }
+
+        if (!string.IsNullOrWhiteSpace(candidate.Province))
+        {
+            return "provincial";
+        }
+
+        return "unknown";
     }
 
     private bool IsPackageTotalCandidate(InventoryCandidate candidate)
