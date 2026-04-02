@@ -17,7 +17,7 @@ const STEP_CONFIG = [
   { id: 3, label: 'AI Draft' },
 ] as const;
 
-const CHANNEL_OPTIONS: ChannelOption[] = ['Radio', 'OOH', 'TV'];
+const CHANNEL_OPTIONS: ChannelOption[] = ['OOH', 'Radio', 'TV'];
 const CHANNEL_LABELS: Record<ChannelOption, string> = {
   Radio: 'Radio',
   OOH: 'Billboards and Digital Screens',
@@ -60,6 +60,11 @@ function getAllowedChannels(campaign?: {
   }
 
   return allowed;
+}
+
+function ensureRequiredChannels(channels: ChannelOption[]): ChannelOption[] {
+  const ordered: ChannelOption[] = CHANNEL_OPTIONS.filter((channel) => channel === 'OOH' || channels.includes(channel));
+  return ordered.includes('OOH') ? ordered : ['OOH', ...ordered];
 }
 
 type CampaignFormState = {
@@ -116,7 +121,7 @@ function inferInitialForm(campaign: {
     brandName: `${campaign.clientName} ${campaign.packageBandName} Campaign`,
     tone: campaign.packageBandName === 'Dominance' ? 'premium' : 'high-visibility',
     brief: `Build a ${campaign.packageBandName.toLowerCase()} recommendation for ${campaign.clientName} within ${formatCurrency(campaign.selectedBudget)}. ${campaign.nextAction}`,
-    channels: defaultChannels,
+    channels: ensureRequiredChannels(defaultChannels),
   };
 }
 
@@ -141,7 +146,7 @@ export function AgentCreateRecommendationPage() {
     brandName: '',
     tone: '',
     brief: '',
-    channels: ['Radio', 'OOH'],
+    channels: ['OOH', 'Radio'],
   };
   const [showProspectForm, setShowProspectForm] = useState(false);
   const [prospectForm, setProspectForm] = useState<ProspectFormState>({
@@ -249,9 +254,11 @@ export function AgentCreateRecommendationPage() {
       key: activeFormKey,
       value: {
         ...form,
-        channels: form.channels.includes(channel)
-          ? form.channels.filter((item) => item !== channel)
-          : [...form.channels, channel],
+        channels: ensureRequiredChannels(
+          form.channels.includes(channel)
+            ? form.channels.filter((item) => item !== channel)
+            : [...form.channels, channel],
+        ),
       },
     });
   };
@@ -433,8 +440,10 @@ export function AgentCreateRecommendationPage() {
           geography: normalizeOption(result.geography, GEOGRAPHY_OPTIONS) || form.geography,
           tone: normalizeOption(result.tone, TONE_OPTIONS) || form.tone,
           brandName: result.campaignName || form.brandName,
-          channels: (interpretedChannels.length > 0 ? interpretedChannels : form.channels)
-          .filter((channel) => allowedChannels.includes(channel)),
+          channels: ensureRequiredChannels(
+            (interpretedChannels.length > 0 ? interpretedChannels : form.channels)
+              .filter((channel) => allowedChannels.includes(channel)),
+          ),
         },
       });
       setScopedAiInterpretationSummary({ key: activeFormKey, summary: result.summary });
@@ -737,6 +746,7 @@ export function AgentCreateRecommendationPage() {
                 {CHANNEL_OPTIONS.map((channel) => {
                   const checked = form.channels.includes(channel);
                   const isAllowed = allowedChannels.includes(channel);
+                  const isRequired = channel === 'OOH';
                   return (
                     <label
                       key={channel}
@@ -750,18 +760,19 @@ export function AgentCreateRecommendationPage() {
                     >
                       <input
                         type="checkbox"
-                        checked={checked}
-                        disabled={!isAllowed}
+                        checked={isRequired ? true : checked}
+                        disabled={!isAllowed || isRequired}
                         onChange={() => toggleChannel(channel)}
                         className="size-4 rounded border-slate-300 accent-brand"
                       />
                       <span>{CHANNEL_LABELS[channel]}</span>
+                      {isRequired ? <span className="text-[11px] font-semibold uppercase tracking-[0.14em]">Required</span> : null}
                       {!isAllowed ? <span className="text-[11px] font-semibold uppercase tracking-[0.14em]">Not in package</span> : null}
                     </label>
                   );
                 })}
               </div>
-              <p className="helper-text">Only channels included in the selected package can be selected here.</p>
+              <p className="helper-text">Billboards and Digital Screens is always included. Other channels can be added only when the selected package allows them.</p>
             </div>
 
             <div className="mt-5 grid gap-4 md:grid-cols-2">

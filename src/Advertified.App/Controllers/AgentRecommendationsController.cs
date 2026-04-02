@@ -91,6 +91,7 @@ public sealed class AgentRecommendationsController : ControllerBase
         List<Data.Entities.RecommendationItem> updatedItems = new();
         try
         {
+            RecommendationOohPolicy.EnsureSelectedInventoryContainsOoh(request.InventoryItems ?? Array.Empty<SelectedInventoryItemRequest>());
             updatedItems = BuildRecommendationItems(recommendation.Id, request.InventoryItems ?? Array.Empty<SelectedInventoryItemRequest>(), recommendation.UpdatedAt);
             await _db.RecommendationItems
                 .Where(x => x.RecommendationId == recommendation.Id)
@@ -105,6 +106,10 @@ public sealed class AgentRecommendationsController : ControllerBase
             await _db.SaveChangesAsync(cancellationToken);
         }
         catch (ArgumentException ex)
+        {
+            return BadRequest(new { Message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
         {
             return BadRequest(new { Message = ex.Message });
         }

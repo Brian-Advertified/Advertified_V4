@@ -992,6 +992,14 @@ public sealed class AgentCampaignsController : ControllerBase
             recommendation.UpdatedAt = now;
         }
 
+        try
+        {
+            RecommendationOohPolicy.EnsureSelectedInventoryContainsOoh(request.InventoryItems);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { Message = ex.Message });
+        }
         SyncRecommendationItems(recommendation, request.InventoryItems, now);
         recommendation.TotalCost = recommendation.RecommendationItems.Sum(x => x.TotalCost);
         if (recommendation.TotalCost <= 0)
@@ -1228,7 +1236,14 @@ public sealed class AgentCampaignsController : ControllerBase
         await SendAssignmentEmailIfNeededAsync(campaign.Id, cancellationToken);
         await SendAgentWorkStartedEmailIfNeededAsync(campaign.Id, cancellationToken);
 
-        await _campaignRecommendationService.GenerateAndSaveAsync(id, request, cancellationToken);
+        try
+        {
+            await _campaignRecommendationService.GenerateAndSaveAsync(id, request, cancellationToken);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { Message = ex.Message });
+        }
 
         _db.ChangeTracker.Clear();
         var refreshedCampaign = await _db.Campaigns
@@ -1313,6 +1328,7 @@ public sealed class AgentCampaignsController : ControllerBase
         var campaign = await _db.Campaigns
             .Include(x => x.User)
             .Include(x => x.CampaignRecommendations)
+                .ThenInclude(x => x.RecommendationItems)
             .Include(x => x.PackageBand)
             .Include(x => x.PackageOrder)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
@@ -1322,6 +1338,18 @@ public sealed class AgentCampaignsController : ControllerBase
         if (currentRecommendations.Length == 0)
         {
             throw new InvalidOperationException("Recommendation not found.");
+        }
+
+        try
+        {
+            foreach (var recommendation in currentRecommendations)
+            {
+                RecommendationOohPolicy.EnsureRecommendationContainsOoh(recommendation.RecommendationItems);
+            }
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { Message = ex.Message });
         }
 
         foreach (var recommendation in currentRecommendations)

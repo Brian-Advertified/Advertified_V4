@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Linq;
 using System.Text.RegularExpressions;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
@@ -94,6 +95,25 @@ internal static class RecommendationPdfGenerator
                                     row.RelativeItem().Text($"{proposal.Label} | {ToClientCopy(proposal.Strategy ?? "Recommendation option")}");
                                     row.ConstantItem(150).AlignRight().Text(FormatCurrency(proposal.TotalCost)).SemiBold();
                                 });
+
+                                var mediaCounts = BuildProposalMediaCounts(proposal);
+                                if (mediaCounts.Count > 0)
+                                {
+                                    proposalSummary.Item().Table(table =>
+                                    {
+                                        table.ColumnsDefinition(columns =>
+                                        {
+                                            columns.RelativeColumn();
+                                            columns.ConstantColumn(80);
+                                        });
+
+                                        foreach (var count in mediaCounts)
+                                        {
+                                            table.Cell().PaddingVertical(2).Text(count.Channel).FontColor("#4B5563");
+                                            table.Cell().PaddingVertical(2).AlignRight().Text(count.Quantity.ToString()).SemiBold();
+                                        }
+                                    });
+                                }
 
                                 if (!string.IsNullOrWhiteSpace(proposal.AcceptUrl))
                                 {
@@ -225,6 +245,20 @@ internal static class RecommendationPdfGenerator
 
         table.Cell().PaddingVertical(2).Text(label).SemiBold().FontColor("#4B5563");
         table.Cell().PaddingVertical(2).Text(ToClientCopy(value));
+    }
+
+    private static IReadOnlyList<(string Channel, int Quantity)> BuildProposalMediaCounts(RecommendationProposalDocumentModel proposal)
+    {
+        return proposal.Items
+            .Where(item => !string.IsNullOrWhiteSpace(item.Channel))
+            .GroupBy(item => FormatChannelLabel(item.Channel))
+            .Select(group =>
+            {
+                var quantity = group.Sum(item => item.Quantity > 0 ? item.Quantity : 1);
+                return (Channel: group.Key, Quantity: quantity);
+            })
+            .OrderBy(item => item.Channel, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     private static string FormatCurrency(decimal amount)

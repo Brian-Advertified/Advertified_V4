@@ -31,6 +31,7 @@ import {
   buildToneSummary,
   calculateConfidence,
   formatConfidenceLabel,
+  getConstraintChecks,
   groupGeneratedRecommendationItems,
   groupPlanItems,
   isInventoryRelevant,
@@ -478,6 +479,8 @@ export function AgentCampaignDetailPage() {
   const canEditDraftRecommendation = activeRecommendation?.status?.toLowerCase() === 'draft';
   const canModifyPlan = canEditDraftRecommendation && !draftApprovalCaptured;
   const hasSendableProposal = recommendations.length >= 1;
+  const hasOohRecommendation = selectedPlanItems.some((item) => normalizeChannelKey(item.type) === 'OOH');
+  const constraintChecks = getConstraintChecks(campaign.brief, selectedPlanItems, isOverBudget, campaign.selectedBudget);
   const isProspectiveCampaign = campaign.status === 'awaiting_purchase';
   const executionAssets = campaign.assets ?? [];
   const supplierBookings = campaign.supplierBookings ?? [];
@@ -506,6 +509,14 @@ export function AgentCampaignDetailPage() {
         title: 'No proposal available yet.',
         description: 'Create at least one proposal option before sending to the client.',
       }, 'info');
+      return;
+    }
+
+    if (!hasOohRecommendation) {
+      pushToast({
+        title: 'Billboards and Digital Screens are required.',
+        description: 'Add at least one Billboards and Digital Screens line before sending this recommendation to the client.',
+      }, 'error');
       return;
     }
 
@@ -581,6 +592,14 @@ export function AgentCampaignDetailPage() {
         title: 'Recommendation already approved.',
         description: 'Use Send to client to move this campaign to the next step.',
       }, 'info');
+      return;
+    }
+
+    if (!hasOohRecommendation) {
+      pushToast({
+        title: 'Billboards and Digital Screens are required.',
+        description: 'Add at least one Billboards and Digital Screens line before finalizing this draft.',
+      }, 'error');
       return;
     }
 
@@ -925,20 +944,36 @@ export function AgentCampaignDetailPage() {
             </div>
           </div>
 
-          {isOverBudget ? (
-            <div className="panel border-line/80 bg-white px-6 py-6 shadow-[0_10px_26px_rgba(17,24,39,0.05)]">
-              <h2 className="text-xl font-semibold text-ink">Validation</h2>
-              <div className="mt-4 flex items-start gap-3 rounded-[14px] border border-rose-200 bg-rose-50 px-4 py-3">
-                <CircleAlert className="mt-0.5 size-4 text-rose-700" />
-                <div>
-                  <p className="text-sm font-semibold text-rose-800">Budget exceeded</p>
-                  <p className="text-sm text-rose-700">
-                    This draft is {formatCurrency(Math.abs(budgetDelta))} over the client&apos;s budget.
-                  </p>
+          <div className="panel border-line/80 bg-white px-6 py-6 shadow-[0_10px_26px_rgba(17,24,39,0.05)]">
+            <h2 className="text-xl font-semibold text-ink">Validation</h2>
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              {constraintChecks.map((check) => (
+                <div
+                  key={check.label}
+                  className={`rounded-[14px] border px-4 py-3 ${
+                    check.ok ? 'border-emerald-200 bg-emerald-50' : 'border-rose-200 bg-rose-50'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    {check.ok ? (
+                      <CircleCheckBig className="mt-0.5 size-4 text-emerald-700" />
+                    ) : (
+                      <CircleAlert className="mt-0.5 size-4 text-rose-700" />
+                    )}
+                    <div>
+                      <p className={`text-sm font-semibold ${check.ok ? 'text-emerald-800' : 'text-rose-800'}`}>{check.label}</p>
+                      <p className={`text-sm ${check.ok ? 'text-emerald-700' : 'text-rose-700'}`}>{check.detail}</p>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              ))}
             </div>
-          ) : null}
+            {isOverBudget ? (
+              <p className="mt-4 text-sm text-rose-700">
+                This draft is {formatCurrency(Math.abs(budgetDelta))} over the client&apos;s budget.
+              </p>
+            ) : null}
+          </div>
 
           {showExecutionOperations ? (
             <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
@@ -1113,7 +1148,7 @@ export function AgentCampaignDetailPage() {
             </Link>
             <button
               type="button"
-              disabled={sendMutation.isPending || isOverBudget || !hasSendableProposal}
+              disabled={sendMutation.isPending || isOverBudget || !hasSendableProposal || !hasOohRecommendation}
               onClick={handleSendToClient}
               className="button-secondary inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60"
             >
@@ -1123,7 +1158,7 @@ export function AgentCampaignDetailPage() {
             {!isProspectiveCampaign ? (
               <button
                 type="button"
-                disabled={saveMutation.isPending || !canEditDraftRecommendation || draftApprovalCaptured}
+                disabled={saveMutation.isPending || !canEditDraftRecommendation || draftApprovalCaptured || !hasOohRecommendation}
                 onClick={() => void handleApproveRecommendation()}
                 className="button-primary inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60"
               >

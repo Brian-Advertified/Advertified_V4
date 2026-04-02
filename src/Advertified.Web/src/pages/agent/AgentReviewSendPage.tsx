@@ -45,6 +45,8 @@ export function AgentReviewSendPage() {
     <AgentQueryBoundary query={campaignsQuery} loadingLabel="Loading review and send...">
       <AgentPageShell title="Review and send" description="Finalize client-facing recommendations, preview the client PDF, and send only the campaigns that are ready to move out of strategist review.">
         {(() => {
+          const recommendationHasOoh = (recommendation: NonNullable<(typeof campaignsQuery.data)>[number]['recommendations'][number] | undefined) =>
+            (recommendation?.items ?? []).some((item) => item.channel.trim().toLowerCase().includes('ooh') || item.channel.trim().toLowerCase().includes('billboard'));
           const rows = (campaignsQuery.data ?? [])
             .filter((campaign) => campaign.recommendations.some((item) => item.status === 'draft' || item.status === 'sent_to_client'))
             .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime());
@@ -71,6 +73,7 @@ export function AgentReviewSendPage() {
                   <tbody>
                     {rows.map((campaign) => {
                       const active = campaign.recommendations[0] ?? campaign.recommendation;
+                      const canSendRecommendation = campaign.recommendations.length >= 3 && campaign.recommendations.every((item) => recommendationHasOoh(item));
                       return (
                         <tr key={campaign.id} className="border-t border-line">
                           <td className="px-4 py-4">
@@ -114,7 +117,7 @@ export function AgentReviewSendPage() {
                               {active?.status === 'draft' ? (
                                 <ActionIconButton
                                   title={`Send ${campaign.campaignName} to client`}
-                                  disabled={sendMutation.isPending || campaign.recommendations.length < 3}
+                                  disabled={sendMutation.isPending || !canSendRecommendation}
                                   onClick={() => sendMutation.mutate(campaign.id)}
                                 >
                                   <Send className="size-4" />

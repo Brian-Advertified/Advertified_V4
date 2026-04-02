@@ -36,13 +36,14 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
 
     public async Task<RecommendationResult> GenerateAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
     {
-        var allCandidates = await _candidateLoader.LoadCandidatesAsync(request, cancellationToken);
-        var policyOutcome = _eligibilityService.FilterEligibleCandidates(allCandidates, request);
+        var normalizedRequest = NormalizeEngineRequest(request);
+        var allCandidates = await _candidateLoader.LoadCandidatesAsync(normalizedRequest, cancellationToken);
+        var policyOutcome = _eligibilityService.FilterEligibleCandidates(allCandidates, normalizedRequest);
         var eligibleCandidates = policyOutcome.Candidates;
 
         foreach (var candidate in eligibleCandidates)
         {
-            var analysis = _explainabilityService.AnalyzeCandidate(candidate, request);
+            var analysis = _explainabilityService.AnalyzeCandidate(candidate, normalizedRequest);
             candidate.Score = analysis.Score;
             candidate.Metadata["selectionReasons"] = analysis.SelectionReasons;
             candidate.Metadata["policyFlags"] = analysis.PolicyFlags;
@@ -54,15 +55,15 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
             .ThenByDescending(x => x.Score)
             .ToList();
 
-        var basePlan = _planBuilder.BuildPlan(scored, request, diversify: true);
-        var recommendedPlan = _planBuilder.BuildPlan(scored, request, diversify: false);
-        EnsurePreferredChannelCoverage(recommendedPlan, scored, request);
+        var basePlan = _planBuilder.BuildPlan(scored, normalizedRequest, diversify: true);
+        var recommendedPlan = _planBuilder.BuildPlan(scored, normalizedRequest, diversify: false);
+        EnsureRequiredChannelCoverage(recommendedPlan, scored, normalizedRequest, GetRequiredEngineChannels(request));
 
-        var upsellBudget = request.OpenToUpsell
-            ? request.SelectedBudget + (request.AdditionalBudget ?? 0m)
-            : request.SelectedBudget;
+        var upsellBudget = normalizedRequest.OpenToUpsell
+            ? normalizedRequest.SelectedBudget + (normalizedRequest.AdditionalBudget ?? 0m)
+            : normalizedRequest.SelectedBudget;
 
-        var upsells = request.OpenToUpsell && upsellBudget > request.SelectedBudget
+        var upsells = normalizedRequest.OpenToUpsell && upsellBudget > normalizedRequest.SelectedBudget
             ? _planBuilder.BuildUpsells(scored, recommendedPlan, upsellBudget - recommendedPlan.Sum(x => x.TotalCost))
             : new List<PlannedItem>();
 
@@ -78,6 +79,10 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
         }
 
         fallbackFlags.AddRange(_explainabilityService.GetPreferredMediaFallbackFlags(request, recommendedPlan));
+        if (!recommendedPlan.Any(item => NormalizeChannel(item.MediaType).Equals("ooh", StringComparison.OrdinalIgnoreCase)))
+        {
+            fallbackFlags.Add("required_media_unfulfilled:ooh");
+        }
 
         return new RecommendationResult
         {
@@ -86,27 +91,64 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
             Upsells = upsells,
             FallbackFlags = fallbackFlags.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
             ManualReviewRequired = fallbackFlags.Count > 0,
-            Rationale = _explainabilityService.BuildRationale(basePlan, recommendedPlan, request)
+            Rationale = _explainabilityService.BuildRationale(basePlan, recommendedPlan, normalizedRequest)
         };
     }
 
-    private static void EnsurePreferredChannelCoverage(
-        List<PlannedItem> recommendedPlan,
-        IReadOnlyList<InventoryCandidate> scoredCandidates,
-        CampaignPlanningRequest request)
+    private static CampaignPlanningRequest NormalizeEngineRequest(CampaignPlanningRequest request)
     {
-        if (recommendedPlan.Count == 0 || request.PreferredMediaTypes.Count == 0 || scoredCandidates.Count == 0)
+        var preferredMediaTypes = request.PreferredMediaTypes.ToList();
+        if (preferredMediaTypes.Count > 0
+            && !preferredMediaTypes.Any(channel => NormalizeChannel(channel).Equals("ooh", StringComparison.OrdinalIgnoreCase)))
         {
-            return;
+            preferredMediaTypes.Add("ooh");
         }
 
-        var preferredChannels = request.PreferredMediaTypes
+        var excludedMediaTypes = request.ExcludedMediaTypes
+            .Where(channel => !NormalizeChannel(channel).Equals("ooh", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        return new CampaignPlanningRequest
+        {
+            CampaignId = request.CampaignId,
+            SelectedBudget = request.SelectedBudget,
+            GeographyScope = request.GeographyScope,
+            Provinces = request.Provinces.ToList(),
+            Cities = request.Cities.ToList(),
+            Suburbs = request.Suburbs.ToList(),
+            Areas = request.Areas.ToList(),
+            PreferredMediaTypes = preferredMediaTypes,
+            ExcludedMediaTypes = excludedMediaTypes,
+            TargetLanguages = request.TargetLanguages.ToList(),
+            TargetLsmMin = request.TargetLsmMin,
+            TargetLsmMax = request.TargetLsmMax,
+            OpenToUpsell = request.OpenToUpsell,
+            AdditionalBudget = request.AdditionalBudget,
+            MaxMediaItems = request.MaxMediaItems,
+            TargetRadioShare = request.TargetRadioShare,
+            TargetOohShare = request.TargetOohShare,
+            TargetTvShare = request.TargetTvShare,
+            TargetDigitalShare = request.TargetDigitalShare
+        };
+    }
+
+    private static string[] GetRequiredEngineChannels(CampaignPlanningRequest request)
+    {
+        return request.PreferredMediaTypes
+            .Append("ooh")
             .Select(NormalizeChannel)
             .Where(channel => !string.IsNullOrWhiteSpace(channel))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
+    }
 
-        if (preferredChannels.Length == 0)
+    private static void EnsureRequiredChannelCoverage(
+        List<PlannedItem> recommendedPlan,
+        IReadOnlyList<InventoryCandidate> scoredCandidates,
+        CampaignPlanningRequest request,
+        IReadOnlyCollection<string> requiredChannels)
+    {
+        if (recommendedPlan.Count == 0 || requiredChannels.Count == 0 || scoredCandidates.Count == 0)
         {
             return;
         }
@@ -116,8 +158,8 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
             .Where(channel => !string.IsNullOrWhiteSpace(channel))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        var preferredSet = preferredChannels.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        foreach (var channel in preferredChannels)
+        var requiredSet = requiredChannels.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var channel in requiredChannels)
         {
             if (selectedChannels.Contains(channel))
             {
@@ -159,7 +201,7 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
                 continue;
             }
 
-            var removable = BuildRemovableLineIndexes(recommendedPlan, preferredSet)
+            var removable = BuildRemovableLineIndexes(recommendedPlan, requiredSet)
                 .ToList();
             var indexesToRemove = new List<int>();
             var freed = 0m;

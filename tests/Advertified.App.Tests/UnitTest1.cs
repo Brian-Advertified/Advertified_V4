@@ -457,6 +457,95 @@ public class MediaPlanningEngineTests
     }
 
     [Fact]
+    public async Task GenerateAsync_AlwaysIncludesOohForEngineGeneratedPlans()
+    {
+        var repository = new StubPlanningInventoryRepository
+        {
+            OohCandidates = new List<InventoryCandidate>
+            {
+                new()
+                {
+                    SourceId = Guid.NewGuid(),
+                    SourceType = "ooh",
+                    DisplayName = "Rosebank Billboard",
+                    MediaType = "OOH",
+                    Province = "Gauteng",
+                    Cost = 12000m,
+                    IsAvailable = true
+                }
+            },
+            RadioSlotCandidates = new List<InventoryCandidate>
+            {
+                new()
+                {
+                    SourceId = Guid.NewGuid(),
+                    SourceType = "radio_slot",
+                    DisplayName = "Kaya 959 - Drive",
+                    MediaType = "Radio",
+                    Province = "Gauteng",
+                    TimeBand = "drive",
+                    DayType = "weekday",
+                    SlotType = "commercial",
+                    Cost = 8000m,
+                    IsAvailable = true
+                }
+            }
+        };
+
+        var engine = CreateEngine(repository);
+        var request = new CampaignPlanningRequest
+        {
+            CampaignId = Guid.NewGuid(),
+            SelectedBudget = 20000m,
+            PreferredMediaTypes = new List<string> { "radio" },
+            ExcludedMediaTypes = new List<string> { "ooh" },
+            MaxMediaItems = 4
+        };
+
+        var result = await engine.GenerateAsync(request, CancellationToken.None);
+
+        result.RecommendedPlan.Should().Contain(item => item.MediaType == "OOH");
+    }
+
+    [Fact]
+    public async Task GenerateAsync_FlagsManualReviewWhenForcedOohCannotBeSatisfied()
+    {
+        var repository = new StubPlanningInventoryRepository
+        {
+            RadioSlotCandidates = new List<InventoryCandidate>
+            {
+                new()
+                {
+                    SourceId = Guid.NewGuid(),
+                    SourceType = "radio_slot",
+                    DisplayName = "Kaya 959 - Drive",
+                    MediaType = "Radio",
+                    Province = "Gauteng",
+                    TimeBand = "drive",
+                    DayType = "weekday",
+                    SlotType = "commercial",
+                    Cost = 9000m,
+                    IsAvailable = true
+                }
+            }
+        };
+
+        var engine = CreateEngine(repository);
+        var request = new CampaignPlanningRequest
+        {
+            CampaignId = Guid.NewGuid(),
+            SelectedBudget = 20000m,
+            PreferredMediaTypes = new List<string> { "radio" },
+            MaxMediaItems = 4
+        };
+
+        var result = await engine.GenerateAsync(request, CancellationToken.None);
+
+        result.ManualReviewRequired.Should().BeTrue();
+        result.FallbackFlags.Should().Contain("required_media_unfulfilled:ooh");
+    }
+
+    [Fact]
     public async Task GenerateAsync_ScaleBudgetPrefersNationalRadioCandidatesWhenAvailable()
     {
         var repository = new StubPlanningInventoryRepository
@@ -542,7 +631,7 @@ public class MediaPlanningEngineTests
     }
 
     [Fact]
-    public async Task GenerateAsync_SetsInventoryFallbackWhenNoEligibleCandidatesRemain()
+    public async Task GenerateAsync_ReturnsOohWithFallbackWhenPreferredRadioCannotBeSatisfied()
     {
         var repository = new StubPlanningInventoryRepository
         {
@@ -573,10 +662,10 @@ public class MediaPlanningEngineTests
 
         var result = await engine.GenerateAsync(request, CancellationToken.None);
 
-        result.RecommendedPlan.Should().BeEmpty();
+        result.RecommendedPlan.Should().ContainSingle();
+        result.RecommendedPlan[0].MediaType.Should().Be("OOH");
         result.ManualReviewRequired.Should().BeTrue();
-        result.FallbackFlags.Should().Contain("inventory_insufficient");
-        result.FallbackFlags.Should().Contain("no_recommendation_generated");
+        result.FallbackFlags.Should().Contain("preferred_media_unfulfilled:radio");
     }
 
     private static MediaPlanningEngine CreateEngine(IPlanningInventoryRepository repository)

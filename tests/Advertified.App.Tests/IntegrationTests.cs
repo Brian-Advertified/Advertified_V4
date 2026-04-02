@@ -1737,6 +1737,9 @@ internal sealed class StubRecommendationDocumentService : IRecommendationDocumen
 {
     public Task<byte[]> GetCampaignPdfBytesAsync(Guid campaignId, CancellationToken cancellationToken)
         => Task.FromResult(Array.Empty<byte>());
+
+    public Task<byte[]> GetRecommendationPdfBytesAsync(Guid campaignId, Guid recommendationId, CancellationToken cancellationToken)
+        => Task.FromResult(Array.Empty<byte>());
 }
 
 internal sealed class StubTemplatedEmailService : ITemplatedEmailService
@@ -1834,6 +1837,9 @@ internal sealed class StubInvoiceService : IInvoiceService
 internal sealed class StubPackagePurchaseService : IPackagePurchaseService
 {
     public Task<CreatePackageOrderResponse> CreatePendingOrderAsync(Guid userId, CreatePackageOrderRequest request, CancellationToken cancellationToken)
+        => throw new NotSupportedException();
+
+    public Task<CreatePackageOrderResponse> InitiateCheckoutAsync(Guid userId, Guid packageOrderId, string paymentProvider, CancellationToken cancellationToken)
         => throw new NotSupportedException();
 
     public Task MarkOrderPaidAsync(Guid packageOrderId, string paymentReference, CancellationToken cancellationToken)

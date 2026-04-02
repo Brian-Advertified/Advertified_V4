@@ -129,6 +129,7 @@ export function calculateConfidence(brief?: CampaignBrief) {
 }
 
 export function getConstraintChecks(brief: CampaignBrief | undefined, selectedPlanItems: SelectedPlanInventoryItem[], isOverBudget: boolean, selectedBudget: number) {
+  const hasOoh = selectedPlanItems.some((item) => normalizeChannelKey(item.type) === 'OOH');
   const geoAligned = selectedPlanItems.length === 0
     || selectedPlanItems.some((item) => {
       const region = item.region.toLowerCase();
@@ -144,6 +145,13 @@ export function getConstraintChecks(brief: CampaignBrief | undefined, selectedPl
     item.type === 'radio' && /(metro|5fm|ukhozi|radio 2000)/i.test(item.station));
 
   return [
+    {
+      label: 'OOH first',
+      ok: hasOoh,
+      detail: hasOoh
+        ? 'Billboards and Digital Screens are included in this recommendation.'
+        : 'Add at least one Billboards and Digital Screens line before saving or sending this recommendation.',
+    },
     {
       label: 'Within budget',
       ok: !isOverBudget,
