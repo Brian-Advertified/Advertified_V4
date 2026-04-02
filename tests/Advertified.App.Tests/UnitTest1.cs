@@ -546,6 +546,58 @@ public class MediaPlanningEngineTests
     }
 
     [Fact]
+    public async Task GenerateAsync_PrioritizesOohOverOtherPreferredChannelsWhenBudgetIsTight()
+    {
+        var repository = new StubPlanningInventoryRepository
+        {
+            OohCandidates = new List<InventoryCandidate>
+            {
+                new()
+                {
+                    SourceId = Guid.NewGuid(),
+                    SourceType = "ooh",
+                    DisplayName = "Rosebank Digital Billboard",
+                    MediaType = "OOH",
+                    Province = "Gauteng",
+                    Cost = 12000m,
+                    IsAvailable = true
+                }
+            },
+            RadioSlotCandidates = new List<InventoryCandidate>
+            {
+                new()
+                {
+                    SourceId = Guid.NewGuid(),
+                    SourceType = "radio_slot",
+                    DisplayName = "Kaya 959 - Drive",
+                    MediaType = "Radio",
+                    Province = "Gauteng",
+                    TimeBand = "drive",
+                    DayType = "weekday",
+                    SlotType = "commercial",
+                    Cost = 9000m,
+                    IsAvailable = true
+                }
+            }
+        };
+
+        var engine = CreateEngine(repository);
+        var request = new CampaignPlanningRequest
+        {
+            CampaignId = Guid.NewGuid(),
+            SelectedBudget = 12000m,
+            PreferredMediaTypes = new List<string> { "radio", "ooh" },
+            MaxMediaItems = 1
+        };
+
+        var result = await engine.GenerateAsync(request, CancellationToken.None);
+
+        result.RecommendedPlan.Should().ContainSingle();
+        result.RecommendedPlan[0].MediaType.Should().Be("OOH");
+        result.FallbackFlags.Should().NotContain("required_media_unfulfilled:ooh");
+    }
+
+    [Fact]
     public async Task GenerateAsync_ScaleBudgetPrefersNationalRadioCandidatesWhenAvailable()
     {
         var repository = new StubPlanningInventoryRepository

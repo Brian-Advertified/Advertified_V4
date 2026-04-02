@@ -57,7 +57,7 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
 
         var basePlan = _planBuilder.BuildPlan(scored, normalizedRequest, diversify: true);
         var recommendedPlan = _planBuilder.BuildPlan(scored, normalizedRequest, diversify: false);
-        EnsureRequiredChannelCoverage(recommendedPlan, scored, normalizedRequest, GetRequiredEngineChannels(request));
+        EnsureRequiredChannelCoverage(recommendedPlan, scored, normalizedRequest, GetRequiredEngineChannels());
 
         var upsellBudget = normalizedRequest.OpenToUpsell
             ? normalizedRequest.SelectedBudget + (normalizedRequest.AdditionalBudget ?? 0m)
@@ -132,15 +132,7 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
         };
     }
 
-    private static string[] GetRequiredEngineChannels(CampaignPlanningRequest request)
-    {
-        return request.PreferredMediaTypes
-            .Append("ooh")
-            .Select(NormalizeChannel)
-            .Where(channel => !string.IsNullOrWhiteSpace(channel))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-    }
+    private static string[] GetRequiredEngineChannels() => new[] { "ooh" };
 
     private static void EnsureRequiredChannelCoverage(
         List<PlannedItem> recommendedPlan,
@@ -169,8 +161,9 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
             var candidate = scoredCandidates
                 .Where(item => NormalizeChannel(item.MediaType).Equals(channel, StringComparison.OrdinalIgnoreCase))
                 .Where(item => item.Cost > 0m)
+                .Where(item => item.Cost <= request.SelectedBudget)
                 .Where(item => recommendedPlan.All(line => line.SourceId != item.SourceId))
-                .OrderByDescending(item => item.Cost)
+                .OrderBy(item => item.Cost)
                 .ThenByDescending(item => item.Score)
                 .FirstOrDefault();
 
