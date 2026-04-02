@@ -29,7 +29,6 @@ jobs:
           host: ${{ secrets.DEV_EC2_HOST }}
           username: ${{ secrets.DEV_EC2_USER }}
           key: ${{ secrets.DEV_EC2_SSH_PRIVATE_KEY }}
-          port: ${{ secrets.DEV_EC2_PORT }}
           script_stop: true
           script: |
             set -euo pipefail
@@ -54,6 +53,10 @@ jobs:
               > "$BACKUP_PATH"
 
             cat database/bootstrap/900_reset_dev_user_data.sql | \
+              docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T db sh -lc \
+              'PGPASSWORD="$POSTGRES_PASSWORD" psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+
+            cat database/bootstrap/901_seed_dev_access_accounts.sql | \
               docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T db sh -lc \
               'PGPASSWORD="$POSTGRES_PASSWORD" psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
 

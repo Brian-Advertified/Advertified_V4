@@ -58,4 +58,10 @@ jobs:
 
             docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" build api web
             docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d api web
+
+            # Ensure baseline DEV access accounts exist after each deploy.
+            cat database/bootstrap/901_seed_dev_access_accounts.sql | \
+              docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T db sh -lc \
+              'PGPASSWORD="$POSTGRES_PASSWORD" psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+
             docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps
