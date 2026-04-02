@@ -1,6 +1,12 @@
 import { formatCurrency } from '../../../lib/utils';
 import type { InventoryRow } from '../../../types/domain';
 
+function formatInventoryTypeLabel(type: InventoryRow['type']) {
+  return type.toLowerCase() === 'ooh'
+    ? 'Billboards and Digital Screens'
+    : type.charAt(0).toUpperCase() + type.slice(1);
+}
+
 export function InventoryTable({
   items,
   selectedItemIds,
@@ -33,7 +39,7 @@ export function InventoryTable({
           <tbody>
             {items.map((item) => (
               <tr key={item.id} className={`border-t border-line align-top ${selectedSet.has(item.id) ? 'bg-brand-soft/40' : ''}`}>
-                <td className="px-4 py-4 font-semibold capitalize text-ink">{item.type}</td>
+                <td className="px-4 py-4 font-semibold text-ink">{formatInventoryTypeLabel(item.type)}</td>
                 <td className="px-4 py-4 text-ink">{item.station}</td>
                 <td className="px-4 py-4 text-ink-soft">{displayValue(item.region)}</td>
                 <td className="px-4 py-4 text-ink-soft">{displayValue(item.language)}</td>

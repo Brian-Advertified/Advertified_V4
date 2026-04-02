@@ -158,7 +158,7 @@ export function getConstraintChecks(
 
   return [
     {
-      label: 'OOH first',
+      label: 'Billboards and Digital Screens first',
       ok: hasOoh,
       detail: hasOoh
         ? 'Billboards and Digital Screens are included in this recommendation.'
