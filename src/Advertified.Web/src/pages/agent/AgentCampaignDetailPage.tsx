@@ -97,7 +97,6 @@ export function AgentCampaignDetailPage() {
     evidenceAssetId: '',
   });
   const [prospectPackageBandId, setProspectPackageBandId] = useState('');
-  const [prospectBudgetInput, setProspectBudgetInput] = useState('');
   const mixPanelRef = useRef<HTMLDivElement | null>(null);
 
   const campaignQuery = useQuery({ queryKey: queryKeys.agent.campaign(id), queryFn: () => advertifiedApi.getAgentCampaign(id) });
@@ -135,13 +134,12 @@ export function AgentCampaignDetailPage() {
   const updateProspectPricingMutation = useMutation({
     mutationFn: () => advertifiedApi.updateProspectPricing(id, {
       packageBandId: prospectPackageBandId,
-      selectedBudget: Number(prospectBudgetInput),
     }),
     onSuccess: async () => {
       await invalidateAgentCampaignQueries(queryClient, id);
       pushToast({
         title: 'Prospect pricing updated.',
-        description: 'Package band and budget were saved for this prospective campaign.',
+        description: 'The package band was saved and the budget was recalculated for this prospective campaign.',
       });
     },
     onError: (error) => pushToast({
@@ -373,8 +371,7 @@ export function AgentCampaignDetailPage() {
     }
 
     setProspectPackageBandId(campaign.packageBandId);
-    setProspectBudgetInput(String(campaign.selectedBudget));
-  }, [campaign?.id, campaign?.packageBandId, campaign?.selectedBudget]);
+  }, [campaign?.id, campaign?.packageBandId]);
 
   if (campaignQuery.isLoading || inventoryQuery.isLoading || !campaign) {
     return <LoadingState label="Loading agent campaign detail..." />;
@@ -632,15 +629,6 @@ export function AgentCampaignDetailPage() {
       return;
     }
 
-    const parsedBudget = Number(prospectBudgetInput);
-    if (!Number.isFinite(parsedBudget) || parsedBudget <= 0) {
-      pushToast({
-        title: 'Enter a valid budget.',
-        description: 'The budget must be a positive number.',
-      }, 'error');
-      return;
-    }
-
     updateProspectPricingMutation.mutate();
   }
 
@@ -702,7 +690,7 @@ export function AgentCampaignDetailPage() {
             <div className="panel px-5 py-5">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ink-soft">Prospect pricing</p>
               <p className="mt-2 text-sm leading-7 text-ink-soft">
-                If this prospect was captured on the wrong package band or budget, update it here before conversion.
+                If this prospect was captured on the wrong package band, update it here before conversion.
               </p>
               <div className="mt-4 space-y-3">
                 <label className="block">
@@ -718,23 +706,16 @@ export function AgentCampaignDetailPage() {
                     ))}
                   </select>
                 </label>
-                <label className="block">
-                  <span className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Budget</span>
-                  <input
-                    value={prospectBudgetInput}
-                    onChange={(event) => setProspectBudgetInput(event.target.value)}
-                    className="input-base mt-2"
-                    type="number"
-                    min="1"
-                  />
-                </label>
+                <p className="text-xs text-ink-soft">
+                  The budget is now derived automatically from the selected package band.
+                </p>
                 <button
                   type="button"
                   disabled={updateProspectPricingMutation.isPending}
                   onClick={handleUpdateProspectPricing}
                   className="button-primary inline-flex w-full items-center justify-center gap-2 px-4 py-2 disabled:opacity-60"
                 >
-                  {updateProspectPricingMutation.isPending ? 'Updating...' : 'Update package and budget'}
+                  {updateProspectPricingMutation.isPending ? 'Updating...' : 'Update package'}
                 </button>
               </div>
             </div>

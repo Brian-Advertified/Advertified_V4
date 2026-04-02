@@ -83,7 +83,6 @@ type ProspectFormState = {
   email: string;
   phone: string;
   packageBandId: string;
-  selectedBudget: string;
   campaignName: string;
 };
 
@@ -91,16 +90,6 @@ type ScopedFormState = {
   key: string;
   value: CampaignFormState;
 };
-
-function parseBudgetInput(value: string) {
-  const normalized = value.replace(/[^\d.]/g, '');
-  if (!normalized) {
-    return Number.NaN;
-  }
-
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : Number.NaN;
-}
 
 function inferInitialForm(campaign: {
   clientName: string;
@@ -154,7 +143,6 @@ export function AgentCreateRecommendationPage() {
     email: '',
     phone: '',
     packageBandId: '',
-    selectedBudget: '',
     campaignName: '',
   });
 
@@ -271,17 +259,11 @@ export function AgentCreateRecommendationPage() {
 
   const createProspectMutation = useMutation({
     mutationFn: async () => {
-      const selectedBudget = parseBudgetInput(prospectForm.selectedBudget);
-      if (!Number.isFinite(selectedBudget) || selectedBudget <= 0) {
-        throw new Error('Enter a valid prospect budget.');
-      }
-
       return advertifiedApi.createAgentProspectCampaign({
         fullName: prospectForm.fullName.trim(),
         email: prospectForm.email.trim(),
         phone: prospectForm.phone.trim(),
         packageBandId: prospectForm.packageBandId,
-        selectedBudget,
         campaignName: prospectForm.campaignName.trim() || undefined,
       });
     },
@@ -300,7 +282,6 @@ export function AgentCreateRecommendationPage() {
         email: '',
         phone: '',
         packageBandId: '',
-        selectedBudget: '',
         campaignName: '',
       });
       pushToast({
@@ -316,14 +297,11 @@ export function AgentCreateRecommendationPage() {
     },
   });
 
-  const parsedProspectBudget = parseBudgetInput(prospectForm.selectedBudget);
   const canCreateProspectCampaign = Boolean(
     prospectForm.fullName.trim()
     && prospectForm.email.trim()
     && prospectForm.phone.trim()
-    && prospectForm.packageBandId
-    && Number.isFinite(parsedProspectBudget)
-    && parsedProspectBudget > 0,
+    && prospectForm.packageBandId,
   );
 
   function buildBriefPayload(): CampaignBrief {
@@ -648,17 +626,13 @@ export function AgentCreateRecommendationPage() {
                     </select>
                   </label>
                   <label className="block">
-                    <span className="label-base">Budget</span>
-                    <input value={prospectForm.selectedBudget} onChange={(event) => setProspectForm((current) => ({ ...current, selectedBudget: event.target.value }))} className="input-base" placeholder="450000" />
-                    {prospectForm.selectedBudget.trim() && (!Number.isFinite(parsedProspectBudget) || parsedProspectBudget <= 0) ? (
-                      <p className="mt-1 text-xs text-rose-700">Enter a valid amount, for example `450000` or `R 450,000`.</p>
-                    ) : null}
-                  </label>
-                  <label className="block">
                     <span className="label-base">Campaign name (optional)</span>
                     <input value={prospectForm.campaignName} onChange={(event) => setProspectForm((current) => ({ ...current, campaignName: event.target.value }))} className="input-base" />
                   </label>
                 </div>
+                <p className="mt-3 text-xs text-ink-soft">
+                  Budget is now derived automatically from the selected package band.
+                </p>
                 <div className="mt-4">
                   <button
                     type="button"

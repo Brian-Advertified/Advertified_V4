@@ -2132,7 +2132,6 @@ export const advertifiedApi = {
     email: string;
     phone: string;
     packageBandId: string;
-    selectedBudget: number;
     campaignName?: string;
   }) {
     const response = await apiRequest<CampaignResponse>('/agent/campaigns/prospects', {
@@ -2756,7 +2755,7 @@ export const advertifiedApi = {
     return mapCampaign(response);
   },
 
-  async updateProspectPricing(campaignId: string, payload: { packageBandId: string; selectedBudget: number }) {
+  async updateProspectPricing(campaignId: string, payload: { packageBandId: string }) {
     const response = await apiRequest<CampaignResponse>(`/agent/campaigns/${campaignId}/prospect-pricing`, {
       method: 'PUT',
       body: JSON.stringify(payload),

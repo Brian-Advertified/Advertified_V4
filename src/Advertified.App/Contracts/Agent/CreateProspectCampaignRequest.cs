@@ -6,6 +6,5 @@ public sealed class CreateProspectCampaignRequest
     public string Email { get; set; } = string.Empty;
     public string Phone { get; set; } = string.Empty;
     public Guid PackageBandId { get; set; }
-    public decimal SelectedBudget { get; set; }
     public string? CampaignName { get; set; }
 }

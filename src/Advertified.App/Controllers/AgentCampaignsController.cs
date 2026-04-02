@@ -373,11 +373,7 @@ public sealed class AgentCampaignsController : ControllerBase
         var packageBand = await _db.PackageBands
             .FirstOrDefaultAsync(x => x.Id == request.PackageBandId && x.IsActive, cancellationToken)
             ?? throw new InvalidOperationException("Package band not found.");
-
-        if (request.SelectedBudget < packageBand.MinBudget || request.SelectedBudget > packageBand.MaxBudget)
-        {
-            throw new InvalidOperationException($"Selected budget must be between {packageBand.MinBudget:0.##} and {packageBand.MaxBudget:0.##}.");
-        }
+        var selectedBudget = await ResolveProspectBudgetAsync(packageBand, cancellationToken);
 
         var user = await _db.UserAccounts
             .Include(x => x.BusinessProfile)
@@ -413,8 +409,8 @@ public sealed class AgentCampaignsController : ControllerBase
             Id = Guid.NewGuid(),
             UserId = user.Id,
             PackageBandId = packageBand.Id,
-            Amount = request.SelectedBudget,
-            SelectedBudget = request.SelectedBudget,
+            Amount = selectedBudget,
+            SelectedBudget = selectedBudget,
             AiStudioReservePercent = 0m,
             AiStudioReserveAmount = 0m,
             Currency = "ZAR",
@@ -479,7 +475,7 @@ public sealed class AgentCampaignsController : ControllerBase
                 CampaignId = refreshedCampaign.Id,
                 ProspectEmail = email,
                 PackageBand = packageBand.Name,
-                request.SelectedBudget,
+                SelectedBudget = selectedBudget,
                 CreatedNewUser = createdNewUser
             },
             cancellationToken);
@@ -639,16 +635,12 @@ public sealed class AgentCampaignsController : ControllerBase
         var packageBand = await _db.PackageBands
             .FirstOrDefaultAsync(x => x.Id == request.PackageBandId && x.IsActive, cancellationToken)
             ?? throw new InvalidOperationException("Package band not found.");
-
-        if (request.SelectedBudget < packageBand.MinBudget || request.SelectedBudget > packageBand.MaxBudget)
-        {
-            throw new InvalidOperationException($"Selected budget must be between {packageBand.MinBudget:0.##} and {packageBand.MaxBudget:0.##}.");
-        }
+        var selectedBudget = await ResolveProspectBudgetAsync(packageBand, cancellationToken);
 
         campaign.PackageBandId = packageBand.Id;
         campaign.PackageOrder.PackageBandId = packageBand.Id;
-        campaign.PackageOrder.Amount = request.SelectedBudget;
-        campaign.PackageOrder.SelectedBudget = request.SelectedBudget;
+        campaign.PackageOrder.Amount = selectedBudget;
+        campaign.PackageOrder.SelectedBudget = selectedBudget;
         campaign.PackageOrder.UpdatedAt = DateTime.UtcNow;
         campaign.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
@@ -664,7 +656,7 @@ public sealed class AgentCampaignsController : ControllerBase
                 CampaignId = campaign.Id,
                 PackageBandId = packageBand.Id,
                 PackageBandName = packageBand.Name,
-                request.SelectedBudget
+                SelectedBudget = selectedBudget
             },
             cancellationToken);
 
@@ -1964,6 +1956,22 @@ public sealed class AgentCampaignsController : ControllerBase
         {
             _logger.LogError(ex, "Failed to send delivery report email for campaign {CampaignId}.", campaign.Id);
         }
+    }
+
+    private async Task<decimal> ResolveProspectBudgetAsync(PackageBand packageBand, CancellationToken cancellationToken)
+    {
+        var recommendedSpend = await _db.PackageBandProfiles
+            .AsNoTracking()
+            .Where(x => x.PackageBandId == packageBand.Id)
+            .Select(x => x.RecommendedSpend)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (recommendedSpend.HasValue && recommendedSpend.Value >= packageBand.MinBudget && recommendedSpend.Value <= packageBand.MaxBudget)
+        {
+            return recommendedSpend.Value;
+        }
+
+        return decimal.Round((packageBand.MinBudget + packageBand.MaxBudget) / 2m, 2, MidpointRounding.AwayFromZero);
     }
 
     private static string BuildAgentMessageBlock(string? message)
