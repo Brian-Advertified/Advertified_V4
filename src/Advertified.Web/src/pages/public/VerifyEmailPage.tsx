@@ -59,13 +59,13 @@ export function VerifyEmailPage() {
     successToastSentRef.current = true;
     pushToast({
       title: 'Your email has been verified.',
-      description: 'You can sign in now and continue.',
+      description: 'Set your password to finish account setup.',
     });
   }
 
   if (state === 'success' && !redirectScheduledRef.current) {
     redirectScheduledRef.current = true;
-    window.setTimeout(() => navigate('/login?activated=1'), 1200);
+    window.setTimeout(() => navigate('/set-password'), 1200);
   }
 
   async function handleResend() {
@@ -154,7 +154,7 @@ export function VerifyEmailPage() {
                   <ShieldCheck className="mt-1 size-5 text-brand" />
                   <div>
                     <p className="font-semibold text-ink">Your email has been verified successfully.</p>
-                    <p className="mt-2 leading-7">You&apos;re being redirected so you can continue into your Advertified dashboard.</p>
+                    <p className="mt-2 leading-7">You&apos;re being redirected to set your password before entering your dashboard.</p>
                   </div>
                 </div>
               ) : null}

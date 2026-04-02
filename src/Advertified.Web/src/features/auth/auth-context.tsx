@@ -16,6 +16,7 @@ type AuthContextValue = {
   register: (input: RegistrationInput) => Promise<RegistrationResult>;
   logout: (reason?: 'manual' | 'expired') => void;
   verifyEmail: (token: string) => Promise<SessionUser>;
+  setPassword: (input: { password: string; confirmPassword: string }) => Promise<SessionUser>;
 };
 
 const STORAGE_KEY = 'advertified-session-user';
@@ -186,7 +187,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
         );
       },
       async verifyEmail(token) {
-        return advertifiedApi.verifyEmail(token);
+        const nextUser = await advertifiedApi.verifyEmail(token);
+        persistUser(nextUser);
+        return nextUser;
+      },
+      async setPassword(input) {
+        const nextUser = await advertifiedApi.setPassword(input);
+        persistUser(nextUser);
+        return nextUser;
       },
     }),
     [pushToast, user],

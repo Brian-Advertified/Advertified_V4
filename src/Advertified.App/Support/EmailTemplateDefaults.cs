@@ -12,11 +12,11 @@ internal static class EmailTemplateDefaults
         {
             Build("user_activation", "Activate Your Advertified Account", @"
                 <p>Hi {{UserName}},</p>
-                <p>You’re one step away from activating your Advertified account.</p>
-                <p>Once activated, you’ll be able to start planning and securing advertising campaigns across premium placements.</p>
+                <p>You're one step away from activating your Advertified account.</p>
+                <p>Once activated, you'll set your password and continue directly into your workspace.</p>
                 <p>Activate your account using the link below. This link will expire in {{ExpiresInHours}} hours.</p>
                 <p><a href=""{{ActivationUrl}}"">Activate your Advertified account</a></p>
-                <p>After activation you’ll be able to:</p>
+                <p>After activation and password setup you'll be able to:</p>
                 <ul>
                   <li>Browse advertising packages</li>
                   <li>Create campaigns</li>
@@ -38,10 +38,10 @@ internal static class EmailTemplateDefaults
                         Hi {{UserName}}, your email has been verified and your Advertified account is ready to use.
                       </p>
                       <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">
-                        You can now build billboard-first campaigns, review proposals, manage payments, and move your launches forward from one place.
+                        If you have not set your password yet, complete that step first, then sign in normally with your email and password.
                       </p>
                       <p style=""margin:24px 0 0;"">
-                        <a href=""{{SignInUrl}}"" style=""display:inline-block;padding:12px 18px;background:#123A33;color:#ffffff;text-decoration:none;border-radius:12px;font-weight:700;"">Sign in to Advertified</a>
+                        <a href=""{{SignInUrl}}"" style=""display:inline-block;padding:12px 18px;background:#123A33;color:#ffffff;text-decoration:none;border-radius:12px;font-weight:700;"">Continue to Advertified</a>
                       </p>
                     </div>
                   </div>
@@ -814,3 +814,4 @@ internal static class EmailTemplateDefaults
         };
     }
 }
+

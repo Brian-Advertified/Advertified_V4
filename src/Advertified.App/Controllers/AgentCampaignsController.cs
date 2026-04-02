@@ -424,11 +424,6 @@ public sealed class AgentCampaignsController : ControllerBase
         _db.Campaigns.Add(campaign);
         await _db.SaveChangesAsync(cancellationToken);
 
-        if (createdNewUser)
-        {
-            await _emailVerificationService.QueueActivationEmailAsync(user, cancellationToken);
-        }
-
         var refreshedCampaign = await _db.Campaigns
             .AsNoTracking()
             .AsSplitQuery()
@@ -570,6 +565,11 @@ public sealed class AgentCampaignsController : ControllerBase
                 .ThenInclude(x => x.RecommendationItems)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw new InvalidOperationException("Campaign not found.");
+
+        if (!refreshedCampaign.User.EmailVerified)
+        {
+            await _emailVerificationService.QueueActivationEmailAsync(refreshedCampaign.User, cancellationToken);
+        }
 
         await WriteChangeAuditAsync(
             "convert_prospect_to_sale",
@@ -1210,7 +1210,7 @@ public sealed class AgentCampaignsController : ControllerBase
             },
             cancellationToken);
 
-        await SendRecommendationReadyEmailIfNeededAsync(campaign.Id, request.Message, currentRecommendations.Length, cancellationToken);
+        await SendRecommendationReadyEmailIfNeededAsync(campaign.Id, currentRecommendations, request.Message, cancellationToken);
 
         return Accepted(new { CampaignId = id, ProposalCount = currentRecommendations.Length, Message = "Recommendation set sent to client.", ClientMessage = request.Message });
     }
@@ -1486,7 +1486,7 @@ public sealed class AgentCampaignsController : ControllerBase
             .Include(x => x.PackageOrder)
             .FirstOrDefaultAsync(x => x.Id == campaignId, cancellationToken);
 
-        if (campaign is null || campaign.AssignmentEmailSentAt.HasValue || campaign.AssignedAgentUserId is null)
+        if (campaign is null || campaign.AssignmentEmailSentAt.HasValue || campaign.AssignedAgentUserId is null || IsProspectiveCampaign(campaign))
         {
             return;
         }
@@ -1526,7 +1526,7 @@ public sealed class AgentCampaignsController : ControllerBase
             .Include(x => x.PackageOrder)
             .FirstOrDefaultAsync(x => x.Id == campaignId, cancellationToken);
 
-        if (campaign is null || campaign.AgentWorkStartedEmailSentAt.HasValue)
+        if (campaign is null || campaign.AgentWorkStartedEmailSentAt.HasValue || IsProspectiveCampaign(campaign))
         {
             return;
         }
@@ -1558,7 +1558,11 @@ public sealed class AgentCampaignsController : ControllerBase
         await _db.SaveChangesAsync(cancellationToken);
     }
 
-    private async Task SendRecommendationReadyEmailIfNeededAsync(Guid campaignId, string? agentMessage, int proposalCount, CancellationToken cancellationToken)
+    private async Task SendRecommendationReadyEmailIfNeededAsync(
+        Guid campaignId,
+        IReadOnlyList<CampaignRecommendation> recommendations,
+        string? agentMessage,
+        CancellationToken cancellationToken)
     {
         var campaign = await _db.Campaigns
             .Include(x => x.User)
@@ -1575,22 +1579,26 @@ public sealed class AgentCampaignsController : ControllerBase
         {
             EmailAttachment[]? attachments = null;
             string recommendationPackBlock = string.Empty;
+            var proposalCount = recommendations.Count;
 
             try
             {
-                var pdfBytes = await _recommendationDocumentService.GetCampaignPdfBytesAsync(campaign.Id, cancellationToken);
-                attachments = new[]
+                var recommendationPdfs = new List<EmailAttachment>();
+                foreach (var recommendation in recommendations)
                 {
-                    new EmailAttachment
+                    var pdfBytes = await _recommendationDocumentService.GetRecommendationPdfBytesAsync(campaign.Id, recommendation.Id, cancellationToken);
+                    recommendationPdfs.Add(new EmailAttachment
                     {
-                        FileName = $"advertified-recommendation-{campaign.Id:D}.pdf",
+                        FileName = BuildRecommendationAttachmentFileName(campaign.Id, recommendation),
                         ContentType = "application/pdf",
                         Content = pdfBytes
-                    }
-                };
+                    });
+                }
+
+                attachments = recommendationPdfs.ToArray();
                 recommendationPackBlock = @"
                     <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">
-                      We have attached a detailed recommendation PDF with media terms, Billboards & Digital Screens specifications, locations, and the overall campaign total for easier offline review.
+                      We have attached a separate PDF for each recommendation option. Each PDF starts with a one-page summary followed by the full detailed media plan.
                     </p>";
             }
             catch (Exception ex)
@@ -1627,6 +1635,33 @@ public sealed class AgentCampaignsController : ControllerBase
 
         campaign.RecommendationReadyEmailSentAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    private static string BuildRecommendationAttachmentFileName(Guid campaignId, CampaignRecommendation recommendation)
+    {
+        var rawProposalLabel = recommendation.RecommendationType?
+            .Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .LastOrDefault()
+            ?? $"proposal-{recommendation.Id:D}";
+
+        var safeProposalLabel = new string(rawProposalLabel
+            .ToLowerInvariant()
+            .Select(ch => char.IsLetterOrDigit(ch) ? ch : '-')
+            .ToArray())
+            .Trim('-');
+
+        if (string.IsNullOrWhiteSpace(safeProposalLabel))
+        {
+            safeProposalLabel = $"proposal-{recommendation.Id:D}";
+        }
+
+        return $"advertified-recommendation-{campaignId:D}-{safeProposalLabel}.pdf";
+    }
+
+    private static bool IsProspectiveCampaign(Campaign campaign)
+    {
+        return !CampaignOperationsPolicy.IsOrderOperationallyActive(campaign.PackageOrder)
+            || string.Equals(campaign.Status, "awaiting_purchase", StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task SendCampaignLaunchedEmailAsync(Campaign campaign, CancellationToken cancellationToken)

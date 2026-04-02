@@ -446,6 +446,7 @@ export function AgentCampaignDetailPage() {
   const canEditDraftRecommendation = activeRecommendation?.status?.toLowerCase() === 'draft';
   const canModifyPlan = canEditDraftRecommendation && !draftApprovalCaptured;
   const hasSendableProposal = recommendations.length >= 1;
+  const isProspectiveCampaign = campaign.status === 'awaiting_purchase';
   const executionAssets = campaign.assets ?? [];
   const supplierBookings = campaign.supplierBookings ?? [];
   const deliveryReports = campaign.deliveryReports ?? [];
@@ -1024,15 +1025,17 @@ export function AgentCampaignDetailPage() {
               <Send className="size-4" />
               Send to client
             </button>
-            <button
-              type="button"
-              disabled={saveMutation.isPending || !canEditDraftRecommendation || draftApprovalCaptured}
-              onClick={() => void handleApproveRecommendation()}
-              className="button-primary inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60"
-            >
-              <CircleCheckBig className="size-4" />
-              {draftApprovalCaptured ? 'Draft finalized' : 'Finalize draft'}
-            </button>
+            {!isProspectiveCampaign ? (
+              <button
+                type="button"
+                disabled={saveMutation.isPending || !canEditDraftRecommendation || draftApprovalCaptured}
+                onClick={() => void handleApproveRecommendation()}
+                className="button-primary inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60"
+              >
+                <CircleCheckBig className="size-4" />
+                {draftApprovalCaptured ? 'Draft finalized' : 'Finalize draft'}
+              </button>
+            ) : null}
             {canMarkLive ? (
               <button
                 type="button"

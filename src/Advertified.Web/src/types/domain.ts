@@ -23,6 +23,7 @@ export interface SessionUser {
   phone?: string;
   role: UserRole;
   emailVerified: boolean;
+  requiresPasswordSetup?: boolean;
   identityComplete?: boolean;
   sessionToken?: string;
   businessName?: string;

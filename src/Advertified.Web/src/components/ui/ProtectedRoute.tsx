@@ -36,11 +36,15 @@ export function ProtectedRoute({
   });
 
   if (guestOnly && isAuthenticated) {
-    return <Navigate to={isAdmin(user) ? '/admin' : isCreativeDirector(user) ? '/creative/studio-demo' : isAgent(user) ? '/agent' : '/dashboard'} replace />;
+    return <Navigate to={user?.requiresPasswordSetup ? '/set-password' : (isAdmin(user) ? '/admin' : isCreativeDirector(user) ? '/creative/studio-demo' : isAgent(user) ? '/agent' : '/dashboard')} replace />;
   }
 
   if (!guestOnly && !isAuthenticated) {
     return <Navigate to="/login" state={{ from: location.pathname }} replace />;
+  }
+
+  if (!guestOnly && user?.requiresPasswordSetup && location.pathname !== '/set-password') {
+    return <Navigate to="/set-password" replace />;
   }
 
   if (requireAgent && !canAccessOperations(user)) {

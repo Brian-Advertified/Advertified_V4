@@ -23,17 +23,7 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
 
     public async Task<byte[]> GetCampaignPdfBytesAsync(Guid campaignId, CancellationToken cancellationToken)
     {
-        var campaign = await _db.Campaigns
-            .AsSplitQuery()
-            .Include(x => x.User)
-                .ThenInclude(x => x.BusinessProfile)
-            .Include(x => x.PackageBand)
-            .Include(x => x.PackageOrder)
-            .Include(x => x.CampaignBrief)
-            .Include(x => x.CampaignRecommendations)
-                .ThenInclude(x => x.RecommendationItems)
-            .FirstOrDefaultAsync(x => x.Id == campaignId, cancellationToken)
-            ?? throw new InvalidOperationException("Campaign not found.");
+        var campaign = await LoadCampaignForRecommendationsAsync(campaignId, cancellationToken);
 
         var currentRecommendations = RecommendationRevisionSupport.GetCurrentRecommendationSet(campaign.CampaignRecommendations);
 
@@ -58,11 +48,9 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
         {
             ClientName = campaign.User.FullName,
             BusinessName = campaign.User.BusinessProfile?.BusinessName,
-            CampaignName = string.IsNullOrWhiteSpace(campaign.CampaignName) ? $"{campaign.PackageBand.Name} campaign" : campaign.CampaignName.Trim(),
+            CampaignName = ResolveCampaignName(campaign),
             PackageName = campaign.PackageBand.Name,
-            SelectedBudget = PricingPolicy.ResolvePlanningBudget(
-                campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
-                campaign.PackageOrder.AiStudioReserveAmount),
+            SelectedBudget = ResolveSelectedBudget(campaign),
             GeneratedAtUtc = DateTime.UtcNow,
             CampaignObjective = campaign.CampaignBrief?.Objective,
             SpecialRequirements = campaign.CampaignBrief?.SpecialRequirements ?? campaign.CampaignBrief?.CreativeNotes,
@@ -83,6 +71,54 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
                 recommendation.PdfGeneratedAt = DateTime.UtcNow;
             }
 
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+
+        return pdfBytes;
+    }
+
+    public async Task<byte[]> GetRecommendationPdfBytesAsync(Guid campaignId, Guid recommendationId, CancellationToken cancellationToken)
+    {
+        var campaign = await LoadCampaignForRecommendationsAsync(campaignId, cancellationToken);
+
+        var currentRecommendations = RecommendationRevisionSupport.GetCurrentRecommendationSet(campaign.CampaignRecommendations);
+        var recommendation = currentRecommendations.FirstOrDefault(x => x.Id == recommendationId)
+            ?? throw new InvalidOperationException("Recommendation not found.");
+
+        if (!string.IsNullOrWhiteSpace(recommendation.PdfStorageObjectKey))
+        {
+            try
+            {
+                return await _assetStorage.GetBytesAsync(recommendation.PdfStorageObjectKey, cancellationToken);
+            }
+            catch (InvalidOperationException)
+            {
+            }
+        }
+
+        var model = new RecommendationDocumentModel
+        {
+            ClientName = campaign.User.FullName,
+            BusinessName = campaign.User.BusinessProfile?.BusinessName,
+            CampaignName = ResolveCampaignName(campaign),
+            PackageName = campaign.PackageBand.Name,
+            SelectedBudget = ResolveSelectedBudget(campaign),
+            GeneratedAtUtc = DateTime.UtcNow,
+            CampaignObjective = campaign.CampaignBrief?.Objective,
+            SpecialRequirements = campaign.CampaignBrief?.SpecialRequirements ?? campaign.CampaignBrief?.CreativeNotes,
+            TargetAreas = BuildTargetAreas(campaign.CampaignBrief),
+            TargetLanguages = DeserializeList(campaign.CampaignBrief?.TargetLanguagesJson),
+            Proposals = new[] { MapProposal(recommendation) }
+        };
+
+        var logoPath = Billing.InvoicePdfGenerator.ResolveLogoPath(_environment.ContentRootPath, null);
+        var pdfBytes = RecommendationPdfGenerator.Generate(model, logoPath);
+
+        if (ShouldFreezeSnapshot(currentRecommendations))
+        {
+            var snapshotKey = await PersistProposalPdfAsync(campaign.Id, recommendation.RevisionNumber, recommendation.Id, pdfBytes, cancellationToken);
+            recommendation.PdfStorageObjectKey = snapshotKey;
+            recommendation.PdfGeneratedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync(cancellationToken);
         }
 
@@ -285,6 +321,39 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
         return await _assetStorage.SaveAsync(objectKey, pdfBytes, "application/pdf", cancellationToken);
     }
 
+    private async Task<string> PersistProposalPdfAsync(Guid campaignId, int revisionNumber, Guid recommendationId, byte[] pdfBytes, CancellationToken cancellationToken)
+    {
+        var objectKey = $"recommendations/campaign-{campaignId:D}/revision-{revisionNumber:D3}/proposal-{recommendationId:D}.pdf";
+        return await _assetStorage.SaveAsync(objectKey, pdfBytes, "application/pdf", cancellationToken);
+    }
+
+    private async Task<Campaign> LoadCampaignForRecommendationsAsync(Guid campaignId, CancellationToken cancellationToken)
+    {
+        return await _db.Campaigns
+            .AsSplitQuery()
+            .Include(x => x.User)
+                .ThenInclude(x => x.BusinessProfile)
+            .Include(x => x.PackageBand)
+            .Include(x => x.PackageOrder)
+            .Include(x => x.CampaignBrief)
+            .Include(x => x.CampaignRecommendations)
+                .ThenInclude(x => x.RecommendationItems)
+            .FirstOrDefaultAsync(x => x.Id == campaignId, cancellationToken)
+            ?? throw new InvalidOperationException("Campaign not found.");
+    }
+
+    private static string ResolveCampaignName(Campaign campaign)
+    {
+        return string.IsNullOrWhiteSpace(campaign.CampaignName) ? $"{campaign.PackageBand.Name} campaign" : campaign.CampaignName.Trim();
+    }
+
+    private static decimal ResolveSelectedBudget(Campaign campaign)
+    {
+        return PricingPolicy.ResolvePlanningBudget(
+            campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
+            campaign.PackageOrder.AiStudioReserveAmount);
+    }
+
     private static (string Label, string Strategy) GetProposalDetails(string? recommendationType)
     {
         var variantKey = recommendationType?
@@ -295,7 +364,7 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
         return variantKey switch
         {
             "balanced" => ("Proposal A", "Balanced mix"),
-            "ooh_focus" => ("Proposal B", "Billboards and digital screens-led reach"),
+            "ooh_focus" => ("Proposal B", "Billboards and Digital Screens-led reach"),
             "radio_focus" => ("Proposal C", "Radio-led frequency"),
             "digital_focus" => ("Proposal C", "Digital-led amplification"),
             _ => ("Proposal", "Recommendation option")

@@ -67,6 +67,7 @@ const HomePage = lazyPage(() => import('../pages/public/HomePage'), 'HomePage');
 const RegisterPage = lazyPage(() => import('../pages/public/RegisterPage'), 'RegisterPage');
 const LoginPage = lazyPage(() => import('../pages/public/LoginPage'), 'LoginPage');
 const VerifyEmailPage = lazyPage(() => import('../pages/public/VerifyEmailPage'), 'VerifyEmailPage');
+const SetPasswordPage = lazyPage(() => import('../pages/public/SetPasswordPage'), 'SetPasswordPage');
 const PackagesPage = lazyPage(() => import('../pages/public/PackagesPage'), 'PackagesPage');
 const HowItWorksPage = lazyPage(() => import('../pages/public/HowItWorksPage'), 'HowItWorksPage');
 const AboutUsPage = lazyPage(() => import('../pages/public/AboutUsPage'), 'AboutUsPage');
@@ -140,6 +141,7 @@ export function App() {
             <Route path="/register" element={<ProtectedRoute guestOnly><RegisterPage /></ProtectedRoute>} />
             <Route path="/login" element={<ProtectedRoute guestOnly><LoginPage /></ProtectedRoute>} />
             <Route path="/verify-email" element={<ProtectedRoute guestOnly><VerifyEmailPage /></ProtectedRoute>} />
+            <Route path="/set-password" element={<ProtectedRoute><SetPasswordPage /></ProtectedRoute>} />
             <Route path="/packages" element={<PackagesPage />} />
             <Route path="/how-it-works" element={<HowItWorksPage />} />
             <Route path="/about" element={<AboutUsPage />} />

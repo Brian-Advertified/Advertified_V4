@@ -139,7 +139,7 @@ export function AboutUsPage() {
             <div className="pill self-start bg-highlight-soft text-highlight">Built for real campaigns</div>
             <h2 className="mt-4 text-3xl font-semibold tracking-tight text-ink">Multi-channel planning without unnecessary friction.</h2>
             <p className="mt-4 text-sm leading-7 text-ink-soft sm:text-base">
-              Advertified supports campaigns across billboard and digital screens, radio, TV, social, digital, SMS, and print. Everything is designed to work together so businesses can plan, approve, and execute with less friction.
+              Advertified supports campaigns across billboards and digital screens, radio, TV, social, digital, SMS, and print. Everything is designed to work together so businesses can plan, approve, and execute with less friction.
             </p>
           </div>
           <div className="grid gap-4 md:grid-cols-2">

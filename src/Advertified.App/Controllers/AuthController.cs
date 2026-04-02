@@ -2,6 +2,7 @@ using Advertified.App.Contracts.Auth;
 using Advertified.App.Data;
 using Advertified.App.Data.Entities;
 using Advertified.App.Services.Abstractions;
+using Advertified.App.Validation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.RegularExpressions;
@@ -17,19 +18,22 @@ public sealed class AuthController : ControllerBase
     private readonly IEmailVerificationService _emailVerificationService;
     private readonly IPasswordHashingService _passwordHashingService;
     private readonly ISessionTokenService _sessionTokenService;
+    private readonly ICurrentUserAccessor _currentUserAccessor;
 
     public AuthController(
         AppDbContext db,
         IRegistrationService registrationService,
         IEmailVerificationService emailVerificationService,
         IPasswordHashingService passwordHashingService,
-        ISessionTokenService sessionTokenService)
+        ISessionTokenService sessionTokenService,
+        ICurrentUserAccessor currentUserAccessor)
     {
         _db = db;
         _registrationService = registrationService;
         _emailVerificationService = emailVerificationService;
         _passwordHashingService = passwordHashingService;
         _sessionTokenService = sessionTokenService;
+        _currentUserAccessor = currentUserAccessor;
     }
 
     [HttpPost("register")]
@@ -96,6 +100,50 @@ public sealed class AuthController : ControllerBase
             Message = "Verification link resent.",
             request.Email
         });
+    }
+
+    [HttpPost("set-password")]
+    public async Task<ActionResult<LoginResponse>> SetPassword([FromBody] SetPasswordRequest request, CancellationToken cancellationToken)
+    {
+        if (!RegistrationValidators.IsStrongPassword(request.Password))
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Password must be at least 12 characters and include uppercase, lowercase, number, and symbol.",
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
+
+        if (!string.Equals(request.Password?.Trim(), request.ConfirmPassword?.Trim(), StringComparison.Ordinal))
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Password confirmation does not match.",
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
+
+        var userId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
+        var user = await _db.UserAccounts.FirstOrDefaultAsync(x => x.Id == userId, cancellationToken);
+        if (user is null)
+        {
+            return NotFound(new ProblemDetails
+            {
+                Title = "User account not found.",
+                Status = StatusCodes.Status404NotFound
+            });
+        }
+
+        var normalizedPassword = (request.Password ?? string.Empty).Trim();
+        user.PasswordHash = _passwordHashingService.HashPassword(user, normalizedPassword);
+        user.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        var identityComplete = await _db.IdentityProfiles
+            .AsNoTracking()
+            .AnyAsync(x => x.UserId == user.Id, cancellationToken);
+
+        return Ok(ToLoginResponse(user, _sessionTokenService.CreateToken(user), identityComplete));
     }
 
     private static LoginResponse ToLoginResponse(UserAccount user, string sessionToken, bool identityComplete)

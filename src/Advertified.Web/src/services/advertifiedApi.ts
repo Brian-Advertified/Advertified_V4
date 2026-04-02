@@ -151,6 +151,8 @@ type LoginResponse = {
   sessionToken: string;
 };
 
+type SetPasswordResponse = LoginResponse;
+
 type MeResponse = {
   userId: string;
   fullName: string;
@@ -882,6 +884,7 @@ function mapSessionUser(response: LoginResponse | MeResponse, sessionToken?: str
     phone: 'phone' in response ? response.phone ?? undefined : undefined,
     role: normalizeRole(response.role),
     emailVerified: response.emailVerified,
+    requiresPasswordSetup: false,
     identityComplete: response.identityComplete,
     sessionToken,
     businessName: 'businessName' in response ? response.businessName ?? undefined : undefined,
@@ -1518,8 +1521,20 @@ export const advertifiedApi = {
 
     localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(mapSessionUser(response, response.sessionToken)));
     return this.getMe(response.userId)
-      .then((user) => ({ ...user, sessionToken: response.sessionToken }))
-      .catch(() => mapSessionUser(response, response.sessionToken));
+      .then((user) => ({ ...user, sessionToken: response.sessionToken, requiresPasswordSetup: true }))
+      .catch(() => ({ ...mapSessionUser(response, response.sessionToken), requiresPasswordSetup: true }));
+  },
+
+  async setPassword(input: { password: string; confirmPassword: string }) {
+    const response = await apiRequest<SetPasswordResponse>('/auth/set-password', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+
+    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(mapSessionUser(response, response.sessionToken)));
+    return this.getMe(response.userId)
+      .then((user) => ({ ...user, sessionToken: response.sessionToken, requiresPasswordSetup: false }))
+      .catch(() => ({ ...mapSessionUser(response, response.sessionToken), requiresPasswordSetup: false }));
   },
 
   async getMe(userId?: string) {

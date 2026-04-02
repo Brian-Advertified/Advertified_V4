@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -79,6 +80,27 @@ internal static class RecommendationPdfGenerator
                         }
                     });
 
+                    if (model.Proposals.Count > 0)
+                    {
+                        column.Item().Border(1).BorderColor("#D1D5DB").Padding(12).Column(proposalSummary =>
+                        {
+                            proposalSummary.Spacing(6);
+                            proposalSummary.Item().Text("Recommended options").SemiBold().FontSize(12);
+
+                            foreach (var proposal in model.Proposals)
+                            {
+                                proposalSummary.Item().Row(row =>
+                                {
+                                    row.RelativeItem().Text($"{proposal.Label} | {ToClientCopy(proposal.Strategy ?? "Recommendation option")}");
+                                    row.ConstantItem(150).AlignRight().Text(FormatCurrency(proposal.TotalCost)).SemiBold();
+                                });
+                            }
+                        });
+
+                        // Always keep page 1 as an overview page before detailed recommendation pages.
+                        column.Item().PageBreak();
+                    }
+
                     for (var index = 0; index < model.Proposals.Count; index++)
                     {
                         var proposal = model.Proposals[index];
@@ -98,7 +120,7 @@ internal static class RecommendationPdfGenerator
                                     col.Item().Text(proposal.Label).SemiBold().FontSize(14);
                                     if (!string.IsNullOrWhiteSpace(proposal.Strategy))
                                     {
-                                        col.Item().Text(proposal.Strategy).FontColor("#4B5563");
+                                        col.Item().Text(ToClientCopy(proposal.Strategy)).FontColor("#4B5563");
                                     }
                                 });
 
@@ -109,10 +131,10 @@ internal static class RecommendationPdfGenerator
                                 });
                             });
 
-                            section.Item().Text(proposal.Summary).SemiBold();
+                            section.Item().Text(ToClientCopy(proposal.Summary)).SemiBold();
                             if (!string.IsNullOrWhiteSpace(proposal.Rationale))
                             {
-                                section.Item().Text(proposal.Rationale).FontColor("#4B5563");
+                                section.Item().Text(ToClientCopy(proposal.Rationale)).FontColor("#4B5563");
                             }
 
                             foreach (var item in proposal.Items)
@@ -125,10 +147,10 @@ internal static class RecommendationPdfGenerator
                                     {
                                         row.RelativeItem().Column(col =>
                                         {
-                                            col.Item().Text($"{FormatChannelLabel(item.Channel)} | {item.Title}").SemiBold();
+                                            col.Item().Text($"{FormatChannelLabel(item.Channel)} | {ToClientCopy(item.Title)}").SemiBold();
                                             if (!string.IsNullOrWhiteSpace(item.Rationale))
                                             {
-                                                col.Item().Text(item.Rationale).FontColor("#4B5563");
+                                                col.Item().Text(ToClientCopy(item.Rationale)).FontColor("#4B5563");
                                             }
                                         });
 
@@ -163,7 +185,7 @@ internal static class RecommendationPdfGenerator
 
                                     if (item.SelectionReasons.Count > 0)
                                     {
-                                        itemCol.Item().Text($"Why selected: {string.Join(" | ", item.SelectionReasons)}").FontColor("#4B5563");
+                                        itemCol.Item().Text($"Why selected: {ToClientCopy(string.Join(" | ", item.SelectionReasons))}").FontColor("#4B5563");
                                     }
 
                                 });
@@ -183,7 +205,7 @@ internal static class RecommendationPdfGenerator
         }
 
         table.Cell().PaddingVertical(2).Text(label).SemiBold().FontColor("#4B5563");
-        table.Cell().PaddingVertical(2).Text(value);
+        table.Cell().PaddingVertical(2).Text(ToClientCopy(value));
     }
 
     private static string FormatCurrency(decimal amount)
@@ -199,8 +221,18 @@ internal static class RecommendationPdfGenerator
         }
 
         return string.Equals(channel.Trim(), "OOH", StringComparison.OrdinalIgnoreCase)
-            ? "Billboards and digital screens"
-            : channel.Trim();
+            ? "Billboards and Digital Screens"
+            : ToClientCopy(channel.Trim());
+    }
+
+    private static string ToClientCopy(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        return Regex.Replace(value, "\\booh\\b", "Billboards and Digital Screens", RegexOptions.IgnoreCase);
     }
 }
 
