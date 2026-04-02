@@ -1,5 +1,6 @@
 using Advertified.App.Contracts.Auth;
 using Advertified.App.Contracts.Campaigns;
+using Advertified.App.Contracts.Creatives;
 using Advertified.App.Configuration;
 using Advertified.App.Controllers;
 using Advertified.App.Domain.Campaigns;
@@ -109,7 +110,7 @@ public class CampaignPlanningRequestValidatorTests
         {
             CampaignId = Guid.NewGuid(),
             SelectedBudget = 50000m,
-            PreferredMediaTypes = new List<string> { "tv" }
+            PreferredMediaTypes = new List<string> { "podcast" }
         };
 
         var result = await validator.ValidateAsync(request);
@@ -632,14 +633,7 @@ public class CreativeStudioIntelligenceServiceTests
     public async Task GenerateAsync_FallbackBuildsStructuredChannelAdaptationsWithVersions()
     {
         var service = new CreativeStudioIntelligenceService(
-            new HttpClient(),
-            Options.Create(new OpenAIOptions
-            {
-                Enabled = false,
-                ApiKey = string.Empty,
-                Model = "test-model"
-            }),
-            NullLogger<CreativeStudioIntelligenceService>.Instance);
+            new StubCreativeGenerationOrchestrator());
 
         var campaign = new CampaignEntity
         {
@@ -679,13 +673,114 @@ public class CreativeStudioIntelligenceServiceTests
             Cta = "Book your rollout today"
         };
 
-        var result = await service.GenerateAsync(campaign, brief, request, CancellationToken.None);
+        var result = await service.GenerateAsync(campaign, brief, request, null, CancellationToken.None);
 
         result.ChannelAdaptations.Should().HaveCount(3);
         result.ChannelAdaptations.Should().OnlyContain(item => item.Versions.Count == 3);
         result.ChannelAdaptations.Should().OnlyContain(item => item.Sections.Count > 0);
         result.ChannelAdaptations.Should().OnlyContain(item => !string.IsNullOrWhiteSpace(item.AdapterPrompt));
         result.ChannelAdaptations.Should().Contain(item => item.Channel == "Social Static");
+    }
+
+    private sealed class StubCreativeGenerationOrchestrator : ICreativeGenerationOrchestrator
+    {
+        public Task<GenerateCreativesRequest> BuildNormalizedRequestFromCampaignAsync(
+            Guid campaignId,
+            string prompt,
+            string? objective,
+            string? tone,
+            IReadOnlyList<string>? channels,
+            CancellationToken cancellationToken)
+        {
+            var normalizedChannels = channels?.Count > 0
+                ? channels
+                : new[] { "Billboard", "TikTok", "Social Static" };
+
+            return Task.FromResult(new GenerateCreativesRequest
+            {
+                CampaignId = campaignId.ToString(),
+                Business = new CreativeBusinessRequest
+                {
+                    Name = "Advertified Labs",
+                    Industry = "Advertising",
+                    Location = "Cape Town"
+                },
+                Objective = objective ?? "Awareness",
+                Budget = 75000m,
+                Audience = new CreativeAudienceRequest
+                {
+                    Lsm = "5-8",
+                    AgeRange = "25-45",
+                    Languages = new[] { "English", "Zulu" }
+                },
+                Channels = normalizedChannels,
+                Tone = tone ?? "Balanced"
+            });
+        }
+
+        public Task<GenerateCreativesResponse> GenerateAsync(
+            GenerateCreativesRequest request,
+            Guid? sourceCreativeSystemId,
+            bool persistOutputs,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new GenerateCreativesResponse
+            {
+                CampaignId = request.CampaignId,
+                Creatives = new GeneratedCreativesByChannelResponse
+                {
+                    Billboard = new[]
+                    {
+                        new BillboardCreativeResponse
+                        {
+                            Id = Guid.NewGuid().ToString("N"),
+                            Headline = "Advertise now",
+                            Subtext = "Pay later with Advertified",
+                            Cta = "Book your rollout today",
+                            VisualDirection = "Clean bold visual"
+                        }
+                    },
+                    Digital = new[]
+                    {
+                        new DigitalCreativeResponse
+                        {
+                            Id = Guid.NewGuid().ToString("N"),
+                            Platform = "TikTok",
+                            PrimaryText = "Turn plans into performance",
+                            Headline = "Advertified",
+                            Cta = "Book your rollout today",
+                            Hook = "Need faster growth?",
+                            Script = "Advertified gets you live quickly."
+                        },
+                        new DigitalCreativeResponse
+                        {
+                            Id = Guid.NewGuid().ToString("N"),
+                            Platform = "Social Static",
+                            PrimaryText = "One campaign idea across channels",
+                            Headline = "Advertified",
+                            Cta = "Book your rollout today"
+                        }
+                    }
+                },
+                Metadata = new CreativeGenerationMetadataResponse
+                {
+                    RunId = Guid.NewGuid().ToString("N"),
+                    Warnings = Array.Empty<string>()
+                }
+            });
+        }
+
+        public Task<GenerateCreativesResponse> RegenerateAsync(RegenerateCreativeRequest request, CancellationToken cancellationToken)
+            => Task.FromResult(new GenerateCreativesResponse());
+
+        public LocalisationResponse Localize(LocalisationRequest request)
+            => new()
+            {
+                BaseLanguage = request.BaseLanguage,
+                TargetLanguage = request.TargetLanguage,
+                AdaptedContent = request.Content,
+                Notes = Array.Empty<string>()
+            };
     }
 }
 
@@ -730,11 +825,11 @@ public class BroadcastCostNormalizerTests
 public class PricingPolicyTests
 {
     [Fact]
-    public void CalculateChargedAmount_AddsHiddenAiStudioReserve()
+    public void CalculateChargedAmount_ReturnsSelectedBudget()
     {
         var chargedAmount = Advertified.App.Support.PricingPolicy.CalculateChargedAmount(38000m, 0.10m);
 
-        chargedAmount.Should().Be(41800m);
+        chargedAmount.Should().Be(38000m);
     }
 
     [Fact]

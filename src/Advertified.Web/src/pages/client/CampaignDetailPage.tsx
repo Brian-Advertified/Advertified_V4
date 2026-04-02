@@ -252,6 +252,7 @@ export function CampaignDetailPage() {
                 <Link to={`${campaignBasePath}/approvals`} className="user-btn-primary">{hero.primaryAction}</Link>
                 <Link to={`${campaignBasePath}/messages`} className="user-btn-secondary">Ask a question</Link>
                 <Link to={`/campaigns/${campaign.id}/studio-preview`} className="user-btn-secondary">Preview studio</Link>
+                <Link to={`/ai-studio?campaignId=${campaign.id}`} className="user-btn-secondary">Prefill from approved recommendation</Link>
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
                 <span className="user-pill">{hero.timeLabel}</span>

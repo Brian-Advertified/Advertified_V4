@@ -143,6 +143,7 @@ export function DashboardPage() {
                 <div className="user-toolbar mt-4">
                   <Link to={`/campaigns/${campaign.id}`} className="user-btn-primary">Open Campaign Workspace</Link>
                   <Link to={action.href} className="user-btn-secondary">Continue Next Step</Link>
+                  <Link to={`/ai-studio?campaignId=${campaign.id}`} className="user-btn-secondary">Prefill from approved recommendation</Link>
                 </div>
               </div>
             );

@@ -113,6 +113,7 @@ const AdminPreviewRulesPage = lazyPage(() => import('../pages/admin/AdminPreview
 const AdminAiVoicesPage = lazyPage(() => import('../pages/admin/AdminAiVoicesPage'), 'AdminAiVoicesPage');
 const AdminAiVoicePacksPage = lazyPage(() => import('../pages/admin/AdminAiVoicePacksPage'), 'AdminAiVoicePacksPage');
 const AdminAiVoiceTemplatesPage = lazyPage(() => import('../pages/admin/AdminAiVoiceTemplatesPage'), 'AdminAiVoiceTemplatesPage');
+const AdminAiAdOpsPage = lazyPage(() => import('../pages/admin/AdminAiAdOpsPage'), 'AdminAiAdOpsPage');
 const AdminPricingPage = lazyPage(() => import('../pages/admin/AdminPricingPage'), 'AdminPricingPage');
 const AdminStationsPage = lazyPage(() => import('../pages/admin/AdminStationsPage'), 'AdminStationsPage');
 const AdminUsersPage = lazyPage(() => import('../pages/admin/AdminUsersPage'), 'AdminUsersPage');
@@ -175,6 +176,7 @@ export function App() {
             <Route path="/admin/ai-voices" element={<ProtectedRoute requireAdmin><AdminAiVoicesPage /></ProtectedRoute>} />
             <Route path="/admin/ai-voice-packs" element={<ProtectedRoute requireAdmin><AdminAiVoicePacksPage /></ProtectedRoute>} />
             <Route path="/admin/ai-voice-templates" element={<ProtectedRoute requireAdmin><AdminAiVoiceTemplatesPage /></ProtectedRoute>} />
+            <Route path="/admin/ai-ad-ops" element={<ProtectedRoute requireAdmin><AdminAiAdOpsPage /></ProtectedRoute>} />
             <Route path="/admin/monitoring" element={<ProtectedRoute requireAdmin><AdminMonitoringPage /></ProtectedRoute>} />
             <Route path="/admin/users" element={<ProtectedRoute requireAdmin><AdminUsersPage /></ProtectedRoute>} />
             <Route path="/admin/audit" element={<ProtectedRoute requireAdmin><AdminAuditPage /></ProtectedRoute>} />

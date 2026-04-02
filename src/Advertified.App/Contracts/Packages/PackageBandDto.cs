@@ -18,4 +18,10 @@ public sealed class PackageBandDto
     public decimal? RecommendedSpend { get; set; }
     public bool IsRecommended { get; set; }
     public List<string> Benefits { get; set; } = new();
+    public int MaxAdVariants { get; set; }
+    public List<string> AllowedAdPlatforms { get; set; } = new();
+    public bool AllowAdMetricsSync { get; set; }
+    public bool AllowAdAutoOptimize { get; set; }
+    public List<string> AllowedVoicePackTiers { get; set; } = new();
+    public int MaxAdRegenerations { get; set; }
 }

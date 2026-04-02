@@ -259,3 +259,27 @@ public interface IVoiceTemplateSelectionService
     Task<IReadOnlyList<VoiceTemplateSelectionItem>> ListAsync(CancellationToken cancellationToken);
     Task<VoiceTemplateSelectionResult> SelectAsync(VoiceTemplateSelectionInput input, CancellationToken cancellationToken);
 }
+
+public interface IAdVariantService
+{
+    Task<AdVariantSummary> CreateVariantAsync(CreateAdVariantCommand command, CancellationToken cancellationToken);
+    Task<IReadOnlyList<AdVariantSummary>> GetCampaignVariantsAsync(Guid campaignId, CancellationToken cancellationToken);
+    Task<PublishAdVariantResult> PublishVariantAsync(Guid variantId, CancellationToken cancellationToken);
+    Task RecordConversionAsync(Guid variantId, int conversions, CancellationToken cancellationToken);
+    Task<CampaignAdMetricsSummary> GetCampaignMetricsSummaryAsync(Guid campaignId, CancellationToken cancellationToken);
+    Task<SyncCampaignMetricsResult> SyncCampaignMetricsAsync(Guid campaignId, CancellationToken cancellationToken);
+    Task<int> SyncAllPublishedCampaignsAsync(CancellationToken cancellationToken);
+    Task<OptimizeCampaignResult> OptimizeCampaignAsync(Guid campaignId, CancellationToken cancellationToken);
+}
+
+public interface IAdPlatformPublisher
+{
+    string Platform { get; }
+    Task<string> PublishAsync(AdVariantSummary variant, CancellationToken cancellationToken);
+    Task<ExternalAdMetrics> GetMetricsAsync(string platformAdId, CancellationToken cancellationToken);
+}
+
+public interface IAdPlatformPublisherFactory
+{
+    IAdPlatformPublisher GetRequired(string platform);
+}

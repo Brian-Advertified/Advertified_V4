@@ -20,6 +20,8 @@ public sealed class PackageCatalogService : IPackageCatalogService
         var items = (from band in _db.PackageBands.AsNoTracking()
                      join profile in _db.PackageBandProfiles.AsNoTracking() on band.Id equals profile.PackageBandId into profileJoin
                      from profile in profileJoin.DefaultIfEmpty()
+                     join entitlement in _db.PackageBandAiEntitlements.AsNoTracking() on band.Id equals entitlement.PackageBandId into entitlementJoin
+                     from entitlement in entitlementJoin.DefaultIfEmpty()
                      where band.IsActive
                      orderby band.SortOrder
                      select new
@@ -39,7 +41,13 @@ public sealed class PackageCatalogService : IPackageCatalogService
                          LeadTimeLabel = profile != null ? profile.LeadTimeLabel : "7 business days",
                          RecommendedSpend = profile != null ? profile.RecommendedSpend : null,
                          IsRecommended = profile != null && profile.IsRecommended,
-                         BenefitsJson = profile != null ? profile.BenefitsJson : "[]"
+                         BenefitsJson = profile != null ? profile.BenefitsJson : "[]",
+                         MaxAdVariants = entitlement != null ? entitlement.MaxAdVariants : 1,
+                         AllowedAdPlatformsJson = entitlement != null ? entitlement.AllowedAdPlatformsJson : "[\"Meta\"]",
+                         AllowAdMetricsSync = entitlement == null || entitlement.AllowAdMetricsSync,
+                         AllowAdAutoOptimize = entitlement != null && entitlement.AllowAdAutoOptimize,
+                         AllowedVoicePackTiersJson = entitlement != null ? entitlement.AllowedVoicePackTiersJson : "[\"standard\"]",
+                         MaxAdRegenerations = entitlement != null ? entitlement.MaxAdRegenerations : 1
                      })
             .ToList();
 
@@ -60,7 +68,13 @@ public sealed class PackageCatalogService : IPackageCatalogService
                 LeadTime = item.LeadTimeLabel,
                 RecommendedSpend = item.RecommendedSpend,
                 IsRecommended = item.IsRecommended,
-                Benefits = Deserialize(item.BenefitsJson)
+                Benefits = Deserialize(item.BenefitsJson),
+                MaxAdVariants = Math.Max(1, item.MaxAdVariants),
+                AllowedAdPlatforms = Deserialize(item.AllowedAdPlatformsJson),
+                AllowAdMetricsSync = item.AllowAdMetricsSync,
+                AllowAdAutoOptimize = item.AllowAdAutoOptimize,
+                AllowedVoicePackTiers = Deserialize(item.AllowedVoicePackTiersJson),
+                MaxAdRegenerations = Math.Max(1, item.MaxAdRegenerations)
             })
             .ToArray();
     }

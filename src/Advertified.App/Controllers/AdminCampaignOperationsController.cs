@@ -406,11 +406,20 @@ public sealed class AdminCampaignOperationsController : ControllerBase
 
     private async Task<ActionResult?> EnsureAdminAsync(CancellationToken cancellationToken)
     {
-        var currentUserId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
+        Guid currentUserId;
+        try
+        {
+            currentUserId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
+        }
+        catch (InvalidOperationException)
+        {
+            return Unauthorized();
+        }
+
         var currentUser = await _db.UserAccounts.FindAsync(new object[] { currentUserId }, cancellationToken);
         if (currentUser is null)
         {
-            return NotFound();
+            return Unauthorized();
         }
 
         if (currentUser.Role != UserRole.Admin)

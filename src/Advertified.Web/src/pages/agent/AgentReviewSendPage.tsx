@@ -90,6 +90,9 @@ export function AgentReviewSendPage() {
                               <Link to={`/agent/campaigns/${campaign.id}`} className="button-secondary p-2" title={`View ${campaign.campaignName}`}>
                                 <Eye className="size-4" />
                               </Link>
+                              <Link to={`/ai-studio?campaignId=${campaign.id}`} className="button-secondary p-2" title={`Prefill AI Studio for ${campaign.campaignName}`}>
+                                AI
+                              </Link>
                               <Link to={`/agent/recommendations/new?campaignId=${campaign.id}`} className="button-secondary p-2" title={`Edit ${campaign.campaignName}`}>
                                 <Pencil className="size-4" />
                               </Link>

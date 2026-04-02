@@ -29,6 +29,7 @@ builder.Services.Configure<PlanningPolicyOptions>(builder.Configuration.GetSecti
 builder.Services.Configure<OpenAIOptions>(builder.Configuration.GetSection(OpenAIOptions.SectionName));
 builder.Services.Configure<ElevenLabsOptions>(builder.Configuration.GetSection(ElevenLabsOptions.SectionName));
 builder.Services.Configure<AiPlatformOptions>(builder.Configuration.GetSection(AiPlatformOptions.SectionName));
+builder.Services.Configure<AdPlatformOptions>(builder.Configuration.GetSection(AdPlatformOptions.SectionName));
 builder.Services.Configure<StorageOptions>(builder.Configuration.GetSection(StorageOptions.SectionName));
 builder.Services.Configure<InventoryReadinessOptions>(builder.Configuration.GetSection(InventoryReadinessOptions.SectionName));
 builder.Services.AddCors(options =>

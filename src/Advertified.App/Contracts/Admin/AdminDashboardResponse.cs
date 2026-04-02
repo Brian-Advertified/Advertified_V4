@@ -152,6 +152,12 @@ public sealed class AdminMonitoringResponse
     public int AiCreativeJobAlertCount { get; set; }
     public int AiAssetJobAlertCount { get; set; }
     public int AiCostCapRejectionCount { get; set; }
+    public int CreativeQueueBacklogCount { get; set; }
+    public int AssetQueueBacklogCount { get; set; }
+    public int CreativeDeadLetterCount { get; set; }
+    public int PublishSuccessCount { get; set; }
+    public int PublishFailureCount { get; set; }
+    public int MetricsSyncLagMinutes { get; set; }
     public IReadOnlyList<AdminAiJobAlertResponse> AiJobAlerts { get; set; } = Array.Empty<AdminAiJobAlertResponse>();
 }
 

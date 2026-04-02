@@ -22,6 +22,7 @@ export const adminNavItems = [
   { path: '/admin/ai-voices', label: 'AI Voices' },
   { path: '/admin/ai-voice-packs', label: 'AI Voice Packs' },
   { path: '/admin/ai-voice-templates', label: 'AI Voice Templates' },
+  { path: '/admin/ai-ad-ops', label: 'AI Ad Ops' },
   { path: '/admin/monitoring', label: 'Monitoring' },
   { path: '/admin/users', label: 'Users & Roles' },
   { path: '/admin/audit', label: 'Audit Log' },

@@ -159,3 +159,40 @@ public sealed class AiVoicePromptTemplate
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }
+
+public sealed class AiAdVariant
+{
+    public Guid Id { get; set; }
+    public Guid CampaignId { get; set; }
+    public Guid? CampaignCreativeId { get; set; }
+    public string Platform { get; set; } = "Meta";
+    public string Channel { get; set; } = "Digital";
+    public string Language { get; set; } = "English";
+    public int? TemplateId { get; set; }
+    public Guid? VoicePackId { get; set; }
+    public string? VoicePackName { get; set; }
+    public string Script { get; set; } = string.Empty;
+    public string? AudioAssetUrl { get; set; }
+    public string? PlatformAdId { get; set; }
+    public string Status { get; set; } = "draft";
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+    public DateTime? PublishedAt { get; set; }
+}
+
+public sealed class AiAdMetric
+{
+    public Guid Id { get; set; }
+    public Guid CampaignId { get; set; }
+    public Guid AdVariantId { get; set; }
+    public string Platform { get; set; } = string.Empty;
+    public string Source { get; set; } = "sync";
+    public int Impressions { get; set; }
+    public int Clicks { get; set; }
+    public int Conversions { get; set; }
+    public decimal CostZar { get; set; }
+    public decimal Ctr { get; set; }
+    public decimal ConversionRate { get; set; }
+    public DateTime RecordedAt { get; set; }
+    public DateTime CreatedAt { get; set; }
+}

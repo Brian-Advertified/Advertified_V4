@@ -15,6 +15,8 @@ public partial class AppDbContext
     public virtual DbSet<AiVoiceProfile> AiVoiceProfiles { get; set; } = null!;
     public virtual DbSet<AiVoicePack> AiVoicePacks { get; set; } = null!;
     public virtual DbSet<AiVoicePromptTemplate> AiVoicePromptTemplates { get; set; } = null!;
+    public virtual DbSet<AiAdVariant> AiAdVariants { get; set; } = null!;
+    public virtual DbSet<AiAdMetric> AiAdMetrics { get; set; } = null!;
 }
 
 internal static class AppDbContextAiPlatformModelBuilderExtensions
@@ -390,6 +392,91 @@ internal static class AppDbContextAiPlatformModelBuilderExtensions
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");
+        });
+
+        modelBuilder.Entity<AiAdVariant>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("ai_ad_variants_pkey");
+            entity.ToTable("ai_ad_variants");
+            entity.HasIndex(e => e.CampaignId, "ix_ai_ad_variants_campaign_id");
+            entity.HasIndex(e => e.Platform, "ix_ai_ad_variants_platform");
+            entity.HasIndex(e => e.Status, "ix_ai_ad_variants_status");
+            entity.HasIndex(e => e.PublishedAt, "ix_ai_ad_variants_published_at");
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.CampaignId).HasColumnName("campaign_id");
+            entity.Property(e => e.CampaignCreativeId).HasColumnName("campaign_creative_id");
+            entity.Property(e => e.Platform)
+                .HasMaxLength(40)
+                .HasColumnName("platform");
+            entity.Property(e => e.Channel)
+                .HasMaxLength(40)
+                .HasColumnName("channel");
+            entity.Property(e => e.Language)
+                .HasMaxLength(40)
+                .HasColumnName("language");
+            entity.Property(e => e.TemplateId).HasColumnName("template_id");
+            entity.Property(e => e.VoicePackId).HasColumnName("voice_pack_id");
+            entity.Property(e => e.VoicePackName)
+                .HasMaxLength(150)
+                .HasColumnName("voice_pack_name");
+            entity.Property(e => e.Script).HasColumnName("script");
+            entity.Property(e => e.AudioAssetUrl).HasColumnName("audio_asset_url");
+            entity.Property(e => e.PlatformAdId)
+                .HasMaxLength(160)
+                .HasColumnName("platform_ad_id");
+            entity.Property(e => e.Status)
+                .HasMaxLength(30)
+                .HasColumnName("status");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+            entity.Property(e => e.PublishedAt).HasColumnName("published_at");
+        });
+
+        modelBuilder.Entity<AiAdMetric>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("ai_ad_metrics_pkey");
+            entity.ToTable("ai_ad_metrics");
+            entity.HasIndex(e => e.CampaignId, "ix_ai_ad_metrics_campaign_id");
+            entity.HasIndex(e => e.AdVariantId, "ix_ai_ad_metrics_ad_variant_id");
+            entity.HasIndex(e => e.RecordedAt, "ix_ai_ad_metrics_recorded_at");
+            entity.HasIndex(e => e.Platform, "ix_ai_ad_metrics_platform");
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.CampaignId).HasColumnName("campaign_id");
+            entity.Property(e => e.AdVariantId).HasColumnName("ad_variant_id");
+            entity.Property(e => e.Platform)
+                .HasMaxLength(40)
+                .HasColumnName("platform");
+            entity.Property(e => e.Source)
+                .HasMaxLength(30)
+                .HasColumnName("source");
+            entity.Property(e => e.Impressions).HasColumnName("impressions");
+            entity.Property(e => e.Clicks).HasColumnName("clicks");
+            entity.Property(e => e.Conversions).HasColumnName("conversions");
+            entity.Property(e => e.CostZar)
+                .HasPrecision(12, 2)
+                .HasColumnName("cost_zar");
+            entity.Property(e => e.Ctr)
+                .HasPrecision(8, 4)
+                .HasColumnName("ctr");
+            entity.Property(e => e.ConversionRate)
+                .HasPrecision(8, 4)
+                .HasColumnName("conversion_rate");
+            entity.Property(e => e.RecordedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("recorded_at");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
         });
     }
 }

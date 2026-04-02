@@ -36,6 +36,10 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAiProviderStrategyFactory, AiProviderStrategyFactory>();
         services.AddScoped<IVoicePackPolicyService, VoicePackPolicyService>();
         services.AddScoped<IVoiceTemplateSelectionService, VoiceTemplateSelectionService>();
+        services.AddScoped<IAdVariantService, DbAdVariantService>();
+        services.AddScoped<IAdPlatformPublisherFactory, AdPlatformPublisherFactory>();
+        services.AddScoped<IAdPlatformPublisher, MetaAdPlatformPublisher>();
+        services.AddScoped<IAdPlatformPublisher, GoogleAdsPlatformPublisher>();
 
         services.AddScoped<IAiProviderStrategy, OpenAiProviderStrategy>();
         services.AddScoped<IAiProviderStrategy, ElevenLabsProviderStrategy>();
@@ -44,6 +48,7 @@ public static class ServiceCollectionExtensions
 
         services.AddHostedService<CreativeJobWorker>();
         services.AddHostedService<AssetJobWorker>();
+        services.AddHostedService<AdMetricsSyncWorker>();
         return services;
     }
 }

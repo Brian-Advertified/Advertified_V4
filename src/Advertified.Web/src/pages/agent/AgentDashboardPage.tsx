@@ -213,6 +213,7 @@ export function AgentDashboardPage() {
                               <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${queueTone(item.queueStage)}`}>{item.queueLabel}</span>
                             </div>
                             <Link to={`/agent/campaigns/${item.id}`} className="button-secondary inline-flex px-3 py-2">Open campaign</Link>
+                            <Link to={`/ai-studio?campaignId=${item.id}`} className="button-secondary inline-flex px-3 py-2">AI Studio</Link>
                           </div>
 
                           <div className="hidden grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_140px_120px] items-start gap-4 md:grid">
@@ -230,6 +231,7 @@ export function AgentDashboardPage() {
                             </div>
                             <div>
                               <Link to={`/agent/campaigns/${item.id}`} className="button-secondary px-3 py-2">Open</Link>
+                              <Link to={`/ai-studio?campaignId=${item.id}`} className="button-secondary mt-2 inline-flex px-3 py-2">AI</Link>
                             </div>
                           </div>
                         </div>

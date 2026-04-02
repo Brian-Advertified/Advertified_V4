@@ -1,7 +1,12 @@
 using System.Net;
 using System.Net.Http.Json;
+using Advertified.App.AIPlatform.Application;
+using Advertified.App.AIPlatform.Domain;
+using Advertified.App.AIPlatform.Infrastructure;
 using Advertified.App.Configuration;
+using Advertified.App.Contracts.Admin;
 using Advertified.App.Contracts.Agent;
+using Advertified.App.Contracts.Packages;
 using Advertified.App.Data;
 using Advertified.App.Data.Entities;
 using Advertified.App.Data.Enums;
@@ -10,6 +15,7 @@ using Advertified.App.Services.Abstractions;
 using Advertified.App.Validation;
 using FluentAssertions;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
@@ -24,6 +30,672 @@ namespace Advertified.App.Tests;
 
 public class HttpWorkflowIntegrationTests
 {
+    [Fact]
+    public async Task AiAdOps_ClientCannotPublishVariantOverHttp()
+    {
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var clientUser = TestSeed.CreateUser();
+                var (band, order, campaign) = TestSeed.CreateCampaignGraph(clientUser, selectedBudget: 250000m, status: "approved");
+                var variant = new AiAdVariant
+                {
+                    Id = Guid.NewGuid(),
+                    CampaignId = campaign.Id,
+                    Platform = "Meta",
+                    Channel = "Digital",
+                    Language = "English",
+                    Script = "Test script",
+                    Status = "draft",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                db.UserAccounts.Add(clientUser);
+                db.PackageBands.Add(band);
+                db.PackageOrders.Add(order);
+                db.Campaigns.Add(campaign);
+                db.AiAdVariants.Add(variant);
+                db.SaveChanges();
+            },
+            configureServices: services =>
+            {
+                services.AddSingleton<StubAdVariantService>();
+                services.AddScoped<IAdVariantService>(sp => sp.GetRequiredService<StubAdVariantService>());
+            });
+
+        var clientUserId = await harness.ExecuteDbAsync(db => db.UserAccounts.Select(x => x.Id).SingleAsync());
+        var variantId = await harness.ExecuteDbAsync(db => db.AiAdVariants.Select(x => x.Id).SingleAsync());
+        var stub = harness.Services.GetRequiredService<StubAdVariantService>();
+        harness.Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await harness.CreateSessionTokenAsync(clientUserId));
+
+        var response = await harness.Client.PostAsJsonAsync($"/api/v2/ai-platform/ad-ops/variants/{variantId}/publish", new { });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        stub.PublishCallCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task AiAdOps_AgentNotAssignedCannotAccessVariantsOverHttp()
+    {
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var clientUser = TestSeed.CreateUser();
+                var assignedAgent = TestSeed.CreateAgent();
+                var otherAgent = TestSeed.CreateAgent();
+                assignedAgent.Email = "assigned.agent@advertified.test";
+                otherAgent.Email = "other.agent@advertified.test";
+                var (band, order, campaign) = TestSeed.CreateCampaignGraph(clientUser, selectedBudget: 250000m, status: "approved");
+                campaign.AssignedAgentUserId = assignedAgent.Id;
+                campaign.AssignedAt = DateTime.UtcNow;
+
+                db.UserAccounts.AddRange(clientUser, assignedAgent, otherAgent);
+                db.PackageBands.Add(band);
+                db.PackageOrders.Add(order);
+                db.Campaigns.Add(campaign);
+                db.SaveChanges();
+            },
+            configureServices: services =>
+            {
+                services.AddSingleton<StubAdVariantService>();
+                services.AddScoped<IAdVariantService>(sp => sp.GetRequiredService<StubAdVariantService>());
+            });
+
+        var otherAgentId = await harness.ExecuteDbAsync(db =>
+            db.UserAccounts
+                .Where(x => x.Role == UserRole.Agent && x.Email == "other.agent@advertified.test")
+                .Select(x => x.Id)
+                .FirstAsync());
+        var campaignId = await harness.ExecuteDbAsync(db => db.Campaigns.Select(x => x.Id).SingleAsync());
+        var stub = harness.Services.GetRequiredService<StubAdVariantService>();
+        harness.Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await harness.CreateSessionTokenAsync(otherAgentId));
+
+        var response = await harness.Client.GetAsync($"/api/v2/ai-platform/ad-ops/campaigns/{campaignId}/variants");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        stub.GetCallCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task AiAdOps_UnauthenticatedCannotAccessVariantsOverHttp()
+    {
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var clientUser = TestSeed.CreateUser();
+                var (band, order, campaign) = TestSeed.CreateCampaignGraph(clientUser, selectedBudget: 250000m, status: "approved");
+                db.UserAccounts.Add(clientUser);
+                db.PackageBands.Add(band);
+                db.PackageOrders.Add(order);
+                db.Campaigns.Add(campaign);
+                db.SaveChanges();
+            },
+            configureServices: services =>
+            {
+                services.AddSingleton<StubAdVariantService>();
+                services.AddScoped<IAdVariantService>(sp => sp.GetRequiredService<StubAdVariantService>());
+            });
+
+        var campaignId = await harness.ExecuteDbAsync(db => db.Campaigns.Select(x => x.Id).SingleAsync());
+        var response = await harness.Client.GetAsync($"/api/v2/ai-platform/ad-ops/campaigns/{campaignId}/variants");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task AiAdOps_ClientCannotSyncMetricsOverHttp()
+    {
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var clientUser = TestSeed.CreateUser();
+                var (band, order, campaign) = TestSeed.CreateCampaignGraph(clientUser, selectedBudget: 250000m, status: "approved");
+                db.UserAccounts.Add(clientUser);
+                db.PackageBands.Add(band);
+                db.PackageOrders.Add(order);
+                db.Campaigns.Add(campaign);
+                db.SaveChanges();
+            },
+            configureServices: services =>
+            {
+                services.AddSingleton<StubAdVariantService>();
+                services.AddScoped<IAdVariantService>(sp => sp.GetRequiredService<StubAdVariantService>());
+            });
+
+        var clientUserId = await harness.ExecuteDbAsync(db => db.UserAccounts.Select(x => x.Id).SingleAsync());
+        var campaignId = await harness.ExecuteDbAsync(db => db.Campaigns.Select(x => x.Id).SingleAsync());
+        var stub = harness.Services.GetRequiredService<StubAdVariantService>();
+        harness.Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await harness.CreateSessionTokenAsync(clientUserId));
+
+        var response = await harness.Client.PostAsJsonAsync($"/api/v2/ai-platform/ad-ops/campaigns/{campaignId}/sync-metrics", new { });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        stub.SyncCallCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task AiAdOps_ClientCannotOptimizeCampaignOverHttp()
+    {
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var clientUser = TestSeed.CreateUser();
+                var (band, order, campaign) = TestSeed.CreateCampaignGraph(clientUser, selectedBudget: 250000m, status: "approved");
+                db.UserAccounts.Add(clientUser);
+                db.PackageBands.Add(band);
+                db.PackageOrders.Add(order);
+                db.Campaigns.Add(campaign);
+                db.SaveChanges();
+            },
+            configureServices: services =>
+            {
+                services.AddSingleton<StubAdVariantService>();
+                services.AddScoped<IAdVariantService>(sp => sp.GetRequiredService<StubAdVariantService>());
+            });
+
+        var clientUserId = await harness.ExecuteDbAsync(db => db.UserAccounts.Select(x => x.Id).SingleAsync());
+        var campaignId = await harness.ExecuteDbAsync(db => db.Campaigns.Select(x => x.Id).SingleAsync());
+        var stub = harness.Services.GetRequiredService<StubAdVariantService>();
+        harness.Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await harness.CreateSessionTokenAsync(clientUserId));
+
+        var response = await harness.Client.PostAsJsonAsync($"/api/v2/ai-platform/ad-ops/campaigns/{campaignId}/optimize", new { });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        stub.OptimizeCallCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task AiAdOps_ClientCrossTenantCannotReadMetricsSummaryOverHttp()
+    {
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var ownerClient = TestSeed.CreateUser();
+                ownerClient.Email = "owner.client@advertified.test";
+                var otherClient = TestSeed.CreateUser();
+                otherClient.Email = "other.client@advertified.test";
+                var (band, order, campaign) = TestSeed.CreateCampaignGraph(ownerClient, selectedBudget: 250000m, status: "approved");
+
+                db.UserAccounts.AddRange(ownerClient, otherClient);
+                db.PackageBands.Add(band);
+                db.PackageOrders.Add(order);
+                db.Campaigns.Add(campaign);
+                db.SaveChanges();
+            },
+            configureServices: services =>
+            {
+                services.AddSingleton<StubAdVariantService>();
+                services.AddScoped<IAdVariantService>(sp => sp.GetRequiredService<StubAdVariantService>());
+            });
+
+        var otherClientId = await harness.ExecuteDbAsync(db =>
+            db.UserAccounts
+                .Where(x => x.Email == "other.client@advertified.test")
+                .Select(x => x.Id)
+                .SingleAsync());
+        var campaignId = await harness.ExecuteDbAsync(db => db.Campaigns.Select(x => x.Id).SingleAsync());
+        var stub = harness.Services.GetRequiredService<StubAdVariantService>();
+        harness.Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await harness.CreateSessionTokenAsync(otherClientId));
+
+        var response = await harness.Client.GetAsync($"/api/v2/ai-platform/ad-ops/campaigns/{campaignId}/metrics/summary");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        stub.SummaryCallCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task AiAdOps_ClientCrossTenantCannotTrackConversionsOverHttp()
+    {
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var ownerClient = TestSeed.CreateUser();
+                ownerClient.Email = "owner.client@advertified.test";
+                var otherClient = TestSeed.CreateUser();
+                otherClient.Email = "other.client@advertified.test";
+                var (band, order, campaign) = TestSeed.CreateCampaignGraph(ownerClient, selectedBudget: 250000m, status: "approved");
+                var variant = new AiAdVariant
+                {
+                    Id = Guid.NewGuid(),
+                    CampaignId = campaign.Id,
+                    Platform = "Meta",
+                    Channel = "Digital",
+                    Language = "English",
+                    Script = "Cross-tenant conversion test",
+                    Status = "published",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow,
+                    PublishedAt = DateTime.UtcNow
+                };
+
+                db.UserAccounts.AddRange(ownerClient, otherClient);
+                db.PackageBands.Add(band);
+                db.PackageOrders.Add(order);
+                db.Campaigns.Add(campaign);
+                db.AiAdVariants.Add(variant);
+                db.SaveChanges();
+            },
+            configureServices: services =>
+            {
+                services.AddSingleton<StubAdVariantService>();
+                services.AddScoped<IAdVariantService>(sp => sp.GetRequiredService<StubAdVariantService>());
+            });
+
+        var otherClientId = await harness.ExecuteDbAsync(db =>
+            db.UserAccounts
+                .Where(x => x.Email == "other.client@advertified.test")
+                .Select(x => x.Id)
+                .SingleAsync());
+        var variantId = await harness.ExecuteDbAsync(db => db.AiAdVariants.Select(x => x.Id).SingleAsync());
+        var stub = harness.Services.GetRequiredService<StubAdVariantService>();
+        harness.Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await harness.CreateSessionTokenAsync(otherClientId));
+
+        var response = await harness.Client.PostAsJsonAsync(
+            $"/api/v2/ai-platform/ad-ops/variants/{variantId}/conversions",
+            new { conversions = 3 });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        stub.ConversionCallCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task AiAdOps_ClientCrossTenantCannotCreateVariantOverHttp()
+    {
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var ownerClient = TestSeed.CreateUser();
+                ownerClient.Email = "owner.client@advertified.test";
+                var otherClient = TestSeed.CreateUser();
+                otherClient.Email = "other.client@advertified.test";
+                var (band, order, campaign) = TestSeed.CreateCampaignGraph(ownerClient, selectedBudget: 250000m, status: "approved");
+
+                db.UserAccounts.AddRange(ownerClient, otherClient);
+                db.PackageBands.Add(band);
+                db.PackageOrders.Add(order);
+                db.Campaigns.Add(campaign);
+                db.SaveChanges();
+            },
+            configureServices: services =>
+            {
+                services.AddSingleton<StubAdVariantService>();
+                services.AddScoped<IAdVariantService>(sp => sp.GetRequiredService<StubAdVariantService>());
+            });
+
+        var otherClientId = await harness.ExecuteDbAsync(db =>
+            db.UserAccounts
+                .Where(x => x.Email == "other.client@advertified.test")
+                .Select(x => x.Id)
+                .SingleAsync());
+        var campaignId = await harness.ExecuteDbAsync(db => db.Campaigns.Select(x => x.Id).SingleAsync());
+        var stub = harness.Services.GetRequiredService<StubAdVariantService>();
+        harness.Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await harness.CreateSessionTokenAsync(otherClientId));
+
+        var response = await harness.Client.PostAsJsonAsync("/api/v2/ai-platform/ad-ops/variants", new
+        {
+            campaignId,
+            platform = "Meta",
+            channel = "Digital",
+            language = "English",
+            script = "Cross-tenant create should be forbidden",
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        stub.CreateCallCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task AiAdOps_ClientCrossTenantCannotGetVariantsOverHttp()
+    {
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var ownerClient = TestSeed.CreateUser();
+                ownerClient.Email = "owner.client@advertified.test";
+                var otherClient = TestSeed.CreateUser();
+                otherClient.Email = "other.client@advertified.test";
+                var (band, order, campaign) = TestSeed.CreateCampaignGraph(ownerClient, selectedBudget: 250000m, status: "approved");
+
+                db.UserAccounts.AddRange(ownerClient, otherClient);
+                db.PackageBands.Add(band);
+                db.PackageOrders.Add(order);
+                db.Campaigns.Add(campaign);
+                db.SaveChanges();
+            },
+            configureServices: services =>
+            {
+                services.AddSingleton<StubAdVariantService>();
+                services.AddScoped<IAdVariantService>(sp => sp.GetRequiredService<StubAdVariantService>());
+            });
+
+        var otherClientId = await harness.ExecuteDbAsync(db =>
+            db.UserAccounts
+                .Where(x => x.Email == "other.client@advertified.test")
+                .Select(x => x.Id)
+                .SingleAsync());
+        var campaignId = await harness.ExecuteDbAsync(db => db.Campaigns.Select(x => x.Id).SingleAsync());
+        var stub = harness.Services.GetRequiredService<StubAdVariantService>();
+        harness.Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await harness.CreateSessionTokenAsync(otherClientId));
+
+        var response = await harness.Client.GetAsync($"/api/v2/ai-platform/ad-ops/campaigns/{campaignId}/variants");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        stub.GetCallCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task AiAdOps_AdminGetsNotFoundForUnknownCampaignOverHttp()
+    {
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var adminUser = TestSeed.CreateAdmin();
+                db.UserAccounts.Add(adminUser);
+                db.SaveChanges();
+            },
+            configureServices: services =>
+            {
+                services.AddSingleton<StubAdVariantService>();
+                services.AddScoped<IAdVariantService>(sp => sp.GetRequiredService<StubAdVariantService>());
+            });
+
+        var adminUserId = await harness.ExecuteDbAsync(db =>
+            db.UserAccounts.Where(x => x.Role == UserRole.Admin).Select(x => x.Id).SingleAsync());
+        var missingCampaignId = Guid.NewGuid();
+        var stub = harness.Services.GetRequiredService<StubAdVariantService>();
+        harness.Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await harness.CreateSessionTokenAsync(adminUserId));
+
+        var variantsResponse = await harness.Client.GetAsync($"/api/v2/ai-platform/ad-ops/campaigns/{missingCampaignId}/variants");
+        variantsResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        stub.GetCallCount.Should().Be(0);
+
+        var summaryResponse = await harness.Client.GetAsync($"/api/v2/ai-platform/ad-ops/campaigns/{missingCampaignId}/metrics/summary");
+        summaryResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        stub.SummaryCallCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task AiAdOps_AdminGetsNotFoundForUnknownVariantOverHttp()
+    {
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var adminUser = TestSeed.CreateAdmin();
+                db.UserAccounts.Add(adminUser);
+                db.SaveChanges();
+            },
+            configureServices: services =>
+            {
+                services.AddSingleton<StubAdVariantService>();
+                services.AddScoped<IAdVariantService>(sp => sp.GetRequiredService<StubAdVariantService>());
+            });
+
+        var adminUserId = await harness.ExecuteDbAsync(db =>
+            db.UserAccounts.Where(x => x.Role == UserRole.Admin).Select(x => x.Id).SingleAsync());
+        var missingVariantId = Guid.NewGuid();
+        var stub = harness.Services.GetRequiredService<StubAdVariantService>();
+        harness.Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await harness.CreateSessionTokenAsync(adminUserId));
+
+        var publishResponse = await harness.Client.PostAsJsonAsync($"/api/v2/ai-platform/ad-ops/variants/{missingVariantId}/publish", new { });
+        publishResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        stub.PublishCallCount.Should().Be(0);
+
+        var conversionResponse = await harness.Client.PostAsJsonAsync(
+            $"/api/v2/ai-platform/ad-ops/variants/{missingVariantId}/conversions",
+            new { conversions = 1 });
+        conversionResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        stub.ConversionCallCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task AiAdOps_EndToEnd_CreatePublishSyncOptimizeOverHttp()
+    {
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var adminUser = TestSeed.CreateAdmin();
+                var clientUser = TestSeed.CreateUser();
+                var (band, order, campaign) = TestSeed.CreateCampaignGraph(clientUser, selectedBudget: 250000m, status: "approved");
+
+                db.UserAccounts.AddRange(adminUser, clientUser);
+                db.PackageBands.Add(band);
+                db.PackageOrders.Add(order);
+                db.Campaigns.Add(campaign);
+                db.PackageBandAiEntitlements.Add(new PackageBandAiEntitlement
+                {
+                    PackageBandId = band.Id,
+                    MaxAdVariants = 3,
+                    AllowedAdPlatformsJson = "[\"Meta\"]",
+                    AllowAdMetricsSync = true,
+                    AllowAdAutoOptimize = true,
+                    AllowedVoicePackTiersJson = "[\"standard\",\"premium\",\"exclusive\"]",
+                    MaxAdRegenerations = 3,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                });
+                db.SaveChanges();
+            },
+            configureServices: services =>
+            {
+                services.AddHttpClient();
+                services.Configure<AiPlatformOptions>(options =>
+                {
+                    options.UseInMemoryFallback = true;
+                    options.ServiceBusConnectionString = string.Empty;
+                });
+                services.Configure<AdPlatformOptions>(options =>
+                {
+                    options.DryRunMode = true;
+                    options.Meta.Enabled = false;
+                    options.GoogleAds.Enabled = false;
+                });
+                services.AddAiAdvertisingPlatform();
+            });
+
+        var adminUserId = await harness.ExecuteDbAsync(db => db.UserAccounts.Where(x => x.Role == UserRole.Admin).Select(x => x.Id).SingleAsync());
+        var campaignId = await harness.ExecuteDbAsync(db => db.Campaigns.Select(x => x.Id).SingleAsync());
+        harness.Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await harness.CreateSessionTokenAsync(adminUserId));
+
+        var createResponse = await harness.Client.PostAsJsonAsync("/api/v2/ai-platform/ad-ops/variants", new
+        {
+            campaignId,
+            platform = "Meta",
+            channel = "Digital",
+            language = "English",
+            script = "Advertified gets your campaign live fast.",
+        });
+        createResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var created = await createResponse.Content.ReadFromJsonAsync<AdVariantApiTestResponse>();
+        created.Should().NotBeNull();
+
+        var publishResponse = await harness.Client.PostAsJsonAsync($"/api/v2/ai-platform/ad-ops/variants/{created!.Id}/publish", new { });
+        publishResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var syncResponse = await harness.Client.PostAsJsonAsync($"/api/v2/ai-platform/ad-ops/campaigns/{campaignId}/sync-metrics", new { });
+        syncResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var optimizeResponse = await harness.Client.PostAsJsonAsync($"/api/v2/ai-platform/ad-ops/campaigns/{campaignId}/optimize", new { });
+        optimizeResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task AiAdOps_PublishAutoStopsWhenCostCapBreaches()
+    {
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var adminUser = TestSeed.CreateAdmin();
+                var clientUser = TestSeed.CreateUser();
+                var (band, order, campaign) = TestSeed.CreateCampaignGraph(clientUser, selectedBudget: 250000m, status: "approved");
+
+                db.UserAccounts.AddRange(adminUser, clientUser);
+                db.PackageBands.Add(band);
+                db.PackageOrders.Add(order);
+                db.Campaigns.Add(campaign);
+                db.PackageBandAiEntitlements.Add(new PackageBandAiEntitlement
+                {
+                    PackageBandId = band.Id,
+                    MaxAdVariants = 3,
+                    AllowedAdPlatformsJson = "[\"Meta\"]",
+                    AllowAdMetricsSync = true,
+                    AllowAdAutoOptimize = true,
+                    AllowedVoicePackTiersJson = "[\"standard\",\"premium\",\"exclusive\"]",
+                    MaxAdRegenerations = 3,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                });
+                db.SaveChanges();
+            },
+            configureServices: services =>
+            {
+                services.AddHttpClient();
+                services.Configure<AiPlatformOptions>(options =>
+                {
+                    options.UseInMemoryFallback = true;
+                    options.ServiceBusConnectionString = string.Empty;
+                    options.MaxAiCostHardCapZar = 0m;
+                    options.MaxAiCostPercentOfCampaignBudget = 0m;
+                });
+                services.Configure<AdPlatformOptions>(options =>
+                {
+                    options.DryRunMode = true;
+                    options.Meta.Enabled = false;
+                    options.GoogleAds.Enabled = false;
+                });
+                services.AddAiAdvertisingPlatform();
+            });
+
+        var adminUserId = await harness.ExecuteDbAsync(db => db.UserAccounts.Where(x => x.Role == UserRole.Admin).Select(x => x.Id).SingleAsync());
+        var campaignId = await harness.ExecuteDbAsync(db => db.Campaigns.Select(x => x.Id).SingleAsync());
+        harness.Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await harness.CreateSessionTokenAsync(adminUserId));
+
+        var createResponse = await harness.Client.PostAsJsonAsync("/api/v2/ai-platform/ad-ops/variants", new
+        {
+            campaignId,
+            platform = "Meta",
+            channel = "Digital",
+            language = "English",
+            script = "Advertified publish test under strict cap.",
+        });
+        createResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var created = await createResponse.Content.ReadFromJsonAsync<AdVariantApiTestResponse>();
+        created.Should().NotBeNull();
+
+        var publishResponse = await harness.Client.PostAsJsonAsync($"/api/v2/ai-platform/ad-ops/variants/{created!.Id}/publish", new { });
+        publishResponse.StatusCode.Should().Be(HttpStatusCode.InternalServerError);
+
+        var variantStatus = await harness.ExecuteDbAsync(db => db.AiAdVariants.Where(x => x.Id == created.Id).Select(x => x.Status).SingleAsync());
+        variantStatus.Should().Be("cost_stopped");
+    }
+
+    [Fact]
+    public async Task AdminAiReplay_CreativeFailedJob_CanReplay()
+    {
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var adminUser = TestSeed.CreateAdmin();
+                var clientUser = TestSeed.CreateUser();
+                var (band, order, campaign) = TestSeed.CreateCampaignGraph(clientUser, selectedBudget: 250000m, status: "approved");
+                var failedJobId = Guid.NewGuid();
+
+                db.UserAccounts.AddRange(adminUser, clientUser);
+                db.PackageBands.Add(band);
+                db.PackageOrders.Add(order);
+                db.Campaigns.Add(campaign);
+                db.AiCreativeJobStatuses.Add(new AiCreativeJobStatus
+                {
+                    JobId = failedJobId,
+                    CampaignId = campaign.Id,
+                    Status = "failed",
+                    Error = "provider timeout",
+                    RetryAttemptCount = 3,
+                    LastFailure = "provider timeout",
+                    UpdatedAt = DateTime.UtcNow
+                });
+                db.SaveChanges();
+            });
+
+        var adminUserId = await harness.ExecuteDbAsync(db => db.UserAccounts.Where(x => x.Role == UserRole.Admin).Select(x => x.Id).SingleAsync());
+        var failedJobId = await harness.ExecuteDbAsync(db => db.AiCreativeJobStatuses.Select(x => x.JobId).SingleAsync());
+        harness.Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await harness.CreateSessionTokenAsync(adminUserId));
+
+        var replayResponse = await harness.Client.PostAsJsonAsync($"/admin/ai/jobs/creative/{failedJobId}/replay", new { });
+
+        replayResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task AdminAiMonthlyCostReport_ClientUserIsForbidden()
+    {
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var adminUser = TestSeed.CreateAdmin();
+                var clientUser = TestSeed.CreateUser();
+                db.UserAccounts.AddRange(adminUser, clientUser);
+                db.SaveChanges();
+            });
+
+        var clientUserId = await harness.ExecuteDbAsync(db =>
+            db.UserAccounts.Where(x => x.Role == UserRole.Client).Select(x => x.Id).SingleAsync());
+        harness.Client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", await harness.CreateSessionTokenAsync(clientUserId));
+
+        var response = await harness.Client.GetAsync("/admin/ai/cost-reports/monthly?months=3");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task AdminAiReplay_AssetFailedJob_ClientUserIsForbiddenAndJobUnchanged()
+    {
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var adminUser = TestSeed.CreateAdmin();
+                var clientUser = TestSeed.CreateUser();
+                var (band, order, campaign) = TestSeed.CreateCampaignGraph(clientUser, selectedBudget: 250000m, status: "approved");
+                var failedAssetJobId = Guid.NewGuid();
+
+                db.UserAccounts.AddRange(adminUser, clientUser);
+                db.PackageBands.Add(band);
+                db.PackageOrders.Add(order);
+                db.Campaigns.Add(campaign);
+                db.AiAssetJobs.Add(new AiAssetJob
+                {
+                    Id = failedAssetJobId,
+                    CampaignId = campaign.Id,
+                    CreativeId = Guid.NewGuid(),
+                    AssetKind = "voice",
+                    Provider = "ElevenLabs",
+                    Status = "failed",
+                    RequestJson = "{}",
+                    Error = "provider timeout",
+                    RetryAttemptCount = 3,
+                    LastFailure = "provider timeout",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                });
+                db.SaveChanges();
+            });
+
+        var clientUserId = await harness.ExecuteDbAsync(db =>
+            db.UserAccounts.Where(x => x.Role == UserRole.Client).Select(x => x.Id).SingleAsync());
+        var failedAssetJobId = await harness.ExecuteDbAsync(db => db.AiAssetJobs.Select(x => x.Id).SingleAsync());
+        harness.Client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", await harness.CreateSessionTokenAsync(clientUserId));
+
+        var replayResponse = await harness.Client.PostAsJsonAsync($"/admin/ai/jobs/assets/{failedAssetJobId}/replay", new { });
+
+        replayResponse.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        var status = await harness.ExecuteDbAsync(db =>
+            db.AiAssetJobs.Where(x => x.Id == failedAssetJobId).Select(x => x.Status).SingleAsync());
+        status.Should().Be("failed");
+    }
+
     [Fact]
     public async Task CampaignBriefWorkflow_SavesSubmitsAndSelectsPlanningModeOverHttp()
     {
@@ -516,6 +1188,51 @@ public class HttpWorkflowIntegrationTests
         campaignAfterResume.TotalPausedDays.Should().Be(3);
         campaignAfterResume.PauseReason.Should().Be("Stock confirmed and campaign resumed");
     }
+
+    [Fact]
+    public async Task AdminCampaignOperations_UnauthenticatedRequest_ReturnsUnauthorized()
+    {
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var adminUser = TestSeed.CreateAdmin();
+                db.UserAccounts.Add(adminUser);
+                db.SaveChanges();
+            });
+
+        var response = await harness.Client.GetAsync("/admin/campaign-operations");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task AdminPackageOrders_ClientUserIsForbidden()
+    {
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var adminUser = TestSeed.CreateAdmin();
+                var clientUser = TestSeed.CreateUser();
+                db.UserAccounts.AddRange(adminUser, clientUser);
+                db.SaveChanges();
+            },
+            configureServices: services =>
+            {
+                services.AddSingleton<IPackagePurchaseService, StubPackagePurchaseService>();
+                services.AddSingleton<IPrivateDocumentStorage, StubPrivateDocumentStorage>();
+                services.AddSingleton<IInvoiceService, StubInvoiceService>();
+                services.AddSingleton<ITemplatedEmailService, StubTemplatedEmailService>();
+            });
+
+        var clientUserId = await harness.ExecuteDbAsync(db =>
+            db.UserAccounts.Where(x => x.Role == UserRole.Client).Select(x => x.Id).SingleAsync());
+        harness.Client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", await harness.CreateSessionTokenAsync(clientUserId));
+
+        var response = await harness.Client.GetAsync("/admin/package-orders");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
 }
 
 public class ResendEmailServiceFallbackTests
@@ -585,6 +1302,168 @@ public class ResendEmailServiceFallbackTests
     }
 }
 
+internal sealed class StubAdminDashboardService : IAdminDashboardService
+{
+    public Task<AdminDashboardResponse> GetDashboardAsync(CancellationToken cancellationToken)
+        => throw new NotSupportedException();
+}
+
+internal sealed class StubAdminMutationService : IAdminMutationService
+{
+    public Task<AdminOutletDetailResponse> GetOutletAsync(string code, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task<AdminOutletPricingResponse> GetOutletPricingAsync(string code, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task<AdminOutletMutationResponse> CreateOutletAsync(CreateAdminOutletRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task<AdminOutletMutationResponse> UpdateOutletAsync(string existingCode, UpdateAdminOutletRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task DeleteOutletAsync(string code, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task<Guid> CreateOutletPricingPackageAsync(string code, UpsertAdminOutletPricingPackageRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task UpdateOutletPricingPackageAsync(string code, Guid packageId, UpsertAdminOutletPricingPackageRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task DeleteOutletPricingPackageAsync(string code, Guid packageId, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task<Guid> CreateOutletSlotRateAsync(string code, UpsertAdminOutletSlotRateRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task UpdateOutletSlotRateAsync(string code, Guid slotRateId, UpsertAdminOutletSlotRateRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task DeleteOutletSlotRateAsync(string code, Guid slotRateId, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task<AdminGeographyDetailResponse> GetGeographyAsync(string code, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task<AdminGeographyDetailResponse> CreateGeographyAsync(CreateAdminGeographyRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task<AdminGeographyDetailResponse> UpdateGeographyAsync(string existingCode, UpdateAdminGeographyRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task DeleteGeographyAsync(string code, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task<Guid> CreateGeographyMappingAsync(string code, UpsertAdminGeographyMappingRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task UpdateGeographyMappingAsync(string code, Guid mappingId, UpsertAdminGeographyMappingRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task DeleteGeographyMappingAsync(string code, Guid mappingId, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task<AdminRateCardUploadResponse> UploadRateCardAsync(string channel, string? supplierOrStation, string? documentTitle, string? notes, IFormFile file, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task UpdateRateCardAsync(string sourceFile, UpdateAdminRateCardRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task DeleteRateCardAsync(string sourceFile, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task<Guid> CreatePackageSettingAsync(CreateAdminPackageSettingRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task UpdatePackageSettingAsync(Guid packageSettingId, UpdateAdminPackageSettingRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task DeletePackageSettingAsync(Guid packageSettingId, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task UpdatePricingSettingsAsync(UpdateAdminPricingSettingsRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task UpdateEnginePolicyAsync(string packageCode, UpdateAdminEnginePolicyRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task UpdatePreviewRuleAsync(string packageCode, string tierCode, UpdateAdminPreviewRuleRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+}
+
+internal sealed class StubAdVariantService : IAdVariantService
+{
+    public int CreateCallCount { get; private set; }
+    public int PublishCallCount { get; private set; }
+    public int GetCallCount { get; private set; }
+    public int SyncCallCount { get; private set; }
+    public int OptimizeCallCount { get; private set; }
+    public int SummaryCallCount { get; private set; }
+    public int ConversionCallCount { get; private set; }
+
+    public Task<AdVariantSummary> CreateVariantAsync(CreateAdVariantCommand command, CancellationToken cancellationToken)
+    {
+        CreateCallCount++;
+        var now = DateTimeOffset.UtcNow;
+        return Task.FromResult(new AdVariantSummary(
+            Guid.NewGuid(),
+            command.CampaignId,
+            command.CampaignCreativeId,
+            command.Platform,
+            command.Channel,
+            command.Language,
+            command.TemplateId,
+            command.VoicePackId,
+            command.VoicePackName,
+            command.Script,
+            command.AudioAssetUrl,
+            null,
+            "draft",
+            now,
+            now,
+            null));
+    }
+
+    public Task<IReadOnlyList<AdVariantSummary>> GetCampaignVariantsAsync(Guid campaignId, CancellationToken cancellationToken)
+    {
+        GetCallCount++;
+        return Task.FromResult<IReadOnlyList<AdVariantSummary>>(Array.Empty<AdVariantSummary>());
+    }
+
+    public Task<PublishAdVariantResult> PublishVariantAsync(Guid variantId, CancellationToken cancellationToken)
+    {
+        PublishCallCount++;
+        return Task.FromResult(new PublishAdVariantResult(
+            variantId,
+            Guid.NewGuid(),
+            "Meta",
+            $"meta-{variantId:D}",
+            "published",
+            DateTimeOffset.UtcNow));
+    }
+
+    public Task RecordConversionAsync(Guid variantId, int conversions, CancellationToken cancellationToken)
+    {
+        ConversionCallCount++;
+        return Task.CompletedTask;
+    }
+
+    public Task<CampaignAdMetricsSummary> GetCampaignMetricsSummaryAsync(Guid campaignId, CancellationToken cancellationToken)
+    {
+        SummaryCallCount++;
+        return Task.FromResult(new CampaignAdMetricsSummary(campaignId, 0, 0, 0, 0, 0, 0m, 0m, 0m, null, null, null));
+    }
+
+    public Task<SyncCampaignMetricsResult> SyncCampaignMetricsAsync(Guid campaignId, CancellationToken cancellationToken)
+    {
+        SyncCallCount++;
+        return Task.FromResult(new SyncCampaignMetricsResult(campaignId, 0, new CampaignAdMetricsSummary(campaignId, 0, 0, 0, 0, 0, 0m, 0m, 0m, null, null, null)));
+    }
+
+    public Task<int> SyncAllPublishedCampaignsAsync(CancellationToken cancellationToken)
+        => Task.FromResult(0);
+
+    public Task<OptimizeCampaignResult> OptimizeCampaignAsync(Guid campaignId, CancellationToken cancellationToken)
+    {
+        OptimizeCallCount++;
+        return Task.FromResult(new OptimizeCampaignResult(campaignId, null, "stub", DateTimeOffset.UtcNow));
+    }
+}
+
+internal sealed class AdVariantApiTestResponse
+{
+    public Guid Id { get; set; }
+}
+
+internal sealed class StubCreativeCampaignOrchestrator : ICreativeCampaignOrchestrator
+{
+    public Task<GenerateCampaignCreativesResult> GenerateAsync(
+        GenerateCampaignCreativesCommand command,
+        CancellationToken cancellationToken)
+    {
+        return Task.FromResult(new GenerateCampaignCreativesResult(
+            Guid.NewGuid(),
+            command.CampaignId,
+            Array.Empty<CreativeVariant>(),
+            Array.Empty<CreativeQualityScore>(),
+            Array.Empty<AssetGenerationResult>(),
+            DateTimeOffset.UtcNow));
+    }
+
+    public Task<QueueCreativeJobStatus> QueueGenerationAsync(
+        GenerateCampaignCreativesCommand command,
+        CancellationToken cancellationToken)
+    {
+        return Task.FromResult(new QueueCreativeJobStatus(
+            Guid.NewGuid(),
+            command.CampaignId,
+            "queued",
+            null,
+            0,
+            null,
+            DateTimeOffset.UtcNow));
+    }
+}
+
+internal sealed class StubAssetJobQueue : IAssetJobQueue
+{
+    public ValueTask EnqueueAsync(Guid jobId, CancellationToken cancellationToken) => ValueTask.CompletedTask;
+
+    public async IAsyncEnumerable<AssetJobEnvelope> DequeueAllAsync([System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await Task.CompletedTask;
+        yield break;
+    }
+}
+
 internal sealed class TestApiHarness : IAsyncDisposable
 {
     private readonly IHost _host;
@@ -617,6 +1496,8 @@ internal sealed class TestApiHarness : IAsyncDisposable
         builder.Services.AddScoped<ISessionTokenService, SessionTokenService>();
         builder.Services.AddScoped<IPasswordHashingService, PasswordHashingService>();
         builder.Services.AddScoped<IChangeAuditService, ChangeAuditService>();
+        builder.Services.AddScoped<IAdminDashboardService, StubAdminDashboardService>();
+        builder.Services.AddScoped<IAdminMutationService, StubAdminMutationService>();
         builder.Services.AddScoped<ICampaignAccessService, CampaignAccessService>();
         builder.Services.AddScoped<IAgentAreaRoutingService, StubAgentAreaRoutingService>();
         builder.Services.AddScoped<ICampaignBriefService, CampaignBriefService>();
@@ -624,6 +1505,8 @@ internal sealed class TestApiHarness : IAsyncDisposable
         builder.Services.AddScoped<SaveCampaignBriefRequestValidator>();
         builder.Services.AddScoped<IEmailVerificationService, StubEmailVerificationService>();
         builder.Services.AddScoped<IInvoiceService, StubInvoiceService>();
+        builder.Services.AddScoped<IPackagePurchaseService, StubPackagePurchaseService>();
+        builder.Services.AddScoped<IPrivateDocumentStorage, StubPrivateDocumentStorage>();
         builder.Services.AddScoped<IRecommendationDocumentService, StubRecommendationDocumentService>();
         builder.Services.AddScoped<IPublicAssetStorage, StubPublicAssetStorage>();
         builder.Services.AddScoped<IMediaPlanningEngine, StubMediaPlanningEngine>();
@@ -631,6 +1514,8 @@ internal sealed class TestApiHarness : IAsyncDisposable
         builder.Services.AddScoped<ICampaignRecommendationService, CampaignRecommendationService>();
         builder.Services.AddScoped<ICampaignBriefInterpretationService, StubCampaignBriefInterpretationService>();
         builder.Services.AddScoped<ITemplatedEmailService, StubTemplatedEmailService>();
+        builder.Services.AddScoped<ICreativeCampaignOrchestrator, StubCreativeCampaignOrchestrator>();
+        builder.Services.AddSingleton<IAssetJobQueue, StubAssetJobQueue>();
 
         configureServices?.Invoke(builder.Services);
 
@@ -944,6 +1829,27 @@ internal sealed class StubInvoiceService : IInvoiceService
 
     public Task<byte[]> GetPdfBytesAsync(Guid invoiceId, CancellationToken cancellationToken)
         => throw new NotSupportedException();
+}
+
+internal sealed class StubPackagePurchaseService : IPackagePurchaseService
+{
+    public Task<CreatePackageOrderResponse> CreatePendingOrderAsync(Guid userId, CreatePackageOrderRequest request, CancellationToken cancellationToken)
+        => throw new NotSupportedException();
+
+    public Task MarkOrderPaidAsync(Guid packageOrderId, string paymentReference, CancellationToken cancellationToken)
+        => Task.CompletedTask;
+
+    public Task MarkOrderFailedAsync(Guid packageOrderId, string? paymentReference, CancellationToken cancellationToken)
+        => Task.CompletedTask;
+}
+
+internal sealed class StubPrivateDocumentStorage : IPrivateDocumentStorage
+{
+    public Task<string> SaveAsync(string objectKey, byte[] content, string contentType, CancellationToken cancellationToken)
+        => Task.FromResult(objectKey);
+
+    public Task<byte[]> GetBytesAsync(string objectKey, CancellationToken cancellationToken)
+        => Task.FromResult(Array.Empty<byte>());
 }
 
 internal sealed class StubPublicAssetStorage : IPublicAssetStorage

@@ -1008,6 +1008,13 @@ export function AgentCampaignDetailPage() {
                 Preview client PDF
               </button>
             ) : null}
+            <Link
+              to={`/ai-studio?campaignId=${campaign.id}`}
+              className="button-secondary inline-flex items-center gap-2 px-5 py-3"
+            >
+              <BrainCircuit className="size-4" />
+              Prefill from approved recommendation
+            </Link>
             <button
               type="button"
               disabled={sendMutation.isPending || isOverBudget || !hasSendableProposal}

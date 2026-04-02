@@ -176,6 +176,31 @@ public partial class AppDbContext
                 .HasColumnName("updated_at");
         });
 
+        modelBuilder.Entity<PackageBandAiEntitlement>(entity =>
+        {
+            entity.HasKey(e => e.PackageBandId).HasName("package_band_ai_entitlements_pkey");
+
+            entity.ToTable("package_band_ai_entitlements");
+
+            entity.Property(e => e.PackageBandId).HasColumnName("package_band_id");
+            entity.Property(e => e.MaxAdVariants).HasColumnName("max_ad_variants");
+            entity.Property(e => e.AllowedAdPlatformsJson)
+                .HasColumnType("jsonb")
+                .HasColumnName("allowed_ad_platforms_json");
+            entity.Property(e => e.AllowAdMetricsSync).HasColumnName("allow_ad_metrics_sync");
+            entity.Property(e => e.AllowAdAutoOptimize).HasColumnName("allow_ad_auto_optimize");
+            entity.Property(e => e.AllowedVoicePackTiersJson)
+                .HasColumnType("jsonb")
+                .HasColumnName("allowed_voice_pack_tiers_json");
+            entity.Property(e => e.MaxAdRegenerations).HasColumnName("max_ad_regenerations");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+        });
+
         modelBuilder.Entity<InvoiceIssuerProfile>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("invoice_issuer_profiles_pkey");

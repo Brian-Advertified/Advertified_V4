@@ -8,4 +8,6 @@ public partial class AppDbContext
     public virtual DbSet<PackageBandProfile> PackageBandProfiles { get; set; }
 
     public virtual DbSet<PackageBandPreviewTier> PackageBandPreviewTiers { get; set; }
+
+    public virtual DbSet<PackageBandAiEntitlement> PackageBandAiEntitlements { get; set; }
 }

@@ -42,6 +42,20 @@ export function PackageCard({
         </div>
       </div>
 
+      <div className="rounded-[20px] border border-brand/20 bg-brand/[0.06] px-4 py-4">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-brand">AI Studio included</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {getAiStudioCapabilities(band).map((item) => (
+            <span
+              key={item}
+              className="rounded-full border border-brand/25 bg-white px-3 py-1.5 text-xs font-semibold text-brand"
+            >
+              {item}
+            </span>
+          ))}
+        </div>
+      </div>
+
       <div className="mt-auto flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-brand">
         <ArrowRight className="size-4 text-highlight" />
         Choose package
@@ -70,4 +84,28 @@ function getPackageInclusions(band: PackageBand) {
 
 function isLaunchBand(band: PackageBand) {
   return band.code.toLowerCase() === 'launch' || band.name.toLowerCase().includes('launch');
+}
+
+function getAiStudioCapabilities(band: PackageBand) {
+  const capabilities: string[] = [];
+  const variantsLabel = band.maxAdVariants === 1 ? '1 ad variant' : `${band.maxAdVariants} ad variants`;
+  capabilities.push(variantsLabel);
+
+  if (band.allowedAdPlatforms.length > 0) {
+    capabilities.push(`Platforms: ${band.allowedAdPlatforms.join(', ')}`);
+  }
+
+  if (band.allowedVoicePackTiers.length > 0) {
+    capabilities.push(`Voice tiers: ${band.allowedVoicePackTiers.join(', ')}`);
+  }
+
+  capabilities.push(band.allowAdMetricsSync ? 'Metrics sync' : 'No metrics sync');
+  capabilities.push(band.allowAdAutoOptimize ? 'Auto optimize' : 'Manual optimize');
+
+  const regenerationsLabel = band.maxAdRegenerations === 1
+    ? '1 regeneration'
+    : `${band.maxAdRegenerations} regenerations`;
+  capabilities.push(regenerationsLabel);
+
+  return capabilities;
 }

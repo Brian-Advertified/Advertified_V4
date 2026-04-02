@@ -183,6 +183,12 @@ type PackageBandResponse = {
   leadTime: string;
   recommendedSpend?: number;
   isRecommended: boolean;
+  maxAdVariants: number;
+  allowedAdPlatforms: string[];
+  allowAdMetricsSync: boolean;
+  allowAdAutoOptimize: boolean;
+  allowedVoicePackTiers: string[];
+  maxAdRegenerations: number;
 };
 
 type PackageAreaOptionResponse = {
@@ -654,6 +660,62 @@ type AiPlatformCampaignCostSummaryResponse = {
   remainingBudgetZar: number;
   utilizationPercent: number;
 };
+
+type AiAdVariantResponse = {
+  id: string;
+  campaignId: string;
+  campaignCreativeId?: string | null;
+  platform: string;
+  channel: string;
+  language: string;
+  templateId?: number | null;
+  voicePackId?: string | null;
+  voicePackName?: string | null;
+  script: string;
+  audioAssetUrl?: string | null;
+  platformAdId?: string | null;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  publishedAt?: string | null;
+};
+
+type AiPublishAdVariantResponse = {
+  variantId: string;
+  campaignId: string;
+  platform: string;
+  platformAdId: string;
+  status: string;
+  publishedAt: string;
+};
+
+type AiCampaignAdMetricsSummaryResponse = {
+  campaignId: string;
+  variantCount: number;
+  publishedVariantCount: number;
+  impressions: number;
+  clicks: number;
+  conversions: number;
+  costZar: number;
+  ctr: number;
+  conversionRate: number;
+  topVariantId?: string | null;
+  topVariantConversionRate?: number | null;
+  lastRecordedAt?: string | null;
+};
+
+type AiSyncCampaignMetricsResponse = {
+  campaignId: string;
+  syncedVariantCount: number;
+  summary: AiCampaignAdMetricsSummaryResponse;
+};
+
+type AiOptimizeCampaignResponse = {
+  campaignId: string;
+  promotedVariantId?: string | null;
+  message: string;
+  optimizedAt: string;
+};
 type AdminAiVoiceProfileResponse = {
   id: string;
   provider: string;
@@ -845,6 +907,12 @@ function mapPackageBand(response: PackageBandResponse): PackageBand {
     leadTime: response.leadTime,
     recommendedSpend: response.recommendedSpend,
     isRecommended: response.isRecommended,
+    maxAdVariants: response.maxAdVariants,
+    allowedAdPlatforms: response.allowedAdPlatforms ?? [],
+    allowAdMetricsSync: response.allowAdMetricsSync,
+    allowAdAutoOptimize: response.allowAdAutoOptimize,
+    allowedVoicePackTiers: response.allowedVoicePackTiers ?? [],
+    maxAdRegenerations: response.maxAdRegenerations,
   };
 }
 
@@ -2507,6 +2575,76 @@ export const advertifiedApi = {
   async getAiPlatformCampaignCostSummary(campaignId: string) {
     return apiRequest<AiPlatformCampaignCostSummaryResponse>(
       `/api/v2/ai-platform/campaigns/${encodeURIComponent(campaignId)}/cost-summary`,
+    );
+  },
+
+  async createAiAdVariant(payload: {
+    campaignId: string;
+    campaignCreativeId?: string;
+    platform?: string;
+    channel?: string;
+    language?: string;
+    templateId?: number;
+    voicePackId?: string;
+    voicePackName?: string;
+    script: string;
+    audioAssetUrl?: string;
+  }) {
+    return apiRequest<AiAdVariantResponse>('/api/v2/ai-platform/ad-ops/variants', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async getAiAdVariants(campaignId: string) {
+    return apiRequest<AiAdVariantResponse[]>(
+      `/api/v2/ai-platform/ad-ops/campaigns/${encodeURIComponent(campaignId)}/variants`,
+    );
+  },
+
+  async publishAiAdVariant(variantId: string) {
+    return apiRequest<AiPublishAdVariantResponse>(
+      `/api/v2/ai-platform/ad-ops/variants/${encodeURIComponent(variantId)}/publish`,
+      {
+        method: 'POST',
+        body: JSON.stringify({}),
+      },
+    );
+  },
+
+  async trackAiAdConversion(variantId: string, conversions = 1) {
+    return apiRequest<{ variantId: string; conversions: number }>(
+      `/api/v2/ai-platform/ad-ops/variants/${encodeURIComponent(variantId)}/conversions`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ conversions }),
+      },
+    );
+  },
+
+  async getAiCampaignAdMetricsSummary(campaignId: string) {
+    return apiRequest<AiCampaignAdMetricsSummaryResponse>(
+      `/api/v2/ai-platform/ad-ops/campaigns/${encodeURIComponent(campaignId)}/metrics/summary`,
+    );
+  },
+
+  async syncAiCampaignAdMetrics(campaignId: string) {
+    return apiRequest<AiSyncCampaignMetricsResponse>(
+      `/api/v2/ai-platform/ad-ops/campaigns/${encodeURIComponent(campaignId)}/sync-metrics`,
+      {
+        method: 'POST',
+        body: JSON.stringify({}),
+      },
+    );
+  },
+
+  async optimizeAiCampaign(campaignId: string) {
+    return apiRequest<AiOptimizeCampaignResponse>(
+      `/api/v2/ai-platform/ad-ops/campaigns/${encodeURIComponent(campaignId)}/optimize`,
+      {
+        method: 'POST',
+        body: JSON.stringify({}),
+      },
     );
   },
 

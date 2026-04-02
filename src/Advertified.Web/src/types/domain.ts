@@ -71,6 +71,12 @@ export interface PackageBand {
   leadTime: string;
   recommendedSpend?: number;
   isRecommended: boolean;
+  maxAdVariants: number;
+  allowedAdPlatforms: string[];
+  allowAdMetricsSync: boolean;
+  allowAdAutoOptimize: boolean;
+  allowedVoicePackTiers: string[];
+  maxAdRegenerations: number;
 }
 
 export interface PackagePreview {
@@ -801,6 +807,12 @@ export interface AdminMonitoring {
   aiCreativeJobAlertCount: number;
   aiAssetJobAlertCount: number;
   aiCostCapRejectionCount: number;
+  creativeQueueBacklogCount: number;
+  assetQueueBacklogCount: number;
+  creativeDeadLetterCount: number;
+  publishSuccessCount: number;
+  publishFailureCount: number;
+  metricsSyncLagMinutes: number;
   aiJobAlerts: AdminAiJobAlert[];
 }
 

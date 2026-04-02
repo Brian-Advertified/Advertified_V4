@@ -21,6 +21,12 @@ export function AdminMonitoringPage() {
               ['Creative alerts', dashboard.monitoring.aiCreativeJobAlertCount],
               ['Asset alerts', dashboard.monitoring.aiAssetJobAlertCount],
               ['Cost-cap rejections', dashboard.monitoring.aiCostCapRejectionCount],
+              ['Creative queue backlog', dashboard.monitoring.creativeQueueBacklogCount],
+              ['Asset queue backlog', dashboard.monitoring.assetQueueBacklogCount],
+              ['Creative dead-letter', dashboard.monitoring.creativeDeadLetterCount],
+              ['Publish success', dashboard.monitoring.publishSuccessCount],
+              ['Publish failures', dashboard.monitoring.publishFailureCount],
+              ['Metrics sync lag (min)', dashboard.monitoring.metricsSyncLagMinutes],
             ].map(([label, value]) => <div key={String(label)} className="panel p-6"><p className="text-xs font-semibold uppercase tracking-[0.24em] text-ink-soft">{label}</p><p className="mt-4 text-4xl font-semibold text-ink">{value}</p></div>)}
           </div>
           <div className="panel mt-6 p-6">

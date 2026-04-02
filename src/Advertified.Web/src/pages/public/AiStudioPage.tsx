@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { ArrowRight, Sparkles, WandSparkles } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { advertifiedApi } from '../../services/advertifiedApi';
 
 const outputs = [
@@ -21,7 +21,10 @@ const videoDurationOptions = [6, 10, 15, 30, 45, 60] as const;
 type ConsoleStep = 'queue' | 'brief' | 'qa' | 'assets' | 'regenerate';
 
 export function AiStudioPage() {
-  const [campaignId, setCampaignId] = useState('');
+  const [searchParams] = useSearchParams();
+  const campaignIdFromUrl = searchParams.get('campaignId')?.trim() ?? '';
+  const [campaignId, setCampaignId] = useState(campaignIdFromUrl);
+  const autoPrefillCompletedRef = useRef(false);
   const [promptOverride, setPromptOverride] = useState('');
   const [activeJobId, setActiveJobId] = useState('');
 
@@ -62,6 +65,7 @@ export function AiStudioPage() {
   const [assetVideoAspectRatio, setAssetVideoAspectRatio] = useState('16:9');
   const [assetVideoDurationSeconds, setAssetVideoDurationSeconds] = useState(30);
   const [assetJobId, setAssetJobId] = useState('');
+  const [prefillMessage, setPrefillMessage] = useState('');
 
   const [activeConsoleStep, setActiveConsoleStep] = useState<ConsoleStep>('queue');
 
@@ -239,6 +243,66 @@ export function AiStudioPage() {
     [assetCampaignId, assetCreativeId],
   );
 
+  const prefillFromCampaignMutation = useMutation({
+    mutationFn: async () => advertifiedApi.getCampaign(campaignId.trim()),
+    onSuccess: (campaign) => {
+      const recommendation = campaign.recommendations.find((item) => item.status === 'approved')
+        ?? (campaign.recommendation?.status === 'approved' ? campaign.recommendation : campaign.recommendations[0] ?? campaign.recommendation);
+      const mappedObjective = mapObjectiveToStudio(campaign.brief?.objective);
+      const mappedChannels = mapChannelsToStudio(campaign, recommendation);
+      const mappedLanguages = mapLanguagesToStudio(campaign, recommendation);
+      const mappedAudience = mapAudienceToStudio(campaign);
+      const mappedBrand = campaign.businessName?.trim() || campaign.campaignName?.trim() || 'Advertified';
+      const mappedMessage = recommendation?.summary?.trim()
+        || campaign.brief?.specialRequirements?.trim()
+        || campaign.brief?.creativeNotes?.trim()
+        || '';
+
+      setBriefBrand(mappedBrand);
+      setBriefObjective(mappedObjective);
+      setBriefMessage(mappedMessage);
+      setBriefAudience(mappedAudience);
+      setBriefChannels(mappedChannels.length > 0 ? mappedChannels : ['Radio', 'Billboard', 'Digital']);
+      setBriefLanguages(mappedLanguages.length > 0 ? mappedLanguages : ['English']);
+
+      setQaCampaignId(campaign.id);
+      setRegenCampaignId(campaign.id);
+      setAssetCampaignId(campaign.id);
+      setAssetAudience(mappedAudience);
+      setAssetObjective(mappedObjective);
+      setAssetPackageBudget(campaign.selectedBudget);
+      setAssetPlatform(derivePlatformFromChannels(mappedChannels));
+      setAssetLanguage(derivePrimaryLanguage(mappedLanguages));
+      setAssetVoiceScript(mappedMessage || assetVoiceScript);
+
+      setPrefillMessage(recommendation?.status === 'approved'
+        ? 'Loaded campaign brief and approved recommendation into AI Studio.'
+        : 'Loaded campaign details. No approved recommendation found, so brief defaults were used.');
+      setActiveConsoleStep('brief');
+    },
+    onError: () => {
+      setPrefillMessage('Could not load campaign details. Confirm campaign ID and access permissions.');
+    },
+  });
+
+  useEffect(() => {
+    if (autoPrefillCompletedRef.current) {
+      return;
+    }
+
+    if (!campaignIdFromUrl) {
+      return;
+    }
+
+    if (prefillFromCampaignMutation.isPending) {
+      return;
+    }
+
+    autoPrefillCompletedRef.current = true;
+    setCampaignId(campaignIdFromUrl);
+    prefillFromCampaignMutation.mutate();
+  }, [campaignIdFromUrl, prefillFromCampaignMutation]);
+
   const selectedVoicePack = useMemo(
     () => (voicePacksQuery.data ?? []).find((item) => item.id === assetVoicePackId),
     [assetVoicePackId, voicePacksQuery.data],
@@ -367,8 +431,17 @@ export function AiStudioPage() {
                 <button type="button" onClick={() => submitJobMutation.mutate()} disabled={!canSubmit} className="rounded-xl bg-gradient-to-r from-brand to-[#14b86e] px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
                   {submitJobMutation.isPending ? 'Queueing...' : 'Queue AI job'}
                 </button>
+                <button
+                  type="button"
+                  onClick={() => prefillFromCampaignMutation.mutate()}
+                  disabled={campaignId.trim().length === 0 || prefillFromCampaignMutation.isPending}
+                  className="rounded-xl border border-slate-600 bg-slate-900 px-5 py-3 text-sm font-semibold text-slate-100 transition hover:border-brand/45 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {prefillFromCampaignMutation.isPending ? 'Loading recommendation...' : 'Start from approved recommendation'}
+                </button>
                 <input value={activeJobId} onChange={(event) => setActiveJobId(event.target.value)} className="min-w-[320px] flex-1 rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white" placeholder="Job id to track" />
               </div>
+              {prefillMessage ? <p className="mt-3 text-sm text-emerald-300">{prefillMessage}</p> : null}
               <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-sm">
                 <p><span className="text-slate-400">Status:</span> {statusQuery.data?.status ?? 'not started'}</p>
                 <p><span className="text-slate-400">Campaign:</span> {statusQuery.data?.campaignId ?? '-'}</p>
@@ -560,5 +633,172 @@ export function AiStudioPage() {
       </section>
     </div>
   );
+}
+
+function mapObjectiveToStudio(objective?: string) {
+  const normalized = objective?.trim().toLowerCase() ?? '';
+  if (normalized.includes('foot') || normalized.includes('traffic')) {
+    return 'FootTraffic';
+  }
+
+  if (normalized.includes('lead')) {
+    return 'Leads';
+  }
+
+  if (normalized.includes('sale') || normalized.includes('conversion')) {
+    return 'Sales';
+  }
+
+  return 'Awareness';
+}
+
+function mapChannelsToStudio(campaign: Awaited<ReturnType<typeof advertifiedApi.getCampaign>>, recommendation?: { items: Array<{ channel: string }> }) {
+  const normalized = new Set<string>();
+  for (const item of recommendation?.items ?? []) {
+    const channel = item.channel.trim().toLowerCase();
+    if (channel.includes('radio')) {
+      normalized.add('Radio');
+      continue;
+    }
+
+    if (channel.includes('tv') || channel.includes('television')) {
+      normalized.add('Tv');
+      continue;
+    }
+
+    if (channel.includes('billboard') || channel.includes('ooh') || channel.includes('screen')) {
+      normalized.add('Billboard');
+      continue;
+    }
+
+    if (channel.includes('digital') || channel.includes('social')) {
+      normalized.add('Digital');
+      continue;
+    }
+
+    if (channel.includes('print') || channel.includes('newspaper')) {
+      normalized.add('Newspaper');
+    }
+  }
+
+  for (const mediaType of campaign.brief?.preferredMediaTypes ?? []) {
+    const value = mediaType.trim().toLowerCase();
+    if (value.includes('radio')) {
+      normalized.add('Radio');
+    } else if (value.includes('tv')) {
+      normalized.add('Tv');
+    } else if (value.includes('billboard') || value.includes('ooh')) {
+      normalized.add('Billboard');
+    } else if (value.includes('digital') || value.includes('social')) {
+      normalized.add('Digital');
+    } else if (value.includes('print')) {
+      normalized.add('Newspaper');
+    }
+  }
+
+  return Array.from(normalized);
+}
+
+function mapLanguagesToStudio(campaign: Awaited<ReturnType<typeof advertifiedApi.getCampaign>>, recommendation?: { items: Array<{ language?: string }> }) {
+  const normalized = new Set<string>();
+  for (const language of campaign.brief?.targetLanguages ?? []) {
+    const mapped = normalizeLanguage(language);
+    if (mapped) {
+      normalized.add(mapped);
+    }
+  }
+
+  for (const item of recommendation?.items ?? []) {
+    const mapped = normalizeLanguage(item.language ?? '');
+    if (mapped) {
+      normalized.add(mapped);
+    }
+  }
+
+  return Array.from(normalized);
+}
+
+function mapAudienceToStudio(campaign: Awaited<ReturnType<typeof advertifiedApi.getCampaign>>) {
+  if (campaign.brief?.targetAudienceNotes?.trim()) {
+    return campaign.brief.targetAudienceNotes.trim();
+  }
+
+  const parts: string[] = [];
+  if (campaign.brief?.targetAgeMin && campaign.brief?.targetAgeMax) {
+    parts.push(`Age ${campaign.brief.targetAgeMin}-${campaign.brief.targetAgeMax}`);
+  }
+
+  if (campaign.brief?.targetLsmMin && campaign.brief?.targetLsmMax) {
+    parts.push(`LSM ${campaign.brief.targetLsmMin}-${campaign.brief.targetLsmMax}`);
+  }
+
+  if (campaign.brief?.geographyScope) {
+    parts.push(`${campaign.brief.geographyScope} focus`);
+  }
+
+  return parts.length > 0 ? parts.join(', ') : 'LSM 5-8 commuters';
+}
+
+function normalizeLanguage(value: string) {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) {
+    return '';
+  }
+
+  if (normalized.includes('zulu')) {
+    return 'Zulu';
+  }
+
+  if (normalized.includes('xhosa')) {
+    return 'Xhosa';
+  }
+
+  if (normalized.includes('afrikaans')) {
+    return 'Afrikaans';
+  }
+
+  if (normalized.includes('english')) {
+    return 'English';
+  }
+
+  return '';
+}
+
+function derivePlatformFromChannels(channels: string[]) {
+  const lower = channels.map((item) => item.toLowerCase());
+  if (lower.includes('radio')) {
+    return 'radio';
+  }
+
+  if (lower.includes('digital')) {
+    return 'social';
+  }
+
+  if (lower.includes('tv')) {
+    return 'tv';
+  }
+
+  return 'radio';
+}
+
+function derivePrimaryLanguage(languages: string[]) {
+  const first = languages[0]?.toLowerCase();
+  if (!first) {
+    return 'english';
+  }
+
+  if (first.includes('zulu')) {
+    return 'zulu';
+  }
+
+  if (first.includes('afrikaans')) {
+    return 'afrikaans';
+  }
+
+  if (first.includes('xhosa')) {
+    return 'xhosa';
+  }
+
+  return 'english';
 }
 

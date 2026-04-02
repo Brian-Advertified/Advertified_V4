@@ -119,6 +119,7 @@ export function AgentMessagesNotesPage() {
                           </div>
                           <div className="flex gap-3">
                             <Link to={`/agent/campaigns/${thread.campaignId}`} className="button-secondary px-4 py-2">Open campaign</Link>
+                            <Link to={`/ai-studio?campaignId=${thread.campaignId}`} className="button-secondary px-4 py-2">Prefill AI Studio</Link>
                           </div>
                         </div>
                       </div>

@@ -1,0 +1,60 @@
+name: Reset DEV User Data (One-Time Push Trigger)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "database/bootstrap/900_reset_dev_user_data.sql"
+      - ".github/workflows/reset-dev-user-data-on-push.yml"
+
+concurrency:
+  group: deploy-dev-ec2
+  cancel-in-progress: false
+
+jobs:
+  reset-dev-user-data:
+    name: Reset DEV User Data
+    runs-on: ubuntu-latest
+    environment: dev
+    env:
+      DEV_APP_DIR: ${{ vars.DEV_APP_DIR }}
+      DEV_COMPOSE_FILE: ${{ vars.DEV_COMPOSE_FILE }}
+      DEV_ENV_FILE: ${{ vars.DEV_ENV_FILE }}
+    steps:
+      - name: Reset user-generated data on DEV
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEV_EC2_HOST }}
+          username: ${{ secrets.DEV_EC2_USER }}
+          key: ${{ secrets.DEV_EC2_SSH_PRIVATE_KEY }}
+          port: ${{ secrets.DEV_EC2_PORT }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+
+            APP_DIR="${DEV_APP_DIR:-$HOME/apps/advertified-v4-dev}"
+            COMPOSE_FILE="${DEV_COMPOSE_FILE:-compose.v4-dev.yml}"
+            ENV_FILE="${DEV_ENV_FILE:-v4-dev.env}"
+
+            cd "$APP_DIR"
+            git fetch origin
+            git checkout main
+            git pull --ff-only origin main
+
+            docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d db
+
+            mkdir -p backups
+            TS="$(date +%Y%m%d%H%M%S)"
+            BACKUP_PATH="backups/pre_user_data_reset_${TS}.dump"
+
+            docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T db sh -lc \
+              'PGPASSWORD="$POSTGRES_PASSWORD" pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' \
+              > "$BACKUP_PATH"
+
+            cat database/bootstrap/900_reset_dev_user_data.sql | \
+              docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T db sh -lc \
+              'PGPASSWORD="$POSTGRES_PASSWORD" psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+
+            echo "User data reset complete. Backup: $BACKUP_PATH"

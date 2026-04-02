@@ -439,6 +439,29 @@ public sealed class AdminDashboardService : IAdminDashboardService
         var aiCostCapRejectionCount = await _db.AiUsageLogs
             .AsNoTracking()
             .CountAsync(x => x.Status == "rejected", cancellationToken);
+        var creativeQueueBacklogCount = await _db.AiCreativeJobStatuses
+            .AsNoTracking()
+            .CountAsync(x => x.Status == "queued" || x.Status == "running" || x.Status == "retrying", cancellationToken);
+        var assetQueueBacklogCount = await _db.AiAssetJobs
+            .AsNoTracking()
+            .CountAsync(x => x.Status == "queued" || x.Status == "running" || x.Status == "retrying", cancellationToken);
+        var creativeDeadLetterCount = await _db.AiCreativeJobDeadLetters
+            .AsNoTracking()
+            .CountAsync(cancellationToken);
+        var publishSuccessCount = await _db.AiAdVariants
+            .AsNoTracking()
+            .CountAsync(x => x.Status == "published" || x.Status == "promoted", cancellationToken);
+        var publishFailureCount = await _db.AiAdVariants
+            .AsNoTracking()
+            .CountAsync(x => x.Status == "publish_failed", cancellationToken);
+        var latestMetricsRecordedAt = await _db.AiAdMetrics
+            .AsNoTracking()
+            .OrderByDescending(x => x.RecordedAt)
+            .Select(x => (DateTime?)x.RecordedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+        var metricsSyncLagMinutes = latestMetricsRecordedAt.HasValue
+            ? (int)Math.Max(0, Math.Round((DateTime.UtcNow - latestMetricsRecordedAt.Value).TotalMinutes))
+            : 0;
         var creativeAlerts = await _db.AiCreativeJobStatuses
             .AsNoTracking()
             .Where(x => x.Status == "failed" && x.RetryAttemptCount >= retryAlertThreshold)
@@ -492,6 +515,12 @@ public sealed class AdminDashboardService : IAdminDashboardService
             AiAssetJobAlertCount = assetAlertCount,
             AiJobAlertCount = creativeAlertCount + assetAlertCount,
             AiCostCapRejectionCount = aiCostCapRejectionCount,
+            CreativeQueueBacklogCount = creativeQueueBacklogCount,
+            AssetQueueBacklogCount = assetQueueBacklogCount,
+            CreativeDeadLetterCount = creativeDeadLetterCount,
+            PublishSuccessCount = publishSuccessCount,
+            PublishFailureCount = publishFailureCount,
+            MetricsSyncLagMinutes = metricsSyncLagMinutes,
             AiJobAlerts = aiJobAlerts
         };
     }

@@ -230,7 +230,16 @@ public sealed class AdminPackageOrdersController : ControllerBase
 
     private async Task<ActionResult?> EnsureAdminAsync(CancellationToken cancellationToken)
     {
-        var currentUserId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
+        Guid currentUserId;
+        try
+        {
+            currentUserId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
+        }
+        catch (InvalidOperationException)
+        {
+            return Unauthorized(new { message = "Authentication required." });
+        }
+
         var user = await _db.UserAccounts
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == currentUserId, cancellationToken);
