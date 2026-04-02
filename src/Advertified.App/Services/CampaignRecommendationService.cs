@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text;
 using Advertified.App.Campaigns;
 using Advertified.App.Contracts.Campaigns;
 using Advertified.App.Data;
@@ -51,17 +50,11 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         var proposalVariants = BuildProposalVariants(planningRequest);
         Guid? primaryRecommendationId = null;
         var revisionNumber = RecommendationRevisionSupport.GetNextRevisionNumber(campaign.CampaignRecommendations);
-        var recommendationSignatures = new HashSet<string>(StringComparer.Ordinal);
 
         for (var index = 0; index < proposalVariants.Count; index++)
         {
             var variant = proposalVariants[index];
             var recommendationResult = await _planningEngine.GenerateAsync(variant.Request, cancellationToken);
-            var signature = BuildRecommendationSignature(recommendationResult);
-            if (!recommendationSignatures.Add(signature))
-            {
-                continue;
-            }
 
             var aiReasoning = await _campaignReasoningService.GenerateAsync(campaign, brief, variant.Request, recommendationResult, cancellationToken);
             var proposalTimestamp = now.AddMilliseconds(index);
@@ -86,43 +79,6 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
 
         await _db.SaveChangesAsync(cancellationToken);
         return primaryRecommendationId ?? Guid.Empty;
-    }
-
-    private static string BuildRecommendationSignature(RecommendationResult recommendationResult)
-    {
-        var builder = new StringBuilder(512);
-
-        foreach (var item in recommendationResult.RecommendedPlan
-                     .OrderBy(static item => item.MediaType ?? string.Empty, StringComparer.OrdinalIgnoreCase)
-                     .ThenBy(static item => item.SourceId.ToString(), StringComparer.OrdinalIgnoreCase)
-                     .ThenBy(static item => item.DisplayName ?? string.Empty, StringComparer.OrdinalIgnoreCase))
-        {
-            builder
-                .Append("B|")
-                .Append(item.MediaType).Append('|')
-                .Append(item.SourceId.ToString()).Append('|')
-                .Append(item.DisplayName).Append('|')
-                .Append(item.Quantity).Append('|')
-                .Append(item.TotalCost.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture))
-                .Append(';');
-        }
-
-        foreach (var item in recommendationResult.Upsells
-                     .OrderBy(static item => item.MediaType ?? string.Empty, StringComparer.OrdinalIgnoreCase)
-                     .ThenBy(static item => item.SourceId.ToString(), StringComparer.OrdinalIgnoreCase)
-                     .ThenBy(static item => item.DisplayName ?? string.Empty, StringComparer.OrdinalIgnoreCase))
-        {
-            builder
-                .Append("U|")
-                .Append(item.MediaType).Append('|')
-                .Append(item.SourceId.ToString()).Append('|')
-                .Append(item.DisplayName).Append('|')
-                .Append(item.Quantity).Append('|')
-                .Append(item.TotalCost.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture))
-                .Append(';');
-        }
-
-        return builder.ToString();
     }
 
     private static CampaignPlanningRequest BuildRequest(
