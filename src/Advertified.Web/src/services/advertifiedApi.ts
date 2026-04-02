@@ -63,6 +63,7 @@ type ApiErrorShape = {
   message?: string;
   Message?: string;
   title?: string;
+  detail?: string;
   errors?: Record<string, string[]>;
 };
 
@@ -107,6 +108,10 @@ function humanizeApiMessage(message: string) {
 
   if (/campaign not found/i.test(normalized)) {
     return 'We could not find that campaign. Please refresh and try again.';
+  }
+
+  if (/a user with this email address already exists/i.test(normalized)) {
+    return 'An account with this email already exists. Try signing in or use a different email address.';
   }
 
   if (/request failed with status 400/i.test(normalized)) {
@@ -1354,6 +1359,7 @@ async function parseApiError(response: Response) {
     validationErrors[0] ??
     payload?.message ??
     payload?.Message ??
+    payload?.detail ??
     payload?.title ??
     `Request failed with status ${response.status}.`;
 
