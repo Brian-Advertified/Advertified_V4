@@ -116,6 +116,8 @@ left join lateral (
 ) lang on true
 where lower(mo.media_type) = 'ooh'
   and mop.is_active = true
+  and coalesce(mop.source_name, '') <> 'bootstrap seed'
+  and coalesce(mo.data_source_enrichment, '') <> 'bootstrap_ooh_seed_v1'
   and coalesce(mop.cost_per_month_zar, mop.investment_zar, mop.value_zar, 0) <= @Budget;";
 
         await using var conn = new NpgsqlConnection(_connectionString);
@@ -128,6 +130,15 @@ where lower(mo.media_type) = 'ooh'
         return rows
             .Select(row =>
             {
+                row.Subtype = OohInventoryNormalizer.NormalizeSubtype(
+                    row.Subtype,
+                    row.SlotType,
+                    row.DisplayName,
+                    row.City,
+                    row.Suburb,
+                    row.Province);
+                row.SlotType = OohInventoryNormalizer.NormalizeSlotType(row.SlotType, row.Subtype);
+
                 var rawCost = row.Cost;
                 row.Cost = PricingPolicy.ApplyMarkup(rawCost, row.MediaType, row.Subtype, pricingSettings);
                 return row;

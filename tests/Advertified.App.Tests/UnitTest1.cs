@@ -1164,6 +1164,37 @@ public class PricingPolicyTests
     }
 }
 
+public class OohInventoryNormalizerTests
+{
+    [Fact]
+    public void NormalizeSubtype_UsesCleanPlacementLabel_WhenRawSubtypeIsValid()
+    {
+        var result = Advertified.App.Support.OohInventoryNormalizer.NormalizeSubtype(
+            rawSubtype: "digital screen | indoor",
+            rawSlotType: null,
+            displayName: "Sandton City Screen",
+            city: "Johannesburg",
+            suburb: "Sandton",
+            province: "Gauteng");
+
+        result.Should().Be("Digital Screen | Indoor");
+    }
+
+    [Fact]
+    public void NormalizeSubtype_FallsBackToPlacement_WhenRawSubtypeLooksLikeLocation()
+    {
+        var result = Advertified.App.Support.OohInventoryNormalizer.NormalizeSubtype(
+            rawSubtype: "Johannesburg",
+            rawSlotType: null,
+            displayName: "N12 | The Glen,, Johannesburg",
+            city: "Johannesburg",
+            suburb: "The Glen Mall, Oakdene",
+            province: "The Glen");
+
+        result.Should().Be("Placement");
+    }
+}
+
 public class CampaignOperationsPolicyTests
 {
     [Fact]
