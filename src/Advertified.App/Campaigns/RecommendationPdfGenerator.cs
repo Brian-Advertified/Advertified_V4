@@ -70,6 +70,11 @@ internal static class RecommendationPdfGenerator
                             summary.Item().Text($"Target areas: {string.Join(", ", model.TargetAreas)}").FontColor("#4B5563");
                         }
 
+                        if (!string.IsNullOrWhiteSpace(model.TargetAudienceSummary))
+                        {
+                            summary.Item().Text($"Target audience: {ToClientCopy(model.TargetAudienceSummary)}").FontColor("#4B5563");
+                        }
+
                         if (model.TargetLanguages.Count > 0)
                         {
                             summary.Item().Text($"Target languages: {string.Join(", ", model.TargetLanguages)}").FontColor("#4B5563");
@@ -222,9 +227,17 @@ internal static class RecommendationPdfGenerator
                                         AddDetailRow(table, "Creative notes", item.ItemNotes);
                                     });
 
-                                    if (item.SelectionReasons.Count > 0)
+                                    var clientSelectionSummary = BuildClientSelectionSummary(model, item);
+                                    if (clientSelectionSummary.Count > 0)
                                     {
-                                        itemCol.Item().Text($"Why selected: {ToClientCopy(string.Join(" | ", item.SelectionReasons))}").FontColor("#4B5563");
+                                        itemCol.Item().Column(details =>
+                                        {
+                                            details.Spacing(2);
+                                            foreach (var line in clientSelectionSummary)
+                                            {
+                                                details.Item().Text(line).FontColor("#4B5563");
+                                            }
+                                        });
                                     }
 
                                 });
@@ -286,6 +299,186 @@ internal static class RecommendationPdfGenerator
         }
 
         return Regex.Replace(value, "\\booh\\b", "Billboards and Digital Screens", RegexOptions.IgnoreCase);
+    }
+
+    private static IReadOnlyList<string> BuildClientSelectionSummary(RecommendationDocumentModel model, RecommendationLineDocumentModel item)
+    {
+        var lines = new List<string>();
+
+        var audience = BuildAudienceFocus(model, item);
+        if (!string.IsNullOrWhiteSpace(audience))
+        {
+            lines.Add($"Who we are targeting: {ToClientCopy(audience)}");
+        }
+
+        var scale = BuildAudienceScale(item);
+        if (!string.IsNullOrWhiteSpace(scale))
+        {
+            lines.Add($"Estimated audience size: {ToClientCopy(scale)}");
+        }
+
+        var fit = BuildFitNarrative(model, item);
+        if (!string.IsNullOrWhiteSpace(fit))
+        {
+            lines.Add($"Why this fits: {ToClientCopy(fit)}");
+        }
+
+        return lines;
+    }
+
+    private static string? BuildAudienceFocus(RecommendationDocumentModel model, RecommendationLineDocumentModel item)
+    {
+        var parts = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(item.TargetAudience))
+        {
+            parts.Add(item.TargetAudience.Trim());
+        }
+        else if (!string.IsNullOrWhiteSpace(model.TargetAudienceSummary))
+        {
+            parts.Add(model.TargetAudienceSummary.Trim());
+        }
+
+        var qualifiers = new List<string>();
+        if (!string.IsNullOrWhiteSpace(item.Region))
+        {
+            qualifiers.Add(item.Region.Trim());
+        }
+
+        if (!string.IsNullOrWhiteSpace(item.Language))
+        {
+            qualifiers.Add($"{item.Language.Trim()} speakers");
+        }
+
+        if (!string.IsNullOrWhiteSpace(item.AudienceAgeSkew))
+        {
+            qualifiers.Add(item.AudienceAgeSkew.Trim());
+        }
+
+        if (!string.IsNullOrWhiteSpace(item.AudienceLsmRange))
+        {
+            qualifiers.Add($"LSM {item.AudienceLsmRange.Trim()}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(item.AudienceGenderSkew))
+        {
+            qualifiers.Add(item.AudienceGenderSkew.Trim());
+        }
+
+        if (parts.Count == 0 && qualifiers.Count == 0)
+        {
+            return null;
+        }
+
+        if (parts.Count == 0)
+        {
+            return string.Join(" | ", qualifiers);
+        }
+
+        if (qualifiers.Count == 0)
+        {
+            return string.Join(" | ", parts);
+        }
+
+        return $"{string.Join(" | ", parts)} | {string.Join(" | ", qualifiers)}";
+    }
+
+    private static string? BuildAudienceScale(RecommendationLineDocumentModel item)
+    {
+        if (TryFormatWholeNumber(item.ListenershipWeekly, out var weekly))
+        {
+            var period = !string.IsNullOrWhiteSpace(item.ListenershipPeriod)
+                ? $" {item.ListenershipPeriod.Trim().ToLowerInvariant()}"
+                : " weekly";
+            return $"Approximately {weekly} listeners{period}.";
+        }
+
+        if (TryFormatWholeNumber(item.ListenershipDaily, out var daily))
+        {
+            return $"Approximately {daily} listeners per day.";
+        }
+
+        if (TryFormatWholeNumber(item.TrafficCount, out var traffic))
+        {
+            return $"Approximately {traffic} people pass this site.";
+        }
+
+        return null;
+    }
+
+    private static string? BuildFitNarrative(RecommendationDocumentModel model, RecommendationLineDocumentModel item)
+    {
+        var fitParts = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(item.Region) && model.TargetAreas.Count > 0)
+        {
+            fitParts.Add("It gives us visibility in one of the campaign's target areas");
+        }
+
+        if (!string.IsNullOrWhiteSpace(item.Language) && model.TargetLanguages.Count > 0)
+        {
+            fitParts.Add("It supports the language mix requested for the campaign");
+        }
+
+        if (!string.IsNullOrWhiteSpace(item.TimeBand))
+        {
+            fitParts.Add($"It places the campaign in the {item.TimeBand.Trim()} window");
+        }
+
+        if (!string.IsNullOrWhiteSpace(item.SelectionReasons.FirstOrDefault()))
+        {
+            fitParts.Add(RewriteSelectionReason(item.SelectionReasons.First()));
+        }
+        else if (!string.IsNullOrWhiteSpace(item.Rationale))
+        {
+            fitParts.Add(item.Rationale.Trim());
+        }
+
+        var cleaned = fitParts
+            .Where(static part => !string.IsNullOrWhiteSpace(part))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return cleaned.Length == 0 ? null : string.Join(". ", cleaned) + ".";
+    }
+
+    private static string RewriteSelectionReason(string reason)
+    {
+        return reason.Trim() switch
+        {
+            "Strong geography match" => "The location matches the market we want to reach",
+            "Good regional alignment" => "The placement lines up well with the target region",
+            "Audience profile overlap" => "The audience profile matches the people this campaign is trying to reach",
+            "Language or audience fit" => "The audience and language fit the brief",
+            "Matches requested channel mix" => "It strengthens the channel mix chosen for this campaign",
+            "Supports requested mix target" => "It helps keep the campaign balanced across the selected channels",
+            "Fits comfortably within budget" => "It stays comfortably within the approved budget",
+            "Fixed supplier package investment" => "It comes as a bundled media package that keeps planning simple",
+            "Per-spot rate card pricing" => "It uses standard spot pricing for flexible scheduling",
+            "High-impact radio daypart" => "It runs in a high-attention radio slot",
+            "Supports higher-band radio policy" => "It supports broader radio reach at this budget level",
+            "Billboards and Digital Screens prioritized for visibility" => "It adds strong visual presence in-market",
+            "Adds visible market presence" => "It helps the brand stay visible in the target area",
+            _ => reason.Trim()
+        };
+    }
+
+    private static bool TryFormatWholeNumber(string? value, out string formatted)
+    {
+        formatted = string.Empty;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        var digits = Regex.Replace(value, "[^0-9]", string.Empty);
+        if (!long.TryParse(digits, out var number) || number <= 0)
+        {
+            return false;
+        }
+
+        formatted = number.ToString("N0", CultureInfo.GetCultureInfo("en-ZA"));
+        return true;
     }
 }
 
@@ -385,6 +578,7 @@ internal sealed class RecommendationDocumentModel
     public string? CampaignObjective { get; init; }
     public string? SpecialRequirements { get; init; }
     public IReadOnlyList<string> TargetAreas { get; init; } = Array.Empty<string>();
+    public string? TargetAudienceSummary { get; init; }
     public IReadOnlyList<string> TargetLanguages { get; init; } = Array.Empty<string>();
     public IReadOnlyList<RecommendationProposalDocumentModel> Proposals { get; init; } = Array.Empty<RecommendationProposalDocumentModel>();
 }
@@ -417,6 +611,13 @@ internal sealed class RecommendationLineDocumentModel
     public string? Material { get; init; }
     public string? Illuminated { get; init; }
     public string? TrafficCount { get; init; }
+    public string? TargetAudience { get; init; }
+    public string? AudienceAgeSkew { get; init; }
+    public string? AudienceGenderSkew { get; init; }
+    public string? AudienceLsmRange { get; init; }
+    public string? ListenershipDaily { get; init; }
+    public string? ListenershipWeekly { get; init; }
+    public string? ListenershipPeriod { get; init; }
     public string? SiteNumber { get; init; }
     public string? ItemNotes { get; init; }
     public IReadOnlyList<string> SelectionReasons { get; init; } = Array.Empty<string>();

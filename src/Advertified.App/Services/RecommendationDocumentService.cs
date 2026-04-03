@@ -69,6 +69,7 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
             CampaignObjective = campaign.CampaignBrief?.Objective,
             SpecialRequirements = campaign.CampaignBrief?.SpecialRequirements ?? campaign.CampaignBrief?.CreativeNotes,
             TargetAreas = BuildTargetAreas(campaign.CampaignBrief),
+            TargetAudienceSummary = BuildTargetAudienceSummary(campaign.CampaignBrief),
             TargetLanguages = DeserializeList(campaign.CampaignBrief?.TargetLanguagesJson),
             Proposals = currentRecommendations.Select((recommendation, index) => MapProposal(campaign.Id, recommendation, index)).ToArray()
         };
@@ -124,6 +125,7 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
             CampaignObjective = campaign.CampaignBrief?.Objective,
             SpecialRequirements = campaign.CampaignBrief?.SpecialRequirements ?? campaign.CampaignBrief?.CreativeNotes,
             TargetAreas = BuildTargetAreas(campaign.CampaignBrief),
+            TargetAudienceSummary = BuildTargetAudienceSummary(campaign.CampaignBrief),
             TargetLanguages = DeserializeList(campaign.CampaignBrief?.TargetLanguagesJson),
             Proposals = new[] { MapProposal(campaign.Id, recommendation, 0) }
         };
@@ -191,6 +193,13 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
             Material = GetMetadataValue(metadata, "material"),
             Illuminated = GetMetadataValue(metadata, "illuminated"),
             TrafficCount = GetMetadataValue(metadata, "trafficCount") ?? GetMetadataValue(metadata, "traffic_count"),
+            TargetAudience = GetMetadataValue(metadata, "targetAudience") ?? GetMetadataValue(metadata, "target_audience"),
+            AudienceAgeSkew = GetMetadataValue(metadata, "audienceAgeSkew") ?? GetMetadataValue(metadata, "audience_age_skew"),
+            AudienceGenderSkew = GetMetadataValue(metadata, "audienceGenderSkew") ?? GetMetadataValue(metadata, "audience_gender_skew"),
+            AudienceLsmRange = GetMetadataValue(metadata, "audienceLsmRange") ?? GetMetadataValue(metadata, "audience_lsm_range"),
+            ListenershipDaily = GetMetadataValue(metadata, "listenershipDaily") ?? GetMetadataValue(metadata, "listenership_daily"),
+            ListenershipWeekly = GetMetadataValue(metadata, "listenershipWeekly") ?? GetMetadataValue(metadata, "listenership_weekly"),
+            ListenershipPeriod = GetMetadataValue(metadata, "listenershipPeriod") ?? GetMetadataValue(metadata, "listenership_period"),
             SiteNumber = GetMetadataValue(metadata, "siteNumber") ?? GetMetadataValue(metadata, "site_number"),
             ItemNotes = GetMetadataValue(metadata, "itemNotes"),
             SelectionReasons = GetMetadataValues(metadata, "selectionReasons"),
@@ -269,6 +278,57 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
             .Where(item => !string.IsNullOrWhiteSpace(item))
             .Cast<string>()
             .ToArray();
+    }
+
+    private static string? BuildTargetAudienceSummary(Data.Entities.CampaignBrief? brief)
+    {
+        if (brief is null)
+        {
+            return null;
+        }
+
+        var parts = new List<string>();
+
+        if (brief.TargetAgeMin.HasValue || brief.TargetAgeMax.HasValue)
+        {
+            parts.Add((brief.TargetAgeMin, brief.TargetAgeMax) switch
+            {
+                ({ } min, { } max) when min == max => $"Age {min}",
+                ({ } min, { } max) => $"Ages {min}-{max}",
+                ({ } min, null) => $"Age {min}+",
+                (null, { } max) => $"Up to age {max}",
+                _ => string.Empty
+            });
+        }
+
+        if (!string.IsNullOrWhiteSpace(brief.TargetGender))
+        {
+            parts.Add(brief.TargetGender.Trim());
+        }
+
+        if (brief.TargetLsmMin.HasValue || brief.TargetLsmMax.HasValue)
+        {
+            parts.Add((brief.TargetLsmMin, brief.TargetLsmMax) switch
+            {
+                ({ } min, { } max) when min == max => $"LSM {min}",
+                ({ } min, { } max) => $"LSM {min}-{max}",
+                ({ } min, null) => $"LSM {min}+",
+                (null, { } max) => $"Up to LSM {max}",
+                _ => string.Empty
+            });
+        }
+
+        if (!string.IsNullOrWhiteSpace(brief.TargetAudienceNotes))
+        {
+            parts.Add(brief.TargetAudienceNotes.Trim());
+        }
+
+        var cleaned = parts
+            .Where(static part => !string.IsNullOrWhiteSpace(part))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return cleaned.Length == 0 ? null : string.Join(" | ", cleaned);
     }
 
     private static string RemoveInternalMarkers(string? rationale)
