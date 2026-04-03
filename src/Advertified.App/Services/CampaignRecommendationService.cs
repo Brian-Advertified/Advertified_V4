@@ -57,7 +57,6 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         {
             var variant = proposalVariants[index];
             var recommendationResult = await _planningEngine.GenerateAsync(variant.Request, cancellationToken);
-            RecommendationOohPolicy.EnsureGeneratedPlanContainsOoh(recommendationResult.RecommendedPlan);
             EnsureRecommendationFallsWithinTier(variant, recommendationResult);
 
             var aiReasoning = await _campaignReasoningService.GenerateAsync(campaign, brief, variant.Request, recommendationResult, cancellationToken);
