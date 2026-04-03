@@ -108,11 +108,6 @@ with target_users as (
 delete from email_verification_tokens
 where user_id in (select id from target_users);
 
-with target_users as (
-    select id
-    from user_accounts
-    where role not in ('admin', 'agent')
-)
 do $$
 begin
     if exists (
