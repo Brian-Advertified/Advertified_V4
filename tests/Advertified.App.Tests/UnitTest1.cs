@@ -457,7 +457,7 @@ public class MediaPlanningEngineTests
     }
 
     [Fact]
-    public async Task GenerateAsync_AlwaysIncludesOohForEngineGeneratedPlans()
+    public async Task GenerateAsync_RespectsExplicitOohExclusion()
     {
         var repository = new StubPlanningInventoryRepository
         {
@@ -504,27 +504,25 @@ public class MediaPlanningEngineTests
 
         var result = await engine.GenerateAsync(request, CancellationToken.None);
 
-        result.RecommendedPlan.Should().Contain(item => item.MediaType == "OOH");
+        result.RecommendedPlan.Should().NotContain(item => item.MediaType == "OOH");
+        result.RecommendedPlan.Should().Contain(item => item.MediaType == "Radio");
     }
 
     [Fact]
-    public async Task GenerateAsync_FlagsManualReviewWhenForcedOohCannotBeSatisfied()
+    public async Task GenerateAsync_UsesNonPreferredInventoryWhenPreferredChannelsCannotFillBudget()
     {
         var repository = new StubPlanningInventoryRepository
         {
-            RadioSlotCandidates = new List<InventoryCandidate>
+            OohCandidates = new List<InventoryCandidate>
             {
                 new()
                 {
                     SourceId = Guid.NewGuid(),
-                    SourceType = "radio_slot",
-                    DisplayName = "Kaya 959 - Drive",
-                    MediaType = "Radio",
+                    SourceType = "ooh",
+                    DisplayName = "Rosebank Billboard",
+                    MediaType = "OOH",
                     Province = "Gauteng",
-                    TimeBand = "drive",
-                    DayType = "weekday",
-                    SlotType = "commercial",
-                    Cost = 9000m,
+                    Cost = 12000m,
                     IsAvailable = true
                 }
             }
@@ -542,7 +540,8 @@ public class MediaPlanningEngineTests
         var result = await engine.GenerateAsync(request, CancellationToken.None);
 
         result.ManualReviewRequired.Should().BeTrue();
-        result.FallbackFlags.Should().Contain("required_media_unfulfilled:ooh");
+        result.RecommendedPlan.Should().Contain(item => item.MediaType == "OOH");
+        result.FallbackFlags.Should().Contain("preferred_media_unfulfilled:radio");
     }
 
     [Fact]
@@ -594,7 +593,66 @@ public class MediaPlanningEngineTests
 
         result.RecommendedPlan.Should().ContainSingle();
         result.RecommendedPlan[0].MediaType.Should().Be("OOH");
-        result.FallbackFlags.Should().NotContain("required_media_unfulfilled:ooh");
+        result.FallbackFlags.Should().NotContain("preferred_media_unfulfilled:ooh");
+    }
+
+    [Fact]
+    public async Task GenerateAsync_RelaxesGeographyWhenStrictLocalPassUnderfills()
+    {
+        var repository = new StubPlanningInventoryRepository
+        {
+            OohCandidates = new List<InventoryCandidate>
+            {
+                new()
+                {
+                    SourceId = Guid.NewGuid(),
+                    SourceType = "ooh",
+                    DisplayName = "Pretoria Billboard",
+                    MediaType = "OOH",
+                    Province = "Gauteng",
+                    City = "Pretoria",
+                    Area = "Hatfield",
+                    Cost = 18000m,
+                    IsAvailable = true
+                }
+            },
+            RadioSlotCandidates = new List<InventoryCandidate>
+            {
+                new()
+                {
+                    SourceId = Guid.NewGuid(),
+                    SourceType = "radio_package",
+                    DisplayName = "Johannesburg Radio Package",
+                    MediaType = "Radio",
+                    Province = "Gauteng",
+                    City = "Johannesburg",
+                    Cost = 4200m,
+                    IsAvailable = true,
+                    PackageOnly = true,
+                    TimeBand = "drive",
+                    DayType = "weekday",
+                    SlotType = "package",
+                    Metadata = new Dictionary<string, object?> { ["pricingModel"] = "package_total" }
+                }
+            }
+        };
+
+        var engine = CreateEngine(repository);
+        var request = new CampaignPlanningRequest
+        {
+            CampaignId = Guid.NewGuid(),
+            SelectedBudget = 30000m,
+            GeographyScope = "local",
+            Cities = new List<string> { "Johannesburg" },
+            PreferredMediaTypes = new List<string> { "ooh", "radio" },
+            MaxMediaItems = 4
+        };
+
+        var result = await engine.GenerateAsync(request, CancellationToken.None);
+
+        result.RecommendedPlanTotal.Should().BeGreaterThan(4200m);
+        result.RecommendedPlan.Should().Contain(item => item.DisplayName == "Pretoria Billboard");
+        result.FallbackFlags.Should().Contain("geography_relaxed");
     }
 
     [Fact]

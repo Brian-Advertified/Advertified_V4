@@ -40,24 +40,7 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
             return false;
         }
 
-        if (!MatchesPreferredMedia(candidate, request))
-        {
-            return false;
-        }
-
         return MatchesRequestedGeography(candidate, request);
-    }
-
-    private static bool MatchesPreferredMedia(InventoryCandidate candidate, CampaignPlanningRequest request)
-    {
-        if (request.PreferredMediaTypes.Count == 0)
-        {
-            return true;
-        }
-
-        return request.PreferredMediaTypes.Any(preferred =>
-            Matches(preferred, candidate.MediaType)
-            || Matches(preferred, candidate.Subtype));
     }
 
     private static bool MatchesRequestedGeography(InventoryCandidate candidate, CampaignPlanningRequest request)

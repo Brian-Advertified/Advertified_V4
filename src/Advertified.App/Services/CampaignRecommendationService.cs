@@ -249,7 +249,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             .Distinct()
             .ToArray();
 
-        return preferred.Length > 0 ? preferred : new[] { "ooh", "radio", "tv" };
+        return preferred.Length > 0 ? preferred : new[] { "ooh", "radio", "digital", "tv" };
     }
 
     private static ChannelTargets BuildBalancedTargets(IReadOnlyList<string> activeChannels)

@@ -6,6 +6,7 @@ namespace Advertified.App.Services;
 
 public sealed class MediaPlanningEngine : IMediaPlanningEngine
 {
+    private const decimal MinimumAcceptableBudgetUtilizationRatio = 0.60m;
     private readonly IPlanningCandidateLoader _candidateLoader;
     private readonly IPlanningEligibilityService _eligibilityService;
     private readonly IRecommendationPlanBuilder _planBuilder;
@@ -36,78 +37,28 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
 
     public async Task<RecommendationResult> GenerateAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
     {
-        var normalizedRequest = NormalizeEngineRequest(request);
-        var allCandidates = await _candidateLoader.LoadCandidatesAsync(normalizedRequest, cancellationToken);
-        var policyOutcome = _eligibilityService.FilterEligibleCandidates(allCandidates, normalizedRequest);
-        var eligibleCandidates = policyOutcome.Candidates;
+        var planningPasses = BuildPlanningPasses(request);
+        RecommendationResult? bestResult = null;
 
-        foreach (var candidate in eligibleCandidates)
+        foreach (var planningPass in planningPasses)
         {
-            var analysis = _explainabilityService.AnalyzeCandidate(candidate, normalizedRequest);
-            candidate.Score = analysis.Score;
-            candidate.Metadata["selectionReasons"] = analysis.SelectionReasons;
-            candidate.Metadata["policyFlags"] = analysis.PolicyFlags;
-            candidate.Metadata["confidenceScore"] = analysis.ConfidenceScore;
+            var passResult = await GenerateForRequestAsync(planningPass.Request, planningPass.FallbackFlags, cancellationToken);
+            if (bestResult is null || IsBetterResult(passResult, bestResult))
+            {
+                bestResult = passResult;
+            }
+
+            if (MeetsBudgetUtilizationTarget(passResult, planningPass.Request))
+            {
+                break;
+            }
         }
 
-        var scored = eligibleCandidates
-            .OrderByDescending(x => x.Cost)
-            .ThenByDescending(x => x.Score)
-            .ToList();
-
-        var basePlan = _planBuilder.BuildPlan(scored, normalizedRequest, diversify: true);
-        var recommendedPlan = _planBuilder.BuildPlan(scored, normalizedRequest, diversify: false);
-        EnsureRequiredChannelCoverage(recommendedPlan, scored, normalizedRequest, GetRequiredEngineChannels());
-
-        var upsellBudget = normalizedRequest.OpenToUpsell
-            ? normalizedRequest.SelectedBudget + (normalizedRequest.AdditionalBudget ?? 0m)
-            : normalizedRequest.SelectedBudget;
-
-        var upsells = normalizedRequest.OpenToUpsell && upsellBudget > normalizedRequest.SelectedBudget
-            ? _planBuilder.BuildUpsells(scored, recommendedPlan, upsellBudget - recommendedPlan.Sum(x => x.TotalCost))
-            : new List<PlannedItem>();
-
-        var fallbackFlags = new List<string>(policyOutcome.FallbackFlags);
-        if (eligibleCandidates.Count == 0)
-        {
-            fallbackFlags.Add("inventory_insufficient");
-        }
-
-        if (recommendedPlan.Count == 0)
-        {
-            fallbackFlags.Add("no_recommendation_generated");
-        }
-
-        fallbackFlags.AddRange(_explainabilityService.GetPreferredMediaFallbackFlags(request, recommendedPlan));
-        if (!recommendedPlan.Any(item => NormalizeChannel(item.MediaType).Equals("ooh", StringComparison.OrdinalIgnoreCase)))
-        {
-            fallbackFlags.Add("required_media_unfulfilled:ooh");
-        }
-
-        return new RecommendationResult
-        {
-            BasePlan = basePlan,
-            RecommendedPlan = recommendedPlan,
-            Upsells = upsells,
-            FallbackFlags = fallbackFlags.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
-            ManualReviewRequired = fallbackFlags.Count > 0,
-            Rationale = _explainabilityService.BuildRationale(basePlan, recommendedPlan, normalizedRequest)
-        };
+        return bestResult ?? await GenerateForRequestAsync(NormalizeEngineRequest(request), Array.Empty<string>(), cancellationToken);
     }
 
     private static CampaignPlanningRequest NormalizeEngineRequest(CampaignPlanningRequest request)
     {
-        var preferredMediaTypes = request.PreferredMediaTypes.ToList();
-        if (preferredMediaTypes.Count > 0
-            && !preferredMediaTypes.Any(channel => NormalizeChannel(channel).Equals("ooh", StringComparison.OrdinalIgnoreCase)))
-        {
-            preferredMediaTypes.Add("ooh");
-        }
-
-        var excludedMediaTypes = request.ExcludedMediaTypes
-            .Where(channel => !NormalizeChannel(channel).Equals("ooh", StringComparison.OrdinalIgnoreCase))
-            .ToList();
-
         return new CampaignPlanningRequest
         {
             CampaignId = request.CampaignId,
@@ -117,8 +68,8 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
             Cities = request.Cities.ToList(),
             Suburbs = request.Suburbs.ToList(),
             Areas = request.Areas.ToList(),
-            PreferredMediaTypes = preferredMediaTypes,
-            ExcludedMediaTypes = excludedMediaTypes,
+            PreferredMediaTypes = NormalizeChannels(request.PreferredMediaTypes),
+            ExcludedMediaTypes = NormalizeChannels(request.ExcludedMediaTypes),
             TargetLanguages = request.TargetLanguages.ToList(),
             TargetLsmMin = request.TargetLsmMin,
             TargetLsmMax = request.TargetLsmMax,
@@ -132,7 +83,168 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
         };
     }
 
-    private static string[] GetRequiredEngineChannels() => new[] { "ooh" };
+    private static List<string> NormalizeChannels(IEnumerable<string> channels)
+    {
+        return channels
+            .Select(NormalizeChannel)
+            .Where(channel => !string.IsNullOrWhiteSpace(channel))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private async Task<RecommendationResult> GenerateForRequestAsync(
+        CampaignPlanningRequest request,
+        IReadOnlyCollection<string> passFallbackFlags,
+        CancellationToken cancellationToken)
+    {
+        var allCandidates = await _candidateLoader.LoadCandidatesAsync(request, cancellationToken);
+        var policyOutcome = _eligibilityService.FilterEligibleCandidates(allCandidates, request);
+        var eligibleCandidates = policyOutcome.Candidates;
+
+        foreach (var candidate in eligibleCandidates)
+        {
+            var analysis = _explainabilityService.AnalyzeCandidate(candidate, request);
+            candidate.Score = analysis.Score;
+            candidate.Metadata["selectionReasons"] = analysis.SelectionReasons;
+            candidate.Metadata["policyFlags"] = analysis.PolicyFlags;
+            candidate.Metadata["confidenceScore"] = analysis.ConfidenceScore;
+        }
+
+        var scored = eligibleCandidates
+            .OrderByDescending(x => x.Cost)
+            .ThenByDescending(x => x.Score)
+            .ToList();
+
+        var basePlan = _planBuilder.BuildPlan(scored, request, diversify: true);
+        var recommendedPlan = _planBuilder.BuildPlan(scored, request, diversify: false);
+        EnsureRequiredChannelCoverage(recommendedPlan, scored, request, GetRequiredEngineChannels(request));
+
+        var upsellBudget = request.OpenToUpsell
+            ? request.SelectedBudget + (request.AdditionalBudget ?? 0m)
+            : request.SelectedBudget;
+
+        var upsells = request.OpenToUpsell && upsellBudget > request.SelectedBudget
+            ? _planBuilder.BuildUpsells(scored, recommendedPlan, upsellBudget - recommendedPlan.Sum(x => x.TotalCost))
+            : new List<PlannedItem>();
+
+        var fallbackFlags = new List<string>(policyOutcome.FallbackFlags);
+        fallbackFlags.AddRange(passFallbackFlags);
+
+        if (eligibleCandidates.Count == 0)
+        {
+            fallbackFlags.Add("inventory_insufficient");
+        }
+
+        if (recommendedPlan.Count == 0)
+        {
+            fallbackFlags.Add("no_recommendation_generated");
+        }
+
+        fallbackFlags.AddRange(_explainabilityService.GetPreferredMediaFallbackFlags(request, recommendedPlan));
+
+        return new RecommendationResult
+        {
+            BasePlan = basePlan,
+            RecommendedPlan = recommendedPlan,
+            Upsells = upsells,
+            FallbackFlags = fallbackFlags.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+            ManualReviewRequired = fallbackFlags.Count > 0,
+            Rationale = _explainabilityService.BuildRationale(basePlan, recommendedPlan, request)
+        };
+    }
+
+    private static IReadOnlyList<string> GetRequiredEngineChannels(CampaignPlanningRequest request)
+    {
+        var requiredChannels = new List<string>();
+
+        AddRequiredChannel(requiredChannels, "radio", request.TargetRadioShare);
+        AddRequiredChannel(requiredChannels, "ooh", request.TargetOohShare);
+        AddRequiredChannel(requiredChannels, "tv", request.TargetTvShare);
+        AddRequiredChannel(requiredChannels, "digital", request.TargetDigitalShare);
+
+        return requiredChannels;
+    }
+
+    private static void AddRequiredChannel(List<string> channels, string channel, int? share)
+    {
+        if (share.GetValueOrDefault() > 0)
+        {
+            channels.Add(channel);
+        }
+    }
+
+    private static IReadOnlyList<PlanningPass> BuildPlanningPasses(CampaignPlanningRequest request)
+    {
+        var normalizedRequest = NormalizeEngineRequest(request);
+        var passes = new List<PlanningPass> { new(normalizedRequest, Array.Empty<string>()) };
+
+        var broaderRequest = BuildBroaderGeographyRequest(normalizedRequest);
+        if (!AreEquivalentRequests(normalizedRequest, broaderRequest))
+        {
+            passes.Add(new(broaderRequest, new[] { "geography_relaxed" }));
+        }
+
+        return passes;
+    }
+
+    private static CampaignPlanningRequest BuildBroaderGeographyRequest(CampaignPlanningRequest request)
+    {
+        return new CampaignPlanningRequest
+        {
+            CampaignId = request.CampaignId,
+            SelectedBudget = request.SelectedBudget,
+            GeographyScope = request.GeographyScope,
+            Provinces = request.Provinces.ToList(),
+            Cities = new List<string>(),
+            Suburbs = new List<string>(),
+            Areas = new List<string>(),
+            PreferredMediaTypes = request.PreferredMediaTypes.ToList(),
+            ExcludedMediaTypes = request.ExcludedMediaTypes.ToList(),
+            TargetLanguages = request.TargetLanguages.ToList(),
+            TargetLsmMin = request.TargetLsmMin,
+            TargetLsmMax = request.TargetLsmMax,
+            OpenToUpsell = request.OpenToUpsell,
+            AdditionalBudget = request.AdditionalBudget,
+            MaxMediaItems = request.MaxMediaItems,
+            TargetRadioShare = request.TargetRadioShare,
+            TargetOohShare = request.TargetOohShare,
+            TargetTvShare = request.TargetTvShare,
+            TargetDigitalShare = request.TargetDigitalShare
+        };
+    }
+
+    private static bool AreEquivalentRequests(CampaignPlanningRequest left, CampaignPlanningRequest right)
+    {
+        return left.Provinces.SequenceEqual(right.Provinces, StringComparer.OrdinalIgnoreCase)
+            && left.Cities.SequenceEqual(right.Cities, StringComparer.OrdinalIgnoreCase)
+            && left.Suburbs.SequenceEqual(right.Suburbs, StringComparer.OrdinalIgnoreCase)
+            && left.Areas.SequenceEqual(right.Areas, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static bool IsBetterResult(RecommendationResult candidate, RecommendationResult currentBest)
+    {
+        if (candidate.RecommendedPlanTotal != currentBest.RecommendedPlanTotal)
+        {
+            return candidate.RecommendedPlanTotal > currentBest.RecommendedPlanTotal;
+        }
+
+        if (candidate.ManualReviewRequired != currentBest.ManualReviewRequired)
+        {
+            return !candidate.ManualReviewRequired;
+        }
+
+        return candidate.FallbackFlags.Count < currentBest.FallbackFlags.Count;
+    }
+
+    private static bool MeetsBudgetUtilizationTarget(RecommendationResult result, CampaignPlanningRequest request)
+    {
+        if (request.SelectedBudget <= 0m)
+        {
+            return true;
+        }
+
+        return result.RecommendedPlanTotal >= request.SelectedBudget * MinimumAcceptableBudgetUtilizationRatio;
+    }
 
     private static void EnsureRequiredChannelCoverage(
         List<PlannedItem> recommendedPlan,
@@ -306,4 +418,6 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
             _ => normalized
         };
     }
+
+    private sealed record PlanningPass(CampaignPlanningRequest Request, IReadOnlyCollection<string> FallbackFlags);
 }
