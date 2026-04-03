@@ -18,6 +18,7 @@ type VodaPayReturnData = {
 
 export function CheckoutConfirmationPage() {
   const [searchParams] = useSearchParams();
+  const currentSearch = searchParams.toString();
   const { user } = useAuth();
   const { pushToast } = useToast();
   const queryClient = useQueryClient();
@@ -63,6 +64,10 @@ export function CheckoutConfirmationPage() {
       return null;
     }
   }, [orderId]);
+  const currentReturnPath = useMemo(
+    () => `/checkout/confirmation${currentSearch ? `?${currentSearch}` : ''}`,
+    [currentSearch],
+  );
 
   if (!user) {
     return (
@@ -75,7 +80,7 @@ export function CheckoutConfirmationPage() {
               : 'Your VodaPay session has returned to Advertified. Sign in with the same account to view the latest payment state.'}
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
-            <Link to="/login" className="button-primary px-5 py-3">Log in</Link>
+            <Link to={`/login?next=${encodeURIComponent(currentReturnPath)}`} className="button-primary px-5 py-3">Log in</Link>
             <Link to="/packages" className="button-secondary px-5 py-3">Back to packages</Link>
           </div>
         </div>
