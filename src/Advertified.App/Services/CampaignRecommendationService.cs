@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using Advertified.App.Campaigns;
 using Advertified.App.Contracts.Campaigns;
@@ -57,6 +58,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             var variant = proposalVariants[index];
             var recommendationResult = await _planningEngine.GenerateAsync(variant.Request, cancellationToken);
             RecommendationOohPolicy.EnsureGeneratedPlanContainsOoh(recommendationResult.RecommendedPlan);
+            EnsureRecommendationFallsWithinTier(variant, recommendationResult);
 
             var aiReasoning = await _campaignReasoningService.GenerateAsync(campaign, brief, variant.Request, recommendationResult, cancellationToken);
             var proposalTimestamp = now.AddMilliseconds(index);
@@ -180,29 +182,25 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
     {
         if (HasExplicitTargetMix(request))
         {
-            return new[] { new ProposalVariant("requested_mix", request) };
+            return new[] { new ProposalVariant("requested_mix", request, null) };
         }
 
         var activeChannels = ResolveActiveChannels(request);
-        var secondaryFocusChannel = activeChannels.Contains("digital", StringComparer.OrdinalIgnoreCase)
-            ? "digital"
-            : activeChannels.Contains("tv", StringComparer.OrdinalIgnoreCase)
-                ? "tv"
-                : "radio";
+        var secondaryFocusChannel = ResolveUpperTierFocusChannel(activeChannels);
         var secondaryFocusLabel = secondaryFocusChannel switch
         {
             "digital" => "digital_focus",
-            "tv" => "tv_focus",
             _ => "radio_focus"
         };
         var budgetBands = BuildProposalBudgetBands(packageBand);
 
         var proposals = new List<ProposalVariant>
         {
-            new("balanced", ApplyChannelTargets(request, BuildBalancedTargets(activeChannels), budgetBands[0].PlanningBudget)),
-            new("ooh_focus", ApplyChannelTargets(request, BuildFocusedTargets(activeChannels, "ooh"), budgetBands[1].PlanningBudget)),
+            new("balanced", ApplyChannelTargets(request, BuildBalancedTargets(activeChannels), budgetBands[0].MaxBudget), budgetBands[0]),
+            new("ooh_focus", ApplyChannelTargets(request, BuildFocusedTargets(activeChannels, "ooh"), budgetBands[1].MaxBudget), budgetBands[1]),
             new(secondaryFocusLabel,
-                ApplyChannelTargets(request, BuildFocusedTargets(activeChannels, secondaryFocusChannel), budgetBands[2].PlanningBudget))
+                ApplyChannelTargets(request, BuildFocusedTargets(activeChannels, secondaryFocusChannel), budgetBands[2].MaxBudget),
+                budgetBands[2])
         };
 
         return proposals;
@@ -328,6 +326,25 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
     private static decimal RoundCurrency(decimal amount)
     {
         return Math.Round(amount, 2, MidpointRounding.AwayFromZero);
+    }
+
+    private static string ResolveUpperTierFocusChannel(IReadOnlyList<string> activeChannels)
+    {
+        if (activeChannels.Contains("digital", StringComparer.OrdinalIgnoreCase))
+        {
+            return "digital";
+        }
+
+        if (activeChannels.Contains("radio", StringComparer.OrdinalIgnoreCase))
+        {
+            return "radio";
+        }
+
+        // Avoid creating a TV-led Proposal C because that variant can collapse into
+        // a near-empty draft when TV inventory is unavailable, which breaks the
+        // intended lower/mid/upper budget progression across Proposal A/B/C.
+        return activeChannels.FirstOrDefault(channel => !string.Equals(channel, "ooh", StringComparison.OrdinalIgnoreCase))
+            ?? "ooh";
     }
 
     private static ChannelTargets BuildFocusedTargets(IReadOnlyList<string> activeChannels, string primaryChannel)
@@ -521,7 +538,42 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         return string.Join(Environment.NewLine, sections.Where(section => !string.IsNullOrWhiteSpace(section)));
     }
 
-    private sealed record ProposalVariant(string Key, CampaignPlanningRequest Request);
+    private static void EnsureRecommendationFallsWithinTier(ProposalVariant variant, RecommendationResult recommendationResult)
+    {
+        if (variant.BudgetBand is null)
+        {
+            return;
+        }
+
+        var total = recommendationResult.RecommendedPlanTotal;
+        if (total >= variant.BudgetBand.MinBudget && total <= variant.BudgetBand.MaxBudget)
+        {
+            return;
+        }
+
+        throw new InvalidOperationException(
+            $"Could not generate {GetProposalDisplayLabel(variant.Key)} within its required tier of {FormatCurrency(variant.BudgetBand.MinBudget)} to {FormatCurrency(variant.BudgetBand.MaxBudget)}. " +
+            $"The generated total was {FormatCurrency(total)}.");
+    }
+
+    private static string GetProposalDisplayLabel(string variantKey)
+    {
+        return variantKey.ToLowerInvariant() switch
+        {
+            "balanced" => "Proposal A",
+            "ooh_focus" => "Proposal B",
+            "radio_focus" => "Proposal C",
+            "digital_focus" => "Proposal C",
+            _ => "the proposal"
+        };
+    }
+
+    private static string FormatCurrency(decimal amount)
+    {
+        return $"R {amount.ToString("N2", CultureInfo.GetCultureInfo("en-ZA"))}";
+    }
+
+    private sealed record ProposalVariant(string Key, CampaignPlanningRequest Request, ProposalBudgetBand? BudgetBand);
     private sealed record ProposalBudgetBand(decimal MinBudget, decimal MaxBudget, decimal PlanningBudget);
     private sealed record ChannelTargets(int Radio, int Ooh, int Tv, int Digital);
 }

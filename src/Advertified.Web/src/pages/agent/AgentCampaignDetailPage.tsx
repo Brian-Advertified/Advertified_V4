@@ -715,11 +715,11 @@ export function AgentCampaignDetailPage() {
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ink-soft">Order</p>
             <h2 className="mt-3 text-xl font-semibold text-ink">{campaign.packageBandName}</h2>
             <p className="mt-2 text-sm text-ink-soft">
-              {isProspectiveCampaign && selectedPackageBand
-                ? `Package range: ${formatCurrency(selectedPackageBand.minBudget)} to ${formatCurrency(selectedPackageBand.maxBudget)}`
+              {selectedPackageBand
+                ? `Package range: ${formatPackageRange(selectedPackageBand.minBudget, selectedPackageBand.maxBudget)}`
                 : `Package target: ${formatCurrency(campaign.selectedBudget)}`}
             </p>
-            {isProspectiveCampaign && selectedPackageBand ? (
+            {selectedPackageBand ? (
               <p className="mt-2 text-sm text-ink-soft">
                 Planning reference: {formatCurrency(campaign.selectedBudget)}
               </p>

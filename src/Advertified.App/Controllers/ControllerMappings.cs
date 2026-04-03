@@ -269,6 +269,7 @@ internal static class ControllerMappings
             "ooh_focus" => ("Proposal B", "Billboards and Digital Screens-led reach"),
             "radio_focus" => ("Proposal C", "Radio-led frequency"),
             "digital_focus" => ("Proposal C", "Digital-led amplification"),
+            "tv_focus" => ("Proposal C", "TV-led reach"),
             _ => ($"Proposal {GetProposalLetter(proposalIndex)}", "Recommendation option")
         };
     }
@@ -293,6 +294,7 @@ internal static class ControllerMappings
             "ooh_focus" => 1,
             "radio_focus" => 2,
             "digital_focus" => 2,
+            "tv_focus" => 2,
             _ => 9
         };
     }

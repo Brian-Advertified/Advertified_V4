@@ -15,7 +15,7 @@ export function LoginPage() {
   const activated = useMemo(() => new URLSearchParams(location.search).get('activated') === '1', [location.search]);
   const nextPath = useMemo(() => {
     const candidate = new URLSearchParams(location.search).get('next')?.trim() ?? '';
-    return candidate.startsWith('/') ? candidate : '';
+    return candidate.startsWith('/') ? candidate : null;
   }, [location.search]);
 
   async function handleSubmit(values: LoginSchema) {
@@ -26,11 +26,12 @@ export function LoginPage() {
         title: 'Logged in successfully.',
         description: `Welcome back, ${user.fullName.split(' ')[0]}.`,
       });
-      navigate(
+      const redirectPath =
         (location.state as { from?: string } | null)?.from
-          ?? nextPath
-          ?? (user.role === 'admin' ? '/admin' : user.role === 'creative_director' ? '/creative/studio-demo' : user.role === 'agent' ? '/agent' : '/dashboard'),
-      );
+        || nextPath
+        || (user.role === 'admin' ? '/admin' : user.role === 'creative_director' ? '/creative/studio-demo' : user.role === 'agent' ? '/agent' : '/dashboard');
+
+      navigate(redirectPath, { replace: true });
     } catch (error) {
       pushToast({
         title: 'We could not sign you in.',

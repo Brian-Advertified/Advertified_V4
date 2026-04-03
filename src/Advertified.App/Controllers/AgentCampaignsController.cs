@@ -34,6 +34,7 @@ public sealed class AgentCampaignsController : ControllerBase
     private readonly ITemplatedEmailService _emailService;
     private readonly IChangeAuditService _changeAuditService;
     private readonly FrontendOptions _frontendOptions;
+    private readonly IProposalAccessTokenService _proposalAccessTokenService;
     private readonly ILogger<AgentCampaignsController> _logger;
 
     public AgentCampaignsController(
@@ -50,6 +51,7 @@ public sealed class AgentCampaignsController : ControllerBase
         ITemplatedEmailService emailService,
         IChangeAuditService changeAuditService,
         IOptions<FrontendOptions> frontendOptions,
+        IProposalAccessTokenService proposalAccessTokenService,
         ILogger<AgentCampaignsController> logger)
     {
         _db = db;
@@ -65,6 +67,7 @@ public sealed class AgentCampaignsController : ControllerBase
         _emailService = emailService;
         _changeAuditService = changeAuditService;
         _frontendOptions = frontendOptions.Value;
+        _proposalAccessTokenService = proposalAccessTokenService;
         _logger = logger;
     }
 
@@ -1627,6 +1630,27 @@ public sealed class AgentCampaignsController : ControllerBase
         return _frontendOptions.BaseUrl.TrimEnd('/') + path;
     }
 
+    private string BuildProposalUrl(Guid campaignId, Guid? recommendationId = null, string? action = null)
+    {
+        var accessToken = _proposalAccessTokenService.CreateToken(campaignId);
+        var query = new List<string>
+        {
+            $"token={Uri.EscapeDataString(accessToken)}"
+        };
+
+        if (recommendationId.HasValue)
+        {
+            query.Add($"recommendationId={Uri.EscapeDataString(recommendationId.Value.ToString("D"))}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(action))
+        {
+            query.Add($"action={Uri.EscapeDataString(action)}");
+        }
+
+        return BuildFrontendUrl($"/proposal/{campaignId:D}?{string.Join("&", query)}");
+    }
+
     private static string? NormalizeOptionalText(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -1775,7 +1799,7 @@ public sealed class AgentCampaignsController : ControllerBase
                     ["CampaignName"] = string.IsNullOrWhiteSpace(campaign.CampaignName) ? $"{campaign.PackageBand.Name} campaign" : campaign.CampaignName.Trim(),
                     ["PackageName"] = campaign.PackageBand.Name,
                     ["Budget"] = FormatCurrency(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount),
-                    ["ReviewUrl"] = BuildFrontendUrl($"/proposal/{campaign.Id}"),
+                    ["ReviewUrl"] = BuildProposalUrl(campaign.Id),
                     ["ProposalCount"] = proposalCount.ToString(CultureInfo.InvariantCulture),
                     ["ProposalSummary"] = proposalCount > 1
                         ? $"We have prepared {proposalCount} proposal options for you to compare."
@@ -1829,11 +1853,11 @@ public sealed class AgentCampaignsController : ControllerBase
             .Select((recommendation, index) =>
             {
                 var label = ResolveProposalLabel(recommendation.RecommendationType, index);
-                var href = BuildFrontendUrl($"/proposal/{campaignId:D}?recommendationId={recommendation.Id:D}");
+                var href = BuildProposalUrl(campaignId, recommendation.Id);
                 return $@"<a href=""{href}"" style=""display:inline-block;margin:0 10px 10px 0;padding:11px 16px;border-radius:12px;background:#123A33;color:#ffffff;text-decoration:none;font-weight:700;"">Accept {System.Net.WebUtility.HtmlEncode(label)}</a>";
             })
             .ToArray();
-        var rejectHref = BuildFrontendUrl($"/proposal/{campaignId:D}?action=reject_all");
+        var rejectHref = BuildProposalUrl(campaignId, null, "reject_all");
         var rejectLink = $@"<a href=""{rejectHref}"" style=""display:inline-block;margin:0 10px 10px 0;padding:11px 16px;border-radius:12px;border:1px solid #cbd5e1;background:#ffffff;color:#123A33;text-decoration:none;font-weight:700;"">Request new proposals</a>";
 
         return $@"
@@ -1857,6 +1881,7 @@ public sealed class AgentCampaignsController : ControllerBase
             "ooh_focus" => "Proposal B",
             "radio_focus" => "Proposal C",
             "digital_focus" => "Proposal C",
+            "tv_focus" => "Proposal C",
             _ => $"Proposal {GetProposalLetter(proposalIndex)}"
         };
     }

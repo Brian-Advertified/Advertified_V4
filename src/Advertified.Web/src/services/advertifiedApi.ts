@@ -1449,6 +1449,24 @@ export const advertifiedApi = {
     window.URL.revokeObjectURL(objectUrl);
   },
 
+  async downloadPublicFile(path: string, fallbackFileName?: string) {
+    const response = await fetch(toAbsoluteApiUrl(path) ?? path);
+
+    if (!response.ok) {
+      await parseApiError(response);
+    }
+
+    const blob = await response.blob();
+    const objectUrl = window.URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = objectUrl;
+    anchor.download = resolveDownloadFileName(response, fallbackFileName);
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.URL.revokeObjectURL(objectUrl);
+  },
+
   async getConsentPreferences(browserId: string) {
     const response = await apiRequest<ConsentPreferenceResponse>(`/consent/preferences?browserId=${encodeURIComponent(browserId)}`);
     return mapConsentPreference(response);
@@ -2097,6 +2115,31 @@ export const advertifiedApi = {
   async getCampaign(campaignId: string) {
     const response = await apiRequest<CampaignResponse>(`/campaigns/${campaignId}`);
     return mapCampaign(response);
+  },
+
+  async getPublicProposal(campaignId: string, token: string) {
+    const response = await apiRequest<CampaignResponse>(
+      `/public/proposals/${encodeURIComponent(campaignId)}?token=${encodeURIComponent(token)}`,
+    );
+    return mapCampaign(response);
+  },
+
+  async approvePublicProposal(campaignId: string, token: string, recommendationId?: string) {
+    await apiRequest(`/public/proposals/${encodeURIComponent(campaignId)}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({ token, recommendationId }),
+    });
+
+    return this.getPublicProposal(campaignId, token);
+  },
+
+  async requestPublicProposalChanges(campaignId: string, token: string, notes?: string) {
+    await apiRequest(`/public/proposals/${encodeURIComponent(campaignId)}/request-changes`, {
+      method: 'POST',
+      body: JSON.stringify({ token, notes }),
+    });
+
+    return this.getPublicProposal(campaignId, token);
   },
 
   async getCampaignMessages(campaignId: string) {

@@ -930,6 +930,60 @@ public class HttpWorkflowIntegrationTests
     }
 
     [Fact]
+    public async Task PublicProposalApproval_SendsApprovalSideEffectsOverHttp()
+    {
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var clientUser = TestSeed.CreateUser();
+                var agentUser = TestSeed.CreateAgent();
+                var (band, order, campaign) = TestSeed.CreateCampaignGraph(clientUser, selectedBudget: 250000m, status: "review_ready");
+                campaign.AssignedAgentUserId = agentUser.Id;
+                campaign.AssignedAt = DateTime.UtcNow;
+
+                var recommendation = TestSeed.CreateRecommendation(campaign.Id, status: "sent_to_client");
+
+                db.UserAccounts.AddRange(clientUser, agentUser);
+                db.PackageBands.Add(band);
+                db.PackageOrders.Add(order);
+                db.Campaigns.Add(campaign);
+                db.CampaignRecommendations.Add(recommendation);
+                db.SaveChanges();
+            },
+            configureServices: services =>
+            {
+                services.AddSingleton<StubTemplatedEmailService>();
+                services.AddSingleton<ITemplatedEmailService>(sp => sp.GetRequiredService<StubTemplatedEmailService>());
+            });
+
+        var campaignId = await harness.ExecuteDbAsync(db => db.Campaigns.Select(x => x.Id).SingleAsync());
+        var recommendationId = await harness.ExecuteDbAsync(db => db.CampaignRecommendations.Select(x => x.Id).SingleAsync());
+        await using var scope = harness.Services.CreateAsyncScope();
+        var tokenService = scope.ServiceProvider.GetRequiredService<IProposalAccessTokenService>();
+        var token = tokenService.CreateToken(campaignId);
+
+        var approveResponse = await harness.Client.PostAsJsonAsync($"/public/proposals/{campaignId}/approve", new
+        {
+            token,
+            recommendationId
+        });
+
+        approveResponse.StatusCode.Should().Be(HttpStatusCode.Accepted);
+
+        var approvedCampaign = await harness.ExecuteDbAsync(db => db.Campaigns.Include(x => x.CampaignRecommendations).SingleAsync(x => x.Id == campaignId));
+        approvedCampaign.Status.Should().Be("approved");
+        approvedCampaign.CampaignRecommendations.Should().Contain(x => x.Status == "approved");
+
+        var emailService = harness.Services.GetRequiredService<StubTemplatedEmailService>();
+        emailService.SentEmails.Select(x => x.TemplateName).Should().Contain(new[]
+        {
+            "recommendation-approved",
+            "activation-in-progress",
+            "creative-queue-update"
+        });
+    }
+
+    [Fact]
     public async Task AgentGenerateRecommendation_SendsPreparingEmailOverHttp()
     {
         await using var harness = await TestApiHarness.CreateAsync(
@@ -1586,6 +1640,7 @@ internal sealed class TestApiHarness : IAsyncDisposable
         builder.Services.AddDbContext<AppDbContext>(options => options.UseInMemoryDatabase(databaseName));
         builder.Services.AddScoped<ICurrentUserAccessor, CurrentUserAccessor>();
         builder.Services.AddScoped<ISessionTokenService, SessionTokenService>();
+        builder.Services.AddScoped<IProposalAccessTokenService, ProposalAccessTokenService>();
         builder.Services.AddScoped<IPasswordHashingService, PasswordHashingService>();
         builder.Services.AddScoped<IChangeAuditService, ChangeAuditService>();
         builder.Services.AddScoped<IAdminDashboardService, StubAdminDashboardService>();
@@ -1600,6 +1655,7 @@ internal sealed class TestApiHarness : IAsyncDisposable
         builder.Services.AddScoped<IPackagePurchaseService, StubPackagePurchaseService>();
         builder.Services.AddScoped<IPrivateDocumentStorage, StubPrivateDocumentStorage>();
         builder.Services.AddScoped<IRecommendationDocumentService, StubRecommendationDocumentService>();
+        builder.Services.AddScoped<IRecommendationApprovalWorkflowService, RecommendationApprovalWorkflowService>();
         builder.Services.AddScoped<IPublicAssetStorage, StubPublicAssetStorage>();
         builder.Services.AddScoped<IMediaPlanningEngine, StubMediaPlanningEngine>();
         builder.Services.AddScoped<ICampaignReasoningService, StubCampaignReasoningService>();
@@ -1786,9 +1842,10 @@ internal static class TestSeed
     public static CampaignRecommendation CreateRecommendation(Guid campaignId, string status)
     {
         var now = DateTime.UtcNow;
+        var recommendationId = Guid.NewGuid();
         return new CampaignRecommendation
         {
-            Id = Guid.NewGuid(),
+            Id = recommendationId,
             CampaignId = campaignId,
             RecommendationType = "hybrid",
             GeneratedBy = "system",
@@ -1797,7 +1854,21 @@ internal static class TestSeed
             Summary = "Recommended mix",
             Rationale = "Plan built within budget.",
             CreatedAt = now,
-            UpdatedAt = now
+            UpdatedAt = now,
+            RecommendationItems = new List<RecommendationItem>
+            {
+                new()
+                {
+                    Id = Guid.NewGuid(),
+                    RecommendationId = recommendationId,
+                    InventoryType = "OOH",
+                    DisplayName = "Sandton Digital Billboard",
+                    Quantity = 1,
+                    UnitCost = 250000m,
+                    TotalCost = 250000m,
+                    CreatedAt = now
+                }
+            }
         };
     }
 }

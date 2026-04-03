@@ -57,7 +57,7 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
             ClientName = campaign.User.FullName,
             BusinessName = campaign.User.BusinessProfile?.BusinessName,
             CampaignName = ResolveCampaignName(campaign),
-            CampaignApprovalsUrl = BuildFrontendUrl($"/proposal/{campaign.Id}"),
+            CampaignApprovalsUrl = BuildProposalUrl(campaign.Id),
             PackageName = campaign.PackageBand.Name,
             SelectedBudget = ResolveSelectedBudget(campaign),
             GeneratedAtUtc = DateTime.UtcNow,
@@ -110,7 +110,7 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
             ClientName = campaign.User.FullName,
             BusinessName = campaign.User.BusinessProfile?.BusinessName,
             CampaignName = ResolveCampaignName(campaign),
-            CampaignApprovalsUrl = BuildFrontendUrl($"/proposal/{campaign.Id}"),
+            CampaignApprovalsUrl = BuildProposalUrl(campaign.Id),
             PackageName = campaign.PackageBand.Name,
             SelectedBudget = ResolveSelectedBudget(campaign),
             GeneratedAtUtc = DateTime.UtcNow,
@@ -152,7 +152,7 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
         {
             Label = label,
             Strategy = strategy,
-            AcceptUrl = BuildFrontendUrl($"/proposal/{campaignId}?recommendationId={recommendation.Id:D}"),
+            AcceptUrl = BuildProposalUrl(campaignId, recommendation.Id),
             Summary = recommendation.Summary ?? string.Empty,
             Rationale = RemoveInternalMarkers(recommendation.Rationale),
             TotalCost = recommendation.TotalCost,
@@ -378,6 +378,7 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
             "ooh_focus" => ("Proposal B", "Billboards and Digital Screens-led reach"),
             "radio_focus" => ("Proposal C", "Radio-led frequency"),
             "digital_focus" => ("Proposal C", "Digital-led amplification"),
+            "tv_focus" => ("Proposal C", "TV-led reach"),
             _ => ($"Proposal {GetProposalLetter(proposalIndex)}", "Recommendation option")
         };
     }
@@ -392,5 +393,18 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
     private string BuildFrontendUrl(string path)
     {
         return _frontendOptions.BaseUrl.TrimEnd('/') + path;
+    }
+
+    private string BuildProposalUrl(Guid campaignId, Guid? recommendationId = null)
+    {
+        var query = new List<string>();
+
+        if (recommendationId.HasValue)
+        {
+            query.Add($"recommendationId={Uri.EscapeDataString(recommendationId.Value.ToString("D"))}");
+        }
+
+        var queryString = query.Count > 0 ? $"?{string.Join("&", query)}" : string.Empty;
+        return BuildFrontendUrl($"/proposal/{campaignId:D}{queryString}");
     }
 }

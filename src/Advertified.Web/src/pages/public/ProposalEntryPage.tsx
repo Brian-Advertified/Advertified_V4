@@ -1,7 +1,14 @@
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { ArrowRight, FileText } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom';
+import { LoadingState } from '../../components/ui/LoadingState';
 import { PageHero } from '../../components/marketing/PageHero';
+import { RecommendationViewer } from '../../features/campaigns/components/RecommendationViewer';
+import { useToast } from '../../components/ui/toast';
 import { useAuth } from '../../features/auth/auth-context';
+import { formatCurrency, titleCase } from '../../lib/utils';
+import { advertifiedApi } from '../../services/advertifiedApi';
 
 function getSafeNextPath(raw: string | null) {
   if (!raw) {
@@ -16,25 +23,247 @@ export function ProposalEntryPage() {
   const { id = '' } = useParams();
   const [searchParams] = useSearchParams();
   const { isAuthenticated } = useAuth();
+  const { pushToast } = useToast();
+  const [changeNotes, setChangeNotes] = useState('');
+  const [selectedRecommendationId, setSelectedRecommendationId] = useState('');
   const recommendationId = searchParams.get('recommendationId')?.trim() ?? '';
   const requestedAction = searchParams.get('action')?.trim() ?? '';
   const action = requestedAction === 'reject_all' ? 'reject_all' : '';
+  const token = searchParams.get('token')?.trim() ?? '';
+  const hasPublicAccessToken = token.length > 0;
+
+  const publicProposalQuery = useQuery({
+    queryKey: ['public-proposal', id, token],
+    queryFn: () => advertifiedApi.getPublicProposal(id, token),
+    enabled: Boolean(id && token),
+    retry: false,
+  });
+
+  const recommendations = publicProposalQuery.data
+    ? (publicProposalQuery.data.recommendations.length > 0
+      ? publicProposalQuery.data.recommendations
+      : (publicProposalQuery.data.recommendation ? [publicProposalQuery.data.recommendation] : []))
+    : [];
+  const showRejectAllFlow = action === 'reject_all';
+  const resolvedRecommendationId = recommendations.some((item) => item.id === selectedRecommendationId)
+    ? selectedRecommendationId
+    : recommendations.some((item) => item.id === recommendationId)
+      ? recommendationId
+      : (recommendations.find((item) => item.status === 'sent_to_client')?.id ?? recommendations[0]?.id ?? '');
+  const recommendation = recommendations.find((item) => item.id === resolvedRecommendationId) ?? recommendations[0];
+  const paymentRequiredBeforeApproval = publicProposalQuery.data?.paymentStatus !== 'paid';
+
+  const approveMutation = useMutation({
+    mutationFn: (selectedId?: string) => advertifiedApi.approvePublicProposal(id, token, selectedId),
+    onSuccess: async () => {
+      await publicProposalQuery.refetch();
+      pushToast({
+        title: 'Recommendation approved.',
+        description: 'Advertified will now move this campaign into creative production.',
+      });
+    },
+    onError: (error) => {
+      pushToast({
+        title: 'Could not approve recommendation.',
+        description: error instanceof Error ? error.message : 'Please try again.',
+      }, 'error');
+    },
+  });
+
+  const requestChangesMutation = useMutation({
+    mutationFn: (notes: string) => advertifiedApi.requestPublicProposalChanges(id, token, notes),
+    onSuccess: async () => {
+      setChangeNotes('');
+      await publicProposalQuery.refetch();
+      pushToast({
+        title: 'Change request sent.',
+        description: 'Your feedback has been sent to the Advertified team.',
+      });
+    },
+    onError: (error) => {
+      pushToast({
+        title: 'Could not request changes.',
+        description: error instanceof Error ? error.message : 'Please try again.',
+      }, 'error');
+    },
+  });
+
+  const rejectAllMutation = useMutation({
+    mutationFn: (notes: string) => advertifiedApi.requestPublicProposalChanges(id, token, notes),
+    onSuccess: async () => {
+      setChangeNotes('');
+      await publicProposalQuery.refetch();
+      pushToast({
+        title: 'All proposals rejected.',
+        description: 'Your agent will prepare a fresh proposal set based on your notes.',
+      });
+    },
+    onError: (error) => {
+      pushToast({
+        title: 'Could not reject all proposals.',
+        description: error instanceof Error ? error.message : 'Please try again.',
+      }, 'error');
+    },
+  });
+
+  const approvalsPath = useMemo(() => {
+    const queryParams = new URLSearchParams();
+    if (recommendationId) {
+      queryParams.set('recommendationId', recommendationId);
+    }
+    if (action) {
+      queryParams.set('action', action);
+    }
+    const query = queryParams.toString();
+    return query
+      ? `/campaigns/${encodeURIComponent(id)}/approvals?${query}`
+      : `/campaigns/${encodeURIComponent(id)}/approvals`;
+  }, [action, id, recommendationId]);
 
   if (!id) {
     return <Navigate to="/" replace />;
   }
 
-  const queryParams = new URLSearchParams();
-  if (recommendationId) {
-    queryParams.set('recommendationId', recommendationId);
+  if (hasPublicAccessToken) {
+    if (publicProposalQuery.isLoading) {
+      return <LoadingState label="Loading proposal..." />;
+    }
+
+    if (publicProposalQuery.isError || !publicProposalQuery.data) {
+      return (
+        <section className="page-shell space-y-8 pb-20">
+          <PageHero
+            kicker="Proposal review"
+            title="This secure proposal link is unavailable."
+            description="The link may have expired or is no longer valid. Ask your Advertified contact to send a fresh proposal link."
+          />
+        </section>
+      );
+    }
+
+    function buildSelectedProposalFeedback(noteBody: string) {
+      const selectedLabel = recommendation?.proposalLabel ?? recommendation?.id ?? 'Selected proposal';
+      return `Client selected proposal for revision: ${selectedLabel}\nClient notes: ${noteBody.trim()}`;
+    }
+
+    function buildRejectAllFeedback(noteBody: string) {
+      return `Client rejected all proposals.\nReason: ${noteBody.trim()}`;
+    }
+
+    async function handleDownloadRecommendationPdf() {
+      await advertifiedApi.downloadPublicFile(
+        `/public/proposals/${encodeURIComponent(id)}/recommendation-pdf?token=${encodeURIComponent(token)}`,
+        `recommendation-${id}.pdf`,
+      );
+    }
+
+    return (
+      <section className="page-shell space-y-8 pb-20">
+        <PageHero
+          kicker="Proposal review"
+          title={publicProposalQuery.data.campaignName}
+          description="Review the proposal options, choose one to approve, request changes on the selected option, or reject all and request a fresh set."
+        />
+
+        {recommendations.length > 1 ? (
+          <div className="rounded-[18px] border border-line bg-slate-50/70 p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Proposal options</p>
+            <p className="mt-2 text-sm text-ink-soft">Select the proposal you want to approve or revise. You can also reject all with comments.</p>
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              {recommendations.map((proposal, index) => {
+                const selected = proposal.id === recommendation?.id;
+                return (
+                  <button
+                    key={proposal.id}
+                    type="button"
+                    onClick={() => setSelectedRecommendationId(proposal.id)}
+                    className={`rounded-[14px] border px-4 py-3 text-left transition ${
+                      selected ? 'border-brand bg-white' : 'border-line bg-white hover:border-brand/35'
+                    }`}
+                  >
+                    <p className="text-sm font-semibold text-ink">{proposal.proposalLabel ?? `Proposal ${index + 1}`}</p>
+                    <p className="mt-1 text-xs text-ink-soft">{proposal.proposalStrategy ?? 'Media plan option'}</p>
+                    <p className="mt-2 text-sm font-semibold text-ink">{formatCurrency(proposal.totalCost)}</p>
+                    <p className="mt-2 text-[11px] uppercase tracking-[0.12em] text-ink-soft">
+                      {titleCase(proposal.status.replace(/_/g, ' '))}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+
+        {showRejectAllFlow ? (
+          <div className="rounded-[16px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            Share why these proposals do not work for you, then click <strong>Reject all and request new set</strong>. Your agent will prepare new options from your notes.
+          </div>
+        ) : null}
+
+        {recommendation ? (
+          <RecommendationViewer
+            recommendation={recommendation}
+            recommendationPdfUrl={`/public/proposals/${id}/recommendation-pdf?token=${encodeURIComponent(token)}`}
+            onDownloadPdf={() => handleDownloadRecommendationPdf()}
+          />
+        ) : (
+          <div className="rounded-[18px] border border-line bg-slate-50/70 p-5 text-sm leading-7 text-ink-soft">
+            Your recommendation is still being prepared.
+          </div>
+        )}
+
+        <div className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
+          <div className="rounded-[18px] border border-line bg-white p-5">
+            <div className="text-lg font-semibold text-ink">Tell us what to do next</div>
+            <p className="mt-2 text-sm leading-7 text-ink-soft">
+              Approve the selected proposal to move forward, request changes on the selected proposal, or reject all and ask for a new proposal set.
+            </p>
+            {paymentRequiredBeforeApproval ? (
+              <div className="mt-4 rounded-[14px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                Payment is still required before this recommendation can be finally approved.
+              </div>
+            ) : null}
+          </div>
+
+          <div className="space-y-3">
+            <textarea
+              value={changeNotes}
+              onChange={(event) => setChangeNotes(event.target.value)}
+              className="input-base min-h-[120px]"
+              placeholder="Comments for revisions, or reason if rejecting all proposals..."
+            />
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => approveMutation.mutate(recommendation?.id)}
+                disabled={approveMutation.isPending || requestChangesMutation.isPending || rejectAllMutation.isPending || paymentRequiredBeforeApproval}
+                className="user-btn-primary disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {approveMutation.isPending ? 'Accepting...' : 'Accept as final'}
+              </button>
+              <button
+                type="button"
+                onClick={() => requestChangesMutation.mutate(buildSelectedProposalFeedback(changeNotes))}
+                disabled={approveMutation.isPending || requestChangesMutation.isPending || rejectAllMutation.isPending || !changeNotes.trim()}
+                className="user-btn-secondary disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {requestChangesMutation.isPending ? 'Sending...' : 'Request changes on selected proposal'}
+              </button>
+              <button
+                type="button"
+                onClick={() => rejectAllMutation.mutate(buildRejectAllFeedback(changeNotes))}
+                disabled={approveMutation.isPending || requestChangesMutation.isPending || rejectAllMutation.isPending || !changeNotes.trim()}
+                className="user-btn-secondary disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {rejectAllMutation.isPending ? 'Sending...' : 'Reject all and request new set'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
   }
-  if (action) {
-    queryParams.set('action', action);
-  }
-  const query = queryParams.toString();
-  const approvalsPath = query
-    ? `/campaigns/${encodeURIComponent(id)}/approvals?${query}`
-    : `/campaigns/${encodeURIComponent(id)}/approvals`;
+
   const safeNextPath = getSafeNextPath(approvalsPath) ?? `/campaigns/${encodeURIComponent(id)}/approvals`;
 
   if (isAuthenticated) {
@@ -49,7 +278,7 @@ export function ProposalEntryPage() {
       <PageHero
         kicker="Proposal review"
         title="Your Advertified proposal is ready."
-        description="Sign in or create your account to open this proposal and continue to approval and payment."
+        description="Sign in or activate your account to open this proposal and continue to approval and payment."
       />
 
       <div className="mx-auto grid max-w-4xl gap-6 lg:grid-cols-[1.15fr_0.85fr]">
@@ -81,7 +310,7 @@ export function ProposalEntryPage() {
               <ArrowRight className="size-4" />
             </Link>
             <Link to={registerPath} className="button-secondary flex w-full items-center justify-center gap-2 px-5 py-3">
-              Create account and continue
+              Activate or create account
             </Link>
           </div>
         </aside>

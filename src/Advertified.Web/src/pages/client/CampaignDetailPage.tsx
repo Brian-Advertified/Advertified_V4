@@ -435,7 +435,11 @@ export function CampaignDetailPage() {
 
           {recommendation ? (
             <div className="mb-6">
-              <RecommendationViewer recommendation={recommendation} recommendationPdfUrl={campaign.recommendationPdfUrl} />
+              <RecommendationViewer
+                recommendation={recommendation}
+                recommendationPdfUrl={campaign.recommendationPdfUrl}
+                onDownloadPdf={() => handleDownloadRecommendationPdf()}
+              />
             </div>
           ) : (
             <div className="mb-6 rounded-[18px] border border-line bg-slate-50/70 p-5 text-sm leading-7 text-ink-soft">

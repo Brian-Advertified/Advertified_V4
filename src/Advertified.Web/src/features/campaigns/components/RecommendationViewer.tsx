@@ -1,10 +1,17 @@
 import { Download } from 'lucide-react';
 import { titleCase, formatCurrency } from '../../../lib/utils';
-import { advertifiedApi } from '../../../services/advertifiedApi';
 import type { CampaignRecommendation } from '../../../types/domain';
 import { StatusBadge } from '../../../components/ui/StatusBadge';
 
-export function RecommendationViewer({ recommendation, recommendationPdfUrl }: { recommendation: CampaignRecommendation; recommendationPdfUrl?: string }) {
+export function RecommendationViewer({
+  recommendation,
+  recommendationPdfUrl,
+  onDownloadPdf,
+}: {
+  recommendation: CampaignRecommendation;
+  recommendationPdfUrl?: string;
+  onDownloadPdf?: () => void | Promise<void>;
+}) {
   const baseItems = recommendation.items.filter((item) => item.type === 'base');
   const groupedChannels = Array.from(new Set(baseItems.map((item) => formatClientChannelLabel(item.channel))));
   const topReasons = Array.from(new Set(baseItems.flatMap((item) => item.selectionReasons))).slice(0, 4);
@@ -40,10 +47,7 @@ export function RecommendationViewer({ recommendation, recommendationPdfUrl }: {
             <button
               type="button"
               onClick={() => {
-                void advertifiedApi.downloadProtectedFile(
-                  recommendationPdfUrl,
-                  `recommendation-${recommendation.campaignId}.pdf`,
-                );
+                void onDownloadPdf?.();
               }}
               className="inline-flex items-center gap-2 rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink-soft transition hover:border-brand/30 hover:text-ink"
             >

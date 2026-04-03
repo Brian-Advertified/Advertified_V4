@@ -25,6 +25,7 @@ public sealed class CampaignsController : ControllerBase
     private readonly ICampaignBriefService _campaignBriefService;
     private readonly ICampaignRecommendationService _campaignRecommendationService;
     private readonly IRecommendationDocumentService _recommendationDocumentService;
+    private readonly IRecommendationApprovalWorkflowService _recommendationApprovalWorkflowService;
     private readonly CampaignPlanningRequestValidator _campaignPlanningRequestValidator;
     private readonly ITemplatedEmailService _emailService;
     private readonly FrontendOptions _frontendOptions;
@@ -37,6 +38,7 @@ public sealed class CampaignsController : ControllerBase
         ICampaignBriefService campaignBriefService,
         ICampaignRecommendationService campaignRecommendationService,
         IRecommendationDocumentService recommendationDocumentService,
+        IRecommendationApprovalWorkflowService recommendationApprovalWorkflowService,
         CampaignPlanningRequestValidator campaignPlanningRequestValidator,
         ITemplatedEmailService emailService,
         IOptions<FrontendOptions> frontendOptions,
@@ -48,6 +50,7 @@ public sealed class CampaignsController : ControllerBase
         _campaignBriefService = campaignBriefService;
         _campaignRecommendationService = campaignRecommendationService;
         _recommendationDocumentService = recommendationDocumentService;
+        _recommendationApprovalWorkflowService = recommendationApprovalWorkflowService;
         _campaignPlanningRequestValidator = campaignPlanningRequestValidator;
         _emailService = emailService;
         _frontendOptions = frontendOptions.Value;
@@ -182,22 +185,20 @@ public sealed class CampaignsController : ControllerBase
     public async Task<IActionResult> ApproveRecommendation(Guid id, [FromBody] ApproveRecommendationRequest? request, CancellationToken cancellationToken)
     {
         var userId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
-        var campaign = await _db.Campaigns
-            .Include(x => x.CampaignRecommendations)
-            .Include(x => x.User)
-            .Include(x => x.PackageBand)
-            .Include(x => x.PackageOrder)
-            .Include(x => x.AssignedAgentUser)
-            .FirstOrDefaultAsync(x => x.Id == id && x.UserId == userId, cancellationToken)
-            ?? throw new InvalidOperationException("Campaign not found.");
+        var campaignExists = await _db.Campaigns
+            .AsNoTracking()
+            .AnyAsync(x => x.Id == id && x.UserId == userId, cancellationToken);
+        if (!campaignExists)
+        {
+            throw new InvalidOperationException("Campaign not found.");
+        }
 
-        var currentRecommendations = RecommendationRevisionSupport.GetCurrentRecommendationSet(campaign.CampaignRecommendations);
-        var recommendation = currentRecommendations
-            .FirstOrDefault(x => x.Id == request?.RecommendationId)
-            ?? currentRecommendations.FirstOrDefault()
-            ?? throw new InvalidOperationException("Recommendation not found.");
-
-        if (!CampaignOperationsPolicy.IsOrderOperationallyActive(campaign.PackageOrder))
+        RecommendationWorkflowResult result;
+        try
+        {
+            result = await _recommendationApprovalWorkflowService.ApproveAsync(id, request?.RecommendationId, cancellationToken);
+        }
+        catch (InvalidOperationException ex) when (string.Equals(ex.Message, "Payment required before approval.", StringComparison.Ordinal))
         {
             return BadRequest(new ProblemDetails
             {
@@ -207,29 +208,12 @@ public sealed class CampaignsController : ControllerBase
             });
         }
 
-        recommendation.Status = RecommendationStatuses.Approved;
-        recommendation.ApprovedAt = DateTime.UtcNow;
-        recommendation.UpdatedAt = DateTime.UtcNow;
-        campaign.Status = CampaignStatuses.Approved;
-        campaign.UpdatedAt = DateTime.UtcNow;
-
-        await _db.SaveChangesAsync(cancellationToken);
-        await SendRecommendationApprovedEmailAsync(campaign, cancellationToken);
-        await SendActivationInProgressEmailAsync(campaign, cancellationToken);
-        await SendInternalCreativeQueueUpdateAsync(
-            campaign,
-            eventTitle: "Creative production can now begin",
-            eventBody: "Recommendation approved by client. Move into studio production and prepare the creative system.",
-            actionPath: $"/creative/campaigns/{campaign.Id}/studio",
-            includeAssignedAgent: true,
-            cancellationToken);
-
         return Accepted(new
         {
-            CampaignId = id,
-            RecommendationId = recommendation.Id,
-            Status = recommendation.Status,
-            Message = "Recommendation approved."
+            result.CampaignId,
+            result.RecommendationId,
+            result.Status,
+            result.Message
         });
     }
 
@@ -237,34 +221,22 @@ public sealed class CampaignsController : ControllerBase
     public async Task<IActionResult> RequestChanges(Guid id, [FromBody] RequestRecommendationChangesRequest request, CancellationToken cancellationToken)
     {
         var userId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
-        var campaign = await _db.Campaigns
-            .Include(x => x.CampaignRecommendations)
-                .ThenInclude(x => x.RecommendationItems)
-            .FirstOrDefaultAsync(x => x.Id == id && x.UserId == userId, cancellationToken)
-            ?? throw new InvalidOperationException("Campaign not found.");
-
-        var currentRecommendations = RecommendationRevisionSupport.GetCurrentRecommendationSet(campaign.CampaignRecommendations);
-        if (currentRecommendations.Length == 0)
+        var campaignExists = await _db.Campaigns
+            .AsNoTracking()
+            .AnyAsync(x => x.Id == id && x.UserId == userId, cancellationToken);
+        if (!campaignExists)
         {
-            throw new InvalidOperationException("Recommendation not found.");
+            throw new InvalidOperationException("Campaign not found.");
         }
 
-        var now = DateTime.UtcNow;
-        var nextRevisionNumber = RecommendationRevisionSupport.GetNextRevisionNumber(campaign.CampaignRecommendations);
-        var clonedRecommendations = RecommendationRevisionSupport.CloneAsDraftRevision(currentRecommendations, nextRevisionNumber, now, request.Notes);
-        _db.CampaignRecommendations.AddRange(clonedRecommendations);
-        campaign.Status = CampaignStatuses.PlanningInProgress;
-        campaign.RecommendationReadyEmailSentAt = null;
-        campaign.UpdatedAt = now;
-
-        await _db.SaveChangesAsync(cancellationToken);
+        var result = await _recommendationApprovalWorkflowService.RequestChangesAsync(id, request.Notes, cancellationToken);
 
         return Accepted(new
         {
-            CampaignId = id,
-            RecommendationId = clonedRecommendations[0].Id,
-            Status = campaign.Status,
-            Message = "Recommendation returned for changes."
+            result.CampaignId,
+            result.RecommendationId,
+            result.Status,
+            result.Message
         });
     }
 

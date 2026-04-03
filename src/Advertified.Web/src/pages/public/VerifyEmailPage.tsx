@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { MailCheck, RefreshCw, ShieldCheck } from 'lucide-react';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ProcessingOverlay } from '../../components/ui/ProcessingOverlay';
 import { useToast } from '../../components/ui/toast';
@@ -60,7 +60,11 @@ export function VerifyEmailPage() {
     return 'Check your email to activate';
   }, [state]);
 
-  if (state === 'success' && !successToastSentRef.current) {
+  useEffect(() => {
+    if (state !== 'success' || successToastSentRef.current) {
+      return;
+    }
+
     successToastSentRef.current = true;
     pushToast({
       title: 'Your email has been verified.',
@@ -68,15 +72,23 @@ export function VerifyEmailPage() {
         ? 'Set your password to finish account setup.'
         : 'Your account is active. Redirecting you now.',
     });
-  }
+  }, [pushToast, requiresPasswordSetup, state]);
 
-  if (state === 'success' && !redirectScheduledRef.current) {
+  useEffect(() => {
+    if (state !== 'success' || redirectScheduledRef.current) {
+      return;
+    }
+
     redirectScheduledRef.current = true;
     const redirectPath = requiresPasswordSetup
       ? (nextPath ? `/set-password?next=${encodeURIComponent(nextPath)}` : '/set-password')
       : (nextPath || '/dashboard');
-    window.setTimeout(() => navigate(redirectPath), 1200);
-  }
+    const timeoutId = window.setTimeout(() => navigate(redirectPath), 1200);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [navigate, nextPath, requiresPasswordSetup, state]);
 
   async function handleResend() {
     if (!email) {

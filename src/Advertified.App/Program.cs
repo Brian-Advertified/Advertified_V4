@@ -60,6 +60,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
         }));
 builder.Services.AddScoped<ICurrentUserAccessor, CurrentUserAccessor>();
 builder.Services.AddScoped<ISessionTokenService, SessionTokenService>();
+builder.Services.AddScoped<IProposalAccessTokenService, ProposalAccessTokenService>();
 builder.Services.AddScoped<IPasswordHashingService, PasswordHashingService>();
 builder.Services.AddScoped<IPricingSettingsProvider, PricingSettingsProvider>();
 builder.Services.AddScoped<IAdminDashboardService>(_ => new AdminDashboardService(
@@ -75,6 +76,7 @@ builder.Services.AddScoped<IAgentAreaRoutingService, AgentAreaRoutingService>();
 builder.Services.AddScoped<ICampaignBriefService, CampaignBriefService>();
 builder.Services.AddScoped<ICampaignRecommendationService, CampaignRecommendationService>();
 builder.Services.AddScoped<IRecommendationDocumentService, RecommendationDocumentService>();
+builder.Services.AddScoped<IRecommendationApprovalWorkflowService, RecommendationApprovalWorkflowService>();
 builder.Services.AddScoped<ICreativeGenerationOrchestrator, CreativeGenerationOrchestrator>();
 builder.Services.AddScoped<ICreativeStudioIntelligenceService, CreativeStudioIntelligenceService>();
 builder.Services.AddHttpClient<IPublicAssetStorage, PublicAssetStorageService>();
