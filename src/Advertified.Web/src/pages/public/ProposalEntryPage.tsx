@@ -64,6 +64,9 @@ export function ProposalEntryPage() {
   const checkoutPath = publicProposalQuery.data && recommendation
     ? `/checkout/payment?orderId=${encodeURIComponent(publicProposalQuery.data.packageOrderId)}&campaignId=${encodeURIComponent(publicProposalQuery.data.id)}&recommendationId=${encodeURIComponent(recommendation.id)}`
     : null;
+  const registerCheckoutPath = checkoutPath
+    ? `/register?next=${encodeURIComponent(checkoutPath)}`
+    : null;
 
   const approveMutation = useMutation({
     mutationFn: (selectedId?: string) => advertifiedApi.approvePublicProposal(id, token, selectedId),
@@ -171,6 +174,11 @@ export function ProposalEntryPage() {
 
     function handlePrimaryAction() {
       if (paymentRequiredBeforeApproval) {
+        if (!isAuthenticated && registerCheckoutPath) {
+          navigate(registerCheckoutPath);
+          return;
+        }
+
         if (checkoutPath) {
           navigate(checkoutPath);
         }
