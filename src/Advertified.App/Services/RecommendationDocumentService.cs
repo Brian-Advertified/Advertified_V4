@@ -16,17 +16,20 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
     private readonly IWebHostEnvironment _environment;
     private readonly IPublicAssetStorage _assetStorage;
     private readonly FrontendOptions _frontendOptions;
+    private readonly IProposalAccessTokenService _proposalAccessTokenService;
 
     public RecommendationDocumentService(
         AppDbContext db,
         IWebHostEnvironment environment,
         IPublicAssetStorage assetStorage,
-        IOptions<FrontendOptions> frontendOptions)
+        IOptions<FrontendOptions> frontendOptions,
+        IProposalAccessTokenService proposalAccessTokenService)
     {
         _db = db;
         _environment = environment;
         _assetStorage = assetStorage;
         _frontendOptions = frontendOptions.Value;
+        _proposalAccessTokenService = proposalAccessTokenService;
     }
 
     public async Task<byte[]> GetCampaignPdfBytesAsync(Guid campaignId, CancellationToken cancellationToken)
@@ -469,7 +472,10 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
 
     private string BuildProposalUrl(Guid campaignId, Guid? recommendationId = null)
     {
-        var query = new List<string>();
+        var query = new List<string>
+        {
+            $"token={Uri.EscapeDataString(_proposalAccessTokenService.CreateToken(campaignId))}"
+        };
 
         if (recommendationId.HasValue)
         {

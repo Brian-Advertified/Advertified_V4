@@ -241,9 +241,15 @@ export function ProposalEntryPage() {
                 type="button"
                 onClick={() => approveMutation.mutate(recommendation?.id)}
                 disabled={approveMutation.isPending || requestChangesMutation.isPending || rejectAllMutation.isPending || paymentRequiredBeforeApproval}
-                className="user-btn-primary w-full justify-center text-center whitespace-normal disabled:cursor-not-allowed disabled:opacity-60 sm:col-span-2"
+                className={`w-full justify-center text-center whitespace-normal sm:col-span-2 ${
+                  paymentRequiredBeforeApproval
+                    ? 'user-btn-secondary border-amber-200 bg-amber-50 text-amber-900 opacity-100'
+                    : 'user-btn-primary'
+                } disabled:cursor-not-allowed disabled:opacity-100`}
               >
-                {approveMutation.isPending ? 'Accepting...' : 'Approve selected'}
+                {paymentRequiredBeforeApproval
+                  ? 'Payment required before approval'
+                  : (approveMutation.isPending ? 'Accepting...' : 'Approve selected')}
               </button>
               <button
                 type="button"
