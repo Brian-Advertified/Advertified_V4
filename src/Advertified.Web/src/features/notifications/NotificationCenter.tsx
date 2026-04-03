@@ -116,60 +116,68 @@ export function NotificationCenter() {
       </button>
 
       {open ? (
-        <div className="absolute right-0 top-[calc(100%+12px)] z-50 w-[360px] overflow-hidden rounded-[24px] border border-line bg-white shadow-[0_18px_55px_rgba(15,23,42,0.12)]">
-          <div className="border-b border-line px-5 py-4">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand">Notifications</p>
-                <p className="mt-2 text-sm text-ink-soft">Important campaign and payment updates in one place.</p>
-              </div>
-              {unreadCount > 0 ? (
-                <button
-                  type="button"
-                  className="text-xs font-semibold uppercase tracking-[0.18em] text-brand transition hover:text-brand/80"
-                  disabled={markAllNotificationsReadMutation.isPending}
-                  onClick={() => markAllNotificationsReadMutation.mutate()}
-                >
-                  Read all
-                </button>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="max-h-[420px] overflow-y-auto p-3">
-            {notifications.length > 0 ? (
-              <div className="space-y-2">
-                {notifications.map((notification) => (
+        <>
+          <button
+            type="button"
+            aria-label="Close notifications"
+            className="fixed inset-0 z-40 cursor-default bg-transparent"
+            onClick={() => setOpen(false)}
+          />
+          <div className="absolute right-0 top-[calc(100%+12px)] z-50 w-[360px] overflow-hidden rounded-[24px] border border-line bg-white shadow-[0_18px_55px_rgba(15,23,42,0.12)]">
+            <div className="border-b border-line px-5 py-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand">Notifications</p>
+                  <p className="mt-2 text-sm text-ink-soft">Important campaign and payment updates in one place.</p>
+                </div>
+                {unreadCount > 0 ? (
                   <button
                     type="button"
-                    key={notification.id}
-                    onClick={() => handleNotificationClick(notification)}
-                    className={`flex w-full gap-3 rounded-[18px] border px-4 py-3 text-left transition ${
-                      notification.isRead
-                        ? 'border-line bg-white hover:border-brand/15 hover:bg-slate-50'
-                        : 'border-brand/15 bg-brand-soft/20 hover:border-brand/30 hover:bg-brand-soft/30'
-                    }`}
+                    className="text-xs font-semibold uppercase tracking-[0.18em] text-brand transition hover:text-brand/80"
+                    disabled={markAllNotificationsReadMutation.isPending}
+                    onClick={() => markAllNotificationsReadMutation.mutate()}
                   >
-                    <div className="mt-0.5">
-                      <NotificationIcon tone={notification.tone} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-ink">{notification.title}</p>
-                      <p className="mt-1 text-sm leading-6 text-ink-soft">{notification.description}</p>
-                    </div>
-                    {!notification.isRead ? <span className="mt-1 size-2 rounded-full bg-brand" aria-hidden="true" /> : null}
+                    Read all
                   </button>
-                ))}
+                ) : null}
               </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center gap-3 px-4 py-8 text-center">
-                <FileText className="size-5 text-ink-soft" />
-                <p className="text-sm font-semibold text-ink">No new notifications</p>
-                <p className="text-sm text-ink-soft">We’ll surface payment, recommendation, and approval updates here.</p>
-              </div>
-            )}
+            </div>
+
+            <div className="max-h-[420px] overflow-y-auto p-3">
+              {notifications.length > 0 ? (
+                <div className="space-y-2">
+                  {notifications.map((notification) => (
+                    <button
+                      type="button"
+                      key={notification.id}
+                      onClick={() => handleNotificationClick(notification)}
+                      className={`flex w-full gap-3 rounded-[18px] border px-4 py-3 text-left transition ${
+                        notification.isRead
+                          ? 'border-line bg-white hover:border-brand/15 hover:bg-slate-50'
+                          : 'border-brand/15 bg-brand-soft/20 hover:border-brand/30 hover:bg-brand-soft/30'
+                      }`}
+                    >
+                      <div className="mt-0.5">
+                        <NotificationIcon tone={notification.tone} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-ink">{notification.title}</p>
+                        <p className="mt-1 text-sm leading-6 text-ink-soft">{notification.description}</p>
+                      </div>
+                      {!notification.isRead ? <span className="mt-1 size-2 rounded-full bg-brand" aria-hidden="true" /> : null}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center gap-3 px-4 py-8 text-center">
+                  <FileText className="size-5 text-ink-soft" />
+                  <p className="text-sm font-semibold text-ink">No new notifications</p>
+                  <p className="text-sm text-ink-soft">We'll surface payment, recommendation, and approval updates here.</p>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        </>
       ) : null}
     </div>
   );

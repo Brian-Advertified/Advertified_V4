@@ -15,7 +15,7 @@ import {
   UserX2,
   X,
 } from 'lucide-react';
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { LoadingState } from '../../components/ui/LoadingState';
@@ -106,7 +106,7 @@ export function AgentCampaignDetailPage() {
     spendDelivered: '',
     evidenceAssetId: '',
   });
-  const [prospectPackageBandId, setProspectPackageBandId] = useState('');
+  const [prospectPackageBandState, setProspectPackageBandState] = useState<{ campaignId: string; packageBandId: string } | null>(null);
   const mixPanelRef = useRef<HTMLDivElement | null>(null);
 
   const campaignQuery = useQuery({ queryKey: queryKeys.agent.campaign(id), queryFn: () => advertifiedApi.getAgentCampaign(id) });
@@ -302,6 +302,9 @@ export function AgentCampaignDetailPage() {
   });
 
   const campaign = campaignQuery.data;
+  const prospectPackageBandId = prospectPackageBandState && prospectPackageBandState.campaignId === campaign?.id
+    ? prospectPackageBandState.packageBandId
+    : (campaign?.packageBandId ?? '');
   const inventoryItems = inventoryQuery.data ?? [];
   const selectedPackageBand = packagesQuery.data?.find((item) => item.id === campaign?.packageBandId) ?? null;
   const recommendations = campaign?.recommendations.length
@@ -374,14 +377,6 @@ export function AgentCampaignDetailPage() {
     ? draftApprovalState.captured
     : false;
   const deferredInventorySearchInput = useDeferredValue(inventorySearchInput);
-
-  useEffect(() => {
-    if (!campaign) {
-      return;
-    }
-
-    setProspectPackageBandId(campaign.packageBandId);
-  }, [campaign?.id, campaign?.packageBandId]);
 
   if (campaignQuery.isLoading || inventoryQuery.isLoading || !campaign) {
     return <LoadingState label="Loading agent campaign detail..." />;
@@ -742,7 +737,7 @@ export function AgentCampaignDetailPage() {
                   <span className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Package band</span>
                   <select
                     value={prospectPackageBandId}
-                    onChange={(event) => setProspectPackageBandId(event.target.value)}
+                    onChange={(event) => setProspectPackageBandState({ campaignId: campaign.id, packageBandId: event.target.value })}
                     className="input-base mt-2"
                   >
                     <option value="">Select package</option>

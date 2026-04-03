@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
-import { MailCheck, RefreshCw, ShieldCheck } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { MailCheck, RefreshCw } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
+import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { ProcessingOverlay } from '../../components/ui/ProcessingOverlay';
 import { useToast } from '../../components/ui/toast';
 import { useAuth } from '../../features/auth/auth-context';
@@ -19,8 +19,6 @@ export function VerifyEmailPage() {
   })();
   const [resending, setResending] = useState(false);
   const successToastSentRef = useRef(false);
-  const redirectScheduledRef = useRef(false);
-  const navigate = useNavigate();
   const { verifyEmail } = useAuth();
   const { pushToast } = useToast();
   const verificationQuery = useQuery({
@@ -60,11 +58,11 @@ export function VerifyEmailPage() {
     return 'Check your email to activate';
   }, [state]);
 
-  useEffect(() => {
-    if (state !== 'success' || successToastSentRef.current) {
-      return;
-    }
+  const redirectPath = requiresPasswordSetup
+    ? (nextPath ? `/set-password?next=${encodeURIComponent(nextPath)}` : '/set-password')
+    : (nextPath || '/dashboard');
 
+  if (state === 'success' && !successToastSentRef.current) {
     successToastSentRef.current = true;
     pushToast({
       title: 'Your email has been verified.',
@@ -72,23 +70,11 @@ export function VerifyEmailPage() {
         ? 'Set your password to finish account setup.'
         : 'Your account is active. Redirecting you now.',
     });
-  }, [pushToast, requiresPasswordSetup, state]);
+  }
 
-  useEffect(() => {
-    if (state !== 'success' || redirectScheduledRef.current) {
-      return;
-    }
-
-    redirectScheduledRef.current = true;
-    const redirectPath = requiresPasswordSetup
-      ? (nextPath ? `/set-password?next=${encodeURIComponent(nextPath)}` : '/set-password')
-      : (nextPath || '/dashboard');
-    const timeoutId = window.setTimeout(() => navigate(redirectPath), 1200);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [navigate, nextPath, requiresPasswordSetup, state]);
+  if (state === 'success') {
+    return <Navigate to={redirectPath} replace />;
+  }
 
   async function handleResend() {
     if (!email) {
@@ -167,20 +153,6 @@ export function VerifyEmailPage() {
                   <div>
                     <p className="font-semibold text-ink">We&apos;re verifying your email now.</p>
                     <p className="mt-2 leading-7">This should only take a moment.</p>
-                  </div>
-                </div>
-              ) : null}
-
-              {state === 'success' ? (
-                <div className="flex items-start gap-3 text-sm text-ink-soft">
-                  <ShieldCheck className="mt-1 size-5 text-brand" />
-                  <div>
-                    <p className="font-semibold text-ink">Your email has been verified successfully.</p>
-                    <p className="mt-2 leading-7">
-                      {requiresPasswordSetup
-                        ? "You're being redirected to set your password before entering your dashboard."
-                        : "You're being redirected to your dashboard now."}
-                    </p>
                   </div>
                 </div>
               ) : null}

@@ -4,6 +4,7 @@ using Advertified.App.AIPlatform.Application;
 using Advertified.App.AIPlatform.Domain;
 using Advertified.App.AIPlatform.Infrastructure;
 using Advertified.App.Configuration;
+using Advertified.App.Contracts.Auth;
 using Advertified.App.Contracts.Admin;
 using Advertified.App.Contracts.Agent;
 using Advertified.App.Contracts.Packages;
@@ -30,6 +31,79 @@ namespace Advertified.App.Tests;
 
 public class HttpWorkflowIntegrationTests
 {
+    [Fact]
+    public async Task AuthRegister_CompletesExistingPendingClientAccountOverHttp()
+    {
+        var prospectEmail = "prospect.client@example.com";
+
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var now = DateTime.UtcNow;
+                var user = new UserAccount
+                {
+                    Id = Guid.NewGuid(),
+                    FullName = "Prospect Client",
+                    Email = prospectEmail,
+                    Phone = "0820001111",
+                    IsSaCitizen = true,
+                    EmailVerified = false,
+                    PhoneVerified = false,
+                    Role = UserRole.Client,
+                    AccountStatus = AccountStatus.PendingVerification,
+                    CreatedAt = now,
+                    UpdatedAt = now
+                };
+                user.PasswordHash = new PasswordHashingService().HashPassword(user, Guid.NewGuid().ToString("N"));
+
+                db.UserAccounts.Add(user);
+                db.SaveChanges();
+            });
+
+        var request = new RegisterRequest
+        {
+            FullName = "Prospect Client",
+            Email = prospectEmail,
+            Phone = "0821234567",
+            IsSouthAfricanCitizen = true,
+            Password = "StrongPass!123",
+            ConfirmPassword = "StrongPass!123",
+            BusinessName = "Prospect Client Pty Ltd",
+            BusinessType = "PTY LTD",
+            RegistrationNumber = "2026/654321/07",
+            Industry = "Technology",
+            AnnualRevenueBand = "r1m_r5m",
+            StreetAddress = "1 Main Road",
+            City = "Johannesburg",
+            Province = "Gauteng",
+            SaIdNumber = "9001011234088"
+        };
+
+        var response = await harness.Client.PostAsJsonAsync("/auth/register", request);
+        var content = await response.Content.ReadAsStringAsync();
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK, content);
+        var payload = System.Text.Json.JsonSerializer.Deserialize<RegisterResponse>(content, new System.Text.Json.JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        });
+        payload.Should().NotBeNull();
+        payload!.Email.Should().Be(prospectEmail);
+        payload.AccountStatus.Should().Be("pending_verification");
+
+        var dbUser = await harness.ExecuteDbAsync(db => db.UserAccounts
+            .Include(x => x.BusinessProfile)
+            .Include(x => x.IdentityProfile)
+            .SingleAsync(x => x.Email == prospectEmail));
+        var passwordHasher = new PasswordHashingService();
+
+        dbUser.BusinessProfile.Should().NotBeNull();
+        dbUser.BusinessProfile!.BusinessName.Should().Be("Prospect Client Pty Ltd");
+        dbUser.IdentityProfile.Should().NotBeNull();
+        dbUser.IdentityProfile!.SaIdNumber.Should().Be("9001011234088");
+        passwordHasher.VerifyPassword(dbUser, "StrongPass!123").Should().BeTrue();
+    }
+
     [Fact]
     public async Task AiAdOps_ClientCannotPublishVariantOverHttp()
     {
@@ -1649,10 +1723,12 @@ internal sealed class TestApiHarness : IAsyncDisposable
         builder.Services.AddScoped<IAgentAreaRoutingService, StubAgentAreaRoutingService>();
         builder.Services.AddScoped<ICampaignBriefService, CampaignBriefService>();
         builder.Services.AddScoped<CampaignPlanningRequestValidator>();
+        builder.Services.AddScoped<RegisterRequestValidator>();
         builder.Services.AddScoped<SaveCampaignBriefRequestValidator>();
         builder.Services.AddScoped<IEmailVerificationService, StubEmailVerificationService>();
         builder.Services.AddScoped<IInvoiceService, StubInvoiceService>();
         builder.Services.AddScoped<IPackagePurchaseService, StubPackagePurchaseService>();
+        builder.Services.AddScoped<IRegistrationService, RegistrationService>();
         builder.Services.AddScoped<IPrivateDocumentStorage, StubPrivateDocumentStorage>();
         builder.Services.AddScoped<IRecommendationDocumentService, StubRecommendationDocumentService>();
         builder.Services.AddScoped<IRecommendationApprovalWorkflowService, RecommendationApprovalWorkflowService>();

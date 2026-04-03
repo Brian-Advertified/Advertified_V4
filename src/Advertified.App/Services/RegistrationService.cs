@@ -6,6 +6,7 @@ using Advertified.App.Services.Abstractions;
 using Advertified.App.Validation;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace Advertified.App.Services;
 
@@ -33,61 +34,100 @@ public sealed class RegistrationService : IRegistrationService
         await _validator.ValidateAndThrowAsync(request, cancellationToken);
 
         var normalizedEmail = request.Email.Trim().ToLowerInvariant();
-        var exists = await _db.UserAccounts.AnyAsync(x => x.Email == normalizedEmail, cancellationToken);
-        if (exists)
+        var existingUser = await _db.UserAccounts
+            .Include(x => x.BusinessProfile)
+            .Include(x => x.IdentityProfile)
+            .FirstOrDefaultAsync(x => x.Email == normalizedEmail, cancellationToken);
+
+        var now = DateTime.UtcNow;
+        var user = existingUser;
+        if (user is null)
+        {
+            user = new UserAccount
+            {
+                Id = Guid.NewGuid(),
+                Role = UserRole.Client,
+                AccountStatus = AccountStatus.PendingVerification,
+                FullName = request.FullName.Trim(),
+                Email = normalizedEmail,
+                Phone = request.Phone.Trim(),
+                IsSaCitizen = request.IsSouthAfricanCitizen,
+                EmailVerified = false,
+                PhoneVerified = false,
+                CreatedAt = now,
+                UpdatedAt = now
+            };
+
+            _db.UserAccounts.Add(user);
+        }
+        else if (!CanCompletePendingClientRegistration(user))
         {
             throw new InvalidOperationException("A user with this email address already exists.");
         }
 
-        var now = DateTime.UtcNow;
-        var user = new UserAccount
+        user.Role = UserRole.Client;
+        user.AccountStatus = AccountStatus.PendingVerification;
+        user.FullName = request.FullName.Trim();
+        user.Email = normalizedEmail;
+        user.Phone = request.Phone.Trim();
+        user.IsSaCitizen = request.IsSouthAfricanCitizen;
+        user.EmailVerified = false;
+        user.PhoneVerified = false;
+        user.UpdatedAt = now;
+
+        if (user.BusinessProfile is null)
         {
-            Id = Guid.NewGuid(),
-            Role = UserRole.Client,
-            AccountStatus = AccountStatus.PendingVerification,
-            FullName = request.FullName.Trim(),
-            Email = normalizedEmail,
-            Phone = request.Phone.Trim(),
-            IsSaCitizen = request.IsSouthAfricanCitizen,
-            EmailVerified = false,
-            PhoneVerified = false,
-            CreatedAt = now,
-            UpdatedAt = now,
-            BusinessProfile = new BusinessProfile
+            user.BusinessProfile = new BusinessProfile
             {
                 Id = Guid.NewGuid(),
-                BusinessName = request.BusinessName.Trim(),
-                BusinessType = request.BusinessType.Trim(),
-                RegistrationNumber = request.RegistrationNumber.Trim(),
-                VatNumber = request.VatNumber?.Trim(),
-                Industry = request.Industry.Trim(),
-                AnnualRevenueBand = request.AnnualRevenueBand.Trim(),
-                TradingAsName = request.TradingAsName?.Trim(),
-                StreetAddress = request.StreetAddress.Trim(),
-                City = request.City.Trim(),
-                Province = request.Province.Trim(),
-                VerificationStatus = VerificationStatus.NotSubmitted,
-                CreatedAt = now,
-                UpdatedAt = now
-            },
-            IdentityProfile = new IdentityProfile
+                UserId = user.Id,
+                CreatedAt = now
+            };
+            _db.BusinessProfiles.Add(user.BusinessProfile);
+        }
+        user.BusinessProfile.BusinessName = request.BusinessName.Trim();
+        user.BusinessProfile.BusinessType = request.BusinessType.Trim();
+        user.BusinessProfile.RegistrationNumber = request.RegistrationNumber.Trim();
+        user.BusinessProfile.VatNumber = request.VatNumber?.Trim();
+        user.BusinessProfile.Industry = request.Industry.Trim();
+        user.BusinessProfile.AnnualRevenueBand = request.AnnualRevenueBand.Trim();
+        user.BusinessProfile.TradingAsName = request.TradingAsName?.Trim();
+        user.BusinessProfile.StreetAddress = request.StreetAddress.Trim();
+        user.BusinessProfile.City = request.City.Trim();
+        user.BusinessProfile.Province = request.Province.Trim();
+        user.BusinessProfile.VerificationStatus = VerificationStatus.NotSubmitted;
+        user.BusinessProfile.UpdatedAt = now;
+
+        if (user.IdentityProfile is null)
+        {
+            user.IdentityProfile = new IdentityProfile
             {
                 Id = Guid.NewGuid(),
-                SaIdNumber = request.SaIdNumber?.Trim(),
-                PassportNumber = request.PassportNumber?.Trim(),
-                PassportCountryIso2 = request.PassportCountryIso2?.Trim().ToUpperInvariant(),
-                PassportIssueDate = request.PassportIssueDate,
-                PassportValidUntil = request.PassportValidUntil,
-                IdentityType = request.IsSouthAfricanCitizen ? IdentityType.SaId : IdentityType.Passport,
-                VerificationStatus = VerificationStatus.NotSubmitted,
-                CreatedAt = now,
-                UpdatedAt = now
-            }
-        };
+                UserId = user.Id,
+                CreatedAt = now
+            };
+            _db.IdentityProfiles.Add(user.IdentityProfile);
+        }
+        user.IdentityProfile.SaIdNumber = request.IsSouthAfricanCitizen ? request.SaIdNumber?.Trim() : null;
+        user.IdentityProfile.PassportNumber = request.IsSouthAfricanCitizen ? null : request.PassportNumber?.Trim();
+        user.IdentityProfile.PassportCountryIso2 = request.IsSouthAfricanCitizen ? null : request.PassportCountryIso2?.Trim().ToUpperInvariant();
+        user.IdentityProfile.PassportIssueDate = request.IsSouthAfricanCitizen ? null : request.PassportIssueDate;
+        user.IdentityProfile.PassportValidUntil = request.IsSouthAfricanCitizen ? null : request.PassportValidUntil;
+        user.IdentityProfile.IdentityType = request.IsSouthAfricanCitizen ? IdentityType.SaId : IdentityType.Passport;
+        user.IdentityProfile.VerificationStatus = VerificationStatus.NotSubmitted;
+        user.IdentityProfile.UpdatedAt = now;
+
         user.PasswordHash = _passwordHashingService.HashPassword(user, request.Password);
 
-        _db.UserAccounts.Add(user);
-        await _db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (TryMapRegistrationConflict(ex, out var message))
+        {
+            throw new InvalidOperationException(message, ex);
+        }
+
         await _emailVerificationService.QueueActivationEmailAsync(user, cancellationToken);
 
         return new RegisterResponse
@@ -97,5 +137,33 @@ public sealed class RegistrationService : IRegistrationService
             EmailVerificationRequired = true,
             AccountStatus = "pending_verification"
         };
+    }
+
+    private static bool CanCompletePendingClientRegistration(UserAccount user)
+    {
+        return user.Role == UserRole.Client
+            && user.AccountStatus == AccountStatus.PendingVerification
+            && !user.EmailVerified;
+    }
+
+    private static bool TryMapRegistrationConflict(DbUpdateException exception, out string message)
+    {
+        if (exception.InnerException is not PostgresException postgres
+            || postgres.SqlState != PostgresErrorCodes.UniqueViolation)
+        {
+            message = string.Empty;
+            return false;
+        }
+
+        message = postgres.ConstraintName switch
+        {
+            "uq_user_accounts_email" => "A user with this email address already exists.",
+            "uq_business_profiles_registration_number" => "A business with this registration number already exists.",
+            "uq_identity_profiles_sa_id_number" => "An account with this South African ID number already exists.",
+            "uq_identity_profiles_passport" => "An account with this passport number already exists.",
+            _ => "This account information already exists."
+        };
+
+        return true;
     }
 }

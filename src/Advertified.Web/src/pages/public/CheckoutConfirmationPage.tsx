@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import { BadgeCheck, CircleAlert, Clock3, FileText } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import advertifiedLogo from '../../assets/advertified-logo-v3.png';
@@ -137,27 +137,18 @@ export function CheckoutConfirmationPage() {
     },
   });
 
-  useEffect(() => {
-    if (!orderId || !effectiveRecommendationId) {
-      return;
-    }
-
-    if (order.paymentStatus !== 'paid') {
-      return;
-    }
-
-    if (!effectiveCampaignId) {
-      return;
-    }
-
-    const attemptKey = `${orderId}:${effectiveCampaignId}:${effectiveRecommendationId}`;
-    if (autoApprovalAttemptedKeyRef.current === attemptKey || autoApproveMutation.isPending) {
-      return;
-    }
-
+  const attemptKey = `${orderId}:${effectiveCampaignId}:${effectiveRecommendationId}`;
+  if (
+    orderId
+    && effectiveRecommendationId
+    && effectiveCampaignId
+    && order.paymentStatus === 'paid'
+    && autoApprovalAttemptedKeyRef.current !== attemptKey
+    && !autoApproveMutation.isPending
+  ) {
     autoApprovalAttemptedKeyRef.current = attemptKey;
     autoApproveMutation.mutate();
-  }, [order.paymentStatus, effectiveCampaignId, effectiveRecommendationId, orderId, autoApproveMutation]);
+  }
 
   const statusKey = `${order.id}:${order.paymentStatus}:${vodaPayReturnData?.responseCode ?? ''}:${vodaPayReturnData?.responseMessage ?? ''}`;
   if (statusToastKeyRef.current !== statusKey) {
