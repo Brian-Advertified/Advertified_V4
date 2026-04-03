@@ -10,6 +10,7 @@ using Advertified.App.Support;
 using Advertified.App.Validation;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Hosting;
 
 var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("Advertified")
@@ -17,6 +18,10 @@ var connectionString = builder.Configuration.GetConnectionString("Advertified")
 const string FrontendCorsPolicy = "AdvertifiedFrontend";
 
 builder.Services.AddControllers();
+builder.Services.Configure<HostOptions>(options =>
+{
+    options.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.Ignore;
+});
 builder.Services.AddDataProtection();
 builder.Services.AddHttpContextAccessor();
 builder.Services.Configure<FrontendOptions>(builder.Configuration.GetSection(FrontendOptions.SectionName));

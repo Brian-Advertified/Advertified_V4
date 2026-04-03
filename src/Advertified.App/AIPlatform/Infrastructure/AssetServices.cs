@@ -261,90 +261,56 @@ public sealed class AssetJobWorker : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await foreach (var envelope in _assetJobQueue.DequeueAllAsync(stoppingToken))
+        while (!stoppingToken.IsCancellationRequested)
         {
-            var jobId = envelope.JobId;
-            var maxAttempts = Math.Max(1, _options.MaxWorkerRetries);
-            if (_options.UseInMemoryFallback)
+            try
             {
-                var attempts = 0;
-                var completed = false;
-
-                while (!completed && !stoppingToken.IsCancellationRequested && attempts < maxAttempts)
+                await foreach (var envelope in _assetJobQueue.DequeueAllAsync(stoppingToken))
                 {
-                    await using var scope = _scopeFactory.CreateAsyncScope();
-                    var repository = scope.ServiceProvider.GetRequiredService<IAssetJobRepository>();
-                    var orchestrator = scope.ServiceProvider.GetRequiredService<IMultiAiProviderOrchestrator>();
-
                     try
                     {
-                        var attemptCount = Math.Max(1, attempts + 1);
-                        await repository.MarkRunningAsync(jobId, attemptCount, stoppingToken);
-                        var payload = await repository.GetPayloadAsync(jobId, stoppingToken)
-                            ?? throw new InvalidOperationException($"Asset job payload '{jobId}' was not found.");
-
-                        var channel = payload.AssetKind switch
-                        {
-                            "voice" => AdvertisingChannel.Radio,
-                            "video" => AdvertisingChannel.Tv,
-                            _ => AdvertisingChannel.Billboard
-                        };
-
-                        var operation = payload.AssetKind switch
-                        {
-                            "voice" => "asset-voice",
-                            "video" => "asset-video",
-                            _ => "asset-image"
-                        };
-
-                        // Long-running provider processing is isolated in this worker to keep API fast and queue-safe.
-                        var output = await orchestrator.ExecuteAsync(channel, operation, payload.RequestJson, stoppingToken);
-                        using var doc = JsonDocument.Parse(output);
-                        var assetUrl = doc.RootElement.TryGetProperty("assetUrl", out var assetUrlElement)
-                            ? assetUrlElement.GetString() ?? string.Empty
-                            : string.Empty;
-                        var assetType = doc.RootElement.TryGetProperty("assetType", out var assetTypeElement)
-                            ? assetTypeElement.GetString() ?? payload.AssetKind
-                            : payload.AssetKind;
-
-                        await repository.MarkCompletedAsync(jobId, assetUrl, assetType, output, attemptCount, stoppingToken);
-                        await envelope.CompleteAsync(stoppingToken);
-                        completed = true;
+                        await ProcessEnvelopeAsync(envelope, stoppingToken);
+                    }
+                    catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                    {
+                        break;
                     }
                     catch (Exception ex)
                     {
-                        attempts++;
-                        _logger.LogError(
-                            ex,
-                            "Asset job {JobId} failed on attempt {Attempt} of {MaxAttempts}.",
-                            jobId,
-                            attempts,
-                            maxAttempts);
-
-                        if (attempts >= maxAttempts)
-                        {
-                            await repository.MarkFailedAsync(jobId, ex.Message, attempts, stoppingToken);
-                            await envelope.DeadLetterAsync("processing_failed", ex.Message, stoppingToken);
-                            break;
-                        }
-
-                        await repository.MarkRetryingAsync(jobId, ex.Message, attempts, stoppingToken);
-                        var delaySeconds = Math.Max(1, _options.BaseRetryDelaySeconds) * Math.Pow(2, attempts - 1);
-                        await Task.Delay(TimeSpan.FromSeconds(delaySeconds), stoppingToken);
+                        _logger.LogError(ex, "Asset job worker suppressed an unhandled exception for job {JobId}.", envelope.JobId);
                     }
                 }
-
-                continue;
             }
-
-            await using (var scope = _scopeFactory.CreateAsyncScope())
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
+                break;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Asset job worker loop failed unexpectedly. Restarting queue pump.");
+                await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
+            }
+        }
+    }
+
+    private async Task ProcessEnvelopeAsync(AssetJobEnvelope envelope, CancellationToken stoppingToken)
+    {
+        var jobId = envelope.JobId;
+        var maxAttempts = Math.Max(1, _options.MaxWorkerRetries);
+        if (_options.UseInMemoryFallback)
+        {
+            var attempts = 0;
+            var completed = false;
+
+            while (!completed && !stoppingToken.IsCancellationRequested && attempts < maxAttempts)
+            {
+                await using var scope = _scopeFactory.CreateAsyncScope();
                 var repository = scope.ServiceProvider.GetRequiredService<IAssetJobRepository>();
                 var orchestrator = scope.ServiceProvider.GetRequiredService<IMultiAiProviderOrchestrator>();
 
                 try
                 {
-                    var attemptCount = Math.Max(1, envelope.DeliveryCount);
+                    var attemptCount = Math.Max(1, attempts + 1);
                     await repository.MarkRunningAsync(jobId, attemptCount, stoppingToken);
                     var payload = await repository.GetPayloadAsync(jobId, stoppingToken)
                         ?? throw new InvalidOperationException($"Asset job payload '{jobId}' was not found.");
@@ -374,22 +340,86 @@ public sealed class AssetJobWorker : BackgroundService
 
                     await repository.MarkCompletedAsync(jobId, assetUrl, assetType, output, attemptCount, stoppingToken);
                     await envelope.CompleteAsync(stoppingToken);
+                    completed = true;
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Asset job {JobId} failed on delivery {DeliveryCount}.", jobId, envelope.DeliveryCount);
+                    attempts++;
+                    _logger.LogError(
+                        ex,
+                        "Asset job {JobId} failed on attempt {Attempt} of {MaxAttempts}.",
+                        jobId,
+                        attempts,
+                        maxAttempts);
 
-                    var isFinalDelivery = envelope.DeliveryCount >= maxAttempts;
-                    if (isFinalDelivery)
+                    if (attempts >= maxAttempts)
                     {
-                        await repository.MarkFailedAsync(jobId, ex.Message, Math.Max(1, envelope.DeliveryCount), stoppingToken);
+                        await repository.MarkFailedAsync(jobId, ex.Message, attempts, stoppingToken);
                         await envelope.DeadLetterAsync("processing_failed", ex.Message, stoppingToken);
+                        break;
                     }
-                    else
-                    {
-                        await repository.MarkRetryingAsync(jobId, ex.Message, Math.Max(1, envelope.DeliveryCount), stoppingToken);
-                        await envelope.AbandonAsync(stoppingToken);
-                    }
+
+                    await repository.MarkRetryingAsync(jobId, ex.Message, attempts, stoppingToken);
+                    var delaySeconds = Math.Max(1, _options.BaseRetryDelaySeconds) * Math.Pow(2, attempts - 1);
+                    await Task.Delay(TimeSpan.FromSeconds(delaySeconds), stoppingToken);
+                }
+            }
+
+            return;
+        }
+
+        await using (var scope = _scopeFactory.CreateAsyncScope())
+        {
+            var repository = scope.ServiceProvider.GetRequiredService<IAssetJobRepository>();
+            var orchestrator = scope.ServiceProvider.GetRequiredService<IMultiAiProviderOrchestrator>();
+
+            try
+            {
+                var attemptCount = Math.Max(1, envelope.DeliveryCount);
+                await repository.MarkRunningAsync(jobId, attemptCount, stoppingToken);
+                var payload = await repository.GetPayloadAsync(jobId, stoppingToken)
+                    ?? throw new InvalidOperationException($"Asset job payload '{jobId}' was not found.");
+
+                var channel = payload.AssetKind switch
+                {
+                    "voice" => AdvertisingChannel.Radio,
+                    "video" => AdvertisingChannel.Tv,
+                    _ => AdvertisingChannel.Billboard
+                };
+
+                var operation = payload.AssetKind switch
+                {
+                    "voice" => "asset-voice",
+                    "video" => "asset-video",
+                    _ => "asset-image"
+                };
+
+                var output = await orchestrator.ExecuteAsync(channel, operation, payload.RequestJson, stoppingToken);
+                using var doc = JsonDocument.Parse(output);
+                var assetUrl = doc.RootElement.TryGetProperty("assetUrl", out var assetUrlElement)
+                    ? assetUrlElement.GetString() ?? string.Empty
+                    : string.Empty;
+                var assetType = doc.RootElement.TryGetProperty("assetType", out var assetTypeElement)
+                    ? assetTypeElement.GetString() ?? payload.AssetKind
+                    : payload.AssetKind;
+
+                await repository.MarkCompletedAsync(jobId, assetUrl, assetType, output, attemptCount, stoppingToken);
+                await envelope.CompleteAsync(stoppingToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Asset job {JobId} failed on delivery {DeliveryCount}.", jobId, envelope.DeliveryCount);
+
+                var isFinalDelivery = envelope.DeliveryCount >= maxAttempts;
+                if (isFinalDelivery)
+                {
+                    await repository.MarkFailedAsync(jobId, ex.Message, Math.Max(1, envelope.DeliveryCount), stoppingToken);
+                    await envelope.DeadLetterAsync("processing_failed", ex.Message, stoppingToken);
+                }
+                else
+                {
+                    await repository.MarkRetryingAsync(jobId, ex.Message, Math.Max(1, envelope.DeliveryCount), stoppingToken);
+                    await envelope.AbandonAsync(stoppingToken);
                 }
             }
         }
