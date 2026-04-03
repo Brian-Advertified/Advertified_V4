@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { ArrowLeft, ArrowRight, Lock } from 'lucide-react';
 import * as React from 'react';
-import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { ProcessingOverlay } from '../../components/ui/ProcessingOverlay';
 import { PageHero } from '../../components/marketing/PageHero';
@@ -36,6 +36,7 @@ const providerOptions: ProviderOption[] = [
 
 export function PaymentSelectionPage() {
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
   const purchaseRestriction = getPackagePurchaseRestriction(user);
@@ -49,6 +50,7 @@ export function PaymentSelectionPage() {
   const isExistingOrderCheckout = orderId.length > 0;
   const [selectedProvider, setSelectedProvider] = React.useState<PaymentProvider>('lula');
   const [isResendingActivation, setIsResendingActivation] = React.useState(false);
+  const authNextPath = `${location.pathname}${location.search}`;
 
   const packagesQuery = useQuery({ queryKey: ['packages'], queryFn: advertifiedApi.getPackages });
   const existingOrderQuery = useQuery({
@@ -208,10 +210,10 @@ export function PaymentSelectionPage() {
 
           {!user ? (
             <div className="space-y-3">
-              <Link to="/register" className="button-primary flex items-center justify-center gap-2 px-5 py-3">
+              <Link to={`/register?next=${encodeURIComponent(authNextPath)}`} className="button-primary flex items-center justify-center gap-2 px-5 py-3">
                 Register to continue
               </Link>
-              <Link to="/login" className="button-secondary flex items-center justify-center gap-2 px-5 py-3">
+              <Link to={`/login?next=${encodeURIComponent(authNextPath)}`} className="button-secondary flex items-center justify-center gap-2 px-5 py-3">
                 Log in
               </Link>
             </div>

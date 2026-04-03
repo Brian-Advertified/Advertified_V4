@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { ArrowRight, FileText } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { PageHero } from '../../components/marketing/PageHero';
 import { RecommendationViewer } from '../../features/campaigns/components/RecommendationViewer';
@@ -32,6 +32,7 @@ export function ProposalEntryPage() {
   const [searchParams] = useSearchParams();
   const { isAuthenticated } = useAuth();
   const { pushToast } = useToast();
+  const navigate = useNavigate();
   const [changeNotes, setChangeNotes] = useState('');
   const [selectedRecommendationId, setSelectedRecommendationId] = useState('');
   const recommendationId = searchParams.get('recommendationId')?.trim() ?? '';
@@ -60,6 +61,9 @@ export function ProposalEntryPage() {
       : (recommendations.find((item) => item.status === 'sent_to_client')?.id ?? recommendations[0]?.id ?? '');
   const recommendation = recommendations.find((item) => item.id === resolvedRecommendationId) ?? recommendations[0];
   const paymentRequiredBeforeApproval = publicProposalQuery.data?.paymentStatus !== 'paid';
+  const checkoutPath = publicProposalQuery.data && recommendation
+    ? `/checkout/payment?orderId=${encodeURIComponent(publicProposalQuery.data.packageOrderId)}&campaignId=${encodeURIComponent(publicProposalQuery.data.id)}&recommendationId=${encodeURIComponent(recommendation.id)}`
+    : null;
 
   const approveMutation = useMutation({
     mutationFn: (selectedId?: string) => advertifiedApi.approvePublicProposal(id, token, selectedId),
@@ -165,6 +169,18 @@ export function ProposalEntryPage() {
       );
     }
 
+    function handlePrimaryAction() {
+      if (paymentRequiredBeforeApproval) {
+        if (checkoutPath) {
+          navigate(checkoutPath);
+        }
+
+        return;
+      }
+
+      approveMutation.mutate(recommendation?.id);
+    }
+
     return (
       <section className="page-shell space-y-8 pb-20">
         <PageHero
@@ -261,8 +277,8 @@ export function ProposalEntryPage() {
               <div className="grid gap-3">
                 <button
                   type="button"
-                  onClick={() => approveMutation.mutate(recommendation?.id)}
-                  disabled={approveMutation.isPending || requestChangesMutation.isPending || rejectAllMutation.isPending || paymentRequiredBeforeApproval}
+                  onClick={handlePrimaryAction}
+                  disabled={approveMutation.isPending || requestChangesMutation.isPending || rejectAllMutation.isPending || (!checkoutPath && paymentRequiredBeforeApproval)}
                   className={`w-full justify-center text-center whitespace-normal px-4 py-3 text-sm ${
                     paymentRequiredBeforeApproval
                       ? 'user-btn-secondary border-amber-200 bg-amber-50 text-amber-900 opacity-100'
@@ -270,7 +286,7 @@ export function ProposalEntryPage() {
                   } disabled:cursor-not-allowed disabled:opacity-100`}
                 >
                   {paymentRequiredBeforeApproval
-                    ? 'Payment required before approval'
+                    ? (isAuthenticated ? 'Pay and approve selected' : 'Create account and pay to approve')
                     : (approveMutation.isPending ? 'Accepting...' : 'Approve selected')}
                 </button>
                 <button
