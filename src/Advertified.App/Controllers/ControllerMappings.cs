@@ -187,7 +187,11 @@ internal static class ControllerMappings
             FallbackFlags = fallbackFlags,
             Status = recommendation.Status,
             TotalCost = recommendation.TotalCost,
-            Items = recommendation.RecommendationItems.Select(item => ToResponse(item, includeLinePricing)).ToArray()
+            Items = recommendation.RecommendationItems
+                .OrderBy(item => GetRecommendationItemChannelRank(item.InventoryType))
+                .ThenBy(item => item.DisplayName)
+                .Select(item => ToResponse(item, includeLinePricing))
+                .ToArray()
         };
     }
 
@@ -333,6 +337,48 @@ internal static class ControllerMappings
             Cost = includeLinePricing ? item.TotalCost : 0m,
             Type = item.InventoryType.Contains("upsell", StringComparison.OrdinalIgnoreCase) ? "upsell" : "base"
         };
+    }
+
+    private static int GetRecommendationItemChannelRank(string? channel)
+    {
+        var normalized = NormalizeRecommendationChannel(channel);
+        return normalized switch
+        {
+            "ooh" => 0,
+            "radio" => 1,
+            "tv" => 2,
+            "digital" => 3,
+            _ => 9
+        };
+    }
+
+    private static string NormalizeRecommendationChannel(string? channel)
+    {
+        var normalized = (channel ?? string.Empty).Trim().ToLowerInvariant();
+        if (normalized.Contains("ooh", StringComparison.OrdinalIgnoreCase)
+            || normalized.Contains("billboard", StringComparison.OrdinalIgnoreCase)
+            || normalized.Contains("out of home", StringComparison.OrdinalIgnoreCase))
+        {
+            return "ooh";
+        }
+
+        if (normalized.Contains("radio", StringComparison.OrdinalIgnoreCase))
+        {
+            return "radio";
+        }
+
+        if (normalized.Contains("tv", StringComparison.OrdinalIgnoreCase)
+            || normalized.Contains("television", StringComparison.OrdinalIgnoreCase))
+        {
+            return "tv";
+        }
+
+        if (normalized.Contains("digital", StringComparison.OrdinalIgnoreCase))
+        {
+            return "digital";
+        }
+
+        return normalized;
     }
 
     private static string ExtractRationale(string? metadataJson)

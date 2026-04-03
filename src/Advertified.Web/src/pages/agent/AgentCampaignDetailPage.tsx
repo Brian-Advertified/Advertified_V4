@@ -449,16 +449,17 @@ export function AgentCampaignDetailPage() {
   const effectivePlannedTotal = plannedTotal > 0 ? plannedTotal : activeRecommendation?.totalCost ?? 0;
   const isProspectiveCampaign = campaign.status === 'awaiting_purchase';
   const budgetDelta = campaign.selectedBudget - effectivePlannedTotal;
-  const prospectiveBelowBandDelta = isProspectiveCampaign && selectedPackageBand
+  const hasSelectedPackageBand = Boolean(selectedPackageBand);
+  const prospectiveBelowBandDelta = selectedPackageBand
     ? selectedPackageBand.minBudget - effectivePlannedTotal
     : 0;
-  const prospectiveAboveBandDelta = isProspectiveCampaign && selectedPackageBand
+  const prospectiveAboveBandDelta = selectedPackageBand
     ? effectivePlannedTotal - selectedPackageBand.maxBudget
     : 0;
-  const isOutsideProspectBand = isProspectiveCampaign && selectedPackageBand
+  const isOutsideProspectBand = selectedPackageBand
     ? effectivePlannedTotal < selectedPackageBand.minBudget || effectivePlannedTotal > selectedPackageBand.maxBudget
     : false;
-  const isOverBudget = isProspectiveCampaign ? isOutsideProspectBand : budgetDelta < 0;
+  const isOverBudget = hasSelectedPackageBand ? isOutsideProspectBand : budgetDelta < 0;
   const activeProposalLabel = activeRecommendation?.proposalLabel ?? 'Current proposal';
   const showExecutionOperations = (
     campaign.status === 'approved'
@@ -495,7 +496,7 @@ export function AgentCampaignDetailPage() {
   const canModifyPlan = canEditDraftRecommendation && !draftApprovalCaptured;
   const hasSendableProposal = recommendations.length >= 1;
   const hasOohRecommendation = selectedPlanItems.some((item) => normalizeChannelKey(item.type) === 'OOH');
-  const budgetConstraint: BudgetConstraintContext = isProspectiveCampaign && selectedPackageBand
+  const budgetConstraint: BudgetConstraintContext = selectedPackageBand
     ? {
       label: 'Within selected band',
       ok: !isOutsideProspectBand,
@@ -719,11 +720,6 @@ export function AgentCampaignDetailPage() {
                 ? `Package range: ${formatPackageRange(selectedPackageBand.minBudget, selectedPackageBand.maxBudget)}`
                 : `Package target: ${formatCurrency(campaign.selectedBudget)}`}
             </p>
-            {selectedPackageBand ? (
-              <p className="mt-2 text-sm text-ink-soft">
-                Planning reference: {formatCurrency(campaign.selectedBudget)}
-              </p>
-            ) : null}
             {activeRecommendation ? (
               <p className="mt-2 text-sm font-semibold text-ink">{activeProposalLabel}: {formatCurrency(activeRecommendation.totalCost)}</p>
             ) : null}
@@ -1002,7 +998,11 @@ export function AgentCampaignDetailPage() {
                   ? effectivePlannedTotal > selectedPackageBand.maxBudget
                     ? `This draft is ${formatCurrency(Math.abs(prospectiveAboveBandDelta))} over the selected package band maximum.`
                     : `This draft is ${formatCurrency(Math.abs(prospectiveBelowBandDelta))} below the selected package band minimum.`
-                  : `This draft is ${formatCurrency(Math.abs(budgetDelta))} over the client&apos;s budget.`}
+                  : selectedPackageBand
+                    ? effectivePlannedTotal > selectedPackageBand.maxBudget
+                      ? `This draft is ${formatCurrency(Math.abs(prospectiveAboveBandDelta))} over the selected package band maximum.`
+                      : `This draft is ${formatCurrency(Math.abs(prospectiveBelowBandDelta))} below the selected package band minimum.`
+                    : `This draft is ${formatCurrency(Math.abs(budgetDelta))} over the client's budget.`}
               </p>
             ) : null}
           </div>

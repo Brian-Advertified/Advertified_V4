@@ -698,11 +698,6 @@ export function AgentCreateRecommendationPage() {
                 <p className="mt-2 text-xs text-ink-soft">
                   Proposal A, B, and C will be generated from this band&apos;s lower, middle, and upper tiers.
                 </p>
-                {selectedPackageBand ? (
-                  <p className="mt-2 text-xs text-ink-soft">
-                    Planning reference: {formatCurrency(selectedCampaignReferenceBudget)} within the {formatPackageRange(selectedPackageBand)} band.
-                  </p>
-                ) : null}
               </div>
             ) : null}
             <div className="mt-4">

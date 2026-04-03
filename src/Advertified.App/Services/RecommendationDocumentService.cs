@@ -138,7 +138,11 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
     private RecommendationProposalDocumentModel MapProposal(Guid campaignId, CampaignRecommendation recommendation, int proposalIndex)
     {
         var (label, strategy) = GetProposalDetails(recommendation.RecommendationType, proposalIndex);
-        var lines = recommendation.RecommendationItems.Select(MapLine).ToList();
+        var lines = recommendation.RecommendationItems
+            .OrderBy(item => GetRecommendationItemChannelRank(item.InventoryType))
+            .ThenBy(item => item.DisplayName)
+            .Select(MapLine)
+            .ToList();
         lines.Add(new RecommendationLineDocumentModel
         {
             Channel = "Studio",
@@ -388,6 +392,48 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
         return index >= 0 && index < 26
             ? ((char)('A' + index)).ToString()
             : (index + 1).ToString();
+    }
+
+    private static int GetRecommendationItemChannelRank(string? channel)
+    {
+        var normalized = NormalizeRecommendationChannel(channel);
+        return normalized switch
+        {
+            "ooh" => 0,
+            "radio" => 1,
+            "tv" => 2,
+            "digital" => 3,
+            _ => 9
+        };
+    }
+
+    private static string NormalizeRecommendationChannel(string? channel)
+    {
+        var normalized = (channel ?? string.Empty).Trim().ToLowerInvariant();
+        if (normalized.Contains("ooh", StringComparison.OrdinalIgnoreCase)
+            || normalized.Contains("billboard", StringComparison.OrdinalIgnoreCase)
+            || normalized.Contains("out of home", StringComparison.OrdinalIgnoreCase))
+        {
+            return "ooh";
+        }
+
+        if (normalized.Contains("radio", StringComparison.OrdinalIgnoreCase))
+        {
+            return "radio";
+        }
+
+        if (normalized.Contains("tv", StringComparison.OrdinalIgnoreCase)
+            || normalized.Contains("television", StringComparison.OrdinalIgnoreCase))
+        {
+            return "tv";
+        }
+
+        if (normalized.Contains("digital", StringComparison.OrdinalIgnoreCase))
+        {
+            return "digital";
+        }
+
+        return normalized;
     }
 
     private string BuildFrontendUrl(string path)
