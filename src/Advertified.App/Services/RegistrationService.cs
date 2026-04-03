@@ -128,7 +128,7 @@ public sealed class RegistrationService : IRegistrationService
             throw new InvalidOperationException(message, ex);
         }
 
-        await _emailVerificationService.QueueActivationEmailAsync(user, cancellationToken);
+        await _emailVerificationService.QueueActivationEmailAsync(user, request.NextPath, cancellationToken);
 
         return new RegisterResponse
         {

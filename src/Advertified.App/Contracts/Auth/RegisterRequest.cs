@@ -59,4 +59,6 @@ public sealed class RegisterRequest
     public DateOnly? PassportIssueDate { get; set; }
 
     public DateOnly? PassportValidUntil { get; set; }
+
+    public string? NextPath { get; set; }
 }

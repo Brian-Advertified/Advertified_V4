@@ -1516,6 +1516,7 @@ export const advertifiedApi = {
         passportCountryIso2: emptyToUndefined(input.passportCountryIso2),
         passportIssueDate: emptyToUndefined(input.passportIssueDate),
         passportValidUntil: emptyToUndefined(input.passportValidUntil),
+        nextPath: emptyToUndefined(input.nextPath),
       }),
     });
 
@@ -1579,11 +1580,14 @@ export const advertifiedApi = {
     return mapSessionUser(response);
   },
 
-  async resendVerification(email?: string) {
+  async resendVerification(email?: string, nextPath?: string) {
     const session = getStoredSession();
     return apiRequest<{ message: string; email: string }>('/auth/resend-verification', {
       method: 'POST',
-      body: JSON.stringify({ email: email ?? session?.email ?? '' }),
+      body: JSON.stringify({
+        email: email ?? session?.email ?? '',
+        nextPath: emptyToUndefined(nextPath),
+      }),
     });
   },
 

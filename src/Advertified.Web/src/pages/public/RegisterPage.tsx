@@ -21,7 +21,10 @@ export function RegisterPage() {
   async function handleSubmit(values: RegistrationSchema) {
     try {
       setLoading(true);
-      const result = await register(values);
+      const result = await register({
+        ...values,
+        nextPath: nextPath || undefined,
+      });
       pushToast({
         title: 'Your account has been created.',
         description: 'Check your email for the activation link before you sign in.',

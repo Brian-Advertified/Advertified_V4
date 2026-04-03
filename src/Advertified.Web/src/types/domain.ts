@@ -1072,6 +1072,7 @@ export interface RegistrationInput {
   passportCountryIso2?: string;
   passportIssueDate?: string;
   passportValidUntil?: string;
+  nextPath?: string;
   acceptTerms: boolean;
   acceptPopia: boolean;
 }

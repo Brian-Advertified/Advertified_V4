@@ -93,7 +93,7 @@ public sealed class AuthController : ControllerBase
     [HttpPost("resend-verification")]
     public async Task<ActionResult> ResendVerification([FromBody] ResendVerificationRequest request, CancellationToken cancellationToken)
     {
-        await _emailVerificationService.ResendActivationAsync(request.Email, cancellationToken);
+        await _emailVerificationService.ResendActivationAsync(request.Email, request.NextPath, cancellationToken);
 
         return Accepted(new
         {

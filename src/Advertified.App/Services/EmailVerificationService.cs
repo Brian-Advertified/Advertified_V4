@@ -31,10 +31,20 @@ public sealed class EmailVerificationService : IEmailVerificationService
         _logger = logger;
     }
 
-    public async Task QueueActivationEmailAsync(UserAccount user, CancellationToken cancellationToken)
+    public async Task QueueActivationEmailAsync(UserAccount user, string? nextPath, CancellationToken cancellationToken)
     {
         var rawToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
         var nowUtc = DateTime.UtcNow;
+        var safeNextPath = SanitizeNextPath(nextPath);
+        var activationQuery = new List<string>
+        {
+            $"token={Uri.EscapeDataString(rawToken)}",
+            $"email={Uri.EscapeDataString(user.Email)}"
+        };
+        if (!string.IsNullOrWhiteSpace(safeNextPath))
+        {
+            activationQuery.Add($"next={Uri.EscapeDataString(safeNextPath)}");
+        }
 
         _db.EmailVerificationTokens.Add(new EmailVerificationToken
         {
@@ -57,7 +67,7 @@ public sealed class EmailVerificationService : IEmailVerificationService
                 {
                     ["UserName"] = user.FullName,
                     ["ExpiresInHours"] = VerificationExpiryHours.ToString(),
-                    ["ActivationUrl"] = BuildFrontendUrl($"/verify-email?token={Uri.EscapeDataString(rawToken)}")
+                    ["ActivationUrl"] = BuildFrontendUrl($"/verify-email?{string.Join("&", activationQuery)}")
                 },
                 null,
                 cancellationToken);
@@ -70,7 +80,8 @@ public sealed class EmailVerificationService : IEmailVerificationService
 
     public async Task<UserAccount> VerifyAsync(string token, CancellationToken cancellationToken)
     {
-        var tokenHash = HashToken(token);
+        var normalizedToken = NormalizeRawToken(token);
+        var tokenHash = HashToken(normalizedToken);
         var nowUtc = DateTime.UtcNow;
 
         var verificationToken = await _db.EmailVerificationTokens
@@ -111,7 +122,7 @@ public sealed class EmailVerificationService : IEmailVerificationService
         return verificationToken.User;
     }
 
-    public async Task ResendActivationAsync(string email, CancellationToken cancellationToken)
+    public async Task ResendActivationAsync(string email, string? nextPath, CancellationToken cancellationToken)
     {
         var normalizedEmail = email.Trim().ToLowerInvariant();
         var user = await _db.UserAccounts
@@ -123,7 +134,7 @@ public sealed class EmailVerificationService : IEmailVerificationService
             return;
         }
 
-        await QueueActivationEmailAsync(user, cancellationToken);
+        await QueueActivationEmailAsync(user, nextPath, cancellationToken);
     }
 
     private string BuildFrontendUrl(string path)
@@ -135,5 +146,31 @@ public sealed class EmailVerificationService : IEmailVerificationService
     {
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(token.Trim()));
         return Convert.ToHexString(bytes);
+    }
+
+    private static string NormalizeRawToken(string token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return string.Empty;
+        }
+
+        var normalized = new string(token
+            .Trim()
+            .Where(Uri.IsHexDigit)
+            .ToArray());
+
+        return normalized.ToLowerInvariant();
+    }
+
+    private static string? SanitizeNextPath(string? nextPath)
+    {
+        if (string.IsNullOrWhiteSpace(nextPath))
+        {
+            return null;
+        }
+
+        var trimmed = nextPath.Trim();
+        return trimmed.StartsWith("/", StringComparison.Ordinal) ? trimmed : null;
     }
 }

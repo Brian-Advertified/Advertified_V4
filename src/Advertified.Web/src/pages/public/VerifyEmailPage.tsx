@@ -87,7 +87,7 @@ export function VerifyEmailPage() {
 
     try {
       setResending(true);
-      await advertifiedApi.resendVerification(email);
+      await advertifiedApi.resendVerification(email, nextPath || undefined);
       pushToast({
         title: 'A fresh activation email is on its way.',
         description: 'Check your inbox in a moment for the new secure link.',

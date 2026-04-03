@@ -2045,11 +2045,11 @@ internal sealed class StubCampaignReasoningService : ICampaignReasoningService
 
 internal sealed class StubEmailVerificationService : IEmailVerificationService
 {
-    public Task QueueActivationEmailAsync(UserAccount user, CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task QueueActivationEmailAsync(UserAccount user, string? nextPath, CancellationToken cancellationToken) => Task.CompletedTask;
 
     public Task<UserAccount> VerifyAsync(string token, CancellationToken cancellationToken) => throw new NotSupportedException();
 
-    public Task ResendActivationAsync(string email, CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task ResendActivationAsync(string email, string? nextPath, CancellationToken cancellationToken) => Task.CompletedTask;
 }
 
 internal sealed class StubInvoiceService : IInvoiceService

@@ -591,7 +591,7 @@ public sealed class AgentCampaignsController : ControllerBase
 
         if (!refreshedCampaign.User.EmailVerified)
         {
-            await _emailVerificationService.QueueActivationEmailAsync(refreshedCampaign.User, cancellationToken);
+            await _emailVerificationService.QueueActivationEmailAsync(refreshedCampaign.User, null, cancellationToken);
         }
 
         await WriteChangeAuditAsync(

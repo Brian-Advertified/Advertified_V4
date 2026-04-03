@@ -241,12 +241,12 @@ export function PaymentSelectionPage() {
                   onClick={async () => {
                     try {
                       setIsResendingActivation(true);
-                      await advertifiedApi.resendVerification(user.email);
+                      await advertifiedApi.resendVerification(user.email, authNextPath);
                       pushToast({
                         title: 'A fresh activation email is on its way.',
                         description: 'Check your inbox for the new activation link.',
                       });
-                      navigate(`/verify-email?email=${encodeURIComponent(user.email)}`);
+                      navigate(`/verify-email?email=${encodeURIComponent(user.email)}&next=${encodeURIComponent(authNextPath)}`);
                     } finally {
                       setIsResendingActivation(false);
                     }
