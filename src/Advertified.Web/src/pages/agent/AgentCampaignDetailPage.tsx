@@ -51,6 +51,10 @@ function formatChannelLabel(channel: string) {
   return normalizeChannelKey(channel) === 'OOH' ? 'Billboards and Digital Screens' : titleCase(channel.toLowerCase());
 }
 
+function formatMixSummary(mix: { ooh: number; radio: number; tv: number; digital: number }) {
+  return `Billboards and Digital Screens ${mix.ooh}% | Radio ${mix.radio}% | TV ${mix.tv}% | Digital ${mix.digital}%`;
+}
+
 function formatFallbackFlag(flag: string) {
   const normalized = flag.trim().toLowerCase();
   if (normalized.startsWith('preferred_media_unfulfilled:')) {
@@ -896,10 +900,15 @@ export function AgentCampaignDetailPage() {
                   className="mt-4 w-full accent-brand"
                 />
                 <p className="mt-3 text-sm text-ink-soft">
-                  Target mix: Radio {targetMix.radio}% | Billboards and Digital Screens {targetMix.ooh}% | TV {targetMix.tv}% | Digital {targetMix.digital}%
+                  Target mix: {formatMixSummary(targetMix)}
                 </p>
                 <p className="mt-1 text-sm text-ink-soft">
-                  Current draft: Radio {currentRadioShare}% | Billboards and Digital Screens {currentOohShare}% | TV {currentTvShare}% | Digital {currentDigitalShare}%
+                  Current draft: {formatMixSummary({
+                    ooh: currentOohShare,
+                    radio: currentRadioShare,
+                    tv: currentTvShare,
+                    digital: currentDigitalShare,
+                  })}
                 </p>
               </div>
 
