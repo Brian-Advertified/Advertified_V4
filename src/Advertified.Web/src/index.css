@@ -1218,6 +1218,9 @@ textarea {
 .user-btn,
 .user-btn-primary,
 .user-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 1px solid var(--user-line);
   background: rgba(255, 255, 255, 0.95);
   padding: 8px 12px;

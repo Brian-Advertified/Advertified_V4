@@ -162,7 +162,7 @@ export function ProposalEntryPage() {
         <PageHero
           kicker="Proposal review"
           title={publicProposalQuery.data.campaignName}
-          description="Review the proposal options, choose one to approve, request changes on the selected option, or reject all and request a fresh set."
+          description="Review the options and tell us how you want to proceed."
         />
 
         {recommendations.length > 1 ? (
@@ -212,11 +212,11 @@ export function ProposalEntryPage() {
           </div>
         )}
 
-        <div className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,380px)]">
           <div className="rounded-[18px] border border-line bg-white p-5">
-            <div className="text-lg font-semibold text-ink">Tell us what to do next</div>
+            <div className="text-lg font-semibold text-ink">Next step</div>
             <p className="mt-2 text-sm leading-7 text-ink-soft">
-              Approve the selected proposal to move forward, request changes on the selected proposal, or reject all and ask for a new proposal set.
+              Choose the selected proposal, ask for changes, or reject the full set.
             </p>
             {paymentRequiredBeforeApproval ? (
               <div className="mt-4 rounded-[14px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -226,36 +226,40 @@ export function ProposalEntryPage() {
           </div>
 
           <div className="space-y-3">
+            <label className="block text-sm font-semibold text-ink" htmlFor="proposal-review-notes">
+              Notes
+            </label>
             <textarea
+              id="proposal-review-notes"
               value={changeNotes}
               onChange={(event) => setChangeNotes(event.target.value)}
-              className="input-base min-h-[120px]"
-              placeholder="Comments for revisions, or reason if rejecting all proposals..."
+              className="input-base min-h-[110px]"
+              placeholder="Add feedback if you want changes or want to reject all proposals."
             />
-            <div className="flex flex-wrap gap-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               <button
                 type="button"
                 onClick={() => approveMutation.mutate(recommendation?.id)}
                 disabled={approveMutation.isPending || requestChangesMutation.isPending || rejectAllMutation.isPending || paymentRequiredBeforeApproval}
-                className="user-btn-primary disabled:cursor-not-allowed disabled:opacity-60"
+                className="user-btn-primary w-full justify-center text-center whitespace-normal disabled:cursor-not-allowed disabled:opacity-60 sm:col-span-2"
               >
-                {approveMutation.isPending ? 'Accepting...' : 'Accept as final'}
+                {approveMutation.isPending ? 'Accepting...' : 'Approve selected'}
               </button>
               <button
                 type="button"
                 onClick={() => requestChangesMutation.mutate(buildSelectedProposalFeedback(changeNotes))}
                 disabled={approveMutation.isPending || requestChangesMutation.isPending || rejectAllMutation.isPending || !changeNotes.trim()}
-                className="user-btn-secondary disabled:cursor-not-allowed disabled:opacity-60"
+                className="user-btn-secondary w-full justify-center text-center whitespace-normal disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {requestChangesMutation.isPending ? 'Sending...' : 'Request changes on selected proposal'}
+                {requestChangesMutation.isPending ? 'Sending...' : 'Request changes'}
               </button>
               <button
                 type="button"
                 onClick={() => rejectAllMutation.mutate(buildRejectAllFeedback(changeNotes))}
                 disabled={approveMutation.isPending || requestChangesMutation.isPending || rejectAllMutation.isPending || !changeNotes.trim()}
-                className="user-btn-secondary disabled:cursor-not-allowed disabled:opacity-60"
+                className="user-btn-secondary w-full justify-center text-center whitespace-normal disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {rejectAllMutation.isPending ? 'Sending...' : 'Reject all and request new set'}
+                {rejectAllMutation.isPending ? 'Sending...' : 'Reject all'}
               </button>
             </div>
           </div>

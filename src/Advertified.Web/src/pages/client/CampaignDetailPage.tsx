@@ -504,38 +504,42 @@ export function CampaignDetailPage() {
 
               {canApproveRecommendation ? (
                 <div className="space-y-3">
+                  <label className="block text-sm font-semibold text-ink" htmlFor="campaign-approval-notes">
+                    Notes
+                  </label>
                   <textarea
+                    id="campaign-approval-notes"
                     value={changeNotes}
                     onChange={(event) => setChangeNotes(event.target.value)}
-                    className="input-base min-h-[120px]"
-                    placeholder="Comments for revisions, or reason if rejecting all proposals..."
+                    className="input-base min-h-[110px]"
+                    placeholder="Add feedback if you want changes or want to reject all proposals."
                   />
-                  <div className="flex flex-wrap gap-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
                     <button
                       type="button"
                       onClick={() => approveMutation.mutate(recommendation?.id)}
                       disabled={approveMutation.isPending || requestChangesMutation.isPending || rejectAllMutation.isPending}
-                      className="user-btn-primary disabled:cursor-not-allowed disabled:opacity-60"
+                      className="user-btn-primary w-full justify-center text-center whitespace-normal disabled:cursor-not-allowed disabled:opacity-60 sm:col-span-2"
                     >
-                      {approveMutation.isPending ? 'Accepting...' : 'Accept as final'}
+                      {approveMutation.isPending ? 'Accepting...' : 'Approve selected'}
                     </button>
                     <button
                       type="button"
                       onClick={() => requestChangesMutation.mutate(buildSelectedProposalFeedback(changeNotes))}
                       disabled={approveMutation.isPending || requestChangesMutation.isPending || rejectAllMutation.isPending || !changeNotes.trim()}
-                      className="user-btn-secondary disabled:cursor-not-allowed disabled:opacity-60"
+                      className="user-btn-secondary w-full justify-center text-center whitespace-normal disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {requestChangesMutation.isPending ? 'Sending...' : 'Request changes on selected proposal'}
+                      {requestChangesMutation.isPending ? 'Sending...' : 'Request changes'}
                     </button>
                     <button
                       type="button"
                       onClick={() => rejectAllMutation.mutate(buildRejectAllFeedback(changeNotes))}
                       disabled={approveMutation.isPending || requestChangesMutation.isPending || rejectAllMutation.isPending || !changeNotes.trim()}
-                      className="user-btn-secondary disabled:cursor-not-allowed disabled:opacity-60"
+                      className="user-btn-secondary w-full justify-center text-center whitespace-normal disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {rejectAllMutation.isPending ? 'Sending...' : 'Reject all and request new set'}
+                      {rejectAllMutation.isPending ? 'Sending...' : 'Reject all'}
                     </button>
-                    <Link to={`${campaignBasePath}/messages`} className="user-btn">Ask question</Link>
+                    <Link to={`${campaignBasePath}/messages`} className="user-btn w-full justify-center text-center sm:col-span-2">Ask question</Link>
                   </div>
                 </div>
               ) : canApproveCreative ? (
