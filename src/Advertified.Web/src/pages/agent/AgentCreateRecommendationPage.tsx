@@ -152,7 +152,7 @@ function inferInitialForm(campaign: {
     brandName: `${campaign.clientName} ${campaign.packageBandName} Campaign`,
     tone: campaign.packageBandName === 'Dominance' ? 'premium' : 'high-visibility',
     brief: campaign.isProspective && campaign.packageRangeLabel
-      ? `Build a ${campaign.packageBandName.toLowerCase()} recommendation for ${campaign.clientName} within the ${campaign.packageRangeLabel} package range. Plan around ${formatCurrency(campaign.selectedBudget)} as the initial reference point. ${campaign.nextAction}`
+      ? `Build a ${campaign.packageBandName.toLowerCase()} recommendation for ${campaign.clientName} within the ${campaign.packageRangeLabel} package range. ${campaign.nextAction}`
       : `Build a ${campaign.packageBandName.toLowerCase()} recommendation for ${campaign.clientName} within ${formatCurrency(campaign.selectedBudget)}. ${campaign.nextAction}`,
     channels: ensureRequiredChannels(defaultChannels),
   };
@@ -243,6 +243,10 @@ export function AgentCreateRecommendationPage() {
   const selectedCampaignReferenceBudget = selectedCampaignIsProspective && selectedPackageBand
     ? resolvePackageReferenceBudget(selectedPackageBand)
     : (selectedCampaign?.selectedBudget ?? 0);
+  const packageBandsById = useMemo(
+    () => new Map((packagesQuery.data ?? []).map((item) => [item.id, item])),
+    [packagesQuery.data],
+  );
   const allowedChannels = useMemo(
     () => getAllowedChannels(selectedPackageBand),
     [selectedPackageBand],
@@ -662,7 +666,9 @@ export function AgentCreateRecommendationPage() {
                   <option value="">Select campaign</option>
                   {filteredCampaigns.map((campaign) => (
                     <option key={campaign.id} value={campaign.id}>
-                      {campaign.packageBandName} | {formatCurrency(campaign.selectedBudget)} | {campaign.queueLabel}
+                      {campaign.packageBandName} | {campaign.status === 'awaiting_purchase' && packageBandsById.get(campaign.packageBandId)
+                        ? formatPackageRange(packageBandsById.get(campaign.packageBandId)!)
+                        : formatCurrency(campaign.selectedBudget)} | {campaign.queueLabel}
                       {campaign.status === 'awaiting_purchase' ? ' | Prospective (unpaid)' : ''}
                     </option>
                   ))}
@@ -741,7 +747,7 @@ export function AgentCreateRecommendationPage() {
                   </label>
                 </div>
                 <p className="mt-3 text-xs text-ink-soft">
-                  A planning reference budget is derived automatically from the selected price band.
+                  Recommendations will be generated within the selected price band.
                 </p>
                 <div className="mt-4">
                   <button
@@ -1002,7 +1008,7 @@ export function AgentCreateRecommendationPage() {
             </p>
             {selectedCampaignIsProspective ? (
               <p className="mt-2 text-xs text-amber-700">
-                Prospective campaign: recommendation can be prepared and shared before payment. Planning starts from {formatCurrency(selectedCampaignReferenceBudget)} inside the selected band.
+                Prospective campaign: recommendation can be prepared and shared before payment, while staying inside the selected price band.
               </p>
             ) : null}
 
