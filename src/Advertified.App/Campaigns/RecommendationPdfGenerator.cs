@@ -43,7 +43,7 @@ internal static class RecommendationPdfGenerator
                         col.Item().Text("CLIENT COPY").SemiBold().FontSize(22);
                         col.Item().Text($"Generated: {model.GeneratedAtUtc:dd MMM yyyy HH:mm} UTC").FontColor("#4B5563");
                         col.Item().Text($"Package: {model.PackageName}").FontColor("#4B5563");
-                        col.Item().Text($"Budget: {FormatCurrency(model.SelectedBudget)}").SemiBold();
+                        col.Item().Text($"{model.BudgetLabel}: {model.BudgetDisplayText}").SemiBold();
                     });
                 });
 
@@ -379,6 +379,8 @@ internal sealed class RecommendationDocumentModel
     public string? CampaignApprovalsUrl { get; init; }
     public string PackageName { get; init; } = string.Empty;
     public decimal SelectedBudget { get; init; }
+    public string BudgetLabel { get; init; } = "Budget";
+    public string BudgetDisplayText { get; init; } = string.Empty;
     public DateTime GeneratedAtUtc { get; init; }
     public string? CampaignObjective { get; init; }
     public string? SpecialRequirements { get; init; }
@@ -420,4 +422,3 @@ internal sealed class RecommendationLineDocumentModel
     public IReadOnlyList<string> SelectionReasons { get; init; } = Array.Empty<string>();
     public IReadOnlyList<string> PolicyFlags { get; init; } = Array.Empty<string>();
 }
-

@@ -60,6 +60,8 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
             CampaignApprovalsUrl = BuildProposalUrl(campaign.Id),
             PackageName = campaign.PackageBand.Name,
             SelectedBudget = ResolveSelectedBudget(campaign),
+            BudgetLabel = ResolveBudgetLabel(campaign),
+            BudgetDisplayText = ResolveBudgetDisplayText(campaign),
             GeneratedAtUtc = DateTime.UtcNow,
             CampaignObjective = campaign.CampaignBrief?.Objective,
             SpecialRequirements = campaign.CampaignBrief?.SpecialRequirements ?? campaign.CampaignBrief?.CreativeNotes,
@@ -113,6 +115,8 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
             CampaignApprovalsUrl = BuildProposalUrl(campaign.Id),
             PackageName = campaign.PackageBand.Name,
             SelectedBudget = ResolveSelectedBudget(campaign),
+            BudgetLabel = ResolveBudgetLabel(campaign),
+            BudgetDisplayText = ResolveBudgetDisplayText(campaign),
             GeneratedAtUtc = DateTime.UtcNow,
             CampaignObjective = campaign.CampaignBrief?.Objective,
             SpecialRequirements = campaign.CampaignBrief?.SpecialRequirements ?? campaign.CampaignBrief?.CreativeNotes,
@@ -367,6 +371,28 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
         return PricingPolicy.ResolvePlanningBudget(
             campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
             campaign.PackageOrder.AiStudioReserveAmount);
+    }
+
+    private static string ResolveBudgetLabel(Campaign campaign)
+    {
+        return string.Equals(campaign.Status, "awaiting_purchase", StringComparison.OrdinalIgnoreCase)
+            ? "Package range"
+            : "Selected budget";
+    }
+
+    private static string ResolveBudgetDisplayText(Campaign campaign)
+    {
+        if (string.Equals(campaign.Status, "awaiting_purchase", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"{FormatCurrency(campaign.PackageBand.MinBudget)} to {FormatCurrency(campaign.PackageBand.MaxBudget)}";
+        }
+
+        return FormatCurrency(ResolveSelectedBudget(campaign));
+    }
+
+    private static string FormatCurrency(decimal amount)
+    {
+        return $"R {amount:N2}";
     }
 
     private static (string Label, string Strategy) GetProposalDetails(string? recommendationType, int proposalIndex)
