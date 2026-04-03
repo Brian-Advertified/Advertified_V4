@@ -94,6 +94,7 @@ export function PaymentSelectionPage() {
           recommendationId,
         });
         window.sessionStorage.setItem(`advertified:auto-approve:${checkout.order.id}`, payload);
+        window.localStorage.setItem(`advertified:auto-approve:${checkout.order.id}`, payload);
       }
 
       window.location.assign(checkout.checkoutUrl);

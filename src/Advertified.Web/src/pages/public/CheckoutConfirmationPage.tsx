@@ -53,7 +53,8 @@ export function CheckoutConfirmationPage() {
       return null;
     }
 
-    const raw = window.sessionStorage.getItem(`advertified:auto-approve:${orderId}`);
+    const storageKey = `advertified:auto-approve:${orderId}`;
+    const raw = window.sessionStorage.getItem(storageKey) ?? window.localStorage.getItem(storageKey);
     if (!raw) {
       return null;
     }
@@ -121,7 +122,9 @@ export function CheckoutConfirmationPage() {
     },
     onSuccess: async () => {
       if (orderId && typeof window !== 'undefined') {
-        window.sessionStorage.removeItem(`advertified:auto-approve:${orderId}`);
+        const storageKey = `advertified:auto-approve:${orderId}`;
+        window.sessionStorage.removeItem(storageKey);
+        window.localStorage.removeItem(storageKey);
       }
 
       await Promise.all([
@@ -153,6 +156,16 @@ export function CheckoutConfirmationPage() {
   ) {
     autoApprovalAttemptedKeyRef.current = attemptKey;
     autoApproveMutation.mutate();
+  }
+
+  if (
+    orderId
+    && order.paymentStatus !== 'paid'
+    && typeof window !== 'undefined'
+  ) {
+    const storageKey = `advertified:auto-approve:${orderId}`;
+    window.sessionStorage.removeItem(storageKey);
+    window.localStorage.removeItem(storageKey);
   }
 
   const statusKey = `${order.id}:${order.paymentStatus}:${vodaPayReturnData?.responseCode ?? ''}:${vodaPayReturnData?.responseMessage ?? ''}`;
