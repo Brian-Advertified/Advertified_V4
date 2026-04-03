@@ -237,7 +237,7 @@ internal static class EmailTemplateDefaults
                         <div style=""font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Assignment summary</div>
                         <p style=""margin:10px 0 0;font-size:15px;line-height:1.6;""><strong>Campaign:</strong> {{CampaignName}}</p>
                         <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Package:</strong> {{PackageName}}</p>
-                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Selected budget:</strong> {{Budget}}</p>
+                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>{{BudgetLabel}}:</strong> {{Budget}}</p>
                         <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Status:</strong> Assigned to strategist</p>
                       </div>
                       <p style=""margin:0 0 18px;font-size:15px;line-height:1.7;color:#4b635a;"">

@@ -1798,7 +1798,8 @@ public sealed class AgentCampaignsController : ControllerBase
                     ["ClientName"] = campaign.User.FullName,
                     ["CampaignName"] = string.IsNullOrWhiteSpace(campaign.CampaignName) ? $"{campaign.PackageBand.Name} campaign" : campaign.CampaignName.Trim(),
                     ["PackageName"] = campaign.PackageBand.Name,
-                    ["Budget"] = FormatCurrency(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount),
+                    ["BudgetLabel"] = ResolveBudgetLabel(campaign),
+                    ["Budget"] = ResolveBudgetDisplayText(campaign),
                     ["ReviewUrl"] = BuildProposalUrl(campaign.Id),
                     ["ProposalCount"] = proposalCount.ToString(CultureInfo.InvariantCulture),
                     ["ProposalSummary"] = proposalCount > 1
@@ -1840,6 +1841,23 @@ public sealed class AgentCampaignsController : ControllerBase
         }
 
         return $"advertified-recommendation-{campaignId:D}-{safeProposalLabel}.pdf";
+    }
+
+    private static string ResolveBudgetLabel(Campaign campaign)
+    {
+        return string.Equals(campaign.Status, "awaiting_purchase", StringComparison.OrdinalIgnoreCase)
+            ? "Package range"
+            : "Selected budget";
+    }
+
+    private static string ResolveBudgetDisplayText(Campaign campaign)
+    {
+        if (string.Equals(campaign.Status, "awaiting_purchase", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"{FormatCurrency(campaign.PackageBand.MinBudget)} to {FormatCurrency(campaign.PackageBand.MaxBudget)}";
+        }
+
+        return FormatCurrency(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount);
     }
 
     private string BuildProposalAcceptButtonsBlock(Guid campaignId, IReadOnlyList<CampaignRecommendation> recommendations)
