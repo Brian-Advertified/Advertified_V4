@@ -26,6 +26,7 @@ export function CheckoutConfirmationPage() {
   const provider = (searchParams.get('provider') ?? '').toLowerCase();
   const requestedCampaignId = searchParams.get('campaignId')?.trim() ?? '';
   const requestedRecommendationId = searchParams.get('recommendationId')?.trim() ?? '';
+  const requestedProposalPath = searchParams.get('proposalPath')?.trim() ?? '';
   const callbackCapturedRef = useRef(false);
   const statusToastKeyRef = useRef<string | null>(null);
   const autoApprovalAttemptedKeyRef = useRef<string | null>(null);
@@ -60,7 +61,7 @@ export function CheckoutConfirmationPage() {
     }
 
     try {
-      return JSON.parse(raw) as { campaignId?: string; recommendationId?: string };
+      return JSON.parse(raw) as { campaignId?: string; recommendationId?: string; proposalPath?: string };
     } catch {
       return null;
     }
@@ -111,6 +112,7 @@ export function CheckoutConfirmationPage() {
   const linkedCampaignAction = linkedCampaign ? getCampaignPrimaryAction(linkedCampaign) : null;
   const effectiveCampaignId = requestedCampaignId || storedAutoApproval?.campaignId || linkedCampaign?.id || '';
   const effectiveRecommendationId = requestedRecommendationId || storedAutoApproval?.recommendationId || '';
+  const effectiveProposalPath = requestedProposalPath || storedAutoApproval?.proposalPath || '';
 
   const autoApproveMutation = useMutation({
     mutationFn: async () => {
@@ -348,6 +350,11 @@ export function CheckoutConfirmationPage() {
         </div>
 
         <div className="checkout-status-button-row checkout-status-animate checkout-status-delay-250">
+          {effectiveProposalPath ? (
+            <Link to={effectiveProposalPath} className="checkout-status-button checkout-status-button-ghost">
+              Back to proposal
+            </Link>
+          ) : null}
           {statusContent.secondaryHref.startsWith('http') ? (
             <a href={statusContent.secondaryHref} target="_blank" rel="noreferrer" className="checkout-status-button checkout-status-button-ghost">
               {statusContent.secondaryLabel}

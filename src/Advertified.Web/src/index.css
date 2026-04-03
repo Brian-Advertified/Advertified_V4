@@ -50,6 +50,55 @@ textarea {
   @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
 }
 
+@media (max-width: 1023px) {
+  .page-shell {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 767px) {
+  html, body {
+    font-size: 16px;
+  }
+
+  .page-shell {
+    padding-left: 1rem;
+    padding-right: 1rem;
+    width: 100%;
+  }
+
+  .site-header {
+    padding: 0.5rem 0;
+  }
+
+  .site-header .page-shell {
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .cart-pill,
+  .button-primary,
+  .button-secondary,
+  .nav-link,
+  button,
+  .inline-link {
+    min-height: 44px;
+  }
+
+  .button-primary,
+  .button-secondary {
+    font-size: 0.95rem;
+    line-height: 1.2;
+    padding: 0.75rem 1rem;
+  }
+
+  .hero-primary-button,
+  .hero-secondary-button {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
 .hero-glow {
   background:
     radial-gradient(circle at top left, rgba(20, 184, 110, 0.14), transparent 32%),
@@ -119,7 +168,7 @@ textarea {
 }
 
 .card-grid {
-  @apply grid gap-6 md:grid-cols-2 xl:grid-cols-4;
+  @apply grid gap-6 grid-cols-1 md:grid-cols-2 xl:grid-cols-4;
 }
 
 .site-header {
@@ -327,6 +376,7 @@ textarea {
 
 .payment-option-card {
   @apply rounded-[24px] border border-line bg-white px-5 py-5 transition;
+  min-height: 108px;
   box-shadow:
     0 18px 48px rgba(15, 118, 110, 0.08),
     inset 0 1px 0 rgba(255, 255, 255, 0.82);
@@ -359,7 +409,13 @@ textarea {
 }
 
 .payment-option-indicator {
-  @apply h-4 w-4 rounded-full border border-slate-300 bg-white;
+  @apply h-5 w-5 rounded-full border border-slate-300 bg-white;
+}
+
+@media (max-width: 767px) {
+  .payment-option-indicator {
+    @apply h-6 w-6;
+  }
 }
 
 .payment-option-indicator-selected {
@@ -1150,6 +1206,45 @@ textarea {
 
 .user-grid-4 {
   grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (max-width: 1023px) {
+  .user-grid-4,
+  .user-grid-3,
+  .user-grid-2,
+  .user-review-grid,
+  .user-kanban,
+  .user-choice-grid {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767px) {
+  .user-banner {
+    padding: 12px 14px;
+    font-size: 13px;
+  }
+
+  .user-card,
+  .user-column {
+    padding: 12px;
+    min-height: auto;
+  }
+
+  .user-toolbar {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .user-btn,
+  .user-btn-primary,
+  .user-btn-secondary {
+    width: 100%;
+    justify-content: center;
+    padding: 10px 14px;
+    font-size: 0.95rem;
+  }
 }
 
 .user-split {

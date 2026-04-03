@@ -256,17 +256,17 @@ export function CampaignDetailPage() {
             One thing to do
           </div>
 
-          <div className="mt-5 grid gap-5 xl:grid-cols-[1.6fr_0.8fr]">
+          <div className="mt-5 grid gap-5 grid-cols-1 lg:grid-cols-[1.6fr_0.8fr]">
             <div className="rounded-[22px] border border-brand/15 bg-[linear-gradient(180deg,#f7fcfa_0%,#eef8f4_100%)] p-6">
               <div className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Right now</div>
               <h2 className="mt-3 text-3xl font-semibold tracking-tight text-ink">{hero.title}</h2>
               <p className="mt-3 max-w-3xl text-sm leading-7 text-ink-soft">{hero.description}</p>
-              <div className="mt-5 flex flex-wrap gap-3">
-                <Link to={`${campaignBasePath}/approvals`} className="user-btn-primary">{hero.primaryAction}</Link>
-                <Link to={`${campaignBasePath}/messages`} className="user-btn-secondary">Ask a question</Link>
-                <Link to={`/campaigns/${campaign.id}/studio-preview`} className="user-btn-secondary">Preview studio</Link>
+              <div className="mt-5 flex flex-col sm:flex-wrap gap-3">
+                <Link to={`${campaignBasePath}/approvals`} className="user-btn-primary w-full sm:w-auto text-center sm:inline-flex justify-center">{hero.primaryAction}</Link>
+                <Link to={`${campaignBasePath}/messages`} className="user-btn-secondary w-full sm:w-auto text-center sm:inline-flex justify-center">Ask a question</Link>
+                <Link to={`/campaigns/${campaign.id}/studio-preview`} className="user-btn-secondary w-full sm:w-auto text-center sm:inline-flex justify-center">Preview studio</Link>
                 {canAccessAiStudioForStatus(campaign.status) ? (
-                  <Link to={`/ai-studio?campaignId=${campaign.id}`} className="user-btn-secondary">Prefill from approved recommendation</Link>
+                  <Link to={`/ai-studio?campaignId=${campaign.id}`} className="user-btn-secondary w-full sm:w-auto text-center sm:inline-flex justify-center">Prefill from approved recommendation</Link>
                 ) : null}
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
@@ -307,7 +307,7 @@ export function CampaignDetailPage() {
               </p>
             </div>
 
-            <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+            <div className="grid gap-5 grid-cols-1 lg:grid-cols-[0.9fr_1.1fr]">
               <div className="space-y-4">
                 {campaign.daysLeft != null ? (
                   <div className="rounded-[18px] border border-line bg-slate-50/70 p-5">
@@ -393,7 +393,7 @@ export function CampaignDetailPage() {
             <div className="mb-6 rounded-[18px] border border-line bg-slate-50/70 p-5">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Proposal options</p>
               <p className="mt-2 text-sm text-ink-soft">Select the proposal you want to accept or revise. You can also reject all with comments.</p>
-              <div className="mt-4 grid gap-3 md:grid-cols-3">
+              <div className="mt-4 grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                 {recommendations.map((proposal, index) => {
                   const selected = proposal.id === recommendation?.id;
                   return (
@@ -432,11 +432,11 @@ export function CampaignDetailPage() {
               Share why these proposals do not work for you, then click <strong>Reject all and request new set</strong>. Your agent will prepare new options from your notes.
             </div>
           ) : null}
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(340px,420px)]">
+          <div className="grid gap-5 grid-cols-1 lg:grid-cols-[minmax(0,0.95fr)_minmax(280px,340px)]">
             <div className="space-y-5">
               <div className="rounded-[22px] border border-line bg-white p-6 shadow-[0_12px_36px_rgba(15,23,42,0.04)]">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">What you are reviewing</p>
-                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <div className="mt-4 grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-2">
                   <div className="rounded-[18px] border border-line bg-slate-50/80 px-4 py-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Campaign</p>
                     <p className="mt-2 text-base font-semibold text-ink">{campaign.packageBandName}</p>
@@ -545,12 +545,14 @@ export function CampaignDetailPage() {
                     onChange={(event) => setChangeNotes(event.target.value)}
                     className="input-base min-h-[110px]"
                     placeholder="Add feedback if you want changes or want to reject all proposals."
+                    aria-label="Approval notes"
                   />
-                  <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="grid gap-3 grid-cols-1 sm:grid-cols-2" role="group" aria-label="Recommendation approval actions">
                     <button
                       type="button"
                       onClick={() => approveMutation.mutate(recommendation?.id)}
                       disabled={approveMutation.isPending || requestChangesMutation.isPending || rejectAllMutation.isPending}
+                      aria-label="Approve the selected recommendation"
                       className={`w-full justify-center text-center whitespace-normal px-4 py-3 text-sm sm:col-span-2 ${
                         paymentRequiredBeforeApproval
                           ? 'user-btn-secondary border-amber-200 bg-amber-50 text-amber-900 opacity-100'
@@ -565,6 +567,7 @@ export function CampaignDetailPage() {
                       type="button"
                       onClick={() => requestChangesMutation.mutate(buildSelectedProposalFeedback(changeNotes))}
                       disabled={approveMutation.isPending || requestChangesMutation.isPending || rejectAllMutation.isPending || !changeNotes.trim()}
+                      aria-label="Send request for changes to the recommendation"
                       className="user-btn-secondary w-full justify-center text-center whitespace-normal px-4 py-3 text-sm disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {requestChangesMutation.isPending ? 'Sending...' : 'Request changes'}
@@ -573,11 +576,12 @@ export function CampaignDetailPage() {
                       type="button"
                       onClick={() => rejectAllMutation.mutate(buildRejectAllFeedback(changeNotes))}
                       disabled={approveMutation.isPending || requestChangesMutation.isPending || rejectAllMutation.isPending || !changeNotes.trim()}
+                      aria-label="Reject all proposals and send feedback"
                       className="user-btn-secondary w-full justify-center text-center whitespace-normal px-4 py-3 text-sm disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {rejectAllMutation.isPending ? 'Sending...' : 'Reject all'}
                     </button>
-                    <Link to={`${campaignBasePath}/messages`} className="user-btn w-full justify-center text-center sm:col-span-2">Ask question</Link>
+                    <Link to={`${campaignBasePath}/messages`} className="user-btn w-full justify-center text-center sm:col-span-2" aria-label="Go to messages to ask a question">Ask question</Link>
                   </div>
                 </div>
               ) : canApproveCreative ? (
@@ -587,12 +591,14 @@ export function CampaignDetailPage() {
                     onChange={(event) => setChangeNotes(event.target.value)}
                     className="input-base min-h-[120px]"
                     placeholder="Optional notes if you want the creative revised before approval..."
+                    aria-label="Optional notes for creative approval"
                   />
-                  <div className="flex flex-wrap gap-3">
+                  <div className="flex flex-col gap-3" role="group" aria-label="Creative approval actions">
                     <button
                       type="button"
                       onClick={() => approveCreativeMutation.mutate()}
                       disabled={approveCreativeMutation.isPending || requestCreativeChangesMutation.isPending}
+                      aria-label="Approve the creative content"
                       className="user-btn-primary disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {approveCreativeMutation.isPending ? 'Approving...' : 'Approve creative'}
@@ -601,11 +607,12 @@ export function CampaignDetailPage() {
                       type="button"
                       onClick={() => requestCreativeChangesMutation.mutate()}
                       disabled={approveCreativeMutation.isPending || requestCreativeChangesMutation.isPending || !changeNotes.trim()}
+                      aria-label="Send request for changes to the creative content"
                       className="user-btn-secondary disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {requestCreativeChangesMutation.isPending ? 'Sending...' : 'Request creative changes'}
                     </button>
-                    <Link to={`${campaignBasePath}/messages`} className="user-btn">Ask question</Link>
+                    <Link to={`${campaignBasePath}/messages`} className="user-btn" aria-label="Go to messages to ask a question about this campaign">Ask question</Link>
                   </div>
                 </div>
               ) : (

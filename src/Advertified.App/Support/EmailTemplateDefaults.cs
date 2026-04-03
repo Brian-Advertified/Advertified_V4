@@ -11,20 +11,37 @@ internal static class EmailTemplateDefaults
         return new List<EmailTemplate>
         {
             Build("user_activation", "Activate Your Advertified Account", @"
-                <p>Hi {{UserName}},</p>
-                <p>You're one step away from activating your Advertified account.</p>
-                <p>Once activated, you'll set your password and continue directly into your workspace.</p>
-                <p>Activate your account using the link below. This link will expire in {{ExpiresInHours}} hours.</p>
-                <p><a href=""{{ActivationUrl}}"">Activate your Advertified account</a></p>
-                <p>After activation and password setup you'll be able to:</p>
-                <ul>
-                  <li>Browse advertising packages</li>
-                  <li>Create campaigns</li>
-                  <li>Secure advertising placements</li>
-                  <li>Manage payments and campaign timelines</li>
-                </ul>
-                <p>If you did not create this account, you can safely ignore this email.</p>
-                <p>Warm regards,<br/>The Advertified Team<br/><a href=""mailto:support@advertified.com"">support@advertified.com</a><br/>www.advertified.com</p>
+                <div style=""background:#f4fbf8;padding:32px;font-family:Arial,sans-serif;color:#12211D;"">
+                  <div style=""max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #d8e9e1;border-radius:24px;overflow:hidden;"">
+                    <div style=""padding:28px 32px;background:linear-gradient(180deg,#eefbf5 0%, #ffffff 100%);border-bottom:1px solid #d8e9e1;"">
+                      <div style=""font-size:14px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Advertified account</div>
+                      <h1 style=""margin:12px 0 0;font-size:30px;line-height:1.2;color:#123A33;"">Activate your Advertified account</h1>
+                    </div>
+                    <div style=""padding:28px 32px;"">
+                      <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">
+                        Hi {{UserName}}, you are one step away from activating your Advertified account.
+                      </p>
+                      <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">
+                        Once activated, you will set your password and continue directly into your workspace.
+                      </p>
+                      <div style=""margin:24px 0;padding:18px 20px;border:1px solid #d8e9e1;border-radius:18px;background:#f8fcfa;"">
+                        <div style=""font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Activation details</div>
+                        <p style=""margin:10px 0 0;font-size:15px;line-height:1.6;""><strong>Account:</strong> {{UserName}}</p>
+                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Link expiry:</strong> {{ExpiresInHours}} hours</p>
+                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Next step:</strong> Activate account and set password</p>
+                      </div>
+                      <p style=""margin:0 0 18px;font-size:15px;line-height:1.7;color:#4b635a;"">
+                        Use the secure button below to activate your account.
+                      </p>
+                      <p style=""margin:24px 0 0;"">
+                        <a href=""{{ActivationUrl}}"" style=""display:inline-block;padding:12px 18px;background:#123A33;color:#ffffff;text-decoration:none;border-radius:12px;font-weight:700;"">Activate your Advertified account</a>
+                      </p>
+                      <p style=""margin:20px 0 0;font-size:14px;line-height:1.7;color:#4b635a;"">
+                        If you did not create this account, you can safely ignore this email.
+                      </p>
+                    </div>
+                  </div>
+                </div>
                 ", nowUtc),
             Build("welcome", "Welcome to Advertified", @"
                 <div style=""background:#f4fbf8;padding:32px;font-family:Arial,sans-serif;color:#12211D;"">
@@ -48,12 +65,34 @@ internal static class EmailTemplateDefaults
                 </div>
                 ", nowUtc),
             Build("password_reset", "Reset Your Advertified Password", @"
-                <p>Hi {{UserName}},</p>
-                <p>We received a request to reset your Advertified password.</p>
-                <p>Use the link below to choose a new password. This link will expire in {{ExpiresInHours}} hours.</p>
-                <p><a href=""{{ResetUrl}}"">Reset your password</a></p>
-                <p>If you did not request this, you can safely ignore this email.</p>
-                <p>Warm regards,<br/>The Advertified Team<br/><a href=""mailto:support@advertified.com"">support@advertified.com</a><br/>www.advertified.com</p>
+                <div style=""background:#f4fbf8;padding:32px;font-family:Arial,sans-serif;color:#12211D;"">
+                  <div style=""max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #d8e9e1;border-radius:24px;overflow:hidden;"">
+                    <div style=""padding:28px 32px;background:linear-gradient(180deg,#eefbf5 0%, #ffffff 100%);border-bottom:1px solid #d8e9e1;"">
+                      <div style=""font-size:14px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Advertified security</div>
+                      <h1 style=""margin:12px 0 0;font-size:30px;line-height:1.2;color:#123A33;"">Reset your password</h1>
+                    </div>
+                    <div style=""padding:28px 32px;"">
+                      <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">
+                        Hi {{UserName}}, we received a request to reset your Advertified password.
+                      </p>
+                      <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">
+                        Use the secure link below to choose a new password.
+                      </p>
+                      <div style=""margin:24px 0;padding:18px 20px;border:1px solid #d8e9e1;border-radius:18px;background:#f8fcfa;"">
+                        <div style=""font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Reset details</div>
+                        <p style=""margin:10px 0 0;font-size:15px;line-height:1.6;""><strong>Account:</strong> {{UserName}}</p>
+                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Link expiry:</strong> {{ExpiresInHours}} hours</p>
+                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Status:</strong> Password reset requested</p>
+                      </div>
+                      <p style=""margin:24px 0 0;"">
+                        <a href=""{{ResetUrl}}"" style=""display:inline-block;padding:12px 18px;background:#123A33;color:#ffffff;text-decoration:none;border-radius:12px;font-weight:700;"">Reset your password</a>
+                      </p>
+                      <p style=""margin:20px 0 0;font-size:14px;line-height:1.7;color:#4b635a;"">
+                        If you did not request this, you can safely ignore this email.
+                      </p>
+                    </div>
+                  </div>
+                </div>
                 ", nowUtc),
             Build("password-reset-success", "Your Advertified password was changed", @"
                 <div style=""background:#f4fbf8;padding:32px;font-family:Arial,sans-serif;color:#12211D;"">
@@ -77,34 +116,48 @@ internal static class EmailTemplateDefaults
                 </div>
                 ", nowUtc),
             Build("support-request", "Support request: {{Subject}}", @"
-                <div style=""font-family:Arial,sans-serif;color:#111827;line-height:1.6"">
-                  <h2 style=""margin:0 0 16px 0"">New support request</h2>
-                  <p style=""margin:0 0 16px 0"">A signed-in customer submitted a support request from the dashboard.</p>
-                  <table style=""border-collapse:collapse;width:100%;max-width:720px"">
+                <div style=""background:#f4fbf8;padding:32px;font-family:Arial,sans-serif;color:#12211D;"">
+                  <div style=""max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #d8e9e1;border-radius:24px;overflow:hidden;"">
+                    <div style=""padding:28px 32px;background:linear-gradient(180deg,#eefbf5 0%, #ffffff 100%);border-bottom:1px solid #d8e9e1;"">
+                      <div style=""font-size:14px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Advertified internal update</div>
+                      <h1 style=""margin:12px 0 0;font-size:30px;line-height:1.2;color:#123A33;"">New support request</h1>
+                    </div>
+                    <div style=""padding:28px 32px;"">
+                      <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">A signed-in customer submitted a support request from the dashboard.</p>
+                      <table style=""border-collapse:collapse;width:100%;max-width:720px"">
                     <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Category</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{Category}}</td></tr>
                     <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Subject</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{Subject}}</td></tr>
                     <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Customer</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{UserName}}</td></tr>
                     <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Email</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{UserEmail}}</td></tr>
                     <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Company</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{CompanyName}}</td></tr>
                     <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Source</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{Source}}</td></tr>
-                    <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Context</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{ContextSummary}}</td></tr>
-                    <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Message</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{Message}}</td></tr>
-                  </table>
+                      <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Context</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{ContextSummary}}</td></tr>
+                      <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Message</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{Message}}</td></tr>
+                      </table>
+                    </div>
+                  </div>
                 </div>
                 ", nowUtc),
             Build("partner-enquiry-notification", "New media partner enquiry from {{CompanyName}}", @"
-                <div style=""font-family:Arial,sans-serif;color:#111827;line-height:1.6"">
-                  <h2 style=""margin:0 0 16px 0"">New media partner enquiry</h2>
-                  <p style=""margin:0 0 16px 0"">A prospective media partner submitted an enquiry from the Advertified website.</p>
-                  <table style=""border-collapse:collapse;width:100%;max-width:720px"">
+                <div style=""background:#f4fbf8;padding:32px;font-family:Arial,sans-serif;color:#12211D;"">
+                  <div style=""max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #d8e9e1;border-radius:24px;overflow:hidden;"">
+                    <div style=""padding:28px 32px;background:linear-gradient(180deg,#eefbf5 0%, #ffffff 100%);border-bottom:1px solid #d8e9e1;"">
+                      <div style=""font-size:14px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Advertified internal update</div>
+                      <h1 style=""margin:12px 0 0;font-size:30px;line-height:1.2;color:#123A33;"">New media partner enquiry</h1>
+                    </div>
+                    <div style=""padding:28px 32px;"">
+                      <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">A prospective media partner submitted an enquiry from the Advertified website.</p>
+                      <table style=""border-collapse:collapse;width:100%;max-width:720px"">
                     <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Contact name</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{FullName}}</td></tr>
                     <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Company</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{CompanyName}}</td></tr>
                     <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Email</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{Email}}</td></tr>
                     <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Phone</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{Phone}}</td></tr>
-                    <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Partner type</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{PartnerType}}</td></tr>
-                    <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Inventory summary</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{InventorySummary}}</td></tr>
-                    <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Message</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{Message}}</td></tr>
-                  </table>
+                      <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Partner type</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{PartnerType}}</td></tr>
+                      <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Inventory summary</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{InventorySummary}}</td></tr>
+                      <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Message</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{Message}}</td></tr>
+                      </table>
+                    </div>
+                  </div>
                 </div>
                 ", nowUtc),
             Build("proposal-delivery", "Your Advertified proposal {{ProposalReference}}", @"
@@ -151,8 +204,13 @@ internal static class EmailTemplateDefaults
                       </p>
                     </div>
                     <div style=""padding:28px 32px;"">
-                      <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;"">Hi {{RecipientName}},</p>
-                      <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">{{ReminderIntro}}</p>
+                      <p style=""margin:0 0 14px;font-size:15px;line-height:1.7;"">Hi {{RecipientName}},</p>
+                      <p style=""margin:0 0 18px;font-size:15px;line-height:1.7;color:#4b635a;"">{{ReminderIntro}}</p>
+                      <div style=""margin:18px 0 20px;"">
+                        <a href=""{{ReopenUrl}}"" style=""display:inline-block;padding:12px 18px;border-radius:14px;background:#d7f0e4;color:#123A33;text-decoration:none;font-weight:700;"">
+                          Reopen proposal
+                        </a>
+                      </div>
                       <div style=""margin:24px 0;padding:18px 20px;border:1px solid #d8e9e1;border-radius:18px;background:#f8fcfa;"">
                         <div style=""font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Campaign snapshot</div>
                         <p style=""margin:10px 0 0;font-size:15px;line-height:1.6;""><strong>Prepared for:</strong> {{CompanyName}}</p>
@@ -162,11 +220,6 @@ internal static class EmailTemplateDefaults
                         <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Reference:</strong> {{ProposalReference}}</p>
                       </div>
                       <p style=""margin:0 0 18px;font-size:15px;line-height:1.7;color:#4b635a;"">{{ReminderClosing}}</p>
-                      <div style=""margin:22px 0 20px;"">
-                        <a href=""{{ReopenUrl}}"" style=""display:inline-block;padding:12px 18px;border-radius:14px;background:#d7f0e4;color:#123A33;text-decoration:none;font-weight:700;"">
-                          Reopen proposal
-                        </a>
-                      </div>
                       <p style=""margin:0 0 12px;font-size:14px;line-height:1.7;color:#4b635a;"">
                         We have attached the latest PDF again for convenience.
                       </p>
@@ -178,20 +231,27 @@ internal static class EmailTemplateDefaults
                 </div>
                 ", nowUtc),
             Build("proposal-callback-request", "Callback request for proposal {{ProposalReference}}", @"
-                <div style=""font-family:Arial,sans-serif;color:#111827;line-height:1.6"">
-                  <h2 style=""margin:0 0 16px 0"">Callback request received</h2>
-                  <p style=""margin:0 0 16px 0"">A customer requested a strategist callback from the proposal preview.</p>
-                  <table style=""border-collapse:collapse;width:100%;max-width:720px"">
+                <div style=""background:#f4fbf8;padding:32px;font-family:Arial,sans-serif;color:#12211D;"">
+                  <div style=""max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #d8e9e1;border-radius:24px;overflow:hidden;"">
+                    <div style=""padding:28px 32px;background:linear-gradient(180deg,#eefbf5 0%, #ffffff 100%);border-bottom:1px solid #d8e9e1;"">
+                      <div style=""font-size:14px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Advertified internal update</div>
+                      <h1 style=""margin:12px 0 0;font-size:30px;line-height:1.2;color:#123A33;"">Callback request received</h1>
+                    </div>
+                    <div style=""padding:28px 32px;"">
+                      <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">A customer requested a strategist callback from the proposal preview.</p>
+                      <table style=""border-collapse:collapse;width:100%;max-width:720px"">
                     <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Proposal reference</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{ProposalReference}}</td></tr>
                     <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Contact</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{ContactName}}</td></tr>
                     <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Email</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{ContactEmail}}</td></tr>
                     <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Phone</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{ContactPhone}}</td></tr>
                     <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Company</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{CompanyName}}</td></tr>
-                    <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Campaign</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{CampaignName}}</td></tr>
-                    <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Lead package</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{PrimaryPackageName}}</td></tr>
-                    <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Indicative total</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{EstimatedTotal}}</td></tr>
-                    <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Notes</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{Notes}}</td></tr>
-                  </table>
+                      <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Campaign</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{CampaignName}}</td></tr>
+                      <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Lead package</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{PrimaryPackageName}}</td></tr>
+                      <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Indicative total</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{EstimatedTotal}}</td></tr>
+                      <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Notes</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{Notes}}</td></tr>
+                      </table>
+                    </div>
+                  </div>
                 </div>
                 ", nowUtc),
             Build("invoice-delivery", "Your paid tax invoice for {{CampaignName}}", @"
@@ -324,13 +384,18 @@ internal static class EmailTemplateDefaults
                       <h1 style=""margin:12px 0 0;font-size:30px;line-height:1.2;color:#123A33;"">Your campaign recommendations are ready to review</h1>
                     </div>
                     <div style=""padding:28px 32px;"">
-                      <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">
+                      <p style=""margin:0 0 14px;font-size:15px;line-height:1.7;color:#4b635a;"">
                         Hi {{ClientName}}, your Advertified strategist has prepared recommendation options for <strong>{{CampaignName}}</strong>.
                       </p>
-                      <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">
-                        {{ProposalSummary}} Each option explains the suggested channel mix, draft media plan, and how it aligns with your selected package and campaign goals. Please review the options and let us know whether you would like to approve one or request changes.
+                      <p style=""margin:0 0 18px;font-size:15px;line-height:1.7;color:#4b635a;"">
+                        {{ProposalSummary}} Approve your preferred option below, or open the full review page if you want to compare everything first.
                       </p>
-                      {{RecommendationPackBlock}}
+                      {{ProposalAcceptButtonsBlock}}
+                      <div style=""margin:18px 0 20px;"">
+                        <a href=""{{ReviewUrl}}"" style=""display:inline-block;padding:12px 18px;border-radius:14px;background:#123A33;color:#ffffff;text-decoration:none;font-weight:700;"">
+                          Review recommendation options
+                        </a>
+                      </div>
                       <div style=""margin:24px 0;padding:18px 20px;border:1px solid #d8e9e1;border-radius:18px;background:#f8fcfa;"">
                         <div style=""font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Recommendation summary</div>
                         <p style=""margin:10px 0 0;font-size:15px;line-height:1.6;""><strong>Campaign:</strong> {{CampaignName}}</p>
@@ -340,15 +405,7 @@ internal static class EmailTemplateDefaults
                         <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Status:</strong> Ready for your review</p>
                       </div>
                       {{AgentMessageBlock}}
-                      <p style=""margin:0 0 18px;font-size:15px;line-height:1.7;color:#4b635a;"">
-                        When you are ready, open your campaign review page below. You can approve your preferred option if it reflects what you want to run, or send all options back with notes if you would like us to adjust them.
-                      </p>
-                      <div style=""margin:22px 0 20px;"">
-                        <a href=""{{ReviewUrl}}"" style=""display:inline-block;padding:12px 18px;border-radius:14px;background:#123A33;color:#ffffff;text-decoration:none;font-weight:700;"">
-                          Review recommendation options
-                        </a>
-                      </div>
-                      {{ProposalAcceptButtonsBlock}}
+                      {{RecommendationPackBlock}}
                       <p style=""margin:0;font-size:14px;line-height:1.7;color:#4b635a;"">
                         If you need help before making a decision, reply to this email or contact <a href=""mailto:support@advertified.com"" style=""color:#123A33;"">support@advertified.com</a>.
                       </p>
@@ -782,20 +839,27 @@ internal static class EmailTemplateDefaults
                 </div>
                 ", nowUtc),
             Build("admin-sale-alert", "New package sale: {{CampaignName}} ({{PaymentProvider}})", @"
-                <div style=""font-family:Arial,sans-serif;color:#111827;line-height:1.6"">
-                  <h2 style=""margin:0 0 16px 0"">New package sale alert</h2>
-                  <p style=""margin:0 0 16px 0"">A new package order was created and requires tracking.</p>
-                  <table style=""border-collapse:collapse;width:100%;max-width:720px"">
+                <div style=""background:#f4fbf8;padding:32px;font-family:Arial,sans-serif;color:#12211D;"">
+                  <div style=""max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #d8e9e1;border-radius:24px;overflow:hidden;"">
+                    <div style=""padding:28px 32px;background:linear-gradient(180deg,#eefbf5 0%, #ffffff 100%);border-bottom:1px solid #d8e9e1;"">
+                      <div style=""font-size:14px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Advertified internal update</div>
+                      <h1 style=""margin:12px 0 0;font-size:30px;line-height:1.2;color:#123A33;"">New package sale alert</h1>
+                    </div>
+                    <div style=""padding:28px 32px;"">
+                      <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">A new package order was created and requires tracking.</p>
+                      <table style=""border-collapse:collapse;width:100%;max-width:720px"">
                     <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Client</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{ClientName}} ({{ClientEmail}})</td></tr>
                     <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Campaign</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{CampaignName}}</td></tr>
                     <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Package</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{PackageName}}</td></tr>
                     <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Selected budget</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{SelectedBudget}}</td></tr>
                     <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Charged amount</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{ChargedAmount}}</td></tr>
-                    <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Provider</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{PaymentProvider}}</td></tr>
-                    <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Order status</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{PaymentStatus}}</td></tr>
-                    <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Action</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{ActionNote}}</td></tr>
-                    <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Admin URL</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{AdminUrl}}</td></tr>
-                  </table>
+                      <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Provider</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{PaymentProvider}}</td></tr>
+                      <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Order status</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{PaymentStatus}}</td></tr>
+                      <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Action</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{ActionNote}}</td></tr>
+                      <tr><td style=""padding:8px 12px;border:1px solid #d1d5db;font-weight:600"">Admin URL</td><td style=""padding:8px 12px;border:1px solid #d1d5db"">{{AdminUrl}}</td></tr>
+                      </table>
+                    </div>
+                  </div>
                 </div>
                 ", nowUtc)
         };
@@ -808,11 +872,109 @@ internal static class EmailTemplateDefaults
             Id = Guid.NewGuid(),
             TemplateName = templateName,
             SubjectTemplate = subjectTemplate.Trim(),
-            BodyHtmlTemplate = bodyHtmlTemplate.Trim(),
+            BodyHtmlTemplate = WrapForResponsiveEmail(bodyHtmlTemplate),
             IsActive = true,
             CreatedAtUtc = nowUtc,
             UpdatedAtUtc = nowUtc
         };
+    }
+
+    private static string WrapForResponsiveEmail(string bodyHtmlTemplate)
+    {
+        var normalizedBody = bodyHtmlTemplate.Trim()
+            .Replace(
+                "<div style=\"background:#f4fbf8;padding:32px;font-family:Arial,sans-serif;color:#12211D;\">",
+                "<div class=\"email-shell\" style=\"background:#f4fbf8;padding:24px 12px;font-family:Arial,sans-serif;color:#12211D;\">",
+                StringComparison.Ordinal)
+            .Replace(
+                "<div style=\"max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #d8e9e1;border-radius:24px;overflow:hidden;\">",
+                "<div class=\"email-card\" style=\"width:100%;max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #d8e9e1;border-radius:24px;overflow:hidden;\">",
+                StringComparison.Ordinal)
+            .Replace(
+                "padding:28px 32px;",
+                "padding:24px 20px;",
+                StringComparison.Ordinal)
+            .Replace(
+                "font-size:30px;",
+                "font-size:28px;",
+                StringComparison.Ordinal)
+            .Replace(
+                "style=\"display:inline-block;padding:12px 18px;",
+                "class=\"email-button\" style=\"display:inline-block;width:100%;max-width:320px;box-sizing:border-box;text-align:center;padding:14px 18px;",
+                StringComparison.Ordinal)
+            .Replace(
+                "style=\"border-collapse:collapse;width:100%;max-width:720px\"",
+                "class=\"email-table\" style=\"border-collapse:collapse;width:100%;max-width:720px;table-layout:fixed;word-break:break-word\"",
+                StringComparison.Ordinal);
+
+        return $@"<!doctype html>
+<html lang=""en"">
+  <head>
+    <meta charset=""utf-8"">
+    <meta name=""viewport"" content=""width=device-width, initial-scale=1.0"">
+    <meta name=""x-apple-disable-message-reformatting"">
+    <style>
+      body {{
+        margin: 0;
+        padding: 0;
+        background: #f4fbf8;
+        -webkit-text-size-adjust: 100%;
+        -ms-text-size-adjust: 100%;
+      }}
+
+      table {{
+        border-spacing: 0;
+      }}
+
+      img {{
+        border: 0;
+        display: block;
+        max-width: 100%;
+        height: auto;
+      }}
+
+      .email-root {{
+        width: 100%;
+      }}
+
+      .email-table td {{
+        word-break: break-word;
+      }}
+
+      @media only screen and (max-width: 640px) {{
+        .email-shell {{
+          padding: 12px !important;
+        }}
+
+        .email-card {{
+          border-radius: 18px !important;
+        }}
+
+        .email-card h1 {{
+          font-size: 24px !important;
+        }}
+
+        .email-card p,
+        .email-card li,
+        .email-card td,
+        .email-card div {{
+          max-width: 100% !important;
+        }}
+
+        .email-button {{
+          max-width: none !important;
+          width: 100% !important;
+          display: block !important;
+        }}
+      }}
+    </style>
+  </head>
+  <body>
+    <div class=""email-root"">
+      {normalizedBody}
+    </div>
+  </body>
+</html>";
     }
 }
 

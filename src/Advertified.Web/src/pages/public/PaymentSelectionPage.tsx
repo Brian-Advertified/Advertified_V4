@@ -44,6 +44,7 @@ export function PaymentSelectionPage() {
   const orderId = searchParams.get('orderId')?.trim() ?? '';
   const campaignId = searchParams.get('campaignId')?.trim() ?? '';
   const recommendationId = searchParams.get('recommendationId')?.trim() ?? '';
+  const proposalPath = searchParams.get('proposalPath')?.trim() ?? '';
   const packageBandId = searchParams.get('packageBandId') ?? '';
   const amount = Number(searchParams.get('amount') ?? '0');
   const selectedArea = searchParams.get('area') ?? 'gauteng';
@@ -79,7 +80,7 @@ export function PaymentSelectionPage() {
       if (!checkout.checkoutUrl) {
         if (paymentProvider === 'lula') {
           const lulaConfirmationUrl = campaignId
-            ? `/checkout/confirmation?provider=lula&orderId=${encodeURIComponent(checkout.order.id)}&campaignId=${encodeURIComponent(campaignId)}${recommendationId ? `&recommendationId=${encodeURIComponent(recommendationId)}` : ''}`
+            ? `/checkout/confirmation?provider=lula&orderId=${encodeURIComponent(checkout.order.id)}&campaignId=${encodeURIComponent(campaignId)}${recommendationId ? `&recommendationId=${encodeURIComponent(recommendationId)}` : ''}${proposalPath ? `&proposalPath=${encodeURIComponent(proposalPath)}` : ''}`
             : `/checkout/confirmation?provider=lula&orderId=${encodeURIComponent(checkout.order.id)}`;
           navigate(lulaConfirmationUrl);
           return checkout;
@@ -92,6 +93,7 @@ export function PaymentSelectionPage() {
         const payload = JSON.stringify({
           campaignId,
           recommendationId,
+          proposalPath,
         });
         window.sessionStorage.setItem(`advertified:auto-approve:${checkout.order.id}`, payload);
         window.localStorage.setItem(`advertified:auto-approve:${checkout.order.id}`, payload);
@@ -125,7 +127,7 @@ export function PaymentSelectionPage() {
   }
 
   return (
-    <section className="page-shell space-y-8 pb-20">
+    <section className="page-shell space-y-8 pb-28 md:pb-20">
       {checkoutMutation.isPending || isResendingActivation ? (
         <ProcessingOverlay
           label={
@@ -152,7 +154,7 @@ export function PaymentSelectionPage() {
         )}
       />
 
-      <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.05fr_0.95fr] lg:gap-6">
         <div className="space-y-4">
           {providerOptions.map((provider) => {
             const selected = provider.id === selectedProvider;
@@ -161,7 +163,9 @@ export function PaymentSelectionPage() {
               <button
                 key={provider.id}
                 type="button"
-                className={`payment-option-card w-full text-left ${selected ? 'payment-option-card-selected' : ''}`}
+                aria-pressed={selected}
+                aria-label={`Select ${provider.name} - ${provider.caption}. ${provider.description}`}
+                className={`payment-option-card w-full text-left min-h-[108px] px-4 py-4 sm:px-5 sm:py-5 ${selected ? 'payment-option-card-selected' : ''}`}
                 onClick={() => setSelectedProvider(provider.id)}
               >
                 <div className="min-w-0">
@@ -170,7 +174,7 @@ export function PaymentSelectionPage() {
                       <p className="text-lg font-semibold tracking-tight text-ink">{provider.name}</p>
                       <p className="text-sm text-ink-soft">{provider.caption}</p>
                     </div>
-                    <div className={`payment-option-indicator ${selected ? 'payment-option-indicator-selected' : ''}`} />
+                    <div className={`payment-option-indicator ${selected ? 'payment-option-indicator-selected' : ''}`} aria-hidden="true" />
                   </div>
                   <p className="mt-3 text-sm leading-7 text-ink-soft">{provider.description}</p>
                 </div>
@@ -179,7 +183,7 @@ export function PaymentSelectionPage() {
           })}
         </div>
 
-        <aside className="package-preview-tab space-y-5">
+        <aside className="package-preview-tab space-y-5" role="complementary" aria-label="Order summary">
           <div>
             <p className="package-preview-tab-label">Order summary</p>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight text-ink">{selectedBand.name}</h2>
@@ -272,6 +276,21 @@ export function PaymentSelectionPage() {
             </button>
           )}
         </aside>
+
+        {user && canBuyPackage(user) && (
+          <div className="fixed inset-x-0 bottom-0 z-50 border-t border-line bg-white p-3 shadow-lg md:hidden">
+            <button
+              type="button"
+              disabled={checkoutMutation.isPending}
+              onClick={() => checkoutMutation.mutate(selectedProvider)}
+              className="button-primary w-full py-4 text-base disabled:opacity-60"
+            >
+              {checkoutMutation.isPending
+                ? `${selectedProvider === 'lula' ? 'Preparing Pay Later' : 'Starting Pay Now'}...`
+                : `${selectedProvider === 'lula' ? 'Continue with Pay Later' : 'Continue with Pay Now'}`}
+            </button>
+          </div>
+        )}
       </div>
     </section>
   );

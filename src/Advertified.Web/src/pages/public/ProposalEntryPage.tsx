@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { ArrowRight, FileText } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { PageHero } from '../../components/marketing/PageHero';
 import { RecommendationViewer } from '../../features/campaigns/components/RecommendationViewer';
@@ -30,6 +30,7 @@ function getSafeNextPath(raw: string | null) {
 export function ProposalEntryPage() {
   const { id = '' } = useParams();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const { isAuthenticated } = useAuth();
   const { pushToast } = useToast();
   const navigate = useNavigate();
@@ -61,8 +62,9 @@ export function ProposalEntryPage() {
       : (recommendations.find((item) => item.status === 'sent_to_client')?.id ?? recommendations[0]?.id ?? '');
   const recommendation = recommendations.find((item) => item.id === resolvedRecommendationId) ?? recommendations[0];
   const paymentRequiredBeforeApproval = publicProposalQuery.data?.paymentStatus !== 'paid';
+  const currentProposalPath = `${location.pathname}${location.search}`;
   const checkoutPath = publicProposalQuery.data && recommendation
-    ? `/checkout/payment?orderId=${encodeURIComponent(publicProposalQuery.data.packageOrderId)}&campaignId=${encodeURIComponent(publicProposalQuery.data.id)}&recommendationId=${encodeURIComponent(recommendation.id)}`
+    ? `/checkout/payment?orderId=${encodeURIComponent(publicProposalQuery.data.packageOrderId)}&campaignId=${encodeURIComponent(publicProposalQuery.data.id)}&recommendationId=${encodeURIComponent(recommendation.id)}&proposalPath=${encodeURIComponent(currentProposalPath)}`
     : null;
   const registerCheckoutPath = checkoutPath
     ? `/register?next=${encodeURIComponent(checkoutPath)}`
@@ -216,9 +218,6 @@ export function ProposalEntryPage() {
                     <p className="text-sm font-semibold text-ink">{proposal.proposalLabel ?? `Proposal ${index + 1}`}</p>
                     <p className="mt-1 text-xs text-ink-soft">{proposal.proposalStrategy ?? 'Media plan option'}</p>
                     <p className="mt-2 text-sm font-semibold text-ink">{formatCurrency(proposal.totalCost)}</p>
-                    <p className="mt-2 text-[11px] uppercase tracking-[0.12em] text-ink-soft">
-                      {titleCase(proposal.status.replace(/_/g, ' '))}
-                    </p>
                   </button>
                 );
               })}

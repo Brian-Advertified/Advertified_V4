@@ -1878,11 +1878,11 @@ public sealed class AgentCampaignsController : ControllerBase
             {
                 var label = ResolveProposalLabel(recommendation.RecommendationType, index);
                 var href = BuildProposalUrl(campaignId, recommendation.Id);
-                return $@"<a href=""{href}"" style=""display:inline-block;margin:0 10px 10px 0;padding:11px 16px;border-radius:12px;background:#123A33;color:#ffffff;text-decoration:none;font-weight:700;"">Accept {System.Net.WebUtility.HtmlEncode(label)}</a>";
+                return $@"<a href=""{href}"" class=""email-button"" style=""display:inline-block;width:100%;max-width:320px;box-sizing:border-box;text-align:center;margin:0 10px 10px 0;padding:12px 16px;border-radius:12px;background:#123A33;color:#ffffff;text-decoration:none;font-weight:700;"">Accept {System.Net.WebUtility.HtmlEncode(label)}</a>";
             })
             .ToArray();
         var rejectHref = BuildProposalUrl(campaignId, null, "reject_all");
-        var rejectLink = $@"<a href=""{rejectHref}"" style=""display:inline-block;margin:0 10px 10px 0;padding:11px 16px;border-radius:12px;border:1px solid #cbd5e1;background:#ffffff;color:#123A33;text-decoration:none;font-weight:700;"">Request new proposals</a>";
+        var rejectLink = $@"<a href=""{rejectHref}"" class=""email-button"" style=""display:inline-block;width:100%;max-width:320px;box-sizing:border-box;text-align:center;margin:0 10px 10px 0;padding:12px 16px;border-radius:12px;border:1px solid #cbd5e1;background:#ffffff;color:#123A33;text-decoration:none;font-weight:700;"">Request new proposals</a>";
 
         return $@"
             <div style=""margin:12px 0 4px 0;"">

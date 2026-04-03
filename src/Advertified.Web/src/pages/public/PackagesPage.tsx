@@ -78,7 +78,7 @@ export function PackagesPage() {
         description="One decision at a time. Pick the right band first, then choose the spend you want to invest."
       />
 
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-col gap-2 sm:flex-wrap sm:gap-3">
         <div className={`pill ${step === 1 ? 'bg-brand text-white border-brand' : ''}`}>Step 1: Choose package</div>
         <div className={`pill ${step === 2 ? 'bg-brand text-white border-brand' : ''}`}>Step 2: Choose spend</div>
       </div>
@@ -123,7 +123,7 @@ export function PackagesPage() {
       </div>
 
       {selectedBand && step === 2 ? (
-        <div className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
+        <div className="grid gap-6 grid-cols-1 xl:grid-cols-[1.08fr_0.92fr]">
           <div className="space-y-4">
             <BudgetSelector
               band={selectedBand}
