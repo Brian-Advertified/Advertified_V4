@@ -10,6 +10,14 @@ import { useAuth } from '../../features/auth/auth-context';
 import { formatCurrency, titleCase } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
 
+function formatPaymentStatusLabel(status?: string) {
+  if (!status) {
+    return 'Pending';
+  }
+
+  return titleCase(status.replace(/_/g, ' '));
+}
+
 function getSafeNextPath(raw: string | null) {
   if (!raw) {
     return null;
@@ -200,76 +208,110 @@ export function ProposalEntryPage() {
           </div>
         ) : null}
 
-        {recommendation ? (
-          <RecommendationViewer
-            recommendation={recommendation}
-            recommendationPdfUrl={`/public/proposals/${id}/recommendation-pdf?token=${encodeURIComponent(token)}`}
-            onDownloadPdf={() => handleDownloadRecommendationPdf()}
-          />
-        ) : (
-          <div className="rounded-[18px] border border-line bg-slate-50/70 p-5 text-sm leading-7 text-ink-soft">
-            Your recommendation is still being prepared.
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(340px,420px)]">
+          <div className="rounded-[22px] border border-line bg-white p-6 shadow-[0_12px_36px_rgba(15,23,42,0.04)]">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">What you are reviewing</p>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <div className="rounded-[18px] border border-line bg-slate-50/80 px-4 py-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Campaign</p>
+                <p className="mt-2 text-base font-semibold text-ink">{publicProposalQuery.data.packageBandName}</p>
+                <p className="mt-1 text-sm text-ink-soft">{publicProposalQuery.data.campaignName}</p>
+              </div>
+              <div className="rounded-[18px] border border-line bg-slate-50/80 px-4 py-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Selected option</p>
+                <p className="mt-2 text-base font-semibold text-ink">{recommendation?.proposalLabel ?? 'Current proposal'}</p>
+                <p className="mt-1 text-sm text-ink-soft">{recommendation ? formatCurrency(recommendation.totalCost) : 'Preparing details'}</p>
+              </div>
+              <div className="rounded-[18px] border border-line bg-slate-50/80 px-4 py-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Options prepared</p>
+                <p className="mt-2 text-base font-semibold text-ink">{recommendations.length || 0}</p>
+                <p className="mt-1 text-sm text-ink-soft">You can switch between proposals above.</p>
+              </div>
+              <div className="rounded-[18px] border border-line bg-slate-50/80 px-4 py-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Payment status</p>
+                <p className="mt-2 text-base font-semibold text-ink">{formatPaymentStatusLabel(publicProposalQuery.data.paymentStatus)}</p>
+                <p className="mt-1 text-sm text-ink-soft">
+                  {paymentRequiredBeforeApproval ? 'Payment must be completed before final approval.' : 'This proposal can be approved now.'}
+                </p>
+              </div>
+            </div>
           </div>
-        )}
 
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,380px)]">
-          <div className="rounded-[18px] border border-line bg-white p-5">
-            <div className="text-lg font-semibold text-ink">Next step</div>
+          <div className="rounded-[22px] border border-brand/20 bg-[linear-gradient(180deg,#f7fcfa_0%,#ffffff_100%)] p-6 shadow-[0_18px_44px_rgba(15,118,110,0.08)]">
+            <div className="text-lg font-semibold text-ink">Choose your next step</div>
             <p className="mt-2 text-sm leading-7 text-ink-soft">
-              Choose the selected proposal, ask for changes, or reject the full set.
+              Pick one action below. If you want changes or a new set, add a short note first.
             </p>
             {paymentRequiredBeforeApproval ? (
               <div className="mt-4 rounded-[14px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                 Payment is still required before this recommendation can be finally approved.
               </div>
             ) : null}
-          </div>
-
-          <div className="space-y-3">
-            <label className="block text-sm font-semibold text-ink" htmlFor="proposal-review-notes">
-              Notes
-            </label>
-            <textarea
-              id="proposal-review-notes"
-              value={changeNotes}
-              onChange={(event) => setChangeNotes(event.target.value)}
-              className="input-base min-h-[110px]"
-              placeholder="Add feedback if you want changes or want to reject all proposals."
-            />
-            <div className="grid gap-3 sm:grid-cols-2">
-              <button
-                type="button"
-                onClick={() => approveMutation.mutate(recommendation?.id)}
-                disabled={approveMutation.isPending || requestChangesMutation.isPending || rejectAllMutation.isPending || paymentRequiredBeforeApproval}
-                className={`w-full justify-center text-center whitespace-normal sm:col-span-2 ${
-                  paymentRequiredBeforeApproval
-                    ? 'user-btn-secondary border-amber-200 bg-amber-50 text-amber-900 opacity-100'
-                    : 'user-btn-primary'
-                } disabled:cursor-not-allowed disabled:opacity-100`}
-              >
-                {paymentRequiredBeforeApproval
-                  ? 'Payment required before approval'
-                  : (approveMutation.isPending ? 'Accepting...' : 'Approve selected')}
-              </button>
-              <button
-                type="button"
-                onClick={() => requestChangesMutation.mutate(buildSelectedProposalFeedback(changeNotes))}
-                disabled={approveMutation.isPending || requestChangesMutation.isPending || rejectAllMutation.isPending || !changeNotes.trim()}
-                className="user-btn-secondary w-full justify-center text-center whitespace-normal disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {requestChangesMutation.isPending ? 'Sending...' : 'Request changes'}
-              </button>
-              <button
-                type="button"
-                onClick={() => rejectAllMutation.mutate(buildRejectAllFeedback(changeNotes))}
-                disabled={approveMutation.isPending || requestChangesMutation.isPending || rejectAllMutation.isPending || !changeNotes.trim()}
-                className="user-btn-secondary w-full justify-center text-center whitespace-normal disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {rejectAllMutation.isPending ? 'Sending...' : 'Reject all'}
-              </button>
+            <div className="mt-5 space-y-3">
+              <label className="block text-sm font-semibold text-ink" htmlFor="proposal-review-notes">
+                Notes
+              </label>
+              <textarea
+                id="proposal-review-notes"
+                value={changeNotes}
+                onChange={(event) => setChangeNotes(event.target.value)}
+                className="input-base min-h-[110px]"
+                placeholder="Add feedback if you want changes or want to reject all proposals."
+              />
+              <div className="grid gap-3">
+                <button
+                  type="button"
+                  onClick={() => approveMutation.mutate(recommendation?.id)}
+                  disabled={approveMutation.isPending || requestChangesMutation.isPending || rejectAllMutation.isPending || paymentRequiredBeforeApproval}
+                  className={`w-full justify-center text-center whitespace-normal px-4 py-3 text-sm ${
+                    paymentRequiredBeforeApproval
+                      ? 'user-btn-secondary border-amber-200 bg-amber-50 text-amber-900 opacity-100'
+                      : 'user-btn-primary'
+                  } disabled:cursor-not-allowed disabled:opacity-100`}
+                >
+                  {paymentRequiredBeforeApproval
+                    ? 'Payment required before approval'
+                    : (approveMutation.isPending ? 'Accepting...' : 'Approve selected')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => requestChangesMutation.mutate(buildSelectedProposalFeedback(changeNotes))}
+                  disabled={approveMutation.isPending || requestChangesMutation.isPending || rejectAllMutation.isPending || !changeNotes.trim()}
+                  className="user-btn-secondary w-full justify-center text-center whitespace-normal px-4 py-3 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {requestChangesMutation.isPending ? 'Sending...' : 'Request changes'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => rejectAllMutation.mutate(buildRejectAllFeedback(changeNotes))}
+                  disabled={approveMutation.isPending || requestChangesMutation.isPending || rejectAllMutation.isPending || !changeNotes.trim()}
+                  className="user-btn-secondary w-full justify-center text-center whitespace-normal px-4 py-3 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {rejectAllMutation.isPending ? 'Sending...' : 'Reject all'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
+
+        {recommendation ? (
+          <details className="rounded-[22px] border border-line bg-white p-5 shadow-[0_12px_36px_rgba(15,23,42,0.04)]">
+            <summary className="cursor-pointer list-none text-sm font-semibold text-ink">
+              View full proposal details
+            </summary>
+            <div className="mt-5">
+              <RecommendationViewer
+                recommendation={recommendation}
+                recommendationPdfUrl={`/public/proposals/${id}/recommendation-pdf?token=${encodeURIComponent(token)}`}
+                onDownloadPdf={() => handleDownloadRecommendationPdf()}
+              />
+            </div>
+          </details>
+        ) : (
+          <div className="rounded-[18px] border border-line bg-slate-50/70 p-5 text-sm leading-7 text-ink-soft">
+            Your recommendation is still being prepared.
+          </div>
+        )}
       </section>
     );
   }

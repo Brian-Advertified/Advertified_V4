@@ -432,53 +432,85 @@ export function CampaignDetailPage() {
               Share why these proposals do not work for you, then click <strong>Reject all and request new set</strong>. Your agent will prepare new options from your notes.
             </div>
           ) : null}
-
-          {recommendation ? (
-            <div className="mb-6">
-              <RecommendationViewer
-                recommendation={recommendation}
-                recommendationPdfUrl={campaign.recommendationPdfUrl}
-                onDownloadPdf={() => handleDownloadRecommendationPdf()}
-              />
-            </div>
-          ) : (
-            <div className="mb-6 rounded-[18px] border border-line bg-slate-50/70 p-5 text-sm leading-7 text-ink-soft">
-              Your recommendation is still being prepared. Once it is ready, you&apos;ll see the full channel mix and placements here before you approve.
-            </div>
-          )}
-
-          <div className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
-            <div className={`rounded-[18px] border p-5 ${approval.highlightClass}`}>
-              <div className="mb-3 flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-lg font-semibold text-ink">{approval.title}</div>
-                  <p className="mt-2 text-sm leading-7 text-ink-soft">{approval.body}</p>
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(340px,420px)]">
+            <div className="space-y-5">
+              <div className="rounded-[22px] border border-line bg-white p-6 shadow-[0_12px_36px_rgba(15,23,42,0.04)]">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">What you are reviewing</p>
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <div className="rounded-[18px] border border-line bg-slate-50/80 px-4 py-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Campaign</p>
+                    <p className="mt-2 text-base font-semibold text-ink">{campaign.packageBandName}</p>
+                    <p className="mt-1 text-sm text-ink-soft">{campaign.campaignName}</p>
+                  </div>
+                  <div className="rounded-[18px] border border-line bg-slate-50/80 px-4 py-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Selected option</p>
+                    <p className="mt-2 text-base font-semibold text-ink">{recommendation?.proposalLabel ?? 'Current proposal'}</p>
+                    <p className="mt-1 text-sm text-ink-soft">{recommendation ? formatCurrency(recommendation.totalCost) : 'Preparing details'}</p>
+                  </div>
+                  <div className="rounded-[18px] border border-line bg-slate-50/80 px-4 py-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Options prepared</p>
+                    <p className="mt-2 text-base font-semibold text-ink">{recommendations.length || 0}</p>
+                    <p className="mt-1 text-sm text-ink-soft">You can switch between proposals above.</p>
+                  </div>
+                  <div className="rounded-[18px] border border-line bg-slate-50/80 px-4 py-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Status</p>
+                    <p className="mt-2 text-base font-semibold text-ink">{approval.badge}</p>
+                    <p className="mt-1 text-sm text-ink-soft">{paymentRequiredBeforeApproval ? 'Payment is still required first.' : 'You can make your decision now.'}</p>
+                  </div>
                 </div>
-                <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${approval.badgeClass}`}>
-                  {approval.badge}
-                </span>
               </div>
 
-              {details.length > 0 ? (
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {details.map((detail) => (
-                    <span key={detail} className="rounded-full border border-line bg-white px-3 py-1.5 text-xs font-semibold text-ink-soft">
-                      {detail}
-                    </span>
-                  ))}
+              <div className={`rounded-[22px] border p-5 ${approval.highlightClass}`}>
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-lg font-semibold text-ink">{approval.title}</div>
+                    <p className="mt-2 text-sm leading-7 text-ink-soft">{approval.body}</p>
+                  </div>
+                  <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${approval.badgeClass}`}>
+                    {approval.badge}
+                  </span>
                 </div>
-              ) : null}
 
-              {recommendation?.summary ? (
-                <div className="mt-4 rounded-[14px] border border-dashed border-line bg-slate-50/80 p-4 text-sm leading-7 text-ink-soft">
-                  {recommendation.summary}
+                {details.length > 0 ? (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {details.map((detail) => (
+                      <span key={detail} className="rounded-full border border-line bg-white px-3 py-1.5 text-xs font-semibold text-ink-soft">
+                        {detail}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+
+                {recommendation?.summary ? (
+                  <div className="mt-4 rounded-[14px] border border-dashed border-line bg-slate-50/80 p-4 text-sm leading-7 text-ink-soft">
+                    {recommendation.summary}
+                  </div>
+                ) : null}
+              </div>
+
+              {recommendation ? (
+                <details className="rounded-[22px] border border-line bg-white p-5 shadow-[0_12px_36px_rgba(15,23,42,0.04)]">
+                  <summary className="cursor-pointer list-none text-sm font-semibold text-ink">
+                    View full proposal details
+                  </summary>
+                  <div className="mt-5">
+                    <RecommendationViewer
+                      recommendation={recommendation}
+                      recommendationPdfUrl={campaign.recommendationPdfUrl}
+                      onDownloadPdf={() => handleDownloadRecommendationPdf()}
+                    />
+                  </div>
+                </details>
+              ) : (
+                <div className="rounded-[18px] border border-line bg-slate-50/70 p-5 text-sm leading-7 text-ink-soft">
+                  Your recommendation is still being prepared. Once it is ready, you&apos;ll see the full channel mix and placements here before you approve.
                 </div>
-              ) : null}
+              )}
             </div>
 
             <div className="space-y-4">
-              <div className="rounded-[18px] border border-line bg-slate-50/70 p-5">
-                <div className="mb-2 text-sm font-semibold text-ink">What you need to do</div>
+              <div className="rounded-[22px] border border-brand/20 bg-[linear-gradient(180deg,#f7fcfa_0%,#ffffff_100%)] p-6 shadow-[0_18px_44px_rgba(15,118,110,0.08)]">
+                <div className="mb-2 text-lg font-semibold text-ink">Choose your next step</div>
                 <p className="text-sm leading-7 text-ink-soft">{approval.guidance}</p>
               </div>
               {paymentRequiredBeforeApproval ? (
@@ -519,7 +551,7 @@ export function CampaignDetailPage() {
                       type="button"
                       onClick={() => approveMutation.mutate(recommendation?.id)}
                       disabled={approveMutation.isPending || requestChangesMutation.isPending || rejectAllMutation.isPending}
-                      className={`w-full justify-center text-center whitespace-normal sm:col-span-2 ${
+                      className={`w-full justify-center text-center whitespace-normal px-4 py-3 text-sm sm:col-span-2 ${
                         paymentRequiredBeforeApproval
                           ? 'user-btn-secondary border-amber-200 bg-amber-50 text-amber-900 opacity-100'
                           : 'user-btn-primary'
@@ -533,7 +565,7 @@ export function CampaignDetailPage() {
                       type="button"
                       onClick={() => requestChangesMutation.mutate(buildSelectedProposalFeedback(changeNotes))}
                       disabled={approveMutation.isPending || requestChangesMutation.isPending || rejectAllMutation.isPending || !changeNotes.trim()}
-                      className="user-btn-secondary w-full justify-center text-center whitespace-normal disabled:cursor-not-allowed disabled:opacity-60"
+                      className="user-btn-secondary w-full justify-center text-center whitespace-normal px-4 py-3 text-sm disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {requestChangesMutation.isPending ? 'Sending...' : 'Request changes'}
                     </button>
@@ -541,7 +573,7 @@ export function CampaignDetailPage() {
                       type="button"
                       onClick={() => rejectAllMutation.mutate(buildRejectAllFeedback(changeNotes))}
                       disabled={approveMutation.isPending || requestChangesMutation.isPending || rejectAllMutation.isPending || !changeNotes.trim()}
-                      className="user-btn-secondary w-full justify-center text-center whitespace-normal disabled:cursor-not-allowed disabled:opacity-60"
+                      className="user-btn-secondary w-full justify-center text-center whitespace-normal px-4 py-3 text-sm disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {rejectAllMutation.isPending ? 'Sending...' : 'Reject all'}
                     </button>
