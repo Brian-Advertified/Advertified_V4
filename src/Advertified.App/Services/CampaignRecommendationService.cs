@@ -17,6 +17,9 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
 {
     private const string FallbackFlagsMarker = "Fallback flags:";
     private const string ManualReviewMarker = "Manual review required:";
+    private const string TierBoundaryToleranceFlag = "tier_boundary_tolerance_used";
+    private const decimal ProposalTierMaxBudgetToleranceRatio = 0.02m;
+    private const decimal ProposalTierSpanToleranceRatio = 0.15m;
     private readonly AppDbContext _db;
     private readonly IMediaPlanningEngine _planningEngine;
     private readonly ICampaignReasoningService _campaignReasoningService;
@@ -552,14 +555,59 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         }
 
         var total = recommendationResult.RecommendedPlanTotal;
-        if (total >= variant.BudgetBand.MinBudget && total <= variant.BudgetBand.MaxBudget)
+        if (IsWithinProposalTier(total, variant.BudgetBand.MinBudget, variant.BudgetBand.MaxBudget))
         {
+            return;
+        }
+
+        if (IsWithinProposalTierTolerance(total, variant.BudgetBand.MinBudget, variant.BudgetBand.MaxBudget))
+        {
+            if (!recommendationResult.FallbackFlags.Contains(TierBoundaryToleranceFlag, StringComparer.OrdinalIgnoreCase))
+            {
+                recommendationResult.FallbackFlags.Add(TierBoundaryToleranceFlag);
+            }
+
+            recommendationResult.ManualReviewRequired = true;
             return;
         }
 
         throw new InvalidOperationException(
             $"Could not generate {GetProposalDisplayLabel(variant.Key)} within its required tier of {FormatCurrency(variant.BudgetBand.MinBudget)} to {FormatCurrency(variant.BudgetBand.MaxBudget)}. " +
             $"The generated total was {FormatCurrency(total)}.");
+    }
+
+    internal static bool IsWithinProposalTier(decimal total, decimal minBudget, decimal maxBudget)
+    {
+        return total >= minBudget && total <= maxBudget;
+    }
+
+    internal static bool IsWithinProposalTierTolerance(decimal total, decimal minBudget, decimal maxBudget)
+    {
+        if (IsWithinProposalTier(total, minBudget, maxBudget))
+        {
+            return true;
+        }
+
+        var tolerance = GetProposalTierTolerance(minBudget, maxBudget);
+        if (tolerance <= 0m)
+        {
+            return false;
+        }
+
+        return total >= minBudget - tolerance && total <= maxBudget + tolerance;
+    }
+
+    internal static decimal GetProposalTierTolerance(decimal minBudget, decimal maxBudget)
+    {
+        if (maxBudget <= minBudget || maxBudget <= 0m)
+        {
+            return 0m;
+        }
+
+        var span = maxBudget - minBudget;
+        return RoundCurrency(Math.Min(
+            maxBudget * ProposalTierMaxBudgetToleranceRatio,
+            span * ProposalTierSpanToleranceRatio));
     }
 
     private static string GetProposalDisplayLabel(string variantKey)

@@ -1739,3 +1739,28 @@ public class OpenAICampaignReasoningServiceTests
         result.Should().BeNull();
     }
 }
+
+public class CampaignRecommendationServiceTests
+{
+    [Fact]
+    public void IsWithinProposalTierTolerance_AllowsSmallNearFloorUnderfill()
+    {
+        var withinTolerance = CampaignRecommendationService.IsWithinProposalTierTolerance(
+            2302178m,
+            2333333.33m,
+            3666666.67m);
+
+        withinTolerance.Should().BeTrue();
+    }
+
+    [Fact]
+    public void IsWithinProposalTierTolerance_RejectsLargeUnderfill()
+    {
+        var withinTolerance = CampaignRecommendationService.IsWithinProposalTierTolerance(
+            4200m,
+            20000m,
+            46666.67m);
+
+        withinTolerance.Should().BeFalse();
+    }
+}
