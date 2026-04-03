@@ -274,6 +274,8 @@ public sealed class NotificationsController : ControllerBase
             .Include(campaign => campaign.PackageOrder)
             .Include(campaign => campaign.CampaignBrief)
             .Include(campaign => campaign.CampaignRecommendations)
+            .Include(campaign => campaign.CampaignConversation!)
+                .ThenInclude(conversation => conversation.Messages)
             .OrderByDescending(campaign => campaign.UpdatedAt)
             .Take(12)
             .ToArrayAsync(cancellationToken);
@@ -292,6 +294,11 @@ public sealed class NotificationsController : ControllerBase
             }
 
             var stage = ResolveQueueStage(campaign);
+            var latestRecommendation = (campaign.CampaignRecommendations ?? Array.Empty<CampaignRecommendation>())
+                .OrderByDescending(x => x.CreatedAt)
+                .FirstOrDefault();
+            var unreadClientMessages = campaign.CampaignConversation?.Messages.Count(
+                message => message.SenderRole == "client" && message.ReadByAgentAt == null) ?? 0;
             var packageBandName = string.IsNullOrWhiteSpace(campaign.PackageBand?.Name) ? "Package" : campaign.PackageBand.Name.Trim();
             var campaignName = string.IsNullOrWhiteSpace(campaign.CampaignName) ? $"{packageBandName} campaign" : campaign.CampaignName.Trim();
 
@@ -304,13 +311,45 @@ public sealed class NotificationsController : ControllerBase
                 continue;
             }
 
-            if (stage == "planning_ready")
+            if (unreadClientMessages > 0)
+            {
+                var messageLabel = unreadClientMessages == 1 ? "message" : "messages";
+                items.Add(BuildItem(
+                    $"agent-client-message-{campaign.Id}",
+                    "New client comment",
+                    $"{campaignName} has {unreadClientMessages} unread client {messageLabel} for you.",
+                    $"/agent/messages?campaignId={campaign.Id}",
+                    "info"));
+            }
+
+            if (campaign.Status == CampaignStatuses.Approved)
+            {
+                items.Add(BuildItem(
+                    $"agent-approved-{campaign.Id}",
+                    "Client approved recommendation",
+                    $"{campaignName} was approved by the client and can now move forward.",
+                    $"/agent/campaigns/{campaign.Id}",
+                    "success"));
+            }
+            else if (stage == "planning_ready")
             {
                 items.Add(BuildItem($"agent-planning-ready-{campaign.Id}", "Campaign ready for recommendation", $"{campaignName} can now move into recommendation planning.", $"/agent/campaigns/{campaign.Id}", "info"));
             }
             else if (stage == "agent_review")
             {
-                items.Add(BuildItem($"agent-review-{campaign.Id}", "Recommendation needs strategist review", $"{campaignName} has checks or flags that need your attention.", $"/agent/campaigns/{campaign.Id}", "warning"));
+                if (HasClientFeedback(latestRecommendation))
+                {
+                    items.Add(BuildItem(
+                        $"agent-client-revision-{campaign.Id}",
+                        "Client requested recommendation changes",
+                        $"{campaignName} came back with client notes and needs a refreshed proposal set.",
+                        $"/agent/campaigns/{campaign.Id}",
+                        "warning"));
+                }
+                else
+                {
+                    items.Add(BuildItem($"agent-review-{campaign.Id}", "Recommendation needs strategist review", $"{campaignName} has checks or flags that need your attention.", $"/agent/campaigns/{campaign.Id}", "warning"));
+                }
             }
             else if (stage == "waiting_on_client")
             {
@@ -386,6 +425,13 @@ public sealed class NotificationsController : ControllerBase
             CampaignStatuses.ReviewReady => "waiting_on_client",
             _ => "watching"
         };
+    }
+
+    private static bool HasClientFeedback(CampaignRecommendation? recommendation)
+    {
+        return recommendation is not null
+            && !string.IsNullOrWhiteSpace(recommendation.Rationale)
+            && recommendation.Rationale.Contains("Client feedback:", StringComparison.OrdinalIgnoreCase);
     }
 
     private static NotificationSummaryItemResponse BuildItem(string id, string title, string description, string href, string tone)
