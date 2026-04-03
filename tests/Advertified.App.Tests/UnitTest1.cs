@@ -655,6 +655,70 @@ public class MediaPlanningEngineTests
     }
 
     [Fact]
+    public async Task GenerateAsync_PrefersAdditionalOohFromSameSiteBeforeDifferentSite()
+    {
+        var repository = new StubPlanningInventoryRepository
+        {
+            OohCandidates = new List<InventoryCandidate>
+            {
+                new()
+                {
+                    SourceId = Guid.NewGuid(),
+                    SourceType = "ooh",
+                    DisplayName = "Rosebank Mall Screen A",
+                    MediaType = "OOH",
+                    Province = "Gauteng",
+                    City = "Johannesburg",
+                    Area = "Rosebank Mall",
+                    Cost = 12000m,
+                    IsAvailable = true
+                },
+                new()
+                {
+                    SourceId = Guid.NewGuid(),
+                    SourceType = "ooh",
+                    DisplayName = "Rosebank Mall Screen B",
+                    MediaType = "OOH",
+                    Province = "Gauteng",
+                    City = "Johannesburg",
+                    Area = "Rosebank Mall",
+                    Cost = 10000m,
+                    IsAvailable = true
+                },
+                new()
+                {
+                    SourceId = Guid.NewGuid(),
+                    SourceType = "ooh",
+                    DisplayName = "Sandton City Screen",
+                    MediaType = "OOH",
+                    Province = "Gauteng",
+                    City = "Johannesburg",
+                    Area = "Sandton City",
+                    Cost = 10000m,
+                    IsAvailable = true
+                }
+            }
+        };
+
+        var engine = CreateEngine(repository);
+        var request = new CampaignPlanningRequest
+        {
+            CampaignId = Guid.NewGuid(),
+            SelectedBudget = 22000m,
+            GeographyScope = "local",
+            Cities = new List<string> { "Johannesburg" },
+            PreferredMediaTypes = new List<string> { "ooh" },
+            MaxMediaItems = 3
+        };
+
+        var result = await engine.GenerateAsync(request, CancellationToken.None);
+
+        result.RecommendedPlan.Should().HaveCount(2);
+        result.RecommendedPlan.Select(item => item.DisplayName).Should().Contain(new[] { "Rosebank Mall Screen A", "Rosebank Mall Screen B" });
+        result.RecommendedPlan.Should().NotContain(item => item.DisplayName == "Sandton City Screen");
+    }
+
+    [Fact]
     public async Task GenerateAsync_RelaxesGeographyWhenStrictLocalPassUnderfills()
     {
         var repository = new StubPlanningInventoryRepository

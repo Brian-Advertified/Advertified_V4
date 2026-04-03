@@ -23,25 +23,31 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
         var result = new List<PlannedItem>();
         var spent = 0m;
         var usedMediaTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var usedSourceIds = new HashSet<Guid>();
 
-        foreach (var candidate in candidates)
+        while (true)
         {
-            if (candidate.Cost <= 0) continue;
-            if (spent + candidate.Cost > request.SelectedBudget) continue;
-            if (request.MaxMediaItems.HasValue && result.Count >= request.MaxMediaItems.Value) break;
+            var candidate = OrderCandidatesForSelection(candidates, result)
+                .FirstOrDefault(item =>
+                    !usedSourceIds.Contains(item.SourceId)
+                    && item.Cost > 0m
+                    && spent + item.Cost <= request.SelectedBudget
+                    && (!request.MaxMediaItems.HasValue || result.Count < request.MaxMediaItems.Value)
+                    && (!diversify
+                        || !usedMediaTypes.Contains(item.MediaType)
+                        || usedMediaTypes.Count >= 2));
 
-            if (diversify && usedMediaTypes.Contains(candidate.MediaType))
+            if (candidate is null)
             {
-                var alreadyHasDifferentType = usedMediaTypes.Count >= 2;
-                if (!alreadyHasDifferentType)
-                {
-                    continue;
-                }
+                break;
             }
+
+            if (candidate.Cost <= 0) continue;
 
             result.Add(ToPlannedItem(candidate));
             spent += candidate.Cost;
             usedMediaTypes.Add(candidate.MediaType);
+            usedSourceIds.Add(candidate.SourceId);
         }
 
         FillBudgetGap(result, candidates, request.SelectedBudget, request.MaxMediaItems);
@@ -81,7 +87,8 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
                 .Where(candidate => candidate.Cost > 0m)
                 .Where(candidate => !usedSourceIds.Contains(candidate.SourceId))
                 .Where(candidate => spentTotal + candidate.Cost <= request.SelectedBudget)
-                .OrderBy(candidate => GetStationSelectionCount(result, candidate, shareTarget.Channel))
+                .OrderByDescending(candidate => HasMatchingOohSite(result, candidate))
+                .ThenBy(candidate => GetStationSelectionCount(result, candidate, shareTarget.Channel))
                 .ThenByDescending(candidate => candidate.Score)
                 .ThenByDescending(candidate => candidate.Cost)
                 .FirstOrDefault();
@@ -127,7 +134,8 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
                     .Where(candidate => candidate.Cost > 0m)
                     .Where(candidate => !usedSourceIds.Contains(candidate.SourceId))
                     .Where(candidate => spentTotal + candidate.Cost <= request.SelectedBudget)
-                    .OrderBy(candidate => GetStationSelectionCount(result, candidate, shareTarget.Channel))
+                    .OrderByDescending(candidate => HasMatchingOohSite(result, candidate))
+                    .ThenBy(candidate => GetStationSelectionCount(result, candidate, shareTarget.Channel))
                     .ThenByDescending(candidate => candidate.Score)
                     .ThenByDescending(candidate => candidate.Cost)
                     .FirstOrDefault();
@@ -201,8 +209,6 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
                 .OrderByDescending(candidate => candidate.Score)
                 .ThenByDescending(candidate => candidate.Cost)
                 .First())
-            .OrderByDescending(candidate => candidate.Score)
-            .ThenByDescending(candidate => candidate.Cost)
             .ToList();
 
         if (fillCandidates.Count == 0)
@@ -239,7 +245,8 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
                     ((result.Any(item => item.SourceId == x.SourceId) && _policyService.IsRepeatableCandidate(x))
                         || !maxItems.HasValue
                         || result.Count < maxItems.Value))
-                .OrderByDescending(x => x.Score)
+                .OrderByDescending(x => HasMatchingOohSite(result, x))
+                .ThenByDescending(x => x.Score)
                 .ThenByDescending(x => x.Cost)
                 .FirstOrDefault();
 
@@ -306,6 +313,12 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
 
     private static PlannedItem ToPlannedItem(InventoryCandidate candidate)
     {
+        var metadata = new Dictionary<string, object?>(candidate.Metadata);
+        SetMetadataIfMissing(metadata, "province", candidate.Province);
+        SetMetadataIfMissing(metadata, "city", candidate.City);
+        SetMetadataIfMissing(metadata, "suburb", candidate.Suburb);
+        SetMetadataIfMissing(metadata, "area", candidate.Area);
+
         return new PlannedItem
         {
             SourceId = candidate.SourceId,
@@ -315,7 +328,7 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
             UnitCost = candidate.Cost,
             Quantity = 1,
             Score = candidate.Score,
-            Metadata = new Dictionary<string, object?>(candidate.Metadata)
+            Metadata = metadata
         };
     }
 
@@ -334,6 +347,16 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
         }
 
         result.Add(ToPlannedItem(candidate));
+    }
+
+    private static IEnumerable<InventoryCandidate> OrderCandidatesForSelection(
+        IEnumerable<InventoryCandidate> candidates,
+        IReadOnlyList<PlannedItem> currentPlan)
+    {
+        return candidates
+            .OrderByDescending(candidate => HasMatchingOohSite(currentPlan, candidate))
+            .ThenByDescending(candidate => candidate.Score)
+            .ThenByDescending(candidate => candidate.Cost);
     }
 
     private static bool HasTargetMix(CampaignPlanningRequest request)
@@ -431,5 +454,81 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
         }
 
         return displayName[..separator].Trim();
+    }
+
+    private static bool HasMatchingOohSite(IReadOnlyList<PlannedItem> currentPlan, InventoryCandidate candidate)
+    {
+        if (!string.Equals(candidate.MediaType?.Trim(), "OOH", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var candidateSiteKey = GetOohSiteKey(candidate.DisplayName, candidate.Area, candidate.Suburb, candidate.City);
+        if (string.IsNullOrWhiteSpace(candidateSiteKey))
+        {
+            return false;
+        }
+
+        return currentPlan
+            .Where(item => string.Equals(item.MediaType?.Trim(), "OOH", StringComparison.OrdinalIgnoreCase))
+            .Select(item => GetOohSiteKey(
+                item.DisplayName,
+                GetMetadataString(item.Metadata, "area"),
+                GetMetadataString(item.Metadata, "suburb"),
+                GetMetadataString(item.Metadata, "city")))
+            .Any(siteKey => !string.IsNullOrWhiteSpace(siteKey) && string.Equals(siteKey, candidateSiteKey, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string GetOohSiteKey(string? displayName, string? area, string? suburb, string? city)
+    {
+        var preferred = FirstNonEmpty(area, suburb, ExtractOohDisplaySite(displayName), city);
+        if (string.IsNullOrWhiteSpace(preferred))
+        {
+            return string.Empty;
+        }
+
+        return preferred.Trim().ToLowerInvariant();
+    }
+
+    private static string? ExtractOohDisplaySite(string? displayName)
+    {
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            return null;
+        }
+
+        var value = displayName.Trim();
+        var separator = value.IndexOf(" - ", StringComparison.Ordinal);
+        if (separator > 0)
+        {
+            value = value[..separator];
+        }
+
+        return string.IsNullOrWhiteSpace(value) ? null : value;
+    }
+
+    private static string? GetMetadataString(IReadOnlyDictionary<string, object?> metadata, string key)
+    {
+        if (!metadata.TryGetValue(key, out var value) || value is null)
+        {
+            return null;
+        }
+
+        return value.ToString();
+    }
+
+    private static string? FirstNonEmpty(params string?[] values)
+    {
+        return values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+    }
+
+    private static void SetMetadataIfMissing(IDictionary<string, object?> metadata, string key, string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || metadata.ContainsKey(key))
+        {
+            return;
+        }
+
+        metadata[key] = value;
     }
 }
