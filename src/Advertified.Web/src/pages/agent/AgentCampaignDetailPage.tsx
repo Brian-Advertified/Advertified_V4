@@ -138,7 +138,6 @@ export function AgentCampaignDetailPage() {
         title: 'Recommendation sent to client.',
         description: 'The campaign has moved into the client review stage.',
       });
-      navigate('/agent/approvals');
     },
   });
   const updateProspectPricingMutation = useMutation({
