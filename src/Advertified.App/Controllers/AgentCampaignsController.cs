@@ -1845,19 +1845,25 @@ public sealed class AgentCampaignsController : ControllerBase
 
     private static string ResolveBudgetLabel(Campaign campaign)
     {
-        return string.Equals(campaign.Status, "awaiting_purchase", StringComparison.OrdinalIgnoreCase)
+        return ShouldDisplayPackageRange(campaign)
             ? "Package range"
             : "Selected budget";
     }
 
     private static string ResolveBudgetDisplayText(Campaign campaign)
     {
-        if (string.Equals(campaign.Status, "awaiting_purchase", StringComparison.OrdinalIgnoreCase))
+        if (ShouldDisplayPackageRange(campaign))
         {
             return $"{FormatCurrency(campaign.PackageBand.MinBudget)} to {FormatCurrency(campaign.PackageBand.MaxBudget)}";
         }
 
         return FormatCurrency(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount);
+    }
+
+    private static bool ShouldDisplayPackageRange(Campaign campaign)
+    {
+        return string.Equals(campaign.Status, "awaiting_purchase", StringComparison.OrdinalIgnoreCase)
+            || !CampaignOperationsPolicy.IsOrderOperationallyActive(campaign.PackageOrder);
     }
 
     private string BuildProposalAcceptButtonsBlock(Guid campaignId, IReadOnlyList<CampaignRecommendation> recommendations)

@@ -24,13 +24,13 @@ const providerOptions: ProviderOption[] = [
     id: 'lula',
     name: 'Pay Later',
     caption: 'This transaction is powered by Lula',
-    description: 'Create a downloadable invoice that the admin team can send to Lula manually.',
+    description: 'Request pay-later approval and continue once your invoice has been prepared.',
   },
   {
     id: 'vodapay',
     name: 'Pay Now',
     caption: 'This transaction is powered by VodaPay',
-    description: 'Redirect customers to a live hosted checkout to complete payment immediately.',
+    description: 'Pay securely now and come straight back to Advertified when payment is complete.',
   },
 ];
 
@@ -189,8 +189,8 @@ export function PaymentSelectionPage() {
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-brand">What happens next</p>
             <p className="text-sm leading-7 text-ink-soft">
               {selectedProvider === 'lula'
-                ? 'We will create and save a downloadable invoice for this order so the admin team can route it to Lula manually.'
-                : 'We will open your selected provider, confirm the transaction, then bring you back to Advertified to continue your campaign setup.'}
+                ? 'We will prepare your pay-later invoice and show you the next steps for approval.'
+                : 'You will be taken to secure checkout. Once payment is complete, we will bring you back to Advertified automatically.'}
             </p>
           </div>
 
