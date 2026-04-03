@@ -597,6 +597,64 @@ public class MediaPlanningEngineTests
     }
 
     [Fact]
+    public async Task GenerateAsync_PrioritizesHigherScoringOohBeforeMoreExpensiveRadio()
+    {
+        var repository = new StubPlanningInventoryRepository
+        {
+            OohCandidates = new List<InventoryCandidate>
+            {
+                new()
+                {
+                    SourceId = Guid.NewGuid(),
+                    SourceType = "ooh",
+                    DisplayName = "Rosebank Digital Billboard",
+                    MediaType = "OOH",
+                    Province = "Gauteng",
+                    City = "Johannesburg",
+                    Area = "Rosebank",
+                    Cost = 18000m,
+                    IsAvailable = true
+                }
+            },
+            RadioSlotCandidates = new List<InventoryCandidate>
+            {
+                new()
+                {
+                    SourceId = Guid.NewGuid(),
+                    SourceType = "radio_slot",
+                    DisplayName = "National Drive Slot",
+                    MediaType = "Radio",
+                    Province = "Gauteng",
+                    Cost = 28000m,
+                    IsAvailable = true,
+                    TimeBand = "drive",
+                    DayType = "weekday",
+                    SlotType = "commercial"
+                }
+            }
+        };
+
+        var engine = CreateEngine(repository);
+        var request = new CampaignPlanningRequest
+        {
+            CampaignId = Guid.NewGuid(),
+            SelectedBudget = 30000m,
+            GeographyScope = "local",
+            Cities = new List<string> { "Johannesburg" },
+            Areas = new List<string> { "Rosebank" },
+            PreferredMediaTypes = new List<string> { "ooh", "radio" },
+            MaxMediaItems = 2
+        };
+
+        var result = await engine.GenerateAsync(request, CancellationToken.None);
+
+        result.RecommendedPlan.Should().NotBeEmpty();
+        result.RecommendedPlan[0].MediaType.Should().Be("OOH");
+        result.RecommendedPlanTotal.Should().Be(18000m);
+        result.RecommendedPlan.Should().NotContain(item => item.MediaType == "Radio");
+    }
+
+    [Fact]
     public async Task GenerateAsync_RelaxesGeographyWhenStrictLocalPassUnderfills()
     {
         var repository = new StubPlanningInventoryRepository

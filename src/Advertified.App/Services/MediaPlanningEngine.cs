@@ -111,8 +111,8 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
         }
 
         var scored = eligibleCandidates
-            .OrderByDescending(x => x.Cost)
-            .ThenByDescending(x => x.Score)
+            .OrderByDescending(x => x.Score)
+            .ThenByDescending(x => x.Cost)
             .ToList();
 
         var basePlan = _planBuilder.BuildPlan(scored, request, diversify: true);

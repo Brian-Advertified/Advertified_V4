@@ -82,8 +82,8 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
                 .Where(candidate => !usedSourceIds.Contains(candidate.SourceId))
                 .Where(candidate => spentTotal + candidate.Cost <= request.SelectedBudget)
                 .OrderBy(candidate => GetStationSelectionCount(result, candidate, shareTarget.Channel))
-                .ThenByDescending(candidate => candidate.Cost)
                 .ThenByDescending(candidate => candidate.Score)
+                .ThenByDescending(candidate => candidate.Cost)
                 .FirstOrDefault();
 
             if (channelCandidate is null)
@@ -128,8 +128,8 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
                     .Where(candidate => !usedSourceIds.Contains(candidate.SourceId))
                     .Where(candidate => spentTotal + candidate.Cost <= request.SelectedBudget)
                     .OrderBy(candidate => GetStationSelectionCount(result, candidate, shareTarget.Channel))
-                    .ThenByDescending(candidate => candidate.Cost)
                     .ThenByDescending(candidate => candidate.Score)
+                    .ThenByDescending(candidate => candidate.Cost)
                     .FirstOrDefault();
 
                 if (nextCandidate is null)
@@ -201,8 +201,8 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
                 .OrderByDescending(candidate => candidate.Score)
                 .ThenByDescending(candidate => candidate.Cost)
                 .First())
-            .OrderByDescending(candidate => candidate.Cost)
-            .ThenByDescending(candidate => candidate.Score)
+            .OrderByDescending(candidate => candidate.Score)
+            .ThenByDescending(candidate => candidate.Cost)
             .ToList();
 
         if (fillCandidates.Count == 0)
@@ -239,8 +239,8 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
                     ((result.Any(item => item.SourceId == x.SourceId) && _policyService.IsRepeatableCandidate(x))
                         || !maxItems.HasValue
                         || result.Count < maxItems.Value))
-                .OrderByDescending(x => x.Cost)
-                .ThenByDescending(x => x.Score)
+                .OrderByDescending(x => x.Score)
+                .ThenByDescending(x => x.Cost)
                 .FirstOrDefault();
 
             if (candidate is null)
