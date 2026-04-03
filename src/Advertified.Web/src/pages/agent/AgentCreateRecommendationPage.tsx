@@ -86,6 +86,14 @@ function formatPackageRange(packageBand: PackageBand): string {
   return `${formatCurrency(packageBand.minBudget)} to ${formatCurrency(packageBand.maxBudget)}`;
 }
 
+function normalizeNextAction(nextAction: string, hasPackageRange: boolean): string {
+  if (!hasPackageRange) {
+    return nextAction;
+  }
+
+  return nextAction.replace('within the paid budget', 'within the selected package band');
+}
+
 function getAllowedChannels(campaign?: {
   includeRadio: 'yes' | 'optional' | 'no';
   includeTv: 'yes' | 'optional' | 'no';
@@ -143,6 +151,8 @@ function inferInitialForm(campaign: {
   includeTv: 'yes' | 'optional' | 'no';
 }) : CampaignFormState {
   const defaultChannels = getAllowedChannels(campaign);
+  const hasPackageRange = Boolean(campaign.packageRangeLabel);
+  const nextAction = normalizeNextAction(campaign.nextAction, hasPackageRange);
 
   return {
     objective: campaign.queueStage === 'newly_paid' ? 'launch' : 'awareness',
@@ -151,9 +161,9 @@ function inferInitialForm(campaign: {
     geography: campaign.selectedBudget >= 500000 ? '' : 'gauteng',
     brandName: `${campaign.clientName} ${campaign.packageBandName} Campaign`,
     tone: campaign.packageBandName === 'Dominance' ? 'premium' : 'high-visibility',
-    brief: campaign.isProspective && campaign.packageRangeLabel
-      ? `Build a ${campaign.packageBandName.toLowerCase()} recommendation for ${campaign.clientName} within the ${campaign.packageRangeLabel} package range. ${campaign.nextAction}`
-      : `Build a ${campaign.packageBandName.toLowerCase()} recommendation for ${campaign.clientName} within ${formatCurrency(campaign.selectedBudget)}. ${campaign.nextAction}`,
+    brief: hasPackageRange
+      ? `Build a ${campaign.packageBandName.toLowerCase()} recommendation for ${campaign.clientName} within the ${campaign.packageRangeLabel} package range. ${nextAction}`
+      : `Build a ${campaign.packageBandName.toLowerCase()} recommendation for ${campaign.clientName} within ${formatCurrency(campaign.selectedBudget)}. ${nextAction}`,
     channels: ensureRequiredChannels(defaultChannels),
   };
 }
