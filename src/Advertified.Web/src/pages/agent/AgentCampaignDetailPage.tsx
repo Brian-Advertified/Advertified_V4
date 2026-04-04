@@ -495,10 +495,20 @@ export function AgentCampaignDetailPage() {
   const recommendationTitle = activeRecommendation?.summary || 'Draft recommendation';
   const canMarkLive = campaign.status === 'creative_approved';
   const recommendationWorkflowLocked = showExecutionOperations || activeRecommendation?.status?.toLowerCase() === 'approved';
+  const showRecommendationEditing = !recommendationWorkflowLocked;
   const canEditDraftRecommendation = !recommendationWorkflowLocked && activeRecommendation?.status?.toLowerCase() === 'draft';
   const canModifyPlan = canEditDraftRecommendation && !draftApprovalCaptured;
   const hasSendableProposal = !recommendationWorkflowLocked && recommendations.length >= 1;
   const hasOohRecommendation = selectedPlanItems.some((item) => normalizeChannelKey(item.type) === 'OOH');
+  const lockedNextStep = campaign.status === 'approved'
+    ? 'The recommendation is approved and paid. Stay focused on creative production, supplier coordination, and client updates from here.'
+    : campaign.status === 'creative_changes_requested'
+      ? 'The recommendation is already complete. Use this page to coordinate the revised creative handoff.'
+      : campaign.status === 'creative_sent_to_client_for_approval'
+        ? 'The finished campaign is now back with the client for final sign-off. Watch messages and feedback only.'
+        : campaign.status === 'creative_approved'
+          ? 'Creative is approved. Confirm operations readiness, then mark the campaign live when activation starts.'
+          : 'Recommendation work is complete. Use this page for delivery, reporting, and live campaign follow-up.';
   const budgetConstraint: BudgetConstraintContext = selectedPackageBand
     ? {
       label: 'Within selected band',
@@ -869,7 +879,7 @@ export function AgentCampaignDetailPage() {
             </div>
           ) : null}
 
-          {recommendations.length > 1 ? (
+          {showRecommendationEditing && recommendations.length > 1 ? (
             <div className="panel px-6 py-5">
               <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand">Proposal set</p>
               <div className="mt-4 flex flex-wrap gap-3">
@@ -898,10 +908,10 @@ export function AgentCampaignDetailPage() {
           <div className="panel border-line/80 bg-white px-6 py-6 shadow-[0_10px_26px_rgba(17,24,39,0.05)]">
             <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
               <div>
-                <h2 className="text-xl font-semibold text-ink">Recommendation</h2>
-                <p className="mt-2 text-sm text-ink-soft">{recommendationTitle}</p>
+                <h2 className="text-xl font-semibold text-ink">{showRecommendationEditing ? 'Recommendation' : 'Next steps'}</h2>
+                <p className="mt-2 text-sm text-ink-soft">{showRecommendationEditing ? recommendationTitle : lockedNextStep}</p>
               </div>
-              {!recommendationWorkflowLocked ? (
+              {showRecommendationEditing ? (
                 <div className="flex flex-wrap gap-2">
                   <button type="button" onClick={handleRegenerate} disabled={regenerateMutation.isPending} className="button-secondary inline-flex items-center gap-2 px-4 py-2 disabled:opacity-60">
                     <RefreshCcw className="size-4" />
@@ -917,11 +927,22 @@ export function AgentCampaignDetailPage() {
 
             <div className="mt-6 space-y-5">
               {recommendationWorkflowLocked ? (
-                <div className="rounded-[16px] border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-800">
-                  Recommendation work is complete for this campaign. The selected proposal is now read-only here while the team handles production and delivery.
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+                  <div className="rounded-[16px] border border-emerald-200 bg-emerald-50 px-4 py-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Approved proposal</p>
+                    <p className="mt-3 text-lg font-semibold text-ink">{activeProposalLabel}</p>
+                    <p className="mt-1 text-sm text-ink-soft">{formatCurrency(activeRecommendation?.totalCost ?? campaign.selectedBudget)}</p>
+                    <p className="mt-3 text-sm leading-7 text-emerald-900">
+                      Recommendation work is complete. Keep this page focused on production, delivery, and client follow-up.
+                    </p>
+                  </div>
+                  <div className="rounded-[16px] border border-line bg-slate-50 px-4 py-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">What to do now</p>
+                    <p className="mt-3 text-sm leading-7 text-ink-soft">{lockedNextStep}</p>
+                  </div>
                 </div>
               ) : null}
-              <div ref={mixPanelRef} className="rounded-[16px] border border-line bg-slate-50 px-4 py-4">
+              <div ref={mixPanelRef} className={`rounded-[16px] border border-line bg-slate-50 px-4 py-4 ${showRecommendationEditing ? '' : 'hidden'}`}>
                 <h3 className="text-sm font-semibold text-ink">Budget split</h3>
                 <input
                   type="range"
@@ -945,7 +966,7 @@ export function AgentCampaignDetailPage() {
                 </p>
               </div>
 
-              {Object.entries(displayedGroups).length > 0 ? Object.entries(displayedGroups).map(([channel, items]) => (
+              {showRecommendationEditing && Object.entries(displayedGroups).length > 0 ? Object.entries(displayedGroups).map(([channel, items]) => (
                 <div key={channel}>
                   <p className="mb-3 text-sm font-semibold text-ink">{formatChannelLabel(channel)}</p>
                   <div className="grid gap-2.5 md:grid-cols-2">
@@ -1257,23 +1278,25 @@ export function AgentCampaignDetailPage() {
             ) : null}
           </div>
 
-          <button
-            type="button"
-            onClick={() => setInventoryModalOpen(true)}
-            className="panel flex w-full items-center justify-between gap-4 px-6 py-5 text-left transition hover:border-brand/30"
-          >
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand">Matching inventory</p>
-              <p className="mt-2 text-sm leading-7 text-ink-soft">
-                Click to open inventory, apply filters, and search supplier rows.
-              </p>
-            </div>
-            <div className="rounded-full bg-brand-soft px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-brand">
-              {selectedPlanItems.length} selected
-            </div>
-          </button>
+          {showRecommendationEditing ? (
+            <button
+              type="button"
+              onClick={() => setInventoryModalOpen(true)}
+              className="panel flex w-full items-center justify-between gap-4 px-6 py-5 text-left transition hover:border-brand/30"
+            >
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand">Matching inventory</p>
+                <p className="mt-2 text-sm leading-7 text-ink-soft">
+                  Click to open inventory, apply filters, and search supplier rows.
+                </p>
+              </div>
+              <div className="rounded-full bg-brand-soft px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-brand">
+                {selectedPlanItems.length} selected
+              </div>
+            </button>
+          ) : null}
 
-          {inventoryModalOpen ? (
+          {showRecommendationEditing && inventoryModalOpen ? (
             <div className="fixed inset-0 z-[90] bg-slate-950/45 backdrop-blur-[1px]">
               <div className="mx-auto mt-8 flex h-[calc(100vh-4rem)] w-[min(1300px,95vw)] flex-col rounded-[24px] border border-line bg-white shadow-[0_25px_60px_rgba(15,23,42,0.22)]">
                 <div className="flex items-center justify-between gap-3 border-b border-line px-6 py-4">
