@@ -625,7 +625,9 @@ export function AgentCampaignDetailPage() {
     if (!canEditDraftRecommendation) {
       pushToast({
         title: 'Recommendation is locked.',
-        description: 'Only draft recommendations can be edited. Create a new revision to make changes.',
+        description: recommendationWorkflowLocked
+          ? 'This campaign has already moved past recommendation work and is now read-only here.'
+          : 'Only draft recommendations can be edited. Create a new revision to make changes.',
       }, 'info');
       return;
     }
@@ -633,7 +635,7 @@ export function AgentCampaignDetailPage() {
     if (draftApprovalCaptured) {
       pushToast({
         title: 'Recommendation already approved.',
-        description: 'Use Send to client to move this campaign to the next step.',
+        description: 'This draft has already been finalized for client review.',
       }, 'info');
       return;
     }
@@ -899,19 +901,26 @@ export function AgentCampaignDetailPage() {
                 <h2 className="text-xl font-semibold text-ink">Recommendation</h2>
                 <p className="mt-2 text-sm text-ink-soft">{recommendationTitle}</p>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={handleRegenerate} disabled={regenerateMutation.isPending || recommendationWorkflowLocked} className="button-secondary inline-flex items-center gap-2 px-4 py-2 disabled:opacity-60">
-                  <RefreshCcw className="size-4" />
-                  Regenerate
-                </button>
-                <button type="button" onClick={handleAdjustMix} disabled={recommendationWorkflowLocked} className="button-secondary inline-flex items-center gap-2 px-4 py-2 disabled:opacity-60">
-                  <SlidersHorizontal className="size-4" />
-                  Adjust mix
-                </button>
-              </div>
+              {!recommendationWorkflowLocked ? (
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={handleRegenerate} disabled={regenerateMutation.isPending} className="button-secondary inline-flex items-center gap-2 px-4 py-2 disabled:opacity-60">
+                    <RefreshCcw className="size-4" />
+                    Regenerate
+                  </button>
+                  <button type="button" onClick={handleAdjustMix} className="button-secondary inline-flex items-center gap-2 px-4 py-2">
+                    <SlidersHorizontal className="size-4" />
+                    Adjust mix
+                  </button>
+                </div>
+              ) : null}
             </div>
 
             <div className="mt-6 space-y-5">
+              {recommendationWorkflowLocked ? (
+                <div className="rounded-[16px] border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-800">
+                  Recommendation work is complete for this campaign. The selected proposal is now read-only here while the team handles production and delivery.
+                </div>
+              ) : null}
               <div ref={mixPanelRef} className="rounded-[16px] border border-line bg-slate-50 px-4 py-4">
                 <h3 className="text-sm font-semibold text-ink">Budget split</h3>
                 <input
@@ -920,6 +929,7 @@ export function AgentCampaignDetailPage() {
                   max={100}
                   value={mixBalance}
                   onChange={(event) => setMixBalance(Number(event.target.value))}
+                  disabled={recommendationWorkflowLocked}
                   className="mt-4 w-full accent-brand"
                 />
                 <p className="mt-3 text-sm text-ink-soft">
@@ -1212,16 +1222,18 @@ export function AgentCampaignDetailPage() {
                 Prefill from approved recommendation
               </Link>
             ) : null}
-            <button
-              type="button"
-              disabled={sendMutation.isPending || isOverBudget || !hasSendableProposal || !hasOohRecommendation}
-              onClick={handleSendToClient}
-              className="button-secondary inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60"
-            >
-              <Send className="size-4" />
-              Send to client
-            </button>
-            {!isProspectiveCampaign ? (
+            {!recommendationWorkflowLocked ? (
+              <button
+                type="button"
+                disabled={sendMutation.isPending || isOverBudget || !hasSendableProposal || !hasOohRecommendation}
+                onClick={handleSendToClient}
+                className="button-secondary inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60"
+              >
+                <Send className="size-4" />
+                Send to client
+              </button>
+            ) : null}
+            {!isProspectiveCampaign && !recommendationWorkflowLocked ? (
               <button
                 type="button"
                 disabled={saveMutation.isPending || !canEditDraftRecommendation || draftApprovalCaptured || !hasOohRecommendation}

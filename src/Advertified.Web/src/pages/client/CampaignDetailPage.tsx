@@ -285,7 +285,9 @@ export function CampaignDetailPage() {
             <section id="overview" className="rounded-[30px] border border-line bg-white p-7 shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
           <div className="inline-flex items-center gap-2 rounded-full bg-brand-soft px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-brand">
             <Sparkles className="size-4" />
-            One thing to do
+            {campaign.status === 'approved' || campaign.status === 'creative_changes_requested' || campaign.status === 'creative_approved' || campaign.status === 'launched'
+              ? 'You are all set'
+              : 'One thing to do'}
           </div>
 
           <div className="mt-5 grid gap-5 grid-cols-1 lg:grid-cols-[1.6fr_0.8fr]">

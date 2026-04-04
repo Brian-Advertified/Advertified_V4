@@ -39,7 +39,7 @@ export function AgentDashboardPage() {
             { label: 'Open campaign queue', href: '/agent/campaigns', icon: FolderKanban, helper: 'Use the main queue to move campaigns forward.' },
             { label: 'View clients', href: '/agent/leads', icon: UserRoundSearch, helper: 'See each client and open their latest campaign.' },
             { label: 'Reply to messages', href: '/agent/messages', icon: MessageSquareText, helper: 'Check unread conversations and send replies.' },
-            { label: 'Review sales', href: '/agent/sales', icon: CircleDollarSign, helper: 'See paid sales and converted prospects assigned to you.' },
+            { label: 'Review sales', href: '/agent/sales', icon: CircleDollarSign, helper: 'See paid sales and converted prospects in the live queue.' },
           ];
           const recentItems = inbox.items.slice(0, 6);
 
@@ -80,7 +80,7 @@ export function AgentDashboardPage() {
                   { label: 'New leads', value: inbox.newlyPaidCount, helper: 'Paid campaigns that still need first contact.', icon: UsersRound },
                   { label: 'Pending briefs', value: inbox.briefWaitingCount, helper: 'Clients who paid but still owe planning input.', icon: Clock3 },
                   { label: 'Recommendations due', value: inbox.planningReadyCount + inbox.agentReviewCount, helper: 'Campaigns waiting for build or strategist review.', icon: Sparkles },
-                  { label: 'Awaiting approval', value: inbox.waitingOnClientCount, helper: 'Sent to client and waiting for response.', icon: Send },
+                  { label: 'Waiting on client', value: inbox.waitingOnClientCount, helper: 'Campaigns that still need a client reply.', icon: Send },
                 ].map((stat) => {
                   const Icon = stat.icon;
                   return (

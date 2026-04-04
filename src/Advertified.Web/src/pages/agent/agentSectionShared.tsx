@@ -44,29 +44,30 @@ export function buildClientRows(campaigns: Awaited<ReturnType<typeof useAgentCam
 
   for (const campaign of campaigns ?? []) {
     const hasApprovedRecommendation = campaign.recommendations.some((item) => item.status === 'approved');
-    const hasPendingClientDecision = !hasApprovedRecommendation && campaign.recommendations.some((item) => item.status === 'sent_to_client');
+    const hasPendingClientDecision = campaign.status === 'creative_sent_to_client_for_approval'
+      || (!hasApprovedRecommendation && campaign.recommendations.some((item) => item.status === 'sent_to_client'));
     const current = grouped.get(campaign.userId) ?? {
       userId: campaign.userId,
-      clientName: campaign.clientName ?? campaign.businessName ?? 'Client account',
-      clientEmail: campaign.clientEmail ?? 'No email captured',
+      clientName: campaign.clientName ?? campaign.businessName ?? campaign.campaignName ?? 'Client',
+      clientEmail: campaign.clientEmail ?? campaign.businessName ?? 'Email not available',
       campaignCount: 0,
       activeCount: 0,
       awaitingApprovalCount: 0,
       latestActivityAt: campaign.createdAt,
       latestActivity: campaign.nextAction,
       topRegion: campaign.brief?.provinces?.[0] ?? campaign.brief?.areas?.[0] ?? 'Not set',
-      topPackage: campaign.packageBandName,
+      topPackage: campaign.packageBandName || campaign.campaignName || 'Campaign',
       latestCampaignId: campaign.id,
     };
 
     current.campaignCount += 1;
-    if (campaign.status !== 'approved') current.activeCount += 1;
+    if (campaign.status !== 'launched') current.activeCount += 1;
     if (hasPendingClientDecision) current.awaitingApprovalCount += 1;
     if (!current.latestActivityAt || new Date(campaign.createdAt).getTime() > new Date(current.latestActivityAt).getTime()) {
       current.latestActivityAt = campaign.createdAt;
       current.latestActivity = campaign.nextAction;
       current.topRegion = campaign.brief?.provinces?.[0] ?? campaign.brief?.areas?.[0] ?? current.topRegion;
-      current.topPackage = campaign.packageBandName;
+      current.topPackage = campaign.packageBandName || campaign.campaignName || current.topPackage;
       current.latestCampaignId = campaign.id;
     }
 

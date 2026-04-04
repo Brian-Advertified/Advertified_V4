@@ -16,7 +16,7 @@ export function AgentLeadsClientsPage() {
 
   return (
     <AgentQueryBoundary query={campaignsQuery} loadingLabel="Loading leads and clients...">
-      <AgentPageShell title="Clients" description="See each client account, their current campaigns, and the latest activity without digging through the full queue.">
+      <AgentPageShell title="Clients" description="See each client, what stage they are in, and the latest update without opening every campaign one by one.">
         {(() => {
           const rows = buildClientRows(campaignsQuery.data, search);
           return (
@@ -49,7 +49,7 @@ export function AgentLeadsClientsPage() {
                         </td>
                         <td className="px-4 py-4 text-ink-soft">
                           <p>{row.campaignCount} campaign(s)</p>
-                          <p className="text-xs">{row.activeCount} active | {row.awaitingApprovalCount} awaiting approval</p>
+                          <p className="text-xs">{row.activeCount} in progress | {row.awaitingApprovalCount} waiting on client</p>
                         </td>
                         <td className="px-4 py-4 text-ink-soft">
                           <p>{row.topPackage}</p>

@@ -53,7 +53,7 @@ export function getHeroContent(campaign: Campaign, recommendationStatus?: string
     return {
       title: 'Your recommendation is approved',
       description: 'Advertified is now taking the next step for you. Creative production is in motion, so you do not need to manage the rest of the workflow from separate campaign pages.',
-      primaryAction: 'Check approval status',
+      primaryAction: 'View campaign progress',
       timeLabel: 'No action required',
       reassurance: 'We will notify you when something needs attention',
     };
