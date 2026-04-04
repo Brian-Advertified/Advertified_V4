@@ -70,45 +70,7 @@ export function CheckoutConfirmationPage() {
     () => `/checkout/confirmation${currentSearch ? `?${currentSearch}` : ''}`,
     [currentSearch],
   );
-
-  if (!user) {
-    return (
-      <section className="page-shell max-w-2xl">
-        <div className="rounded-[28px] border border-line bg-white p-8 shadow-soft">
-          <h1 className="text-3xl font-semibold tracking-tight text-ink">Sign in to check your payment</h1>
-          <p className="mt-3 text-base leading-7 text-ink-soft">
-            {provider === 'lula'
-              ? 'Sign in with the same account to view the invoice prepared for your Lula payment route.'
-              : 'Your VodaPay session has returned to Advertified. Sign in with the same account to view the latest payment state.'}
-          </p>
-          <div className="mt-6 flex flex-wrap gap-3">
-            <Link to={`/login?next=${encodeURIComponent(currentReturnPath)}`} className="button-primary px-5 py-3">Log in</Link>
-            <Link to="/packages" className="button-secondary px-5 py-3">Back to packages</Link>
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  if (orderQuery.isLoading) {
-    return <LoadingState label={provider === 'lula' ? 'Loading invoice details...' : 'Checking payment status...'} />;
-  }
-
-  if (!order) {
-    return (
-      <section className="page-shell max-w-2xl">
-        <div className="rounded-[28px] border border-line bg-white p-8 shadow-soft">
-          <h1 className="text-3xl font-semibold tracking-tight text-ink">Order not found</h1>
-          <p className="mt-3 text-base leading-7 text-ink-soft">We could not locate that package order for your account.</p>
-          <div className="mt-6">
-            <Link to="/orders" className="button-primary px-5 py-3">View my orders</Link>
-          </div>
-        </div>
-      </section>
-      );
-  }
-
-  const linkedCampaign = (campaignsQuery.data ?? []).find((campaign) => campaign.packageOrderId === order.id);
+  const linkedCampaign = (campaignsQuery.data ?? []).find((campaign) => campaign.packageOrderId === order?.id);
   const linkedCampaignAction = linkedCampaign ? getCampaignPrimaryAction(linkedCampaign) : null;
   const effectiveCampaignId = requestedCampaignId || storedAutoApproval?.campaignId || linkedCampaign?.id || '';
   const effectiveRecommendationId = requestedRecommendationId || storedAutoApproval?.recommendationId || '';
@@ -146,6 +108,43 @@ export function CheckoutConfirmationPage() {
       }, 'error');
     },
   });
+
+  if (!user) {
+    return (
+      <section className="page-shell max-w-2xl">
+        <div className="rounded-[28px] border border-line bg-white p-8 shadow-soft">
+          <h1 className="text-3xl font-semibold tracking-tight text-ink">Sign in to check your payment</h1>
+          <p className="mt-3 text-base leading-7 text-ink-soft">
+            {provider === 'lula'
+              ? 'Sign in with the same account to view the invoice prepared for your Lula payment route.'
+              : 'Your VodaPay session has returned to Advertified. Sign in with the same account to view the latest payment state.'}
+          </p>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link to={`/login?next=${encodeURIComponent(currentReturnPath)}`} className="button-primary px-5 py-3">Log in</Link>
+            <Link to="/packages" className="button-secondary px-5 py-3">Back to packages</Link>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (orderQuery.isLoading) {
+    return <LoadingState label={provider === 'lula' ? 'Loading invoice details...' : 'Checking payment status...'} />;
+  }
+
+  if (!order) {
+    return (
+      <section className="page-shell max-w-2xl">
+        <div className="rounded-[28px] border border-line bg-white p-8 shadow-soft">
+          <h1 className="text-3xl font-semibold tracking-tight text-ink">Order not found</h1>
+          <p className="mt-3 text-base leading-7 text-ink-soft">We could not locate that package order for your account.</p>
+          <div className="mt-6">
+            <Link to="/orders" className="button-primary px-5 py-3">View my orders</Link>
+          </div>
+        </div>
+      </section>
+      );
+  }
 
   const attemptKey = `${orderId}:${effectiveCampaignId}:${effectiveRecommendationId}`;
   if (
