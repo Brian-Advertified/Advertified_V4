@@ -65,6 +65,7 @@ internal static class ControllerMappings
             SelectedBudget = PricingPolicy.ResolvePlanningBudget(
                 campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
                 campaign.PackageOrder.AiStudioReserveAmount),
+            PaymentStatus = campaign.PackageOrder.PaymentStatus,
             CampaignName = campaign.CampaignName,
             Status = campaign.Status,
             PlanningMode = campaign.PlanningMode,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Campaign } from '../src/types/domain';
-import { getCampaignProgressPercent, getCampaignQuickSteps } from '../src/pages/client/clientWorkspace';
+import { getCampaignProgressPercent, getCampaignQuickSteps, getClientFacingBudget } from '../src/pages/client/clientWorkspace';
 
 function buildCampaign(status: Campaign['status']): Campaign {
   return {
@@ -10,6 +10,7 @@ function buildCampaign(status: Campaign['status']): Campaign {
     packageBandId: 'band-1',
     packageBandName: 'Scale',
     selectedBudget: 250000,
+    paymentStatus: 'paid',
     status,
     aiUnlocked: true,
     agentAssistanceRequested: false,
@@ -57,5 +58,38 @@ describe('client workspace progress helpers', () => {
     expect(steps.find((step) => step.key === 'launch')?.state).toBe('current');
     expect(steps.find((step) => step.key === 'live')?.state).toBe('upcoming');
     expect(getCampaignProgressPercent(campaign)).toBe(97);
+  });
+
+  it('keeps the package budget once payment is considered cleared by campaign state', () => {
+    const campaign = {
+      ...buildCampaign('approved'),
+      paymentStatus: 'pending' as const,
+      recommendation: {
+        id: 'rec-1',
+        campaignId: 'campaign-1',
+        summary: 'Approved proposal',
+        rationale: 'Rationale',
+        manualReviewRequired: false,
+        fallbackFlags: [],
+        status: 'approved' as const,
+        totalCost: 310000,
+        items: [],
+      },
+      recommendations: [
+        {
+          id: 'rec-1',
+          campaignId: 'campaign-1',
+          summary: 'Approved proposal',
+          rationale: 'Rationale',
+          manualReviewRequired: false,
+          fallbackFlags: [],
+          status: 'approved' as const,
+          totalCost: 310000,
+          items: [],
+        },
+      ],
+    };
+
+    expect(getClientFacingBudget(campaign)).toBe(250000);
   });
 });

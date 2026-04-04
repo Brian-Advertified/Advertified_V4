@@ -10,6 +10,7 @@ import { canAccessAiStudioForStatus } from '../../features/campaigns/aiStudioAcc
 import { RecommendationViewer } from '../../features/campaigns/components/RecommendationViewer';
 import { buildApprovalDetails, getApprovalContent, getHeroContent } from '../../features/campaigns/clientCampaignDetailContent';
 import { CampaignStepper } from '../../components/campaign/CampaignStepper';
+import { hasCampaignClearedPayment } from '../../lib/access';
 import { invalidateClientCampaignQueries, queryKeys } from '../../lib/queryKeys';
 import { formatCurrency, formatDate, titleCase } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
@@ -213,7 +214,7 @@ export function CampaignDetailPage() {
         ? Math.max(progress, 96)
         : progress;
   const recommendationAwaitingDecision = recommendation?.status === 'sent_to_client';
-  const paymentRequiredBeforeApproval = campaign.paymentStatus !== 'paid' && !recommendationApprovalComplete;
+  const paymentRequiredBeforeApproval = !hasCampaignClearedPayment(campaign) && !recommendationApprovalComplete;
   const canApproveRecommendation = Boolean(
     recommendation
       && recommendationAwaitingDecision

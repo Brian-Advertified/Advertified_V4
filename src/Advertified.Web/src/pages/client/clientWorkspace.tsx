@@ -1,6 +1,7 @@
 import { CheckCircle2, Circle, Clock3 } from 'lucide-react';
 import type { PropsWithChildren, ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import { hasCampaignClearedPayment } from '../../lib/access';
 import { cn, formatCurrency, formatDate, titleCase } from '../../lib/utils';
 import type { Campaign, CampaignRecommendation, PackageBand, PackageOrder } from '../../types/domain';
 
@@ -17,7 +18,7 @@ export function getPrimaryRecommendation(campaign: Campaign) {
 
 export function getClientFacingBudget(campaign: Campaign) {
   const recommendation = getPrimaryRecommendation(campaign);
-  if (campaign.paymentStatus !== 'paid' && recommendation?.status === 'sent_to_client') {
+  if (!hasCampaignClearedPayment(campaign) && recommendation?.status === 'sent_to_client') {
     return recommendation.totalCost;
   }
 

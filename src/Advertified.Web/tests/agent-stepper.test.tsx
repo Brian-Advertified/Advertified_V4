@@ -4,7 +4,10 @@ import { render, screen } from '@testing-library/react';
 import { AgentStepper } from '../src/components/agent/AgentStepper';
 import type { Campaign } from '../src/types/domain';
 
-const mockCampaign = (status: Campaign['status']): Campaign => ({
+const mockCampaign = (
+  status: Campaign['status'],
+  overrides: Partial<Campaign> = {},
+): Campaign => ({
   id: 'test-campaign',
   userId: 'test-user',
   clientName: 'Test Client',
@@ -33,6 +36,7 @@ const mockCampaign = (status: Campaign['status']): Campaign => ({
   supplierBookings: [],
   deliveryReports: [],
   createdAt: '2024-01-01T00:00:00Z',
+  ...overrides,
 });
 
 describe('AgentStepper', () => {
@@ -73,6 +77,27 @@ describe('AgentStepper', () => {
 
     expect(screen.getByText('3 of 6 steps')).toBeInTheDocument();
     expect(screen.getByText('Build media recommendations')).toBeInTheDocument();
+  });
+
+  it('advances to recommendation review when a draft exists', () => {
+    render(<AgentStepper campaign={mockCampaign('planning_in_progress', {
+      recommendations: [
+        {
+          id: 'rec-1',
+          campaignId: 'test-campaign',
+          summary: 'Draft recommendation',
+          rationale: 'Generated for review',
+          manualReviewRequired: false,
+          fallbackFlags: [],
+          status: 'draft',
+          totalCost: 5000,
+          items: [],
+        },
+      ],
+    })} />);
+
+    expect(screen.getByText('4 of 6 steps')).toBeInTheDocument();
+    expect(screen.getByText('Review and send the recommendation')).toBeInTheDocument();
   });
 
   it('shows correct progress for review_ready (step 4)', () => {

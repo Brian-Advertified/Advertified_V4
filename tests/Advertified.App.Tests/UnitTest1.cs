@@ -1662,6 +1662,80 @@ public class ControllerMappingsTests
         response.Timeline[6].State.Should().Be("upcoming");
         response.Timeline[7].State.Should().Be("upcoming");
     }
+
+    [Fact]
+    public void ToDetail_IncludesPackageOrderPaymentStatus()
+    {
+        var userId = Guid.NewGuid();
+        var campaign = new CampaignEntity
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            PackageOrderId = Guid.NewGuid(),
+            PackageBandId = Guid.NewGuid(),
+            CampaignName = "Paid campaign",
+            Status = "review_ready",
+            CreatedAt = DateTime.UtcNow,
+            User = new UserAccount
+            {
+                Id = userId,
+                FullName = "Brian Rapula",
+                Email = "brian@example.com",
+                Phone = "0821234567",
+                PasswordHash = "hash",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            },
+            PackageBand = new PackageBandEntity
+            {
+                Id = Guid.NewGuid(),
+                Code = "dominance",
+                Name = "Dominance",
+                MinBudget = 500000m,
+                MaxBudget = 5000000m,
+                SortOrder = 4,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            },
+            PackageOrder = new PackageOrderEntity
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                PackageBandId = Guid.NewGuid(),
+                Amount = 2331979m,
+                SelectedBudget = 2331979m,
+                Currency = "ZAR",
+                PaymentStatus = "paid",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                User = new UserAccount
+                {
+                    Id = userId,
+                    FullName = "Brian Rapula",
+                    Email = "brian@example.com",
+                    Phone = "0821234567",
+                    PasswordHash = "hash",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                },
+                PackageBand = new PackageBandEntity
+                {
+                    Id = Guid.NewGuid(),
+                    Code = "dominance",
+                    Name = "Dominance",
+                    MinBudget = 500000m,
+                    MaxBudget = 5000000m,
+                    SortOrder = 4,
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                }
+            }
+        };
+
+        var response = campaign.ToDetail(userId);
+
+        response.PaymentStatus.Should().Be("paid");
+    }
 }
 
 public class OpenAICampaignReasoningServiceTests
