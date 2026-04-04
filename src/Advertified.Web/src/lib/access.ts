@@ -74,6 +74,7 @@ export function canOpenPlanning(campaign?: Campaign | null) {
 
 export function getCampaignPrimaryAction(campaign: Campaign) {
   const hasRecommendation = Boolean(campaign.recommendation);
+  const selectedRecommendationId = campaign.recommendations[0]?.id ?? campaign.recommendation?.id;
   const paymentRequiredBeforeApproval =
     campaign.paymentStatus !== 'paid'
     && (campaign.status === 'review_ready' || campaign.status === 'planning_in_progress');
@@ -99,7 +100,7 @@ export function getCampaignPrimaryAction(campaign: Campaign) {
   if ((campaign.status === 'planning_in_progress' || campaign.status === 'review_ready' || campaign.status === 'approved' || campaign.status === 'creative_sent_to_client_for_approval' || campaign.status === 'creative_changes_requested' || campaign.status === 'creative_approved' || campaign.status === 'launched') && hasRecommendation) {
     return {
       href: paymentRequiredBeforeApproval
-        ? `/checkout/payment?orderId=${encodeURIComponent(campaign.packageOrderId)}&campaignId=${encodeURIComponent(campaign.id)}`
+        ? `/checkout/payment?orderId=${encodeURIComponent(campaign.packageOrderId)}&campaignId=${encodeURIComponent(campaign.id)}${selectedRecommendationId ? `&recommendationId=${encodeURIComponent(selectedRecommendationId)}` : ''}`
         : `/campaigns/${campaign.id}`,
       label: paymentRequiredBeforeApproval
         ? 'Complete payment'

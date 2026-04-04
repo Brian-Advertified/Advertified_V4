@@ -17,11 +17,15 @@ export function OrdersPage() {
     queryKey: ['campaigns', user?.id],
     queryFn: () => advertifiedApi.getCampaigns(user!.id),
     enabled: Boolean(user && !isOpsUser && !isCreativeDirector),
+    refetchInterval: (query) => (query.state.data?.some((campaign) => campaign.paymentStatus !== 'paid') ? 15_000 : false),
+    refetchOnWindowFocus: true,
   });
   const ordersQuery = useQuery({
     queryKey: ['orders', user?.id],
     queryFn: () => advertifiedApi.getOrders(user!.id),
     enabled: Boolean(user && !isOpsUser && !isCreativeDirector),
+    refetchInterval: (query) => (query.state.data?.some((order) => order.paymentStatus !== 'paid') ? 15_000 : false),
+    refetchOnWindowFocus: true,
   });
 
   if (isCreativeDirector) {

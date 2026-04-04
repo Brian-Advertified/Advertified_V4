@@ -76,11 +76,21 @@ export function queueTone(queueStage: string) {
 }
 
 export function useAgentInboxQuery(): UseQueryResult<AgentInbox> {
-  return useQuery<AgentInbox>({ queryKey: ['agent-inbox'], queryFn: advertifiedApi.getAgentInbox });
+  return useQuery<AgentInbox>({
+    queryKey: ['agent-inbox'],
+    queryFn: advertifiedApi.getAgentInbox,
+    refetchInterval: 15_000,
+    refetchOnWindowFocus: true,
+  });
 }
 
 export function useAgentCampaignsQuery(): UseQueryResult<Campaign[]> {
-  return useQuery<Campaign[]>({ queryKey: ['agent-campaigns'], queryFn: advertifiedApi.getAgentCampaigns });
+  return useQuery<Campaign[]>({
+    queryKey: ['agent-campaigns'],
+    queryFn: advertifiedApi.getAgentCampaigns,
+    refetchInterval: 15_000,
+    refetchOnWindowFocus: true,
+  });
 }
 
 export function usePackagesQuery(): UseQueryResult<PackageBand[]> {

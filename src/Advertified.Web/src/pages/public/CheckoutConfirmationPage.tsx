@@ -35,13 +35,21 @@ export function CheckoutConfirmationPage() {
     queryKey: ['package-order', orderId, user?.id],
     queryFn: () => advertifiedApi.getOrder(orderId, user!.id),
     enabled: Boolean(orderId && user?.id),
-    refetchInterval: (query) => (provider === 'lula' ? false : query.state.data?.paymentStatus === 'pending' ? 4000 : false),
+    refetchInterval: (query) => {
+      if (query.state.data?.paymentStatus !== 'pending') {
+        return false;
+      }
+
+      return provider === 'lula' ? 15_000 : 4_000;
+    },
+    refetchOnWindowFocus: true,
   });
   const order = orderQuery.data;
   const campaignsQuery = useQuery({
     queryKey: ['campaigns', user?.id],
     queryFn: () => advertifiedApi.getCampaigns(user!.id),
     enabled: Boolean(user?.id && order?.paymentStatus === 'paid'),
+    refetchOnWindowFocus: true,
   });
   const vodaPayReturnData = useMemo(() => parseVodaPayReturnData(searchParams.get('data')), [searchParams]);
   const storedAutoApproval = useMemo(() => {

@@ -70,11 +70,15 @@ export function DashboardPage() {
     queryKey: ['campaigns', user?.id],
     queryFn: () => advertifiedApi.getCampaigns(user!.id),
     enabled: Boolean(user && !isOpsUser && !isCreativeDirector),
+    refetchInterval: (query) => (query.state.data?.some((campaign) => campaign.paymentStatus !== 'paid') ? 15_000 : false),
+    refetchOnWindowFocus: true,
   });
   const ordersQuery = useQuery({
     queryKey: ['orders', user?.id],
     queryFn: () => advertifiedApi.getOrders(user!.id),
     enabled: Boolean(user && !isOpsUser && !isCreativeDirector),
+    refetchInterval: (query) => (query.state.data?.some((order) => order.paymentStatus !== 'paid') ? 15_000 : false),
+    refetchOnWindowFocus: true,
   });
 
   if (isCreativeDirector) {
@@ -186,6 +190,11 @@ export function DashboardPage() {
             <div className="mt-4 space-y-3">
               {orders.slice(0, 3).map((order) => (
                 <div key={order.id} className="user-wire">
+                  {(() => {
+                    const linkedCampaign = campaigns.find((campaign) => campaign.packageOrderId === order.id);
+                    const linkedRecommendationId = linkedCampaign?.recommendations[0]?.id ?? linkedCampaign?.recommendation?.id;
+
+                    return (
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                     <div>
                       <strong>{order.packageBandName}</strong>
@@ -195,7 +204,7 @@ export function DashboardPage() {
                       <div>{titleCase(order.paymentStatus)}{order.paymentReference ? ` | ${order.paymentReference}` : ''}</div>
                       {order.paymentStatus !== 'paid' ? (
                         <Link
-                          to={`/checkout/payment?orderId=${encodeURIComponent(order.id)}${campaigns.find((campaign) => campaign.packageOrderId === order.id) ? `&campaignId=${encodeURIComponent(campaigns.find((campaign) => campaign.packageOrderId === order.id)!.id)}` : ''}`}
+                          to={`/checkout/payment?orderId=${encodeURIComponent(order.id)}${linkedCampaign ? `&campaignId=${encodeURIComponent(linkedCampaign.id)}` : ''}${linkedRecommendationId ? `&recommendationId=${encodeURIComponent(linkedRecommendationId)}` : ''}`}
                           className="user-btn-primary"
                         >
                           Complete payment
@@ -203,6 +212,8 @@ export function DashboardPage() {
                       ) : null}
                     </div>
                   </div>
+                    );
+                  })()}
                 </div>
               ))}
             </div>
