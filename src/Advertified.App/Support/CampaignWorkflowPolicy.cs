@@ -1,4 +1,5 @@
 using Advertified.App.Contracts.Campaigns;
+using Advertified.App.Campaigns;
 using Advertified.App.Data.Entities;
 
 namespace Advertified.App.Support;
@@ -25,9 +26,7 @@ public static class CampaignWorkflowPolicy
 
     public static IReadOnlyList<CampaignTimelineStepResponse> BuildTimeline(Campaign campaign)
     {
-        var latestRecommendation = campaign.CampaignRecommendations
-            .OrderByDescending(x => x.CreatedAt)
-            .FirstOrDefault();
+        var latestRecommendation = GetAgentCurrentRecommendation(campaign);
         var recommendationStatus = latestRecommendation?.Status?.Trim().ToLowerInvariant();
 
         var paymentComplete = campaign.PackageOrder is not null
@@ -97,9 +96,7 @@ public static class CampaignWorkflowPolicy
 
     public static string ResolveAgentQueueStage(Campaign campaign)
     {
-        var latestRecommendation = campaign.CampaignRecommendations
-            .OrderByDescending(x => x.CreatedAt)
-            .FirstOrDefault();
+        var latestRecommendation = GetAgentCurrentRecommendation(campaign);
         var hasRecommendation = latestRecommendation is not null;
         var recommendationStatus = latestRecommendation?.Status?.Trim().ToLowerInvariant();
 
@@ -144,9 +141,7 @@ public static class CampaignWorkflowPolicy
             return "Campaign is live. Monitor delivery and support any execution follow-up.";
         }
 
-        var latestRecommendation = campaign.CampaignRecommendations
-            .OrderByDescending(x => x.CreatedAt)
-            .FirstOrDefault();
+        var latestRecommendation = GetAgentCurrentRecommendation(campaign);
         var selectedBudget = PricingPolicy.ResolvePlanningBudget(
             campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
             campaign.PackageOrder.AiStudioReserveAmount);
@@ -247,5 +242,15 @@ public static class CampaignWorkflowPolicy
 
         var rawValue = line["Manual review required:".Length..].Trim();
         return bool.TryParse(rawValue, out var parsed) && parsed;
+    }
+
+    private static CampaignRecommendation? GetAgentCurrentRecommendation(Campaign campaign)
+    {
+        var currentSet = RecommendationRevisionSupport.GetCurrentRecommendationSet(campaign.CampaignRecommendations);
+        return currentSet.FirstOrDefault(x => string.Equals(x.Status, RecommendationStatuses.Approved, StringComparison.OrdinalIgnoreCase))
+            ?? currentSet.FirstOrDefault(x => string.Equals(x.Status, RecommendationStatuses.SentToClient, StringComparison.OrdinalIgnoreCase))
+            ?? currentSet
+                .OrderByDescending(x => x.CreatedAt)
+                .FirstOrDefault();
     }
 }

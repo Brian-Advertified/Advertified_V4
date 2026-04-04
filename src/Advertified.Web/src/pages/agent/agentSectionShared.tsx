@@ -43,6 +43,8 @@ export function buildClientRows(campaigns: Awaited<ReturnType<typeof useAgentCam
   }>();
 
   for (const campaign of campaigns ?? []) {
+    const hasApprovedRecommendation = campaign.recommendations.some((item) => item.status === 'approved');
+    const hasPendingClientDecision = !hasApprovedRecommendation && campaign.recommendations.some((item) => item.status === 'sent_to_client');
     const current = grouped.get(campaign.userId) ?? {
       userId: campaign.userId,
       clientName: campaign.clientName ?? campaign.businessName ?? 'Client account',
@@ -59,7 +61,7 @@ export function buildClientRows(campaigns: Awaited<ReturnType<typeof useAgentCam
 
     current.campaignCount += 1;
     if (campaign.status !== 'approved') current.activeCount += 1;
-    if (campaign.recommendations.some((item) => item.status === 'sent_to_client')) current.awaitingApprovalCount += 1;
+    if (hasPendingClientDecision) current.awaitingApprovalCount += 1;
     if (!current.latestActivityAt || new Date(campaign.createdAt).getTime() > new Date(current.latestActivityAt).getTime()) {
       current.latestActivityAt = campaign.createdAt;
       current.latestActivity = campaign.nextAction;

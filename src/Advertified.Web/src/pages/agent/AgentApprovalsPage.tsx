@@ -16,6 +16,10 @@ export function AgentApprovalsPage() {
     <AgentQueryBoundary query={campaignsQuery} loadingLabel="Loading approvals...">
       <AgentPageShell title="Client Responses" description="Track client approvals, requested changes, and campaigns still waiting for a reply.">
         {(() => {
+          const getActiveRecommendation = (campaign: NonNullable<typeof campaignsQuery.data>[number]) =>
+            campaign.recommendations.find((item) => item.status === 'approved')
+            ?? campaign.recommendations.find((item) => item.status === 'sent_to_client')
+            ?? campaign.recommendation;
           const rows = (campaignsQuery.data ?? [])
             .filter((campaign) => campaign.recommendations.some((item) => item.status === 'sent_to_client' || item.status === 'approved' || item.clientFeedbackNotes))
             .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime());
@@ -23,7 +27,7 @@ export function AgentApprovalsPage() {
           return (
             <section className="space-y-6">
               <div className="grid gap-4 md:grid-cols-3">
-                <div className="panel p-6"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Pending response</p><p className="mt-4 text-3xl font-semibold text-ink">{rows.filter((item) => item.recommendations.some((rec) => rec.status === 'sent_to_client')).length}</p></div>
+                <div className="panel p-6"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Pending response</p><p className="mt-4 text-3xl font-semibold text-ink">{rows.filter((item) => !item.recommendations.some((rec) => rec.status === 'approved') && item.recommendations.some((rec) => rec.status === 'sent_to_client')).length}</p></div>
                 <div className="panel p-6"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Approved</p><p className="mt-4 text-3xl font-semibold text-ink">{rows.filter((item) => item.recommendations.some((rec) => rec.status === 'approved')).length}</p></div>
                 <div className="panel p-6"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Changes requested</p><p className="mt-4 text-3xl font-semibold text-ink">{rows.filter((item) => item.recommendations.some((rec) => Boolean(rec.clientFeedbackNotes))).length}</p></div>
               </div>
@@ -41,7 +45,7 @@ export function AgentApprovalsPage() {
                   </thead>
                   <tbody>
                     {rows.map((campaign) => {
-                      const active = campaign.recommendations[0] ?? campaign.recommendation;
+                      const active = getActiveRecommendation(campaign);
                       const status = active?.clientFeedbackNotes ? 'Changes requested' : titleize(active?.status ?? campaign.status);
                       const statusClass = active?.clientFeedbackNotes ? 'border-amber-200 bg-amber-50 text-amber-700' : queueTone(active?.status === 'approved' ? 'completed' : 'waiting_on_client');
                       return (
