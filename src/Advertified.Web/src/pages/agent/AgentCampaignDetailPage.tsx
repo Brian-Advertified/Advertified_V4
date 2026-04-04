@@ -39,7 +39,6 @@ import {
   isInventoryRelevant,
   normalizeChannelKey,
 } from '../../features/agent/agentCampaignDetailUtils';
-import { canAccessAiStudioForStatus } from '../../features/campaigns/aiStudioAccess';
 import { InventoryTable } from '../../features/agent/components/InventoryTable';
 import { invalidateAgentCampaignQueries, queryKeys } from '../../lib/queryKeys';
 import { formatCurrency, formatDate, titleCase } from '../../lib/utils';
@@ -502,23 +501,16 @@ export function AgentCampaignDetailPage() {
   const hasSendableProposal = !recommendationWorkflowLocked && recommendations.length >= 1;
   const hasOohRecommendation = selectedPlanItems.some((item) => normalizeChannelKey(item.type) === 'OOH');
   const lockedNextStep = campaign.status === 'approved'
-    ? 'The recommendation is approved and paid. The next real step is to create campaign content in AI Studio.'
+    ? 'The recommendation is approved and paid. The next real step belongs to the creative director team: create the campaign content and prepare it for client approval.'
     : campaign.status === 'creative_changes_requested'
-      ? 'The client has asked for creative changes. Reopen AI Studio, make updates, and prepare the next handoff.'
+      ? 'The client has asked for creative changes. The creative director team is updating the content and preparing the next handoff.'
       : campaign.status === 'creative_sent_to_client_for_approval'
         ? 'The content handoff is back with the client for final review. Watch messages and feedback while waiting for sign-off.'
-        : campaign.status === 'creative_approved'
+      : campaign.status === 'creative_approved'
           ? 'Creative approval is complete. The next step belongs to the creative director team: start supplier booking and launch planning.'
-          : campaign.status === 'booking_in_progress'
-            ? 'Supplier booking is already under way in the creative workspace. Use AI Studio or messages if the team needs anything else.'
+      : campaign.status === 'booking_in_progress'
+            ? 'Supplier booking is already under way in the creative director workflow. Use messages if the team needs anything else.'
           : 'The campaign is live. Use this page for delivery tracking, reports, and operational follow-up.';
-  const studioActionLabel = campaign.status === 'creative_changes_requested'
-    ? 'Update content in AI Studio'
-    : campaign.status === 'creative_sent_to_client_for_approval'
-      ? 'Open AI Studio content'
-      : campaign.status === 'creative_approved' || campaign.status === 'booking_in_progress' || campaign.status === 'launched'
-        ? 'View content in AI Studio'
-        : 'Start content in AI Studio';
   const plannedStartLabel = campaign.brief?.startDate ? formatDate(campaign.brief.startDate) : 'Not set';
   const plannedEndLabel = campaign.brief?.endDate ? formatDate(campaign.brief.endDate) : 'Not set';
   const effectiveEndLabel = campaign.effectiveEndDate ? formatDate(`${campaign.effectiveEndDate}T00:00:00`) : 'Not set';
@@ -978,19 +970,15 @@ export function AgentCampaignDetailPage() {
                     {showAiStudioHandoff ? (
                       <div className="mt-4 flex flex-wrap gap-3">
                         <Link
-                          to={`/ai-studio?campaignId=${campaign.id}`}
-                          className="button-primary inline-flex items-center gap-2 px-5 py-3"
-                        >
-                          <BrainCircuit className="size-4" />
-                          {studioActionLabel}
-                        </Link>
-                        <Link
                           to={`/agent/messages?campaignId=${campaign.id}`}
-                          className="button-secondary inline-flex items-center gap-2 px-5 py-3"
+                          className="button-primary inline-flex items-center gap-2 px-5 py-3"
                         >
                           <MessageSquareQuote className="size-4" />
                           Open messages
                         </Link>
+                        <div className="rounded-[14px] border border-line bg-white px-4 py-3 text-sm leading-6 text-ink-soft">
+                          Creative production is handled in the creative director workspace. Agents track progress here and use messages when they need to coordinate.
+                        </div>
                       </div>
                     ) : null}
                   </div>
@@ -1298,15 +1286,6 @@ export function AgentCampaignDetailPage() {
                 <Download className="size-4" />
                 Preview client PDF
               </button>
-            ) : null}
-            {canAccessAiStudioForStatus(campaign.status) ? (
-              <Link
-                to={`/ai-studio?campaignId=${campaign.id}`}
-                className="button-secondary inline-flex items-center gap-2 px-5 py-3"
-              >
-                <BrainCircuit className="size-4" />
-                Open AI Studio
-              </Link>
             ) : null}
             {!recommendationWorkflowLocked ? (
               <button

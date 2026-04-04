@@ -1,6 +1,5 @@
 import { Eye, Pencil } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { canAccessAiStudioForStatus } from '../../features/campaigns/aiStudioAccess';
 import {
   AgentPageShell,
   AgentQueryBoundary,
@@ -59,11 +58,6 @@ export function AgentApprovalsPage() {
                               <Link to={`/agent/campaigns/${campaign.id}`} className="button-secondary p-2" title={`View ${campaign.campaignName}`}>
                                 <Eye className="size-4" />
                               </Link>
-                              {canAccessAiStudioForStatus(campaign.status) ? (
-                                <Link to={`/ai-studio?campaignId=${campaign.id}`} className="button-secondary p-2" title={`Open AI Studio for ${campaign.campaignName}`}>
-                                  AI
-                                </Link>
-                              ) : null}
                               <Link to={`/agent/recommendations/new?campaignId=${campaign.id}`} className="button-secondary p-2" title={`Edit ${campaign.campaignName}`}>
                                 <Pencil className="size-4" />
                               </Link>

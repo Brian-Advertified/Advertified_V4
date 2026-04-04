@@ -31,7 +31,7 @@ export function CampaignStepper({ campaign, className }: CampaignStepperProps) {
         case 'review_ready':
           return 2; // Planning & Strategy
         case 'approved':
-          return 3; // Client Review & Approval (completed)
+          return 4; // Recommendation approval is done, creative is next
         case 'creative_sent_to_client_for_approval':
         case 'creative_changes_requested':
           return 4; // Creative Development (in progress)

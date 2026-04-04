@@ -3,7 +3,6 @@ import { useState } from 'react';
 import { ArrowRight, Eye, Pencil, Search, UserPlus2, UserX2, WalletCards } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useToast } from '../../components/ui/toast';
-import { canAccessAiStudioForStatus } from '../../features/campaigns/aiStudioAccess';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import {
   AgentPageShell,
@@ -280,11 +279,6 @@ export function AgentCampaignsPage() {
                             <Eye className="size-4" />
                           </Link>
                           <div className="flex flex-wrap justify-center gap-2 xl:justify-end">
-                            {canAccessAiStudioForStatus(campaign.status) ? (
-                              <Link to={`/ai-studio?campaignId=${campaign.id}`} className="button-secondary px-3 py-2 text-sm" title={`Prefill AI Studio for ${campaign.campaignName}`}>
-                                AI Studio
-                              </Link>
-                            ) : null}
                             <Link to={`/agent/recommendations/new?campaignId=${campaign.id}`} className="button-secondary p-2" title={`Edit ${campaign.campaignName}`}>
                               <Pencil className="size-4" />
                             </Link>

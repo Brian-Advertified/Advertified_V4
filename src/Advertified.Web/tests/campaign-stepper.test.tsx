@@ -64,8 +64,8 @@ describe('CampaignStepper', () => {
     const campaign = createMockCampaign('approved');
     render(<CampaignStepper campaign={campaign} />);
 
-    expect(screen.getByRole('heading', { level: 3, name: /Client Review & Approval/i })).toBeInTheDocument();
-    expect(screen.getByText(/Client reviews proposals, requests changes or approves\./i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 3, name: /Creative Development/i })).toBeInTheDocument();
+    expect(screen.getByText(/Creative team develops campaign content and sends it to the client for approval\./i)).toBeInTheDocument();
   });
 
   it('shows correct step progression for creative_sent_to_client_for_approval status', () => {
