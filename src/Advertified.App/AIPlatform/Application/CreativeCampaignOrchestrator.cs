@@ -7,7 +7,6 @@ namespace Advertified.App.AIPlatform.Application;
 public sealed class CreativeCampaignOrchestrator : ICreativeCampaignOrchestrator
 {
     private readonly IMediaPlanningIntegrationService _mediaPlanningIntegrationService;
-    private readonly IPromptLibraryService _promptLibraryService;
     private readonly ICreativeGenerationEngine _creativeGenerationEngine;
     private readonly ICreativeQaService _creativeQaService;
     private readonly IAssetGenerationPipeline _assetGenerationPipeline;
@@ -19,7 +18,6 @@ public sealed class CreativeCampaignOrchestrator : ICreativeCampaignOrchestrator
 
     public CreativeCampaignOrchestrator(
         IMediaPlanningIntegrationService mediaPlanningIntegrationService,
-        IPromptLibraryService promptLibraryService,
         ICreativeGenerationEngine creativeGenerationEngine,
         ICreativeQaService creativeQaService,
         IAssetGenerationPipeline assetGenerationPipeline,
@@ -30,7 +28,6 @@ public sealed class CreativeCampaignOrchestrator : ICreativeCampaignOrchestrator
         AppDbContext db)
     {
         _mediaPlanningIntegrationService = mediaPlanningIntegrationService;
-        _promptLibraryService = promptLibraryService;
         _creativeGenerationEngine = creativeGenerationEngine;
         _creativeQaService = creativeQaService;
         _assetGenerationPipeline = assetGenerationPipeline;
@@ -46,10 +43,9 @@ public sealed class CreativeCampaignOrchestrator : ICreativeCampaignOrchestrator
         CancellationToken cancellationToken)
     {
         var context = await _mediaPlanningIntegrationService.BuildContextAsync(command.CampaignId, cancellationToken);
-        var prompt = await _promptLibraryService.GetLatestAsync("creative-brief-default", cancellationToken);
         var maxVariantsPerChannel = _aiCostEstimator.ResolveVariantCount(context.Budget);
 
-        var brief = BuildBrief(context, prompt.Version, command.PromptOverride, maxVariantsPerChannel);
+        var brief = BuildBrief(context, command.PromptOverride, maxVariantsPerChannel);
         var estimatedCreativeVariants = Math.Max(1, brief.Channels.Count) * Math.Max(1, brief.Languages.Count) * Math.Max(1, brief.MaxVariantsPerChannel);
         var estimatedCreativeBatchCost = _aiCostEstimator.EstimateTextGenerationCost(estimatedCreativeVariants)
             + _aiCostEstimator.EstimateQaCost(estimatedCreativeVariants);
@@ -207,35 +203,41 @@ public sealed class CreativeCampaignOrchestrator : ICreativeCampaignOrchestrator
         IReadOnlyList<CreativeQualityScore> scores,
         CancellationToken cancellationToken)
     {
-        foreach (var creative in creatives)
+        var now = DateTime.UtcNow;
+        var scoreMap = scores.ToDictionary(item => item.CreativeId, item => item);
+
+        var creativeRows = creatives.Select(creative => new CampaignCreative
         {
-            _db.CampaignCreatives.Add(new CampaignCreative
-            {
-                Id = creative.CreativeId,
-                CampaignId = campaignId,
-                Channel = creative.Channel.ToString(),
-                Language = creative.Language,
-                CreativeType = $"{creative.Channel} Generated",
-                JsonPayload = creative.PayloadJson,
-                Score = scores.FirstOrDefault(item => item.CreativeId == creative.CreativeId)?.OverallScore,
-                CreatedAt = creative.CreatedAt.UtcDateTime,
-                UpdatedAt = DateTime.UtcNow
-            });
+            Id = creative.CreativeId,
+            CampaignId = campaignId,
+            Channel = creative.Channel.ToString(),
+            Language = creative.Language,
+            CreativeType = $"{creative.Channel} Generated",
+            JsonPayload = creative.PayloadJson,
+            Score = scoreMap.GetValueOrDefault(creative.CreativeId)?.OverallScore,
+            CreatedAt = creative.CreatedAt.UtcDateTime,
+            UpdatedAt = now
+        }).ToList();
+
+        if (creativeRows.Count > 0)
+        {
+            _db.CampaignCreatives.AddRange(creativeRows);
         }
 
-        foreach (var score in scores)
-        {
-            foreach (var metric in score.Metrics)
+        var scoreRows = scores
+            .SelectMany(score => score.Metrics.Select(metric => new CreativeScore
             {
-                _db.CreativeScores.Add(new CreativeScore
-                {
-                    Id = Guid.NewGuid(),
-                    CampaignCreativeId = score.CreativeId,
-                    MetricName = metric.Key,
-                    MetricValue = metric.Value,
-                    CreatedAt = DateTime.UtcNow
-                });
-            }
+                Id = Guid.NewGuid(),
+                CampaignCreativeId = score.CreativeId,
+                MetricName = metric.Key,
+                MetricValue = metric.Value,
+                CreatedAt = now
+            }))
+            .ToList();
+
+        if (scoreRows.Count > 0)
+        {
+            _db.CreativeScores.AddRange(scoreRows);
         }
 
         await _db.SaveChangesAsync(cancellationToken);
@@ -257,7 +259,6 @@ public sealed class CreativeCampaignOrchestrator : ICreativeCampaignOrchestrator
 
     private static CreativeBrief BuildBrief(
         MediaPlanningContext context,
-        int promptVersion,
         string? promptOverride,
         int maxVariantsPerChannel)
     {
@@ -281,7 +282,7 @@ public sealed class CreativeCampaignOrchestrator : ICreativeCampaignOrchestrator
             },
             Languages: context.Languages,
             Channels: context.Channels,
-            PromptVersion: promptVersion,
+            PromptVersion: 0,
             MaxVariantsPerChannel: maxVariantsPerChannel);
     }
 

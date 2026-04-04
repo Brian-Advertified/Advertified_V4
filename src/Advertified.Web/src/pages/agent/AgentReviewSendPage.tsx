@@ -11,6 +11,7 @@ import {
   useAgentCampaignsQuery,
 } from './agentWorkspace';
 import { ActionIconButton } from './agentSectionShared';
+import { pushAgentMutationError } from './agentMutationToast';
 
 export function AgentReviewSendPage() {
   const campaignsQuery = useAgentCampaignsQuery();
@@ -26,7 +27,7 @@ export function AgentReviewSendPage() {
       ]);
       pushToast({ title: 'Recommendation sent.', description: 'The recommendation was sent to the client and moved into review.' });
     },
-    onError: (error) => pushToast({ title: 'Could not send recommendation.', description: error instanceof Error ? error.message : 'Please try again.' }, 'error'),
+    onError: (error) => pushAgentMutationError(pushToast, 'Could not send recommendation.', error),
   });
   const deleteDraftMutation = useMutation({
     mutationFn: ({ campaignId, recommendationId }: { campaignId: string; recommendationId: string }) => advertifiedApi.deleteRecommendation(campaignId, recommendationId),
@@ -38,7 +39,7 @@ export function AgentReviewSendPage() {
       ]);
       pushToast({ title: 'Draft recommendation deleted.', description: 'The draft was removed from this campaign.' }, 'info');
     },
-    onError: (error) => pushToast({ title: 'Could not delete draft.', description: error instanceof Error ? error.message : 'Please try again.' }, 'error'),
+    onError: (error) => pushAgentMutationError(pushToast, 'Could not delete draft.', error),
   });
 
   return (

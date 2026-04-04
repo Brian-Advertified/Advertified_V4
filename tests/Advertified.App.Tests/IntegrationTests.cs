@@ -2077,8 +2077,16 @@ internal sealed class StubPackagePurchaseService : IPackagePurchaseService
     public Task<CreatePackageOrderResponse> CreatePendingOrderAsync(Guid userId, CreatePackageOrderRequest request, CancellationToken cancellationToken)
         => throw new NotSupportedException();
 
-    public Task<CreatePackageOrderResponse> InitiateCheckoutAsync(Guid userId, Guid packageOrderId, string paymentProvider, CancellationToken cancellationToken)
+    public Task<CreatePackageOrderResponse> InitiateCheckoutAsync(
+        Guid userId,
+        Guid packageOrderId,
+        string paymentProvider,
+        Guid? recommendationId,
+        CancellationToken cancellationToken)
         => throw new NotSupportedException();
+
+    public Task PrepareRecommendationCheckoutAsync(Guid campaignId, Guid recommendationId, CancellationToken cancellationToken)
+        => Task.CompletedTask;
 
     public Task MarkOrderPaidAsync(Guid packageOrderId, string paymentReference, CancellationToken cancellationToken)
         => Task.CompletedTask;

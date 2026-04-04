@@ -22,37 +22,45 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
         _pricingSettingsProvider = pricingSettingsProvider;
     }
 
-    public async Task<List<BroadcastPlanningInventorySeed>> GetRadioSlotCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
+    public async Task<BroadcastPlanningCandidateSet> GetCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
     {
         var records = await _broadcastInventoryCatalog.GetRecordsAsync(cancellationToken);
         var pricingSettings = await _pricingSettingsProvider.GetCurrentAsync(cancellationToken);
-        return records
-            .Where(record => string.Equals(record.MediaType, "radio", StringComparison.OrdinalIgnoreCase))
-            .SelectMany(record => CreateBroadcastRateCandidates(record, pricingSettings))
-            .Where(candidate => candidate.Cost > 0m && candidate.Cost <= request.SelectedBudget)
-            .ToList();
+
+        return new BroadcastPlanningCandidateSet(
+            RadioSlots: records
+                .Where(record => string.Equals(record.MediaType, "radio", StringComparison.OrdinalIgnoreCase))
+                .SelectMany(record => CreateBroadcastRateCandidates(record, pricingSettings))
+                .Where(candidate => candidate.Cost > 0m && candidate.Cost <= request.SelectedBudget)
+                .ToList(),
+            RadioPackages: records
+                .Where(record => string.Equals(record.MediaType, "radio", StringComparison.OrdinalIgnoreCase))
+                .SelectMany(record => CreateBroadcastPackageCandidates(record, pricingSettings))
+                .Where(candidate => candidate.Cost > 0m && candidate.Cost <= request.SelectedBudget)
+                .ToList(),
+            Tv: records
+                .Where(record => string.Equals(record.MediaType, "tv", StringComparison.OrdinalIgnoreCase))
+                .SelectMany(record => CreateBroadcastPackageCandidates(record, pricingSettings).Concat(CreateBroadcastRateCandidates(record, pricingSettings)))
+                .Where(candidate => candidate.Cost > 0m && candidate.Cost <= request.SelectedBudget)
+                .ToList());
+    }
+
+    public async Task<List<BroadcastPlanningInventorySeed>> GetRadioSlotCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
+    {
+        var candidates = await GetCandidatesAsync(request, cancellationToken);
+        return candidates.RadioSlots;
     }
 
     public async Task<List<BroadcastPlanningInventorySeed>> GetRadioPackageCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
     {
-        var records = await _broadcastInventoryCatalog.GetRecordsAsync(cancellationToken);
-        var pricingSettings = await _pricingSettingsProvider.GetCurrentAsync(cancellationToken);
-        return records
-            .Where(record => string.Equals(record.MediaType, "radio", StringComparison.OrdinalIgnoreCase))
-            .SelectMany(record => CreateBroadcastPackageCandidates(record, pricingSettings))
-            .Where(candidate => candidate.Cost > 0m && candidate.Cost <= request.SelectedBudget)
-            .ToList();
+        var candidates = await GetCandidatesAsync(request, cancellationToken);
+        return candidates.RadioPackages;
     }
 
     public async Task<List<BroadcastPlanningInventorySeed>> GetTvCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
     {
-        var records = await _broadcastInventoryCatalog.GetRecordsAsync(cancellationToken);
-        var pricingSettings = await _pricingSettingsProvider.GetCurrentAsync(cancellationToken);
-        return records
-            .Where(record => string.Equals(record.MediaType, "tv", StringComparison.OrdinalIgnoreCase))
-            .SelectMany(record => CreateBroadcastPackageCandidates(record, pricingSettings).Concat(CreateBroadcastRateCandidates(record, pricingSettings)))
-            .Where(candidate => candidate.Cost > 0m && candidate.Cost <= request.SelectedBudget)
-            .ToList();
+        var candidates = await GetCandidatesAsync(request, cancellationToken);
+        return candidates.Tv;
     }
 
     private IEnumerable<BroadcastPlanningInventorySeed> CreateBroadcastPackageCandidates(BroadcastInventoryRecord record, PricingSettingsSnapshot pricingSettings)

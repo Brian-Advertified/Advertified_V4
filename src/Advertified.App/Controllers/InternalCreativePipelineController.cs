@@ -8,6 +8,7 @@ namespace Advertified.App.Controllers;
 [Route("internal")]
 public sealed class InternalCreativePipelineController : ControllerBase
 {
+    // Legacy template-era internal creative helpers retained for backward compatibility.
     private readonly ICreativeGenerationOrchestrator _creativeGenerationOrchestrator;
 
     public InternalCreativePipelineController(ICreativeGenerationOrchestrator creativeGenerationOrchestrator)

@@ -109,7 +109,7 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
                 UserId = order.UserId,
                 PackageOrderId = order.Id,
                 PackageBandId = order.PackageBandId,
-                Status = "awaiting_purchase",
+                Status = CampaignStatuses.AwaitingPurchase,
                 AiUnlocked = false,
                 AgentAssistanceRequested = false,
                 CreatedAt = DateTime.UtcNow,
@@ -208,7 +208,7 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
         }
 
         if (order.Campaign is not null
-            && !string.Equals(order.Campaign.Status, "awaiting_purchase", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(order.Campaign.Status, CampaignStatuses.AwaitingPurchase, StringComparison.OrdinalIgnoreCase)
             && !string.Equals(order.PaymentStatus, "pending", StringComparison.OrdinalIgnoreCase)
             && !string.Equals(order.PaymentStatus, "failed", StringComparison.OrdinalIgnoreCase))
         {
@@ -376,7 +376,7 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
             await _db.SaveChangesAsync(cancellationToken);
             order.Campaign = campaign;
         }
-        else if (string.Equals(order.Campaign.Status, "awaiting_purchase", StringComparison.OrdinalIgnoreCase))
+        else if (string.Equals(order.Campaign.Status, CampaignStatuses.AwaitingPurchase, StringComparison.OrdinalIgnoreCase))
         {
             order.Campaign.Status = CampaignStatuses.Paid;
             order.Campaign.UpdatedAt = DateTime.UtcNow;

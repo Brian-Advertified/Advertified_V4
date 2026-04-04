@@ -8,6 +8,7 @@ namespace Advertified.App.Controllers;
 [Route("api/creatives")]
 public sealed class CreativesController : ControllerBase
 {
+    // Legacy template-era API surface retained for backward compatibility.
     private readonly ICreativeGenerationOrchestrator _creativeGenerationOrchestrator;
 
     public CreativesController(ICreativeGenerationOrchestrator creativeGenerationOrchestrator)

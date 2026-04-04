@@ -10,6 +10,7 @@ import {
   AgentQueryBoundary,
   queueTone,
 } from './agentWorkspace';
+import { pushAgentMutationError } from './agentMutationToast';
 
 export function AgentMessagesNotesPage() {
   const queryClient = useQueryClient();
@@ -36,7 +37,7 @@ export function AgentMessagesNotesPage() {
       pushToast({ title: 'Message sent.', description: 'The client can now reply in-app.' });
     },
     onError: (error) => {
-      pushToast({ title: 'Could not send message.', description: error instanceof Error ? error.message : 'Please try again.' }, 'error');
+      pushAgentMutationError(pushToast, 'Could not send message.', error);
     },
   });
 

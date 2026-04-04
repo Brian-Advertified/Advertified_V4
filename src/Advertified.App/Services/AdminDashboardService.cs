@@ -17,18 +17,18 @@ public sealed class AdminDashboardService : IAdminDashboardService
     private readonly AppDbContext _db;
     private readonly IBroadcastInventoryCatalog _broadcastInventoryCatalog;
     private readonly PlanningPolicySnapshotProvider _planningPolicySnapshotProvider;
-    private readonly string _connectionString;
+    private readonly Npgsql.NpgsqlDataSource _dataSource;
 
     public AdminDashboardService(
         AppDbContext db,
         IBroadcastInventoryCatalog broadcastInventoryCatalog,
         PlanningPolicySnapshotProvider planningPolicySnapshotProvider,
-        string connectionString)
+        Npgsql.NpgsqlDataSource dataSource)
     {
         _db = db;
         _broadcastInventoryCatalog = broadcastInventoryCatalog;
         _planningPolicySnapshotProvider = planningPolicySnapshotProvider;
-        _connectionString = connectionString;
+        _dataSource = dataSource;
     }
 
     public async Task<AdminDashboardResponse> GetDashboardAsync(CancellationToken cancellationToken)
@@ -119,7 +119,7 @@ public sealed class AdminDashboardService : IAdminDashboardService
 
     private async Task<int> GetSourceDocumentCountAsync(CancellationToken cancellationToken)
     {
-        await using var connection = new NpgsqlConnection(_connectionString);
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         return await connection.ExecuteScalarAsync<int>(new CommandDefinition(
             "select count(*) from import_manifest;",
             cancellationToken: cancellationToken));
@@ -141,7 +141,7 @@ public sealed class AdminDashboardService : IAdminDashboardService
             order by im.imported_at desc
             limit 12;";
 
-        await using var connection = new NpgsqlConnection(_connectionString);
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         var rows = await connection.QueryAsync<AdminImportDocumentResponse>(new CommandDefinition(sql, cancellationToken: cancellationToken));
         return rows.ToArray();
     }
@@ -161,7 +161,7 @@ public sealed class AdminDashboardService : IAdminDashboardService
             group by pap.cluster_code, pap.display_name, pap.description, pap.sort_order
             order by pap.sort_order, pap.display_name;";
 
-        await using var connection = new NpgsqlConnection(_connectionString);
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         var rows = await connection.QueryAsync<AdminAreaMappingResponse>(new CommandDefinition(sql, cancellationToken: cancellationToken));
         return rows.ToArray();
     }
@@ -425,7 +425,7 @@ public sealed class AdminDashboardService : IAdminDashboardService
             x => x.Status == CampaignStatuses.BriefSubmitted || x.Status == CampaignStatuses.PlanningInProgress,
             cancellationToken);
         var waitingOnClientCount = await _db.CampaignRecommendations.CountAsync(x => x.Status == RecommendationStatuses.SentToClient, cancellationToken);
-        await using var connection = new NpgsqlConnection(_connectionString);
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         var inventoryRows = await connection.ExecuteScalarAsync<int>(new CommandDefinition(
             "select count(*) from inventory_items_final",
             cancellationToken: cancellationToken));

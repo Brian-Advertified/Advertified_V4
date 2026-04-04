@@ -8,12 +8,12 @@ namespace Advertified.App.Services;
 
 public sealed class OohPlanningInventorySource : IOohPlanningInventorySource
 {
-    private readonly string _connectionString;
+    private readonly Npgsql.NpgsqlDataSource _dataSource;
     private readonly IPricingSettingsProvider _pricingSettingsProvider;
 
-    public OohPlanningInventorySource(string connectionString, IPricingSettingsProvider pricingSettingsProvider)
+    public OohPlanningInventorySource(Npgsql.NpgsqlDataSource dataSource, IPricingSettingsProvider pricingSettingsProvider)
     {
-        _connectionString = connectionString;
+        _dataSource = dataSource;
         _pricingSettingsProvider = pricingSettingsProvider;
     }
 
@@ -120,7 +120,7 @@ where lower(mo.media_type) = 'ooh'
   and coalesce(mo.data_source_enrichment, '') <> 'bootstrap_ooh_seed_v1'
   and coalesce(mop.cost_per_month_zar, mop.investment_zar, mop.value_zar, 0) <= @Budget;";
 
-        await using var conn = new NpgsqlConnection(_connectionString);
+        await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
         var pricingSettings = await _pricingSettingsProvider.GetCurrentAsync(cancellationToken);
         var rows = await conn.QueryAsync<OohPlanningInventoryRow>(new CommandDefinition(
             sql,

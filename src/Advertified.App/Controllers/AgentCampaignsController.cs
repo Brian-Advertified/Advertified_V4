@@ -299,7 +299,7 @@ public sealed class AgentCampaignsController : ControllerBase
             .Include(x => x.CampaignRecommendations)
                 .ThenInclude(x => x.RecommendationItems)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
-            ?? throw new InvalidOperationException("Campaign not found.");
+            ?? throw new NotFoundException("Campaign not found.");
 
         var response = campaign.ToDetail(currentUserId);
         var queueStage = CampaignWorkflowPolicy.ResolveAgentQueueStage(campaign);
@@ -363,7 +363,7 @@ public sealed class AgentCampaignsController : ControllerBase
 
         var packageBand = await _db.PackageBands
             .FirstOrDefaultAsync(x => x.Id == request.PackageBandId && x.IsActive, cancellationToken)
-            ?? throw new InvalidOperationException("Package band not found.");
+            ?? throw new NotFoundException("Package band not found.");
         var selectedBudget = await ResolveProspectBudgetAsync(packageBand, cancellationToken);
 
         var user = await _db.UserAccounts
@@ -424,7 +424,7 @@ public sealed class AgentCampaignsController : ControllerBase
             PackageOrderId = packageOrder.Id,
             PackageBandId = packageBand.Id,
             CampaignName = campaignName,
-            Status = "awaiting_purchase",
+            Status = CampaignStatuses.AwaitingPurchase,
             AiUnlocked = false,
             AgentAssistanceRequested = true,
             AssignedAgentUserId = currentUserId,
@@ -520,7 +520,7 @@ public sealed class AgentCampaignsController : ControllerBase
             throw new InvalidOperationException("Only the assigned agent can convert this campaign to a sale.");
         }
 
-        if (!string.Equals(campaign.Status, "awaiting_purchase", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(campaign.Status, CampaignStatuses.AwaitingPurchase, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException("Only prospective campaigns can be converted to a sale.");
         }
@@ -618,7 +618,7 @@ public sealed class AgentCampaignsController : ControllerBase
             throw new InvalidOperationException("Only the assigned agent can update this prospect campaign.");
         }
 
-        if (!string.Equals(campaign.Status, "awaiting_purchase", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(campaign.Status, CampaignStatuses.AwaitingPurchase, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException("Only prospective campaigns can be repriced.");
         }
@@ -858,10 +858,7 @@ public sealed class AgentCampaignsController : ControllerBase
         };
 
         _db.CampaignSupplierBookings.Add(booking);
-        if (string.Equals(campaign.Status, CampaignStatuses.CreativeApproved, StringComparison.OrdinalIgnoreCase))
-        {
-            campaign.Status = CampaignStatuses.BookingInProgress;
-        }
+        CampaignStatusTransitionPolicy.TryAdvanceToBookingInProgress(campaign);
         campaign.UpdatedAt = now;
         await _db.SaveChangesAsync(cancellationToken);
 
@@ -1082,7 +1079,7 @@ public sealed class AgentCampaignsController : ControllerBase
             {
                 campaign.Status = CampaignStatuses.PlanningInProgress;
             }
-            else if (string.Equals(campaign.Status, "awaiting_purchase", StringComparison.OrdinalIgnoreCase))
+            else if (string.Equals(campaign.Status, CampaignStatuses.AwaitingPurchase, StringComparison.OrdinalIgnoreCase))
             {
                 campaign.Status = CampaignStatuses.BriefInProgress;
             }
@@ -1439,7 +1436,7 @@ public sealed class AgentCampaignsController : ControllerBase
 
         if (currentUser.Role is not UserRole.Agent and not UserRole.Admin and not UserRole.CreativeDirector)
         {
-            throw new InvalidOperationException("Agent, creative director, or admin access is required.");
+            throw new ForbiddenException("Agent, creative director, or admin access is required.");
         }
 
         return currentUser;
@@ -1808,7 +1805,7 @@ public sealed class AgentCampaignsController : ControllerBase
 
     private static bool ShouldDisplayPackageRange(Campaign campaign)
     {
-        return string.Equals(campaign.Status, "awaiting_purchase", StringComparison.OrdinalIgnoreCase)
+        return string.Equals(campaign.Status, CampaignStatuses.AwaitingPurchase, StringComparison.OrdinalIgnoreCase)
             || !CampaignOperationsPolicy.IsOrderOperationallyActive(campaign.PackageOrder);
     }
 
@@ -1866,7 +1863,7 @@ public sealed class AgentCampaignsController : ControllerBase
     private static bool IsProspectiveCampaign(Campaign campaign)
     {
         return !CampaignOperationsPolicy.IsOrderOperationallyActive(campaign.PackageOrder)
-            || string.Equals(campaign.Status, "awaiting_purchase", StringComparison.OrdinalIgnoreCase);
+            || string.Equals(campaign.Status, CampaignStatuses.AwaitingPurchase, StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task SendCampaignLaunchedEmailAsync(Campaign campaign, CancellationToken cancellationToken)

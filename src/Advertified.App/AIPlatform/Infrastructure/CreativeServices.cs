@@ -37,7 +37,9 @@ public sealed class DbMediaPlanningIntegrationService : IMediaPlanningIntegratio
             CampaignId: campaignId,
             BusinessName: campaign.User.BusinessProfile?.BusinessName ?? campaign.User.FullName,
             Industry: campaign.User.BusinessProfile?.Industry ?? "General",
-            Location: campaign.User.BusinessProfile?.Province ?? "South Africa",
+            Location: campaign.User.BusinessProfile?.City
+                ?? campaign.User.BusinessProfile?.Province
+                ?? "South Africa",
             Objective: campaign.CampaignBrief?.Objective ?? "Awareness",
             Budget: campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
             Tone: campaign.CampaignBrief?.CreativeNotes?.Trim() is { Length: > 0 } notes ? notes : "Balanced",
@@ -139,6 +141,7 @@ public sealed class StrategyCreativeGenerationEngine : ICreativeGenerationEngine
         CancellationToken cancellationToken)
     {
         var variables = _promptInputBuilder.BuildVariables(brief, channel, language, templateKey);
+        var resolvedVersion = await ResolvePromptVersionAsync(templateKey, channel, language, brief.PromptVersion, cancellationToken);
 
         try
         {
@@ -146,18 +149,40 @@ public sealed class StrategyCreativeGenerationEngine : ICreativeGenerationEngine
                 templateKey,
                 channel,
                 language,
-                brief.PromptVersion,
+                resolvedVersion,
                 variables), cancellationToken);
         }
         catch (InvalidOperationException)
         {
-            // Language fallback keeps generation resilient when non-English prompt variants are not seeded yet.
+            var englishVersion = await ResolvePromptVersionAsync(templateKey, channel, "English", brief.PromptVersion, cancellationToken);
             return await _promptLibraryService.RenderAsync(new PromptRenderRequest(
                 templateKey,
                 channel,
                 "English",
-                brief.PromptVersion,
+                englishVersion,
                 variables), cancellationToken);
+        }
+    }
+
+    private async Task<int?> ResolvePromptVersionAsync(
+        string templateKey,
+        AdvertisingChannel channel,
+        string language,
+        int requestedVersion,
+        CancellationToken cancellationToken)
+    {
+        if (requestedVersion > 0)
+        {
+            return requestedVersion;
+        }
+
+        try
+        {
+            return await _promptLibraryService.GetLatestVersionAsync(templateKey, channel, language, cancellationToken);
+        }
+        catch (InvalidOperationException) when (!string.Equals(language, "English", StringComparison.OrdinalIgnoreCase))
+        {
+            return await _promptLibraryService.GetLatestVersionAsync(templateKey, channel, "English", cancellationToken);
         }
     }
 

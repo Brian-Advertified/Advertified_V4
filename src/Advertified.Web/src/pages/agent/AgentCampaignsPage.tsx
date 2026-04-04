@@ -13,6 +13,7 @@ import {
   useAgentInboxQuery,
 } from './agentWorkspace';
 import { ActionIconButton } from './agentSectionShared';
+import { pushAgentMutationError } from './agentMutationToast';
 
 type QueueStageFilter = 'all' | 'ready_to_work' | 'waiting_on_client' | 'prospects' | 'completed';
 type OwnershipFilter = 'all' | 'assigned_to_me' | 'unassigned';
@@ -97,7 +98,7 @@ export function AgentCampaignsPage() {
       await queryClient.invalidateQueries({ queryKey: ['agent-inbox'] });
       pushToast({ title: 'Campaign assigned.', description: 'This campaign is now in your active queue.' });
     },
-    onError: (error) => pushToast({ title: 'Could not assign campaign.', description: error instanceof Error ? error.message : 'Please try again.' }, 'error'),
+    onError: (error) => pushAgentMutationError(pushToast, 'Could not assign campaign.', error),
   });
   const unassignMutation = useMutation({
     mutationFn: (campaignId: string) => advertifiedApi.unassignCampaign(campaignId),
@@ -105,7 +106,7 @@ export function AgentCampaignsPage() {
       await queryClient.invalidateQueries({ queryKey: ['agent-inbox'] });
       pushToast({ title: 'Campaign unassigned.', description: 'This campaign was returned to the shared queue.' }, 'info');
     },
-    onError: (error) => pushToast({ title: 'Could not unassign campaign.', description: error instanceof Error ? error.message : 'Please try again.' }, 'error'),
+    onError: (error) => pushAgentMutationError(pushToast, 'Could not unassign campaign.', error),
   });
   const handleConvertToSale = (campaignId: string) => {
     const paymentReference = window.prompt('Enter payment reference (optional)')?.trim();
@@ -129,7 +130,7 @@ export function AgentCampaignsPage() {
       ]);
       pushToast({ title: 'Campaign converted to sale.', description: 'Payment is marked as paid and this sale is now tracked in My Sales.' });
     },
-    onError: (error) => pushToast({ title: 'Could not convert to sale.', description: error instanceof Error ? error.message : 'Please try again.' }, 'error'),
+    onError: (error) => pushAgentMutationError(pushToast, 'Could not convert to sale.', error),
   });
 
   return (

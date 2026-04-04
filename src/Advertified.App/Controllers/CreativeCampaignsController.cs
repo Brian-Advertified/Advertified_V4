@@ -366,7 +366,7 @@ public sealed class CreativeCampaignsController : ControllerBase
 
         if (currentUser.Role is not UserRole.CreativeDirector and not UserRole.Admin)
         {
-            throw new InvalidOperationException("Creative director or admin access is required.");
+            throw new ForbiddenException("Creative director or admin access is required.");
         }
 
         return currentUser;

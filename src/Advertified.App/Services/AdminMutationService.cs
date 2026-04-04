@@ -8,13 +8,18 @@ namespace Advertified.App.Services;
 
 public sealed class AdminMutationService : IAdminMutationService
 {
-    private readonly string _connectionString;
+    private readonly Npgsql.NpgsqlDataSource _dataSource;
     private readonly IWebHostEnvironment _environment;
+    private readonly IBroadcastInventoryCatalog _broadcastInventoryCatalog;
 
-    public AdminMutationService(string connectionString, IWebHostEnvironment environment)
+    public AdminMutationService(
+        Npgsql.NpgsqlDataSource dataSource,
+        IWebHostEnvironment environment,
+        IBroadcastInventoryCatalog broadcastInventoryCatalog)
     {
-        _connectionString = connectionString;
+        _dataSource = dataSource;
         _environment = environment;
+        _broadcastInventoryCatalog = broadcastInventoryCatalog;
     }
 
     public async Task<AdminOutletDetailResponse> GetOutletAsync(string code, CancellationToken cancellationToken)
@@ -25,8 +30,7 @@ public sealed class AdminMutationService : IAdminMutationService
             throw new InvalidOperationException("Outlet code is required.");
         }
 
-        await using var connection = new NpgsqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
 
         var outlet = await connection.QuerySingleOrDefaultAsync<AdminOutletDetailRecord>(new CommandDefinition(
             @"
@@ -107,8 +111,7 @@ public sealed class AdminMutationService : IAdminMutationService
     {
         var detail = await GetOutletAsync(code, cancellationToken);
 
-        await using var connection = new NpgsqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
 
         var packages = (await connection.QueryAsync<AdminOutletPricingPackageResponse>(new CommandDefinition(
             @"
@@ -172,7 +175,7 @@ public sealed class AdminMutationService : IAdminMutationService
         var name = request.Name.Trim();
         ValidateOutletRequest(code, name);
 
-        await using var connection = new NpgsqlConnection(_connectionString);
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         await connection.OpenAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
@@ -190,6 +193,7 @@ public sealed class AdminMutationService : IAdminMutationService
         var outletId = Guid.NewGuid();
         await UpsertOutletAsync(connection, transaction, outletId, code, request.Name, request.MediaType, request.CoverageType, request.CatalogHealth, request.OperatorName, request.IsNational, request.HasPricing, request.LanguageNotes, request.TargetAudience, request.BroadcastFrequency, request.PrimaryLanguages, request.ProvinceCodes, request.CityLabels, request.AudienceKeywords, cancellationToken, isUpdate: false);
         await transaction.CommitAsync(cancellationToken);
+        await _broadcastInventoryCatalog.RefreshAsync(cancellationToken);
 
         return new AdminOutletMutationResponse { Code = code, Name = name };
     }
@@ -201,7 +205,7 @@ public sealed class AdminMutationService : IAdminMutationService
         var nextName = request.Name.Trim();
         ValidateOutletRequest(nextCode, nextName);
 
-        await using var connection = new NpgsqlConnection(_connectionString);
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         await connection.OpenAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
@@ -232,6 +236,7 @@ public sealed class AdminMutationService : IAdminMutationService
 
         await UpsertOutletAsync(connection, transaction, outletId.Value, nextCode, request.Name, request.MediaType, request.CoverageType, request.CatalogHealth, request.OperatorName, request.IsNational, request.HasPricing, request.LanguageNotes, request.TargetAudience, request.BroadcastFrequency, request.PrimaryLanguages, request.ProvinceCodes, request.CityLabels, request.AudienceKeywords, cancellationToken, isUpdate: true);
         await transaction.CommitAsync(cancellationToken);
+        await _broadcastInventoryCatalog.RefreshAsync(cancellationToken);
 
         return new AdminOutletMutationResponse { Code = nextCode, Name = nextName };
     }
@@ -244,7 +249,7 @@ public sealed class AdminMutationService : IAdminMutationService
             throw new InvalidOperationException("Outlet code is required.");
         }
 
-        await using var connection = new NpgsqlConnection(_connectionString);
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         await connection.OpenAsync(cancellationToken);
 
         var deleted = await connection.ExecuteAsync(new CommandDefinition(
@@ -256,6 +261,8 @@ public sealed class AdminMutationService : IAdminMutationService
         {
             throw new InvalidOperationException("Outlet was not found.");
         }
+
+        await _broadcastInventoryCatalog.RefreshAsync(cancellationToken);
     }
 
     public async Task<Guid> CreateOutletPricingPackageAsync(string code, UpsertAdminOutletPricingPackageRequest request, CancellationToken cancellationToken)
@@ -263,7 +270,7 @@ public sealed class AdminMutationService : IAdminMutationService
         var outletId = await GetOutletIdAsync(code, cancellationToken);
         var packageId = Guid.NewGuid();
 
-        await using var connection = new NpgsqlConnection(_connectionString);
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         await connection.OpenAsync(cancellationToken);
         await connection.ExecuteAsync(new CommandDefinition(
             @"
@@ -299,6 +306,7 @@ public sealed class AdminMutationService : IAdminMutationService
             cancellationToken: cancellationToken));
 
         await UpdateOutletHasPricingFlagAsync(connection, outletId, cancellationToken);
+        await _broadcastInventoryCatalog.RefreshAsync(cancellationToken);
         return packageId;
     }
 
@@ -306,7 +314,7 @@ public sealed class AdminMutationService : IAdminMutationService
     {
         var outletId = await GetOutletIdAsync(code, cancellationToken);
 
-        await using var connection = new NpgsqlConnection(_connectionString);
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         await connection.OpenAsync(cancellationToken);
         var updated = await connection.ExecuteAsync(new CommandDefinition(
             @"
@@ -357,12 +365,13 @@ public sealed class AdminMutationService : IAdminMutationService
         }
 
         await UpdateOutletHasPricingFlagAsync(connection, outletId, cancellationToken);
+        await _broadcastInventoryCatalog.RefreshAsync(cancellationToken);
     }
 
     public async Task DeleteOutletPricingPackageAsync(string code, Guid packageId, CancellationToken cancellationToken)
     {
         var outletId = await GetOutletIdAsync(code, cancellationToken);
-        await using var connection = new NpgsqlConnection(_connectionString);
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         await connection.OpenAsync(cancellationToken);
         var deleted = await connection.ExecuteAsync(new CommandDefinition(
             "delete from media_outlet_pricing_package where id = @Id and media_outlet_id = @MediaOutletId;",
@@ -375,13 +384,14 @@ public sealed class AdminMutationService : IAdminMutationService
         }
 
         await UpdateOutletHasPricingFlagAsync(connection, outletId, cancellationToken);
+        await _broadcastInventoryCatalog.RefreshAsync(cancellationToken);
     }
 
     public async Task<Guid> CreateOutletSlotRateAsync(string code, UpsertAdminOutletSlotRateRequest request, CancellationToken cancellationToken)
     {
         var outletId = await GetOutletIdAsync(code, cancellationToken);
         var slotRateId = Guid.NewGuid();
-        await using var connection = new NpgsqlConnection(_connectionString);
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         await connection.OpenAsync(cancellationToken);
         await connection.ExecuteAsync(new CommandDefinition(
             @"
@@ -409,13 +419,14 @@ public sealed class AdminMutationService : IAdminMutationService
             cancellationToken: cancellationToken));
 
         await UpdateOutletHasPricingFlagAsync(connection, outletId, cancellationToken);
+        await _broadcastInventoryCatalog.RefreshAsync(cancellationToken);
         return slotRateId;
     }
 
     public async Task UpdateOutletSlotRateAsync(string code, Guid slotRateId, UpsertAdminOutletSlotRateRequest request, CancellationToken cancellationToken)
     {
         var outletId = await GetOutletIdAsync(code, cancellationToken);
-        await using var connection = new NpgsqlConnection(_connectionString);
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         await connection.OpenAsync(cancellationToken);
         var updated = await connection.ExecuteAsync(new CommandDefinition(
             @"
@@ -454,12 +465,13 @@ public sealed class AdminMutationService : IAdminMutationService
         }
 
         await UpdateOutletHasPricingFlagAsync(connection, outletId, cancellationToken);
+        await _broadcastInventoryCatalog.RefreshAsync(cancellationToken);
     }
 
     public async Task DeleteOutletSlotRateAsync(string code, Guid slotRateId, CancellationToken cancellationToken)
     {
         var outletId = await GetOutletIdAsync(code, cancellationToken);
-        await using var connection = new NpgsqlConnection(_connectionString);
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         await connection.OpenAsync(cancellationToken);
         var deleted = await connection.ExecuteAsync(new CommandDefinition(
             "delete from media_outlet_slot_rate where id = @Id and media_outlet_id = @MediaOutletId;",
@@ -472,6 +484,7 @@ public sealed class AdminMutationService : IAdminMutationService
         }
 
         await UpdateOutletHasPricingFlagAsync(connection, outletId, cancellationToken);
+        await _broadcastInventoryCatalog.RefreshAsync(cancellationToken);
     }
 
     public async Task<AdminGeographyDetailResponse> GetGeographyAsync(string code, CancellationToken cancellationToken)
@@ -482,7 +495,7 @@ public sealed class AdminMutationService : IAdminMutationService
             throw new InvalidOperationException("Area code is required.");
         }
 
-        await using var connection = new NpgsqlConnection(_connectionString);
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         await connection.OpenAsync(cancellationToken);
 
         var area = await connection.QuerySingleOrDefaultAsync<AdminGeographyRecord>(new CommandDefinition(
@@ -544,7 +557,7 @@ public sealed class AdminMutationService : IAdminMutationService
             throw new InvalidOperationException("Area code and label are required.");
         }
 
-        await using var connection = new NpgsqlConnection(_connectionString);
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         await connection.OpenAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
@@ -605,7 +618,7 @@ public sealed class AdminMutationService : IAdminMutationService
             throw new InvalidOperationException("Area code and label are required.");
         }
 
-        await using var connection = new NpgsqlConnection(_connectionString);
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         await connection.OpenAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
@@ -690,7 +703,7 @@ public sealed class AdminMutationService : IAdminMutationService
             throw new InvalidOperationException("Area code is required.");
         }
 
-        await using var connection = new NpgsqlConnection(_connectionString);
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         await connection.OpenAsync(cancellationToken);
 
         var deleted = await connection.ExecuteAsync(new CommandDefinition(
@@ -710,7 +723,7 @@ public sealed class AdminMutationService : IAdminMutationService
         ValidateGeographyMappingRequest(request);
         var mappingId = Guid.NewGuid();
 
-        await using var connection = new NpgsqlConnection(_connectionString);
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         await connection.OpenAsync(cancellationToken);
         await connection.ExecuteAsync(new CommandDefinition(
             @"
@@ -734,7 +747,7 @@ public sealed class AdminMutationService : IAdminMutationService
         var clusterId = await GetRegionClusterIdAsync(code, cancellationToken);
         ValidateGeographyMappingRequest(request);
 
-        await using var connection = new NpgsqlConnection(_connectionString);
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         await connection.OpenAsync(cancellationToken);
         var updated = await connection.ExecuteAsync(new CommandDefinition(
             @"
@@ -764,7 +777,7 @@ public sealed class AdminMutationService : IAdminMutationService
     public async Task DeleteGeographyMappingAsync(string code, Guid mappingId, CancellationToken cancellationToken)
     {
         var clusterId = await GetRegionClusterIdAsync(code, cancellationToken);
-        await using var connection = new NpgsqlConnection(_connectionString);
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         await connection.OpenAsync(cancellationToken);
         var deleted = await connection.ExecuteAsync(new CommandDefinition(
             "delete from region_cluster_mappings where id = @Id and cluster_id = @ClusterId;",
@@ -803,7 +816,7 @@ public sealed class AdminMutationService : IAdminMutationService
         }
 
         var importedAt = DateTime.UtcNow;
-        await using var connection = new NpgsqlConnection(_connectionString);
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         await connection.OpenAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
@@ -833,6 +846,7 @@ public sealed class AdminMutationService : IAdminMutationService
             cancellationToken: cancellationToken));
 
         await transaction.CommitAsync(cancellationToken);
+        await _broadcastInventoryCatalog.RefreshAsync(cancellationToken);
 
         return new AdminRateCardUploadResponse
         {
@@ -859,7 +873,7 @@ public sealed class AdminMutationService : IAdminMutationService
             throw new InvalidOperationException("Channel is required.");
         }
 
-        await using var connection = new NpgsqlConnection(_connectionString);
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         await connection.OpenAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
@@ -920,6 +934,7 @@ public sealed class AdminMutationService : IAdminMutationService
         }
 
         await transaction.CommitAsync(cancellationToken);
+        await _broadcastInventoryCatalog.RefreshAsync(cancellationToken);
     }
 
     public async Task DeleteRateCardAsync(string sourceFile, CancellationToken cancellationToken)
@@ -930,7 +945,7 @@ public sealed class AdminMutationService : IAdminMutationService
             throw new InvalidOperationException("Source file is required.");
         }
 
-        await using var connection = new NpgsqlConnection(_connectionString);
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         await connection.OpenAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
@@ -952,6 +967,7 @@ public sealed class AdminMutationService : IAdminMutationService
         }
 
         await transaction.CommitAsync(cancellationToken);
+        await _broadcastInventoryCatalog.RefreshAsync(cancellationToken);
 
         var fullPath = Path.Combine(_environment.ContentRootPath, "App_Data", "admin_uploads", "rate_cards", normalizedSourceFile);
         if (File.Exists(fullPath))
@@ -968,7 +984,7 @@ public sealed class AdminMutationService : IAdminMutationService
         var normalizedCode = NormalizeToken(request.Code);
         var benefitsJson = SerializeJsonArray(request.Benefits);
 
-        await using var connection = new NpgsqlConnection(_connectionString);
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         await connection.OpenAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
@@ -1013,7 +1029,7 @@ public sealed class AdminMutationService : IAdminMutationService
         var normalizedCode = NormalizeToken(request.Code);
         var benefitsJson = SerializeJsonArray(request.Benefits);
 
-        await using var connection = new NpgsqlConnection(_connectionString);
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         await connection.OpenAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
@@ -1070,7 +1086,7 @@ public sealed class AdminMutationService : IAdminMutationService
 
     public async Task DeletePackageSettingAsync(Guid packageSettingId, CancellationToken cancellationToken)
     {
-        await using var connection = new NpgsqlConnection(_connectionString);
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         await connection.OpenAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
@@ -1115,7 +1131,7 @@ public sealed class AdminMutationService : IAdminMutationService
             throw new InvalidOperationException("Package code is required.");
         }
 
-        await using var connection = new NpgsqlConnection(_connectionString);
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         await connection.OpenAsync(cancellationToken);
         await connection.ExecuteAsync(new CommandDefinition(
             @"
@@ -1172,7 +1188,7 @@ public sealed class AdminMutationService : IAdminMutationService
         var indicativeMixJson = JsonSerializer.Serialize(
             request.IndicativeMix.Select(TrimToNull).Where(static x => !string.IsNullOrWhiteSpace(x)).ToArray());
 
-        await using var connection = new NpgsqlConnection(_connectionString);
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         await connection.OpenAsync(cancellationToken);
 
         var updated = await connection.ExecuteAsync(new CommandDefinition(
@@ -1210,7 +1226,7 @@ public sealed class AdminMutationService : IAdminMutationService
         ValidatePercentage(request.RadioMarkupPercent, nameof(request.RadioMarkupPercent));
         ValidatePercentage(request.TvMarkupPercent, nameof(request.TvMarkupPercent));
 
-        await using var connection = new NpgsqlConnection(_connectionString);
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         await connection.OpenAsync(cancellationToken);
         await connection.ExecuteAsync(new CommandDefinition(
             @"
@@ -1258,7 +1274,7 @@ public sealed class AdminMutationService : IAdminMutationService
     private async Task<Guid> GetOutletIdAsync(string code, CancellationToken cancellationToken)
     {
         var normalizedCode = NormalizeToken(code);
-        await using var connection = new NpgsqlConnection(_connectionString);
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         await connection.OpenAsync(cancellationToken);
         var outletId = await connection.ExecuteScalarAsync<Guid?>(new CommandDefinition(
             "select id from media_outlet where code = @Code;",
@@ -1276,7 +1292,7 @@ public sealed class AdminMutationService : IAdminMutationService
     private async Task<Guid> GetRegionClusterIdAsync(string code, CancellationToken cancellationToken)
     {
         var normalizedCode = NormalizeToken(code);
-        await using var connection = new NpgsqlConnection(_connectionString);
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         await connection.OpenAsync(cancellationToken);
         var clusterId = await connection.ExecuteScalarAsync<Guid?>(new CommandDefinition(
             "select id from region_clusters where code = @Code;",

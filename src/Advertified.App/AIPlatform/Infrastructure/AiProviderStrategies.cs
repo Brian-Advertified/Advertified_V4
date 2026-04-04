@@ -79,11 +79,6 @@ public sealed class OpenAiProviderStrategy : IAiProviderStrategy
         requestMessage.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _openAIOptions.ApiKey);
 
         var client = _httpClientFactory.CreateClient(nameof(OpenAiProviderStrategy));
-        if (_openAIOptions.TimeoutSeconds > 0)
-        {
-            client.Timeout = TimeSpan.FromSeconds(_openAIOptions.TimeoutSeconds);
-        }
-
         try
         {
             using var response = await client.SendAsync(requestMessage, cancellationToken);
@@ -233,11 +228,6 @@ public sealed class ElevenLabsProviderStrategy : IAiProviderStrategy
         request.Headers.Accept.ParseAdd("audio/mpeg");
 
         var client = _httpClientFactory.CreateClient(nameof(ElevenLabsProviderStrategy));
-        if (_options.TimeoutSeconds > 0)
-        {
-            client.Timeout = TimeSpan.FromSeconds(_options.TimeoutSeconds);
-        }
-
         using var response = await client.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {

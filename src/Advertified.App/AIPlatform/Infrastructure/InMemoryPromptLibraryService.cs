@@ -45,6 +45,25 @@ public sealed class InMemoryPromptLibraryService : IPromptLibraryService
         return Task.FromResult(new PromptTemplate(template.Key, template.Version, template.SystemPrompt, template.TemplatePrompt, template.OutputSchemaJson));
     }
 
+    public Task<int> GetLatestVersionAsync(
+        string key,
+        AdvertisingChannel channel,
+        string language,
+        CancellationToken cancellationToken)
+    {
+        var template = Templates
+            .Where(item =>
+                string.Equals(item.Key, key, StringComparison.OrdinalIgnoreCase)
+                && item.Channel == channel
+                && string.Equals(item.Language, language, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(item => item.Version)
+            .FirstOrDefault()
+            ?? throw new InvalidOperationException(
+                $"Prompt template '{key}' for channel '{channel}' and language '{language}' was not found.");
+
+        return Task.FromResult(template.Version);
+    }
+
     public Task<PromptTemplateDefinition> GetAsync(
         string key,
         AdvertisingChannel channel,

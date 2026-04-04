@@ -20,10 +20,11 @@ const string FrontendCorsPolicy = "AdvertifiedFrontend";
 builder.Services.AddControllers();
 builder.Services.Configure<HostOptions>(options =>
 {
-    options.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.Ignore;
+    options.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.StopHost;
 });
 builder.Services.AddDataProtection();
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddTransient<TransientHttpRetryHandler>();
 builder.Services.Configure<FrontendOptions>(builder.Configuration.GetSection(FrontendOptions.SectionName));
 builder.Services.Configure<BroadcastInventoryOptions>(builder.Configuration.GetSection(BroadcastInventoryOptions.SectionName));
 builder.Services.Configure<ResendOptions>(builder.Configuration.GetSection(ResendOptions.SectionName));
@@ -63,6 +64,8 @@ builder.Services.AddDbContext<AppDbContext>(options =>
             npgsqlOptions.MapEnum<UserRole>("user_role");
             npgsqlOptions.MapEnum<VerificationStatus>("verification_status");
         }));
+builder.Services.AddSingleton<Npgsql.NpgsqlDataSource>(_ => 
+    new Npgsql.NpgsqlDataSourceBuilder(connectionString).Build());
 builder.Services.AddScoped<ICurrentUserAccessor, CurrentUserAccessor>();
 builder.Services.AddScoped<ISessionTokenService, SessionTokenService>();
 builder.Services.AddScoped<IProposalAccessTokenService, ProposalAccessTokenService>();
@@ -72,27 +75,31 @@ builder.Services.AddScoped<IAdminDashboardService>(_ => new AdminDashboardServic
     _.GetRequiredService<AppDbContext>(),
     _.GetRequiredService<IBroadcastInventoryCatalog>(),
     _.GetRequiredService<PlanningPolicySnapshotProvider>(),
-    connectionString));
+    _.GetRequiredService<Npgsql.NpgsqlDataSource>()));
 builder.Services.AddScoped<IAdminMutationService>(_ => new AdminMutationService(
-    connectionString,
-    _.GetRequiredService<IWebHostEnvironment>()));
+    _.GetRequiredService<Npgsql.NpgsqlDataSource>(),
+    _.GetRequiredService<IWebHostEnvironment>(),
+    _.GetRequiredService<IBroadcastInventoryCatalog>()));
 builder.Services.AddScoped<ICampaignAccessService, CampaignAccessService>();
 builder.Services.AddScoped<IAgentAreaRoutingService, AgentAreaRoutingService>();
 builder.Services.AddScoped<ICampaignBriefService, CampaignBriefService>();
 builder.Services.AddScoped<ICampaignRecommendationService, CampaignRecommendationService>();
 builder.Services.AddScoped<IRecommendationDocumentService, RecommendationDocumentService>();
 builder.Services.AddScoped<IRecommendationApprovalWorkflowService, RecommendationApprovalWorkflowService>();
+// Legacy template-based creative endpoints still depend on this registration.
+// The creative studio and AI platform now use the AI generation pipeline instead.
 builder.Services.AddScoped<ICreativeGenerationOrchestrator, CreativeGenerationOrchestrator>();
 builder.Services.AddScoped<ICreativeStudioIntelligenceService, CreativeStudioIntelligenceService>();
 builder.Services.AddHttpClient<IPublicAssetStorage, PublicAssetStorageService>();
 builder.Services.AddHttpClient<IPrivateDocumentStorage, PrivateDocumentStorageService>();
-builder.Services.AddSingleton<IBroadcastInventoryCatalog>(_ => new BroadcastInventoryCatalog(connectionString));
+builder.Services.AddSingleton<IBroadcastInventoryCatalog>(_ => new BroadcastInventoryCatalog(_.GetRequiredService<Npgsql.NpgsqlDataSource>()));
 builder.Services.AddSingleton<IBroadcastCostNormalizer, BroadcastCostNormalizer>();
 builder.Services.AddSingleton<IBroadcastInventoryImportService>(_ =>
     new BroadcastInventoryImportService(
-        connectionString,
+        _.GetRequiredService<Npgsql.NpgsqlDataSource>(),
         _.GetRequiredService<Microsoft.Extensions.Options.IOptions<BroadcastInventoryOptions>>(),
-        _.GetRequiredService<IWebHostEnvironment>()));
+        _.GetRequiredService<IWebHostEnvironment>(),
+        _.GetRequiredService<IBroadcastInventoryCatalog>()));
 builder.Services.AddHttpClient<ICampaignBriefInterpretationService, CampaignBriefInterpretationService>((serviceProvider, client) =>
 {
     var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<OpenAIOptions>>().Value;
@@ -105,7 +112,7 @@ builder.Services.AddHttpClient<ICampaignBriefInterpretationService, CampaignBrie
     {
         client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
     }
-});
+}).AddHttpMessageHandler<TransientHttpRetryHandler>();
 builder.Services.AddHttpClient<ICampaignReasoningService, OpenAICampaignReasoningService>((serviceProvider, client) =>
 {
     var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<OpenAIOptions>>().Value;
@@ -118,7 +125,33 @@ builder.Services.AddHttpClient<ICampaignReasoningService, OpenAICampaignReasonin
     {
         client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
     }
-});
+}).AddHttpMessageHandler<TransientHttpRetryHandler>();
+builder.Services.AddHttpClient(nameof(OpenAiProviderStrategy), (serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<OpenAIOptions>>().Value;
+    if (!string.IsNullOrWhiteSpace(options.BaseUrl))
+    {
+        client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
+    }
+
+    if (options.TimeoutSeconds > 0)
+    {
+        client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
+    }
+}).AddHttpMessageHandler<TransientHttpRetryHandler>();
+builder.Services.AddHttpClient(nameof(ElevenLabsProviderStrategy), (serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ElevenLabsOptions>>().Value;
+    if (!string.IsNullOrWhiteSpace(options.BaseUrl))
+    {
+        client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
+    }
+
+    if (options.TimeoutSeconds > 0)
+    {
+        client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
+    }
+}).AddHttpMessageHandler<TransientHttpRetryHandler>();
 builder.Services.AddScoped<IEmailVerificationService, EmailVerificationService>();
 builder.Services.AddScoped<IInvoiceService, InvoiceService>();
 builder.Services.AddSingleton(BroadcastMatcherPolicy.Default);
@@ -131,14 +164,14 @@ builder.Services.AddScoped<IBroadcastMatchingEngine, BroadcastMatchingEngine>();
 builder.Services.AddScoped<IPlanningCandidateLoader, PlanningCandidateLoader>();
 builder.Services.AddScoped<IPlanningPolicyService, PlanningPolicyService>();
 builder.Services.AddScoped(_ => new PlanningPolicySnapshotProvider(
-    connectionString,
+    _.GetRequiredService<Npgsql.NpgsqlDataSource>(),
     _.GetRequiredService<Microsoft.Extensions.Options.IOptions<PlanningPolicyOptions>>().Value));
 builder.Services.AddScoped<IPlanningEligibilityService, PlanningEligibilityService>();
 builder.Services.AddScoped<IPlanningScoreService, PlanningScoreService>();
 builder.Services.AddScoped<IRecommendationPlanBuilder, RecommendationPlanBuilder>();
 builder.Services.AddScoped<IRecommendationExplainabilityService, RecommendationExplainabilityService>();
 builder.Services.AddScoped<IOohPlanningInventorySource>(_ => new OohPlanningInventorySource(
-    connectionString,
+    _.GetRequiredService<Npgsql.NpgsqlDataSource>(),
     _.GetRequiredService<IPricingSettingsProvider>()));
 builder.Services.AddScoped<IBroadcastPlanningInventorySource, BroadcastPlanningInventorySource>();
 builder.Services.AddScoped<IPlanningInventoryCandidateMapper, PlanningInventoryCandidateMapper>();
@@ -159,7 +192,7 @@ builder.Services.AddScoped<IPackagePreviewFormatter, PackagePreviewFormatter>();
 builder.Services.AddScoped<IPlanningInventoryRepository, PlanningInventoryRepository>();
 builder.Services.AddScoped<IPackagePreviewService>(_ => new PackagePreviewService(
     _.GetRequiredService<AppDbContext>(),
-    connectionString,
+    _.GetRequiredService<Npgsql.NpgsqlDataSource>(),
     _.GetRequiredService<IBroadcastInventoryCatalog>(),
     _.GetRequiredService<IPackagePreviewAreaProfileResolver>(),
     _.GetRequiredService<IPackagePreviewReachEstimator>(),
@@ -190,7 +223,7 @@ builder.Services.AddHttpClient<IVodaPayCheckoutService, VodaPayCheckoutService>(
     {
         client.BaseAddress = new Uri(vodaPayOptions.BaseUrl.TrimEnd('/') + "/");
     }
-});
+}).AddHttpMessageHandler<TransientHttpRetryHandler>();
 builder.Services.AddScoped<IRegistrationService, RegistrationService>();
 builder.Services.AddHttpClient<ITemplatedEmailService, ResendEmailService>((serviceProvider, client) =>
 {

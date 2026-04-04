@@ -15,16 +15,18 @@ public sealed class PlanningCandidateLoader : IPlanningCandidateLoader
 
     public async Task<List<InventoryCandidate>> LoadCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
     {
-        var ooh = await _repository.GetOohCandidatesAsync(request, cancellationToken);
-        var radioSlots = await _repository.GetRadioSlotCandidatesAsync(request, cancellationToken);
-        var radioPackages = await _repository.GetRadioPackageCandidatesAsync(request, cancellationToken);
-        var tv = await _repository.GetTvCandidatesAsync(request, cancellationToken);
+        var oohTask = _repository.GetOohCandidatesAsync(request, cancellationToken);
+        var broadcastTask = _repository.GetBroadcastCandidatesAsync(request, cancellationToken);
+
+        await Task.WhenAll(oohTask, broadcastTask);
+
+        var ooh = await oohTask;
+        var broadcast = await broadcastTask;
 
         return ooh
-            .Concat(radioSlots)
-            .Concat(radioPackages)
-            .Concat(tv)
+            .Concat(broadcast.RadioSlots)
+            .Concat(broadcast.RadioPackages)
+            .Concat(broadcast.Tv)
             .ToList();
     }
 }
-

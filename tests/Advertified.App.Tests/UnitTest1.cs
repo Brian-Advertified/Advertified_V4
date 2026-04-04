@@ -1,6 +1,8 @@
 using Advertified.App.Contracts.Auth;
 using Advertified.App.Contracts.Campaigns;
 using Advertified.App.Contracts.Creatives;
+using Advertified.App.AIPlatform.Application;
+using Advertified.App.AIPlatform.Domain;
 using Advertified.App.Configuration;
 using Advertified.App.Controllers;
 using Advertified.App.Domain.Campaigns;
@@ -902,7 +904,7 @@ public class MediaPlanningEngineTests
 
     private static MediaPlanningEngine CreateEngine(IPlanningInventoryRepository repository)
     {
-        return new MediaPlanningEngine(repository, new PlanningPolicySnapshotProvider(new PlanningPolicyOptions
+        var snapshotProvider = new PlanningPolicySnapshotProvider(new PlanningPolicyOptions
         {
             Scale = new PackagePlanningPolicy
             {
@@ -924,7 +926,14 @@ public class MediaPlanningEngineTests
                 NonNationalRadioPenalty = 12,
                 RegionalRadioPenalty = 24
             }
-        }));
+        });
+        var policyService = new PlanningPolicyService(snapshotProvider);
+        var candidateLoader = new PlanningCandidateLoader(repository);
+        var eligibilityService = new PlanningEligibilityService(policyService);
+        var planBuilder = new RecommendationPlanBuilder(policyService);
+        var scoreService = new PlanningScoreService(policyService);
+        var explainabilityService = new RecommendationExplainabilityService(scoreService, policyService);
+        return new MediaPlanningEngine(candidateLoader, eligibilityService, planBuilder, explainabilityService);
     }
 
     private sealed class StubPlanningInventoryRepository : IPlanningInventoryRepository
@@ -936,6 +945,9 @@ public class MediaPlanningEngineTests
 
         public Task<List<InventoryCandidate>> GetOohCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
             => Task.FromResult(OohCandidates);
+
+        public Task<BroadcastInventoryCandidateSet> GetBroadcastCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
+            => Task.FromResult(new BroadcastInventoryCandidateSet(RadioSlotCandidates, RadioPackageCandidates, TvCandidates));
 
         public Task<List<InventoryCandidate>> GetRadioSlotCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
             => Task.FromResult(RadioSlotCandidates);
@@ -954,7 +966,9 @@ public class CreativeStudioIntelligenceServiceTests
     public async Task GenerateAsync_FallbackBuildsStructuredChannelAdaptationsWithVersions()
     {
         var service = new CreativeStudioIntelligenceService(
-            new StubCreativeGenerationOrchestrator());
+            new StubMediaPlanningIntegrationService(),
+            new StubCreativeGenerationEngine(),
+            new StubCreativeQaService());
 
         var campaign = new CampaignEntity
         {
@@ -1003,6 +1017,95 @@ public class CreativeStudioIntelligenceServiceTests
         result.ChannelAdaptations.Should().Contain(item => item.Channel == "Social Static");
     }
 
+    private sealed class StubMediaPlanningIntegrationService : IMediaPlanningIntegrationService
+    {
+        public Task<MediaPlanningContext> BuildContextAsync(Guid campaignId, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new MediaPlanningContext(
+                campaignId,
+                "Advertified Labs",
+                "Advertising",
+                "Cape Town",
+                "Awareness",
+                75000m,
+                "Balanced",
+                "5-8",
+                "25-45",
+                new[] { "English", "Zulu" },
+                new[] { AdvertisingChannel.Billboard, AdvertisingChannel.Digital }));
+        }
+    }
+
+    private sealed class StubCreativeGenerationEngine : ICreativeGenerationEngine
+    {
+        public Task<IReadOnlyList<CreativeVariant>> GenerateAsync(
+            CreativeBrief brief,
+            CancellationToken cancellationToken)
+        {
+            var billboardPayload = JsonSerializer.Serialize(new
+            {
+                content = new
+                {
+                    headline = "Advertise now",
+                    message = "Pay later with Advertified",
+                    cta = "Book your rollout today",
+                    visualDirection = "Clean bold visual"
+                }
+            });
+            var tiktokPayload = JsonSerializer.Serialize(new
+            {
+                templateKey = "creative-brief-digital-tiktok",
+                content = new
+                {
+                    platform = "TikTok",
+                    hook = "Need faster growth?",
+                    script = "Advertified gets you live quickly.",
+                    cta = "Book your rollout today"
+                }
+            });
+            var socialPayload = JsonSerializer.Serialize(new
+            {
+                templateKey = "social static",
+                content = new
+                {
+                    platform = "Social Static",
+                    headline = "Advertified",
+                    primaryText = "One campaign idea across channels",
+                    cta = "Book your rollout today"
+                }
+            });
+
+            IReadOnlyList<CreativeVariant> creatives = new[]
+            {
+                new CreativeVariant(Guid.NewGuid(), brief.CampaignId, AdvertisingChannel.Billboard, "English", billboardPayload, DateTimeOffset.UtcNow),
+                new CreativeVariant(Guid.NewGuid(), brief.CampaignId, AdvertisingChannel.Digital, "English", tiktokPayload, DateTimeOffset.UtcNow),
+                new CreativeVariant(Guid.NewGuid(), brief.CampaignId, AdvertisingChannel.Digital, "Zulu", socialPayload, DateTimeOffset.UtcNow)
+            };
+
+            return Task.FromResult(creatives);
+        }
+    }
+
+    private sealed class StubCreativeQaService : ICreativeQaService
+    {
+        public Task<IReadOnlyList<CreativeQualityScore>> ScoreAsync(
+            CreativeBrief brief,
+            IReadOnlyList<CreativeVariant> creatives,
+            CancellationToken cancellationToken)
+        {
+            IReadOnlyList<CreativeQualityScore> scores = creatives
+                .Select(creative => new CreativeQualityScore(
+                    creative.CreativeId,
+                    creative.Channel,
+                    new Dictionary<string, decimal> { ["clarity"] = 8.8m },
+                    8.8m,
+                    Suggestions: new[] { "Tighten the CTA close." }))
+                .ToArray();
+
+            return Task.FromResult(scores);
+        }
+    }
+
     private sealed class StubCreativeGenerationOrchestrator : ICreativeGenerationOrchestrator
     {
         public Task<GenerateCreativesRequest> BuildNormalizedRequestFromCampaignAsync(
@@ -1012,84 +1115,14 @@ public class CreativeStudioIntelligenceServiceTests
             string? tone,
             IReadOnlyList<string>? channels,
             CancellationToken cancellationToken)
-        {
-            var normalizedChannels = channels?.Count > 0
-                ? channels
-                : new[] { "Billboard", "TikTok", "Social Static" };
-
-            return Task.FromResult(new GenerateCreativesRequest
-            {
-                CampaignId = campaignId.ToString(),
-                Business = new CreativeBusinessRequest
-                {
-                    Name = "Advertified Labs",
-                    Industry = "Advertising",
-                    Location = "Cape Town"
-                },
-                Objective = objective ?? "Awareness",
-                Budget = 75000m,
-                Audience = new CreativeAudienceRequest
-                {
-                    Lsm = "5-8",
-                    AgeRange = "25-45",
-                    Languages = new[] { "English", "Zulu" }
-                },
-                Channels = normalizedChannels,
-                Tone = tone ?? "Balanced"
-            });
-        }
+            => Task.FromResult(new GenerateCreativesRequest());
 
         public Task<GenerateCreativesResponse> GenerateAsync(
             GenerateCreativesRequest request,
             Guid? sourceCreativeSystemId,
             bool persistOutputs,
             CancellationToken cancellationToken)
-        {
-            return Task.FromResult(new GenerateCreativesResponse
-            {
-                CampaignId = request.CampaignId,
-                Creatives = new GeneratedCreativesByChannelResponse
-                {
-                    Billboard = new[]
-                    {
-                        new BillboardCreativeResponse
-                        {
-                            Id = Guid.NewGuid().ToString("N"),
-                            Headline = "Advertise now",
-                            Subtext = "Pay later with Advertified",
-                            Cta = "Book your rollout today",
-                            VisualDirection = "Clean bold visual"
-                        }
-                    },
-                    Digital = new[]
-                    {
-                        new DigitalCreativeResponse
-                        {
-                            Id = Guid.NewGuid().ToString("N"),
-                            Platform = "TikTok",
-                            PrimaryText = "Turn plans into performance",
-                            Headline = "Advertified",
-                            Cta = "Book your rollout today",
-                            Hook = "Need faster growth?",
-                            Script = "Advertified gets you live quickly."
-                        },
-                        new DigitalCreativeResponse
-                        {
-                            Id = Guid.NewGuid().ToString("N"),
-                            Platform = "Social Static",
-                            PrimaryText = "One campaign idea across channels",
-                            Headline = "Advertified",
-                            Cta = "Book your rollout today"
-                        }
-                    }
-                },
-                Metadata = new CreativeGenerationMetadataResponse
-                {
-                    RunId = Guid.NewGuid().ToString("N"),
-                    Warnings = Array.Empty<string>()
-                }
-            });
-        }
+            => Task.FromResult(new GenerateCreativesResponse());
 
         public Task<GenerateCreativesResponse> RegenerateAsync(RegenerateCreativeRequest request, CancellationToken cancellationToken)
             => Task.FromResult(new GenerateCreativesResponse());

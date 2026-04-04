@@ -286,7 +286,7 @@ public sealed class CampaignsController : ControllerBase
             });
         }
 
-        campaign.Status = CampaignStatuses.BookingInProgress;
+        CampaignStatusTransitionPolicy.TryAdvanceToBookingInProgress(campaign);
         campaign.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
         await SendInternalCreativeQueueUpdateAsync(

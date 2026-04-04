@@ -1,5 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, CheckCircle2, ClipboardList, ImagePlus, Palette, RadioTower, Sparkles, WandSparkles } from 'lucide-react';
+﻿import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ArrowRight, ClipboardList, Palette, RadioTower, WandSparkles } from 'lucide-react';
 import type { ChangeEvent, ReactNode } from 'react';
 import { useState } from 'react';
 import { Link, NavLink, useParams } from 'react-router-dom';
@@ -8,62 +8,19 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { useToast } from '../../components/ui/toast';
 import { useAuth } from '../../features/auth/auth-context';
+import { CreativeStudioAssetsPanel } from '../../features/creative/components/CreativeStudioAssetsPanel';
+import { CreativeStudioBookingPanel } from '../../features/creative/components/CreativeStudioBookingPanel';
+import { CreativeStudioEnginePanel } from '../../features/creative/components/CreativeStudioEnginePanel';
+import { CreativeStudioOutputPanel } from '../../features/creative/components/CreativeStudioOutputPanel';
+import { CreativeStudioOverviewPanel } from '../../features/creative/components/CreativeStudioOverviewPanel';
+import type { CreativeBookingDraft, CreativeStudioCollection, CreativeStudioSignal } from '../../features/creative/creativeStudioTypes';
+import { buildDefaultCreativePrompt, formatChannelLabel, parseDelimitedInput } from '../../features/creative/creativeStudioUtils';
 import { canAccessCreativeStudio, canAccessOperations, isAdmin } from '../../lib/access';
 import { invalidateCreativeCampaignQueries, queryKeys } from '../../lib/queryKeys';
 import { formatCurrency } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import type { Campaign } from '../../types/domain';
 import { getPrimaryRecommendation } from '../client/clientWorkspace';
-
-const creativeIterationOptions = [
-  { label: 'Shorter', instruction: 'Compress the campaign into a shorter, sharper version without losing the master idea.' },
-  { label: 'Bolder', instruction: 'Make the campaign bolder, more distinctive, and higher contrast while keeping it commercially usable.' },
-  { label: 'More premium', instruction: 'Elevate the campaign so it feels more premium, restrained, and polished.' },
-  { label: 'More Gen Z', instruction: 'Shift the campaign language and pacing to feel more Gen Z-native without losing clarity.' },
-  { label: 'More performance', instruction: 'Sharpen the campaign for stronger response, clearer value, and a harder-working CTA.' },
-] as const;
-
-function parseDelimitedInput(value: string) {
-  return value
-    .split(/\r?\n|,/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function formatChannelLabel(value: string) {
-  return value.replace(/\booh\b/gi, 'Billboards and Digital Screens');
-}
-
-function buildDefaultCreativePrompt({
-  campaignName,
-  businessName,
-  packageBandName,
-  briefObjective,
-  audience,
-  creativeNotes,
-  channelMood,
-}: {
-  campaignName: string;
-  businessName?: string;
-  packageBandName?: string;
-  briefObjective?: string;
-  audience?: string;
-  creativeNotes?: string;
-  channelMood: string[];
-}) {
-  const context = [
-    `Build a production-ready campaign system for ${campaignName}.`,
-    businessName ? `Brand: ${businessName}.` : undefined,
-    packageBandName ? `Package frame: ${packageBandName}.` : undefined,
-    briefObjective ? `Objective: ${briefObjective}.` : undefined,
-    audience ? `Audience: ${audience}.` : undefined,
-    channelMood.length ? `Channels to cover: ${channelMood.join(', ')}.` : undefined,
-    creativeNotes ? `Creative notes: ${creativeNotes}.` : undefined,
-    'Give me one strong master idea, a clear narrative spine, native channel adaptations, and production-ready outputs.',
-  ];
-
-  return context.filter(Boolean).join(' ');
-}
 
 function CreativePageShell({
   title,
@@ -188,7 +145,7 @@ export function CreativeDirectorDashboardPage() {
                             : 'Approved and ready'}
                     </div>
                     <h3 className="mt-3 text-2xl font-semibold text-ink">{item.campaignName}</h3>
-                    <p className="mt-2 text-sm text-ink-soft">{item.clientName} · {item.packageBandName}</p>
+                    <p className="mt-2 text-sm text-ink-soft">{item.clientName} • {item.packageBandName}</p>
                   </div>
                   <span className="rounded-full border border-brand/20 bg-brand-soft px-3 py-1 text-xs font-semibold text-brand">
                     {item.queueLabel}
@@ -243,7 +200,7 @@ export function CreativeDirectorStudioPage() {
   const { pushToast } = useToast();
   const [assetFile, setAssetFile] = useState<File | null>(null);
   const [assetType, setAssetType] = useState('creative_pack');
-  const [bookingDraft, setBookingDraft] = useState({
+  const [bookingDraft, setBookingDraft] = useState<CreativeBookingDraft>({
     supplierOrStation: '',
     channel: 'radio',
     bookingStatus: 'planned',
@@ -353,7 +310,7 @@ export function CreativeDirectorStudioPage() {
   const geographyFocus = [brief?.areas, brief?.cities, brief?.provinces].flatMap((items) => items ?? []).filter(Boolean);
   const isAwaitingFinalApproval = campaign.status === 'creative_sent_to_client_for_approval';
   const isBookingStage = campaign.status === 'creative_approved' || campaign.status === 'booking_in_progress' || campaign.status === 'launched';
-  const studioCollections = [
+  const studioCollections: CreativeStudioCollection[] = [
     {
       icon: Palette,
       title: 'Creative direction',
@@ -373,7 +330,7 @@ export function CreativeDirectorStudioPage() {
       accent: 'from-brand-soft via-white to-brand-soft',
     },
   ];
-  const productionSignals = [
+  const productionSignals: CreativeStudioSignal[] = [
     {
       label: 'Creative readiness',
       value: brief?.creativeReady ? 'Assets available' : 'Awaiting source assets',
@@ -456,7 +413,7 @@ export function CreativeStudioPreviewPage() {
   const channelMood = recommendation ? Array.from(new Set(recommendation.items.map((item) => formatChannelLabel(item.channel)))).filter(Boolean) : [];
   const geographyFocus = [brief?.areas, brief?.cities, brief?.provinces].flatMap((items) => items ?? []).filter(Boolean);
   const isAwaitingFinalApproval = campaign.status === 'creative_sent_to_client_for_approval';
-  const studioCollections = [
+  const studioCollections: CreativeStudioCollection[] = [
     {
       icon: Palette,
       title: 'Creative direction',
@@ -476,7 +433,7 @@ export function CreativeStudioPreviewPage() {
       accent: 'from-brand-soft via-white to-brand-soft',
     },
   ];
-  const productionSignals = [
+  const productionSignals: CreativeStudioSignal[] = [
     {
       label: 'Creative readiness',
       value: brief?.creativeReady ? 'Assets available' : 'Awaiting source assets',
@@ -687,7 +644,7 @@ export function CreativeStudioDemoPage() {
   const brief = campaign.brief;
   const channelMood = recommendation ? Array.from(new Set(recommendation.items.map((item) => formatChannelLabel(item.channel)))).filter(Boolean) : [];
   const geographyFocus = [brief?.areas, brief?.cities, brief?.provinces].flatMap((items) => items ?? []).filter(Boolean);
-  const studioCollections = [
+  const studioCollections: CreativeStudioCollection[] = [
     {
       icon: Palette,
       title: 'Creative direction',
@@ -707,7 +664,7 @@ export function CreativeStudioDemoPage() {
       accent: 'from-brand-soft via-white to-brand-soft',
     },
   ];
-  const productionSignals = [
+  const productionSignals: CreativeStudioSignal[] = [
     {
       label: 'Creative readiness',
       value: 'Assets available',
@@ -969,735 +926,106 @@ function CreativeStudioContent({
       description={isPreview ? 'A read-only preview of the creative studio so you can see the production surface without changing campaign state.' : 'A production-led studio surface for turning an approved recommendation into client-ready media.'}
     >
       <section className="space-y-6">
-        <section className="overflow-hidden rounded-[36px] border border-white/70 bg-[radial-gradient(circle_at_top_left,_rgba(45,212,191,0.28),_transparent_32%),radial-gradient(circle_at_bottom_right,_rgba(251,191,36,0.22),_transparent_28%),linear-gradient(135deg,rgba(255,255,255,0.98),rgba(239,250,246,0.95))] p-8 shadow-[0_30px_90px_rgba(15,23,42,0.09)]">
-          <div className="grid gap-8 lg:grid-cols-[1.5fr_0.9fr]">
-            <div className="space-y-5">
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/80 bg-white/75 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.35em] text-slate-700">
-                <Sparkles className="h-4 w-4 text-brand" />
-                {isPreview ? 'Creative Studio Preview' : 'Creative Director Studio'}
-              </div>
-              <div className="space-y-3">
-                <h2 className="font-display text-4xl leading-tight text-slate-900">
-                  {isBookingStage ? `${campaign.campaignName} is in booking and launch prep.` : `${campaign.campaignName} is ready for production.`}
-                </h2>
-                <p className="max-w-3xl text-base leading-7 text-slate-600">
-                  {isBookingStage
-                    ? 'Creative approval is complete, so this workspace now shifts to supplier outreach, booking confirmation, and launch readiness updates.'
-                    : 'The recommendation is already approved, so this studio is focused on production, polish, and preparing the final creative pack for client approval.'}
-                </p>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-3">
-                {productionSignals.map((signal) => (
-                  <div key={signal.label} className="rounded-[24px] border border-white/80 bg-white/80 p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
-                    <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-brand-soft text-brand">
-                      <CheckCircle2 className="h-5 w-5" />
-                    </div>
-                    <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">{signal.label}</div>
-                    <div className="mt-2 text-lg font-semibold text-slate-900">{signal.value}</div>
-                    <p className="mt-2 text-sm leading-6 text-slate-600">{signal.helper}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="rounded-[30px] border border-white/80 bg-white/75 p-6 shadow-[0_24px_55px_rgba(15,23,42,0.07)]">
-              <div className="mb-4 flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-900 text-white">
-                  <ImagePlus className="h-5 w-5" />
-                </div>
-                <div>
-                  <div className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">Production brief</div>
-                  <div className="text-lg font-semibold text-slate-900">{campaign.campaignName}</div>
-                </div>
-              </div>
-              <div className="space-y-4 text-sm leading-6 text-slate-600">
-                <div>
-                  <div className="font-semibold text-slate-900">Client</div>
-                  <div>{campaign.clientName ?? campaign.businessName ?? 'Client not captured yet'}</div>
-                </div>
-                <div>
-                  <div className="font-semibold text-slate-900">Geography focus</div>
-                  <div>{geographyFocus.length ? geographyFocus.join(' • ') : 'No area focus captured yet'}</div>
-                </div>
-                <div>
-                  <div className="font-semibold text-slate-900">Budget frame</div>
-                  <div>{formatCurrency(campaign.selectedBudget)} · {campaign.packageBandName ?? 'Package selected'}</div>
-                </div>
-                <div>
-                  <div className="font-semibold text-slate-900">Audience notes</div>
-                  <div>{brief?.targetAudienceNotes ?? 'Audience direction has not been captured yet.'}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <div className="grid gap-5 xl:grid-cols-3">
-          {studioCollections.map((collection) => {
-            const Icon = collection.icon;
-            return (
-              <article key={collection.title} className={`rounded-[30px] border border-slate-200/70 bg-gradient-to-br ${collection.accent} p-6 shadow-[0_24px_55px_rgba(15,23,42,0.05)]`}>
-                <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-white/90 text-slate-900 shadow-sm">
-                  <Icon className="h-5 w-5" />
-                </div>
-                <h3 className="text-xl font-semibold text-slate-900">{collection.title}</h3>
-                <p className="mt-3 text-sm leading-7 text-slate-600">{collection.body}</p>
-              </article>
-            );
-          })}
+        <CreativeStudioOverviewPanel
+          campaign={campaign}
+          brief={brief}
+          recommendation={recommendation ?? undefined}
+          channelMood={channelMood}
+          geographyFocus={geographyFocus}
+          studioCollections={studioCollections}
+          productionSignals={productionSignals}
+          isPreview={isPreview}
+          isBookingStage={isBookingStage}
+          isAwaitingFinalApproval={isAwaitingFinalApproval}
+          isSendingFinishedMedia={isSendingFinishedMedia}
+          onSendFinishedMedia={onSendFinishedMedia}
+        />        {isBookingStage ? (
+          <CreativeStudioBookingPanel
+            campaign={campaign}
+            isPreview={isPreview}
+            bookingDraft={bookingDraft}
+            onBookingDraftChange={onBookingDraftChange}
+            onSaveBooking={onSaveBooking}
+            isSavingBooking={isSavingBooking}
+            canSaveBooking={canSaveBooking}
+            canMarkLive={canMarkLive}
+            onMarkLive={onMarkLive}
+            isMarkingLive={isMarkingLive}
+            supplierBookings={supplierBookings}
+          />
+        ) : null}        <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+          <CreativeStudioEnginePanel
+            campaign={campaign}
+            isPreview={isPreview}
+            lastIterationLabel={lastIterationLabel}
+            prompt={prompt}
+            setPrompt={setPrompt}
+            brandInput={brandInput}
+            setBrandInput={setBrandInput}
+            productInput={productInput}
+            setProductInput={setProductInput}
+            audienceInput={audienceInput}
+            setAudienceInput={setAudienceInput}
+            objectiveInput={objectiveInput}
+            setObjectiveInput={setObjectiveInput}
+            toneInput={toneInput}
+            setToneInput={setToneInput}
+            channelsInput={channelsInput}
+            setChannelsInput={setChannelsInput}
+            ctaInput={ctaInput}
+            setCtaInput={setCtaInput}
+            constraintsInput={constraintsInput}
+            setConstraintsInput={setConstraintsInput}
+            onGenerateCreativeSystem={(iteration) => creativeSystemMutation.mutate(iteration ?? {})}
+            isGeneratingCreativeSystem={creativeSystemMutation.isPending}
+            onQueueAiJob={() => submitAiJobMutation.mutate()}
+            isQueueingAiJob={submitAiJobMutation.isPending}
+            activeAiJobId={activeAiJobId}
+            setActiveAiJobId={setActiveAiJobId}
+            aiJobStatus={aiJobStatusQuery.data}
+            onUseLatestCreativeId={() => {
+              const latestId = campaignCreativesQuery.data?.[0]?.id ?? '';
+              if (latestId) {
+                setRegenCreativeId(latestId);
+              }
+            }}
+            canUseLatestCreativeId={Boolean(campaignCreativesQuery.data?.length)}
+            regenCreativeId={regenCreativeId}
+            setRegenCreativeId={setRegenCreativeId}
+            regenFeedback={regenFeedback}
+            setRegenFeedback={setRegenFeedback}
+            onRegenerateWithFeedback={() => regenerateAiMutation.mutate()}
+            isRegenerating={regenerateAiMutation.isPending}
+            campaignCreativeOptions={campaignCreativesQuery.data ?? []}
+            formatChannelLabel={formatChannelLabel}
+          />
+          <CreativeStudioOutputPanel
+            campaign={campaign}
+            creativeSystem={creativeSystem}
+            isPreview={isPreview}
+            onSelectSavedVersion={(savedSystem) => {
+              setScopedCreativeState({
+                key: creativeStateKey,
+                creativeSystem: savedSystem.output,
+                lastIterationLabel: savedSystem.iterationLabel ?? null,
+              });
+              setPrompt(savedSystem.prompt);
+            }}
+          />
         </div>
-
-        <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-          <div className="user-card">
-            <h3>Production composition</h3>
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <div className="rounded-[24px] border border-slate-200/80 bg-slate-50/70 p-5">
-                <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-                  <RadioTower className="h-4 w-4 text-brand" />
-                  Approved Channel Mix
-                </div>
-                <div className="text-sm leading-7 text-slate-700">{channelMood.length ? channelMood.join(' • ') : 'Channel mix will appear here when approved placements are available.'}</div>
-              </div>
-              <div className="rounded-[24px] border border-slate-200/80 bg-slate-50/70 p-5">
-                <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-                  <Palette className="h-4 w-4 text-amber-500" />
-                  Production Notes
-                </div>
-                <div className="text-sm leading-7 text-slate-700">{brief?.specialRequirements ?? 'No production notes yet. Build from the approved recommendation and package rules.'}</div>
-              </div>
-              <div className="rounded-[24px] border border-slate-200/80 bg-slate-50/70 p-5 md:col-span-2">
-                <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-                  <ClipboardList className="h-4 w-4 text-brand" />
-                  Creative Objective Frame
-                </div>
-                <div className="text-sm leading-7 text-slate-700">{recommendation?.summary ?? 'The approved recommendation summary will appear here as the strategic anchor for production.'}</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="user-card">
-            <h3>Client approval handoff</h3>
-            <div className="mt-4 space-y-4">
-              {isPreview ? (
-                <div className="rounded-[24px] border border-brand/20 bg-brand-soft/70 p-4">
-                  <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.24em] text-brand">
-                    <WandSparkles className="h-4 w-4" />
-                    Preview mode
-                  </div>
-                  <p className="text-sm leading-7 text-slate-700">
-                    This route is read-only. It lets you see the studio layout and flow without unlocking creative-director actions for regular users.
-                  </p>
-                </div>
-              ) : null}
-              <div className="rounded-[24px] border border-brand/20 bg-brand-soft/70 p-4">
-                <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.24em] text-brand">
-                  <WandSparkles className="h-4 w-4" />
-                  Role boundary
-                </div>
-                <p className="text-sm leading-7 text-slate-700">
-                  The studio is now reserved for creative directors. The client sees a waiting-for-approval handoff until the finished media is returned for sign-off.
-                </p>
-              </div>
-              <div className="user-wire">
-                {isBookingStage
-                  ? 'The client approval step is complete. Use this workspace to confirm supplier bookings and keep the client updated as launch preparation moves forward.'
-                  : isAwaitingFinalApproval
-                  ? 'Finished media has already been sent. The campaign is now in its final client-approval state.'
-                  : 'The production send step is now modeled as a creative-director-owned handoff. Use it when the finished media pack is ready for client approval.'}
-              </div>
-              <button
-                type="button"
-                onClick={onSendFinishedMedia}
-                disabled={isPreview || isAwaitingFinalApproval || isBookingStage || isSendingFinishedMedia}
-                className="user-btn-primary disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isPreview
-                  ? 'Preview only'
-                  : isBookingStage
-                  ? 'Client approval complete'
-                  : isAwaitingFinalApproval
-                  ? 'Finished media already sent'
-                  : isSendingFinishedMedia
-                    ? 'Sending to client...'
-                    : 'Send finished media to client'}
-              </button>
-              <div className="flex flex-wrap gap-3">
-                <Link to={isPreview ? `/campaigns/${campaign.id}` : '/creative'} className="user-btn-primary">
-                  {isPreview ? 'Back to campaign workspace' : 'Back to creative dashboard'}
-                </Link>
-                {!isPreview ? <Link to={`/campaigns/${campaign.id}`} className="user-btn-secondary">View client workspace</Link> : null}
-              </div>
-              </div>
-            </div>
-          </div>
-
-          {isBookingStage ? (
-            <div className="user-card">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                  <h3>Supplier booking and client updates</h3>
-                  <p className="mt-2 text-sm leading-7 text-slate-600">
-                    Contact the supplier or station, save the confirmed booking here, and the client workspace will reflect that the campaign is now in booking.
-                  </p>
-                </div>
-                <div className="rounded-[20px] border border-brand/20 bg-brand-soft/60 px-4 py-3 text-sm text-slate-700">
-                  {campaign.status === 'launched'
-                    ? 'Campaign is already live.'
-                    : campaign.status === 'booking_in_progress'
-                      ? 'Booking is in progress.'
-                      : 'Creative approval is complete. First booking will move the campaign into booking.'}
-                </div>
-              </div>
-
-              <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                <input
-                  className="input-base"
-                  placeholder="Supplier or station name"
-                  value={bookingDraft.supplierOrStation}
-                  disabled={isPreview || campaign.status === 'launched'}
-                  onChange={(event) => onBookingDraftChange({ ...bookingDraft, supplierOrStation: event.target.value })}
-                />
-                <select
-                  className="input-base"
-                  value={bookingDraft.channel}
-                  disabled={isPreview || campaign.status === 'launched'}
-                  onChange={(event) => onBookingDraftChange({ ...bookingDraft, channel: event.target.value })}
-                >
-                  <option value="radio">Radio</option>
-                  <option value="ooh">Billboards and Digital Screens</option>
-                  <option value="tv">TV</option>
-                  <option value="digital">Digital</option>
-                </select>
-                <select
-                  className="input-base"
-                  value={bookingDraft.bookingStatus}
-                  disabled={isPreview || campaign.status === 'launched'}
-                  onChange={(event) => onBookingDraftChange({ ...bookingDraft, bookingStatus: event.target.value })}
-                >
-                  <option value="planned">Planned</option>
-                  <option value="booked">Booked and confirmed</option>
-                  <option value="live">Live now</option>
-                  <option value="completed">Completed</option>
-                </select>
-                <input
-                  className="input-base"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="Booked amount"
-                  value={bookingDraft.committedAmount}
-                  disabled={isPreview || campaign.status === 'launched'}
-                  onChange={(event) => onBookingDraftChange({ ...bookingDraft, committedAmount: event.target.value })}
-                />
-                <input
-                  className="input-base"
-                  type="date"
-                  value={bookingDraft.liveFrom}
-                  disabled={isPreview || campaign.status === 'launched'}
-                  onChange={(event) => onBookingDraftChange({ ...bookingDraft, liveFrom: event.target.value })}
-                />
-                <input
-                  className="input-base"
-                  type="date"
-                  value={bookingDraft.liveTo}
-                  disabled={isPreview || campaign.status === 'launched'}
-                  onChange={(event) => onBookingDraftChange({ ...bookingDraft, liveTo: event.target.value })}
-                />
-                <textarea
-                  className="input-base min-h-[110px] md:col-span-2 xl:col-span-3"
-                  placeholder="Notes for the team or the client, for example who confirmed the booking, what is still pending, or any launch timing details."
-                  value={bookingDraft.notes}
-                  disabled={isPreview || campaign.status === 'launched'}
-                  onChange={(event) => onBookingDraftChange({ ...bookingDraft, notes: event.target.value })}
-                />
-              </div>
-
-              <div className="mt-4 flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={onSaveBooking}
-                  disabled={isPreview || campaign.status === 'launched' || !canSaveBooking || isSavingBooking}
-                  className="user-btn-primary disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {isSavingBooking ? 'Saving booking...' : 'Save supplier booking'}
-                </button>
-                {canMarkLive ? (
-                  <button
-                    type="button"
-                    onClick={onMarkLive}
-                    disabled={isMarkingLive}
-                    className="user-btn-secondary disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {isMarkingLive ? 'Marking live...' : 'Mark campaign live'}
-                  </button>
-                ) : null}
-              </div>
-
-              <div className="mt-5 grid gap-3">
-                {supplierBookings.length > 0 ? supplierBookings.map((booking) => (
-                  <div key={booking.id} className="user-wire">
-                    <strong>{booking.supplierOrStation}</strong>
-                    <div>{formatChannelLabel(booking.channel)} | {booking.bookingStatus.replace(/_/g, ' ')}</div>
-                    <div>{booking.liveFrom || booking.liveTo ? `${booking.liveFrom ?? 'Start TBC'} to ${booking.liveTo ?? 'End TBC'}` : 'Dates still being confirmed'}</div>
-                    <div>{formatCurrency(booking.committedAmount)}</div>
-                  </div>
-                )) : (
-                  <div className="user-wire">
-                    No supplier bookings have been saved yet. Once you log one here, the client workspace will show that booking is underway.
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : null}
-
-        <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-          <div className="user-card">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h3>Creative system engine</h3>
-                <p className="mt-2 text-sm leading-7 text-slate-600">
-                  Turn the approved campaign into a full creative system with one sharp idea, native channel outputs, and production notes.
-                </p>
-              </div>
-              {lastIterationLabel ? (
-                <span className="rounded-full border border-brand/20 bg-brand-soft px-3 py-1 text-xs font-semibold text-brand">
-                  Latest pass: {lastIterationLabel}
-                </span>
-              ) : null}
-            </div>
-
-            <div className="mt-5 space-y-4">
-              <label className="block space-y-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Prompt</span>
-                <textarea
-                  value={prompt}
-                  onChange={(event) => setPrompt(event.target.value)}
-                  rows={6}
-                  disabled={isPreview}
-                  className="input-base min-h-[160px]"
-                />
-              </label>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <label className="block space-y-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Brand</span>
-                  <input value={brandInput} onChange={(event) => setBrandInput(event.target.value)} disabled={isPreview} className="input-base" />
-                </label>
-                <label className="block space-y-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Product</span>
-                  <input value={productInput} onChange={(event) => setProductInput(event.target.value)} disabled={isPreview} className="input-base" />
-                </label>
-                <label className="block space-y-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Audience</span>
-                  <input value={audienceInput} onChange={(event) => setAudienceInput(event.target.value)} disabled={isPreview} className="input-base" />
-                </label>
-                <label className="block space-y-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Objective</span>
-                  <input value={objectiveInput} onChange={(event) => setObjectiveInput(event.target.value)} disabled={isPreview} className="input-base" />
-                </label>
-                <label className="block space-y-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Tone</span>
-                  <input value={toneInput} onChange={(event) => setToneInput(event.target.value)} disabled={isPreview} className="input-base" />
-                </label>
-                <label className="block space-y-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">CTA</span>
-                  <input value={ctaInput} onChange={(event) => setCtaInput(event.target.value)} disabled={isPreview} className="input-base" />
-                </label>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <label className="block space-y-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Channels</span>
-                  <textarea
-                    value={channelsInput}
-                    onChange={(event) => setChannelsInput(event.target.value)}
-                    disabled={isPreview}
-                    rows={3}
-                    className="input-base"
-                    placeholder="Billboard, TikTok, Radio, Display"
-                  />
-                </label>
-                <label className="block space-y-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Constraints</span>
-                  <textarea
-                    value={constraintsInput}
-                    onChange={(event) => setConstraintsInput(event.target.value)}
-                    disabled={isPreview}
-                    rows={3}
-                    className="input-base"
-                    placeholder="One line per constraint, or comma-separated"
-                  />
-                </label>
-              </div>
-
-              <div className="flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={() => creativeSystemMutation.mutate({})}
-                  disabled={isPreview || !prompt.trim() || creativeSystemMutation.isPending}
-                  className="user-btn-primary disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {isPreview ? 'Preview only' : creativeSystemMutation.isPending ? 'Generating...' : 'Generate creative system'}
-                </button>
-                {creativeIterationOptions.map((option) => (
-                  <button
-                    key={option.label}
-                    type="button"
-                    onClick={() => creativeSystemMutation.mutate({ iterationLabel: option.label, iterationInstruction: option.instruction })}
-                    disabled={isPreview || !prompt.trim() || creativeSystemMutation.isPending}
-                    className="user-btn-secondary disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-
-              <div className="user-wire text-sm leading-7">
-                {isPreview
-                  ? 'Preview mode keeps generation disabled, but this is where the Creative Manager brief controls live in the real studio.'
-                  : `Use the base generation first, then push quick creative shifts with the iteration buttons without rebuilding the whole brief.${campaign.creativeSystems.length ? ` ${campaign.creativeSystems.length} saved version${campaign.creativeSystems.length === 1 ? '' : 's'} available for this campaign.` : ''}`}
-              </div>
-
-              <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/70 p-4">
-                <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">AI Queue Orchestration</div>
-                <p className="mt-2 text-sm leading-7 text-slate-700">
-                  Queue the multi-provider AI pipeline and track job execution directly from the studio.
-                </p>
-                <div className="mt-3 flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    onClick={() => submitAiJobMutation.mutate()}
-                    disabled={isPreview || !prompt.trim() || submitAiJobMutation.isPending}
-                    className="user-btn-secondary disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {submitAiJobMutation.isPending ? 'Queueing job...' : 'Queue AI platform job'}
-                  </button>
-                  <input
-                    value={activeAiJobId}
-                    onChange={(event) => setActiveAiJobId(event.target.value)}
-                    disabled={isPreview}
-                    className="input-base min-w-[260px] flex-1"
-                    placeholder="Paste job id to track status"
-                  />
-                </div>
-                <div className="mt-3 text-sm leading-7 text-slate-700">
-                  <div><strong>Status:</strong> {aiJobStatusQuery.data?.status ?? 'not started'}</div>
-                  <div><strong>Updated:</strong> {aiJobStatusQuery.data?.updatedAt ?? '-'}</div>
-                  {aiJobStatusQuery.data?.error ? <div><strong>Error:</strong> {aiJobStatusQuery.data.error}</div> : null}
-                </div>
-              </div>
-
-              <div className="rounded-[22px] border border-slate-200/80 bg-slate-50/70 p-4">
-                <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Feedback Regeneration</div>
-                <p className="mt-2 text-sm leading-7 text-slate-700">
-                  Regenerate by feedback using a creative id from the generated inventory pipeline.
-                </p>
-                <div className="mt-3 flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const latestId = campaignCreativesQuery.data?.[0]?.id ?? '';
-                      if (latestId) {
-                        setRegenCreativeId(latestId);
-                      }
-                    }}
-                    disabled={isPreview || !campaignCreativesQuery.data?.length}
-                    className="user-btn-secondary disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    Use latest creative id
-                  </button>
-                  <select
-                    value={regenCreativeId}
-                    onChange={(event) => setRegenCreativeId(event.target.value)}
-                    disabled={isPreview || !campaignCreativesQuery.data?.length}
-                    className="input-base min-w-[340px]"
-                  >
-                    <option value="">Select creative id</option>
-                    {(campaignCreativesQuery.data ?? []).map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.id.slice(0, 8)} | {formatChannelLabel(item.channel)} | {item.language} | {item.score ?? '-'} | {new Date(item.createdAt).toLocaleString()}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="mt-3 grid gap-3 md:grid-cols-2">
-                  <input
-                    value={regenCreativeId}
-                    onChange={(event) => setRegenCreativeId(event.target.value)}
-                    disabled={isPreview}
-                    className="input-base"
-                    placeholder="Creative id"
-                  />
-                  <input
-                    value={regenFeedback}
-                    onChange={(event) => setRegenFeedback(event.target.value)}
-                    disabled={isPreview}
-                    className="input-base"
-                    placeholder="Make it more urgent and add discount CTA"
-                  />
-                </div>
-                <div className="mt-3">
-                  <button
-                    type="button"
-                    onClick={() => regenerateAiMutation.mutate()}
-                    disabled={isPreview || !regenCreativeId.trim() || !regenFeedback.trim() || regenerateAiMutation.isPending}
-                    className="user-btn-secondary disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {regenerateAiMutation.isPending ? 'Regenerating...' : 'Regenerate with feedback'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="user-card">
-            <h3>Creative output</h3>
-            <div className="mt-4 space-y-4">
-              {!creativeSystem ? (
-                <div className="user-wire">
-                  {isPreview
-                    ? 'The read-only preview does not generate live outputs.'
-                    : 'Generate the creative system to get a campaign summary, master idea, storyboard, channel adaptations, visual direction, and production notes.'}
-                </div>
-              ) : (
-                <>
-                  <div className="rounded-[24px] border border-slate-200/80 bg-slate-50/70 p-5">
-                    <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">1. Campaign Summary</div>
-                    <div className="mt-3 grid gap-3 text-sm leading-7 text-slate-700 md:grid-cols-2">
-                      <div><strong>Brand:</strong> {creativeSystem.campaignSummary.brand}</div>
-                      <div><strong>Product:</strong> {creativeSystem.campaignSummary.product}</div>
-                      <div><strong>Audience:</strong> {creativeSystem.campaignSummary.audience}</div>
-                      <div><strong>Objective:</strong> {creativeSystem.campaignSummary.objective}</div>
-                      <div><strong>Tone:</strong> {creativeSystem.campaignSummary.tone}</div>
-                      <div><strong>CTA:</strong> {creativeSystem.campaignSummary.cta}</div>
-                    </div>
-                    <div className="mt-3 text-sm leading-7 text-slate-700">
-                      <strong>Channels:</strong> {creativeSystem.campaignSummary.channels.map(formatChannelLabel).join(' • ')}
-                    </div>
-                    {creativeSystem.campaignSummary.constraints.length ? (
-                      <div className="mt-3 text-sm leading-7 text-slate-700">
-                        <strong>Constraints:</strong> {creativeSystem.campaignSummary.constraints.join(' • ')}
-                      </div>
-                    ) : null}
-                    {creativeSystem.campaignSummary.assumptions.length ? (
-                      <div className="mt-3 text-sm leading-7 text-slate-700">
-                        <strong>Assumptions:</strong> {creativeSystem.campaignSummary.assumptions.join(' • ')}
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <div className="rounded-[24px] border border-slate-200/80 bg-slate-50/70 p-5">
-                    <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">2. Master Idea</div>
-                    <div className="mt-3 space-y-3 text-sm leading-7 text-slate-700">
-                      <div><strong>Core concept:</strong> {creativeSystem.masterIdea.coreConcept}</div>
-                      <div><strong>Central message:</strong> {creativeSystem.masterIdea.centralMessage}</div>
-                      <div><strong>Emotional angle:</strong> {creativeSystem.masterIdea.emotionalAngle}</div>
-                      <div><strong>Value proposition:</strong> {creativeSystem.masterIdea.valueProposition}</div>
-                      <div><strong>Platform idea:</strong> {creativeSystem.masterIdea.platformIdea}</div>
-                    </div>
-                  </div>
-
-                  <div className="rounded-[24px] border border-slate-200/80 bg-slate-50/70 p-5">
-                    <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">3. Campaign Line Options</div>
-                    <div className="mt-3 space-y-2 text-sm leading-7 text-slate-700">
-                      {creativeSystem.campaignLineOptions.map((line) => <div key={line} className="user-wire">{line}</div>)}
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {campaign.creativeSystems.length ? (
-          <div className="user-card">
-            <h3>Saved creative versions</h3>
-            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {campaign.creativeSystems.map((savedSystem) => (
-                <button
-                  key={savedSystem.id}
-                  type="button"
-                  onClick={() => {
-                    setScopedCreativeState({
-                      key: creativeStateKey,
-                      creativeSystem: savedSystem.output,
-                      lastIterationLabel: savedSystem.iterationLabel ?? null,
-                    });
-                    setPrompt(savedSystem.prompt);
-                  }}
-                  className="rounded-[22px] border border-slate-200/80 bg-slate-50/70 p-4 text-left transition hover:border-brand/40 hover:bg-white"
-                >
-                  <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                    {savedSystem.iterationLabel ?? 'Base version'}
-                  </div>
-                  <div className="mt-2 text-sm font-semibold text-slate-900">{new Date(savedSystem.createdAt).toLocaleString()}</div>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">
-                    {savedSystem.output.masterIdea.platformIdea || savedSystem.output.masterIdea.coreConcept}
-                  </p>
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : null}
-
-        {creativeSystem ? (
-          <div className="grid gap-6 xl:grid-cols-2">
-            <div className="user-card">
-              <h3>4. Storyboard / Narrative</h3>
-              <div className="mt-4 space-y-3 text-sm leading-7 text-slate-700">
-                <div><strong>Hook:</strong> {creativeSystem.storyboard.hook}</div>
-                <div><strong>Setup:</strong> {creativeSystem.storyboard.setup}</div>
-                <div><strong>Tension / problem:</strong> {creativeSystem.storyboard.tensionOrProblem}</div>
-                <div><strong>Solution:</strong> {creativeSystem.storyboard.solution}</div>
-                <div><strong>Payoff:</strong> {creativeSystem.storyboard.payoff}</div>
-                <div><strong>CTA:</strong> {creativeSystem.storyboard.cta}</div>
-              </div>
-              <div className="mt-5 space-y-3">
-                {creativeSystem.storyboard.scenes.map((scene) => (
-                  <article key={`${scene.order}-${scene.title}`} className="rounded-[22px] border border-slate-200/80 bg-slate-50/70 p-4">
-                    <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Scene {scene.order}{scene.duration ? ` • ${scene.duration}` : ''}</div>
-                    <h4 className="mt-2 text-lg font-semibold text-slate-900">{scene.title}</h4>
-                    <div className="mt-2 text-sm leading-7 text-slate-700"><strong>Purpose:</strong> {scene.purpose}</div>
-                    <div className="mt-2 text-sm leading-7 text-slate-700"><strong>Visual:</strong> {scene.visual}</div>
-                    <div className="mt-2 text-sm leading-7 text-slate-700"><strong>Copy / dialogue:</strong> {scene.copyOrDialogue}</div>
-                    {scene.onScreenText ? <div className="mt-2 text-sm leading-7 text-slate-700"><strong>On-screen text:</strong> {scene.onScreenText}</div> : null}
-                                      </article>
-                ))}
-              </div>
-            </div>
-
-            <div className="user-card">
-              <h3>5. Channel Adaptations</h3>
-              <div className="mt-4 space-y-4">
-                {creativeSystem.channelAdaptations.map((adaptation) => (
-                  <article key={`${adaptation.channel}-${adaptation.format}`} className="rounded-[22px] border border-slate-200/80 bg-slate-50/70 p-4">
-                    <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">{formatChannelLabel(adaptation.channel)} • {adaptation.format}</div>
-                    <div className="mt-2 text-sm leading-7 text-slate-700"><strong>Headline / hook:</strong> {adaptation.headlineOrHook}</div>
-                    <div className="mt-2 text-sm leading-7 text-slate-700"><strong>Primary copy:</strong> {adaptation.primaryCopy}</div>
-                    <div className="mt-2 text-sm leading-7 text-slate-700"><strong>CTA:</strong> {adaptation.cta}</div>
-                    <div className="mt-2 text-sm leading-7 text-slate-700"><strong>Visual direction:</strong> {adaptation.visualDirection}</div>
-                    {adaptation.voiceoverOrAudio ? <div className="mt-2 text-sm leading-7 text-slate-700"><strong>Voiceover / audio:</strong> {adaptation.voiceoverOrAudio}</div> : null}
-                    {adaptation.recommendedDirection ? <div className="mt-2 text-sm leading-7 text-slate-700"><strong>Recommended direction:</strong> {adaptation.recommendedDirection}</div> : null}
-                    {adaptation.productionAssets.length ? (
-                      <div className="mt-2 text-sm leading-7 text-slate-700"><strong>Production assets:</strong> {adaptation.productionAssets.join(' • ')}</div>
-                    ) : null}
-                    {adaptation.sections.length ? (
-                      <div className="mt-4 space-y-2">
-                        {adaptation.sections.map((section) => (
-                          <div key={`${adaptation.channel}-${section.label}`} className="rounded-2xl border border-slate-200/70 bg-white/70 px-3 py-3 text-sm leading-7 text-slate-700">
-                            <strong>{section.label}:</strong> {section.content}
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-                    {adaptation.versions.length ? (
-                      <div className="mt-4 grid gap-3 lg:grid-cols-3">
-                        {adaptation.versions.map((version) => (
-                          <div key={`${adaptation.channel}-${version.label}`} className="rounded-2xl border border-slate-200/70 bg-white/80 p-3 text-sm leading-7 text-slate-700">
-                            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{version.label} • {version.intent}</div>
-                            <div className="mt-2"><strong>Hook:</strong> {version.headlineOrHook}</div>
-                            <div className="mt-2"><strong>Copy:</strong> {version.primaryCopy}</div>
-                            <div className="mt-2"><strong>CTA:</strong> {version.cta}</div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-                    {adaptation.adapterPrompt ? (
-                      <details className="mt-4 rounded-2xl border border-slate-200/70 bg-white/70 p-3">
-                        <summary className="cursor-pointer text-sm font-semibold text-slate-700">Adapter prompt</summary>
-                        <div className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-600">{adaptation.adapterPrompt}</div>
-                      </details>
-                    ) : null}
-                  </article>
-                ))}
-              </div>
-            </div>
-
-            <div className="user-card">
-              <h3>6. Visual Direction</h3>
-              <div className="mt-4 space-y-3 text-sm leading-7 text-slate-700">
-                <div><strong>Look and feel:</strong> {creativeSystem.visualDirection.lookAndFeel}</div>
-                <div><strong>Typography:</strong> {creativeSystem.visualDirection.typography}</div>
-                <div><strong>Color direction:</strong> {creativeSystem.visualDirection.colorDirection}</div>
-                <div><strong>Composition:</strong> {creativeSystem.visualDirection.composition}</div>
-              </div>
-              {creativeSystem.visualDirection.imageGenerationPrompts.length ? (
-                <div className="mt-5 space-y-2">
-                  {creativeSystem.visualDirection.imageGenerationPrompts.map((promptLine) => (
-                    <div key={promptLine} className="user-wire text-sm leading-7">{promptLine}</div>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-
-            <div className="user-card">
-              <h3>7. Audio / Voice Notes</h3>
-              <div className="mt-4 space-y-2">
-                {creativeSystem.audioVoiceNotes.map((note) => <div key={note} className="user-wire text-sm leading-7">{note}</div>)}
-              </div>
-
-              <h3 className="mt-6">8. Production Notes</h3>
-              <div className="mt-4 space-y-2">
-                {creativeSystem.productionNotes.map((note) => <div key={note} className="user-wire text-sm leading-7">{note}</div>)}
-              </div>
-
-              <h3 className="mt-6">9. Optional Variations</h3>
-              <div className="mt-4 space-y-2">
-                {creativeSystem.optionalVariations.map((variation) => <div key={variation} className="user-wire text-sm leading-7">{variation}</div>)}
-              </div>
-            </div>
-          </div>
-        ) : null}
-
-        <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
-          <div className="user-card">
-            <h3>Studio files</h3>
-            <div className="mt-4 space-y-3">
-              {campaign.assets.length > 0 ? campaign.assets.map((asset) => (
-                <div key={asset.id} className="user-wire">
-                  <strong>{asset.displayName}</strong>
-                  <div>{asset.assetType.replace(/_/g, ' ')}</div>
-                  {asset.publicUrl ? (
-                    <a href={asset.publicUrl} target="_blank" rel="noreferrer" className="user-btn-secondary mt-3 inline-flex">
-                      Open file
-                    </a>
-                  ) : null}
-                </div>
-              )) : (
-                <div className="user-wire">No creative files uploaded yet.</div>
-              )}
-            </div>
-          </div>
-
-          <div className="user-card">
-            <h3>{isPreview ? 'Studio uploads' : 'Upload creative files'}</h3>
-            <div className="mt-4 space-y-3">
-              {isPreview ? (
-                <div className="user-wire">Preview mode keeps uploads disabled, but this is where the creative team’s files will appear in the real studio.</div>
-              ) : (
-                <>
-                  <select value={assetType} onChange={(event) => onAssetTypeChange(event.target.value)} className="input-base">
-                    <option value="creative_pack">Creative pack</option>
-                    <option value="brand_asset">Brand asset</option>
-                    <option value="final_media">Final media</option>
-                  </select>
-                  <input type="file" onChange={onAssetFileChange} className="input-base" />
-                  <div className="user-wire">{assetFileName ?? 'Choose a file to upload into the studio asset set.'}</div>
-                  <button
-                    type="button"
-                    onClick={onUploadAsset}
-                    disabled={!assetFileName || isUploadingAsset}
-                    className="user-btn-primary disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {isUploadingAsset ? 'Uploading...' : 'Upload file'}
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
+        <CreativeStudioAssetsPanel
+          campaign={campaign}
+          isPreview={isPreview}
+          assetType={assetType}
+          assetFileName={assetFileName}
+          onAssetTypeChange={onAssetTypeChange}
+          onAssetFileChange={onAssetFileChange}
+          onUploadAsset={onUploadAsset}
+          isUploadingAsset={isUploadingAsset}
+        />      </section>
     </CreativePageShell>
   );
 }
+
 
 

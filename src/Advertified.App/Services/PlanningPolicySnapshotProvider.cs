@@ -6,12 +6,12 @@ namespace Advertified.App.Services;
 
 public sealed class PlanningPolicySnapshotProvider
 {
-    private readonly string? _connectionString;
+    private readonly Npgsql.NpgsqlDataSource? _dataSource;
     private readonly PlanningPolicyOptions _fallbackOptions;
 
-    public PlanningPolicySnapshotProvider(string connectionString, PlanningPolicyOptions fallbackOptions)
+    public PlanningPolicySnapshotProvider(Npgsql.NpgsqlDataSource dataSource, PlanningPolicyOptions fallbackOptions)
     {
-        _connectionString = connectionString;
+        _dataSource = dataSource;
         _fallbackOptions = fallbackOptions;
     }
 
@@ -22,7 +22,7 @@ public sealed class PlanningPolicySnapshotProvider
 
     public PlanningPolicyOptions GetCurrent()
     {
-        if (string.IsNullOrWhiteSpace(_connectionString))
+        if (_dataSource is null)
         {
             return new PlanningPolicyOptions
             {
@@ -31,8 +31,7 @@ public sealed class PlanningPolicySnapshotProvider
             };
         }
 
-        using var connection = new NpgsqlConnection(_connectionString);
-        connection.Open();
+        using var connection = _dataSource.OpenConnection();
 
         var rows = connection.Query<EnginePolicyOverrideRecord>(
             @"

@@ -9,6 +9,26 @@ const CAMPAIGN_STATUSES_AFTER_PAYMENT = [
   'launched',
 ] as const;
 
+const CAMPAIGN_STATUSES_WITH_RECOMMENDATION_WORKSPACE = [
+  'planning_in_progress',
+  'review_ready',
+  'approved',
+  'creative_sent_to_client_for_approval',
+  'creative_changes_requested',
+  'creative_approved',
+  'booking_in_progress',
+  'launched',
+] as const;
+
+const CAMPAIGN_STATUSES_AFTER_RECOMMENDATION_APPROVAL = [
+  'approved',
+  'creative_sent_to_client_for_approval',
+  'creative_changes_requested',
+  'creative_approved',
+  'booking_in_progress',
+  'launched',
+] as const;
+
 export type PackagePurchaseRestriction = 'none' | 'email_unverified' | 'identity_incomplete';
 
 export function isAgent(user: SessionUser | null) {
@@ -119,26 +139,34 @@ export function getCampaignPrimaryAction(campaign: Campaign) {
     };
   }
 
-  if ((campaign.status === 'planning_in_progress' || campaign.status === 'review_ready' || campaign.status === 'approved' || campaign.status === 'creative_sent_to_client_for_approval' || campaign.status === 'creative_changes_requested' || campaign.status === 'creative_approved' || campaign.status === 'booking_in_progress' || campaign.status === 'launched') && hasRecommendation) {
-    return {
-      href: paymentRequiredBeforeApproval
-        ? `/checkout/payment?orderId=${encodeURIComponent(campaign.packageOrderId)}&campaignId=${encodeURIComponent(campaign.id)}${selectedRecommendationId ? `&recommendationId=${encodeURIComponent(selectedRecommendationId)}` : ''}`
-        : `/campaigns/${campaign.id}`,
-      label: paymentRequiredBeforeApproval
-        ? 'Complete payment'
-        : campaign.status === 'approved' || campaign.status === 'creative_sent_to_client_for_approval' || campaign.status === 'creative_changes_requested' || campaign.status === 'creative_approved' || campaign.status === 'booking_in_progress' || campaign.status === 'launched'
-          ? 'Open campaign workspace'
-          : 'Review recommendation',
-      description: paymentRequiredBeforeApproval
-        ? 'Payment is still required before you can approve this recommendation and move into production.'
-        : campaign.status === 'approved' || campaign.status === 'creative_sent_to_client_for_approval' || campaign.status === 'creative_changes_requested' || campaign.status === 'creative_approved' || campaign.status === 'booking_in_progress' || campaign.status === 'launched'
+  if (CAMPAIGN_STATUSES_WITH_RECOMMENDATION_WORKSPACE.includes(campaign.status as typeof CAMPAIGN_STATUSES_WITH_RECOMMENDATION_WORKSPACE[number]) && hasRecommendation) {
+    const recommendationApproved = CAMPAIGN_STATUSES_AFTER_RECOMMENDATION_APPROVAL.includes(
+      campaign.status as typeof CAMPAIGN_STATUSES_AFTER_RECOMMENDATION_APPROVAL[number],
+    );
+    const href = paymentRequiredBeforeApproval
+      ? `/checkout/payment?orderId=${encodeURIComponent(campaign.packageOrderId)}&campaignId=${encodeURIComponent(campaign.id)}${selectedRecommendationId ? `&recommendationId=${encodeURIComponent(selectedRecommendationId)}` : ''}`
+      : `/campaigns/${campaign.id}`;
+    const label = paymentRequiredBeforeApproval
+      ? 'Complete payment'
+      : recommendationApproved
+        ? 'Open campaign workspace'
+        : 'Review recommendation';
+    const description = paymentRequiredBeforeApproval
+      ? 'Payment is still required before you can approve this recommendation and move into production.'
+      : recommendationApproved
         ? 'See the approved recommendation and current campaign approval state in one workspace.'
-        : 'Review the draft recommendation, then approve it or request changes from the same workspace.',
-      stepLabel: paymentRequiredBeforeApproval
-        ? 'Payment required'
-        : campaign.status === 'approved' || campaign.status === 'creative_sent_to_client_for_approval' || campaign.status === 'creative_changes_requested' || campaign.status === 'creative_approved' || campaign.status === 'booking_in_progress' || campaign.status === 'launched'
-          ? 'Open workspace'
-          : 'Needs action',
+        : 'Review the draft recommendation, then approve it or request changes from the same workspace.';
+    const stepLabel = paymentRequiredBeforeApproval
+      ? 'Payment required'
+      : recommendationApproved
+        ? 'Open workspace'
+        : 'Needs action';
+
+    return {
+      href,
+      label,
+      description,
+      stepLabel,
     };
   }
 

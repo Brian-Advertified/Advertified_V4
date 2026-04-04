@@ -188,6 +188,22 @@ public sealed class PromptLibraryService : IPromptLibraryService
             template.OutputSchemaJson);
     }
 
+    public async Task<int> GetLatestVersionAsync(
+        string key,
+        AdvertisingChannel channel,
+        string language,
+        CancellationToken cancellationToken)
+    {
+        var template = await _repository.GetAsync(key, channel, language, null, cancellationToken);
+        if (template is null)
+        {
+            throw new InvalidOperationException(
+                $"Prompt template '{key}' for channel '{channel}' and language '{language}' was not found.");
+        }
+
+        return template.Version;
+    }
+
     public async Task<PromptTemplateDefinition> GetAsync(
         string key,
         AdvertisingChannel channel,

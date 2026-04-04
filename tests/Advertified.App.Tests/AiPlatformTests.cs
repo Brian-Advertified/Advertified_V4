@@ -75,7 +75,6 @@ public class CreativeCampaignOrchestratorTests
         await using var db = BuildDbContext();
         var orchestrator = new CreativeCampaignOrchestrator(
             new StubMediaPlanningIntegrationService(),
-            new InMemoryPromptLibraryService(),
             new StubCreativeGenerationEngine(),
             new StubCreativeQaService(),
             new StubAssetGenerationPipeline(),

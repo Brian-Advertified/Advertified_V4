@@ -4,6 +4,7 @@ using Advertified.App.Configuration;
 using Advertified.App.Data;
 using Advertified.App.Data.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Options;
 
 namespace Advertified.App.AIPlatform.Infrastructure;
@@ -90,6 +91,9 @@ public sealed class AiCostControlService : IAiCostControlService
 
     public async Task<AiCostGuardDecision> GuardAsync(AiCostGuardRequest request, CancellationToken cancellationToken)
     {
+        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+        await AcquireCampaignLockAsync(request.CampaignId, transaction, cancellationToken);
+
         var campaignBudget = request.CampaignBudgetZar ?? await ResolveCampaignBudgetAsync(request.CampaignId, cancellationToken);
         var maxAllowed = await ResolveMaxAllowedCostAsync(request.CampaignId, campaignBudget, cancellationToken);
         var committed = await GetCommittedCostAsync(request.CampaignId, cancellationToken);
@@ -114,6 +118,7 @@ public sealed class AiCostControlService : IAiCostControlService
                 UpdatedAt = DateTime.UtcNow
             });
             await _db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
 
             return new AiCostGuardDecision(
                 Allowed: false,
@@ -142,6 +147,7 @@ public sealed class AiCostControlService : IAiCostControlService
             UpdatedAt = DateTime.UtcNow
         });
         await _db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         return new AiCostGuardDecision(
             Allowed: true,
@@ -151,6 +157,32 @@ public sealed class AiCostControlService : IAiCostControlService
             CurrentCommittedCostZar: committed,
             ProjectedCommittedCostZar: projected,
             Message: "Cost reservation accepted.");
+    }
+
+    private async Task AcquireCampaignLockAsync(
+        Guid campaignId,
+        IDbContextTransaction transaction,
+        CancellationToken cancellationToken)
+    {
+        var bytes = campaignId.ToByteArray();
+        var key1 = BitConverter.ToInt32(bytes, 0);
+        var key2 = BitConverter.ToInt32(bytes, 4);
+
+        await using var command = _db.Database.GetDbConnection().CreateCommand();
+        command.Transaction = transaction.GetDbTransaction();
+        command.CommandText = "select pg_advisory_xact_lock(@key1, @key2);";
+
+        var key1Parameter = command.CreateParameter();
+        key1Parameter.ParameterName = "key1";
+        key1Parameter.Value = key1;
+        command.Parameters.Add(key1Parameter);
+
+        var key2Parameter = command.CreateParameter();
+        key2Parameter.ParameterName = "key2";
+        key2Parameter.Value = key2;
+        command.Parameters.Add(key2Parameter);
+
+        await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
     public async Task CompleteAsync(Guid usageLogId, decimal? actualCostZar, string? details, CancellationToken cancellationToken)

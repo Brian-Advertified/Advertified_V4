@@ -6,6 +6,7 @@ namespace Advertified.App.Services.Abstractions;
 public interface IBroadcastInventoryCatalog
 {
     Task<IReadOnlyList<BroadcastInventoryRecord>> GetRecordsAsync(CancellationToken cancellationToken);
+    Task RefreshAsync(CancellationToken cancellationToken);
 }
 
 public sealed class BroadcastInventoryRecord

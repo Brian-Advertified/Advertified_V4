@@ -54,7 +54,7 @@ public sealed class ServiceBusCreativeJobQueue : ICreativeJobQueue, IAsyncDispos
         }
 
         ArgumentNullException.ThrowIfNull(_serviceBusClient);
-        var sender = _serviceBusClient.CreateSender(_options.QueueName);
+        await using var sender = _serviceBusClient.CreateSender(_options.QueueName);
         var body = JsonSerializer.Serialize(request);
         var message = new ServiceBusMessage(body)
         {
@@ -91,7 +91,7 @@ public sealed class ServiceBusCreativeJobQueue : ICreativeJobQueue, IAsyncDispos
         }
 
         ArgumentNullException.ThrowIfNull(_serviceBusClient);
-        var receiver = _serviceBusClient.CreateReceiver(_options.QueueName);
+        await using var receiver = _serviceBusClient.CreateReceiver(_options.QueueName);
         while (!cancellationToken.IsCancellationRequested)
         {
             var message = await receiver.ReceiveMessageAsync(TimeSpan.FromSeconds(2), cancellationToken);

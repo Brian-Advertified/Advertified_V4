@@ -13,7 +13,7 @@ namespace Advertified.App.Services;
 public sealed class PackagePreviewService : IPackagePreviewService
 {
     private readonly AppDbContext _db;
-    private readonly string _connectionString;
+    private readonly Npgsql.NpgsqlDataSource _dataSource;
     private readonly IBroadcastInventoryCatalog _broadcastInventoryCatalog;
     private readonly IPackagePreviewAreaProfileResolver _areaProfileResolver;
     private readonly IPackagePreviewReachEstimator _reachEstimator;
@@ -23,7 +23,7 @@ public sealed class PackagePreviewService : IPackagePreviewService
 
     public PackagePreviewService(
         AppDbContext db,
-        string connectionString,
+        Npgsql.NpgsqlDataSource dataSource,
         IBroadcastInventoryCatalog broadcastInventoryCatalog,
         IPackagePreviewAreaProfileResolver areaProfileResolver,
         IPackagePreviewReachEstimator reachEstimator,
@@ -32,7 +32,7 @@ public sealed class PackagePreviewService : IPackagePreviewService
         IPackagePreviewFormatter formatter)
     {
         _db = db;
-        _connectionString = connectionString;
+        _dataSource = dataSource;
         _broadcastInventoryCatalog = broadcastInventoryCatalog;
         _areaProfileResolver = areaProfileResolver;
         _reachEstimator = reachEstimator;
@@ -57,7 +57,7 @@ public sealed class PackagePreviewService : IPackagePreviewService
             throw new InvalidOperationException($"Selected budget must be between {band.MinBudget:0.##} and {band.MaxBudget:0.##}.");
         }
 
-        await using var connection = new NpgsqlConnection(_connectionString);
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         var resolvedArea = await _areaProfileResolver.ResolveAsync(connection, selectedArea, cancellationToken);
         var budgetRatio = GetBudgetRatio(budget, band.MinBudget, band.MaxBudget);
         var tierCode = GetTierCode(budgetRatio);

@@ -12,18 +12,21 @@ namespace Advertified.App.Services;
 
 public sealed class BroadcastInventoryImportService : IBroadcastInventoryImportService
 {
-    private readonly string _connectionString;
+    private readonly Npgsql.NpgsqlDataSource _dataSource;
     private readonly BroadcastInventoryOptions _options;
     private readonly IWebHostEnvironment _environment;
+    private readonly IBroadcastInventoryCatalog _broadcastInventoryCatalog;
 
     public BroadcastInventoryImportService(
-        string connectionString,
+        Npgsql.NpgsqlDataSource dataSource,
         IOptions<BroadcastInventoryOptions> options,
-        IWebHostEnvironment environment)
+        IWebHostEnvironment environment,
+        IBroadcastInventoryCatalog broadcastInventoryCatalog)
     {
-        _connectionString = connectionString;
+        _dataSource = dataSource;
         _options = options.Value;
         _environment = environment;
+        _broadcastInventoryCatalog = broadcastInventoryCatalog;
     }
 
     public async Task SyncAsync(CancellationToken cancellationToken)
@@ -45,8 +48,7 @@ public sealed class BroadcastInventoryImportService : IBroadcastInventoryImportS
             return;
         }
 
-        await using var connection = new NpgsqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
         await connection.ExecuteAsync(new CommandDefinition(
@@ -314,6 +316,7 @@ public sealed class BroadcastInventoryImportService : IBroadcastInventoryImportS
         }
 
         await transaction.CommitAsync(cancellationToken);
+        await _broadcastInventoryCatalog.RefreshAsync(cancellationToken);
     }
 
     private string? ResolveInventoryPath()

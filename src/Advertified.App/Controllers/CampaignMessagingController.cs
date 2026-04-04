@@ -288,7 +288,7 @@ public sealed class CampaignMessagingController : ControllerBase
     {
         if (user.Role is not UserRole.Agent and not UserRole.Admin)
         {
-            throw new InvalidOperationException("Agent access is required.");
+            throw new ForbiddenException("Agent access is required.");
         }
     }
 

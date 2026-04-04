@@ -7,13 +7,13 @@ namespace Advertified.App.Services;
 
 public sealed class BroadcastInventoryCatalog : IBroadcastInventoryCatalog
 {
-    private readonly string _connectionString;
+    private readonly Npgsql.NpgsqlDataSource _dataSource;
     private readonly SemaphoreSlim _loadLock = new(1, 1);
     private IReadOnlyList<BroadcastInventoryRecord>? _cachedRecords;
 
-    public BroadcastInventoryCatalog(string connectionString)
+    public BroadcastInventoryCatalog(Npgsql.NpgsqlDataSource dataSource)
     {
-        _connectionString = connectionString;
+        _dataSource = dataSource;
     }
 
     public async Task<IReadOnlyList<BroadcastInventoryRecord>> GetRecordsAsync(CancellationToken cancellationToken)
@@ -31,7 +31,7 @@ public sealed class BroadcastInventoryCatalog : IBroadcastInventoryCatalog
                 return _cachedRecords;
             }
 
-            await using var connection = new NpgsqlConnection(_connectionString);
+            await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
             var outlets = (await connection.QueryAsync<MediaOutletRow>(
                 new CommandDefinition(
                     @"
@@ -166,6 +166,21 @@ public sealed class BroadcastInventoryCatalog : IBroadcastInventoryCatalog
         {
             _loadLock.Release();
         }
+    }
+
+    public async Task RefreshAsync(CancellationToken cancellationToken)
+    {
+        await _loadLock.WaitAsync(cancellationToken);
+        try
+        {
+            _cachedRecords = null;
+        }
+        finally
+        {
+            _loadLock.Release();
+        }
+
+        await GetRecordsAsync(cancellationToken);
     }
 
     private static BroadcastInventoryRecord BuildRecord(

@@ -455,7 +455,7 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
 
     private static bool ShouldDisplayPackageRange(Campaign campaign)
     {
-        return string.Equals(campaign.Status, "awaiting_purchase", StringComparison.OrdinalIgnoreCase)
+        return string.Equals(campaign.Status, CampaignStatuses.AwaitingPurchase, StringComparison.OrdinalIgnoreCase)
             || !CampaignOperationsPolicy.IsOrderOperationallyActive(campaign.PackageOrder);
     }
 

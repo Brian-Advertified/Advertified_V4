@@ -7,7 +7,9 @@ import { ProcessingOverlay } from '../../components/ui/ProcessingOverlay';
 import { useToast } from '../../components/ui/toast';
 import { formatCurrency } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
+import { formatChannelLabel, normalizeChannelKey } from '../../features/channels/channelUtils';
 import type { CampaignBrief, PackageBand } from '../../types/domain';
+import { pushAgentMutationError } from './agentMutationToast';
 
 type ChannelOption = 'Radio' | 'OOH' | 'TV';
 
@@ -18,15 +20,6 @@ const STEP_CONFIG = [
 ] as const;
 
 const CHANNEL_OPTIONS: ChannelOption[] = ['OOH', 'Radio', 'TV'];
-const CHANNEL_LABELS: Record<ChannelOption, string> = {
-  Radio: 'Radio',
-  OOH: 'Billboards and Digital Screens',
-  TV: 'TV',
-};
-
-function formatChannelLabel(channel: ChannelOption) {
-  return CHANNEL_LABELS[channel];
-}
 const OBJECTIVE_OPTIONS = ['awareness', 'launch', 'promotion', 'brand_presence', 'leads'] as const;
 const AUDIENCE_OPTIONS = ['mass-market', 'youth', 'business', 'retail'] as const;
 const SCOPE_OPTIONS = ['local', 'provincial', 'national'] as const;
@@ -54,22 +47,14 @@ function normalizeChannelOption(channel: string | null | undefined): ChannelOpti
   if (!channel) {
     return undefined;
   }
-
-  const normalized = channel.trim().toLowerCase();
-
-  if (normalized === 'television' || normalized === 'tv') {
-    return 'TV';
-  }
-
-  if (normalized === 'ooh') {
-    return 'OOH';
-  }
-
-  if (normalized === 'radio') {
-    return 'Radio';
-  }
-
-  return undefined;
+  const normalized = normalizeChannelKey(channel);
+  return normalized === 'TV'
+    ? 'TV'
+    : normalized === 'OOH'
+      ? 'OOH'
+      : normalized === 'RADIO'
+        ? 'Radio'
+        : undefined;
 }
 
 function resolvePackageReferenceBudget(packageBand: PackageBand): number {
@@ -374,10 +359,7 @@ export function AgentCreateRecommendationPage() {
       });
     },
     onError: (error) => {
-      pushToast({
-        title: 'Could not create prospect campaign.',
-        description: error instanceof Error ? error.message : 'Please try again.',
-      }, 'error');
+      pushAgentMutationError(pushToast, 'Could not create prospect campaign.', error);
     },
   });
 
@@ -479,10 +461,7 @@ export function AgentCreateRecommendationPage() {
     },
     onError: (error) => {
       setPendingAction(null);
-      pushToast({
-        title: 'We could not create the recommendation flow.',
-        description: error instanceof Error ? error.message : 'Please try again in a moment.',
-      }, 'error');
+      pushAgentMutationError(pushToast, 'We could not create the recommendation flow.', error, 'Please try again in a moment.');
     },
   });
 
@@ -528,10 +507,7 @@ export function AgentCreateRecommendationPage() {
       });
     },
     onError: (error) => {
-      pushToast({
-        title: 'We could not interpret that brief.',
-        description: error instanceof Error ? error.message : 'Please try again in a moment.',
-      }, 'error');
+      pushAgentMutationError(pushToast, 'We could not interpret that brief.', error, 'Please try again in a moment.');
     },
   });
 

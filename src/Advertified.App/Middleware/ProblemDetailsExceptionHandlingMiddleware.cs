@@ -1,3 +1,4 @@
+using Advertified.App.Support;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Advertified.App.Middleware;
@@ -43,6 +44,26 @@ public sealed class ProblemDetailsExceptionHandlingMiddleware
     {
         problem = new ProblemDetails();
 
+        // Check for typed HTTP exceptions first
+        if (exception is UnauthorizedException unauthorized)
+        {
+            problem = BuildProblem(StatusCodes.Status401Unauthorized, "Authentication required.", unauthorized.Message);
+            return true;
+        }
+
+        if (exception is ForbiddenException forbidden)
+        {
+            problem = BuildProblem(StatusCodes.Status403Forbidden, "Forbidden.", forbidden.Message);
+            return true;
+        }
+
+        if (exception is NotFoundException notFound)
+        {
+            problem = BuildProblem(StatusCodes.Status404NotFound, "Resource not found.", notFound.Message);
+            return true;
+        }
+
+        // Legacy string-based matching for backward compatibility
         if (exception is InvalidOperationException invalidOperation)
         {
             var message = invalidOperation.Message;

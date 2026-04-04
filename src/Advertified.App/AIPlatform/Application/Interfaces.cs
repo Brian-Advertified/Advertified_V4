@@ -10,6 +10,11 @@ public interface IMediaPlanningIntegrationService
 public interface IPromptLibraryService
 {
     Task<PromptTemplate> GetLatestAsync(string key, CancellationToken cancellationToken);
+    Task<int> GetLatestVersionAsync(
+        string key,
+        AdvertisingChannel channel,
+        string language,
+        CancellationToken cancellationToken);
     Task<PromptTemplateDefinition> GetAsync(
         string key,
         AdvertisingChannel channel,

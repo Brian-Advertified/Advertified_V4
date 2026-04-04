@@ -2,6 +2,7 @@ namespace Advertified.App.Support;
 
 public static class CampaignStatuses
 {
+    public const string AwaitingPurchase = "awaiting_purchase";
     public const string Paid = "paid";
     public const string BriefInProgress = "brief_in_progress";
     public const string BriefSubmitted = "brief_submitted";

@@ -26,6 +26,15 @@ public sealed class PlanningInventoryRepository : IPlanningInventoryRepository
         return rows.Select(_candidateMapper.MapOoh).ToList();
     }
 
+    public async Task<BroadcastInventoryCandidateSet> GetBroadcastCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
+    {
+        var seeds = await _broadcastSource.GetCandidatesAsync(request, cancellationToken);
+        return new BroadcastInventoryCandidateSet(
+            RadioSlots: seeds.RadioSlots.Select(_candidateMapper.MapBroadcast).ToList(),
+            RadioPackages: seeds.RadioPackages.Select(_candidateMapper.MapBroadcast).ToList(),
+            Tv: seeds.Tv.Select(_candidateMapper.MapBroadcast).ToList());
+    }
+
     public async Task<List<InventoryCandidate>> GetRadioSlotCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
     {
         var seeds = await _broadcastSource.GetRadioSlotCandidatesAsync(request, cancellationToken);

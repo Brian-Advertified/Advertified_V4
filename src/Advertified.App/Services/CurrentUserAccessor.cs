@@ -1,5 +1,6 @@
 using Advertified.App.Data;
 using Advertified.App.Services.Abstractions;
+using Advertified.App.Support;
 using Microsoft.EntityFrameworkCore;
 
 namespace Advertified.App.Services;
@@ -22,7 +23,7 @@ public sealed class CurrentUserAccessor : ICurrentUserAccessor
         var token = ReadBearerToken();
         if (string.IsNullOrWhiteSpace(token) || !_sessionTokenService.TryReadToken(token, out var payload))
         {
-            throw new InvalidOperationException("A valid authenticated session is required.");
+            throw new UnauthorizedException("A valid authenticated session is required.");
         }
 
         var user = await _db.UserAccounts
@@ -30,12 +31,12 @@ public sealed class CurrentUserAccessor : ICurrentUserAccessor
             .FirstOrDefaultAsync(x => x.Id == payload.UserId, cancellationToken);
         if (user is null)
         {
-            throw new InvalidOperationException("Authenticated user account could not be found.");
+            throw new UnauthorizedException("Authenticated user account could not be found.");
         }
 
         if (!string.Equals(user.PasswordHash, payload.PasswordHash, StringComparison.Ordinal))
         {
-            throw new InvalidOperationException("Authenticated session is no longer valid.");
+            throw new UnauthorizedException("Authenticated session is no longer valid.");
         }
 
         return user.Id;

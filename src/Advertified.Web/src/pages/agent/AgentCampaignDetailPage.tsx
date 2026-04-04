@@ -1,23 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  ArrowRightLeft,
   BrainCircuit,
   Building2,
-  CircleAlert,
   CircleCheckBig,
   Download,
   MessageSquareQuote,
-  RefreshCcw,
-  Search,
   Send,
-  SlidersHorizontal,
   UserPlus2,
   UserX2,
-  X,
 } from 'lucide-react';
-import { useDeferredValue, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
-import { EmptyState } from '../../components/ui/EmptyState';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { ProcessingOverlay } from '../../components/ui/ProcessingOverlay';
 import { useToast } from '../../components/ui/toast';
@@ -39,17 +32,19 @@ import {
   isInventoryRelevant,
   normalizeChannelKey,
 } from '../../features/agent/agentCampaignDetailUtils';
-import { InventoryTable } from '../../features/agent/components/InventoryTable';
+import { AgentBookingPanel } from '../../features/agent/components/AgentBookingPanel';
+import { AgentDeliveryReportPanel } from '../../features/agent/components/AgentDeliveryReportPanel';
+import { AgentInventorySelectionModal } from '../../features/agent/components/AgentInventorySelectionModal';
+import { AgentOpsAssetsPanel } from '../../features/agent/components/AgentOpsAssetsPanel';
+import { AgentRecommendationPanel } from '../../features/agent/components/AgentRecommendationPanel';
+import { formatChannelLabel } from '../../features/channels/channelUtils';
 import { invalidateAgentCampaignQueries, queryKeys } from '../../lib/queryKeys';
 import { formatCurrency, formatDate, titleCase } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import type { RecommendationItem, SelectedPlanInventoryItem } from '../../types/domain';
+import { pushAgentMutationError } from './agentMutationToast';
 
 type DisplayPlanItem = SelectedPlanInventoryItem | RecommendationItem;
-
-function formatChannelLabel(channel: string) {
-  return normalizeChannelKey(channel) === 'OOH' ? 'Billboards and Digital Screens' : titleCase(channel.toLowerCase());
-}
 
 function formatMixSummary(mix: { ooh: number; radio: number; tv: number; digital: number }) {
   return `Billboards and Digital Screens ${mix.ooh}% | Radio ${mix.radio}% | TV ${mix.tv}% | Digital ${mix.digital}%`;
@@ -80,32 +75,6 @@ export function AgentCampaignDetailPage() {
   const [mixBalance, setMixBalance] = useState(60);
   const [selectedRecommendationIdState, setSelectedRecommendationIdState] = useState('');
   const [inventoryModalOpen, setInventoryModalOpen] = useState(false);
-  const [inventoryTypeFilter, setInventoryTypeFilter] = useState('all');
-  const [inventoryRegionFilter, setInventoryRegionFilter] = useState('all');
-  const [inventoryLanguageFilter, setInventoryLanguageFilter] = useState('all');
-  const [inventorySearchInput, setInventorySearchInput] = useState('');
-  const [opsAssetFile, setOpsAssetFile] = useState<File | null>(null);
-  const [opsAssetType, setOpsAssetType] = useState('proof_of_booking');
-  const [bookingDraft, setBookingDraft] = useState({
-    supplierOrStation: '',
-    channel: 'radio',
-    bookingStatus: 'planned',
-    committedAmount: '',
-    liveFrom: '',
-    liveTo: '',
-    notes: '',
-    proofAssetId: '',
-  });
-  const [reportDraft, setReportDraft] = useState({
-    supplierBookingId: '',
-    reportType: 'delivery_update',
-    headline: '',
-    summary: '',
-    impressions: '',
-    playsOrSpots: '',
-    spendDelivered: '',
-    evidenceAssetId: '',
-  });
   const [prospectPackageBandState, setProspectPackageBandState] = useState<{ campaignId: string; packageBandId: string } | null>(null);
   const mixPanelRef = useRef<HTMLDivElement | null>(null);
 
@@ -128,6 +97,7 @@ export function AgentCampaignDetailPage() {
         description: 'The latest plan and strategy summary are now part of this campaign draft.',
       });
     },
+    onError: (error) => pushAgentMutationError(pushToast, 'Could not save recommendation draft.', error),
   });
 
   const sendMutation = useMutation({
@@ -139,6 +109,7 @@ export function AgentCampaignDetailPage() {
         description: 'The campaign has moved into the client review stage.',
       });
     },
+    onError: (error) => pushAgentMutationError(pushToast, 'Could not send recommendation to client.', error),
   });
   const updateProspectPricingMutation = useMutation({
     mutationFn: () => advertifiedApi.updateProspectPricing(id, {
@@ -151,10 +122,7 @@ export function AgentCampaignDetailPage() {
         description: 'The package band was saved and the budget was recalculated for this prospective campaign.',
       });
     },
-    onError: (error) => pushToast({
-      title: 'Could not update prospect pricing.',
-      description: error instanceof Error ? error.message : 'Please try again.',
-    }, 'error'),
+    onError: (error) => pushAgentMutationError(pushToast, 'Could not update prospect pricing.', error),
   });
 
   const markLiveMutation = useMutation({
@@ -168,10 +136,7 @@ export function AgentCampaignDetailPage() {
       navigate('/agent/campaigns');
     },
     onError: (error) => {
-      pushToast({
-        title: 'Could not mark campaign live.',
-        description: error instanceof Error ? error.message : 'Please try again.',
-      }, 'error');
+      pushAgentMutationError(pushToast, 'Could not mark campaign live.', error);
     },
   });
 
@@ -189,10 +154,7 @@ export function AgentCampaignDetailPage() {
         description: `A fresh AI draft was prepared using target mix Radio ${targetMix.radio}% | Billboards and Digital Screens ${targetMix.ooh}% | TV ${targetMix.tv}% | Digital ${targetMix.digital}%.`,
       });
     },
-    onError: (error) => pushToast({
-      title: 'We could not regenerate the recommendation.',
-      description: error instanceof Error ? error.message : 'Please try again in a moment.',
-    }, 'error'),
+    onError: (error) => pushAgentMutationError(pushToast, 'We could not regenerate the recommendation.', error, 'Please try again in a moment.'),
   });
 
   const assignMutation = useMutation({
@@ -204,6 +166,7 @@ export function AgentCampaignDetailPage() {
         description: 'This campaign is now in your active working queue.',
       });
     },
+    onError: (error) => pushAgentMutationError(pushToast, 'Could not assign campaign.', error),
   });
 
   const unassignMutation = useMutation({
@@ -215,90 +178,79 @@ export function AgentCampaignDetailPage() {
         description: 'This campaign has been returned to the shared queue.',
       }, 'info');
     },
+    onError: (error) => pushAgentMutationError(pushToast, 'Could not unassign campaign.', error),
   });
 
   const uploadOpsAssetMutation = useMutation({
     mutationFn: ({ file, type }: { file: File; type: string }) => advertifiedApi.uploadAgentCampaignAsset(id, file, type),
     onSuccess: async () => {
-      setOpsAssetFile(null);
       await queryClient.invalidateQueries({ queryKey: queryKeys.agent.campaign(id) });
       pushToast({
         title: 'Campaign asset uploaded.',
         description: 'The file is now available for supplier proof, delivery reporting, or execution support.',
       });
     },
-    onError: (error) => pushToast({
-      title: 'Could not upload campaign asset.',
-      description: error instanceof Error ? error.message : 'Please try again.',
-    }, 'error'),
+    onError: (error) => pushAgentMutationError(pushToast, 'Could not upload campaign asset.', error),
   });
 
   const saveBookingMutation = useMutation({
-    mutationFn: () => advertifiedApi.saveSupplierBooking(id, {
-      supplierOrStation: bookingDraft.supplierOrStation,
-      channel: bookingDraft.channel,
-      bookingStatus: bookingDraft.bookingStatus,
-      committedAmount: Number(bookingDraft.committedAmount || 0),
-      liveFrom: bookingDraft.liveFrom || undefined,
-      liveTo: bookingDraft.liveTo || undefined,
-      notes: bookingDraft.notes || undefined,
-      proofAssetId: bookingDraft.proofAssetId || undefined,
+    mutationFn: (draft: {
+      supplierOrStation: string;
+      channel: string;
+      bookingStatus: string;
+      committedAmount: string;
+      liveFrom: string;
+      liveTo: string;
+      notes: string;
+      proofAssetId: string;
+    }) => advertifiedApi.saveSupplierBooking(id, {
+      supplierOrStation: draft.supplierOrStation,
+      channel: draft.channel,
+      bookingStatus: draft.bookingStatus,
+      committedAmount: Number(draft.committedAmount || 0),
+      liveFrom: draft.liveFrom || undefined,
+      liveTo: draft.liveTo || undefined,
+      notes: draft.notes || undefined,
+      proofAssetId: draft.proofAssetId || undefined,
     }),
     onSuccess: async () => {
-      setBookingDraft({
-        supplierOrStation: '',
-        channel: 'radio',
-        bookingStatus: 'planned',
-        committedAmount: '',
-        liveFrom: '',
-        liveTo: '',
-        notes: '',
-        proofAssetId: '',
-      });
       await queryClient.invalidateQueries({ queryKey: queryKeys.agent.campaign(id) });
       pushToast({
         title: 'Supplier booking saved.',
         description: 'Execution details are now attached to this campaign.',
       });
     },
-    onError: (error) => pushToast({
-      title: 'Could not save supplier booking.',
-      description: error instanceof Error ? error.message : 'Please try again.',
-    }, 'error'),
+    onError: (error) => pushAgentMutationError(pushToast, 'Could not save supplier booking.', error),
   });
 
   const saveReportMutation = useMutation({
-    mutationFn: () => advertifiedApi.saveDeliveryReport(id, {
-      supplierBookingId: reportDraft.supplierBookingId || undefined,
-      reportType: reportDraft.reportType,
-      headline: reportDraft.headline,
-      summary: reportDraft.summary || undefined,
-      impressions: reportDraft.impressions ? Number(reportDraft.impressions) : undefined,
-      playsOrSpots: reportDraft.playsOrSpots ? Number(reportDraft.playsOrSpots) : undefined,
-      spendDelivered: reportDraft.spendDelivered ? Number(reportDraft.spendDelivered) : undefined,
-      evidenceAssetId: reportDraft.evidenceAssetId || undefined,
+    mutationFn: (draft: {
+      supplierBookingId: string;
+      reportType: string;
+      headline: string;
+      summary: string;
+      impressions: string;
+      playsOrSpots: string;
+      spendDelivered: string;
+      evidenceAssetId: string;
+    }) => advertifiedApi.saveDeliveryReport(id, {
+      supplierBookingId: draft.supplierBookingId || undefined,
+      reportType: draft.reportType,
+      headline: draft.headline,
+      summary: draft.summary || undefined,
+      impressions: draft.impressions ? Number(draft.impressions) : undefined,
+      playsOrSpots: draft.playsOrSpots ? Number(draft.playsOrSpots) : undefined,
+      spendDelivered: draft.spendDelivered ? Number(draft.spendDelivered) : undefined,
+      evidenceAssetId: draft.evidenceAssetId || undefined,
     }),
     onSuccess: async () => {
-      setReportDraft({
-        supplierBookingId: '',
-        reportType: 'delivery_update',
-        headline: '',
-        summary: '',
-        impressions: '',
-        playsOrSpots: '',
-        spendDelivered: '',
-        evidenceAssetId: '',
-      });
       await queryClient.invalidateQueries({ queryKey: queryKeys.agent.campaign(id) });
       pushToast({
         title: 'Delivery report saved.',
         description: 'The latest live reporting update is now visible on the campaign.',
       });
     },
-    onError: (error) => pushToast({
-      title: 'Could not save delivery report.',
-      description: error instanceof Error ? error.message : 'Please try again.',
-    }, 'error'),
+    onError: (error) => pushAgentMutationError(pushToast, 'Could not save delivery report.', error),
   });
 
   const campaign = campaignQuery.data;
@@ -380,7 +332,6 @@ export function AgentCampaignDetailPage() {
   const draftApprovalCaptured = draftApprovalState?.key === hydrationKey
     ? draftApprovalState.captured
     : false;
-  const deferredInventorySearchInput = useDeferredValue(inventorySearchInput);
 
   if (campaignQuery.isLoading || inventoryQuery.isLoading || !campaign) {
     return <LoadingState label="Loading agent campaign detail..." />;
@@ -397,42 +348,6 @@ export function AgentCampaignDetailPage() {
     ...selectedPlanItems.filter((item) => !inventoryItems.some((inventoryRow) => inventoryRow.id === item.id)),
     ...relevantInventoryItems,
   ];
-  const inventoryTypeOptions = Array.from(new Set(visibleInventoryItems.map((item) => item.type))).sort();
-  const inventoryRegionOptions = Array.from(new Set(visibleInventoryItems.map((item) => item.region).filter((value) => value?.trim()))).sort();
-  const inventoryLanguageOptions = Array.from(new Set(visibleInventoryItems.map((item) => item.language).filter((value) => value?.trim()))).sort();
-  const inventorySearchQuery = deferredInventorySearchInput.trim();
-  const inventorySearchActive = inventorySearchQuery.length >= 3;
-  const filteredInventoryItems = visibleInventoryItems.filter((item) => {
-    if (inventoryTypeFilter !== 'all' && item.type !== inventoryTypeFilter) {
-      return false;
-    }
-
-    if (inventoryRegionFilter !== 'all' && item.region !== inventoryRegionFilter) {
-      return false;
-    }
-
-    if (inventoryLanguageFilter !== 'all' && item.language !== inventoryLanguageFilter) {
-      return false;
-    }
-
-    if (!inventorySearchActive) {
-      return true;
-    }
-
-    const haystack = [
-      item.type,
-      item.station,
-      item.region,
-      item.language,
-      item.showDaypart,
-      item.timeBand,
-      item.slotType,
-      item.duration,
-      item.restrictions,
-    ].join(' ').toLowerCase();
-
-    return haystack.includes(inventorySearchQuery.trim().toLowerCase());
-  });
   const groupedItems = groupPlanItems(selectedPlanItems);
   const generatedRecommendationItems = activeRecommendation?.items ?? [];
   const groupedGeneratedItems = groupGeneratedRecommendationItems(generatedRecommendationItems);
@@ -532,6 +447,17 @@ export function AgentCampaignDetailPage() {
         : 'This draft is currently over budget.',
     };
   const constraintChecks = getConstraintChecks(campaign.brief, selectedPlanItems, budgetConstraint);
+  const budgetWarning = isOverBudget
+    ? (isProspectiveCampaign && selectedPackageBand
+      ? effectivePlannedTotal > selectedPackageBand.maxBudget
+        ? `This draft is ${formatCurrency(Math.abs(prospectiveAboveBandDelta))} over the selected package band maximum.`
+        : `This draft is ${formatCurrency(Math.abs(prospectiveBelowBandDelta))} below the selected package band minimum.`
+      : selectedPackageBand
+        ? effectivePlannedTotal > selectedPackageBand.maxBudget
+          ? `This draft is ${formatCurrency(Math.abs(prospectiveAboveBandDelta))} over the selected package band maximum.`
+          : `This draft is ${formatCurrency(Math.abs(prospectiveBelowBandDelta))} below the selected package band minimum.`
+        : `This draft is ${formatCurrency(Math.abs(budgetDelta))} over the client's budget.`)
+    : undefined;
   const executionAssets = campaign.assets ?? [];
   const supplierBookings = campaign.supplierBookings ?? [];
   const deliveryReports = campaign.deliveryReports ?? [];
@@ -882,375 +808,69 @@ export function AgentCampaignDetailPage() {
         </div>
 
         <div className="space-y-6">
-          {activeRecommendation?.clientFeedbackNotes ? (
-            <div className="panel border-amber-200 bg-amber-50/80 px-6 py-5">
-              <p className="text-sm font-semibold text-amber-800">Client feedback</p>
-              <p className="mt-2 text-sm leading-7 text-amber-900">{activeRecommendation.clientFeedbackNotes}</p>
-            </div>
-          ) : null}
-
-          {activeRecommendation?.manualReviewRequired ? (
-            <div className="panel border-rose-200 bg-rose-50/80 px-6 py-5">
-              <p className="text-sm font-semibold text-rose-800">Manual review required</p>
-              <p className="mt-2 text-sm leading-7 text-rose-900">
-                The planner could not fully satisfy package policy or inventory requirements for this draft.
-              </p>
-              {activeRecommendation.fallbackFlags.length > 0 ? (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {activeRecommendation.fallbackFlags.map((flag) => (
-                    <span key={flag} className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-rose-700 ring-1 ring-rose-200">
-                      {formatFallbackFlag(flag)}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-
-          {showRecommendationEditing && recommendations.length > 1 ? (
-            <div className="panel px-6 py-5">
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand">Proposal set</p>
-              <div className="mt-4 flex flex-wrap gap-3">
-                {recommendations.map((proposal) => {
-                  const isActive = proposal.id === activeRecommendation?.id;
-                  return (
-                    <button
-                      key={proposal.id}
-                      type="button"
-                      onClick={() => setSelectedRecommendationIdState(proposal.id)}
-                      className={`rounded-[18px] border px-4 py-3 text-left transition ${
-                        isActive ? 'border-brand bg-brand-soft' : 'border-line bg-slate-50 hover:border-brand/30'
-                      }`}
-                    >
-                      <p className="text-sm font-semibold text-ink">{proposal.proposalLabel ?? 'Proposal'}</p>
-                      <p className="mt-1 text-sm text-ink-soft">{proposal.proposalStrategy ?? 'Recommendation option'}</p>
-                      <p className="mt-2 text-sm font-semibold text-ink">{formatCurrency(proposal.totalCost)}</p>
-                      <p className="mt-1 text-xs uppercase tracking-[0.14em] text-ink-soft">{proposal.items.length} line item(s)</p>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ) : null}
-
-          <div className="panel border-line/80 bg-white px-6 py-6 shadow-[0_10px_26px_rgba(17,24,39,0.05)]">
-            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-              <div>
-                <h2 className="text-xl font-semibold text-ink">{showRecommendationEditing ? 'Recommendation' : 'Next steps'}</h2>
-                <p className="mt-2 text-sm text-ink-soft">{showRecommendationEditing ? recommendationTitle : lockedNextStep}</p>
-              </div>
-              {showRecommendationEditing ? (
-                <div className="flex flex-wrap gap-2">
-                  <button type="button" onClick={handleRegenerate} disabled={regenerateMutation.isPending} className="button-secondary inline-flex items-center gap-2 px-4 py-2 disabled:opacity-60">
-                    <RefreshCcw className="size-4" />
-                    Regenerate
-                  </button>
-                  <button type="button" onClick={handleAdjustMix} className="button-secondary inline-flex items-center gap-2 px-4 py-2">
-                    <SlidersHorizontal className="size-4" />
-                    Adjust mix
-                  </button>
-                </div>
-              ) : null}
-            </div>
-
-            <div className="mt-6 space-y-5">
-              {recommendationWorkflowLocked ? (
-                <div className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-                  <div className="rounded-[16px] border border-emerald-200 bg-emerald-50 px-4 py-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Approved proposal</p>
-                    <p className="mt-3 text-lg font-semibold text-ink">{activeProposalLabel}</p>
-                    <p className="mt-1 text-sm text-ink-soft">{formatCurrency(activeRecommendation?.totalCost ?? campaign.selectedBudget)}</p>
-                    <p className="mt-3 text-sm leading-7 text-emerald-900">
-                      Recommendation work is complete. Keep this page focused on production, delivery, and client follow-up.
-                    </p>
-                  </div>
-                  <div className="rounded-[16px] border border-line bg-slate-50 px-4 py-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">What to do now</p>
-                    <p className="mt-3 text-sm leading-7 text-ink-soft">{lockedNextStep}</p>
-                    {showAiStudioHandoff ? (
-                      <div className="mt-4 flex flex-wrap gap-3">
-                        <Link
-                          to={`/agent/messages?campaignId=${campaign.id}`}
-                          className="button-primary inline-flex items-center gap-2 px-5 py-3"
-                        >
-                          <MessageSquareQuote className="size-4" />
-                          Open messages
-                        </Link>
-                        <div className="rounded-[14px] border border-line bg-white px-4 py-3 text-sm leading-6 text-ink-soft">
-                          Creative production is handled in the creative director workspace. Agents track progress here and use messages when they need to coordinate.
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              ) : null}
-              <div ref={mixPanelRef} className={`rounded-[16px] border border-line bg-slate-50 px-4 py-4 ${showRecommendationEditing ? '' : 'hidden'}`}>
-                <h3 className="text-sm font-semibold text-ink">Budget split</h3>
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  value={mixBalance}
-                  onChange={(event) => setMixBalance(Number(event.target.value))}
-                  disabled={recommendationWorkflowLocked}
-                  className="mt-4 w-full accent-brand"
-                />
-                <p className="mt-3 text-sm text-ink-soft">
-                  Target mix: {formatMixSummary(targetMix)}
-                </p>
-                <p className="mt-1 text-sm text-ink-soft">
-                  Current draft: {formatMixSummary({
-                    ooh: currentOohShare,
-                    radio: currentRadioShare,
-                    tv: currentTvShare,
-                    digital: currentDigitalShare,
-                  })}
-                </p>
-              </div>
-
-              {showRecommendationEditing && Object.entries(displayedGroups).length > 0 ? Object.entries(displayedGroups).map(([channel, items]) => (
-                <div key={channel}>
-                  <p className="mb-3 text-sm font-semibold text-ink">{formatChannelLabel(channel)}</p>
-                  <div className="grid gap-2.5 md:grid-cols-2">
-                    {items.map((item) => (
-                      <div
-                        key={item.id}
-                        className="group min-w-[210px] rounded-[16px] border border-line bg-slate-50 px-3.5 py-3"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-semibold text-ink">{'station' in item ? item.station : item.title}</p>
-                            <p className="mt-1 text-xs text-ink-soft">
-                              {'rate' in item
-                                ? `${formatCurrency(item.rate * item.quantity)}${item.quantity > 1 ? ` | Qty ${item.quantity}` : ''}`
-                                : `${formatCurrency(item.cost)}${item.quantity > 1 ? ` | Qty ${item.quantity}` : ''}`}
-                            </p>
-                            {!('station' in item) && item.confidenceScore !== undefined ? (
-                              <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.12em] text-brand">
-                                {formatConfidenceLabel(item.confidenceScore)}
-                              </p>
-                            ) : null}
-                            {!('station' in item) ? (
-                              <>
-                                <p className="mt-1 text-xs text-ink-soft line-clamp-2">{item.rationale}</p>
-                                {item.selectionReasons.length > 0 ? (
-                                  <div className="mt-2 flex flex-wrap gap-1.5">
-                                    {item.selectionReasons.slice(0, 3).map((reason) => (
-                                      <span key={reason} className="rounded-full bg-white px-2 py-1 text-[11px] text-ink-soft ring-1 ring-line">
-                                        {reason}
-                                      </span>
-                                    ))}
-                                  </div>
-                                ) : null}
-                              </>
-                            ) : null}
-                          </div>
-                          {'station' in item && canModifyPlan ? (
-                            <button
-                              type="button"
-                              onClick={() => handleReplace(item.id)}
-                              className="inline-flex items-center gap-1 rounded-full border border-brand/15 bg-white px-2.5 py-1 text-[11px] font-semibold text-brand transition group-hover:border-brand/30"
-                            >
-                              <ArrowRightLeft className="size-3" />
-                              Replace
-                            </button>
-                          ) : (
-                            <span className="inline-flex rounded-full border border-brand/15 bg-white px-2.5 py-1 text-[11px] font-semibold text-brand">
-                              {'station' in item ? 'Locked' : 'AI draft'}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )) : (
-                <EmptyState
-                  title="No recommendation lines yet"
-                  description="Generate the recommendation first, or use the inventory table below to add radio, Billboards and Digital Screens, or digital lines manually."
-                />
-              )}
-            </div>
-          </div>
-
-          {showRecommendationEditing ? (
-            <div className="panel border-line/80 bg-white px-6 py-6 shadow-[0_10px_26px_rgba(17,24,39,0.05)]">
-            <h2 className="text-xl font-semibold text-ink">Validation</h2>
-            <div className="mt-4 grid gap-3 md:grid-cols-3">
-              {constraintChecks.map((check) => (
-                <div
-                  key={check.label}
-                  className={`rounded-[14px] border px-4 py-3 ${
-                    check.ok ? 'border-emerald-200 bg-emerald-50' : 'border-rose-200 bg-rose-50'
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    {check.ok ? (
-                      <CircleCheckBig className="mt-0.5 size-4 text-emerald-700" />
-                    ) : (
-                      <CircleAlert className="mt-0.5 size-4 text-rose-700" />
-                    )}
-                    <div>
-                      <p className={`text-sm font-semibold ${check.ok ? 'text-emerald-800' : 'text-rose-800'}`}>{check.label}</p>
-                      <p className={`text-sm ${check.ok ? 'text-emerald-700' : 'text-rose-700'}`}>{check.detail}</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            {isOverBudget ? (
-              <p className="mt-4 text-sm text-rose-700">
-                {isProspectiveCampaign && selectedPackageBand
-                  ? effectivePlannedTotal > selectedPackageBand.maxBudget
-                    ? `This draft is ${formatCurrency(Math.abs(prospectiveAboveBandDelta))} over the selected package band maximum.`
-                    : `This draft is ${formatCurrency(Math.abs(prospectiveBelowBandDelta))} below the selected package band minimum.`
-                  : selectedPackageBand
-                    ? effectivePlannedTotal > selectedPackageBand.maxBudget
-                      ? `This draft is ${formatCurrency(Math.abs(prospectiveAboveBandDelta))} over the selected package band maximum.`
-                      : `This draft is ${formatCurrency(Math.abs(prospectiveBelowBandDelta))} below the selected package band minimum.`
-                    : `This draft is ${formatCurrency(Math.abs(budgetDelta))} over the client's budget.`}
-              </p>
-            ) : null}
-            </div>
-          ) : null}
+          <AgentRecommendationPanel
+            activeRecommendation={activeRecommendation}
+            recommendations={recommendations}
+            showRecommendationEditing={showRecommendationEditing}
+            recommendationWorkflowLocked={recommendationWorkflowLocked}
+            recommendationTitle={recommendationTitle}
+            lockedNextStep={lockedNextStep}
+            activeProposalLabel={activeProposalLabel}
+            mixPanelRef={mixPanelRef}
+            mixBalance={mixBalance}
+            setMixBalance={setMixBalance}
+            targetMix={targetMix}
+            currentMix={{
+              ooh: currentOohShare,
+              radio: currentRadioShare,
+              tv: currentTvShare,
+              digital: currentDigitalShare,
+            }}
+            displayedGroups={displayedGroups}
+            constraintChecks={constraintChecks}
+            isOverBudget={isOverBudget}
+            budgetWarning={budgetWarning}
+            canModifyPlan={canModifyPlan}
+            selectedPlanItemsCount={selectedPlanItems.length}
+            onSelectRecommendation={setSelectedRecommendationIdState}
+            onRegenerate={handleRegenerate}
+            onAdjustMix={handleAdjustMix}
+            onReplace={handleReplace}
+            onOpenInventory={() => setInventoryModalOpen(true)}
+            formatChannelLabel={formatChannelLabel}
+            formatCurrency={formatCurrency}
+            formatMixSummary={formatMixSummary}
+            formatConfidenceLabel={formatConfidenceLabel}
+            formatFallbackFlag={formatFallbackFlag}
+          />
 
           {showExecutionOperations ? (
             <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-              <div className="panel border-line/80 bg-white px-6 py-6 shadow-[0_10px_26px_rgba(17,24,39,0.05)]">
-                <h2 className="text-xl font-semibold text-ink">Files from suppliers and ops</h2>
-                <p className="mt-2 text-sm leading-7 text-ink-soft">
-                  Upload proofs, delivery evidence, and any supporting files so the team has one place to find them later.
-                </p>
-                <div className="mt-4 space-y-3">
-                  {executionAssets.length > 0 ? executionAssets.map((asset) => (
-                    <div key={asset.id} className="rounded-[16px] border border-line bg-slate-50 px-4 py-3">
-                      <p className="text-sm font-semibold text-ink">{asset.displayName}</p>
-                      <p className="mt-1 text-xs text-ink-soft">{asset.assetType.replace(/_/g, ' ')}</p>
-                      {asset.publicUrl ? (
-                        <a href={asset.publicUrl} target="_blank" rel="noreferrer" className="button-secondary mt-3 inline-flex px-3 py-2 text-xs">
-                          <Download className="size-3.5" />
-                          Open file
-                        </a>
-                      ) : null}
-                    </div>
-                  )) : (
-                    <div className="rounded-[16px] border border-line bg-slate-50 px-4 py-3 text-sm text-ink-soft">
-                      No supplier proofs or support files uploaded yet.
-                    </div>
-                  )}
-                </div>
-                <div className="mt-5 space-y-3">
-                  <select value={opsAssetType} onChange={(event) => setOpsAssetType(event.target.value)} className="input-base">
-                    <option value="proof_of_booking">Booking confirmation</option>
-                    <option value="delivery_proof">Delivery proof</option>
-                    <option value="supporting_asset">Other supporting file</option>
-                  </select>
-                  <input type="file" onChange={(event) => setOpsAssetFile(event.target.files?.[0] ?? null)} className="input-base" />
-                  <button
-                    type="button"
-                    disabled={!opsAssetFile || uploadOpsAssetMutation.isPending}
-                    onClick={() => {
-                      if (!opsAssetFile) return;
-                      uploadOpsAssetMutation.mutate({ file: opsAssetFile, type: opsAssetType });
-                    }}
-                    className="button-secondary inline-flex w-full items-center justify-center gap-2 px-4 py-3 disabled:opacity-60"
-                  >
-                    Save file
-                  </button>
-                </div>
-              </div>
+              <AgentOpsAssetsPanel
+                executionAssets={executionAssets}
+                isUploading={uploadOpsAssetMutation.isPending}
+                onUpload={(input) => uploadOpsAssetMutation.mutate(input)}
+              />
 
               <div className="space-y-6">
-                <div className="panel border-line/80 bg-white px-6 py-6 shadow-[0_10px_26px_rgba(17,24,39,0.05)]">
-                  <h2 className="text-xl font-semibold text-ink">Record a supplier booking</h2>
-                  <p className="mt-2 text-sm leading-7 text-ink-soft">
-                    Add the booking details once space has been planned, confirmed, or gone live with a supplier or station.
-                  </p>
-                  <div className="mt-4 grid gap-3 md:grid-cols-2">
-                    <input className="input-base" placeholder="Supplier or station name" value={bookingDraft.supplierOrStation} onChange={(event) => setBookingDraft((current) => ({ ...current, supplierOrStation: event.target.value }))} />
-                    <select className="input-base" value={bookingDraft.channel} onChange={(event) => setBookingDraft((current) => ({ ...current, channel: event.target.value }))}>
-                      <option value="radio">Radio</option>
-                      <option value="ooh">Billboards and Digital Screens</option>
-                      <option value="tv">TV</option>
-                      <option value="digital">Digital</option>
-                    </select>
-                    <select className="input-base" value={bookingDraft.bookingStatus} onChange={(event) => setBookingDraft((current) => ({ ...current, bookingStatus: event.target.value }))}>
-                      <option value="planned">Planned, not confirmed</option>
-                      <option value="booked">Booked and confirmed</option>
-                      <option value="live">Live now</option>
-                      <option value="completed">Finished</option>
-                    </select>
-                    <input className="input-base" type="number" min="0" step="0.01" placeholder="Booked amount" value={bookingDraft.committedAmount} onChange={(event) => setBookingDraft((current) => ({ ...current, committedAmount: event.target.value }))} />
-                    <input className="input-base" type="date" value={bookingDraft.liveFrom} onChange={(event) => setBookingDraft((current) => ({ ...current, liveFrom: event.target.value }))} />
-                    <input className="input-base" type="date" value={bookingDraft.liveTo} onChange={(event) => setBookingDraft((current) => ({ ...current, liveTo: event.target.value }))} />
-                    <select className="input-base md:col-span-2" value={bookingDraft.proofAssetId} onChange={(event) => setBookingDraft((current) => ({ ...current, proofAssetId: event.target.value }))}>
-                      <option value="">Attach saved proof file (optional)</option>
-                      {executionAssets.map((asset) => <option key={asset.id} value={asset.id}>{asset.displayName}</option>)}
-                    </select>
-                    <textarea className="input-base md:col-span-2 min-h-[96px]" placeholder="Notes for the team, for example supplier contacts, placement details, or anything still outstanding" value={bookingDraft.notes} onChange={(event) => setBookingDraft((current) => ({ ...current, notes: event.target.value }))} />
-                  </div>
-                  <button
-                    type="button"
-                    disabled={!bookingDraft.supplierOrStation.trim() || saveBookingMutation.isPending}
-                    onClick={() => saveBookingMutation.mutate()}
-                    className="button-primary mt-4 inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60"
-                  >
-                    Save booking
-                  </button>
-                  <div className="mt-4 space-y-3">
-                    {supplierBookings.length > 0 ? supplierBookings.map((booking) => (
-                      <div key={booking.id} className="rounded-[16px] border border-line bg-slate-50 px-4 py-3">
-                        <p className="text-sm font-semibold text-ink">{booking.supplierOrStation}</p>
-                        <p className="mt-1 text-xs text-ink-soft">{formatChannelLabel(booking.channel)} | {titleCase(booking.bookingStatus)} | {formatCurrency(booking.committedAmount)}</p>
-                        <p className="mt-1 text-xs text-ink-soft">{booking.liveFrom ?? 'Start TBC'} to {booking.liveTo ?? 'End TBC'}</p>
-                      </div>
-                    )) : null}
-                  </div>
-                </div>
+                <AgentBookingPanel
+                  supplierBookings={supplierBookings}
+                  executionAssets={executionAssets}
+                  isSaving={saveBookingMutation.isPending}
+                  onSave={(draft) => saveBookingMutation.mutate(draft)}
+                  formatChannelLabel={formatChannelLabel}
+                  formatCurrency={formatCurrency}
+                  titleCase={titleCase}
+                />
 
-                <div className="panel border-line/80 bg-white px-6 py-6 shadow-[0_10px_26px_rgba(17,24,39,0.05)]">
-                  <h2 className="text-xl font-semibold text-ink">Add a campaign update</h2>
-                  <p className="mt-2 text-sm leading-7 text-ink-soft">
-                    Save a short delivery or performance update so anyone opening this campaign can see what happened most recently.
-                  </p>
-                  <div className="mt-4 grid gap-3 md:grid-cols-2">
-                    <select className="input-base" value={reportDraft.reportType} onChange={(event) => setReportDraft((current) => ({ ...current, reportType: event.target.value }))}>
-                      <option value="delivery_update">Delivery update</option>
-                      <option value="performance_snapshot">Performance update</option>
-                      <option value="proof_of_flight">Proof campaign is live</option>
-                    </select>
-                    <select className="input-base" value={reportDraft.supplierBookingId} onChange={(event) => setReportDraft((current) => ({ ...current, supplierBookingId: event.target.value }))}>
-                      <option value="">Link to a saved booking (optional)</option>
-                      {supplierBookings.map((booking) => <option key={booking.id} value={booking.id}>{booking.supplierOrStation}</option>)}
-                    </select>
-                    <input className="input-base md:col-span-2" placeholder="Short title for this update" value={reportDraft.headline} onChange={(event) => setReportDraft((current) => ({ ...current, headline: event.target.value }))} />
-                    <textarea className="input-base md:col-span-2 min-h-[96px]" placeholder="What changed, what has been delivered, and what the team should know next" value={reportDraft.summary} onChange={(event) => setReportDraft((current) => ({ ...current, summary: event.target.value }))} />
-                    <input className="input-base" type="number" min="0" step="1" placeholder="Impressions" value={reportDraft.impressions} onChange={(event) => setReportDraft((current) => ({ ...current, impressions: event.target.value }))} />
-                    <input className="input-base" type="number" min="0" step="1" placeholder="Plays / spots" value={reportDraft.playsOrSpots} onChange={(event) => setReportDraft((current) => ({ ...current, playsOrSpots: event.target.value }))} />
-                    <input className="input-base" type="number" min="0" step="0.01" placeholder="Spend delivered" value={reportDraft.spendDelivered} onChange={(event) => setReportDraft((current) => ({ ...current, spendDelivered: event.target.value }))} />
-                    <select className="input-base" value={reportDraft.evidenceAssetId} onChange={(event) => setReportDraft((current) => ({ ...current, evidenceAssetId: event.target.value }))}>
-                      <option value="">Attach saved evidence file (optional)</option>
-                      {executionAssets.map((asset) => <option key={asset.id} value={asset.id}>{asset.displayName}</option>)}
-                    </select>
-                  </div>
-                  <button
-                    type="button"
-                    disabled={!reportDraft.headline.trim() || saveReportMutation.isPending}
-                    onClick={() => saveReportMutation.mutate()}
-                    className="button-primary mt-4 inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60"
-                  >
-                    Save update
-                  </button>
-                  <div className="mt-4 space-y-3">
-                    {deliveryReports.length > 0 ? deliveryReports.map((report) => (
-                      <div key={report.id} className="rounded-[16px] border border-line bg-slate-50 px-4 py-3">
-                        <p className="text-sm font-semibold text-ink">{report.headline}</p>
-                        <p className="mt-1 text-xs text-ink-soft">{titleCase(report.reportType)}{report.impressions ? ` | ${report.impressions.toLocaleString()} impressions` : ''}{report.playsOrSpots ? ` | ${report.playsOrSpots} plays/spots` : ''}</p>
-                        <p className="mt-1 text-xs text-ink-soft">{report.summary ?? 'No summary captured yet.'}</p>
-                      </div>
-                    )) : null}
-                  </div>
-                </div>
+                <AgentDeliveryReportPanel
+                  deliveryReports={deliveryReports}
+                  supplierBookings={supplierBookings}
+                  executionAssets={executionAssets}
+                  isSaving={saveReportMutation.isPending}
+                  onSave={(draft) => saveReportMutation.mutate(draft)}
+                  titleCase={titleCase}
+                />
               </div>
             </div>
           ) : null}
@@ -1322,84 +942,15 @@ export function AgentCampaignDetailPage() {
             ) : null}
           </div>
 
-          {showRecommendationEditing ? (
-            <button
-              type="button"
-              onClick={() => setInventoryModalOpen(true)}
-              className="panel flex w-full items-center justify-between gap-4 px-6 py-5 text-left transition hover:border-brand/30"
-            >
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand">Matching inventory</p>
-                <p className="mt-2 text-sm leading-7 text-ink-soft">
-                  Click to open inventory, apply filters, and search supplier rows.
-                </p>
-              </div>
-              <div className="rounded-full bg-brand-soft px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-brand">
-                {selectedPlanItems.length} selected
-              </div>
-            </button>
-          ) : null}
-
-          {showRecommendationEditing && inventoryModalOpen ? (
-            <div className="fixed inset-0 z-[90] bg-slate-950/45 backdrop-blur-[1px]">
-              <div className="mx-auto mt-8 flex h-[calc(100vh-4rem)] w-[min(1300px,95vw)] flex-col rounded-[24px] border border-line bg-white shadow-[0_25px_60px_rgba(15,23,42,0.22)]">
-                <div className="flex items-center justify-between gap-3 border-b border-line px-6 py-4">
-                  <div>
-                    <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand">Matching inventory</p>
-                    <p className="mt-1 text-sm text-ink-soft">Search starts filtering from the 3rd keystroke.</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setInventoryModalOpen(false)}
-                    className="button-secondary inline-flex items-center gap-2 px-3 py-2"
-                  >
-                    <X className="size-4" />
-                    Close
-                  </button>
-                </div>
-
-                <div className="grid gap-3 border-b border-line px-6 py-4 md:grid-cols-[1.3fr_0.8fr_0.8fr_0.8fr]">
-                  <label className="relative">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-soft" />
-                    <input
-                      type="search"
-                      value={inventorySearchInput}
-                      onChange={(event) => setInventorySearchInput(event.target.value)}
-                      placeholder="Search station, region, language, daypart..."
-                      className="input-base pl-9"
-                    />
-                  </label>
-                  <select className="input-base" value={inventoryTypeFilter} onChange={(event) => setInventoryTypeFilter(event.target.value)}>
-                    <option value="all">All types</option>
-                    {inventoryTypeOptions.map((value) => <option key={value} value={value}>{formatChannelLabel(value)}</option>)}
-                  </select>
-                  <select className="input-base" value={inventoryRegionFilter} onChange={(event) => setInventoryRegionFilter(event.target.value)}>
-                    <option value="all">All regions</option>
-                    {inventoryRegionOptions.map((value) => <option key={value} value={value}>{value}</option>)}
-                  </select>
-                  <select className="input-base" value={inventoryLanguageFilter} onChange={(event) => setInventoryLanguageFilter(event.target.value)}>
-                    <option value="all">All languages</option>
-                    {inventoryLanguageOptions.map((value) => <option key={value} value={value}>{value}</option>)}
-                  </select>
-                </div>
-
-                <div className="flex items-center justify-between gap-3 px-6 py-3 text-xs text-ink-soft">
-                  <span>
-                    Showing {filteredInventoryItems.length} of {visibleInventoryItems.length} inventory row(s)
-                  </span>
-                  <span>{inventorySearchInput.trim().length > 0 && inventorySearchInput.trim().length < 3 ? 'Type at least 3 characters to start search filtering.' : ''}</span>
-                </div>
-
-                <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 pb-6 pr-3">
-                  <InventoryTable
-                    items={filteredInventoryItems}
-                    selectedItemIds={selectedInventoryIds}
-                    onToggleItem={canModifyPlan ? ((item) => toggleInventoryItem(item as SelectedPlanInventoryItem)) : undefined}
-                  />
-                </div>
-              </div>
-            </div>
-          ) : null}
+          <AgentInventorySelectionModal
+            isOpen={showRecommendationEditing && inventoryModalOpen}
+            items={visibleInventoryItems}
+            selectedItemIds={selectedInventoryIds}
+            canModifyPlan={canModifyPlan}
+            onClose={() => setInventoryModalOpen(false)}
+            onToggleItem={(item) => toggleInventoryItem(item as SelectedPlanInventoryItem)}
+            formatChannelLabel={formatChannelLabel}
+          />
         </div>
       </div>
     </section>

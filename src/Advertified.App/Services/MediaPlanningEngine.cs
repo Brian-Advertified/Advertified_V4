@@ -24,17 +24,6 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
         _explainabilityService = explainabilityService;
     }
 
-    public MediaPlanningEngine(IPlanningInventoryRepository repository, PlanningPolicySnapshotProvider snapshotProvider)
-        : this(
-            new PlanningCandidateLoader(repository),
-            new PlanningEligibilityService(new PlanningPolicyService(snapshotProvider)),
-            new RecommendationPlanBuilder(new PlanningPolicyService(snapshotProvider)),
-            new RecommendationExplainabilityService(
-                new PlanningScoreService(new PlanningPolicyService(snapshotProvider)),
-                new PlanningPolicyService(snapshotProvider)))
-    {
-    }
-
     public async Task<RecommendationResult> GenerateAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
     {
         var planningPasses = BuildPlanningPasses(request);

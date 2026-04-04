@@ -1,4 +1,5 @@
 import { titleCase } from '../../lib/utils';
+import { formatChannelLabel, normalizeChannelKey as sharedNormalizeChannelKey } from '../channels/channelUtils';
 import type { CampaignBrief, RecommendationItem, SelectedPlanInventoryItem } from '../../types/domain';
 
 export type BudgetConstraintContext = {
@@ -28,15 +29,11 @@ export function buildGeoSummary(brief?: CampaignBrief) {
 export function buildChannelSummary(brief?: CampaignBrief, selectedPlanItems?: SelectedPlanInventoryItem[]) {
   if (brief?.preferredMediaTypes?.length) {
     return brief.preferredMediaTypes
-      .map((x) => formatChannelLabel(x.toUpperCase()))
+      .map((x) => formatChannelLabel(x))
       .join(' + ');
   }
   const channels = Array.from(new Set((selectedPlanItems ?? []).map((item) => item.type.toUpperCase())));
   return channels.length > 0 ? channels.map((channel) => formatChannelLabel(channel)).join(' + ') : 'Not selected yet';
-}
-
-function formatChannelLabel(channel: string) {
-  return channel === 'OOH' ? 'BILLBOARDS AND DIGITAL SCREENS' : channel;
 }
 
 export function buildToneSummary(brief?: CampaignBrief) {
@@ -45,6 +42,10 @@ export function buildToneSummary(brief?: CampaignBrief) {
   if (notes.includes('youth')) return 'Youthful';
   if (notes.includes('bold') || notes.includes('visibility')) return 'High visibility';
   return brief?.creativeNotes ? 'Campaign-led' : 'Balanced';
+}
+
+export function normalizeChannelKey(channel: string) {
+  return sharedNormalizeChannelKey(channel);
 }
 
 export function buildOriginalPrompt(brief?: CampaignBrief) {
@@ -65,15 +66,6 @@ export function inferRegionFromTitle(title: string, brief?: CampaignBrief) {
   }
 
   return buildGeoSummary(brief);
-}
-
-export function normalizeChannelKey(channel: string) {
-  const normalized = channel.trim().toLowerCase();
-  if (normalized.includes('radio')) return 'RADIO';
-  if (normalized.includes('ooh') || normalized.includes('out of home') || normalized.includes('billboard')) return 'OOH';
-  if (normalized.includes('tv') || normalized.includes('television') || normalized.includes('video')) return 'TV';
-  if (normalized.includes('digital')) return 'DIGITAL';
-  return channel.trim().toUpperCase();
 }
 
 export function buildGeneratedInventoryFallback(item: RecommendationItem, brief?: CampaignBrief) {

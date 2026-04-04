@@ -36,6 +36,8 @@ internal static class EmailTemplateInitializer
                 on email_templates (is_active);
             ";
 
+        // ExecuteSqlRawAsync is acceptable here because this is schema DDL during application initialization,
+        // not runtime business logic. EF Core migrations would be overkill for this simple table creation.
         await db.Database.ExecuteSqlRawAsync(sql, cancellationToken);
     }
 

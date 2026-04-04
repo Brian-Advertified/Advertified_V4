@@ -80,7 +80,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             _db.CampaignRecommendations.Add(recommendation);
         }
 
-        campaign.Status = "planning_in_progress";
+        campaign.Status = CampaignStatuses.PlanningInProgress;
         campaign.UpdatedAt = now;
 
         await _db.SaveChangesAsync(cancellationToken);
