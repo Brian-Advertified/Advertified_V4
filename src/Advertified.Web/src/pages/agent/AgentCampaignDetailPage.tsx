@@ -21,6 +21,7 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { ProcessingOverlay } from '../../components/ui/ProcessingOverlay';
 import { useToast } from '../../components/ui/toast';
+import { AgentStepper } from '../../components/agent/AgentStepper';
 import {
   type BudgetConstraintContext,
   buildAudienceSummary,
@@ -759,6 +760,10 @@ export function AgentCampaignDetailPage() {
             <p className="mt-2 leading-7 text-ink-soft">{campaign.nextAction}</p>
           </div>
         </div>
+      </div>
+
+      <div className="panel border-brand/10 bg-white/80 px-6 py-6 sm:px-8">
+        <AgentStepper campaign={campaign} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[360px_1fr] xl:grid-cols-[380px_1fr]">
