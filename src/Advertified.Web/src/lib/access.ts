@@ -1,5 +1,14 @@
 import type { Campaign, SessionUser } from '../types/domain';
 
+const CAMPAIGN_STATUSES_AFTER_PAYMENT = [
+  'approved',
+  'creative_sent_to_client_for_approval',
+  'creative_changes_requested',
+  'creative_approved',
+  'booking_in_progress',
+  'launched',
+] as const;
+
 export type PackagePurchaseRestriction = 'none' | 'email_unverified' | 'identity_incomplete';
 
 export function isAgent(user: SessionUser | null) {
@@ -73,13 +82,23 @@ export function canOpenPlanning(campaign?: Campaign | null) {
   );
 }
 
+export function hasCampaignClearedPayment(campaign?: Campaign | null) {
+  return Boolean(
+    campaign
+      && (
+        campaign.paymentStatus === 'paid'
+        || CAMPAIGN_STATUSES_AFTER_PAYMENT.includes(campaign.status as typeof CAMPAIGN_STATUSES_AFTER_PAYMENT[number])
+      ),
+  );
+}
+
 export function getCampaignPrimaryAction(campaign: Campaign) {
   const hasRecommendation = Boolean(campaign.recommendation);
   const selectedRecommendationId = campaign.recommendations.find((item) => item.status === 'approved')?.id
     ?? campaign.recommendations.find((item) => item.status === 'sent_to_client')?.id
     ?? campaign.recommendation?.id;
   const paymentRequiredBeforeApproval =
-    campaign.paymentStatus !== 'paid'
+    !hasCampaignClearedPayment(campaign)
     && (campaign.status === 'review_ready' || campaign.status === 'planning_in_progress');
 
   if (campaign.status === 'paid' || campaign.status === 'brief_in_progress') {

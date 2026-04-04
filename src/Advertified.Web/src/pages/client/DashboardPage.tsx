@@ -5,15 +5,16 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { useAuth } from '../../features/auth/auth-context';
 import { canAccessAiStudioForStatus } from '../../features/campaigns/aiStudioAccess';
-import { getCampaignPrimaryAction } from '../../lib/access';
+import { getCampaignPrimaryAction, hasCampaignClearedPayment } from '../../lib/access';
 import { formatCurrency, formatDate, titleCase } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
+import type { Campaign } from '../../types/domain';
 import { ClientPortalShell, getCampaignProgressPercent, getClientFacingBudget, getPrimaryRecommendation } from './clientWorkspace';
 
 function getSimpleCampaignMessage(
-  campaign: { status: string; paymentStatus: string },
+  campaign: Pick<Campaign, 'status' | 'paymentStatus'>,
 ) {
-  if (campaign.paymentStatus !== 'paid') {
+  if (!hasCampaignClearedPayment(campaign as Campaign)) {
     return 'Please complete payment to continue with this campaign.';
   }
 
@@ -30,7 +31,7 @@ function getSimpleCampaignMessage(
     case 'approved':
       return 'Your campaign has been approved and work is underway.';
     case 'creative_sent_to_client_for_approval':
-      return 'Your final advert is ready for your review.';
+      return 'Your campaign content is ready for your approval.';
     case 'creative_changes_requested':
       return 'We are working on the changes you requested.';
     case 'creative_approved':
@@ -45,10 +46,10 @@ function getSimpleCampaignMessage(
 }
 
 function getSimplePrimaryActionDescription(
-  campaign: { paymentStatus: string; status: string },
+  campaign: Pick<Campaign, 'paymentStatus' | 'status'>,
   actionLabel: string,
 ) {
-  if (campaign.paymentStatus !== 'paid') {
+  if (!hasCampaignClearedPayment(campaign as Campaign)) {
     return 'Pay now to continue with this campaign.';
   }
 
@@ -97,7 +98,12 @@ export function DashboardPage() {
 
   const campaigns = campaignsQuery.data ?? [];
   const orders = ordersQuery.data ?? [];
-  const unpaidOrders = orders.filter((order) => order.paymentStatus !== 'paid');
+  const unresolvedOrderIds = new Set(
+    campaigns
+      .filter((campaign) => !hasCampaignClearedPayment(campaign))
+      .map((campaign) => campaign.packageOrderId),
+  );
+  const unpaidOrders = orders.filter((order) => order.paymentStatus !== 'paid' && (!unresolvedOrderIds.size || unresolvedOrderIds.has(order.id)));
   const nextPendingOrder = unpaidOrders[0];
   const pendingCampaign = campaigns.find((campaign) => campaign.packageOrderId === nextPendingOrder?.id)
     ?? campaigns.find((campaign) => campaign.paymentStatus !== 'paid' && campaign.status === 'review_ready')
@@ -106,8 +112,8 @@ export function DashboardPage() {
   const paymentHref = nextPendingOrder
     ? `/checkout/payment?orderId=${encodeURIComponent(nextPendingOrder.id)}${pendingCampaign ? `&campaignId=${encodeURIComponent(pendingCampaign.id)}` : ''}${pendingRecommendation?.id ? `&recommendationId=${encodeURIComponent(pendingRecommendation.id)}` : ''}`
     : null;
-  const paymentBlockedCampaignCount = campaigns.filter((campaign) => campaign.paymentStatus !== 'paid').length;
-  const reviewReadyAwaitingPaymentCount = campaigns.filter((campaign) => campaign.status === 'review_ready' && campaign.paymentStatus !== 'paid').length;
+  const paymentBlockedCampaignCount = campaigns.filter((campaign) => !hasCampaignClearedPayment(campaign)).length;
+  const reviewReadyAwaitingPaymentCount = campaigns.filter((campaign) => campaign.status === 'review_ready' && !hasCampaignClearedPayment(campaign)).length;
 
   return (
     <ClientPortalShell
@@ -194,7 +200,8 @@ export function DashboardPage() {
                 <div key={order.id} className="user-wire">
                   {(() => {
                     const linkedCampaign = campaigns.find((campaign) => campaign.packageOrderId === order.id);
-                    const linkedRecommendationId = linkedCampaign ? getPrimaryRecommendation(linkedCampaign)?.id : undefined;
+                     const linkedRecommendationId = linkedCampaign ? getPrimaryRecommendation(linkedCampaign)?.id : undefined;
+                     const orderNeedsPayment = order.paymentStatus !== 'paid' && (!linkedCampaign || !hasCampaignClearedPayment(linkedCampaign));
 
                     return (
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -204,7 +211,7 @@ export function DashboardPage() {
                     </div>
                     <div className="flex flex-col gap-2 text-left lg:items-end lg:text-right">
                       <div>{titleCase(order.paymentStatus)}{order.paymentReference ? ` | ${order.paymentReference}` : ''}</div>
-                      {order.paymentStatus !== 'paid' ? (
+                      {orderNeedsPayment ? (
                         <Link
                           to={`/checkout/payment?orderId=${encodeURIComponent(order.id)}${linkedCampaign ? `&campaignId=${encodeURIComponent(linkedCampaign.id)}` : ''}${linkedRecommendationId ? `&recommendationId=${encodeURIComponent(linkedRecommendationId)}` : ''}`}
                           className="user-btn-primary"
@@ -227,7 +234,7 @@ export function DashboardPage() {
         <div className="mt-6 space-y-4">
           {campaigns.map((campaign) => {
             const action = getCampaignPrimaryAction(campaign);
-            const paymentRequired = campaign.paymentStatus !== 'paid';
+            const paymentRequired = !hasCampaignClearedPayment(campaign);
             return (
               <div key={campaign.id} className="user-card">
                 <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">

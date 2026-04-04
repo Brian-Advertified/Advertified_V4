@@ -76,13 +76,13 @@ export function CampaignStepper({ campaign, className }: CampaignStepperProps) {
         id: 'creative-development',
         label: 'Creative Development',
         icon: '🎨',
-        description: 'Creative team develops assets. Client reviews and approves. Emails for studio readiness, review, approval.',
+        description: 'Creative team develops campaign content and sends it to the client for approval.',
       },
       {
         id: 'operational-fulfillment',
         label: 'Operational Fulfillment',
         icon: '📦',
-        description: 'Bookings coordinated, assets prepared, suppliers confirmed. Emails track activation and supplier confirmations.',
+        description: 'After the client approves the content, bookings are coordinated and suppliers are confirmed.',
       },
       {
         id: 'live-management',

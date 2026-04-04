@@ -852,9 +852,15 @@ export function AgentCampaignDetailPage() {
                 </div>
               </div>
             </div>
-            <Link to={`/agent/recommendations/new?campaignId=${campaign.id}`} className="button-secondary mt-4 inline-flex px-4 py-2">
-              Edit inputs
-            </Link>
+            {!recommendationWorkflowLocked ? (
+              <Link to={`/agent/recommendations/new?campaignId=${campaign.id}`} className="button-secondary mt-4 inline-flex px-4 py-2">
+                Edit inputs
+              </Link>
+            ) : (
+              <p className="mt-4 text-sm leading-6 text-ink-soft">
+                Inputs are locked here because the recommendation phase is complete.
+              </p>
+            )}
           </div>
 
           {showAiStudioHandoff ? (
@@ -1420,4 +1426,3 @@ export function AgentCampaignDetailPage() {
     </section>
   );
 }
-

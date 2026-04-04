@@ -56,6 +56,6 @@ describe('client workspace progress helpers', () => {
     expect(steps.find((step) => step.key === 'creative-review')?.state).toBe('complete');
     expect(steps.find((step) => step.key === 'launch')?.state).toBe('current');
     expect(steps.find((step) => step.key === 'live')?.state).toBe('upcoming');
-    expect(getCampaignProgressPercent(campaign)).toBe(98);
+    expect(getCampaignProgressPercent(campaign)).toBe(97);
   });
 });

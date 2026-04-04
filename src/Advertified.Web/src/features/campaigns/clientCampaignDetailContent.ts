@@ -51,10 +51,10 @@ export function getHeroContent(campaign: Campaign, recommendationStatus?: string
 
   if (campaign.status === 'creative_sent_to_client_for_approval') {
     return {
-      title: 'Review the finished campaign handoff',
-      description: 'Your finished media has been returned for final client approval. Use the approval section below to review the current campaign state and message the team if anything needs to change.',
-      primaryAction: 'Review approval status',
-      timeLabel: 'Short review',
+      title: 'Approve your campaign content',
+      description: 'Your campaign content is ready. Please approve it before we start supplier booking and launch preparation.',
+      primaryAction: 'Approve content',
+      timeLabel: 'Needs your approval',
       reassurance: 'Support is one message away',
     };
   }
@@ -147,15 +147,15 @@ export function getApprovalContent(campaign: Campaign, recommendationStatus?: st
 
   if (campaign.status === 'creative_sent_to_client_for_approval') {
     return {
-      title: 'Finished media sent to client',
-      body: 'Advertified has moved the campaign into the final client-approval state. Approve the finished creative or send it back with revision notes.',
+      title: 'Approve your campaign content',
+      body: 'Advertified has sent your campaign content back for approval. Approve it to let booking start, or send it back with revision notes.',
       badge: 'Needs approval',
       badgeClass: 'border-sky-200 bg-sky-50 text-sky-700',
       highlightClass: 'border-sky-200 bg-[linear-gradient(180deg,#f4fbff_0%,#eef6ff_100%)]',
-      guidance: 'Review the finished creative here. Approve it if it is ready, or request changes with specific notes if you want the team to revise it.',
-      reassurance: 'This is a real persisted approval step in the backend, so your decision here controls the next workflow state.',
-      statusText: 'Waiting for final creative approval',
-      nextPhaseText: 'Launch preparation continues after final sign-off',
+      guidance: 'Approve the content here if it is ready, or request changes with specific notes if you want the team to revise it before booking starts.',
+      reassurance: 'This approval step is saved in the workflow, so booking cannot start until you approve the content.',
+      statusText: 'Waiting for content approval',
+      nextPhaseText: 'Supplier booking starts after you approve the content',
     };
   }
 

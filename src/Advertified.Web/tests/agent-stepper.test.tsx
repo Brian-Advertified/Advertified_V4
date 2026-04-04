@@ -42,9 +42,9 @@ describe('AgentStepper', () => {
     expect(screen.getByText('Lead')).toBeInTheDocument();
     expect(screen.getByText('Brief')).toBeInTheDocument();
     expect(screen.getByText('Planning')).toBeInTheDocument();
-    expect(screen.getByText('Review')).toBeInTheDocument();
-    expect(screen.getByText('Approval')).toBeInTheDocument();
-    expect(screen.getByText('Live')).toBeInTheDocument();
+    expect(screen.getByText('Recommendation')).toBeInTheDocument();
+    expect(screen.getByText('Content')).toBeInTheDocument();
+    expect(screen.getByText('Booking & Live')).toBeInTheDocument();
   });
 
   it('shows correct progress for paid (step 1)', () => {
@@ -79,35 +79,35 @@ describe('AgentStepper', () => {
     render(<AgentStepper campaign={mockCampaign('review_ready')} />);
 
     expect(screen.getByText('4 of 6 steps')).toBeInTheDocument();
-    expect(screen.getByText('Agent review and refinement')).toBeInTheDocument();
+    expect(screen.getByText('Review and send the recommendation')).toBeInTheDocument();
   });
 
   it('shows correct progress for approved (step 5)', () => {
     render(<AgentStepper campaign={mockCampaign('approved')} />);
 
     expect(screen.getByText('5 of 6 steps')).toBeInTheDocument();
-    expect(screen.getByText('Client review and approval')).toBeInTheDocument();
+    expect(screen.getByText('Create content and get client sign-off')).toBeInTheDocument();
   });
 
   it('shows correct progress for creative_sent_to_client_for_approval (step 5)', () => {
     render(<AgentStepper campaign={mockCampaign('creative_sent_to_client_for_approval')} />);
 
     expect(screen.getByText('5 of 6 steps')).toBeInTheDocument();
-    expect(screen.getByText('Client review and approval')).toBeInTheDocument();
+    expect(screen.getByText('Create content and get client sign-off')).toBeInTheDocument();
   });
 
-  it('shows correct progress for booking_in_progress (step 5)', () => {
+  it('shows correct progress for booking_in_progress (step 6)', () => {
     render(<AgentStepper campaign={mockCampaign('booking_in_progress')} />);
 
-    expect(screen.getByText('5 of 6 steps')).toBeInTheDocument();
-    expect(screen.getByText('Client review and approval')).toBeInTheDocument();
+    expect(screen.getByText('6 of 6 steps')).toBeInTheDocument();
+    expect(screen.getByText('Book suppliers and prepare launch')).toBeInTheDocument();
   });
 
   it('shows correct progress for launched (step 6)', () => {
     render(<AgentStepper campaign={mockCampaign('launched')} />);
 
     expect(screen.getByText('6 of 6 steps')).toBeInTheDocument();
-    expect(screen.getByText('Campaign launched and running')).toBeInTheDocument();
+    expect(screen.getByText('Book suppliers and prepare launch')).toBeInTheDocument();
   });
 
   it('displays step descriptions correctly', () => {
@@ -116,9 +116,9 @@ describe('AgentStepper', () => {
     expect(screen.getByText('Newly paid campaign received')).toBeInTheDocument();
     expect(screen.getByText('Gather campaign requirements')).toBeInTheDocument();
     expect(screen.getByText('Build media recommendations')).toBeInTheDocument();
-    expect(screen.getByText('Agent review and refinement')).toBeInTheDocument();
-    expect(screen.getByText('Client review and approval')).toBeInTheDocument();
-    expect(screen.getByText('Campaign launched and running')).toBeInTheDocument();
+    expect(screen.getByText('Review and send the recommendation')).toBeInTheDocument();
+    expect(screen.getByText('Create content and get client sign-off')).toBeInTheDocument();
+    expect(screen.getByText('Book suppliers and prepare launch')).toBeInTheDocument();
   });
 
   it('renders progress bar with correct width', () => {

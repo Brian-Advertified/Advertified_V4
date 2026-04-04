@@ -109,8 +109,8 @@ export function getCampaignQuickSteps(campaign: Campaign) {
     },
     {
       key: 'creative-review',
-      label: 'Review final creative',
-      description: 'Review the outputs tied to the approved recommendation.',
+      label: 'Approve content',
+      description: 'Approve the finished campaign content before booking starts.',
       state: creativeApproved
         ? 'complete' as const
         : creativeSentForApproval
@@ -174,7 +174,7 @@ export function buildCreativeProgressRows(campaign: Campaign) {
     format: item.title,
     status: titleCase(status),
     source: formatChannelLabel(item.channel),
-    nextStep: campaign.status === 'creative_sent_to_client_for_approval' ? 'Review finished media' : campaign.nextAction,
+    nextStep: campaign.status === 'creative_sent_to_client_for_approval' ? 'Approve content' : campaign.nextAction,
   }));
 }
 
@@ -431,8 +431,8 @@ export function StatusKanban({ campaign }: { campaign: Campaign }) {
           ? ['Supplier booking is in progress', 'Placements and live dates are being confirmed']
         : campaign.status === 'creative_approved'
           ? ['Final creative approved', 'Supplier booking starts next']
-          : campaign.status === 'creative_sent_to_client_for_approval'
-            ? ['Finished media sent to client', 'Awaiting final client approval']
+        : campaign.status === 'creative_sent_to_client_for_approval'
+            ? ['Content sent to client', 'Waiting for content approval']
             : campaign.status === 'approved'
               ? ['Creative production is underway', 'Finished media has not been sent yet']
               : ['Waiting for approval before launch handoff'],

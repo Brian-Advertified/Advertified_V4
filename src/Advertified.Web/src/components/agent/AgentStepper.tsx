@@ -35,20 +35,20 @@ export function AgentStepper({ campaign }: AgentStepperProps) {
     },
     {
       id: 'review',
-      label: 'Review',
-      description: 'Agent review and refinement',
+      label: 'Recommendation',
+      description: 'Review and send the recommendation',
       icon: Clock,
     },
     {
-      id: 'approval',
-      label: 'Approval',
-      description: 'Client review and approval',
+      id: 'content',
+      label: 'Content',
+      description: 'Create content and get client sign-off',
       icon: Send,
     },
     {
-      id: 'live',
-      label: 'Live',
-      description: 'Campaign launched and running',
+      id: 'booking-live',
+      label: 'Booking & Live',
+      description: 'Book suppliers and prepare launch',
       icon: CheckCircle2,
     },
   ], []);
@@ -67,9 +67,9 @@ export function AgentStepper({ campaign }: AgentStepperProps) {
       case 'approved':
       case 'creative_sent_to_client_for_approval':
       case 'creative_changes_requested':
+        return 4;
       case 'creative_approved':
       case 'booking_in_progress':
-        return 4;
       case 'launched':
         return 5;
       default:
