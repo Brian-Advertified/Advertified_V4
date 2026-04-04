@@ -40,11 +40,19 @@ export function CampaignDetailPage() {
   const requestedRecommendationId = searchParams.get('recommendationId')?.trim() ?? '';
   const requestedAction = searchParams.get('action')?.trim() ?? '';
   const showRejectAllFlow = requestedAction === 'reject_all';
+  const recommendationApprovalComplete = recommendations.some((item) => item.status === 'approved')
+    || ['approved', 'creative_sent_to_client_for_approval', 'creative_changes_requested', 'creative_approved', 'launched'].includes(campaignQuery.data?.status ?? '');
+  const approvedRecommendationId = recommendations.find((item) => item.status === 'approved')?.id ?? '';
   const resolvedRecommendationId = recommendations.some((item) => item.id === selectedRecommendationId)
     ? selectedRecommendationId
-    : recommendations.some((item) => item.id === requestedRecommendationId)
-      ? requestedRecommendationId
-    : (recommendations.find((item) => item.status === 'sent_to_client')?.id ?? recommendations[0]?.id ?? '');
+    : recommendations.some((item) => item.id === approvedRecommendationId)
+      ? approvedRecommendationId
+      : recommendations.some((item) => item.id === requestedRecommendationId)
+        ? requestedRecommendationId
+        : (approvedRecommendationId
+          || recommendations.find((item) => item.status === 'sent_to_client')?.id
+          || recommendations[0]?.id
+          || '');
 
   const approveMutation = useMutation({
     mutationFn: (recommendationId?: string) => advertifiedApi.approveRecommendation(id, recommendationId),
@@ -202,7 +210,7 @@ export function CampaignDetailPage() {
         ? Math.max(progress, 96)
         : progress;
   const recommendationAwaitingDecision = recommendation?.status === 'sent_to_client';
-  const paymentRequiredBeforeApproval = campaign.paymentStatus !== 'paid';
+  const paymentRequiredBeforeApproval = campaign.paymentStatus !== 'paid' && !recommendationApprovalComplete;
   const canApproveRecommendation = Boolean(
     recommendation
       && recommendationAwaitingDecision
@@ -413,7 +421,7 @@ export function CampaignDetailPage() {
             </p>
           </div>
 
-          {recommendations.length > 1 ? (
+          {!recommendationApprovalComplete && recommendations.length > 1 ? (
             <div className="mb-6 rounded-[18px] border border-line bg-slate-50/70 p-5">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Proposal options</p>
               <p className="mt-2 text-sm text-ink-soft">Select the proposal you want to accept or revise. You can also reject all with comments.</p>
@@ -442,7 +450,7 @@ export function CampaignDetailPage() {
             </div>
           ) : null}
 
-          {requestedRecommendationId && recommendation ? (
+          {!recommendationApprovalComplete && requestedRecommendationId && recommendation ? (
             <div className="mb-6 rounded-[16px] border border-brand/30 bg-brand-soft/40 px-4 py-3 text-sm text-ink">
               <strong>{recommendation.proposalLabel ?? 'Selected proposal'}</strong> was preselected from your email/PDF link. Review details, then confirm with
               {' '}
@@ -451,7 +459,7 @@ export function CampaignDetailPage() {
             </div>
           ) : null}
 
-          {showRejectAllFlow ? (
+          {!recommendationApprovalComplete && showRejectAllFlow ? (
             <div className="mb-6 rounded-[16px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
               Share why these proposals do not work for you, then click <strong>Reject all and request new set</strong>. Your agent will prepare new options from your notes.
             </div>
@@ -474,12 +482,20 @@ export function CampaignDetailPage() {
                   <div className="rounded-[18px] border border-line bg-slate-50/80 px-4 py-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Options prepared</p>
                     <p className="mt-2 text-base font-semibold text-ink">{recommendations.length || 0}</p>
-                    <p className="mt-1 text-sm text-ink-soft">You can switch between proposals above.</p>
+                    <p className="mt-1 text-sm text-ink-soft">
+                      {recommendationApprovalComplete ? 'Your selected proposal has already been approved.' : 'You can switch between proposals above.'}
+                    </p>
                   </div>
                   <div className="rounded-[18px] border border-line bg-slate-50/80 px-4 py-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Status</p>
                     <p className="mt-2 text-base font-semibold text-ink">{approval.badge}</p>
-                    <p className="mt-1 text-sm text-ink-soft">{paymentRequiredBeforeApproval ? 'Payment is still required first.' : 'You can make your decision now.'}</p>
+                    <p className="mt-1 text-sm text-ink-soft">
+                      {recommendationApprovalComplete
+                        ? 'This approval step is complete.'
+                        : paymentRequiredBeforeApproval
+                          ? 'Payment is still required first.'
+                          : 'You can make your decision now.'}
+                    </p>
                   </div>
                 </div>
               </div>
