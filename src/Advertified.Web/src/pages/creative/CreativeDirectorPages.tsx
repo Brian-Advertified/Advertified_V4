@@ -233,6 +233,34 @@ export function CreativeDirectorStudioPage() {
   const [assetFile, setAssetFile] = useState<File | null>(null);
   const [assetType, setAssetType] = useState('creative_pack');
   const campaignQuery = useQuery({ queryKey: queryKeys.creative.campaign(id), queryFn: () => advertifiedApi.getCreativeCampaign(id) });
+  const sendFinishedMediaMutation = useMutation({
+    mutationFn: () => advertifiedApi.sendFinishedMediaToClientForApproval(id),
+    onSuccess: async (updatedCampaign) => {
+      queryClient.setQueryData(queryKeys.creative.campaign(id), updatedCampaign);
+      await invalidateCreativeCampaignQueries(queryClient, id);
+      pushToast({ title: 'Finished media sent to client.', description: 'The campaign is now waiting for final client approval.' });
+    },
+    onError: (error) => {
+      pushToast({
+        title: 'Could not send finished media.',
+        description: error instanceof Error ? error.message : 'Please try again.',
+      }, 'error');
+    },
+  });
+  const uploadAssetMutation = useMutation({
+    mutationFn: ({ file, type }: { file: File; type: string }) => advertifiedApi.uploadCreativeCampaignAsset(id, file, type),
+    onSuccess: async () => {
+      setAssetFile(null);
+      await invalidateCreativeCampaignQueries(queryClient, id);
+      pushToast({ title: 'Creative file uploaded.', description: 'The file is now part of the campaign studio asset set.' });
+    },
+    onError: (error) => {
+      pushToast({
+        title: 'Could not upload creative file.',
+        description: error instanceof Error ? error.message : 'Please try again.',
+      }, 'error');
+    },
+  });
 
   if (campaignQuery.isLoading) {
     return <LoadingState label="Loading creative production brief..." />;
@@ -250,20 +278,6 @@ export function CreativeDirectorStudioPage() {
   }
 
   const campaign = campaignQuery.data;
-  const sendFinishedMediaMutation = useMutation({
-    mutationFn: () => advertifiedApi.sendFinishedMediaToClientForApproval(id),
-    onSuccess: async (updatedCampaign) => {
-      queryClient.setQueryData(queryKeys.creative.campaign(id), updatedCampaign);
-      await invalidateCreativeCampaignQueries(queryClient, id);
-      pushToast({ title: 'Finished media sent to client.', description: 'The campaign is now waiting for final client approval.' });
-    },
-    onError: (error) => {
-      pushToast({
-        title: 'Could not send finished media.',
-        description: error instanceof Error ? error.message : 'Please try again.',
-      }, 'error');
-    },
-  });
   const recommendation = getPrimaryRecommendation(campaign);
   const brief = campaign.brief;
   const channelMood = recommendation ? Array.from(new Set(recommendation.items.map((item) => formatChannelLabel(item.channel)))).filter(Boolean) : [];
@@ -306,21 +320,6 @@ export function CreativeDirectorStudioPage() {
       helper: recommendation ? 'These placements now shape the creative pack.' : 'No approved placements are attached yet.',
     },
   ];
-  const uploadAssetMutation = useMutation({
-    mutationFn: ({ file, type }: { file: File; type: string }) => advertifiedApi.uploadCreativeCampaignAsset(id, file, type),
-    onSuccess: async () => {
-      setAssetFile(null);
-      await invalidateCreativeCampaignQueries(queryClient, id);
-      pushToast({ title: 'Creative file uploaded.', description: 'The file is now part of the campaign studio asset set.' });
-    },
-    onError: (error) => {
-      pushToast({
-        title: 'Could not upload creative file.',
-        description: error instanceof Error ? error.message : 'Please try again.',
-      }, 'error');
-    },
-  });
-
   return (
     <CreativeStudioContent
       campaign={campaign}

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { ArrowRight, Sparkles, WandSparkles } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -309,17 +309,18 @@ export function AiStudioPage() {
     },
   });
 
-  if (
-    !autoPrefillCompletedRef.current
-    && campaignIdFromUrl
-    && !prefillFromCampaignMutation.isPending
-  ) {
-    autoPrefillCompletedRef.current = true;
-    if (campaignId !== campaignIdFromUrl) {
-      setCampaignId(campaignIdFromUrl);
+  useEffect(() => {
+    if (
+      autoPrefillCompletedRef.current
+      || !campaignIdFromUrl
+      || prefillFromCampaignMutation.isPending
+    ) {
+      return;
     }
+
+    autoPrefillCompletedRef.current = true;
     prefillFromCampaignMutation.mutate();
-  }
+  }, [campaignIdFromUrl, prefillFromCampaignMutation]);
 
   const selectedVoicePack = useMemo(
     () => (voicePacksQuery.data ?? []).find((item) => item.id === assetVoicePackId),

@@ -1,6 +1,7 @@
 import {
   createContext,
   useContext,
+  useEffect,
   useMemo,
   useSyncExternalStore,
   type PropsWithChildren,
@@ -149,15 +150,21 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const { pushToast } = useToast();
   const user = useSyncExternalStore(subscribeToSession, getSessionSnapshot, getServerSnapshot);
 
-  notifySessionExpired = () => {
-    pushToast(
-      {
-        title: 'Session expired due to no activity.',
-        description: 'Please sign in again to continue.',
-      },
-      'info',
-    );
-  };
+  useEffect(() => {
+    notifySessionExpired = () => {
+      pushToast(
+        {
+          title: 'Session expired due to no activity.',
+          description: 'Please sign in again to continue.',
+        },
+        'info',
+      );
+    };
+
+    return () => {
+      notifySessionExpired = null;
+    };
+  }, [pushToast]);
 
   const value = useMemo<AuthContextValue>(
     () => ({

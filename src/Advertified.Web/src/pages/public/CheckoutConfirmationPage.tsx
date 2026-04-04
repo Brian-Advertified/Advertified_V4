@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { BadgeCheck, CircleAlert, Clock3, FileText } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import advertifiedLogo from '../../assets/advertified-logo-v3.png';
@@ -30,11 +30,6 @@ export function CheckoutConfirmationPage() {
   const callbackCapturedRef = useRef(false);
   const statusToastKeyRef = useRef<string | null>(null);
   const autoApprovalAttemptedKeyRef = useRef<string | null>(null);
-  if (provider === 'vodapay' && orderId && !callbackCapturedRef.current) {
-    const queryParameters = Object.fromEntries(searchParams.entries());
-    callbackCapturedRef.current = true;
-    void advertifiedApi.captureVodaPayCallback(orderId, queryParameters);
-  }
 
   const orderQuery = useQuery({
     queryKey: ['package-order', orderId, user?.id],
@@ -109,6 +104,77 @@ export function CheckoutConfirmationPage() {
     },
   });
 
+  useEffect(() => {
+    if (provider !== 'vodapay' || !orderId || callbackCapturedRef.current) {
+      return;
+    }
+
+    const queryParameters = Object.fromEntries(searchParams.entries());
+    callbackCapturedRef.current = true;
+    void advertifiedApi.captureVodaPayCallback(orderId, queryParameters);
+  }, [orderId, provider, searchParams]);
+
+  const attemptKey = `${orderId}:${effectiveCampaignId}:${effectiveRecommendationId}`;
+  useEffect(() => {
+    if (
+      !orderId
+      || !effectiveRecommendationId
+      || !effectiveCampaignId
+      || order?.paymentStatus !== 'paid'
+      || autoApprovalAttemptedKeyRef.current === attemptKey
+      || autoApproveMutation.isPending
+    ) {
+      return;
+    }
+
+    autoApprovalAttemptedKeyRef.current = attemptKey;
+    autoApproveMutation.mutate();
+  }, [attemptKey, autoApproveMutation, effectiveCampaignId, effectiveRecommendationId, order?.paymentStatus, orderId]);
+
+  useEffect(() => {
+    if (!orderId || order?.paymentStatus === 'paid' || typeof window === 'undefined') {
+      return;
+    }
+
+    const storageKey = `advertified:auto-approve:${orderId}`;
+    window.sessionStorage.removeItem(storageKey);
+    window.localStorage.removeItem(storageKey);
+  }, [order?.paymentStatus, orderId]);
+
+  const statusKey = `${order?.id ?? ''}:${order?.paymentStatus ?? ''}:${vodaPayReturnData?.responseCode ?? ''}:${vodaPayReturnData?.responseMessage ?? ''}`;
+  useEffect(() => {
+    if (!order || statusToastKeyRef.current === statusKey) {
+      return;
+    }
+
+    if (order.paymentStatus === 'paid') {
+      pushToast({
+        title: 'Payment successful.',
+        description: `Your ${order.packageBandName} package has been paid successfully.`,
+      });
+      statusToastKeyRef.current = statusKey;
+      return;
+    }
+
+    if (order.paymentStatus === 'failed') {
+      const reason = vodaPayReturnData?.responseMessage?.trim();
+      pushToast({
+        title: reason ? `Payment failed due to ${reason.toLowerCase()}.` : 'Payment failed.',
+        description: 'No money was confirmed for this order. You can try again when you are ready.',
+      }, 'error');
+      statusToastKeyRef.current = statusKey;
+      return;
+    }
+
+    if (provider === 'vodapay' && vodaPayReturnData?.responseCode === '00') {
+      pushToast({
+        title: "We're finalising your payment confirmation.",
+        description: 'Your payment provider has returned you to Advertified while we wait for final validation.',
+      }, 'info');
+      statusToastKeyRef.current = statusKey;
+    }
+  }, [order, provider, pushToast, statusKey, vodaPayReturnData?.responseCode, vodaPayReturnData?.responseMessage]);
+
   if (!user) {
     return (
       <section className="page-shell max-w-2xl">
@@ -144,53 +210,6 @@ export function CheckoutConfirmationPage() {
         </div>
       </section>
       );
-  }
-
-  const attemptKey = `${orderId}:${effectiveCampaignId}:${effectiveRecommendationId}`;
-  if (
-    orderId
-    && effectiveRecommendationId
-    && effectiveCampaignId
-    && order.paymentStatus === 'paid'
-    && autoApprovalAttemptedKeyRef.current !== attemptKey
-    && !autoApproveMutation.isPending
-  ) {
-    autoApprovalAttemptedKeyRef.current = attemptKey;
-    autoApproveMutation.mutate();
-  }
-
-  if (
-    orderId
-    && order.paymentStatus !== 'paid'
-    && typeof window !== 'undefined'
-  ) {
-    const storageKey = `advertified:auto-approve:${orderId}`;
-    window.sessionStorage.removeItem(storageKey);
-    window.localStorage.removeItem(storageKey);
-  }
-
-  const statusKey = `${order.id}:${order.paymentStatus}:${vodaPayReturnData?.responseCode ?? ''}:${vodaPayReturnData?.responseMessage ?? ''}`;
-  if (statusToastKeyRef.current !== statusKey) {
-    if (order.paymentStatus === 'paid') {
-      pushToast({
-        title: 'Payment successful.',
-        description: `Your ${order.packageBandName} package has been paid successfully.`,
-      });
-      statusToastKeyRef.current = statusKey;
-    } else if (order.paymentStatus === 'failed') {
-      const reason = vodaPayReturnData?.responseMessage?.trim();
-      pushToast({
-        title: reason ? `Payment failed due to ${reason.toLowerCase()}.` : 'Payment failed.',
-        description: 'No money was confirmed for this order. You can try again when you are ready.',
-      }, 'error');
-      statusToastKeyRef.current = statusKey;
-    } else if (provider === 'vodapay' && vodaPayReturnData?.responseCode === '00') {
-      pushToast({
-        title: "We're finalising your payment confirmation.",
-        description: 'Your payment provider has returned you to Advertified while we wait for final validation.',
-      }, 'info');
-      statusToastKeyRef.current = statusKey;
-    }
   }
 
   const statusContent = (() => {

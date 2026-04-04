@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Eye, Pencil, PlusCircle, Save, Trash2, X } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -91,7 +91,7 @@ export function AdminStationsPage() {
     });
   };
 
-  const openExistingDialog = async (code: string, mode: 'view' | 'edit') => {
+  const openExistingDialog = useCallback(async (code: string, mode: 'view' | 'edit') => {
     try {
       const detail = await queryClient.fetchQuery({
         queryKey: ['admin-outlet', code],
@@ -103,7 +103,7 @@ export function AdminStationsPage() {
     } catch (error) {
       pushToast({ title: 'Could not load outlet.', description: error instanceof Error ? error.message : 'Please try again.' }, 'error');
     }
-  };
+  }, [pushToast, queryClient]);
 
   const closeDialog = () => {
     setDialogMode(null);
@@ -183,10 +183,20 @@ export function AdminStationsPage() {
   const outletFromSearch = searchParams.get('outlet');
   const modeFromSearch = searchParams.get('mode');
   const searchDialogKey = `${outletFromSearch ?? ''}|${modeFromSearch ?? ''}`;
-  if (outletFromSearch && (modeFromSearch === 'edit' || modeFromSearch === 'view') && handledSearchRef.current !== searchDialogKey) {
+  useEffect(() => {
+    if (!outletFromSearch || (modeFromSearch !== 'edit' && modeFromSearch !== 'view') || handledSearchRef.current === searchDialogKey) {
+      return;
+    }
+
     handledSearchRef.current = searchDialogKey;
-    void openExistingDialog(outletFromSearch, modeFromSearch);
-  }
+    const timeoutId = window.setTimeout(() => {
+      void openExistingDialog(outletFromSearch, modeFromSearch);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [modeFromSearch, openExistingDialog, outletFromSearch, searchDialogKey]);
 
   return (
     <AdminQueryBoundary query={query}>

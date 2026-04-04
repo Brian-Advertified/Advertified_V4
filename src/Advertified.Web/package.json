@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "lint:runtime": "eslint src --rule \"react-hooks/rules-of-hooks:error\" --rule \"react-hooks/refs:error\" --rule \"react-hooks/globals:error\" --rule \"react-hooks/set-state-in-effect:error\" --rule \"react-hooks/preserve-manual-memoization:off\" --rule \"react-hooks/incompatible-library:off\" --rule \"react-hooks/exhaustive-deps:off\" --rule \"react-refresh/only-export-components:off\" --rule \"@typescript-eslint/no-unused-vars:off\" --rule \"no-useless-escape:off\"",
     "preview": "vite preview",
     "test": "vitest run"
   },

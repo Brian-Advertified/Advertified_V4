@@ -10,25 +10,27 @@ import { ClientPortalShell } from './clientWorkspace';
 
 export function OrdersPage() {
   const { user } = useAuth();
-
-  if (user?.role === 'creative_director') {
-    return <Navigate to="/creative/studio-demo" replace />;
-  }
-
-  if (user?.role === 'agent' || user?.role === 'admin') {
-    return <Navigate to={user.role === 'admin' ? '/admin' : '/agent'} replace />;
-  }
+  const isOpsUser = user?.role === 'agent' || user?.role === 'admin';
+  const isCreativeDirector = user?.role === 'creative_director';
 
   const campaignsQuery = useQuery({
     queryKey: ['campaigns', user?.id],
     queryFn: () => advertifiedApi.getCampaigns(user!.id),
-    enabled: Boolean(user),
+    enabled: Boolean(user && !isOpsUser && !isCreativeDirector),
   });
   const ordersQuery = useQuery({
     queryKey: ['orders', user?.id],
     queryFn: () => advertifiedApi.getOrders(user!.id),
-    enabled: Boolean(user),
+    enabled: Boolean(user && !isOpsUser && !isCreativeDirector),
   });
+
+  if (isCreativeDirector) {
+    return <Navigate to="/creative/studio-demo" replace />;
+  }
+
+  if (isOpsUser) {
+    return <Navigate to={user.role === 'admin' ? '/admin' : '/agent'} replace />;
+  }
 
   if (ordersQuery.isLoading || campaignsQuery.isLoading) {
     return <LoadingState label="Loading your package orders..." />;
