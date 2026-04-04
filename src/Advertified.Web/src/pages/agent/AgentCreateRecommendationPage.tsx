@@ -12,9 +12,9 @@ import type { CampaignBrief, PackageBand } from '../../types/domain';
 type ChannelOption = 'Radio' | 'OOH' | 'TV';
 
 const STEP_CONFIG = [
-  { id: 1, label: 'Order' },
-  { id: 2, label: 'Campaign' },
-  { id: 3, label: 'AI Draft' },
+  { id: 1, label: 'Choose campaign' },
+  { id: 2, label: 'Add details' },
+  { id: 3, label: 'Create draft' },
 ] as const;
 
 const CHANNEL_OPTIONS: ChannelOption[] = ['OOH', 'Radio', 'TV'];
@@ -23,6 +23,10 @@ const CHANNEL_LABELS: Record<ChannelOption, string> = {
   OOH: 'Billboards and Digital Screens',
   TV: 'TV',
 };
+
+function formatChannelLabel(channel: ChannelOption) {
+  return CHANNEL_LABELS[channel];
+}
 const OBJECTIVE_OPTIONS = ['awareness', 'launch', 'promotion', 'brand_presence', 'leads'] as const;
 const AUDIENCE_OPTIONS = ['mass-market', 'youth', 'business', 'retail'] as const;
 const SCOPE_OPTIONS = ['local', 'provincial', 'national'] as const;
@@ -644,17 +648,17 @@ export function AgentCreateRecommendationPage() {
         <div className="space-y-6">
           <div>
             <div className="hero-kicker">Start recommendation</div>
-            <h1 className="mt-4 text-3xl font-semibold tracking-tight text-ink">Build a new client recommendation</h1>
+            <h1 className="mt-4 text-3xl font-semibold tracking-tight text-ink">Create a recommendation</h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-ink-soft md:text-base">
-              Build a recommendation for paid or prospective campaigns, capture campaign intent, and let AI generate a draft the agent can refine.
+              Pick the campaign, add the key details, and let AI prepare a draft you can review and refine.
             </p>
           </div>
 
           <div className="panel border-line/90 px-6 py-6 md:px-7">
             <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 className="text-lg font-semibold text-ink">1. Select order</h2>
-                <p className="mt-1 text-sm text-ink-soft">Start from an existing client campaign (paid or prospective).</p>
+                <h2 className="text-lg font-semibold text-ink">1. Choose the campaign</h2>
+                <p className="mt-1 text-sm text-ink-soft">Start from an existing client campaign, whether it is already paid or still prospective.</p>
               </div>
               <span className="pill bg-white text-ink-soft">Required</span>
             </div>
@@ -687,7 +691,7 @@ export function AgentCreateRecommendationPage() {
             </div>
             {selectedCampaignIsProspective && selectedPackageBand ? (
               <p className="mt-1 text-xs text-ink-soft">
-                Active price band: {selectedPackageBand.name} ({formatCurrency(selectedPackageBand.minBudget)} to {formatCurrency(selectedPackageBand.maxBudget)})
+                Current price band: {selectedPackageBand.name} ({formatCurrency(selectedPackageBand.minBudget)} to {formatCurrency(selectedPackageBand.maxBudget)})
               </p>
             ) : null}
             {selectedCampaignIsProspective ? (
@@ -712,7 +716,7 @@ export function AgentCreateRecommendationPage() {
                   </select>
                 </label>
                 <p className="mt-2 text-xs text-ink-soft">
-                  Proposal A, B, and C will be generated from this band&apos;s lower, middle, and upper tiers.
+                  The recommendation options will be created inside this selected price band.
                 </p>
               </div>
             ) : null}
@@ -722,13 +726,13 @@ export function AgentCreateRecommendationPage() {
                 onClick={() => setShowProspectForm((current) => !current)}
                 className="button-secondary px-4 py-2"
               >
-                {showProspectForm ? 'Hide prospective client form' : 'Add prospective client (not registered)'}
+                {showProspectForm ? 'Hide prospective client form' : 'Add prospective client'}
               </button>
             </div>
             {showProspectForm ? (
               <div className="mt-4 rounded-2xl border border-line bg-slate-50 p-4">
-                <p className="text-sm font-semibold text-ink">Create prospective client campaign</p>
-                <p className="mt-1 text-xs text-ink-soft">This creates an unpaid campaign so you can prepare and send a recommendation before checkout.</p>
+                <p className="text-sm font-semibold text-ink">Create a prospective campaign</p>
+                <p className="mt-1 text-xs text-ink-soft">Use this when the client is not registered yet and you still want to prepare a recommendation.</p>
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
                   <label className="block">
                     <span className="label-base">Full name</span>
@@ -757,7 +761,7 @@ export function AgentCreateRecommendationPage() {
                   </label>
                 </div>
                 <p className="mt-3 text-xs text-ink-soft">
-                  Recommendations will be generated within the selected price band.
+                  The recommendation will stay inside the selected price band.
                 </p>
                 <div className="mt-4">
                   <button
@@ -766,7 +770,7 @@ export function AgentCreateRecommendationPage() {
                     disabled={createProspectMutation.isPending || !canCreateProspectCampaign}
                     className="button-primary px-4 py-2 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {createProspectMutation.isPending ? 'Creating...' : 'Create prospective campaign'}
+                    {createProspectMutation.isPending ? 'Creating...' : 'Create campaign'}
                   </button>
                 </div>
               </div>
@@ -776,10 +780,10 @@ export function AgentCreateRecommendationPage() {
           <div className="panel border-line/90 px-6 py-6 md:px-7">
             <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 className="text-lg font-semibold text-ink">2. Capture campaign details</h2>
-                <p className="mt-1 text-sm text-ink-soft">Collect structured inputs. Geography is defined here, not at package purchase.</p>
+                <h2 className="text-lg font-semibold text-ink">2. Add campaign details</h2>
+                <p className="mt-1 text-sm text-ink-soft">Enter the key campaign details so the draft matches what the client needs.</p>
               </div>
-              <span className="pill bg-white text-ink-soft">Editable by AI</span>
+              <span className="pill bg-white text-ink-soft">AI can help</span>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
@@ -807,7 +811,7 @@ export function AgentCreateRecommendationPage() {
               </label>
 
               <label className="block">
-                <span className="label-base">Campaign scope</span>
+                <span className="label-base">Coverage</span>
                 <select value={form.scope} onChange={(event) => handleFormChange('scope', event.target.value)} className="input-base">
                   <option value="">Choose scope</option>
                   <option value="local">Local</option>
@@ -817,9 +821,9 @@ export function AgentCreateRecommendationPage() {
               </label>
 
               <label className="block">
-                <span className="label-base">Primary geography</span>
+                <span className="label-base">Main area</span>
                 {form.scope === 'national' ? (
-                  <input value="Not required for national scope" className="input-base bg-slate-50 text-slate-500" disabled />
+                  <input value="Not needed for national coverage" className="input-base bg-slate-50 text-slate-500" disabled />
                 ) : form.scope === 'local' ? (
                   <select value={form.geography} onChange={(event) => handleFormChange('geography', event.target.value)} className="input-base">
                     <option value="">Select city</option>
@@ -841,7 +845,7 @@ export function AgentCreateRecommendationPage() {
             </div>
 
             <div className="mt-5 space-y-3">
-              <span className="label-base">Preferred channels</span>
+              <span className="label-base">Channels to include</span>
               <div className="flex flex-wrap gap-3">
                 {CHANNEL_OPTIONS.map((channel) => {
                   const checked = form.channels.includes(channel);
@@ -865,14 +869,14 @@ export function AgentCreateRecommendationPage() {
                         onChange={() => toggleChannel(channel)}
                         className="size-4 rounded border-slate-300 accent-brand"
                       />
-                      <span>{CHANNEL_LABELS[channel]}</span>
+                      <span>{formatChannelLabel(channel)}</span>
                       {isRequired ? <span className="text-[11px] font-semibold uppercase tracking-[0.14em]">Required</span> : null}
                       {!isAllowed ? <span className="text-[11px] font-semibold uppercase tracking-[0.14em]">Not in package</span> : null}
                     </label>
                   );
                 })}
               </div>
-              <p className="helper-text">Billboards and Digital Screens is always included. Other channels can be added only when the selected package allows them.</p>
+              <p className="helper-text">Billboards and digital screens are always included. Radio and TV can only be added when the selected package allows them.</p>
             </div>
 
             <div className="mt-5 grid gap-4 md:grid-cols-2">
@@ -894,7 +898,7 @@ export function AgentCreateRecommendationPage() {
             </div>
 
             <label className="mt-5 block">
-              <span className="label-base">Campaign brief</span>
+              <span className="label-base">Client brief</span>
               <textarea
                 value={form.brief}
                 onChange={(event) => handleFormChange('brief', event.target.value)}
@@ -903,7 +907,7 @@ export function AgentCreateRecommendationPage() {
                 placeholder="Describe the campaign in plain language."
               />
               <p className="helper-text">
-                The agent can enter a brief manually or paste a client request. AI can convert this into structured planning inputs before draft generation.
+                Paste the client request or type a simple brief here. AI can turn it into structured inputs before the draft is created.
               </p>
               <div className="mt-3 flex flex-wrap items-center gap-3">
                 <button
@@ -913,7 +917,7 @@ export function AgentCreateRecommendationPage() {
                   className="button-secondary inline-flex items-center gap-2 px-4 py-2 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <Sparkles className="size-4" />
-                  {interpretMutation.isPending ? 'Interpreting brief...' : 'Interpret with AI'}
+                  {interpretMutation.isPending ? 'Reading brief...' : 'Use AI to fill this in'}
                 </button>
                 {aiInterpretationSummary ? (
                   <p className="text-sm text-ink-soft">{aiInterpretationSummary}</p>
@@ -925,8 +929,8 @@ export function AgentCreateRecommendationPage() {
           <div className="panel border-line/90 px-6 py-6 md:px-7">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
-                <h2 className="text-lg font-semibold text-ink">3. Generate AI draft</h2>
-                <p className="mt-1 text-sm text-ink-soft">AI will create a recommendation draft inside package rules. Final inventory still comes from the planning workspace.</p>
+                <h2 className="text-lg font-semibold text-ink">3. Create the draft</h2>
+                <p className="mt-1 text-sm text-ink-soft">Create a draft recommendation now, then review and refine it in the campaign workspace.</p>
               </div>
               <div className="flex flex-wrap gap-3">
                 <button
@@ -935,7 +939,7 @@ export function AgentCreateRecommendationPage() {
                   disabled={!canSaveDraft}
                   className="button-secondary px-4 py-3 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {pendingAction === 'draft' && initializeMutation.isPending ? 'Saving draft...' : 'Save as draft'}
+                  {pendingAction === 'draft' && initializeMutation.isPending ? 'Saving draft...' : 'Save for later'}
                 </button>
                 <button
                   type="button"
@@ -944,7 +948,7 @@ export function AgentCreateRecommendationPage() {
                   className="button-primary inline-flex items-center gap-2 px-5 py-3 disabled:cursor-not-allowed disabled:opacity-55"
                 >
                   <Sparkles className="size-4" />
-                  {isGenerating ? 'Generating draft...' : 'Generate recommendation'}
+                  {isGenerating ? 'Creating draft...' : 'Create recommendation draft'}
                 </button>
               </div>
             </div>
@@ -958,14 +962,14 @@ export function AgentCreateRecommendationPage() {
                 <Wand2 className="size-5" />
               </div>
               <div>
-                <h3 className="font-semibold text-ink">AI draft preview</h3>
-                <p className="text-sm text-ink-soft">What the system will infer before the workspace opens.</p>
+                <h3 className="font-semibold text-ink">Draft preview</h3>
+                <p className="text-sm text-ink-soft">A quick summary of what the system will use before the workspace opens.</p>
               </div>
             </div>
 
             <div className="space-y-3">
               <div className="rounded-[22px] border border-line bg-slate-50 px-4 py-4">
-                <p className="text-xs uppercase tracking-[0.18em] text-ink-soft">Interpreted inputs</p>
+                <p className="text-xs uppercase tracking-[0.18em] text-ink-soft">What the draft will use</p>
                 <div className="mt-3 grid gap-3 text-sm md:grid-cols-2">
                   <div>
                     <p className="text-ink-soft">Objective</p>
@@ -989,13 +993,13 @@ export function AgentCreateRecommendationPage() {
                   </div>
                   <div>
                     <p className="text-ink-soft">Channels</p>
-                    <p className="font-medium text-ink">{form.channels.map((channel) => CHANNEL_LABELS[channel]).join(' + ') || 'None selected'}</p>
+                    <p className="font-medium text-ink">{form.channels.map((channel) => formatChannelLabel(channel)).join(' + ') || 'None selected'}</p>
                   </div>
                 </div>
               </div>
 
               <div className="rounded-[22px] border border-line bg-white px-4 py-4">
-                <p className="text-xs uppercase tracking-[0.18em] text-ink-soft">Package rules applied</p>
+                <p className="text-xs uppercase tracking-[0.18em] text-ink-soft">Rules being applied</p>
                 <ul className="mt-3 space-y-2 text-sm text-ink-soft">
                   <li>• Recommendation must stay within the selected package budget.</li>
                   <li>• Geography comes from campaign input, not package purchase.</li>
@@ -1007,7 +1011,7 @@ export function AgentCreateRecommendationPage() {
           </div>
 
           <div className="panel hero-mint px-6 py-6 text-ink">
-            <p className="text-xs uppercase tracking-[0.18em] text-ink-soft">Selected order</p>
+            <p className="text-xs uppercase tracking-[0.18em] text-ink-soft">Selected campaign</p>
             <h3 className="mt-2 text-2xl font-semibold">
               {selectedPackageBand ? `${selectedPackageBand.name} package` : 'No package selected'}
             </h3>
@@ -1018,7 +1022,7 @@ export function AgentCreateRecommendationPage() {
             </p>
             {selectedCampaignIsProspective ? (
               <p className="mt-2 text-xs text-amber-700">
-                Prospective campaign: recommendation can be prepared and shared before payment, while staying inside the selected price band.
+                This is a prospective campaign, so you can prepare and share the recommendation before payment.
               </p>
             ) : null}
 
@@ -1033,11 +1037,11 @@ export function AgentCreateRecommendationPage() {
               </div>
               <div className="flex items-center justify-between border-b border-brand/10 pb-3">
                 <span>AI review</span>
-                <span className="font-medium text-ink">Required before approval</span>
+                <span className="font-medium text-ink">Recommended before sending</span>
               </div>
               <div className="flex items-center justify-between">
                 <span>Allowed channels</span>
-                <span className="font-medium text-ink">{allowedChannels.map((channel) => CHANNEL_LABELS[channel]).join(', ') || 'Select channels'}</span>
+                <span className="font-medium text-ink">{allowedChannels.map((channel) => formatChannelLabel(channel)).join(', ') || 'Select channels'}</span>
               </div>
             </div>
           </div>

@@ -43,12 +43,12 @@ export function AgentMessagesNotesPage() {
 
   return (
     <AgentQueryBoundary query={inboxQuery} loadingLabel="Loading messages...">
-      <AgentPageShell title="Messages" description="Read and reply to campaign conversations with clients in one place.">
+      <AgentPageShell title="Messages" description="Read client messages, reply quickly, and keep each campaign conversation in one place.">
         <section className="grid gap-6 xl:grid-cols-[360px_1fr]">
           <div className="rounded-[30px] border border-line bg-white shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
             <div className="border-b border-line px-6 py-5">
-              <h3 className="text-lg font-semibold text-ink">Conversation inbox</h3>
-              <p className="mt-2 text-sm text-ink-soft">Every campaign can now carry its own in-app client thread.</p>
+              <h3 className="text-lg font-semibold text-ink">Client conversations</h3>
+              <p className="mt-2 text-sm text-ink-soft">Choose a campaign to read the latest messages and reply to the client.</p>
             </div>
             <div className="max-h-[760px] overflow-y-auto p-4">
               {(inboxQuery.data ?? []).length > 0 ? (
@@ -83,14 +83,14 @@ export function AgentMessagesNotesPage() {
                         {item.lastMessagePreview ?? 'No messages yet. Open this thread to start the conversation.'}
                       </p>
                       <p className="mt-2 text-xs text-ink-soft">
-                        {item.lastMessageAt ? `Last message ${formatDate(item.lastMessageAt)}` : 'No activity yet'}
+                        {item.lastMessageAt ? `Last message ${formatDate(item.lastMessageAt)}` : 'No messages yet'}
                       </p>
                     </button>
                   ))}
                 </div>
               ) : (
                 <div className="rounded-[24px] border border-dashed border-line bg-slate-50 p-6 text-sm text-ink-soft">
-                  No conversations exist yet. Once an agent or client sends the first in-app message, it will appear here.
+                  No client conversations yet. Once the first message is sent, it will appear here.
                 </div>
               )}
             </div>
@@ -112,16 +112,16 @@ export function AgentMessagesNotesPage() {
                           <div>
                             <div className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-brand">
                               <MessageSquareText className="size-4" />
-                              Campaign thread
+                              Conversation
                             </div>
                             <h3 className="mt-3 text-2xl font-semibold text-ink">{thread.campaignName}</h3>
                             <p className="mt-2 text-sm text-ink-soft">{thread.clientName} | {thread.clientEmail}</p>
                             <p className="mt-1 text-sm text-ink-soft">{thread.packageBandName} | {titleCase(thread.campaignStatus)}</p>
                           </div>
                           <div className="flex gap-3">
-                            <Link to={`/agent/campaigns/${thread.campaignId}`} className="button-secondary px-4 py-2">Open campaign</Link>
+                            <Link to={`/agent/campaigns/${thread.campaignId}`} className="button-secondary px-4 py-2">View campaign</Link>
                             {canAccessAiStudioForStatus(thread.campaignStatus) ? (
-                              <Link to={`/ai-studio?campaignId=${thread.campaignId}`} className="button-secondary px-4 py-2">Prefill AI Studio</Link>
+                              <Link to={`/ai-studio?campaignId=${thread.campaignId}`} className="button-secondary px-4 py-2">Open AI Studio</Link>
                             ) : null}
                           </div>
                         </div>
@@ -149,18 +149,18 @@ export function AgentMessagesNotesPage() {
                           );
                         }) : (
                           <div className="rounded-[24px] border border-dashed border-line bg-white p-8 text-sm text-ink-soft">
-                            No messages yet. Start the conversation from here and the client will be able to reply inside their campaign workspace.
+                            No messages yet. Send the first message here and the client will be able to reply from their side.
                           </div>
                         )}
                       </div>
 
                       <div className="border-t border-line px-6 py-5">
-                        <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Reply</label>
+                        <label className="block text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Your reply</label>
                         <textarea
                           value={draft}
                           onChange={(event) => setDraft(event.target.value)}
                           className="input-base mt-3 min-h-[140px]"
-                          placeholder="Write a message to the client..."
+                          placeholder="Type your message to the client..."
                         />
                         <div className="mt-4 flex justify-end">
                           <button
@@ -180,7 +180,7 @@ export function AgentMessagesNotesPage() {
               </AgentQueryBoundary>
             ) : (
               <div className="flex min-h-[760px] items-center justify-center px-8 text-center text-sm text-ink-soft">
-                Select a campaign conversation from the inbox to open the thread.
+                Select a conversation on the left to open it here.
               </div>
             )}
           </div>
