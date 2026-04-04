@@ -2234,10 +2234,6 @@ export const advertifiedApi = {
     return this.getCampaign(campaignId);
   },
 
-  async markReviewReady(campaignId: string) {
-    return this.getCampaign(campaignId);
-  },
-
   async approveRecommendation(campaignId: string, recommendationId?: string) {
     await apiRequest(`/campaigns/${campaignId}/approve-recommendation`, {
       method: 'POST',

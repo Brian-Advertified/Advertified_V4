@@ -381,56 +381,6 @@ public sealed class CampaignsController : ControllerBase
         });
     }
 
-    private async Task SendRecommendationApprovedEmailAsync(Advertified.App.Data.Entities.Campaign campaign, CancellationToken cancellationToken)
-    {
-        try
-        {
-            await _emailService.SendAsync(
-                "recommendation-approved",
-                campaign.User.Email,
-                "campaigns",
-                new Dictionary<string, string?>
-                {
-                    ["ClientName"] = campaign.User.FullName,
-                    ["CampaignName"] = string.IsNullOrWhiteSpace(campaign.CampaignName) ? $"{campaign.PackageBand.Name} campaign" : campaign.CampaignName.Trim(),
-                    ["PackageName"] = campaign.PackageBand.Name,
-                    ["Budget"] = FormatCurrency(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount),
-                    ["CampaignUrl"] = BuildFrontendUrl($"/campaigns/{campaign.Id}")
-                },
-                null,
-                cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to send recommendation approved email for campaign {CampaignId}.", campaign.Id);
-        }
-    }
-
-    private async Task SendActivationInProgressEmailAsync(Advertified.App.Data.Entities.Campaign campaign, CancellationToken cancellationToken)
-    {
-        try
-        {
-            await _emailService.SendAsync(
-                "activation-in-progress",
-                campaign.User.Email,
-                "campaigns",
-                new Dictionary<string, string?>
-                {
-                    ["ClientName"] = campaign.User.FullName,
-                    ["CampaignName"] = string.IsNullOrWhiteSpace(campaign.CampaignName) ? $"{campaign.PackageBand.Name} campaign" : campaign.CampaignName.Trim(),
-                    ["PackageName"] = campaign.PackageBand.Name,
-                    ["Budget"] = FormatCurrency(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount),
-                    ["CampaignUrl"] = BuildFrontendUrl($"/campaigns/{campaign.Id}")
-                },
-                null,
-                cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to send activation in progress email for campaign {CampaignId}.", campaign.Id);
-        }
-    }
-
     private string BuildFrontendUrl(string path)
     {
         return _frontendOptions.BaseUrl.TrimEnd('/') + path;

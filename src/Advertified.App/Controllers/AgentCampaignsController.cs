@@ -82,6 +82,10 @@ public sealed class AgentCampaignsController : ControllerBase
             .Select(x => new AgentCampaignListProjection
             {
                 Id = x.Id,
+                UserId = x.UserId,
+                ClientName = x.User.FullName,
+                ClientEmail = x.User.Email,
+                BusinessName = x.User.BusinessProfile != null ? x.User.BusinessProfile.BusinessName : null,
                 PackageOrderId = x.PackageOrderId,
                 PackageBandId = x.PackageBandId,
                 PackageBandName = x.PackageBand.Name,
@@ -103,6 +107,10 @@ public sealed class AgentCampaignsController : ControllerBase
         return Ok(campaigns.Select(x => new CampaignListItemResponse
         {
             Id = x.Id,
+            UserId = x.UserId,
+            ClientName = x.ClientName,
+            ClientEmail = x.ClientEmail,
+            BusinessName = x.BusinessName,
             PackageOrderId = x.PackageOrderId,
             PackageBandId = x.PackageBandId,
             PackageBandName = x.PackageBandName,
@@ -129,52 +137,33 @@ public sealed class AgentCampaignsController : ControllerBase
         var currentUserId = currentUser.Id;
         var campaigns = await _db.Campaigns
             .AsNoTracking()
+            .AsSplitQuery()
+            .Include(x => x.User)
+            .Include(x => x.AssignedAgentUser)
+            .Include(x => x.PackageBand)
+            .Include(x => x.PackageOrder)
+            .Include(x => x.CampaignBrief)
+            .Include(x => x.CampaignRecommendations)
             .OrderByDescending(x => x.UpdatedAt)
             .ThenByDescending(x => x.CreatedAt)
-            .Select(x => new AgentInboxProjection
-            {
-                Id = x.Id,
-                UserId = x.UserId,
-                CampaignName = x.CampaignName,
-                PackageBandId = x.PackageBandId,
-                PackageBandName = x.PackageBand.Name,
-                ClientName = x.User.FullName,
-                ClientEmail = x.User.Email,
-                SelectedBudget = PricingPolicy.ResolvePlanningBudget(
-                    x.PackageOrder.SelectedBudget ?? x.PackageOrder.Amount,
-                    x.PackageOrder.AiStudioReserveAmount),
-                Status = x.Status,
-                PlanningMode = x.PlanningMode,
-                AssignedAgentUserId = x.AssignedAgentUserId,
-                AssignedAgentName = x.AssignedAgentUser != null ? x.AssignedAgentUser.FullName : null,
-                AssignedAt = x.AssignedAt,
-                UpdatedAt = x.UpdatedAt,
-                CreatedAt = x.CreatedAt,
-                HasBrief = x.CampaignBrief != null,
-                HasRecommendation = x.CampaignRecommendations.Any(),
-                LatestRecommendationStatus = x.CampaignRecommendations
-                    .OrderByDescending(r => r.CreatedAt)
-                    .Select(r => r.Status)
-                    .FirstOrDefault(),
-                LatestRecommendationRationale = x.CampaignRecommendations
-                    .OrderByDescending(r => r.CreatedAt)
-                    .Select(r => r.Rationale)
-                    .FirstOrDefault(),
-                LatestRecommendationTotalCost = x.CampaignRecommendations
-                    .OrderByDescending(r => r.CreatedAt)
-                    .Select(r => (decimal?)r.TotalCost)
-                    .FirstOrDefault()
-            })
             .ToArrayAsync(cancellationToken);
 
         var items = campaigns.Select(campaign =>
         {
-            var workflowCampaign = campaign.ToWorkflowCampaign();
+            var workflowCampaign = campaign;
             var stage = CampaignWorkflowPolicy.ResolveAgentQueueStage(workflowCampaign);
-            var manualReviewRequired = ExtractManualReviewRequired(campaign.LatestRecommendationRationale);
-            var isOverBudget = campaign.LatestRecommendationTotalCost.HasValue
-                && campaign.LatestRecommendationTotalCost.Value > campaign.SelectedBudget
-                && !string.Equals(campaign.LatestRecommendationStatus, RecommendationStatuses.Approved, StringComparison.OrdinalIgnoreCase);
+            var currentRecommendations = RecommendationRevisionSupport.GetCurrentRecommendationSet(campaign.CampaignRecommendations);
+            var activeRecommendation = currentRecommendations
+                .FirstOrDefault(x => string.Equals(x.Status, RecommendationStatuses.Approved, StringComparison.OrdinalIgnoreCase))
+                ?? currentRecommendations.FirstOrDefault(x => string.Equals(x.Status, RecommendationStatuses.SentToClient, StringComparison.OrdinalIgnoreCase))
+                ?? currentRecommendations.OrderByDescending(x => x.CreatedAt).FirstOrDefault();
+            var selectedBudget = PricingPolicy.ResolvePlanningBudget(
+                campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
+                campaign.PackageOrder.AiStudioReserveAmount);
+            var manualReviewRequired = ExtractManualReviewRequired(activeRecommendation?.Rationale);
+            var isOverBudget = activeRecommendation is not null
+                && activeRecommendation.TotalCost > selectedBudget
+                && !string.Equals(activeRecommendation.Status, RecommendationStatuses.Approved, StringComparison.OrdinalIgnoreCase);
             var updatedAt = new DateTimeOffset(campaign.UpdatedAt, TimeSpan.Zero);
             var ageInDays = Math.Max(0, (int)Math.Floor((DateTimeOffset.UtcNow - updatedAt).TotalDays));
             var isStale = CampaignWorkflowPolicy.IsAgentQueueStageStale(stage, updatedAt);
@@ -189,18 +178,18 @@ public sealed class AgentCampaignsController : ControllerBase
             {
                 Id = campaign.Id,
                 UserId = campaign.UserId,
-                CampaignName = string.IsNullOrWhiteSpace(campaign.CampaignName) ? $"{campaign.PackageBandName} campaign" : campaign.CampaignName.Trim(),
-                ClientName = campaign.ClientName,
-                ClientEmail = campaign.ClientEmail,
+                CampaignName = string.IsNullOrWhiteSpace(campaign.CampaignName) ? $"{campaign.PackageBand.Name} campaign" : campaign.CampaignName.Trim(),
+                ClientName = campaign.User.FullName,
+                ClientEmail = campaign.User.Email,
                 PackageBandId = campaign.PackageBandId,
-                PackageBandName = campaign.PackageBandName,
-                SelectedBudget = campaign.SelectedBudget,
+                PackageBandName = campaign.PackageBand.Name,
+                SelectedBudget = selectedBudget,
                 Status = campaign.Status,
                 PlanningMode = campaign.PlanningMode,
                 QueueStage = stage,
                 QueueLabel = CampaignWorkflowPolicy.GetAgentQueueLabel(stage),
                 AssignedAgentUserId = campaign.AssignedAgentUserId,
-                AssignedAgentName = campaign.AssignedAgentName,
+                AssignedAgentName = campaign.AssignedAgentUser?.FullName,
                 AssignedAt = campaign.AssignedAt.HasValue ? new DateTimeOffset(campaign.AssignedAt.Value, TimeSpan.Zero) : null,
                 IsAssignedToCurrentUser = campaign.AssignedAgentUserId == currentUserId,
                 IsUnassigned = campaign.AssignedAgentUserId is null,
@@ -210,8 +199,8 @@ public sealed class AgentCampaignsController : ControllerBase
                 IsStale = isStale,
                 IsUrgent = isUrgent,
                 AgeInDays = ageInDays,
-                HasBrief = campaign.HasBrief,
-                HasRecommendation = campaign.HasRecommendation,
+                HasBrief = campaign.CampaignBrief != null,
+                HasRecommendation = currentRecommendations.Length > 0,
                 CreatedAt = new DateTimeOffset(campaign.CreatedAt, TimeSpan.Zero),
                 UpdatedAt = updatedAt
             };
@@ -248,11 +237,10 @@ public sealed class AgentCampaignsController : ControllerBase
     [HttpGet("sales")]
     public async Task<IActionResult> GetSales(CancellationToken cancellationToken)
     {
-        var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
-        var currentUserId = currentUser.Id;
+        await GetCurrentOperationsUserAsync(cancellationToken);
         var sales = await _db.Campaigns
             .AsNoTracking()
-            .Where(x => x.AssignedAgentUserId == currentUserId && x.PackageOrder.PaymentStatus == "paid")
+            .Where(x => x.PackageOrder.PaymentStatus == "paid")
             .OrderByDescending(x => x.PackageOrder.PurchasedAt)
             .ThenByDescending(x => x.CreatedAt)
             .Select(x => new AgentSaleItemResponse
@@ -723,8 +711,19 @@ public sealed class AgentCampaignsController : ControllerBase
             .Include(x => x.User)
             .Include(x => x.PackageBand)
             .Include(x => x.PackageOrder)
+            .Include(x => x.CampaignRecommendations)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw new InvalidOperationException("Campaign not found.");
+
+        if (campaign.Status is CampaignStatuses.Approved
+            or CampaignStatuses.CreativeChangesRequested
+            or CampaignStatuses.CreativeSentToClientForApproval
+            or CampaignStatuses.CreativeApproved
+            or CampaignStatuses.Launched
+            || campaign.CampaignRecommendations.Any(x => string.Equals(x.Status, RecommendationStatuses.Approved, StringComparison.OrdinalIgnoreCase)))
+        {
+            return BadRequest(new { Message = "This campaign has already been approved and can no longer be regenerated from the recommendation workspace." });
+        }
 
         if (!string.Equals(campaign.Status, CampaignStatuses.CreativeApproved, StringComparison.OrdinalIgnoreCase))
         {
@@ -1335,6 +1334,16 @@ public sealed class AgentCampaignsController : ControllerBase
             throw new InvalidOperationException("Recommendation not found.");
         }
 
+        if (campaign.Status is CampaignStatuses.Approved
+            or CampaignStatuses.CreativeChangesRequested
+            or CampaignStatuses.CreativeSentToClientForApproval
+            or CampaignStatuses.CreativeApproved
+            or CampaignStatuses.Launched
+            || currentRecommendations.Any(x => string.Equals(x.Status, RecommendationStatuses.Approved, StringComparison.OrdinalIgnoreCase)))
+        {
+            return BadRequest(new { Message = "This campaign is already approved and can no longer be sent back to the client from the recommendation stage." });
+        }
+
         try
         {
             foreach (var recommendation in currentRecommendations)
@@ -1393,6 +1402,10 @@ public sealed class AgentCampaignsController : ControllerBase
     private sealed class AgentCampaignListProjection
     {
         public Guid Id { get; init; }
+        public Guid UserId { get; init; }
+        public string? ClientName { get; init; }
+        public string? ClientEmail { get; init; }
+        public string? BusinessName { get; init; }
         public Guid PackageOrderId { get; init; }
         public Guid PackageBandId { get; init; }
         public string PackageBandName { get; init; } = string.Empty;
@@ -1406,80 +1419,6 @@ public sealed class AgentCampaignsController : ControllerBase
         public string? AssignedAgentName { get; init; }
         public DateTime? AssignedAt { get; init; }
         public DateTime CreatedAt { get; init; }
-    }
-
-    private sealed class AgentInboxProjection
-    {
-        public Guid Id { get; init; }
-        public Guid UserId { get; init; }
-        public string? CampaignName { get; init; }
-        public Guid PackageBandId { get; init; }
-        public string PackageBandName { get; init; } = string.Empty;
-        public string ClientName { get; init; } = string.Empty;
-        public string ClientEmail { get; init; } = string.Empty;
-        public decimal SelectedBudget { get; init; }
-        public string Status { get; init; } = string.Empty;
-        public string? PlanningMode { get; init; }
-        public Guid? AssignedAgentUserId { get; init; }
-        public string? AssignedAgentName { get; init; }
-        public DateTime? AssignedAt { get; init; }
-        public DateTime UpdatedAt { get; init; }
-        public DateTime CreatedAt { get; init; }
-        public bool HasBrief { get; init; }
-        public bool HasRecommendation { get; init; }
-        public string? LatestRecommendationStatus { get; init; }
-        public string? LatestRecommendationRationale { get; init; }
-        public decimal? LatestRecommendationTotalCost { get; init; }
-
-        public Campaign ToWorkflowCampaign()
-        {
-            var campaign = new Campaign
-            {
-                Id = Id,
-                UserId = UserId,
-                CampaignName = CampaignName ?? string.Empty,
-                Status = Status,
-                PlanningMode = PlanningMode,
-                AssignedAgentUserId = AssignedAgentUserId,
-                AssignedAt = AssignedAt,
-                UpdatedAt = UpdatedAt,
-                CreatedAt = CreatedAt,
-                PackageBand = new PackageBand
-                {
-                    Name = PackageBandName
-                },
-                PackageOrder = new PackageOrder
-                {
-                    Amount = SelectedBudget,
-                    SelectedBudget = SelectedBudget
-                },
-                AssignedAgentUser = string.IsNullOrWhiteSpace(AssignedAgentName)
-                    ? null
-                    : new UserAccount { FullName = AssignedAgentName.Trim() },
-                CampaignRecommendations = BuildRecommendations()
-            };
-
-            return campaign;
-        }
-
-        private List<CampaignRecommendation> BuildRecommendations()
-        {
-            if (!HasRecommendation)
-            {
-                return new List<CampaignRecommendation>();
-            }
-
-            return new List<CampaignRecommendation>
-            {
-                new()
-                {
-                    Status = LatestRecommendationStatus ?? string.Empty,
-                    Rationale = LatestRecommendationRationale,
-                    TotalCost = LatestRecommendationTotalCost ?? 0m,
-                    CreatedAt = UpdatedAt
-                }
-            };
-        }
     }
 
     private async Task<UserAccount> GetCurrentOperationsUserAsync(CancellationToken cancellationToken)

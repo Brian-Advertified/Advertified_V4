@@ -341,7 +341,7 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
             .Include(x => x.User)
                 .ThenInclude(x => x.BusinessProfile)
             .Include(x => x.Campaign)
-                .ThenInclude(x => x.CampaignRecommendations)
+                .ThenInclude(x => x!.CampaignRecommendations)
             .FirstOrDefaultAsync(x => x.Id == packageOrderId, cancellationToken)
             ?? throw new InvalidOperationException("Package order not found.");
 

@@ -8,7 +8,7 @@ export function AgentSalesPage() {
 
   return (
     <AgentQueryBoundary query={salesQuery} loadingLabel="Loading sales...">
-      <AgentPageShell title="Sales" description="See paid sales linked to you, including campaigns converted from prospects.">
+      <AgentPageShell title="Sales" description="See paid sales in the live queue, including campaigns converted from prospects.">
         {(() => {
           const sales = salesQuery.data;
           if (!sales) {

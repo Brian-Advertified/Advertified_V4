@@ -100,6 +100,15 @@ public static class CampaignWorkflowPolicy
         var hasRecommendation = latestRecommendation is not null;
         var recommendationStatus = latestRecommendation?.Status?.Trim().ToLowerInvariant();
 
+        if (campaign.Status is CampaignStatuses.Approved
+            or CampaignStatuses.CreativeChangesRequested
+            or CampaignStatuses.CreativeSentToClientForApproval
+            or CampaignStatuses.CreativeApproved
+            or CampaignStatuses.Launched)
+        {
+            return QueueStages.Completed;
+        }
+
         return campaign.Status switch
         {
             CampaignStatuses.Paid => QueueStages.NewlyPaid,

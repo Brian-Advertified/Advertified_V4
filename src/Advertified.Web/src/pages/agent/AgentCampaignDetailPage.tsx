@@ -310,7 +310,11 @@ export function AgentCampaignDetailPage() {
   const recommendations = campaign?.recommendations.length
     ? campaign.recommendations
     : (campaign?.recommendation ? [campaign.recommendation] : []);
-  const selectedRecommendationId = selectedRecommendationIdState || recommendations[0]?.id || '';
+  const preferredRecommendationId = recommendations.find((item) => item.status === 'approved')?.id
+    ?? recommendations.find((item) => item.status === 'sent_to_client')?.id
+    ?? recommendations[0]?.id
+    ?? '';
+  const selectedRecommendationId = selectedRecommendationIdState || preferredRecommendationId;
   const activeRecommendation = recommendations.find((item) => item.id === selectedRecommendationId) ?? recommendations[0];
   const recommendationItemsKey = activeRecommendation?.items
     .map((item) => `${item.id}:${item.sourceInventoryId ?? ''}:${item.quantity ?? 1}:${item.cost}`)
@@ -490,9 +494,10 @@ export function AgentCampaignDetailPage() {
       : titleCase(campaign.status);
   const recommendationTitle = activeRecommendation?.summary || 'Draft recommendation';
   const canMarkLive = campaign.status === 'creative_approved';
-  const canEditDraftRecommendation = activeRecommendation?.status?.toLowerCase() === 'draft';
+  const recommendationWorkflowLocked = showExecutionOperations || activeRecommendation?.status?.toLowerCase() === 'approved';
+  const canEditDraftRecommendation = !recommendationWorkflowLocked && activeRecommendation?.status?.toLowerCase() === 'draft';
   const canModifyPlan = canEditDraftRecommendation && !draftApprovalCaptured;
-  const hasSendableProposal = recommendations.length >= 1;
+  const hasSendableProposal = !recommendationWorkflowLocked && recommendations.length >= 1;
   const hasOohRecommendation = selectedPlanItems.some((item) => normalizeChannelKey(item.type) === 'OOH');
   const budgetConstraint: BudgetConstraintContext = selectedPackageBand
     ? {
@@ -534,6 +539,14 @@ export function AgentCampaignDetailPage() {
   }
 
   function handleSendToClient() {
+    if (recommendationWorkflowLocked) {
+      pushToast({
+        title: 'Recommendation stage is complete.',
+        description: 'This campaign has already moved past recommendation sending and is now in production or activation.',
+      }, 'info');
+      return;
+    }
+
     if (!hasSendableProposal) {
       pushToast({
         title: 'No proposal available yet.',
@@ -643,10 +656,26 @@ export function AgentCampaignDetailPage() {
   }
 
   function handleRegenerate() {
+    if (recommendationWorkflowLocked) {
+      pushToast({
+        title: 'Recommendation stage is complete.',
+        description: 'Approved campaigns can no longer be regenerated from this workspace.',
+      }, 'info');
+      return;
+    }
+
     regenerateMutation.mutate();
   }
 
   function handleAdjustMix() {
+    if (recommendationWorkflowLocked) {
+      pushToast({
+        title: 'Recommendation stage is complete.',
+        description: 'Approved campaigns can no longer be adjusted from this workspace.',
+      }, 'info');
+      return;
+    }
+
     pushToast({
       title: 'Adjust the target mix below.',
       description: 'Use the budget split slider, then regenerate when you want a new draft from the same saved campaign inputs.',
@@ -871,11 +900,11 @@ export function AgentCampaignDetailPage() {
                 <p className="mt-2 text-sm text-ink-soft">{recommendationTitle}</p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={handleRegenerate} disabled={regenerateMutation.isPending} className="button-secondary inline-flex items-center gap-2 px-4 py-2 disabled:opacity-60">
+                <button type="button" onClick={handleRegenerate} disabled={regenerateMutation.isPending || recommendationWorkflowLocked} className="button-secondary inline-flex items-center gap-2 px-4 py-2 disabled:opacity-60">
                   <RefreshCcw className="size-4" />
                   Regenerate
                 </button>
-                <button type="button" onClick={handleAdjustMix} className="button-secondary inline-flex items-center gap-2 px-4 py-2">
+                <button type="button" onClick={handleAdjustMix} disabled={recommendationWorkflowLocked} className="button-secondary inline-flex items-center gap-2 px-4 py-2 disabled:opacity-60">
                   <SlidersHorizontal className="size-4" />
                   Adjust mix
                 </button>

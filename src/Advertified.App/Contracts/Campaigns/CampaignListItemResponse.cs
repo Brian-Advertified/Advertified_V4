@@ -3,6 +3,10 @@ namespace Advertified.App.Contracts.Campaigns;
 public sealed class CampaignListItemResponse
 {
     public Guid Id { get; set; }
+    public Guid UserId { get; set; }
+    public string? ClientName { get; set; }
+    public string? ClientEmail { get; set; }
+    public string? BusinessName { get; set; }
     public Guid PackageOrderId { get; set; }
     public Guid PackageBandId { get; set; }
     public string PackageBandName { get; set; } = string.Empty;
