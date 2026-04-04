@@ -27,6 +27,15 @@ function getSafeNextPath(raw: string | null) {
   return trimmed.startsWith('/') ? trimmed : null;
 }
 
+const APPROVAL_COMPLETED_STATUSES = new Set([
+  'approved',
+  'creative_sent_to_client_for_approval',
+  'creative_changes_requested',
+  'creative_approved',
+  'booking_in_progress',
+  'launched',
+]);
+
 export function ProposalEntryPage() {
   const { id = '' } = useParams();
   const [searchParams] = useSearchParams();
@@ -62,6 +71,8 @@ export function ProposalEntryPage() {
       : (recommendations.find((item) => item.status === 'sent_to_client')?.id ?? recommendations[0]?.id ?? '');
   const recommendation = recommendations.find((item) => item.id === resolvedRecommendationId) ?? recommendations[0];
   const paymentRequiredBeforeApproval = publicProposalQuery.data?.paymentStatus !== 'paid';
+  const approvalAlreadyCompleted = recommendation?.status === 'approved'
+    || APPROVAL_COMPLETED_STATUSES.has(publicProposalQuery.data?.status ?? '');
   const currentProposalPath = `${location.pathname}${location.search}`;
   const checkoutPath = publicProposalQuery.data && recommendation
     ? `/checkout/payment?orderId=${encodeURIComponent(publicProposalQuery.data.packageOrderId)}&campaignId=${encodeURIComponent(publicProposalQuery.data.id)}&recommendationId=${encodeURIComponent(recommendation.id)}&proposalPath=${encodeURIComponent(currentProposalPath)}`
@@ -214,7 +225,9 @@ export function ProposalEntryPage() {
         <PageHero
           kicker="Proposal review"
           title={publicProposalQuery.data.campaignName}
-          description="Review the options and tell us how you want to proceed."
+          description={approvalAlreadyCompleted
+            ? 'This proposal has already been approved and the campaign is now moving through delivery.'
+            : 'Review the options and tell us how you want to proceed.'}
         />
 
         {recommendations.length > 1 ? (
@@ -272,23 +285,35 @@ export function ProposalEntryPage() {
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Payment status</p>
                 <p className="mt-2 text-base font-semibold text-ink">{formatPaymentStatusLabel(publicProposalQuery.data.paymentStatus)}</p>
                 <p className="mt-1 text-sm text-ink-soft">
-                  {paymentRequiredBeforeApproval ? 'Payment must be completed before final approval.' : 'This proposal can be approved now.'}
+                  {approvalAlreadyCompleted
+                    ? 'Approval is complete and Advertified is moving this campaign forward.'
+                    : paymentRequiredBeforeApproval
+                      ? 'Payment must be completed before final approval.'
+                      : 'This proposal can be approved now.'}
                 </p>
               </div>
             </div>
           </div>
 
           <div className="rounded-[22px] border border-brand/20 bg-[linear-gradient(180deg,#f7fcfa_0%,#ffffff_100%)] p-6 shadow-[0_18px_44px_rgba(15,118,110,0.08)]">
-            <div className="text-lg font-semibold text-ink">Choose your next step</div>
+            <div className="text-lg font-semibold text-ink">{approvalAlreadyCompleted ? 'Proposal approved' : 'Choose your next step'}</div>
             <p className="mt-2 text-sm leading-7 text-ink-soft">
-              Pick one action below. If you want changes or a new set, add a short note first.
+              {approvalAlreadyCompleted
+                ? 'The recommendation has already been approved. The next stage is creative production and operational fulfilment.'
+                : 'Pick one action below. If you want changes or a new set, add a short note first.'}
             </p>
-            {paymentRequiredBeforeApproval ? (
+            {approvalAlreadyCompleted ? (
+              <div className="mt-4 rounded-[14px] border border-brand/20 bg-brand/[0.06] px-4 py-3 text-sm text-ink">
+                This secure link is now read-only. If you need to review progress, open your campaign workspace or contact your Advertified team.
+              </div>
+            ) : paymentRequiredBeforeApproval ? (
               <div className="mt-4 rounded-[14px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                 Payment is still required before this recommendation can be finally approved.
               </div>
             ) : null}
             <div className="mt-5 space-y-3">
+              {approvalAlreadyCompleted ? null : (
+                <>
               <label className="block text-sm font-semibold text-ink" htmlFor="proposal-review-notes">
                 Notes
               </label>
@@ -333,6 +358,8 @@ export function ProposalEntryPage() {
                   {rejectAllMutation.isPending ? 'Sending...' : 'Reject all'}
                 </button>
               </div>
+                </>
+              )}
             </div>
           </div>
         </div>

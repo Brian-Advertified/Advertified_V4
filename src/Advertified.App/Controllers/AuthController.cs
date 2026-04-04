@@ -49,12 +49,7 @@ public sealed class AuthController : ControllerBase
     public async Task<ActionResult<LoginResponse>> VerifyEmail([FromBody] VerifyEmailRequest request, CancellationToken cancellationToken)
     {
         var user = await _emailVerificationService.VerifyAsync(request.Token, cancellationToken);
-
-        var identityComplete = await _db.IdentityProfiles
-            .AsNoTracking()
-            .AnyAsync(x => x.UserId == user.Id, cancellationToken);
-
-        return Ok(ToLoginResponse(user, _sessionTokenService.CreateToken(user), identityComplete));
+        return Ok(await BuildLoginResponseAsync(user.Id, cancellationToken));
     }
 
     [HttpPost("login")]
@@ -83,11 +78,7 @@ public sealed class AuthController : ControllerBase
             });
         }
 
-        var identityComplete = await _db.IdentityProfiles
-            .AsNoTracking()
-            .AnyAsync(x => x.UserId == user.Id, cancellationToken);
-
-        return Ok(ToLoginResponse(user, _sessionTokenService.CreateToken(user), identityComplete));
+        return Ok(await BuildLoginResponseAsync(user.Id, cancellationToken));
     }
 
     [HttpPost("resend-verification")]
@@ -139,14 +130,26 @@ public sealed class AuthController : ControllerBase
         user.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
 
-        var identityComplete = await _db.IdentityProfiles
-            .AsNoTracking()
-            .AnyAsync(x => x.UserId == user.Id, cancellationToken);
-
-        return Ok(ToLoginResponse(user, _sessionTokenService.CreateToken(user), identityComplete));
+        return Ok(await BuildLoginResponseAsync(user.Id, cancellationToken));
     }
 
-    private static LoginResponse ToLoginResponse(UserAccount user, string sessionToken, bool identityComplete)
+    private async Task<LoginResponse> BuildLoginResponseAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        var user = await _db.UserAccounts
+            .AsNoTracking()
+            .Include(x => x.BusinessProfile)
+            .Include(x => x.IdentityProfile)
+            .FirstOrDefaultAsync(x => x.Id == userId, cancellationToken)
+            ?? throw new InvalidOperationException("User account not found.");
+
+        return ToLoginResponse(
+            user,
+            _sessionTokenService.CreateToken(user),
+            identityComplete: user.IdentityProfile is not null,
+            requiresPasswordSetup: RequiresPasswordSetup(user));
+    }
+
+    private static LoginResponse ToLoginResponse(UserAccount user, string sessionToken, bool identityComplete, bool requiresPasswordSetup)
     {
         return new LoginResponse
         {
@@ -157,9 +160,17 @@ public sealed class AuthController : ControllerBase
             Role = ToSnakeCase(user.Role.ToString()),
             AccountStatus = ToSnakeCase(user.AccountStatus.ToString()),
             EmailVerified = user.EmailVerified,
+            RequiresPasswordSetup = requiresPasswordSetup,
             IdentityComplete = identityComplete,
             SessionToken = sessionToken
         };
+    }
+
+    private static bool RequiresPasswordSetup(UserAccount user)
+    {
+        return user.Role == Data.Enums.UserRole.Client
+            && user.BusinessProfile is null
+            && user.IdentityProfile is null;
     }
 
     private static string ToSnakeCase(string value)

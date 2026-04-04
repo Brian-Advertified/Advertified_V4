@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
+import { EmptyState } from '../../components/ui/EmptyState';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { ProcessingOverlay } from '../../components/ui/ProcessingOverlay';
 import { useToast } from '../../components/ui/toast';
@@ -78,10 +79,16 @@ export function AgentCampaignDetailPage() {
   const [prospectPackageBandState, setProspectPackageBandState] = useState<{ campaignId: string; packageBandId: string } | null>(null);
   const mixPanelRef = useRef<HTMLDivElement | null>(null);
 
-  const campaignQuery = useQuery({ queryKey: queryKeys.agent.campaign(id), queryFn: () => advertifiedApi.getAgentCampaign(id) });
+  const campaignQuery = useQuery({
+    queryKey: queryKeys.agent.campaign(id),
+    queryFn: () => advertifiedApi.getAgentCampaign(id),
+    retry: false,
+  });
   const inventoryQuery = useQuery({
     queryKey: queryKeys.agent.inventory(id),
     queryFn: () => advertifiedApi.getInventory(id),
+    enabled: campaignQuery.isSuccess,
+    retry: false,
   });
   const packagesQuery = useQuery({
     queryKey: queryKeys.packages.all,
@@ -333,8 +340,19 @@ export function AgentCampaignDetailPage() {
     ? draftApprovalState.captured
     : false;
 
-  if (campaignQuery.isLoading || inventoryQuery.isLoading || !campaign) {
+  if (campaignQuery.isLoading || (campaign && inventoryQuery.isLoading)) {
     return <LoadingState label="Loading agent campaign detail..." />;
+  }
+
+  if (campaignQuery.isError || !campaign) {
+    return (
+      <EmptyState
+        title="Campaign not found"
+        description="We could not load this agent campaign. The link may be stale or the campaign may no longer exist in DEV."
+        ctaHref="/agent/campaigns"
+        ctaLabel="Back to campaigns"
+      />
+    );
   }
 
   const needsRecommendationSetup = !campaign.brief || recommendations.length === 0;

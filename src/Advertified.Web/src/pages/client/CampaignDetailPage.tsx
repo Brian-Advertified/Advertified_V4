@@ -28,8 +28,16 @@ export function CampaignDetailPage() {
   const { user } = useAuth();
   const { pushToast } = useToast();
   const queryClient = useQueryClient();
-  const campaignQuery = useQuery({ queryKey: queryKeys.campaigns.detail(id), queryFn: () => advertifiedApi.getCampaign(id) });
-  const threadQuery = useQuery({ queryKey: queryKeys.campaigns.messages(id), queryFn: () => advertifiedApi.getCampaignMessages(id) });
+  const campaignQuery = useQuery({
+    queryKey: queryKeys.campaigns.detail(id),
+    queryFn: () => advertifiedApi.getCampaign(id),
+    retry: false,
+  });
+  const threadQuery = useQuery({
+    queryKey: queryKeys.campaigns.messages(id),
+    queryFn: () => advertifiedApi.getCampaignMessages(id),
+    retry: false,
+  });
   const recommendations = campaignQuery.data
     ? (campaignQuery.data.recommendations.length > 0
       ? campaignQuery.data.recommendations

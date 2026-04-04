@@ -9,6 +9,7 @@ public sealed class LoginResponse
     public string Role { get; set; } = string.Empty;
     public string AccountStatus { get; set; } = string.Empty;
     public bool EmailVerified { get; set; }
+    public bool RequiresPasswordSetup { get; set; }
     public bool IdentityComplete { get; set; }
     public string SessionToken { get; set; } = string.Empty;
 }

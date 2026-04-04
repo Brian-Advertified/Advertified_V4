@@ -40,6 +40,7 @@ public sealed class MeController : ControllerBase
             Role = ToSnakeCase(user.Role.ToString()),
             AccountStatus = ToSnakeCase(user.AccountStatus.ToString()),
             EmailVerified = user.EmailVerified,
+            RequiresPasswordSetup = user.Role == Data.Enums.UserRole.Client && user.BusinessProfile is null && user.IdentityProfile is null,
             IdentityComplete = user.IdentityProfile is not null,
             PhoneVerified = user.PhoneVerified,
             BusinessName = user.BusinessProfile?.BusinessName,

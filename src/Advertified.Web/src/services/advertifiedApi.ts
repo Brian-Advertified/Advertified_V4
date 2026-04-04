@@ -152,6 +152,7 @@ type LoginResponse = {
   role: string;
   accountStatus: string;
   emailVerified: boolean;
+  requiresPasswordSetup: boolean;
   identityComplete: boolean;
   sessionToken: string;
 };
@@ -166,6 +167,7 @@ type MeResponse = {
   role: string;
   accountStatus: string;
   emailVerified: boolean;
+  requiresPasswordSetup: boolean;
   identityComplete: boolean;
   phoneVerified: boolean;
   businessName?: string;
@@ -891,7 +893,7 @@ function mapSessionUser(response: LoginResponse | MeResponse, sessionToken?: str
     phone: 'phone' in response ? response.phone ?? undefined : undefined,
     role: normalizeRole(response.role),
     emailVerified: response.emailVerified,
-    requiresPasswordSetup: false,
+    requiresPasswordSetup: response.requiresPasswordSetup,
     identityComplete: response.identityComplete,
     sessionToken,
     businessName: 'businessName' in response ? response.businessName ?? undefined : undefined,
@@ -1553,16 +1555,8 @@ export const advertifiedApi = {
       .then((user) => ({
         ...user,
         sessionToken: response.sessionToken,
-        // Registered users already have a password; invite/prospect users still need setup.
-        requiresPasswordSetup: !user.identityComplete,
       }))
-      .catch(() => {
-        const fallbackUser = mapSessionUser(response, response.sessionToken);
-        return {
-          ...fallbackUser,
-          requiresPasswordSetup: !fallbackUser.identityComplete,
-        };
-      });
+      .catch(() => mapSessionUser(response, response.sessionToken));
   },
 
   async setPassword(input: { password: string; confirmPassword: string }) {
