@@ -27,6 +27,7 @@ export interface SessionUser {
   identityComplete?: boolean;
   sessionToken?: string;
   businessName?: string;
+  registrationNumber?: string;
   city?: string;
   province?: string;
 }

@@ -169,6 +169,7 @@ type MeResponse = {
   identityComplete: boolean;
   phoneVerified: boolean;
   businessName?: string;
+  registrationNumber?: string;
   city?: string;
   province?: string;
 };
@@ -894,6 +895,7 @@ function mapSessionUser(response: LoginResponse | MeResponse, sessionToken?: str
     identityComplete: response.identityComplete,
     sessionToken,
     businessName: 'businessName' in response ? response.businessName ?? undefined : undefined,
+    registrationNumber: 'registrationNumber' in response ? response.registrationNumber ?? undefined : undefined,
     city: 'city' in response ? response.city ?? undefined : undefined,
     province: 'province' in response ? response.province ?? undefined : undefined,
   };

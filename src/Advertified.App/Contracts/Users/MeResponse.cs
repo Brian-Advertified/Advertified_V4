@@ -12,6 +12,7 @@ public sealed class MeResponse
     public bool IdentityComplete { get; set; }
     public bool PhoneVerified { get; set; }
     public string? BusinessName { get; set; }
+    public string? RegistrationNumber { get; set; }
     public string? City { get; set; }
     public string? Province { get; set; }
 }

@@ -43,6 +43,7 @@ public sealed class MeController : ControllerBase
             IdentityComplete = user.IdentityProfile is not null,
             PhoneVerified = user.PhoneVerified,
             BusinessName = user.BusinessProfile?.BusinessName,
+            RegistrationNumber = user.BusinessProfile?.RegistrationNumber,
             City = user.BusinessProfile?.City,
             Province = user.BusinessProfile?.Province
         });
