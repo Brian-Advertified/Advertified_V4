@@ -64,6 +64,16 @@ export function CampaignDetailPage() {
     },
   });
 
+  const prepareCheckoutMutation = useMutation({
+    mutationFn: (recommendationId: string) => advertifiedApi.prepareRecommendationCheckout(id, recommendationId),
+    onError: (error) => {
+      pushToast({
+        title: 'Could not prepare payment.',
+        description: error instanceof Error ? error.message : 'Please try again.',
+      }, 'error');
+    },
+  });
+
   const requestChangesMutation = useMutation({
     mutationFn: (notes: string) => advertifiedApi.requestRecommendationChanges(id, notes),
     onSuccess: async () => {
@@ -237,6 +247,20 @@ export function CampaignDetailPage() {
         title: 'Could not download recommendation PDF.',
         description: error instanceof Error ? error.message : 'Please sign in again and retry.',
       }, 'error');
+    }
+  }
+
+  async function handlePreparePayment() {
+    if (!recommendation?.id) {
+      navigate(`/checkout/payment?orderId=${encodeURIComponent(campaign.packageOrderId)}&campaignId=${encodeURIComponent(campaign.id)}`);
+      return;
+    }
+
+    try {
+      await prepareCheckoutMutation.mutateAsync(recommendation.id);
+      navigate(`/checkout/payment?orderId=${encodeURIComponent(campaign.packageOrderId)}&campaignId=${encodeURIComponent(campaign.id)}&recommendationId=${encodeURIComponent(recommendation.id)}`);
+    } catch {
+      // toast handled by mutation
     }
   }
 
@@ -520,12 +544,14 @@ export function CampaignDetailPage() {
                     Continue to payment and we will automatically accept the currently selected proposal after payment succeeds.
                   </p>
                   <div className="mt-3">
-                    <Link
-                      to={`/checkout/payment?orderId=${encodeURIComponent(campaign.packageOrderId)}&campaignId=${encodeURIComponent(campaign.id)}${recommendation?.id ? `&recommendationId=${encodeURIComponent(recommendation.id)}` : ''}`}
-                      className="user-btn-primary"
+                    <button
+                      type="button"
+                      onClick={() => void handlePreparePayment()}
+                      disabled={prepareCheckoutMutation.isPending}
+                      className="user-btn-primary disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      Pay and accept selected proposal
-                    </Link>
+                      {prepareCheckoutMutation.isPending ? 'Preparing payment...' : 'Pay and accept selected proposal'}
+                    </button>
                   </div>
                 </div>
               ) : null}

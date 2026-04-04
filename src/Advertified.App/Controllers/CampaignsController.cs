@@ -26,6 +26,7 @@ public sealed class CampaignsController : ControllerBase
     private readonly ICampaignRecommendationService _campaignRecommendationService;
     private readonly IRecommendationDocumentService _recommendationDocumentService;
     private readonly IRecommendationApprovalWorkflowService _recommendationApprovalWorkflowService;
+    private readonly IPackagePurchaseService _packagePurchaseService;
     private readonly CampaignPlanningRequestValidator _campaignPlanningRequestValidator;
     private readonly ITemplatedEmailService _emailService;
     private readonly FrontendOptions _frontendOptions;
@@ -39,6 +40,7 @@ public sealed class CampaignsController : ControllerBase
         ICampaignRecommendationService campaignRecommendationService,
         IRecommendationDocumentService recommendationDocumentService,
         IRecommendationApprovalWorkflowService recommendationApprovalWorkflowService,
+        IPackagePurchaseService packagePurchaseService,
         CampaignPlanningRequestValidator campaignPlanningRequestValidator,
         ITemplatedEmailService emailService,
         IOptions<FrontendOptions> frontendOptions,
@@ -51,6 +53,7 @@ public sealed class CampaignsController : ControllerBase
         _campaignRecommendationService = campaignRecommendationService;
         _recommendationDocumentService = recommendationDocumentService;
         _recommendationApprovalWorkflowService = recommendationApprovalWorkflowService;
+        _packagePurchaseService = packagePurchaseService;
         _campaignPlanningRequestValidator = campaignPlanningRequestValidator;
         _emailService = emailService;
         _frontendOptions = frontendOptions.Value;
@@ -215,6 +218,27 @@ public sealed class CampaignsController : ControllerBase
             result.Status,
             result.Message
         });
+    }
+
+    [HttpPost("{id:guid}/prepare-checkout")]
+    public async Task<IActionResult> PrepareCheckout(Guid id, [FromBody] ApproveRecommendationRequest? request, CancellationToken cancellationToken)
+    {
+        var userId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
+        var campaignExists = await _db.Campaigns
+            .AsNoTracking()
+            .AnyAsync(x => x.Id == id && x.UserId == userId, cancellationToken);
+        if (!campaignExists)
+        {
+            throw new InvalidOperationException("Campaign not found.");
+        }
+
+        if (!request?.RecommendationId.HasValue ?? true)
+        {
+            throw new InvalidOperationException("Recommendation not found.");
+        }
+
+        await _packagePurchaseService.PrepareRecommendationCheckoutAsync(id, request!.RecommendationId!.Value, cancellationToken);
+        return Accepted(new { CampaignId = id, RecommendationId = request.RecommendationId.Value, Message = "Checkout prepared." });
     }
 
     [HttpPost("{id:guid}/request-changes")]

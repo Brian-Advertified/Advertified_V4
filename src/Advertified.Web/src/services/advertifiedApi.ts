@@ -2140,6 +2140,13 @@ export const advertifiedApi = {
     return this.getPublicProposal(campaignId, token);
   },
 
+  async preparePublicProposalCheckout(campaignId: string, token: string, recommendationId: string) {
+    await apiRequest(`/public/proposals/${encodeURIComponent(campaignId)}/prepare-checkout`, {
+      method: 'POST',
+      body: JSON.stringify({ token, recommendationId }),
+    });
+  },
+
   async requestPublicProposalChanges(campaignId: string, token: string, notes?: string) {
     await apiRequest(`/public/proposals/${encodeURIComponent(campaignId)}/request-changes`, {
       method: 'POST',
@@ -2233,6 +2240,15 @@ export const advertifiedApi = {
 
   async approveRecommendation(campaignId: string, recommendationId?: string) {
     await apiRequest(`/campaigns/${campaignId}/approve-recommendation`, {
+      method: 'POST',
+      body: JSON.stringify({ recommendationId }),
+    });
+
+    return this.getCampaign(campaignId);
+  },
+
+  async prepareRecommendationCheckout(campaignId: string, recommendationId: string) {
+    await apiRequest(`/campaigns/${encodeURIComponent(campaignId)}/prepare-checkout`, {
       method: 'POST',
       body: JSON.stringify({ recommendationId }),
     });

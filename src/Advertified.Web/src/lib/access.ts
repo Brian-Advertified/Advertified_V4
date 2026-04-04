@@ -74,7 +74,9 @@ export function canOpenPlanning(campaign?: Campaign | null) {
 
 export function getCampaignPrimaryAction(campaign: Campaign) {
   const hasRecommendation = Boolean(campaign.recommendation);
-  const selectedRecommendationId = campaign.recommendations[0]?.id ?? campaign.recommendation?.id;
+  const selectedRecommendationId = campaign.recommendations.find((item) => item.status === 'approved')?.id
+    ?? campaign.recommendations.find((item) => item.status === 'sent_to_client')?.id
+    ?? campaign.recommendation?.id;
   const paymentRequiredBeforeApproval =
     campaign.paymentStatus !== 'paid'
     && (campaign.status === 'review_ready' || campaign.status === 'planning_in_progress');

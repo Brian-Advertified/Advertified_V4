@@ -9,7 +9,10 @@ function formatChannelLabel(value: string) {
 }
 
 export function getPrimaryRecommendation(campaign: Campaign) {
-  return campaign.recommendations[0] ?? campaign.recommendation;
+  return campaign.recommendations.find((item) => item.status === 'approved')
+    ?? campaign.recommendations.find((item) => item.status === 'sent_to_client')
+    ?? campaign.recommendations[0]
+    ?? campaign.recommendation;
 }
 
 export function getClientFacingBudget(campaign: Campaign) {

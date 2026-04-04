@@ -278,6 +278,27 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
         };
     }
 
+    public async Task PrepareRecommendationCheckoutAsync(Guid campaignId, Guid recommendationId, CancellationToken cancellationToken)
+    {
+        var campaign = await _db.Campaigns
+            .Include(x => x.PackageOrder)
+            .FirstOrDefaultAsync(x => x.Id == campaignId, cancellationToken)
+            ?? throw new InvalidOperationException("Campaign not found.");
+
+        if (campaign.PackageOrder is null)
+        {
+            throw new InvalidOperationException("This campaign does not have a package order.");
+        }
+
+        if (string.Equals(campaign.PackageOrder.PaymentStatus, "paid", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        await AlignOrderToRecommendationAsync(campaign.PackageOrder, recommendationId, cancellationToken);
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
     private async Task AlignOrderToRecommendationAsync(PackageOrder order, Guid recommendationId, CancellationToken cancellationToken)
     {
         if (order.Campaign is null)

@@ -16,17 +16,20 @@ public sealed class PublicProposalController : ControllerBase
     private readonly IProposalAccessTokenService _proposalAccessTokenService;
     private readonly IRecommendationDocumentService _recommendationDocumentService;
     private readonly IRecommendationApprovalWorkflowService _recommendationApprovalWorkflowService;
+    private readonly IPackagePurchaseService _packagePurchaseService;
 
     public PublicProposalController(
         AppDbContext db,
         IProposalAccessTokenService proposalAccessTokenService,
         IRecommendationDocumentService recommendationDocumentService,
-        IRecommendationApprovalWorkflowService recommendationApprovalWorkflowService)
+        IRecommendationApprovalWorkflowService recommendationApprovalWorkflowService,
+        IPackagePurchaseService packagePurchaseService)
     {
         _db = db;
         _proposalAccessTokenService = proposalAccessTokenService;
         _recommendationDocumentService = recommendationDocumentService;
         _recommendationApprovalWorkflowService = recommendationApprovalWorkflowService;
+        _packagePurchaseService = packagePurchaseService;
     }
 
     [HttpGet("{id:guid}")]
@@ -103,6 +106,19 @@ public sealed class PublicProposalController : ControllerBase
             result.Status,
             result.Message
         });
+    }
+
+    [HttpPost("{id:guid}/prepare-checkout")]
+    public async Task<IActionResult> PrepareCheckout(Guid id, [FromBody] PublicProposalActionRequest request, CancellationToken cancellationToken)
+    {
+        await EnsureValidTokenAsync(id, request.Token, cancellationToken);
+        if (!request.RecommendationId.HasValue)
+        {
+            throw new InvalidOperationException("Recommendation not found.");
+        }
+
+        await _packagePurchaseService.PrepareRecommendationCheckoutAsync(id, request.RecommendationId.Value, cancellationToken);
+        return Accepted(new { CampaignId = id, RecommendationId = request.RecommendationId.Value, Message = "Checkout prepared." });
     }
 
     private async Task EnsureValidTokenAsync(Guid campaignId, string token, CancellationToken cancellationToken)

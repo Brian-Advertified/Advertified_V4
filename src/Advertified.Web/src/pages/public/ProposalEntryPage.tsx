@@ -87,6 +87,16 @@ export function ProposalEntryPage() {
     },
   });
 
+  const prepareCheckoutMutation = useMutation({
+    mutationFn: (selectedId: string) => advertifiedApi.preparePublicProposalCheckout(id, token, selectedId),
+    onError: (error) => {
+      pushToast({
+        title: 'Could not prepare payment.',
+        description: error instanceof Error ? error.message : 'Please try again.',
+      }, 'error');
+    },
+  });
+
   const requestChangesMutation = useMutation({
     mutationFn: (notes: string) => advertifiedApi.requestPublicProposalChanges(id, token, notes),
     onSuccess: async () => {
@@ -174,8 +184,16 @@ export function ProposalEntryPage() {
       );
     }
 
-    function handlePrimaryAction() {
+    async function handlePrimaryAction() {
       if (paymentRequiredBeforeApproval) {
+        if (recommendation?.id) {
+          try {
+            await prepareCheckoutMutation.mutateAsync(recommendation.id);
+          } catch {
+            return;
+          }
+        }
+
         if (!isAuthenticated && registerCheckoutPath) {
           navigate(registerCheckoutPath);
           return;
@@ -284,8 +302,8 @@ export function ProposalEntryPage() {
               <div className="grid gap-3">
                 <button
                   type="button"
-                  onClick={handlePrimaryAction}
-                  disabled={approveMutation.isPending || requestChangesMutation.isPending || rejectAllMutation.isPending || (!checkoutPath && paymentRequiredBeforeApproval)}
+                  onClick={() => void handlePrimaryAction()}
+                  disabled={approveMutation.isPending || prepareCheckoutMutation.isPending || requestChangesMutation.isPending || rejectAllMutation.isPending || (!checkoutPath && paymentRequiredBeforeApproval)}
                   className={`w-full justify-center text-center whitespace-normal px-4 py-3 text-sm ${
                     paymentRequiredBeforeApproval
                       ? 'user-btn-secondary border-amber-200 bg-amber-50 text-amber-900 opacity-100'
@@ -293,7 +311,9 @@ export function ProposalEntryPage() {
                   } disabled:cursor-not-allowed disabled:opacity-100`}
                 >
                   {paymentRequiredBeforeApproval
-                    ? (isAuthenticated ? 'Pay and approve selected' : 'Create account and pay to approve')
+                    ? (prepareCheckoutMutation.isPending
+                      ? 'Preparing payment...'
+                      : (isAuthenticated ? 'Pay and approve selected' : 'Create account and pay to approve'))
                     : (approveMutation.isPending ? 'Accepting...' : 'Approve selected')}
                 </button>
                 <button

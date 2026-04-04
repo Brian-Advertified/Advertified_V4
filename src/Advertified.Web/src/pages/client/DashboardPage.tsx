@@ -8,7 +8,7 @@ import { canAccessAiStudioForStatus } from '../../features/campaigns/aiStudioAcc
 import { getCampaignPrimaryAction } from '../../lib/access';
 import { formatCurrency, formatDate, titleCase } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
-import { ClientPortalShell, getCampaignProgressPercent, getClientFacingBudget } from './clientWorkspace';
+import { ClientPortalShell, getCampaignProgressPercent, getClientFacingBudget, getPrimaryRecommendation } from './clientWorkspace';
 
 function getSimpleCampaignMessage(
   campaign: { status: string; paymentStatus: string },
@@ -100,7 +100,7 @@ export function DashboardPage() {
   const pendingCampaign = campaigns.find((campaign) => campaign.packageOrderId === nextPendingOrder?.id)
     ?? campaigns.find((campaign) => campaign.paymentStatus !== 'paid' && campaign.status === 'review_ready')
     ?? campaigns.find((campaign) => campaign.paymentStatus !== 'paid');
-  const pendingRecommendation = pendingCampaign?.recommendations[0] ?? pendingCampaign?.recommendation;
+  const pendingRecommendation = pendingCampaign ? getPrimaryRecommendation(pendingCampaign) : undefined;
   const paymentHref = nextPendingOrder
     ? `/checkout/payment?orderId=${encodeURIComponent(nextPendingOrder.id)}${pendingCampaign ? `&campaignId=${encodeURIComponent(pendingCampaign.id)}` : ''}${pendingRecommendation?.id ? `&recommendationId=${encodeURIComponent(pendingRecommendation.id)}` : ''}`
     : null;
@@ -192,7 +192,7 @@ export function DashboardPage() {
                 <div key={order.id} className="user-wire">
                   {(() => {
                     const linkedCampaign = campaigns.find((campaign) => campaign.packageOrderId === order.id);
-                    const linkedRecommendationId = linkedCampaign?.recommendations[0]?.id ?? linkedCampaign?.recommendation?.id;
+                    const linkedRecommendationId = linkedCampaign ? getPrimaryRecommendation(linkedCampaign)?.id : undefined;
 
                     return (
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
