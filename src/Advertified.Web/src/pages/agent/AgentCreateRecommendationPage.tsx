@@ -643,7 +643,7 @@ export function AgentCreateRecommendationPage() {
       <div className="page-shell grid gap-6 py-8 lg:grid-cols-[1.05fr_380px]">
         <div className="space-y-6">
           <div>
-            <div className="hero-kicker">Create recommendation</div>
+            <div className="hero-kicker">Start recommendation</div>
             <h1 className="mt-4 text-3xl font-semibold tracking-tight text-ink">Build a new client recommendation</h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-ink-soft md:text-base">
               Build a recommendation for paid or prospective campaigns, capture campaign intent, and let AI generate a draft the agent can refine.

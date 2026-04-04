@@ -14,7 +14,7 @@ export function AgentRecommendationBuilderPage() {
 
   return (
     <AgentQueryBoundary query={inboxQuery} loadingLabel="Loading recommendation builder...">
-      <AgentPageShell title="Recommendation builder" description="Generate, review, and refine recommendation drafts for campaigns that are ready for planning or already in strategist review.">
+      <AgentPageShell title="Build Recommendations" description="Open campaigns that are ready for planning and start or refine recommendation drafts.">
         {(() => {
           const rows = (inboxQuery.data?.items ?? [])
             .filter((item) => item.queueStage === 'planning_ready' || item.queueStage === 'agent_review')
@@ -76,11 +76,11 @@ export function AgentRecommendationBuilderPage() {
                       <h3 className="text-lg font-semibold text-ink">Builder workspace</h3>
                     </div>
                     <p className="mt-3 text-sm text-ink-soft">Open the builder to structure the brief, run AI interpretation, and generate the first recommendation draft.</p>
-                    <Link to="/agent/recommendations/new" className="button-primary mt-4 inline-flex px-4 py-2">Create recommendation</Link>
+                    <Link to="/agent/recommendations/new" className="button-primary mt-4 inline-flex px-4 py-2">Start recommendation</Link>
                   </div>
                   <div className="panel p-6">
-                    <h3 className="text-lg font-semibold text-ink">Why this screen exists</h3>
-                    <p className="mt-3 text-sm text-ink-soft">This view separates recommendation work from the wider campaign queue so strategists can focus on actual build tasks without losing pipeline context.</p>
+                    <h3 className="text-lg font-semibold text-ink">When to use this page</h3>
+                    <p className="mt-3 text-sm text-ink-soft">Use this when you only want campaigns that are ready for recommendation work, without the rest of the queue getting in the way.</p>
                   </div>
                 </div>
               </div>

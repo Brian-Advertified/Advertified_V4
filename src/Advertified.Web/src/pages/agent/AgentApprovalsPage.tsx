@@ -14,7 +14,7 @@ export function AgentApprovalsPage() {
 
   return (
     <AgentQueryBoundary query={campaignsQuery} loadingLabel="Loading approvals...">
-      <AgentPageShell title="Approvals and change requests" description="Track client responses, recommendation approvals, and the campaigns that came back with revision requests.">
+      <AgentPageShell title="Client Responses" description="Track client approvals, requested changes, and campaigns still waiting for a reply.">
         {(() => {
           const rows = (campaignsQuery.data ?? [])
             .filter((campaign) => campaign.recommendations.some((item) => item.status === 'sent_to_client' || item.status === 'approved' || item.clientFeedbackNotes))

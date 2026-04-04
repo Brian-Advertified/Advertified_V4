@@ -16,7 +16,7 @@ export function AgentLeadsClientsPage() {
 
   return (
     <AgentQueryBoundary query={campaignsQuery} loadingLabel="Loading leads and clients...">
-      <AgentPageShell title="Leads and clients" description="Track active client accounts, current campaign load, and the latest commercial activity tied to each account.">
+      <AgentPageShell title="Clients" description="See each client account, their current campaigns, and the latest activity without digging through the full queue.">
         {(() => {
           const rows = buildClientRows(campaignsQuery.data, search);
           return (
@@ -26,7 +26,7 @@ export function AgentLeadsClientsPage() {
                   <Search className="absolute left-4 top-1/2 size-4 -translate-y-1/2 text-ink-soft" />
                   <input value={search} onChange={(event) => setSearch(event.target.value)} className="input-base pl-11" placeholder="Search client, email, region, or package" />
                 </label>
-                <div className="rounded-2xl bg-brand-soft px-4 py-3 text-sm text-brand">Live client rows built from agent campaign ownership and recommendation activity.</div>
+                <div className="rounded-2xl bg-brand-soft px-4 py-3 text-sm text-brand">Each row summarizes the client from their live campaign activity.</div>
               </div>
 
               <div className="overflow-hidden rounded-[28px] border border-line bg-white">

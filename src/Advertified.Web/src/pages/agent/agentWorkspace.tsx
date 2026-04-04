@@ -2,14 +2,10 @@ import { type ReactNode } from 'react';
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { NavLink } from 'react-router-dom';
 import {
-  ArrowRight,
   CircleDollarSign,
-  BriefcaseBusiness,
-  ClipboardList,
   FolderKanban,
   LayoutDashboard,
   MessageSquareText,
-  Send,
   UserRoundSearch,
 } from 'lucide-react';
 import { PageHero } from '../../components/marketing/PageHero';
@@ -38,16 +34,12 @@ export const agentNavSections: AgentNavSection[] = [
     ],
   },
   {
-    title: 'Client Assist',
+    title: 'Work',
     items: [
-      { path: '/agent/leads', label: 'Leads & Clients', icon: UserRoundSearch },
-      { path: '/agent/campaigns', label: 'Campaign Pipeline', icon: FolderKanban, end: true },
-      { path: '/agent/briefs', label: 'Campaign Brief', icon: ClipboardList },
-      { path: '/agent/recommendation-builder', label: 'Recommendation Builder', icon: BriefcaseBusiness },
-      { path: '/agent/sales', label: 'My Sales', icon: CircleDollarSign },
-      { path: '/agent/review-send', label: 'Review & Send', icon: Send },
-      { path: '/agent/approvals', label: 'Approvals & Changes', icon: ArrowRight },
-      { path: '/agent/messages', label: 'Messages & Notes', icon: MessageSquareText },
+      { path: '/agent/leads', label: 'Clients', icon: UserRoundSearch },
+      { path: '/agent/campaigns', label: 'Campaigns', icon: FolderKanban, end: true },
+      { path: '/agent/messages', label: 'Messages', icon: MessageSquareText },
+      { path: '/agent/sales', label: 'Sales', icon: CircleDollarSign },
     ],
   },
 ];
@@ -132,8 +124,8 @@ export function AgentPageShell({ title, description, children }: AgentPageShellP
           <div className="space-y-6">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-ink-soft">Workspace</p>
-              <h2 className="mt-4 text-2xl font-semibold text-ink">Agent studio</h2>
-              <p className="mt-2 text-sm leading-6 text-ink-soft">Client-assist workflow for campaign planning, recommendation review, and sending decisions.</p>
+              <h2 className="mt-4 text-2xl font-semibold text-ink">Agent workspace</h2>
+              <p className="mt-2 text-sm leading-6 text-ink-soft">Manage clients, keep campaigns moving, and respond quickly when something needs action.</p>
             </div>
             <div className="space-y-5">
               {agentNavSections.map((section) => (
@@ -159,8 +151,8 @@ export function AgentPageShell({ title, description, children }: AgentPageShellP
               ))}
             </div>
             <div className="rounded-3xl bg-brand-soft p-4 text-sm text-brand">
-              <p className="font-semibold">Live operational data</p>
-              <p className="mt-2 text-ink-soft">This workspace uses agent inbox queues, campaign detail, package catalog, recommendation state, and live planner inventory.</p>
+              <p className="font-semibold">Live campaign data</p>
+              <p className="mt-2 text-ink-soft">Counts and actions on these pages update from the live campaign queue, recommendation status, and client activity.</p>
             </div>
           </div>
         </aside>
@@ -176,8 +168,7 @@ export function AgentPageShell({ title, description, children }: AgentPageShellP
                 <div className="flex flex-wrap gap-3">
                   <button type="button" onClick={() => logout('manual')} className="button-secondary rounded-full font-semibold">Logout</button>
                   <NavLink to="/agent/recommendations/new" className="button-primary inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold">
-                    Create recommendation
-                    <ArrowRight className="size-4" />
+                    Start recommendation
                   </NavLink>
                 </div>
               </div>

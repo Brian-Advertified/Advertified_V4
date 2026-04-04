@@ -80,7 +80,7 @@ export function AgentCampaignsPage() {
 
   return (
     <AgentQueryBoundary query={inboxQuery} loadingLabel="Loading agent inbox...">
-      <AgentPageShell title="Campaign pipeline" description="Manage campaigns from purchase to planning, review, approval, and launch with a live queue view and direct campaign links.">
+      <AgentPageShell title="Campaigns" description="Use this as the main working queue for campaigns, with simple stage filters and direct actions.">
         {(() => {
           const inbox = inboxQuery.data;
           if (!inbox) {

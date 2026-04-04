@@ -1,4 +1,4 @@
-import { ArrowRight, BriefcaseBusiness, CircleAlert, CircleDollarSign, Clock3, FolderKanban, Send, Sparkles, UserRoundSearch, UsersRound } from 'lucide-react';
+import { ArrowRight, CircleAlert, CircleDollarSign, Clock3, FolderKanban, MessageSquareText, Send, Sparkles, UserRoundSearch, UsersRound } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { canAccessAiStudioForStatus } from '../../features/campaigns/aiStudioAccess';
 import {
@@ -20,7 +20,7 @@ export function AgentDashboardPage() {
 
   return (
     <AgentQueryBoundary query={inboxQuery} loadingLabel="Loading agent dashboard...">
-      <AgentPageShell title="Agent dashboard" description="Client-assist activity, planning queue, approvals, and campaign work that needs attention next.">
+      <AgentPageShell title="Dashboard" description="See what needs attention now, which clients need a response, and which campaigns should move next.">
         {(() => {
           const inbox = inboxQuery.data;
           if (!inbox) {
@@ -36,11 +36,10 @@ export function AgentDashboardPage() {
           const focusTasks = [...tasks.urgent, ...tasks.review.filter((item) => !tasks.urgent.some((urgent) => urgent.id === item.id))]
             .slice(0, 4);
           const quickLinks = [
-            { label: 'Leads & Clients', href: '/agent/leads', icon: UserRoundSearch, helper: 'Track active prospects and client activity.' },
-            { label: 'My Sales', href: '/agent/sales', icon: CircleDollarSign, helper: 'View every paid sale assigned to you.' },
-            { label: 'Campaign Pipeline', href: '/agent/campaigns', icon: FolderKanban, helper: 'Open the full live campaign queue.' },
-            { label: 'Recommendation Builder', href: '/agent/recommendation-builder', icon: BriefcaseBusiness, helper: 'Move straight into planning work.' },
-            { label: 'Review & Send', href: '/agent/review-send', icon: Send, helper: 'Finalize recommendations and send to clients.' },
+            { label: 'Open campaign queue', href: '/agent/campaigns', icon: FolderKanban, helper: 'Use the main queue to move campaigns forward.' },
+            { label: 'View clients', href: '/agent/leads', icon: UserRoundSearch, helper: 'See each client and open their latest campaign.' },
+            { label: 'Reply to messages', href: '/agent/messages', icon: MessageSquareText, helper: 'Check unread conversations and send replies.' },
+            { label: 'Review sales', href: '/agent/sales', icon: CircleDollarSign, helper: 'See paid sales and converted prospects assigned to you.' },
           ];
           const recentItems = inbox.items.slice(0, 6);
 
@@ -50,27 +49,27 @@ export function AgentDashboardPage() {
                 <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
                   <div className="space-y-3">
                     <div className="inline-flex items-center gap-2 rounded-full border border-brand/15 bg-white/80 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.26em] text-brand">
-                      Agent control center
+                      Agent overview
                     </div>
                     <div>
-                      <h3 className="text-2xl font-semibold text-ink">A daily command view for sales, briefs, planning, and approvals.</h3>
+                      <h3 className="text-2xl font-semibold text-ink">Start here to see what needs action today.</h3>
                       <p className="mt-2 max-w-3xl text-sm leading-6 text-ink-soft">
-                        Keep using the dedicated route-based screens in the sidebar. This dashboard is the stitched-together overview that helps you decide what to open next.
+                        This page gives you one clear starting point, then sends you into campaigns, clients, messages, or sales without needing to learn extra workflow screens first.
                       </p>
                     </div>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-3">
                     <div className="rounded-2xl border border-white/80 bg-white/80 px-4 py-3">
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Search</p>
-                      <p className="mt-2 text-sm text-ink">Clients, campaigns, and queue items</p>
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Clients</p>
+                      <p className="mt-2 text-sm text-ink">Open your client list and recent account activity</p>
                     </div>
                     <Link to="/agent/campaigns" className="rounded-2xl border border-white/80 bg-white/80 px-4 py-3 transition hover:border-brand/30 hover:bg-brand-soft/30">
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Focus queue</p>
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Campaigns</p>
                       <p className="mt-2 text-sm font-semibold text-ink">{tasks.urgent.length + tasks.review.length + tasks.waiting.length} active follow-ups</p>
                     </Link>
-                    <Link to="/agent/leads" className="rounded-2xl border border-white/80 bg-white/80 px-4 py-3 transition hover:border-brand/30 hover:bg-brand-soft/30">
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Agent user</p>
-                      <p className="mt-2 text-sm font-semibold text-ink">Open your client portfolio</p>
+                    <Link to="/agent/messages" className="rounded-2xl border border-white/80 bg-white/80 px-4 py-3 transition hover:border-brand/30 hover:bg-brand-soft/30">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Messages</p>
+                      <p className="mt-2 text-sm font-semibold text-ink">Jump into unread client conversations</p>
                     </Link>
                   </div>
                 </div>
@@ -106,9 +105,9 @@ export function AgentDashboardPage() {
                   <div className="flex items-center justify-between gap-4">
                     <div>
                       <h3 className="text-xl font-semibold text-ink">Today&apos;s pipeline</h3>
-                      <p className="mt-2 text-sm text-ink-soft">A wireframe-style flow view of what is entering, waiting, being planned, and ready for approval.</p>
+                      <p className="mt-2 text-sm text-ink-soft">A simple view of what has come in, what is waiting, and what needs a client decision.</p>
                     </div>
-                    <Link to="/agent/campaigns" className="button-secondary px-4 py-2">Open full queue</Link>
+                    <Link to="/agent/campaigns" className="button-secondary px-4 py-2">Open campaigns</Link>
                   </div>
                   <div className="mt-5 grid gap-4 xl:grid-cols-4">
                     {stageColumns.map((column) => (
@@ -186,9 +185,9 @@ export function AgentDashboardPage() {
                   <div className="flex items-center justify-between gap-4">
                     <div>
                       <h3 className="text-lg font-semibold text-ink">Recent campaign work</h3>
-                      <p className="mt-2 text-sm text-ink-soft">Use the dedicated workflow pages from here instead of collapsing everything into one screen.</p>
+                      <p className="mt-2 text-sm text-ink-soft">Open the latest campaigns directly from here when you want to continue work where you left off.</p>
                     </div>
-                    <Link to="/agent/campaigns" className="button-secondary px-4 py-2">Open pipeline</Link>
+                    <Link to="/agent/campaigns" className="button-secondary px-4 py-2">Open campaigns</Link>
                   </div>
                   <div className="mt-5 overflow-hidden rounded-[22px] border border-line">
                     <div className="hidden grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_140px_120px] bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft md:grid">
@@ -265,25 +264,6 @@ export function AgentDashboardPage() {
                           <p className="mt-2 text-2xl font-semibold text-ink">{item.value}</p>
                         </div>
                       ))}
-                    </div>
-                  </div>
-
-                  <div className="rounded-[30px] border border-line bg-white p-6 shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
-                    <h3 className="text-lg font-semibold text-ink">Dedicated screens</h3>
-                    <p className="mt-2 text-sm text-ink-soft">The menu continues to open the separate working pages you already have. This dashboard just points you into them faster.</p>
-                    <div className="mt-4 grid gap-3">
-                      <Link to="/agent/briefs" className="rounded-2xl border border-line bg-slate-50/70 px-4 py-4 transition hover:border-brand/30 hover:bg-brand-soft/20">
-                        <p className="font-semibold text-ink">Campaign Brief</p>
-                        <p className="mt-1 text-sm text-ink-soft">Capture brief quality, completeness, and planning readiness.</p>
-                      </Link>
-                      <Link to="/agent/review-send" className="rounded-2xl border border-line bg-slate-50/70 px-4 py-4 transition hover:border-brand/30 hover:bg-brand-soft/20">
-                        <p className="font-semibold text-ink">Review &amp; Send</p>
-                        <p className="mt-1 text-sm text-ink-soft">Handle final strategist review and client delivery.</p>
-                      </Link>
-                      <Link to="/agent/approvals" className="rounded-2xl border border-line bg-slate-50/70 px-4 py-4 transition hover:border-brand/30 hover:bg-brand-soft/20">
-                        <p className="font-semibold text-ink">Approvals &amp; Changes</p>
-                        <p className="mt-1 text-sm text-ink-soft">Track change requests, approvals, and follow-up work.</p>
-                      </Link>
                     </div>
                   </div>
                 </div>

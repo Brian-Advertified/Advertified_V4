@@ -43,7 +43,7 @@ export function AgentMessagesNotesPage() {
 
   return (
     <AgentQueryBoundary query={inboxQuery} loadingLabel="Loading messages...">
-      <AgentPageShell title="Messages" description="Real campaign conversations between agents and clients, with unread state, stored history, and in-app replies.">
+      <AgentPageShell title="Messages" description="Read and reply to campaign conversations with clients in one place.">
         <section className="grid gap-6 xl:grid-cols-[360px_1fr]">
           <div className="rounded-[30px] border border-line bg-white shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
             <div className="border-b border-line px-6 py-5">

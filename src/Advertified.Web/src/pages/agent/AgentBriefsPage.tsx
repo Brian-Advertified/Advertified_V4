@@ -17,7 +17,7 @@ export function AgentBriefsPage() {
 
   return (
     <AgentQueryBoundary query={campaignsQuery} loadingLabel="Loading campaign briefs...">
-      <AgentPageShell title="Campaign brief" description="See which campaigns still need client planning inputs and which briefs are complete enough to move into recommendation work.">
+      <AgentPageShell title="Needs Brief" description="See which campaigns are still waiting for planning details and which ones are ready to move into recommendation work.">
         {(() => {
           const rows = (campaignsQuery.data ?? [])
             .filter((campaign) => campaign.status !== 'approved')

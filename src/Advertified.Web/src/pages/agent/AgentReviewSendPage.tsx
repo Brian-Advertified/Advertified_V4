@@ -44,7 +44,7 @@ export function AgentReviewSendPage() {
 
   return (
     <AgentQueryBoundary query={campaignsQuery} loadingLabel="Loading review and send...">
-      <AgentPageShell title="Review and send" description="Finalize client-facing recommendations, preview the client PDF, and send only the campaigns that are ready to move out of strategist review.">
+      <AgentPageShell title="Send to Client" description="Review draft recommendations, check the client PDF, and send ready recommendations to the client.">
         {(() => {
           const recommendationHasOoh = (recommendation: NonNullable<(typeof campaignsQuery.data)>[number]['recommendations'][number] | undefined) =>
             (recommendation?.items ?? []).some((item) => item.channel.trim().toLowerCase().includes('ooh') || item.channel.trim().toLowerCase().includes('billboard'));

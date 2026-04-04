@@ -9,16 +9,48 @@ export function AdminDashboardPage() {
     <AdminQueryBoundary query={query}>
       {(dashboard) => {
         const topHealthIssues = dashboard.healthIssues.slice(0, 8);
+        const priorityActions = [
+          {
+            title: 'Review payments',
+            helper: 'Open Lula and invoice follow-ups first.',
+            href: '/admin/package-orders',
+          },
+          {
+            title: 'Manage campaigns',
+            helper: 'Pause, resume, or refund live campaign work.',
+            href: '/admin/campaign-operations',
+          },
+          {
+            title: 'Fix catalog issues',
+            helper: 'Resolve missing pricing and weak outlet records.',
+            href: '/admin/health',
+          },
+          {
+            title: 'Update pricing',
+            helper: 'Maintain package bands and outlet pricing rows.',
+            href: '/admin/pricing',
+          },
+          {
+            title: 'Upload imports',
+            helper: 'Add new rate cards and source files.',
+            href: '/admin/imports',
+          },
+          {
+            title: 'Manage outlets',
+            helper: 'Edit outlet details, geography, and availability.',
+            href: '/admin/stations',
+          },
+        ];
 
         return (
-          <AdminPageShell title="Operational overview and inventory controls" description="Manage stations, pricing, imports, health, geography, rules, monitoring, and platform integrations from live system data.">
+          <AdminPageShell title="Dashboard" description="Start here to see what needs attention in payments, campaigns, catalog health, and platform setup.">
             <section className="space-y-6">
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 {[
-                  ['Active outlets', dashboard.summary.activeOutlets, 'Broadcast outlets available in the normalized catalog.'],
-                  ['Weak outlets', dashboard.summary.weakOutlets, 'Outlets with weak health, missing pricing, or incomplete metadata.'],
-                  ['Imported source docs', dashboard.summary.sourceDocuments, 'Rate cards and source documents recorded in the import manifest.'],
-                  ['Fallback rate', `${dashboard.summary.fallbackRatePercent}%`, 'Latest recommendation revisions containing fallback flags.'],
+                  ['Active outlets', dashboard.summary.activeOutlets, 'Outlets currently available in the live catalog.'],
+                  ['Needs attention', dashboard.summary.weakOutlets, 'Outlets with missing pricing, inventory, or important details.'],
+                  ['Imported files', dashboard.summary.sourceDocuments, 'Source files already stored for pricing and planning.'],
+                  ['Fallback rate', `${dashboard.summary.fallbackRatePercent}%`, 'Recommendations still relying on fallback values.'],
                 ].map(([label, value, note]) => (
                   <div key={String(label)} className="panel p-6">
                     <p className="text-xs font-semibold uppercase tracking-[0.24em] text-ink-soft">{label}</p>
@@ -32,8 +64,8 @@ export function AdminDashboardPage() {
                 <div className="panel p-6">
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <h2 className="text-xl font-semibold text-ink">System alerts</h2>
-                      <p className="mt-2 text-sm text-ink-soft">Top current issues surfaced from live catalog health signals.</p>
+                      <h2 className="text-xl font-semibold text-ink">Alerts</h2>
+                      <p className="mt-2 text-sm text-ink-soft">The most important live issues are surfaced here first.</p>
                     </div>
                     <div className="rounded-2xl bg-brand-soft p-3 text-brand">
                       <ShieldCheck className="size-5" />
@@ -50,13 +82,13 @@ export function AdminDashboardPage() {
                           <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${tone(alert.severity)}`}>{alert.severity}</span>
                         </div>
                       </div>
-                    )) : <p className="text-sm text-ink-soft">No active admin alerts are being raised right now.</p>}
+                    )) : <p className="text-sm text-ink-soft">No active alerts right now.</p>}
                   </div>
                 </div>
 
                 <div className="space-y-6">
                   <div className="panel p-6">
-                    <h3 className="text-lg font-semibold text-ink">Recommendation health</h3>
+                    <h3 className="text-lg font-semibold text-ink">Recommendation status</h3>
                     <div className="mt-5 space-y-3 text-sm text-ink-soft">
                       {[
                         ['Total recommendations', dashboard.monitoring.recommendationCount],
@@ -72,24 +104,26 @@ export function AdminDashboardPage() {
                   </div>
 
                   <div className="panel p-6">
-                    <h3 className="text-lg font-semibold text-ink">Quick actions</h3>
-                    <p className="mt-2 text-sm text-ink-soft">Open a focused admin page or jump into operational workflows.</p>
+                    <h3 className="text-lg font-semibold text-ink">Start with one of these</h3>
+                    <p className="mt-2 text-sm text-ink-soft">These are the main jobs admins usually need to handle during the day.</p>
                     <div className="mt-6 grid gap-3">
-                      <Link to="/admin/stations" className="button-secondary inline-flex items-center justify-between gap-2 px-4 py-3">Manage outlets <ArrowRight className="size-4" /></Link>
-                      <Link to="/admin/campaign-operations" className="button-secondary inline-flex items-center justify-between gap-2 px-4 py-3">Campaign controls <ArrowRight className="size-4" /></Link>
-                      <Link to="/admin/imports" className="button-secondary inline-flex items-center justify-between gap-2 px-4 py-3">Upload rate cards <ArrowRight className="size-4" /></Link>
-                      <Link to="/admin/preview-rules" className="button-secondary inline-flex items-center justify-between gap-2 px-4 py-3">Edit preview rules <ArrowRight className="size-4" /></Link>
-                      <Link to="/agent/campaigns" className="button-secondary inline-flex items-center justify-between gap-2 px-4 py-3">Review queue <ArrowRight className="size-4" /></Link>
-                      <Link to="/agent/recommendations/new" className="button-secondary inline-flex items-center justify-between gap-2 px-4 py-3">Create recommendation <ArrowRight className="size-4" /></Link>
-                      <Link to="/admin/stations" className="button-secondary inline-flex items-center justify-between gap-2 px-4 py-3">Inspect inventory <ArrowRight className="size-4" /></Link>
+                      {priorityActions.map((item) => (
+                        <Link key={item.href} to={item.href} className="button-secondary inline-flex items-center justify-between gap-2 px-4 py-3">
+                          <span>
+                            <span className="block font-semibold text-ink">{item.title}</span>
+                            <span className="mt-1 block text-sm font-normal text-ink-soft">{item.helper}</span>
+                          </span>
+                          <ArrowRight className="size-4" />
+                        </Link>
+                      ))}
                     </div>
                   </div>
                 </div>
               </div>
 
               <div className="rounded-[28px] border border-line bg-white p-6">
-                <h3 className="text-lg font-semibold text-ink">Priority fix queue</h3>
-                <p className="mt-2 text-sm text-ink-soft">The most urgent catalog issues stay visible here, with the full live queue available on the dedicated health page.</p>
+                <h3 className="text-lg font-semibold text-ink">Catalog fixes to handle next</h3>
+                <p className="mt-2 text-sm text-ink-soft">The most urgent catalog problems stay visible here, with the full list on the catalog health page.</p>
                 <div className="mt-4 overflow-hidden rounded-[24px] border border-line">
                   <table className="w-full border-collapse text-sm">
                     <thead className="bg-brand-soft text-left text-xs uppercase tracking-[0.18em] text-ink-soft">

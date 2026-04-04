@@ -8,25 +8,61 @@ import { PageHero } from '../../components/marketing/PageHero';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import type { AdminDashboard } from '../../types/domain';
 
-export const adminNavItems = [
-  { path: '/admin', label: 'Dashboard' },
-  { path: '/admin/package-orders', label: 'Payments & Orders' },
-  { path: '/admin/campaign-operations', label: 'Campaign Controls' },
-  { path: '/admin/stations', label: 'Stations & Channels' },
-  { path: '/admin/pricing', label: 'Pricing & Packages' },
-  { path: '/admin/imports', label: 'Imports & Rate Cards' },
-  { path: '/admin/health', label: 'Data Quality & Health' },
-  { path: '/admin/geography', label: 'Geography Mapping' },
-  { path: '/admin/engine', label: 'Engine Settings' },
-  { path: '/admin/preview-rules', label: 'Preview Rules' },
-  { path: '/admin/ai-voices', label: 'AI Voices' },
-  { path: '/admin/ai-voice-packs', label: 'AI Voice Packs' },
-  { path: '/admin/ai-voice-templates', label: 'AI Voice Templates' },
-  { path: '/admin/ai-ad-ops', label: 'AI Ad Ops' },
-  { path: '/admin/monitoring', label: 'Monitoring' },
-  { path: '/admin/users', label: 'Users & Roles' },
-  { path: '/admin/audit', label: 'Audit Log' },
-  { path: '/admin/integrations', label: 'Integrations' },
+type AdminNavItem = {
+  path: string;
+  label: string;
+  end?: boolean;
+};
+
+type AdminNavSection = {
+  title: string;
+  items: AdminNavItem[];
+};
+
+export const adminNavSections: AdminNavSection[] = [
+  {
+    title: 'Overview',
+    items: [
+      { path: '/admin', label: 'Dashboard', end: true },
+    ],
+  },
+  {
+    title: 'Daily work',
+    items: [
+      { path: '/admin/package-orders', label: 'Payments' },
+      { path: '/admin/campaign-operations', label: 'Campaigns' },
+      { path: '/admin/users', label: 'Users' },
+    ],
+  },
+  {
+    title: 'Catalog',
+    items: [
+      { path: '/admin/stations', label: 'Outlets' },
+      { path: '/admin/pricing', label: 'Pricing' },
+      { path: '/admin/imports', label: 'Imports' },
+      { path: '/admin/health', label: 'Catalog Health' },
+      { path: '/admin/geography', label: 'Geography' },
+    ],
+  },
+  {
+    title: 'Settings',
+    items: [
+      { path: '/admin/engine', label: 'Planning Rules' },
+      { path: '/admin/preview-rules', label: 'Preview Rules' },
+      { path: '/admin/integrations', label: 'Integrations' },
+      { path: '/admin/monitoring', label: 'Monitoring' },
+      { path: '/admin/audit', label: 'Audit Log' },
+    ],
+  },
+  {
+    title: 'AI tools',
+    items: [
+      { path: '/admin/ai-voices', label: 'Voice Library' },
+      { path: '/admin/ai-voice-packs', label: 'Voice Packs' },
+      { path: '/admin/ai-voice-templates', label: 'Voice Templates' },
+      { path: '/admin/ai-ad-ops', label: 'Ad Operations' },
+    ],
+  },
 ] as const;
 
 export const fmtCurrency = (amount?: number) => amount == null ? 'N/A' : new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 }).format(amount);
@@ -52,6 +88,7 @@ type AdminPageShellProps = {
 
 export function AdminPageShell({ title, description, children }: AdminPageShellProps) {
   const { user, logout } = useAuth();
+  const mobileNavItems = adminNavSections.flatMap((section) => section.items);
 
   return (
     <section className="page-shell space-y-6 sm:space-y-8 lg:space-y-10">
@@ -59,11 +96,11 @@ export function AdminPageShell({ title, description, children }: AdminPageShellP
         <div className="panel overflow-hidden p-4">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ink-soft">Admin navigation</p>
           <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-            {adminNavItems.map((item) => (
+            {mobileNavItems.map((item) => (
               <NavLink
                 key={item.path}
                 to={item.path}
-                end={item.path === '/admin'}
+                end={item.end}
                 className={({ isActive }) => `shrink-0 px-4 py-2 text-xs font-semibold ${isActive ? 'button-primary' : 'button-secondary'}`}
               >
                 {item.label}
@@ -78,24 +115,31 @@ export function AdminPageShell({ title, description, children }: AdminPageShellP
           <div className="space-y-6">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-ink-soft">Workspace</p>
-              <h2 className="mt-4 text-2xl font-semibold text-ink">Admin system</h2>
-              <p className="mt-2 text-sm leading-6 text-ink-soft">Live operational surfaces for inventory, rules, imports, health, and integrations.</p>
+              <h2 className="mt-4 text-2xl font-semibold text-ink">Admin workspace</h2>
+              <p className="mt-2 text-sm leading-6 text-ink-soft">Handle payments, keep campaigns on track, maintain the catalog, and manage platform settings from one place.</p>
             </div>
-            <div className="space-y-2">
-              {adminNavItems.map((item) => (
-                <NavLink
-                  key={item.path}
-                  to={item.path}
-                  end={item.path === '/admin'}
-                  className={({ isActive }) => `block w-full rounded-2xl px-4 py-3 text-sm font-semibold ${isActive ? 'button-primary' : 'button-secondary text-ink'}`}
-                >
-                  {item.label}
-                </NavLink>
+            <div className="space-y-5">
+              {adminNavSections.map((section) => (
+                <div key={section.title} className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-ink-soft">{section.title}</p>
+                  <div className="space-y-2">
+                    {section.items.map((item) => (
+                      <NavLink
+                        key={item.path}
+                        to={item.path}
+                        end={item.end}
+                        className={({ isActive }) => `block w-full rounded-2xl px-4 py-3 text-sm font-semibold ${isActive ? 'button-primary' : 'button-secondary text-ink'}`}
+                      >
+                        {item.label}
+                      </NavLink>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
             <div className="rounded-3xl bg-brand-soft p-4 text-sm text-brand">
-              <p className="font-semibold">Live data only</p>
-              <p className="mt-2 text-ink-soft">This workspace is sourced from the admin dashboard API, broadcast catalog, import tables, package catalog, planning policy config, and payment audit logs.</p>
+              <p className="font-semibold">Live operational data</p>
+              <p className="mt-2 text-ink-soft">The numbers and actions on these pages come from the live payment queue, campaign records, outlet catalog, and platform settings.</p>
             </div>
           </div>
         </aside>
