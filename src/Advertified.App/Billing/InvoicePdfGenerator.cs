@@ -369,14 +369,14 @@ internal static class InvoicePdfGenerator
     {
         var templates = new[]
         {
-            "Campaign onboarding and supplier booking may take up to {ProcessingTimelineBusinessDays} business days after cleared payment and receipt of required materials.",
-            "Media inventory is subject to final supplier availability at booking time.",
-            "If selected inventory is unavailable, {IssuerName} may substitute equivalent inventory of similar value/reach, with client notice.",
-            "Package value remains fixed at {Amount}; channel mix and line items may vary within package policy and availability.",
-            "Campaign activation begins after payment confirmation, recommendation approval, and required creative/material delivery.",
-            "Processing times may be affected by payment providers, supplier systems, and external platform/webhook behavior.",
-            "Refund and cancellation outcomes depend on campaign stage and supplier commitments; booked media and third-party fees may be non-refundable.",
-            "Supplier booking, artwork, cancellation, and make-good terms are incorporated by reference and apply per line item."
+            "Payment is due within 7 days from invoice date unless otherwise agreed in writing.",
+            "Late payments incur interest at 2% per month, calculated daily.",
+            "Campaigns may be suspended after 7 overdue days and cancelled after 14 overdue days.",
+            "Media placements remain subject to supplier availability and confirmation.",
+            "No booking is secured until payment or valid proof of payment is received.",
+            "Advertified may substitute equivalent media placements where necessary.",
+            "Refunds are not standard and remain subject to supplier approval.",
+            "Advertified's liability is limited to fees paid by the client."
         };
 
         return templates.Select(template => ResolveTemplate(template, placeholders)).ToArray();
@@ -386,34 +386,28 @@ internal static class InvoicePdfGenerator
     {
         var clauses = new (string Heading, string Body)[]
         {
-            ("1. Definitions",
-                "\"Issuer\" means {IssuerName}. \"Client\" means the invoiced party. \"Campaign\" means the services and media execution linked to invoice {InvoiceNumber}. \"Inventory\" means media placements or equivalent purchasable media units. \"Supplier\" means third-party media owners, stations, platforms, and partners."),
-            ("2. Acceptance and Scope",
-                "Payment of this invoice confirms acceptance of these terms. This invoice covers package value and campaign services captured in the order records for {CampaignName} under package {PackageName}. Supplier-specific terms applicable to booked inventory are incorporated by reference. The current online terms are available at {TermsUrl}."),
-            ("3. Processing Timeline",
-                "Campaign onboarding and booking operations may take up to {ProcessingTimelineBusinessDays} business days from the later of cleared payment and receipt of all required campaign inputs/materials. Time estimates are targets, not guarantees, where third-party dependencies apply."),
-            ("4. Payment and Package Value",
-                "Package pricing remains fixed at the paid invoice amount ({Amount}) unless explicitly amended in writing. Budget allocation and channel mix may change during planning and optimization while preserving package value and policy constraints."),
-            ("5. Inventory Availability and Substitution",
-                "All inventory is subject to real-time supplier availability at booking. Availability shown during planning/recommendation is indicative until supplier acceptance. If selected inventory becomes unavailable, issuer may substitute inventory of comparable value, fit, and delivery intent, with notice where practicable."),
-            ("6. Activation Preconditions",
-                "Campaign activation requires payment confirmation, recommendation approval where applicable, and compliant final creative/assets. Delays in approvals, briefing, or material delivery may shift start dates and delivery windows."),
-            ("7. Supplier and Third-Party Dependencies",
-                "Processing and execution may be affected by supplier cutoffs, booking queues, technical outages, and external integration/webhook timing. Issuer is not liable for delays caused by systems outside reasonable control."),
-            ("8. Payment Provider Terms",
-                "Outcomes for provider flows, including approval, decline, reversal, cancellation, timeout, or reconciliation, are governed by provider rules. Callback/webhook behavior and timing are provider-dependent."),
-            ("9. Recommendation and Performance",
-                "Recommendations, projected reach, and estimated outcomes are planning tools and not guaranteed performance commitments. Actual results may vary with market, audience, and platform conditions."),
-            ("10. Proof, Reporting, and Documentation",
-                "Proof of booking, delivery updates, and reporting are supplied as available from supplier and system records. Reporting cadence and granularity may vary by channel and supplier capability."),
-            ("11. Cancellations, Changes, and Refunds",
-                "Refund eligibility depends on campaign stage and supplier commitments. Once bookings are placed or media has begun, portions may be non-refundable. Non-recoverable third-party costs and applicable retained gateway/provider fees may be deducted."),
-            ("12. Compliance and Materials",
-                "Client warrants it has rights to submitted materials and claims, and that content complies with law, platform policy, and supplier standards. Issuer may reject or request amendment of non-compliant content."),
-            ("13. Limitation of Liability",
-                "To the maximum extent permitted by law, issuer liability is limited to amounts paid under this invoice. Issuer is not liable for indirect or consequential damages arising from third-party media delivery/platform behavior."),
-            ("14. Terms Hierarchy and Notices",
-                "Where conflict exists, precedence is: signed master agreement (if any), this invoice and annex, then channel/supplier-specific booking terms. Operational notices may be sent via email and in-platform status updates.")
+            ("1. Agreement Formation",
+                "These terms form part of the binding agreement between {IssuerName} and the client upon written acceptance of a quotation or proposal, issue of a purchase order or instruction, or payment of invoice {InvoiceNumber}. Where conflict exists, precedence is: signed agreement, approved proposal or insertion order, then these terms."),
+            ("2. Payment Terms",
+                "Payment is due within 7 days from invoice date unless otherwise agreed in writing. Late payments incur interest at 2% per month, calculated daily. Advertified may suspend campaigns overdue by more than 7 days and cancel campaigns overdue by more than 14 days. The client remains liable for reasonable legal and collection costs."),
+            ("3. Booking and Media Placement",
+                "All placements remain subject to supplier availability and confirmation. No booking is secured until payment or valid proof of payment is received. Advertified may substitute equivalent media placements where necessary."),
+            ("4. Cancellations and Amendments",
+                "Cancellations must be submitted in writing. Cancellation fees may be up to 50% more than 14 days before campaign start and up to 100% less than 7 days before campaign start. Post-confirmation changes may incur additional costs and require supplier approval."),
+            ("5. Third-Party Media Suppliers",
+                "{IssuerName} acts as an intermediary only. Supplier terms apply in addition to these terms. Advertified is not liable for supplier delays, errors, or non-performance. In the event of supplier failure, Advertified's obligation is limited to rebooking equivalent media or issuing credit where applicable."),
+            ("6. Campaign Execution",
+                "Campaign timelines depend on receipt of payment, final creative approval, and supplier scheduling. Delays caused by the client do not entitle the client to refunds."),
+            ("7. Creative Content and Compliance",
+                "The client warrants that all content complies with South African law and Advertising Regulatory Board standards. Advertified may reject non-compliant material."),
+            ("8. Intellectual Property and Data Protection",
+                "The client retains ownership of supplied creative assets and grants Advertified a non-exclusive license to use campaign materials for execution and marketing purposes. The client indemnifies Advertified against intellectual property claims. Personal information is processed in accordance with POPIA for campaign execution and communication."),
+            ("9. Proof of Performance and No Guarantee",
+                "Proof of execution may include photos, logs, or supplier reports, depending on supplier capability, and such proof is sufficient evidence of delivery. Advertified does not guarantee sales outcomes, audience engagement, or ROI, and advertising inherently carries commercial risk."),
+            ("10. Refunds, Liability, and Indemnity",
+                "Refunds are not standard and remain subject to supplier approval. Where applicable, refunds are issued as account credit by default or partial monetary refund at Advertified's discretion. Advertified's total liability is limited to fees paid by the client and excludes indirect or consequential losses. The client indemnifies Advertified against claims arising from illegal or non-compliant advertising content, intellectual property infringement, defamation, or regulatory breaches."),
+            ("11. Force Majeure, Disputes, and Governing Law",
+                "Advertified is not liable for delays or failures caused by events beyond its control, including natural disasters, government actions, or supplier disruptions. Disputes must be submitted in writing within 5 business days, and the parties must attempt good-faith resolution before litigation. These terms are governed by the laws of the Republic of South Africa, with jurisdiction in the Gauteng High Court. The online terms remain available at {TermsUrl}.")
         };
 
         return clauses

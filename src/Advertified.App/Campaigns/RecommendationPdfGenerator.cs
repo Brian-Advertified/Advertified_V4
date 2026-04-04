@@ -9,6 +9,8 @@ namespace Advertified.App.Campaigns;
 
 internal static class RecommendationPdfGenerator
 {
+    private const string TermsUrl = "https://advertified.com/terms-of-service";
+
     internal static byte[] Generate(RecommendationDocumentModel model, string? logoPath)
     {
         QuestPDF.Settings.License = LicenseType.Community;
@@ -244,6 +246,22 @@ internal static class RecommendationPdfGenerator
                             }
                         });
                     }
+
+                    column.Item().PageBreak();
+                    column.Item().Border(1).BorderColor("#D1D5DB").Padding(12).Column(terms =>
+                    {
+                        terms.Spacing(8);
+                        terms.Item().Text("Terms and Conditions Summary").SemiBold().FontSize(12);
+
+                        foreach (var clause in BuildTermsSummary())
+                        {
+                            terms.Item().Text(clause).FontColor("#374151");
+                        }
+
+                        terms.Item().PaddingTop(6).Text($"Full terms and conditions are available online at {TermsUrl}.")
+                            .FontColor("#0F766E")
+                            .SemiBold();
+                    });
                 });
             });
         }).GeneratePdf();
@@ -479,6 +497,23 @@ internal static class RecommendationPdfGenerator
 
         formatted = number.ToString("N0", CultureInfo.GetCultureInfo("en-ZA"));
         return true;
+    }
+
+    private static string[] BuildTermsSummary()
+    {
+        return new[]
+        {
+            "1. These terms become binding upon written acceptance of a proposal, issue of a purchase order or instruction, or payment.",
+            "2. Payment is due within 7 days unless otherwise agreed in writing, and late payments incur interest at 2% per month calculated daily.",
+            "3. All media placements remain subject to supplier availability and confirmation, and no booking is secured until payment or valid proof of payment is received.",
+            "4. Advertified may substitute equivalent media placements where necessary, and supplier terms apply in addition to Advertified's terms.",
+            "5. Cancellations must be submitted in writing and may incur fees of up to 50% more than 14 days before campaign start or up to 100% less than 7 days before campaign start.",
+            "6. Campaign execution depends on payment, final creative approval, and supplier scheduling. Client-caused delays do not create refund rights.",
+            "7. The client warrants that campaign content complies with South African law and Advertising Regulatory Board standards.",
+            "8. Refunds are not standard and remain subject to supplier approval. Where applicable, refunds are usually issued as account credit.",
+            "9. Advertified's total liability is limited to fees paid by the client and excludes indirect or consequential losses.",
+            "10. These terms are governed by the laws of the Republic of South Africa, with jurisdiction in the Gauteng High Court."
+        };
     }
 }
 

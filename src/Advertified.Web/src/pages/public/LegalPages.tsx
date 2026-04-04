@@ -155,35 +155,107 @@ export function TermsPage() {
     <LegalLayout
       kicker="Terms"
       title="Terms and Conditions"
-      description="Core commercial and platform terms for using Advertified."
+      description="Commercial terms governing proposals, bookings, payments, campaign execution, liability, and dispute handling for Advertified services."
     >
-      <LegalSection title="Eligibility">
-        <p>You must be at least 18 years old to use Advertified and should only use the platform on behalf of yourself, your business, or another entity you are authorised to represent.</p>
+      <LegalSection title="1. Agreement Formation">
+        <p>These Terms and Conditions constitute a binding agreement between Advertified and the Client upon the earliest of written acceptance of a quotation or proposal, issuance of a purchase order or instruction, or payment of any invoice.</p>
+        <p>In the event of conflict, the following order of precedence applies: signed agreement, if any; approved proposal or insertion order; then these Terms and Conditions.</p>
       </LegalSection>
 
-      <LegalSection title="Platform service">
-        <p>Advertified helps businesses buy advertising packages, submit campaign briefs, receive planning support, review recommendations, and progress campaigns toward activation.</p>
+      <LegalSection title="2. Payment Terms">
+        <p>Payment is due within 7 (seven) days from invoice date unless otherwise agreed in writing.</p>
+        <p>Late payments incur interest at 2% per month, calculated daily.</p>
+        <p>Advertified reserves the right to suspend campaigns for accounts overdue by more than 7 days and cancel campaigns for accounts overdue by more than 14 days.</p>
+        <p>The Client is liable for all reasonable legal and collection costs incurred in recovering overdue amounts.</p>
       </LegalSection>
 
-      <LegalSection title="Payments">
-        <p>Package purchases are processed as once-off transactions. Access to campaign workflows, invoices, and planning steps may depend on successful payment and account verification.</p>
+      <LegalSection title="3. Booking and Media Placement">
+        <p>All media placements are subject to availability and supplier confirmation.</p>
+        <p>No booking is secured until payment or valid proof of payment is received.</p>
+        <p>Advertified reserves the right to substitute equivalent media placements where necessary.</p>
       </LegalSection>
 
-      <LegalSection title="Refunds">
-        <p>Refund outcomes depend on the stage of work already completed.</p>
-        <p>Before work starts, a full refund may be available, less any non-recoverable payment gateway fee.</p>
-        <p>Once briefing or strategy work is in progress, a partial refund may apply and planning or strategy value may be retained.</p>
-        <p>After recommendation delivery, creative work, or campaign go-live, only unused or uncommitted value may be refundable following manual review.</p>
+      <LegalSection title="4. Cancellations and Amendments">
+        <p>All cancellations must be submitted in writing.</p>
+        <p>Cancellation fees may be up to 50% more than 14 days before campaign start, and up to 100% less than 7 days before campaign start.</p>
+        <p>Post-confirmation changes may incur additional costs and remain subject to supplier approval.</p>
       </LegalSection>
 
-      <LegalSection title="Acceptable use">
-        <p>You may not use Advertified for unlawful activity, fraudulent payment behaviour, unauthorised access attempts, or submission of campaign content that you do not have the right to use.</p>
+      <LegalSection title="5. Third-Party Media Suppliers">
+        <p>Advertified acts solely as an intermediary. All media inventory is owned and operated by third-party suppliers.</p>
+        <p>The Client agrees that supplier terms apply in addition to these Terms, and that Advertified is not liable for supplier delays, errors, or non-performance.</p>
+        <p>In the event of supplier failure, Advertified&apos;s obligation is limited to rebooking equivalent media or issuing credit where applicable.</p>
       </LegalSection>
 
-      <LegalSection title="Contact and legal administration">
-        <p>Information Officer: Nkonzo Mabetha.</p>
-        <p>General contact: ad@advertified.com</p>
-        <p>Support contact: support@advertified.com</p>
+      <LegalSection title="6. Campaign Execution">
+        <p>Campaign timelines depend on receipt of payment, final creative approval, and supplier scheduling.</p>
+        <p>Delays caused by the Client do not entitle the Client to refunds.</p>
+      </LegalSection>
+
+      <LegalSection title="7. Creative Content and Compliance">
+        <p>The Client warrants that all content complies with South African law and meets Advertising Regulatory Board standards.</p>
+        <p>Advertified reserves the right to reject non-compliant material.</p>
+      </LegalSection>
+
+      <LegalSection title="8. Intellectual Property">
+        <p>The Client retains ownership of all creative assets supplied.</p>
+        <p>The Client grants Advertified a non-exclusive license to use campaign materials for execution and marketing purposes.</p>
+        <p>The Client indemnifies Advertified against any intellectual property infringement claims.</p>
+      </LegalSection>
+
+      <LegalSection title="9. Data Protection (POPIA)">
+        <p>Advertified processes personal information in accordance with the Protection of Personal Information Act.</p>
+        <p>The Client consents to the processing of data necessary for campaign execution and communication.</p>
+      </LegalSection>
+
+      <LegalSection title="10. Proof of Performance">
+        <p>Proof of campaign execution may include photos, logs, or supplier reports, depending on supplier capability.</p>
+        <p>Such proof constitutes sufficient evidence of delivery.</p>
+      </LegalSection>
+
+      <LegalSection title="11. No Performance Guarantee">
+        <p>Advertified does not guarantee sales outcomes, audience engagement, or return on investment.</p>
+        <p>Advertising inherently carries commercial risk.</p>
+      </LegalSection>
+
+      <LegalSection title="12. Refund Policy">
+        <p>Refunds are not standard and remain subject to supplier approval.</p>
+        <p>Where applicable, refunds will be issued as account credit by default, or a partial monetary refund at Advertified&apos;s discretion.</p>
+      </LegalSection>
+
+      <LegalSection title="13. Limitation of Liability">
+        <p>Advertified&apos;s total liability is limited to the value of fees paid by the Client.</p>
+        <p>Advertified is not liable for indirect or consequential losses, including loss of profit, revenue, or business opportunity.</p>
+      </LegalSection>
+
+      <LegalSection title="14. Indemnity">
+        <p>The Client indemnifies Advertified against all claims arising from illegal or non-compliant advertising content, intellectual property infringement, defamation, or regulatory breaches.</p>
+      </LegalSection>
+
+      <LegalSection title="15. Force Majeure">
+        <p>Advertified is not liable for delays or failures caused by events beyond its control, including natural disasters, government actions, or supplier disruptions.</p>
+      </LegalSection>
+
+      <LegalSection title="16. Dispute Resolution">
+        <p>Disputes must be submitted in writing within 5 business days.</p>
+        <p>The parties agree to attempt resolution in good faith before litigation.</p>
+      </LegalSection>
+
+      <LegalSection title="17. Governing Law">
+        <p>This agreement is governed by the laws of the Republic of South Africa.</p>
+        <p>Jurisdiction is the Gauteng High Court.</p>
+      </LegalSection>
+
+      <LegalSection title="18. Non-Assignment">
+        <p>The Client may not assign or transfer rights or obligations without prior written consent.</p>
+      </LegalSection>
+
+      <LegalSection title="19. Entire Agreement">
+        <p>These Terms constitute the entire agreement and supersede all prior discussions or representations.</p>
+      </LegalSection>
+
+      <LegalSection title="20. Acceptance">
+        <p>Payment or written confirmation constitutes full acceptance of these Terms and Conditions.</p>
       </LegalSection>
     </LegalLayout>
   );
