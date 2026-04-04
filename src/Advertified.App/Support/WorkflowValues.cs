@@ -11,6 +11,7 @@ public static class CampaignStatuses
     public const string CreativeSentToClientForApproval = "creative_sent_to_client_for_approval";
     public const string CreativeChangesRequested = "creative_changes_requested";
     public const string CreativeApproved = "creative_approved";
+    public const string BookingInProgress = "booking_in_progress";
     public const string Launched = "launched";
 }
 

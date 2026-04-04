@@ -41,7 +41,7 @@ export function CampaignDetailPage() {
   const requestedAction = searchParams.get('action')?.trim() ?? '';
   const showRejectAllFlow = requestedAction === 'reject_all';
   const recommendationApprovalComplete = recommendations.some((item) => item.status === 'approved')
-    || ['approved', 'creative_sent_to_client_for_approval', 'creative_changes_requested', 'creative_approved', 'launched'].includes(campaignQuery.data?.status ?? '');
+    || ['approved', 'creative_sent_to_client_for_approval', 'creative_changes_requested', 'creative_approved', 'booking_in_progress', 'launched'].includes(campaignQuery.data?.status ?? '');
   const approvedRecommendationId = recommendations.find((item) => item.status === 'approved')?.id ?? '';
   const resolvedRecommendationId = recommendations.some((item) => item.id === selectedRecommendationId)
     ? selectedRecommendationId
@@ -206,6 +206,8 @@ export function CampaignDetailPage() {
     ? 100
     : campaign.status === 'creative_sent_to_client_for_approval'
       ? Math.max(progress, 90)
+      : campaign.status === 'booking_in_progress'
+        ? Math.max(progress, 97)
       : campaign.status === 'creative_approved'
         ? Math.max(progress, 96)
         : progress;
@@ -219,6 +221,7 @@ export function CampaignDetailPage() {
       && campaign.status !== 'creative_changes_requested'
       && campaign.status !== 'creative_sent_to_client_for_approval'
       && campaign.status !== 'creative_approved'
+      && campaign.status !== 'booking_in_progress'
       && campaign.status !== 'launched'
       && recommendation.status !== 'approved',
   );
@@ -285,7 +288,7 @@ export function CampaignDetailPage() {
             <section id="overview" className="rounded-[30px] border border-line bg-white p-7 shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
           <div className="inline-flex items-center gap-2 rounded-full bg-brand-soft px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-brand">
             <Sparkles className="size-4" />
-            {campaign.status === 'approved' || campaign.status === 'creative_changes_requested' || campaign.status === 'creative_approved' || campaign.status === 'launched'
+            {campaign.status === 'approved' || campaign.status === 'creative_changes_requested' || campaign.status === 'creative_approved' || campaign.status === 'booking_in_progress' || campaign.status === 'launched'
               ? 'You are all set'
               : 'One thing to do'}
           </div>
@@ -300,7 +303,7 @@ export function CampaignDetailPage() {
                 <Link to={`${campaignBasePath}/messages`} className="user-btn-secondary w-full sm:w-auto text-center sm:inline-flex justify-center">Ask a question</Link>
                 <Link to={`/campaigns/${campaign.id}/studio-preview`} className="user-btn-secondary w-full sm:w-auto text-center sm:inline-flex justify-center">Preview studio</Link>
                 {canAccessAiStudioForStatus(campaign.status) ? (
-                  <Link to={`/ai-studio?campaignId=${campaign.id}`} className="user-btn-secondary w-full sm:w-auto text-center sm:inline-flex justify-center">Prefill from approved recommendation</Link>
+                  <Link to={`/ai-studio?campaignId=${campaign.id}`} className="user-btn-secondary w-full sm:w-auto text-center sm:inline-flex justify-center">Open campaign content</Link>
                 ) : null}
               </div>
               <div className="mt-4 flex flex-wrap gap-2">

@@ -145,7 +145,12 @@ export function CreativeDirectorDashboardPage() {
   }
 
   const previewCampaign = inboxQuery.data.items[0] ?? null;
-  const readyCampaigns = inboxQuery.data.items.filter((item) => item.status === 'approved' || item.status === 'creative_sent_to_client_for_approval');
+  const readyCampaigns = inboxQuery.data.items.filter((item) =>
+    item.status === 'approved'
+    || item.status === 'creative_changes_requested'
+    || item.status === 'creative_sent_to_client_for_approval'
+    || item.status === 'creative_approved'
+    || item.status === 'booking_in_progress');
 
   return (
     <CreativePageShell
@@ -174,7 +179,13 @@ export function CreativeDirectorDashboardPage() {
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <div className="text-xs font-semibold uppercase tracking-[0.24em] text-ink-soft">
-                      {item.status === 'creative_sent_to_client_for_approval' ? 'Awaiting final client approval' : 'Approved and ready'}
+                      {item.status === 'creative_sent_to_client_for_approval'
+                        ? 'Awaiting final client approval'
+                        : item.status === 'booking_in_progress'
+                          ? 'Booking and launch prep'
+                          : item.status === 'creative_changes_requested'
+                            ? 'Creative revision needed'
+                            : 'Approved and ready'}
                     </div>
                     <h3 className="mt-3 text-2xl font-semibold text-ink">{item.campaignName}</h3>
                     <p className="mt-2 text-sm text-ink-soft">{item.clientName} · {item.packageBandName}</p>
@@ -232,6 +243,15 @@ export function CreativeDirectorStudioPage() {
   const { pushToast } = useToast();
   const [assetFile, setAssetFile] = useState<File | null>(null);
   const [assetType, setAssetType] = useState('creative_pack');
+  const [bookingDraft, setBookingDraft] = useState({
+    supplierOrStation: '',
+    channel: 'radio',
+    bookingStatus: 'planned',
+    committedAmount: '',
+    liveFrom: '',
+    liveTo: '',
+    notes: '',
+  });
   const campaignQuery = useQuery({ queryKey: queryKeys.creative.campaign(id), queryFn: () => advertifiedApi.getCreativeCampaign(id) });
   const sendFinishedMediaMutation = useMutation({
     mutationFn: () => advertifiedApi.sendFinishedMediaToClientForApproval(id),
@@ -261,6 +281,55 @@ export function CreativeDirectorStudioPage() {
       }, 'error');
     },
   });
+  const saveBookingMutation = useMutation({
+    mutationFn: () => advertifiedApi.saveSupplierBooking(id, {
+      supplierOrStation: bookingDraft.supplierOrStation,
+      channel: bookingDraft.channel,
+      bookingStatus: bookingDraft.bookingStatus,
+      committedAmount: Number(bookingDraft.committedAmount || 0),
+      liveFrom: bookingDraft.liveFrom || undefined,
+      liveTo: bookingDraft.liveTo || undefined,
+      notes: bookingDraft.notes || undefined,
+    }),
+    onSuccess: async () => {
+      setBookingDraft({
+        supplierOrStation: '',
+        channel: 'radio',
+        bookingStatus: 'planned',
+        committedAmount: '',
+        liveFrom: '',
+        liveTo: '',
+        notes: '',
+      });
+      await invalidateCreativeCampaignQueries(queryClient, id);
+      pushToast({
+        title: 'Supplier booking saved.',
+        description: 'The campaign has moved into booking and the client can now see that progress.',
+      });
+    },
+    onError: (error) => {
+      pushToast({
+        title: 'Could not save supplier booking.',
+        description: error instanceof Error ? error.message : 'Please try again.',
+      }, 'error');
+    },
+  });
+  const markLiveMutation = useMutation({
+    mutationFn: () => advertifiedApi.markCampaignLaunched(id),
+    onSuccess: async () => {
+      await invalidateCreativeCampaignQueries(queryClient, id);
+      pushToast({
+        title: 'Campaign marked live.',
+        description: 'The client workspace now shows the campaign as live.',
+      });
+    },
+    onError: (error) => {
+      pushToast({
+        title: 'Could not mark campaign live.',
+        description: error instanceof Error ? error.message : 'Please try again.',
+      }, 'error');
+    },
+  });
 
   if (campaignQuery.isLoading) {
     return <LoadingState label="Loading creative production brief..." />;
@@ -283,6 +352,7 @@ export function CreativeDirectorStudioPage() {
   const channelMood = recommendation ? Array.from(new Set(recommendation.items.map((item) => formatChannelLabel(item.channel)))).filter(Boolean) : [];
   const geographyFocus = [brief?.areas, brief?.cities, brief?.provinces].flatMap((items) => items ?? []).filter(Boolean);
   const isAwaitingFinalApproval = campaign.status === 'creative_sent_to_client_for_approval';
+  const isBookingStage = campaign.status === 'creative_approved' || campaign.status === 'booking_in_progress' || campaign.status === 'launched';
   const studioCollections = [
     {
       icon: Palette,
@@ -333,6 +403,13 @@ export function CreativeDirectorStudioPage() {
       isPreview={false}
       onSendFinishedMedia={() => sendFinishedMediaMutation.mutate()}
       isSendingFinishedMedia={sendFinishedMediaMutation.isPending}
+      isBookingStage={isBookingStage}
+      bookingDraft={bookingDraft}
+      onBookingDraftChange={setBookingDraft}
+      onSaveBooking={() => saveBookingMutation.mutate()}
+      isSavingBooking={saveBookingMutation.isPending}
+      onMarkLive={() => markLiveMutation.mutate()}
+      isMarkingLive={markLiveMutation.isPending}
       assetFileName={assetFile?.name}
       assetType={assetType}
       onAssetTypeChange={setAssetType}
@@ -429,6 +506,21 @@ export function CreativeStudioPreviewPage() {
       isAwaitingFinalApproval={isAwaitingFinalApproval}
       isPreview
       isSendingFinishedMedia={false}
+      isBookingStage={campaign.status === 'creative_approved' || campaign.status === 'booking_in_progress' || campaign.status === 'launched'}
+      bookingDraft={{
+        supplierOrStation: '',
+        channel: 'radio',
+        bookingStatus: 'planned',
+        committedAmount: '',
+        liveFrom: '',
+        liveTo: '',
+        notes: '',
+      }}
+      onBookingDraftChange={() => {}}
+      onSaveBooking={() => {}}
+      isSavingBooking={false}
+      onMarkLive={() => {}}
+      isMarkingLive={false}
       assetFileName={undefined}
       assetType="creative_pack"
       onAssetTypeChange={() => {}}
@@ -645,6 +737,21 @@ export function CreativeStudioDemoPage() {
       isAwaitingFinalApproval={false}
       isPreview
       isSendingFinishedMedia={false}
+      isBookingStage={campaign.status === 'creative_approved' || campaign.status === 'booking_in_progress' || campaign.status === 'launched'}
+      bookingDraft={{
+        supplierOrStation: '',
+        channel: 'radio',
+        bookingStatus: 'planned',
+        committedAmount: '',
+        liveFrom: '',
+        liveTo: '',
+        notes: '',
+      }}
+      onBookingDraftChange={() => {}}
+      onSaveBooking={() => {}}
+      isSavingBooking={false}
+      onMarkLive={() => {}}
+      isMarkingLive={false}
       assetFileName={undefined}
       assetType="creative_pack"
       onAssetTypeChange={() => {}}
@@ -666,6 +773,13 @@ function CreativeStudioContent({
   isPreview,
   onSendFinishedMedia,
   isSendingFinishedMedia,
+  isBookingStage,
+  bookingDraft,
+  onBookingDraftChange,
+  onSaveBooking,
+  isSavingBooking,
+  onMarkLive,
+  isMarkingLive,
   assetFileName,
   assetType,
   onAssetTypeChange,
@@ -684,6 +798,29 @@ function CreativeStudioContent({
   isPreview: boolean;
   onSendFinishedMedia?: () => void;
   isSendingFinishedMedia: boolean;
+  isBookingStage: boolean;
+  bookingDraft: {
+    supplierOrStation: string;
+    channel: string;
+    bookingStatus: string;
+    committedAmount: string;
+    liveFrom: string;
+    liveTo: string;
+    notes: string;
+  };
+  onBookingDraftChange: (value: {
+    supplierOrStation: string;
+    channel: string;
+    bookingStatus: string;
+    committedAmount: string;
+    liveFrom: string;
+    liveTo: string;
+    notes: string;
+  }) => void;
+  onSaveBooking: () => void;
+  isSavingBooking: boolean;
+  onMarkLive: () => void;
+  isMarkingLive: boolean;
   assetFileName?: string;
   assetType: string;
   onAssetTypeChange: (value: string) => void;
@@ -693,6 +830,9 @@ function CreativeStudioContent({
 }) {
   const { pushToast } = useToast();
   const queryClient = useQueryClient();
+  const supplierBookings = campaign.supplierBookings ?? [];
+  const canSaveBooking = bookingDraft.supplierOrStation.trim().length > 0;
+  const canMarkLive = !isPreview && campaign.status === 'booking_in_progress';
   const [prompt, setPrompt] = useState(() => buildDefaultCreativePrompt({
     campaignName: campaign.campaignName,
     businessName: campaign.businessName ?? campaign.clientName,
@@ -837,9 +977,13 @@ function CreativeStudioContent({
                 {isPreview ? 'Creative Studio Preview' : 'Creative Director Studio'}
               </div>
               <div className="space-y-3">
-                <h2 className="font-display text-4xl leading-tight text-slate-900">{campaign.campaignName} is ready for production.</h2>
+                <h2 className="font-display text-4xl leading-tight text-slate-900">
+                  {isBookingStage ? `${campaign.campaignName} is in booking and launch prep.` : `${campaign.campaignName} is ready for production.`}
+                </h2>
                 <p className="max-w-3xl text-base leading-7 text-slate-600">
-                  The recommendation is already approved, so this studio is focused on production, polish, and preparing the final creative pack for client approval.
+                  {isBookingStage
+                    ? 'Creative approval is complete, so this workspace now shifts to supplier outreach, booking confirmation, and launch readiness updates.'
+                    : 'The recommendation is already approved, so this studio is focused on production, polish, and preparing the final creative pack for client approval.'}
                 </p>
               </div>
               <div className="grid gap-4 sm:grid-cols-3">
@@ -954,18 +1098,22 @@ function CreativeStudioContent({
                 </p>
               </div>
               <div className="user-wire">
-                {isAwaitingFinalApproval
+                {isBookingStage
+                  ? 'The client approval step is complete. Use this workspace to confirm supplier bookings and keep the client updated as launch preparation moves forward.'
+                  : isAwaitingFinalApproval
                   ? 'Finished media has already been sent. The campaign is now in its final client-approval state.'
                   : 'The production send step is now modeled as a creative-director-owned handoff. Use it when the finished media pack is ready for client approval.'}
               </div>
               <button
                 type="button"
                 onClick={onSendFinishedMedia}
-                disabled={isPreview || isAwaitingFinalApproval || isSendingFinishedMedia}
+                disabled={isPreview || isAwaitingFinalApproval || isBookingStage || isSendingFinishedMedia}
                 className="user-btn-primary disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isPreview
                   ? 'Preview only'
+                  : isBookingStage
+                  ? 'Client approval complete'
                   : isAwaitingFinalApproval
                   ? 'Finished media already sent'
                   : isSendingFinishedMedia
@@ -978,9 +1126,128 @@ function CreativeStudioContent({
                 </Link>
                 {!isPreview ? <Link to={`/campaigns/${campaign.id}`} className="user-btn-secondary">View client workspace</Link> : null}
               </div>
+              </div>
             </div>
           </div>
-        </div>
+
+          {isBookingStage ? (
+            <div className="user-card">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <h3>Supplier booking and client updates</h3>
+                  <p className="mt-2 text-sm leading-7 text-slate-600">
+                    Contact the supplier or station, save the confirmed booking here, and the client workspace will reflect that the campaign is now in booking.
+                  </p>
+                </div>
+                <div className="rounded-[20px] border border-brand/20 bg-brand-soft/60 px-4 py-3 text-sm text-slate-700">
+                  {campaign.status === 'launched'
+                    ? 'Campaign is already live.'
+                    : campaign.status === 'booking_in_progress'
+                      ? 'Booking is in progress.'
+                      : 'Creative approval is complete. First booking will move the campaign into booking.'}
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <input
+                  className="input-base"
+                  placeholder="Supplier or station name"
+                  value={bookingDraft.supplierOrStation}
+                  disabled={isPreview || campaign.status === 'launched'}
+                  onChange={(event) => onBookingDraftChange({ ...bookingDraft, supplierOrStation: event.target.value })}
+                />
+                <select
+                  className="input-base"
+                  value={bookingDraft.channel}
+                  disabled={isPreview || campaign.status === 'launched'}
+                  onChange={(event) => onBookingDraftChange({ ...bookingDraft, channel: event.target.value })}
+                >
+                  <option value="radio">Radio</option>
+                  <option value="ooh">Billboards and Digital Screens</option>
+                  <option value="tv">TV</option>
+                  <option value="digital">Digital</option>
+                </select>
+                <select
+                  className="input-base"
+                  value={bookingDraft.bookingStatus}
+                  disabled={isPreview || campaign.status === 'launched'}
+                  onChange={(event) => onBookingDraftChange({ ...bookingDraft, bookingStatus: event.target.value })}
+                >
+                  <option value="planned">Planned</option>
+                  <option value="booked">Booked and confirmed</option>
+                  <option value="live">Live now</option>
+                  <option value="completed">Completed</option>
+                </select>
+                <input
+                  className="input-base"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="Booked amount"
+                  value={bookingDraft.committedAmount}
+                  disabled={isPreview || campaign.status === 'launched'}
+                  onChange={(event) => onBookingDraftChange({ ...bookingDraft, committedAmount: event.target.value })}
+                />
+                <input
+                  className="input-base"
+                  type="date"
+                  value={bookingDraft.liveFrom}
+                  disabled={isPreview || campaign.status === 'launched'}
+                  onChange={(event) => onBookingDraftChange({ ...bookingDraft, liveFrom: event.target.value })}
+                />
+                <input
+                  className="input-base"
+                  type="date"
+                  value={bookingDraft.liveTo}
+                  disabled={isPreview || campaign.status === 'launched'}
+                  onChange={(event) => onBookingDraftChange({ ...bookingDraft, liveTo: event.target.value })}
+                />
+                <textarea
+                  className="input-base min-h-[110px] md:col-span-2 xl:col-span-3"
+                  placeholder="Notes for the team or the client, for example who confirmed the booking, what is still pending, or any launch timing details."
+                  value={bookingDraft.notes}
+                  disabled={isPreview || campaign.status === 'launched'}
+                  onChange={(event) => onBookingDraftChange({ ...bookingDraft, notes: event.target.value })}
+                />
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={onSaveBooking}
+                  disabled={isPreview || campaign.status === 'launched' || !canSaveBooking || isSavingBooking}
+                  className="user-btn-primary disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isSavingBooking ? 'Saving booking...' : 'Save supplier booking'}
+                </button>
+                {canMarkLive ? (
+                  <button
+                    type="button"
+                    onClick={onMarkLive}
+                    disabled={isMarkingLive}
+                    className="user-btn-secondary disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isMarkingLive ? 'Marking live...' : 'Mark campaign live'}
+                  </button>
+                ) : null}
+              </div>
+
+              <div className="mt-5 grid gap-3">
+                {supplierBookings.length > 0 ? supplierBookings.map((booking) => (
+                  <div key={booking.id} className="user-wire">
+                    <strong>{booking.supplierOrStation}</strong>
+                    <div>{formatChannelLabel(booking.channel)} | {booking.bookingStatus.replace(/_/g, ' ')}</div>
+                    <div>{booking.liveFrom || booking.liveTo ? `${booking.liveFrom ?? 'Start TBC'} to ${booking.liveTo ?? 'End TBC'}` : 'Dates still being confirmed'}</div>
+                    <div>{formatCurrency(booking.committedAmount)}</div>
+                  </div>
+                )) : (
+                  <div className="user-wire">
+                    No supplier bookings have been saved yet. Once you log one here, the client workspace will show that booking is underway.
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : null}
 
         <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
           <div className="user-card">

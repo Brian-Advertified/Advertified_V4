@@ -235,7 +235,11 @@ public sealed class NotificationsController : ControllerBase
             }
             else if (campaign.Status == CampaignStatuses.CreativeApproved)
             {
-                items.Add(BuildItem($"campaign-creative-approved-{campaign.Id}", "Final creative approved", $"{campaignName} has completed final creative approval and is waiting for activation.", $"/campaigns/{campaign.Id}", "success"));
+                items.Add(BuildItem($"campaign-creative-approved-{campaign.Id}", "Creative approved", $"{campaignName} finished creative approval and is moving into booking preparation.", $"/campaigns/{campaign.Id}", "success"));
+            }
+            else if (campaign.Status == CampaignStatuses.BookingInProgress)
+            {
+                items.Add(BuildItem($"campaign-booking-{campaign.Id}", "Booking in progress", $"{campaignName} is now being booked with suppliers ahead of launch.", $"/campaigns/{campaign.Id}", "info"));
             }
             else if (campaign.Status == CampaignStatuses.Launched)
             {
@@ -304,9 +308,13 @@ public sealed class NotificationsController : ControllerBase
 
             if (creativeOnly)
             {
-                if (campaign.Status == CampaignStatuses.Approved || campaign.Status == CampaignStatuses.CreativeChangesRequested)
+                if (campaign.Status == CampaignStatuses.Approved
+                    || campaign.Status == CampaignStatuses.CreativeChangesRequested
+                    || campaign.Status == CampaignStatuses.CreativeSentToClientForApproval
+                    || campaign.Status == CampaignStatuses.BookingInProgress
+                    || campaign.Status == CampaignStatuses.CreativeApproved)
                 {
-                    items.Add(BuildItem($"creative-studio-{campaign.Id}", "Creative studio work ready", $"{campaignName} is ready for production or creative revision handling.", $"/creative/campaigns/{campaign.Id}/studio", "info"));
+                    items.Add(BuildItem($"creative-studio-{campaign.Id}", "Creative studio work ready", $"{campaignName} is ready for production, booking, or creative revision handling.", $"/creative/campaigns/{campaign.Id}/studio", "info"));
                 }
                 continue;
             }
@@ -330,6 +338,15 @@ public sealed class NotificationsController : ControllerBase
                     $"{campaignName} was approved by the client and can now move forward.",
                     $"/agent/campaigns/{campaign.Id}",
                     "success"));
+            }
+            else if (campaign.Status == CampaignStatuses.BookingInProgress)
+            {
+                items.Add(BuildItem(
+                    $"agent-booking-{campaign.Id}",
+                    "Supplier booking in progress",
+                    $"{campaignName} is now in booking and launch preparation.",
+                    $"/agent/campaigns/{campaign.Id}",
+                    "info"));
             }
             else if (stage == "planning_ready")
             {
@@ -423,6 +440,7 @@ public sealed class NotificationsController : ControllerBase
             CampaignStatuses.PlanningInProgress when hasRecommendation => "agent_review",
             CampaignStatuses.PlanningInProgress => "planning_ready",
             CampaignStatuses.ReviewReady => "waiting_on_client",
+            CampaignStatuses.BookingInProgress => "completed",
             _ => "watching"
         };
     }

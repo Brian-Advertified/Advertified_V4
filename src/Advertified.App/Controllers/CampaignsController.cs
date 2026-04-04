@@ -286,14 +286,14 @@ public sealed class CampaignsController : ControllerBase
             });
         }
 
-        campaign.Status = CampaignStatuses.CreativeApproved;
+        campaign.Status = CampaignStatuses.BookingInProgress;
         campaign.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
         await SendInternalCreativeQueueUpdateAsync(
             campaign,
             eventTitle: "Client approved final creative",
-            eventBody: "Final creative approval captured. Agent operations can now proceed with activation workflow.",
-            actionPath: $"/agent/campaigns/{campaign.Id}",
+            eventBody: "Final creative approval captured. Supplier booking and launch preparation can now begin.",
+            actionPath: $"/creative/campaigns/{campaign.Id}/studio",
             includeAssignedAgent: true,
             cancellationToken);
 

@@ -59,6 +59,7 @@ export function canOpenBrief(campaign?: Campaign | null) {
         'creative_sent_to_client_for_approval',
         'creative_changes_requested',
         'creative_approved',
+        'booking_in_progress',
         'launched',
       ].includes(campaign.status),
   );
@@ -68,7 +69,7 @@ export function canOpenPlanning(campaign?: Campaign | null) {
   return Boolean(
       campaign &&
       campaign.aiUnlocked &&
-      ['brief_submitted', 'planning_in_progress', 'review_ready', 'approved', 'creative_sent_to_client_for_approval', 'creative_changes_requested', 'creative_approved', 'launched'].includes(campaign.status),
+      ['brief_submitted', 'planning_in_progress', 'review_ready', 'approved', 'creative_sent_to_client_for_approval', 'creative_changes_requested', 'creative_approved', 'booking_in_progress', 'launched'].includes(campaign.status),
   );
 }
 
@@ -99,24 +100,24 @@ export function getCampaignPrimaryAction(campaign: Campaign) {
     };
   }
 
-  if ((campaign.status === 'planning_in_progress' || campaign.status === 'review_ready' || campaign.status === 'approved' || campaign.status === 'creative_sent_to_client_for_approval' || campaign.status === 'creative_changes_requested' || campaign.status === 'creative_approved' || campaign.status === 'launched') && hasRecommendation) {
+  if ((campaign.status === 'planning_in_progress' || campaign.status === 'review_ready' || campaign.status === 'approved' || campaign.status === 'creative_sent_to_client_for_approval' || campaign.status === 'creative_changes_requested' || campaign.status === 'creative_approved' || campaign.status === 'booking_in_progress' || campaign.status === 'launched') && hasRecommendation) {
     return {
       href: paymentRequiredBeforeApproval
         ? `/checkout/payment?orderId=${encodeURIComponent(campaign.packageOrderId)}&campaignId=${encodeURIComponent(campaign.id)}${selectedRecommendationId ? `&recommendationId=${encodeURIComponent(selectedRecommendationId)}` : ''}`
         : `/campaigns/${campaign.id}`,
       label: paymentRequiredBeforeApproval
         ? 'Complete payment'
-        : campaign.status === 'approved' || campaign.status === 'creative_sent_to_client_for_approval' || campaign.status === 'creative_changes_requested' || campaign.status === 'creative_approved' || campaign.status === 'launched'
+        : campaign.status === 'approved' || campaign.status === 'creative_sent_to_client_for_approval' || campaign.status === 'creative_changes_requested' || campaign.status === 'creative_approved' || campaign.status === 'booking_in_progress' || campaign.status === 'launched'
           ? 'Open campaign workspace'
           : 'Review recommendation',
       description: paymentRequiredBeforeApproval
         ? 'Payment is still required before you can approve this recommendation and move into production.'
-        : campaign.status === 'approved' || campaign.status === 'creative_sent_to_client_for_approval' || campaign.status === 'creative_changes_requested' || campaign.status === 'creative_approved' || campaign.status === 'launched'
+        : campaign.status === 'approved' || campaign.status === 'creative_sent_to_client_for_approval' || campaign.status === 'creative_changes_requested' || campaign.status === 'creative_approved' || campaign.status === 'booking_in_progress' || campaign.status === 'launched'
         ? 'See the approved recommendation and current campaign approval state in one workspace.'
         : 'Review the draft recommendation, then approve it or request changes from the same workspace.',
       stepLabel: paymentRequiredBeforeApproval
         ? 'Payment required'
-        : campaign.status === 'approved' || campaign.status === 'creative_sent_to_client_for_approval' || campaign.status === 'creative_changes_requested' || campaign.status === 'creative_approved' || campaign.status === 'launched'
+        : campaign.status === 'approved' || campaign.status === 'creative_sent_to_client_for_approval' || campaign.status === 'creative_changes_requested' || campaign.status === 'creative_approved' || campaign.status === 'booking_in_progress' || campaign.status === 'launched'
           ? 'Open workspace'
           : 'Needs action',
     };

@@ -53,7 +53,8 @@ public sealed class CreativeCampaignsController : ControllerBase
                 x.Status == CampaignStatuses.Approved ||
                 x.Status == CampaignStatuses.CreativeChangesRequested ||
                 x.Status == CampaignStatuses.CreativeSentToClientForApproval ||
-                x.Status == CampaignStatuses.CreativeApproved)
+                x.Status == CampaignStatuses.CreativeApproved ||
+                x.Status == CampaignStatuses.BookingInProgress)
             .OrderByDescending(x => x.UpdatedAt)
             .ThenByDescending(x => x.CreatedAt)
             .ToArrayAsync(cancellationToken);
@@ -72,7 +73,12 @@ public sealed class CreativeCampaignsController : ControllerBase
             Status = campaign.Status,
             PlanningMode = campaign.PlanningMode,
             QueueStage = "creative_queue",
-            QueueLabel = campaign.Status == CampaignStatuses.CreativeSentToClientForApproval ? "Awaiting client approval" : "Creative production",
+            QueueLabel = campaign.Status switch
+            {
+                CampaignStatuses.CreativeSentToClientForApproval => "Awaiting client approval",
+                CampaignStatuses.BookingInProgress => "Booking in progress",
+                _ => "Creative production"
+            },
             AssignedAgentUserId = campaign.AssignedAgentUserId,
             AssignedAgentName = campaign.AssignedAgentUser?.FullName,
             AssignedAt = campaign.AssignedAt.HasValue ? new DateTimeOffset(campaign.AssignedAt.Value, TimeSpan.Zero) : null,
@@ -83,7 +89,8 @@ public sealed class CreativeCampaignsController : ControllerBase
                 CampaignStatuses.Approved => "Open the studio and start building the creative system.",
                 CampaignStatuses.CreativeChangesRequested => "Revise the creative pack and prepare a fresh client handoff.",
                 CampaignStatuses.CreativeSentToClientForApproval => "Monitor client sign-off and handle any final revision notes.",
-                CampaignStatuses.CreativeApproved => "Creative is approved. Operations can now activate the campaign.",
+                CampaignStatuses.CreativeApproved => "Creative is approved. Start supplier booking and launch prep.",
+                CampaignStatuses.BookingInProgress => "Contact suppliers, log bookings, and update the client as launch prep moves forward.",
                 _ => "Review the creative workload."
             },
             ManualReviewRequired = false,
@@ -112,7 +119,7 @@ public sealed class CreativeCampaignsController : ControllerBase
             AgentReviewCount = items.Count(x => x.Status == CampaignStatuses.CreativeChangesRequested),
             ReadyToSendCount = items.Count(x => x.Status == CampaignStatuses.CreativeSentToClientForApproval),
             WaitingOnClientCount = items.Count(x => x.Status == CampaignStatuses.CreativeSentToClientForApproval),
-            CompletedCount = items.Count(x => x.Status == CampaignStatuses.CreativeApproved),
+            CompletedCount = items.Count(x => x.Status == CampaignStatuses.CreativeApproved || x.Status == CampaignStatuses.BookingInProgress),
             Items = items
         });
     }

@@ -48,6 +48,8 @@ export function getCampaignProgressPercent(campaign: Campaign) {
     case 'creative_sent_to_client_for_approval':
       return 96;
     case 'creative_approved':
+      return 97;
+    case 'booking_in_progress':
       return 98;
     case 'launched':
       return 100;
@@ -64,11 +66,13 @@ export function getCampaignQuickSteps(campaign: Campaign) {
       || campaign.status === 'creative_changes_requested'
       || campaign.status === 'creative_sent_to_client_for_approval'
       || campaign.status === 'creative_approved'
+      || campaign.status === 'booking_in_progress'
       || campaign.status === 'launched',
   );
   const creativeInRevision = campaign.status === 'creative_changes_requested';
   const creativeSentForApproval = campaign.status === 'creative_sent_to_client_for_approval';
-  const creativeApproved = campaign.status === 'creative_approved' || campaign.status === 'launched';
+  const creativeApproved = campaign.status === 'creative_approved' || campaign.status === 'booking_in_progress' || campaign.status === 'launched';
+  const bookingInProgress = campaign.status === 'booking_in_progress';
   const campaignLive = campaign.status === 'launched';
   const creativeProductionStarted = recommendationApproved && !creativeSentForApproval && !creativeApproved;
 
@@ -115,11 +119,11 @@ export function getCampaignQuickSteps(campaign: Campaign) {
     },
     {
       key: 'launch',
-      label: 'Ready for launch',
-      description: 'Final creative approval is complete and operations can now activate the campaign.',
+      label: 'Supplier booking',
+      description: 'Advertified is confirming placements and supplier availability before launch.',
       state: campaignLive
         ? 'complete' as const
-        : creativeApproved
+        : bookingInProgress || creativeApproved
           ? 'current' as const
           : 'upcoming' as const,
     },
@@ -423,8 +427,10 @@ export function StatusKanban({ campaign }: { campaign: Campaign }) {
       title: 'Approved for Launch',
       lines: campaign.status === 'launched'
         ? ['Campaign is live', 'Operations activation has been completed']
+        : campaign.status === 'booking_in_progress'
+          ? ['Supplier booking is in progress', 'Placements and live dates are being confirmed']
         : campaign.status === 'creative_approved'
-          ? ['Final creative approved', 'Operations can now activate the campaign']
+          ? ['Final creative approved', 'Supplier booking starts next']
           : campaign.status === 'creative_sent_to_client_for_approval'
             ? ['Finished media sent to client', 'Awaiting final client approval']
             : campaign.status === 'approved'

@@ -66,7 +66,7 @@ export function AgentBriefsPage() {
                               <Eye className="size-4" />
                             </Link>
                             {canAccessAiStudioForStatus(campaign.status) ? (
-                              <Link to={`/ai-studio?campaignId=${campaign.id}`} className="button-secondary p-2" title={`Prefill AI Studio for ${campaign.campaignName}`}>
+                              <Link to={`/ai-studio?campaignId=${campaign.id}`} className="button-secondary p-2" title={`Open AI Studio for ${campaign.campaignName}`}>
                                 AI
                               </Link>
                             ) : null}

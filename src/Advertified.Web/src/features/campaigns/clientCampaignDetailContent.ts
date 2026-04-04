@@ -21,8 +21,18 @@ export function getHeroContent(campaign: Campaign, recommendationStatus?: string
 
   if (campaign.status === 'creative_approved') {
     return {
-      title: 'Your campaign is approved and waiting for activation',
-      description: 'Final creative approval has been captured. Operations will mark the campaign live once activation begins, so you do not need to complete any more approvals right now.',
+      title: 'Creative approval is complete',
+      description: 'Your finished campaign content has been approved. Our team is preparing the next handoff into supplier booking and launch planning.',
+      primaryAction: 'Review final status',
+      timeLabel: 'No action required',
+      reassurance: 'We will notify you if anything new needs attention',
+    };
+  }
+
+  if (campaign.status === 'booking_in_progress') {
+    return {
+      title: 'We are booking your campaign now',
+      description: 'Your creative is approved and our team is now confirming placements, dates, and supplier bookings before launch.',
       primaryAction: 'Review final status',
       timeLabel: 'No action required',
       reassurance: 'We will notify you if anything new needs attention',
@@ -95,15 +105,29 @@ export function getApprovalContent(campaign: Campaign, recommendationStatus?: st
 
   if (campaign.status === 'creative_approved') {
     return {
-      title: 'You are all set for activation',
-      body: 'Final creative approval has been captured. Operations can now activate the campaign as a separate backend step.',
+      title: 'Creative approval is complete',
+      body: 'Your final creative is approved. Our team is now moving the campaign into booking and launch preparation.',
       badge: 'Done',
       badgeClass: 'border-emerald-200 bg-emerald-50 text-emerald-700',
       highlightClass: 'border-emerald-200 bg-[linear-gradient(180deg,#f4fbf8_0%,#eef8f4_100%)]',
       guidance: 'There is nothing else you need to approve right now. Use messages if you want to speak to the team.',
-      reassurance: 'The final creative approval is persisted in the backend, and activation will only happen once operations explicitly marks the campaign live.',
-      statusText: 'Final creative approved',
-      nextPhaseText: 'Operations activates the campaign',
+      reassurance: 'The final creative approval is captured, and the team now uses that approval to move into booking and launch preparation.',
+      statusText: 'Creative approved',
+      nextPhaseText: 'Our team starts supplier booking',
+    };
+  }
+
+  if (campaign.status === 'booking_in_progress') {
+    return {
+      title: 'Supplier booking is in progress',
+      body: 'Your campaign is now in the booking stage. We are confirming placements, live dates, and supplier readiness before launch.',
+      badge: 'In progress',
+      badgeClass: 'border-sky-200 bg-sky-50 text-sky-700',
+      highlightClass: 'border-sky-200 bg-[linear-gradient(180deg,#f4fbff_0%,#eef6ff_100%)]',
+      guidance: 'There is nothing you need to approve right now. We will keep this page updated as bookings are confirmed.',
+      reassurance: 'Saved supplier bookings and delivery updates will appear in this workspace so you can see what has been confirmed.',
+      statusText: 'Booking in progress',
+      nextPhaseText: 'Booked placements move toward launch',
     };
   }
 

@@ -41,7 +41,7 @@ import {
 import { canAccessAiStudioForStatus } from '../../features/campaigns/aiStudioAccess';
 import { InventoryTable } from '../../features/agent/components/InventoryTable';
 import { invalidateAgentCampaignQueries, queryKeys } from '../../lib/queryKeys';
-import { formatCurrency, titleCase } from '../../lib/utils';
+import { formatCurrency, formatDate, titleCase } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import type { RecommendationItem, SelectedPlanInventoryItem } from '../../types/domain';
 
@@ -463,13 +463,7 @@ export function AgentCampaignDetailPage() {
     : false;
   const isOverBudget = hasSelectedPackageBand ? isOutsideProspectBand : budgetDelta < 0;
   const activeProposalLabel = activeRecommendation?.proposalLabel ?? 'Current proposal';
-  const showExecutionOperations = (
-    campaign.status === 'approved'
-    || campaign.status === 'creative_changes_requested'
-    || campaign.status === 'creative_sent_to_client_for_approval'
-    || campaign.status === 'creative_approved'
-    || campaign.status === 'launched'
-  );
+  const showExecutionOperations = false;
   const radioShare = groupedTotals.reduce((sum, entry) => entry.channel === 'RADIO' ? sum + entry.total : sum, 0);
   const oohShare = groupedTotals.reduce((sum, entry) => entry.channel === 'OOH' ? sum + entry.total : sum, 0);
   const digitalShare = groupedTotals.reduce((sum, entry) => entry.channel === 'DIGITAL' ? sum + entry.total : sum, 0);
@@ -487,28 +481,46 @@ export function AgentCampaignDetailPage() {
   const toneSummary = buildToneSummary(campaign.brief);
   const originalPrompt = buildOriginalPrompt(campaign.brief);
   const clientNotes = campaign.brief?.specialRequirements ?? campaign.brief?.creativeNotes ?? campaign.brief?.targetAudienceNotes ?? 'No client notes captured yet.';
-  const statusLabel = campaign.status === 'creative_approved' || campaign.status === 'launched'
+  const statusLabel = campaign.status === 'creative_approved' || campaign.status === 'booking_in_progress' || campaign.status === 'launched'
     ? titleCase(campaign.status)
     : activeRecommendation?.status
       ? titleCase(activeRecommendation.status)
       : titleCase(campaign.status);
   const recommendationTitle = activeRecommendation?.summary || 'Draft recommendation';
-  const canMarkLive = campaign.status === 'creative_approved';
+  const canMarkLive = false;
   const recommendationWorkflowLocked = showExecutionOperations || activeRecommendation?.status?.toLowerCase() === 'approved';
   const showRecommendationEditing = !recommendationWorkflowLocked;
+  const showAiStudioHandoff = campaign.status === 'approved'
+    || campaign.status === 'creative_changes_requested'
+    || campaign.status === 'creative_sent_to_client_for_approval'
+    || campaign.status === 'creative_approved'
+    || campaign.status === 'booking_in_progress'
+    || campaign.status === 'launched';
   const canEditDraftRecommendation = !recommendationWorkflowLocked && activeRecommendation?.status?.toLowerCase() === 'draft';
   const canModifyPlan = canEditDraftRecommendation && !draftApprovalCaptured;
   const hasSendableProposal = !recommendationWorkflowLocked && recommendations.length >= 1;
   const hasOohRecommendation = selectedPlanItems.some((item) => normalizeChannelKey(item.type) === 'OOH');
   const lockedNextStep = campaign.status === 'approved'
-    ? 'The recommendation is approved and paid. Stay focused on creative production, supplier coordination, and client updates from here.'
+    ? 'The recommendation is approved and paid. The next real step is to create campaign content in AI Studio.'
     : campaign.status === 'creative_changes_requested'
-      ? 'The recommendation is already complete. Use this page to coordinate the revised creative handoff.'
+      ? 'The client has asked for creative changes. Reopen AI Studio, make updates, and prepare the next handoff.'
       : campaign.status === 'creative_sent_to_client_for_approval'
-        ? 'The finished campaign is now back with the client for final sign-off. Watch messages and feedback only.'
+        ? 'The content handoff is back with the client for final review. Watch messages and feedback while waiting for sign-off.'
         : campaign.status === 'creative_approved'
-          ? 'Creative is approved. Confirm operations readiness, then mark the campaign live when activation starts.'
-          : 'Recommendation work is complete. Use this page for delivery, reporting, and live campaign follow-up.';
+          ? 'Creative approval is complete. The next step belongs to the creative director team: start supplier booking and launch planning.'
+          : campaign.status === 'booking_in_progress'
+            ? 'Supplier booking is already under way in the creative workspace. Use AI Studio or messages if the team needs anything else.'
+          : 'The campaign is live. Use this page for delivery tracking, reports, and operational follow-up.';
+  const studioActionLabel = campaign.status === 'creative_changes_requested'
+    ? 'Update content in AI Studio'
+    : campaign.status === 'creative_sent_to_client_for_approval'
+      ? 'Open AI Studio content'
+      : campaign.status === 'creative_approved' || campaign.status === 'booking_in_progress' || campaign.status === 'launched'
+        ? 'View content in AI Studio'
+        : 'Start content in AI Studio';
+  const plannedStartLabel = campaign.brief?.startDate ? formatDate(campaign.brief.startDate) : 'Not set';
+  const plannedEndLabel = campaign.brief?.endDate ? formatDate(campaign.brief.endDate) : 'Not set';
+  const effectiveEndLabel = campaign.effectiveEndDate ? formatDate(`${campaign.effectiveEndDate}T00:00:00`) : 'Not set';
   const budgetConstraint: BudgetConstraintContext = selectedPackageBand
     ? {
       label: 'Within selected band',
@@ -840,6 +852,19 @@ export function AgentCampaignDetailPage() {
             </Link>
           </div>
 
+          {showAiStudioHandoff ? (
+            <div className="panel px-5 py-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ink-soft">Campaign timeline</p>
+              <div className="mt-3 space-y-2 text-sm text-ink">
+                <p><span className="font-semibold">Planned start:</span> {plannedStartLabel}</p>
+                <p><span className="font-semibold">Planned end:</span> {plannedEndLabel}</p>
+                <p><span className="font-semibold">Duration:</span> {campaign.brief?.durationWeeks ? `${campaign.brief.durationWeeks} week(s)` : 'Not set'}</p>
+                {campaign.daysLeft != null ? <p><span className="font-semibold">Days left:</span> {campaign.daysLeft}</p> : null}
+                {campaign.effectiveEndDate ? <p><span className="font-semibold">Current end date:</span> {effectiveEndLabel}</p> : null}
+              </div>
+            </div>
+          ) : null}
+
           <div className="panel px-5 py-5">
             <div className="flex items-start gap-3">
               <div className="rounded-2xl bg-brand-soft p-3 text-brand">
@@ -939,6 +964,24 @@ export function AgentCampaignDetailPage() {
                   <div className="rounded-[16px] border border-line bg-slate-50 px-4 py-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">What to do now</p>
                     <p className="mt-3 text-sm leading-7 text-ink-soft">{lockedNextStep}</p>
+                    {showAiStudioHandoff ? (
+                      <div className="mt-4 flex flex-wrap gap-3">
+                        <Link
+                          to={`/ai-studio?campaignId=${campaign.id}`}
+                          className="button-primary inline-flex items-center gap-2 px-5 py-3"
+                        >
+                          <BrainCircuit className="size-4" />
+                          {studioActionLabel}
+                        </Link>
+                        <Link
+                          to={`/agent/messages?campaignId=${campaign.id}`}
+                          className="button-secondary inline-flex items-center gap-2 px-5 py-3"
+                        >
+                          <MessageSquareQuote className="size-4" />
+                          Open messages
+                        </Link>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               ) : null}
@@ -1031,7 +1074,8 @@ export function AgentCampaignDetailPage() {
             </div>
           </div>
 
-          <div className="panel border-line/80 bg-white px-6 py-6 shadow-[0_10px_26px_rgba(17,24,39,0.05)]">
+          {showRecommendationEditing ? (
+            <div className="panel border-line/80 bg-white px-6 py-6 shadow-[0_10px_26px_rgba(17,24,39,0.05)]">
             <h2 className="text-xl font-semibold text-ink">Validation</h2>
             <div className="mt-4 grid gap-3 md:grid-cols-3">
               {constraintChecks.map((check) => (
@@ -1068,12 +1112,16 @@ export function AgentCampaignDetailPage() {
                     : `This draft is ${formatCurrency(Math.abs(budgetDelta))} over the client's budget.`}
               </p>
             ) : null}
-          </div>
+            </div>
+          ) : null}
 
           {showExecutionOperations ? (
             <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
               <div className="panel border-line/80 bg-white px-6 py-6 shadow-[0_10px_26px_rgba(17,24,39,0.05)]">
-                <h2 className="text-xl font-semibold text-ink">Execution files</h2>
+                <h2 className="text-xl font-semibold text-ink">Files from suppliers and ops</h2>
+                <p className="mt-2 text-sm leading-7 text-ink-soft">
+                  Upload proofs, delivery evidence, and any supporting files so the team has one place to find them later.
+                </p>
                 <div className="mt-4 space-y-3">
                   {executionAssets.length > 0 ? executionAssets.map((asset) => (
                     <div key={asset.id} className="rounded-[16px] border border-line bg-slate-50 px-4 py-3">
@@ -1088,15 +1136,15 @@ export function AgentCampaignDetailPage() {
                     </div>
                   )) : (
                     <div className="rounded-[16px] border border-line bg-slate-50 px-4 py-3 text-sm text-ink-soft">
-                      No proof, delivery, or support files uploaded yet.
+                      No supplier proofs or support files uploaded yet.
                     </div>
                   )}
                 </div>
                 <div className="mt-5 space-y-3">
                   <select value={opsAssetType} onChange={(event) => setOpsAssetType(event.target.value)} className="input-base">
-                    <option value="proof_of_booking">Proof of booking</option>
+                    <option value="proof_of_booking">Booking confirmation</option>
                     <option value="delivery_proof">Delivery proof</option>
-                    <option value="supporting_asset">Supporting asset</option>
+                    <option value="supporting_asset">Other supporting file</option>
                   </select>
                   <input type="file" onChange={(event) => setOpsAssetFile(event.target.files?.[0] ?? null)} className="input-base" />
                   <button
@@ -1108,16 +1156,19 @@ export function AgentCampaignDetailPage() {
                     }}
                     className="button-secondary inline-flex w-full items-center justify-center gap-2 px-4 py-3 disabled:opacity-60"
                   >
-                    Upload execution file
+                    Save file
                   </button>
                 </div>
               </div>
 
               <div className="space-y-6">
                 <div className="panel border-line/80 bg-white px-6 py-6 shadow-[0_10px_26px_rgba(17,24,39,0.05)]">
-                  <h2 className="text-xl font-semibold text-ink">Supplier execution</h2>
+                  <h2 className="text-xl font-semibold text-ink">Record a supplier booking</h2>
+                  <p className="mt-2 text-sm leading-7 text-ink-soft">
+                    Add the booking details once space has been planned, confirmed, or gone live with a supplier or station.
+                  </p>
                   <div className="mt-4 grid gap-3 md:grid-cols-2">
-                    <input className="input-base" placeholder="Supplier or station" value={bookingDraft.supplierOrStation} onChange={(event) => setBookingDraft((current) => ({ ...current, supplierOrStation: event.target.value }))} />
+                    <input className="input-base" placeholder="Supplier or station name" value={bookingDraft.supplierOrStation} onChange={(event) => setBookingDraft((current) => ({ ...current, supplierOrStation: event.target.value }))} />
                     <select className="input-base" value={bookingDraft.channel} onChange={(event) => setBookingDraft((current) => ({ ...current, channel: event.target.value }))}>
                       <option value="radio">Radio</option>
                       <option value="ooh">Billboards and Digital Screens</option>
@@ -1125,19 +1176,19 @@ export function AgentCampaignDetailPage() {
                       <option value="digital">Digital</option>
                     </select>
                     <select className="input-base" value={bookingDraft.bookingStatus} onChange={(event) => setBookingDraft((current) => ({ ...current, bookingStatus: event.target.value }))}>
-                      <option value="planned">Planned</option>
-                      <option value="booked">Booked</option>
-                      <option value="live">Live</option>
-                      <option value="completed">Completed</option>
+                      <option value="planned">Planned, not confirmed</option>
+                      <option value="booked">Booked and confirmed</option>
+                      <option value="live">Live now</option>
+                      <option value="completed">Finished</option>
                     </select>
-                    <input className="input-base" type="number" min="0" step="0.01" placeholder="Committed amount" value={bookingDraft.committedAmount} onChange={(event) => setBookingDraft((current) => ({ ...current, committedAmount: event.target.value }))} />
+                    <input className="input-base" type="number" min="0" step="0.01" placeholder="Booked amount" value={bookingDraft.committedAmount} onChange={(event) => setBookingDraft((current) => ({ ...current, committedAmount: event.target.value }))} />
                     <input className="input-base" type="date" value={bookingDraft.liveFrom} onChange={(event) => setBookingDraft((current) => ({ ...current, liveFrom: event.target.value }))} />
                     <input className="input-base" type="date" value={bookingDraft.liveTo} onChange={(event) => setBookingDraft((current) => ({ ...current, liveTo: event.target.value }))} />
                     <select className="input-base md:col-span-2" value={bookingDraft.proofAssetId} onChange={(event) => setBookingDraft((current) => ({ ...current, proofAssetId: event.target.value }))}>
-                      <option value="">Proof asset (optional)</option>
+                      <option value="">Attach saved proof file (optional)</option>
                       {executionAssets.map((asset) => <option key={asset.id} value={asset.id}>{asset.displayName}</option>)}
                     </select>
-                    <textarea className="input-base md:col-span-2 min-h-[96px]" placeholder="Booking notes" value={bookingDraft.notes} onChange={(event) => setBookingDraft((current) => ({ ...current, notes: event.target.value }))} />
+                    <textarea className="input-base md:col-span-2 min-h-[96px]" placeholder="Notes for the team, for example supplier contacts, placement details, or anything still outstanding" value={bookingDraft.notes} onChange={(event) => setBookingDraft((current) => ({ ...current, notes: event.target.value }))} />
                   </div>
                   <button
                     type="button"
@@ -1145,7 +1196,7 @@ export function AgentCampaignDetailPage() {
                     onClick={() => saveBookingMutation.mutate()}
                     className="button-primary mt-4 inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60"
                   >
-                    Save supplier booking
+                    Save booking
                   </button>
                   <div className="mt-4 space-y-3">
                     {supplierBookings.length > 0 ? supplierBookings.map((booking) => (
@@ -1159,24 +1210,27 @@ export function AgentCampaignDetailPage() {
                 </div>
 
                 <div className="panel border-line/80 bg-white px-6 py-6 shadow-[0_10px_26px_rgba(17,24,39,0.05)]">
-                  <h2 className="text-xl font-semibold text-ink">Live reporting</h2>
+                  <h2 className="text-xl font-semibold text-ink">Add a campaign update</h2>
+                  <p className="mt-2 text-sm leading-7 text-ink-soft">
+                    Save a short delivery or performance update so anyone opening this campaign can see what happened most recently.
+                  </p>
                   <div className="mt-4 grid gap-3 md:grid-cols-2">
                     <select className="input-base" value={reportDraft.reportType} onChange={(event) => setReportDraft((current) => ({ ...current, reportType: event.target.value }))}>
                       <option value="delivery_update">Delivery update</option>
-                      <option value="performance_snapshot">Performance snapshot</option>
-                      <option value="proof_of_flight">Proof of flight</option>
+                      <option value="performance_snapshot">Performance update</option>
+                      <option value="proof_of_flight">Proof campaign is live</option>
                     </select>
                     <select className="input-base" value={reportDraft.supplierBookingId} onChange={(event) => setReportDraft((current) => ({ ...current, supplierBookingId: event.target.value }))}>
-                      <option value="">Related booking (optional)</option>
+                      <option value="">Link to a saved booking (optional)</option>
                       {supplierBookings.map((booking) => <option key={booking.id} value={booking.id}>{booking.supplierOrStation}</option>)}
                     </select>
-                    <input className="input-base md:col-span-2" placeholder="Headline" value={reportDraft.headline} onChange={(event) => setReportDraft((current) => ({ ...current, headline: event.target.value }))} />
-                    <textarea className="input-base md:col-span-2 min-h-[96px]" placeholder="Report summary" value={reportDraft.summary} onChange={(event) => setReportDraft((current) => ({ ...current, summary: event.target.value }))} />
+                    <input className="input-base md:col-span-2" placeholder="Short title for this update" value={reportDraft.headline} onChange={(event) => setReportDraft((current) => ({ ...current, headline: event.target.value }))} />
+                    <textarea className="input-base md:col-span-2 min-h-[96px]" placeholder="What changed, what has been delivered, and what the team should know next" value={reportDraft.summary} onChange={(event) => setReportDraft((current) => ({ ...current, summary: event.target.value }))} />
                     <input className="input-base" type="number" min="0" step="1" placeholder="Impressions" value={reportDraft.impressions} onChange={(event) => setReportDraft((current) => ({ ...current, impressions: event.target.value }))} />
                     <input className="input-base" type="number" min="0" step="1" placeholder="Plays / spots" value={reportDraft.playsOrSpots} onChange={(event) => setReportDraft((current) => ({ ...current, playsOrSpots: event.target.value }))} />
                     <input className="input-base" type="number" min="0" step="0.01" placeholder="Spend delivered" value={reportDraft.spendDelivered} onChange={(event) => setReportDraft((current) => ({ ...current, spendDelivered: event.target.value }))} />
                     <select className="input-base" value={reportDraft.evidenceAssetId} onChange={(event) => setReportDraft((current) => ({ ...current, evidenceAssetId: event.target.value }))}>
-                      <option value="">Evidence asset (optional)</option>
+                      <option value="">Attach saved evidence file (optional)</option>
                       {executionAssets.map((asset) => <option key={asset.id} value={asset.id}>{asset.displayName}</option>)}
                     </select>
                   </div>
@@ -1186,7 +1240,7 @@ export function AgentCampaignDetailPage() {
                     onClick={() => saveReportMutation.mutate()}
                     className="button-primary mt-4 inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60"
                   >
-                    Save delivery report
+                    Save update
                   </button>
                   <div className="mt-4 space-y-3">
                     {deliveryReports.length > 0 ? deliveryReports.map((report) => (
@@ -1240,7 +1294,7 @@ export function AgentCampaignDetailPage() {
                 className="button-secondary inline-flex items-center gap-2 px-5 py-3"
               >
                 <BrainCircuit className="size-4" />
-                Prefill from approved recommendation
+                Open AI Studio
               </Link>
             ) : null}
             {!recommendationWorkflowLocked ? (

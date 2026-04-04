@@ -18,7 +18,8 @@ public static class CampaignWorkflowPolicy
             CampaignStatuses.Approved => "Creative production is in progress",
             CampaignStatuses.CreativeChangesRequested => "Creative revisions are in progress",
             CampaignStatuses.CreativeSentToClientForApproval => "Review the finished media for final approval",
-            CampaignStatuses.CreativeApproved => "Final approval is captured and activation is being prepared",
+            CampaignStatuses.CreativeApproved => "Final creative approval is captured",
+            CampaignStatuses.BookingInProgress => "Supplier booking is in progress",
             CampaignStatuses.Launched => "Campaign is now live",
             _ => "Continue campaign setup"
         };
@@ -33,12 +34,13 @@ public static class CampaignWorkflowPolicy
             ? CampaignOperationsPolicy.IsOrderOperationallyActive(campaign.PackageOrder)
             : campaign.Status is not "awaiting_purchase";
         var briefComplete = campaign.Status is not CampaignStatuses.Paid and not CampaignStatuses.BriefInProgress || campaign.CampaignBrief?.SubmittedAt is not null;
-        var recommendationReady = campaign.Status is CampaignStatuses.PlanningInProgress or CampaignStatuses.ReviewReady or CampaignStatuses.Approved or CampaignStatuses.CreativeChangesRequested or CampaignStatuses.CreativeSentToClientForApproval or CampaignStatuses.CreativeApproved or CampaignStatuses.Launched || latestRecommendation is not null;
+        var recommendationReady = campaign.Status is CampaignStatuses.PlanningInProgress or CampaignStatuses.ReviewReady or CampaignStatuses.Approved or CampaignStatuses.CreativeChangesRequested or CampaignStatuses.CreativeSentToClientForApproval or CampaignStatuses.CreativeApproved or CampaignStatuses.BookingInProgress or CampaignStatuses.Launched || latestRecommendation is not null;
         var clientReviewActive = campaign.Status is CampaignStatuses.ReviewReady || recommendationStatus == RecommendationStatuses.SentToClient;
-        var recommendationApproved = campaign.Status is CampaignStatuses.Approved or CampaignStatuses.CreativeChangesRequested or CampaignStatuses.CreativeSentToClientForApproval or CampaignStatuses.CreativeApproved or CampaignStatuses.Launched || recommendationStatus == RecommendationStatuses.Approved;
-        var creativeProductionStarted = campaign.Status is CampaignStatuses.Approved or CampaignStatuses.CreativeChangesRequested or CampaignStatuses.CreativeSentToClientForApproval or CampaignStatuses.CreativeApproved or CampaignStatuses.Launched;
+        var recommendationApproved = campaign.Status is CampaignStatuses.Approved or CampaignStatuses.CreativeChangesRequested or CampaignStatuses.CreativeSentToClientForApproval or CampaignStatuses.CreativeApproved or CampaignStatuses.BookingInProgress or CampaignStatuses.Launched || recommendationStatus == RecommendationStatuses.Approved;
+        var creativeProductionStarted = campaign.Status is CampaignStatuses.Approved or CampaignStatuses.CreativeChangesRequested or CampaignStatuses.CreativeSentToClientForApproval or CampaignStatuses.CreativeApproved or CampaignStatuses.BookingInProgress or CampaignStatuses.Launched;
         var creativeReviewActive = campaign.Status == CampaignStatuses.CreativeSentToClientForApproval;
-        var creativeApproved = campaign.Status is CampaignStatuses.CreativeApproved or CampaignStatuses.Launched;
+        var creativeApproved = campaign.Status is CampaignStatuses.CreativeApproved or CampaignStatuses.BookingInProgress or CampaignStatuses.Launched;
+        var bookingInProgress = campaign.Status == CampaignStatuses.BookingInProgress;
         var launchActivated = campaign.Status == CampaignStatuses.Launched;
 
         return new[]
@@ -71,7 +73,7 @@ public static class CampaignWorkflowPolicy
                 key: "creative-production",
                 label: "Creative production",
                 description: "Advertified's creative director is preparing your finished media from the approved recommendation.",
-                isComplete: campaign.Status is CampaignStatuses.CreativeSentToClientForApproval or CampaignStatuses.CreativeApproved or CampaignStatuses.Launched,
+                isComplete: campaign.Status is CampaignStatuses.CreativeSentToClientForApproval or CampaignStatuses.CreativeApproved or CampaignStatuses.BookingInProgress or CampaignStatuses.Launched,
                 isCurrent: creativeProductionStarted && !creativeReviewActive && !creativeApproved),
             BuildTimelineStep(
                 key: "creative-approval",
@@ -80,11 +82,11 @@ public static class CampaignWorkflowPolicy
                 isComplete: creativeApproved,
                 isCurrent: creativeReviewActive),
             BuildTimelineStep(
-                key: "launch-ready",
-                label: "Launch ready",
-                description: "Final creative approval has been captured and operations can now activate the campaign.",
-                isComplete: launchActivated,
-                isCurrent: creativeApproved && !launchActivated),
+                key: "booking",
+                label: "Supplier booking",
+                description: "Advertified is confirming placements and activation timing with suppliers.",
+                isComplete: bookingInProgress || launchActivated,
+                isCurrent: (creativeApproved && !bookingInProgress && !launchActivated) || bookingInProgress),
             BuildTimelineStep(
                 key: "live",
                 label: "Campaign live",
@@ -104,6 +106,7 @@ public static class CampaignWorkflowPolicy
             or CampaignStatuses.CreativeChangesRequested
             or CampaignStatuses.CreativeSentToClientForApproval
             or CampaignStatuses.CreativeApproved
+            or CampaignStatuses.BookingInProgress
             or CampaignStatuses.Launched)
         {
             return QueueStages.Completed;
@@ -142,7 +145,12 @@ public static class CampaignWorkflowPolicy
     {
         if (string.Equals(campaign.Status, CampaignStatuses.CreativeApproved, StringComparison.OrdinalIgnoreCase))
         {
-            return "Final creative approval is captured. Mark the campaign live when activation starts.";
+            return "Final creative approval is captured. Start supplier booking and launch planning next.";
+        }
+
+        if (string.Equals(campaign.Status, CampaignStatuses.BookingInProgress, StringComparison.OrdinalIgnoreCase))
+        {
+            return "Supplier booking is in progress. Confirm live dates, update the client, and mark the campaign live when activation starts.";
         }
 
         if (string.Equals(campaign.Status, CampaignStatuses.Launched, StringComparison.OrdinalIgnoreCase))

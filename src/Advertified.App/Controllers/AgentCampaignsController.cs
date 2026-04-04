@@ -719,18 +719,20 @@ public sealed class AgentCampaignsController : ControllerBase
             or CampaignStatuses.CreativeChangesRequested
             or CampaignStatuses.CreativeSentToClientForApproval
             or CampaignStatuses.CreativeApproved
+            or CampaignStatuses.BookingInProgress
             or CampaignStatuses.Launched
             || campaign.CampaignRecommendations.Any(x => string.Equals(x.Status, RecommendationStatuses.Approved, StringComparison.OrdinalIgnoreCase)))
         {
             return BadRequest(new { Message = "This campaign has already been approved and can no longer be regenerated from the recommendation workspace." });
         }
 
-        if (!string.Equals(campaign.Status, CampaignStatuses.CreativeApproved, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(campaign.Status, CampaignStatuses.CreativeApproved, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(campaign.Status, CampaignStatuses.BookingInProgress, StringComparison.OrdinalIgnoreCase))
         {
             return BadRequest(new ProblemDetails
             {
                 Title = "Campaign is not ready to be marked live.",
-                Detail = "Only campaigns with final creative approval captured can be activated as live.",
+                Detail = "Only campaigns with final creative approval captured or supplier booking underway can be activated as live.",
                 Status = StatusCodes.Status400BadRequest
             });
         }
@@ -856,6 +858,10 @@ public sealed class AgentCampaignsController : ControllerBase
         };
 
         _db.CampaignSupplierBookings.Add(booking);
+        if (string.Equals(campaign.Status, CampaignStatuses.CreativeApproved, StringComparison.OrdinalIgnoreCase))
+        {
+            campaign.Status = CampaignStatuses.BookingInProgress;
+        }
         campaign.UpdatedAt = now;
         await _db.SaveChangesAsync(cancellationToken);
 
@@ -1338,6 +1344,7 @@ public sealed class AgentCampaignsController : ControllerBase
             or CampaignStatuses.CreativeChangesRequested
             or CampaignStatuses.CreativeSentToClientForApproval
             or CampaignStatuses.CreativeApproved
+            or CampaignStatuses.BookingInProgress
             or CampaignStatuses.Launched
             || currentRecommendations.Any(x => string.Equals(x.Status, RecommendationStatuses.Approved, StringComparison.OrdinalIgnoreCase)))
         {
@@ -1430,9 +1437,9 @@ public sealed class AgentCampaignsController : ControllerBase
             throw new InvalidOperationException("Authenticated user account could not be found.");
         }
 
-        if (currentUser.Role is not UserRole.Agent and not UserRole.Admin)
+        if (currentUser.Role is not UserRole.Agent and not UserRole.Admin and not UserRole.CreativeDirector)
         {
-            throw new InvalidOperationException("Agent or admin access is required.");
+            throw new InvalidOperationException("Agent, creative director, or admin access is required.");
         }
 
         return currentUser;

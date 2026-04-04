@@ -1,6 +1,13 @@
 import type { CampaignStatus } from '../../types/domain';
 
-const AI_STUDIO_READY_STATUSES: CampaignStatus[] = ['creative_approved', 'launched'];
+const AI_STUDIO_READY_STATUSES: CampaignStatus[] = [
+  'approved',
+  'creative_changes_requested',
+  'creative_sent_to_client_for_approval',
+  'creative_approved',
+  'booking_in_progress',
+  'launched',
+];
 
 export function canAccessAiStudioForStatus(status: string | null | undefined): boolean {
   if (!status) {
@@ -15,5 +22,5 @@ export function getAiStudioAccessMessage(status: string | null | undefined): str
     return 'AI Studio is available for this campaign.';
   }
 
-  return 'AI Studio becomes available only after a purchased campaign is complete and ready to go live.';
+  return 'AI Studio becomes available once the recommendation is approved and the campaign moves into content production.';
 }

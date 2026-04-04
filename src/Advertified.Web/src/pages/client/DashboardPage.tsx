@@ -34,7 +34,9 @@ function getSimpleCampaignMessage(
     case 'creative_changes_requested':
       return 'We are working on the changes you requested.';
     case 'creative_approved':
-      return 'Everything is approved and almost ready to go live.';
+      return 'Your campaign content is approved and booking will begin next.';
+    case 'booking_in_progress':
+      return 'We are now booking your campaign with suppliers.';
     case 'launched':
       return 'Your campaign is now live.';
     default:
@@ -54,7 +56,7 @@ function getSimplePrimaryActionDescription(
     return 'Open your recommendation and choose what you want to do next.';
   }
 
-  if (campaign.status === 'approved' || campaign.status === 'creative_sent_to_client_for_approval' || campaign.status === 'creative_changes_requested' || campaign.status === 'creative_approved' || campaign.status === 'launched') {
+  if (campaign.status === 'approved' || campaign.status === 'creative_sent_to_client_for_approval' || campaign.status === 'creative_changes_requested' || campaign.status === 'creative_approved' || campaign.status === 'booking_in_progress' || campaign.status === 'launched') {
     return 'Open your campaign to see the latest progress.';
   }
 
@@ -172,7 +174,7 @@ export function DashboardPage() {
         </div>
         <div className="user-card">
           <h3>Approved</h3>
-          <div className="user-metric">{campaigns.filter((campaign) => campaign.status === 'approved' || campaign.status === 'creative_approved' || campaign.status === 'launched').length}</div>
+          <div className="user-metric">{campaigns.filter((campaign) => campaign.status === 'approved' || campaign.status === 'creative_approved' || campaign.status === 'booking_in_progress' || campaign.status === 'launched').length}</div>
           <div className="user-muted">Campaigns you have already approved.</div>
         </div>
       </div>
@@ -273,7 +275,7 @@ export function DashboardPage() {
                     {paymentRequired ? 'Complete payment' : 'Continue'}
                   </Link>
                   {canAccessAiStudioForStatus(campaign.status) ? (
-                    <Link to={`/ai-studio?campaignId=${campaign.id}`} className="user-btn-secondary">Use approved recommendation</Link>
+                    <Link to={`/ai-studio?campaignId=${campaign.id}`} className="user-btn-secondary">Open campaign content</Link>
                   ) : null}
                 </div>
               </div>

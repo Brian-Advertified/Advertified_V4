@@ -13,6 +13,7 @@ export type CampaignStatus =
   | 'creative_sent_to_client_for_approval'
   | 'creative_changes_requested'
   | 'creative_approved'
+  | 'booking_in_progress'
   | 'launched';
 export type PlanningMode = 'ai_assisted' | 'agent_assisted' | 'hybrid';
 

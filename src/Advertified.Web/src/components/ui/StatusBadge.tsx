@@ -14,6 +14,7 @@ const toneMap: Record<string, string> = {
   creative_sent_to_client_for_approval: 'bg-brand-soft text-brand',
   creative_changes_requested: 'bg-amber-100 text-amber-700',
   creative_approved: 'bg-brand-soft text-brand',
+  booking_in_progress: 'bg-blue-100 text-blue-700',
   launched: 'bg-brand-soft text-brand',
 };
 
