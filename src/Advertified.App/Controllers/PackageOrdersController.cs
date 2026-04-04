@@ -112,6 +112,7 @@ public sealed class PackageOrdersController : ControllerBase
                 userId,
                 id,
                 request.PaymentProvider,
+                request.RecommendationId,
                 cancellationToken);
 
             return Ok(result);

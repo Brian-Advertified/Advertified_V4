@@ -12,6 +12,15 @@ export function getPrimaryRecommendation(campaign: Campaign) {
   return campaign.recommendations[0] ?? campaign.recommendation;
 }
 
+export function getClientFacingBudget(campaign: Campaign) {
+  const recommendation = getPrimaryRecommendation(campaign);
+  if (campaign.paymentStatus !== 'paid' && recommendation?.status === 'sent_to_client') {
+    return recommendation.totalCost;
+  }
+
+  return campaign.selectedBudget;
+}
+
 export function getCampaignProgressPercent(campaign: Campaign) {
   if (campaign.timeline.length > 0) {
     const completed = campaign.timeline.filter((step) => step.state === 'complete').length;
@@ -131,7 +140,7 @@ export function buildPackageSummary(campaign: Campaign, order?: PackageOrder, pa
 
   return [
     { label: 'Package', value: campaign.packageBandName },
-    { label: 'Budget', value: formatCurrency(campaign.selectedBudget) },
+    { label: 'Budget', value: formatCurrency(getClientFacingBudget(campaign)) },
     { label: 'Coverage', value: geography[0] ? geography.join(', ') : 'Not added yet' },
     { label: 'Objective', value: campaign.brief?.objective || packageBand?.packagePurpose || 'Not added yet' },
     { label: 'Included channels', value: recommendedChannels[0] ? recommendedChannels.map(formatChannelLabel).join(', ') : 'Recommendation not ready yet' },
@@ -207,7 +216,7 @@ export function ClientCampaignShell({
               <div className="flex flex-wrap gap-2">
                 <span className="user-pill">{campaign.campaignName}</span>
                 <span className="user-pill">{campaign.packageBandName}</span>
-                <span className="user-pill">{formatCurrency(campaign.selectedBudget)}</span>
+                <span className="user-pill">{formatCurrency(getClientFacingBudget(campaign))}</span>
               </div>
             </div>
             {children}
@@ -397,7 +406,7 @@ export function StatusKanban({ campaign }: { campaign: Campaign }) {
   const items = [
     {
       title: 'Package Purchased',
-      lines: [`Package: ${campaign.packageBandName}`, `Budget: ${formatCurrency(campaign.selectedBudget)}`, `Campaign opened: ${formatDate(campaign.createdAt)}`],
+      lines: [`Package: ${campaign.packageBandName}`, `Budget: ${formatCurrency(getClientFacingBudget(campaign))}`, `Campaign opened: ${formatDate(campaign.createdAt)}`],
     },
     {
       title: 'Recommendation Approved',

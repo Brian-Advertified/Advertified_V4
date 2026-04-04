@@ -24,7 +24,7 @@ const providerOptions: ProviderOption[] = [
     id: 'lula',
     name: 'Pay Later',
     caption: 'This transaction is powered by Lula',
-    description: 'Request pay-later approval and continue once your invoice has been prepared.',
+    description: 'Apply for pay-later approval if your business meets Lula eligibility requirements.',
   },
   {
     id: 'vodapay',
@@ -33,6 +33,14 @@ const providerOptions: ProviderOption[] = [
     description: 'Pay securely now and come straight back to Advertified when payment is complete.',
   },
 ];
+
+const lulaEligibilityBlockers = [
+  'Companies trading for less than 1 year',
+  'Turnover is less than R40,000 per month',
+  'Non-South African companies',
+  'NPOs / PBOs',
+  'Government entities',
+] as const;
 
 export function PaymentSelectionPage() {
   const [searchParams] = useSearchParams();
@@ -59,10 +67,21 @@ export function PaymentSelectionPage() {
     queryFn: () => advertifiedApi.getOrder(orderId, user!.id),
     enabled: Boolean(user && isExistingOrderCheckout),
   });
+  const campaignQuery = useQuery({
+    queryKey: ['campaign', campaignId],
+    queryFn: () => advertifiedApi.getCampaign(campaignId),
+    enabled: Boolean(user && isExistingOrderCheckout && campaignId),
+  });
   const selectedBand = isExistingOrderCheckout
     ? packagesQuery.data?.find((item) => item.id === existingOrderQuery.data?.packageBandId)
     : packagesQuery.data?.find((item) => item.id === packageBandId);
-  const chargedAmount = isExistingOrderCheckout ? (existingOrderQuery.data?.amount ?? 0) : amount;
+  const selectedRecommendation = campaignQuery.data
+    ? (campaignQuery.data.recommendations.find((item) => item.id === recommendationId)
+      ?? (campaignQuery.data.recommendation?.id === recommendationId ? campaignQuery.data.recommendation : undefined))
+    : undefined;
+  const chargedAmount = isExistingOrderCheckout
+    ? (selectedRecommendation?.totalCost ?? existingOrderQuery.data?.amount ?? 0)
+    : amount;
 
   const checkoutMutation = useMutation({
     mutationFn: async (paymentProvider: PaymentProvider) => {
@@ -75,7 +94,7 @@ export function PaymentSelectionPage() {
       }
 
       const checkout = isExistingOrderCheckout
-        ? await advertifiedApi.initiateOrderCheckout(user.id, orderId, paymentProvider)
+        ? await advertifiedApi.initiateOrderCheckout(user.id, orderId, paymentProvider, recommendationId || undefined)
         : await advertifiedApi.createOrder(user.id, selectedBand.id, amount, paymentProvider);
       if (!checkout.checkoutUrl) {
         if (paymentProvider === 'lula') {
@@ -114,7 +133,7 @@ export function PaymentSelectionPage() {
     return <Navigate to="/packages" replace />;
   }
 
-  if (packagesQuery.isLoading || (isExistingOrderCheckout && existingOrderQuery.isLoading)) {
+  if (packagesQuery.isLoading || (isExistingOrderCheckout && (existingOrderQuery.isLoading || campaignQuery.isLoading))) {
     return <LoadingState label="Loading payment options..." />;
   }
 
@@ -194,10 +213,32 @@ export function PaymentSelectionPage() {
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-brand">What happens next</p>
             <p className="text-sm leading-7 text-ink-soft">
               {selectedProvider === 'lula'
-                ? 'We will prepare your pay-later invoice and show you the next steps for approval.'
+                ? 'We will submit your Lula application for review and show you the next steps while approval is pending.'
                 : 'You will be taken to secure checkout. Once payment is complete, we will bring you back to Advertified automatically.'}
             </p>
+            {selectedRecommendation ? (
+              <p className="text-sm font-semibold leading-7 text-ink">
+                You are paying the selected recommendation total: {formatCurrency(selectedRecommendation.totalCost)}.
+              </p>
+            ) : null}
           </div>
+
+          {selectedProvider === 'lula' ? (
+            <div className="space-y-3 rounded-[20px] border border-amber-200 bg-amber-50 px-4 py-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-800">Lula eligibility</p>
+              <p className="text-sm leading-7 text-amber-900">
+                Lula Pay Later is not available for the following applicants:
+              </p>
+              <ul className="space-y-2 text-sm leading-7 text-amber-800">
+                {lulaEligibilityBlockers.map((item) => (
+                  <li key={item}>• {item}</li>
+                ))}
+              </ul>
+              <p className="text-sm leading-7 text-amber-900">
+                If any of these apply to your business, choose <strong>Pay Now</strong> instead.
+              </p>
+            </div>
+          ) : null}
 
           <div className="space-y-3 rounded-[20px] border border-brand/20 bg-brand/[0.06] px-4 py-4">
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-brand">AI Studio included</p>

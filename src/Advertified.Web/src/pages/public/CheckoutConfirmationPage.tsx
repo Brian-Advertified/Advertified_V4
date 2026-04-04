@@ -198,20 +198,28 @@ export function CheckoutConfirmationPage() {
     if (provider === 'lula' && order.paymentStatus === 'pending') {
       return {
         status: 'pending',
+        tone: 'review' as const,
         label: 'Pending Lula approval',
-        title: 'Your order is pending Lula approval',
-        description: 'Your invoice has been created and your Lula application is now waiting for manual review, which can take up to 24 hours.',
+        title: 'Your Lula application has been submitted',
+        description: 'Your order is safely queued for manual review. Approval can take up to 24 hours, so there is nothing else you need to keep open on this page.',
         icon: <FileText className="size-5" />,
         primaryHref: '/orders',
         primaryLabel: 'View my orders',
         secondaryHref: '/dashboard',
         secondaryLabel: 'Go to dashboard',
+        detailTitle: 'What happens next',
+        detailLines: [
+          'Lula reviews your application and invoice details.',
+          'They may contact you by email or phone if they need anything else.',
+          'Your portal will update once the payment decision is ready.',
+        ],
       };
     }
 
     if (order.paymentStatus === 'paid') {
       return {
         status: 'success',
+        tone: 'success' as const,
         label: 'Payment confirmed',
         title: "You're all set!",
         description: linkedCampaignAction
@@ -228,6 +236,7 @@ export function CheckoutConfirmationPage() {
     if (order.paymentStatus === 'failed') {
       return {
         status: 'failed',
+        tone: 'failed' as const,
         label: 'Payment not confirmed',
         title: 'Something went wrong',
         description: vodaPayReturnData?.responseMessage
@@ -244,6 +253,7 @@ export function CheckoutConfirmationPage() {
     if (provider === 'vodapay' && vodaPayReturnData?.responseCode === '00') {
       return {
         status: 'pending',
+        tone: 'loading' as const,
         label: 'Awaiting final confirmation',
         title: 'Payment received',
         description: "We're finalising confirmation with your payment provider.",
@@ -257,6 +267,7 @@ export function CheckoutConfirmationPage() {
 
     return {
       status: 'pending',
+      tone: 'loading' as const,
       label: 'Awaiting confirmation',
       title: 'Processing your payment',
       description: "Your payment is being verified with VodaPay. This usually takes a few seconds. Please don't close this page.",
@@ -271,8 +282,10 @@ export function CheckoutConfirmationPage() {
   const paymentMethodLabel = provider === 'lula' ? 'Pay Later' : 'Pay Now';
   const paymentMethodCaption = provider === 'lula' ? 'Powered by Lula' : 'Powered by VodaPay';
   const lulaNextStepMessage = provider === 'lula' && order.paymentStatus === 'pending'
-    ? `Your order is pending Lula approval. Review can take up to 24 hours. Lula will contact you on ${user.email}, ${user.phone ?? 'your registered cellphone'} to process your application further.`
+    ? `Review can take up to 24 hours. Lula will contact you on ${user.email}, ${user.phone ?? 'your registered cellphone'} if they need anything else to complete the approval.`
     : null;
+  const showPendingSpinner = statusContent.tone === 'loading';
+  const showStatusRings = statusContent.tone !== 'loading';
 
   return (
     <section className={`checkout-status-page-shell checkout-status-page-${statusContent.status}`}>
@@ -288,7 +301,7 @@ export function CheckoutConfirmationPage() {
         </div>
 
         <div className="checkout-status-icon-wrap checkout-status-animate checkout-status-delay-0">
-          {statusContent.status !== 'pending' ? (
+          {showStatusRings ? (
             <>
               <div className="checkout-status-ring" />
               <div className="checkout-status-ring" />
@@ -296,7 +309,7 @@ export function CheckoutConfirmationPage() {
             </>
           ) : null}
           <div className="checkout-status-icon-circle">
-            {statusContent.status === 'pending' ? (
+            {showPendingSpinner ? (
               <div className="checkout-status-spinner" aria-hidden="true" />
             ) : (
               <div className="checkout-status-icon">{statusContent.icon}</div>
@@ -305,7 +318,7 @@ export function CheckoutConfirmationPage() {
         </div>
 
         <div className="checkout-status-badge checkout-status-animate checkout-status-delay-60">
-          <span className={`checkout-status-badge-dot ${statusContent.status === 'pending' ? 'checkout-status-badge-dot-pending' : ''}`} />
+          <span className={`checkout-status-badge-dot ${showPendingSpinner ? 'checkout-status-badge-dot-pending' : ''}`} />
           {statusContent.label}
         </div>
 
@@ -319,6 +332,17 @@ export function CheckoutConfirmationPage() {
         <h1 className="checkout-status-title checkout-status-animate checkout-status-delay-110">{statusContent.title}</h1>
         <p className="checkout-status-description checkout-status-animate checkout-status-delay-150">{statusContent.description}</p>
 
+        {'detailLines' in statusContent && statusContent.detailLines?.length ? (
+          <div className="checkout-status-next-step checkout-status-animate checkout-status-delay-150">
+            <div className="checkout-status-next-step-head">{statusContent.detailTitle}</div>
+            <div className="space-y-2">
+              {statusContent.detailLines.map((line) => (
+                <p key={line} className="checkout-status-next-step-copy">{line}</p>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
         <div className="checkout-status-summary-panel checkout-status-animate checkout-status-delay-200">
           <div className="checkout-status-summary-head">Order Summary</div>
           <div className="checkout-status-summary-entry">
@@ -328,7 +352,7 @@ export function CheckoutConfirmationPage() {
           <div className="checkout-status-summary-entry">
             <span className="checkout-status-summary-entry-label">Total</span>
             <span className="checkout-status-summary-entry-value">
-              {order.paymentStatus === 'paid' ? formatCurrency(order.amount, order.currency) : 'Not paid'}
+              {formatCurrency(order.amount, order.currency)}
             </span>
           </div>
           <div className="checkout-status-summary-entry">

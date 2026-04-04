@@ -2036,7 +2036,7 @@ export const advertifiedApi = {
     } satisfies PackageCheckoutSession;
   },
 
-  async initiateOrderCheckout(userId: string, orderId: string, paymentProvider: PaymentProvider) {
+  async initiateOrderCheckout(userId: string, orderId: string, paymentProvider: PaymentProvider, recommendationId?: string) {
     const response = await apiRequest<{
       packageOrderId: string;
       packageBandId: string;
@@ -2055,6 +2055,7 @@ export const advertifiedApi = {
         method: 'POST',
         body: JSON.stringify({
           paymentProvider,
+          recommendationId,
         }),
       },
       userId,

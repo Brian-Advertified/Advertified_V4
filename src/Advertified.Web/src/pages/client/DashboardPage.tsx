@@ -8,7 +8,7 @@ import { canAccessAiStudioForStatus } from '../../features/campaigns/aiStudioAcc
 import { getCampaignPrimaryAction } from '../../lib/access';
 import { formatCurrency, formatDate, titleCase } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
-import { ClientPortalShell, getCampaignProgressPercent } from './clientWorkspace';
+import { ClientPortalShell, getCampaignProgressPercent, getClientFacingBudget } from './clientWorkspace';
 
 export function DashboardPage() {
   const { user } = useAuth();
@@ -76,7 +76,7 @@ export function DashboardPage() {
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
                 {nextPendingOrder ? <span className="user-pill">{nextPendingOrder.packageBandName}</span> : null}
-                {nextPendingOrder ? <span className="user-pill">{formatCurrency(nextPendingOrder.amount)}</span> : null}
+                <span className="user-pill">{formatCurrency(pendingRecommendation?.totalCost ?? nextPendingOrder?.amount ?? 0)}</span>
                 <span className="user-pill">{unpaidOrders.length} pending order{unpaidOrders.length === 1 ? '' : 's'}</span>
                 {reviewReadyAwaitingPaymentCount > 0 ? <span className="user-pill">{reviewReadyAwaitingPaymentCount} ready to approve after payment</span> : null}
               </div>
@@ -168,7 +168,7 @@ export function DashboardPage() {
                   <div className="space-y-3">
                     <div className="flex flex-wrap gap-2">
                       <span className="user-pill">{campaign.packageBandName}</span>
-                      <span className="user-pill">{formatCurrency(campaign.selectedBudget)}</span>
+                      <span className="user-pill">{formatCurrency(getClientFacingBudget(campaign))}</span>
                       <span className="user-pill">{titleCase(campaign.status)}</span>
                     </div>
                     <div>

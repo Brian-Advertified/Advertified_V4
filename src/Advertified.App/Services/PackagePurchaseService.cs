@@ -176,7 +176,7 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
         };
     }
 
-    public async Task<CreatePackageOrderResponse> InitiateCheckoutAsync(Guid userId, Guid packageOrderId, string paymentProvider, CancellationToken cancellationToken)
+    public async Task<CreatePackageOrderResponse> InitiateCheckoutAsync(Guid userId, Guid packageOrderId, string paymentProvider, Guid? recommendationId, CancellationToken cancellationToken)
     {
         await _accessService.EnsureCanCreateOrderAsync(userId, cancellationToken);
         var normalizedProvider = string.IsNullOrWhiteSpace(paymentProvider)
@@ -209,6 +209,11 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
             && !string.Equals(order.PaymentStatus, "failed", StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException("This package order cannot be checked out in its current state.");
+        }
+
+        if (recommendationId.HasValue)
+        {
+            await AlignOrderToRecommendationAsync(order, recommendationId.Value, cancellationToken);
         }
 
         order.PaymentProvider = normalizedProvider;
@@ -271,6 +276,31 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
             InvoiceStatus = order.Invoice?.Status,
             InvoicePdfUrl = order.Invoice is null ? null : $"/invoices/{order.Invoice.Id}/pdf"
         };
+    }
+
+    private async Task AlignOrderToRecommendationAsync(PackageOrder order, Guid recommendationId, CancellationToken cancellationToken)
+    {
+        if (order.Campaign is null)
+        {
+            throw new InvalidOperationException("This package order is not linked to a campaign recommendation.");
+        }
+
+        var recommendation = await _db.CampaignRecommendations
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                x => x.Id == recommendationId && x.CampaignId == order.Campaign.Id,
+                cancellationToken)
+            ?? throw new InvalidOperationException("Recommendation not found for this package order.");
+
+        if (recommendation.TotalCost <= 0m)
+        {
+            throw new InvalidOperationException("Recommendation total is not valid for payment.");
+        }
+
+        var alignedAmount = decimal.Round(recommendation.TotalCost, 2, MidpointRounding.AwayFromZero);
+        order.Amount = alignedAmount;
+        order.SelectedBudget = alignedAmount;
+        order.UpdatedAt = DateTime.UtcNow;
     }
 
     public Task MarkOrderPaidAsync(Guid packageOrderId, string paymentReference, CancellationToken cancellationToken)
