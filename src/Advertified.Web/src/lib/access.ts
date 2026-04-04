@@ -74,6 +74,9 @@ export function canOpenPlanning(campaign?: Campaign | null) {
 
 export function getCampaignPrimaryAction(campaign: Campaign) {
   const hasRecommendation = Boolean(campaign.recommendation);
+  const paymentRequiredBeforeApproval =
+    campaign.paymentStatus !== 'paid'
+    && (campaign.status === 'review_ready' || campaign.status === 'planning_in_progress');
 
   if (campaign.status === 'paid' || campaign.status === 'brief_in_progress') {
     return {
@@ -95,12 +98,24 @@ export function getCampaignPrimaryAction(campaign: Campaign) {
 
   if ((campaign.status === 'planning_in_progress' || campaign.status === 'review_ready' || campaign.status === 'approved' || campaign.status === 'creative_sent_to_client_for_approval' || campaign.status === 'creative_changes_requested' || campaign.status === 'creative_approved' || campaign.status === 'launched') && hasRecommendation) {
     return {
-      href: `/campaigns/${campaign.id}`,
-      label: campaign.status === 'approved' || campaign.status === 'creative_sent_to_client_for_approval' || campaign.status === 'creative_changes_requested' || campaign.status === 'creative_approved' || campaign.status === 'launched' ? 'Open campaign workspace' : 'Review recommendation',
-      description: campaign.status === 'approved' || campaign.status === 'creative_sent_to_client_for_approval' || campaign.status === 'creative_changes_requested' || campaign.status === 'creative_approved' || campaign.status === 'launched'
+      href: paymentRequiredBeforeApproval
+        ? `/checkout/payment?orderId=${encodeURIComponent(campaign.packageOrderId)}&campaignId=${encodeURIComponent(campaign.id)}`
+        : `/campaigns/${campaign.id}`,
+      label: paymentRequiredBeforeApproval
+        ? 'Complete payment'
+        : campaign.status === 'approved' || campaign.status === 'creative_sent_to_client_for_approval' || campaign.status === 'creative_changes_requested' || campaign.status === 'creative_approved' || campaign.status === 'launched'
+          ? 'Open campaign workspace'
+          : 'Review recommendation',
+      description: paymentRequiredBeforeApproval
+        ? 'Payment is still required before you can approve this recommendation and move into production.'
+        : campaign.status === 'approved' || campaign.status === 'creative_sent_to_client_for_approval' || campaign.status === 'creative_changes_requested' || campaign.status === 'creative_approved' || campaign.status === 'launched'
         ? 'See the approved recommendation and current campaign approval state in one workspace.'
         : 'Review the draft recommendation, then approve it or request changes from the same workspace.',
-      stepLabel: campaign.status === 'approved' || campaign.status === 'creative_sent_to_client_for_approval' || campaign.status === 'creative_changes_requested' || campaign.status === 'creative_approved' || campaign.status === 'launched' ? 'Open workspace' : 'Needs action',
+      stepLabel: paymentRequiredBeforeApproval
+        ? 'Payment required'
+        : campaign.status === 'approved' || campaign.status === 'creative_sent_to_client_for_approval' || campaign.status === 'creative_changes_requested' || campaign.status === 'creative_approved' || campaign.status === 'launched'
+          ? 'Open workspace'
+          : 'Needs action',
     };
   }
 

@@ -38,6 +38,17 @@ export function DashboardPage() {
 
   const campaigns = campaignsQuery.data ?? [];
   const orders = ordersQuery.data ?? [];
+  const unpaidOrders = orders.filter((order) => order.paymentStatus !== 'paid');
+  const nextPendingOrder = unpaidOrders[0];
+  const pendingCampaign = campaigns.find((campaign) => campaign.packageOrderId === nextPendingOrder?.id)
+    ?? campaigns.find((campaign) => campaign.paymentStatus !== 'paid' && campaign.status === 'review_ready')
+    ?? campaigns.find((campaign) => campaign.paymentStatus !== 'paid');
+  const pendingRecommendation = pendingCampaign?.recommendations[0] ?? pendingCampaign?.recommendation;
+  const paymentHref = nextPendingOrder
+    ? `/checkout/payment?orderId=${encodeURIComponent(nextPendingOrder.id)}${pendingCampaign ? `&campaignId=${encodeURIComponent(pendingCampaign.id)}` : ''}${pendingRecommendation?.id ? `&recommendationId=${encodeURIComponent(pendingRecommendation.id)}` : ''}`
+    : null;
+  const paymentBlockedCampaignCount = campaigns.filter((campaign) => campaign.paymentStatus !== 'paid').length;
+  const reviewReadyAwaitingPaymentCount = campaigns.filter((campaign) => campaign.status === 'review_ready' && campaign.paymentStatus !== 'paid').length;
 
   return (
     <ClientPortalShell
@@ -50,6 +61,38 @@ export function DashboardPage() {
         <strong>How it works:</strong> this is now the top-level client portal. Choose a campaign below to enter its simplified workspace with the current approval and direct team messaging.
       </div>
 
+      {paymentHref ? (
+        <div className="mt-6 rounded-[28px] border border-amber-200 bg-[linear-gradient(180deg,#fff8eb_0%,#fffdf7_100%)] p-6 shadow-[0_18px_44px_rgba(217,119,6,0.08)]">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div className="max-w-3xl">
+              <div className="inline-flex items-center rounded-full border border-amber-300 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-amber-900">
+                Payment required
+              </div>
+              <h3 className="mt-4 !mb-2">One more step: complete payment to unlock your campaign</h3>
+              <p className="user-muted">
+                {pendingCampaign
+                  ? `${pendingCampaign.campaignName} is in your portal already, but approval and planning stay locked until this payment is completed.`
+                  : 'Your order is in your portal already, but approval and planning stay locked until this payment is completed.'}
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {nextPendingOrder ? <span className="user-pill">{nextPendingOrder.packageBandName}</span> : null}
+                {nextPendingOrder ? <span className="user-pill">{formatCurrency(nextPendingOrder.amount)}</span> : null}
+                <span className="user-pill">{unpaidOrders.length} pending order{unpaidOrders.length === 1 ? '' : 's'}</span>
+                {reviewReadyAwaitingPaymentCount > 0 ? <span className="user-pill">{reviewReadyAwaitingPaymentCount} ready to approve after payment</span> : null}
+              </div>
+            </div>
+            <div className="flex w-full flex-col gap-3 lg:w-auto lg:min-w-[250px]">
+              <Link to={paymentHref} className="user-btn-primary w-full justify-center text-center">Complete payment now</Link>
+              {pendingCampaign ? (
+                <Link to={`/campaigns/${pendingCampaign.id}`} className="user-btn-secondary w-full justify-center text-center">Open campaign workspace</Link>
+              ) : (
+                <Link to="/orders" className="user-btn-secondary w-full justify-center text-center">View order history</Link>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <div className="user-grid-4">
         <div className="user-card">
           <h3>Active Campaigns</h3>
@@ -57,9 +100,13 @@ export function DashboardPage() {
           <div className="user-muted">Campaign workspaces available in the new client flow.</div>
         </div>
         <div className="user-card">
-          <h3>Orders</h3>
-          <div className="user-metric">{orders.length}</div>
-          <div className="user-muted">Purchased packages linked to your account.</div>
+          <h3>{paymentBlockedCampaignCount > 0 ? 'Payment Required' : 'Orders'}</h3>
+          <div className="user-metric">{paymentBlockedCampaignCount > 0 ? paymentBlockedCampaignCount : orders.length}</div>
+          <div className="user-muted">
+            {paymentBlockedCampaignCount > 0
+              ? 'Campaigns waiting for payment before approval can continue.'
+              : 'Purchased packages linked to your account.'}
+          </div>
         </div>
         <div className="user-card">
           <h3>Planning Unlocked</h3>
@@ -86,12 +133,22 @@ export function DashboardPage() {
             <div className="mt-4 space-y-3">
               {orders.slice(0, 3).map((order) => (
                 <div key={order.id} className="user-wire">
-                  <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                     <div>
                       <strong>{order.packageBandName}</strong>
                       <div>{formatDate(order.createdAt)} | {formatCurrency(order.amount)}</div>
                     </div>
-                    <div>{titleCase(order.paymentStatus)}{order.paymentReference ? ` | ${order.paymentReference}` : ''}</div>
+                    <div className="flex flex-col gap-2 text-left lg:items-end lg:text-right">
+                      <div>{titleCase(order.paymentStatus)}{order.paymentReference ? ` | ${order.paymentReference}` : ''}</div>
+                      {order.paymentStatus !== 'paid' ? (
+                        <Link
+                          to={`/checkout/payment?orderId=${encodeURIComponent(order.id)}${campaigns.find((campaign) => campaign.packageOrderId === order.id) ? `&campaignId=${encodeURIComponent(campaigns.find((campaign) => campaign.packageOrderId === order.id)!.id)}` : ''}`}
+                          className="user-btn-primary"
+                        >
+                          Complete payment
+                        </Link>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -104,6 +161,7 @@ export function DashboardPage() {
         <div className="mt-6 space-y-4">
           {campaigns.map((campaign) => {
             const action = getCampaignPrimaryAction(campaign);
+            const paymentRequired = campaign.paymentStatus !== 'paid';
             return (
               <div key={campaign.id} className="user-card">
                 <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
@@ -115,7 +173,11 @@ export function DashboardPage() {
                     </div>
                     <div>
                       <h3 className="!mb-2">{campaign.campaignName}</h3>
-                      <p className="user-muted">{campaign.nextAction}</p>
+                      <p className="user-muted">
+                        {paymentRequired && campaign.status === 'review_ready'
+                          ? 'Payment is still required before you can approve this recommendation.'
+                          : campaign.nextAction}
+                      </p>
                     </div>
                   </div>
                   <div className="text-left lg:text-right">
@@ -136,14 +198,20 @@ export function DashboardPage() {
                     <div>{campaign.planningMode ? titleCase(campaign.planningMode) : 'Not selected yet'}</div>
                   </div>
                   <div className="user-wire">
-                    <strong>Workspace</strong>
-                    <div>Open the campaign workspace to review the current approval and message your Advertified team from one screen.</div>
+                    <strong>{paymentRequired ? 'Payment status' : 'Workspace'}</strong>
+                    <div>
+                      {paymentRequired
+                        ? 'Your campaign is visible now, but payment must be completed before approval can move forward.'
+                        : 'Open the campaign workspace to review the current approval and message your Advertified team from one screen.'}
+                    </div>
                   </div>
                 </div>
 
                 <div className="user-toolbar mt-4">
                   <Link to={`/campaigns/${campaign.id}`} className="user-btn-primary">Open Campaign Workspace</Link>
-                  <Link to={action.href} className="user-btn-secondary">Continue Next Step</Link>
+                  <Link to={action.href} className={paymentRequired ? 'user-btn-primary' : 'user-btn-secondary'}>
+                    {paymentRequired ? 'Complete Payment' : 'Continue Next Step'}
+                  </Link>
                   {canAccessAiStudioForStatus(campaign.status) ? (
                     <Link to={`/ai-studio?campaignId=${campaign.id}`} className="user-btn-secondary">Prefill from approved recommendation</Link>
                   ) : null}
