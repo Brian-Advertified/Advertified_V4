@@ -35,7 +35,7 @@ export function CampaignStepper({ campaign, className }: CampaignStepperProps) {
           return 4; // Recommendation approval is done, creative is next
         case 'creative_sent_to_client_for_approval':
         case 'creative_changes_requested':
-          return 4; // Creative Development (in progress)
+          return 4; // Creative In Progress
         case 'creative_approved':
         case 'booking_in_progress':
           return 5; // Operational Fulfillment
@@ -75,9 +75,9 @@ export function CampaignStepper({ campaign, className }: CampaignStepperProps) {
       },
       {
         id: 'creative-development',
-        label: 'Creative Development',
+        label: 'Creative In Progress',
         icon: '🎨',
-        description: 'Creative team develops campaign content and sends it to the client for approval.',
+        description: 'Your campaign content is being prepared for your review.',
       },
       {
         id: 'operational-fulfillment',

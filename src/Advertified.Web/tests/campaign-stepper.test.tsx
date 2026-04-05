@@ -64,16 +64,16 @@ describe('CampaignStepper', () => {
     const campaign = createMockCampaign('approved');
     render(<CampaignStepper campaign={campaign} />);
 
-    expect(screen.getByRole('heading', { level: 3, name: /Creative Development/i })).toBeInTheDocument();
-    expect(screen.getByText(/Creative team develops campaign content and sends it to the client for approval\./i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 3, name: /Creative In Progress/i })).toBeInTheDocument();
+    expect(screen.getByText(/Your campaign content is being prepared for your review\./i)).toBeInTheDocument();
   });
 
   it('shows correct step progression for creative_sent_to_client_for_approval status', () => {
     const campaign = createMockCampaign('creative_sent_to_client_for_approval');
     render(<CampaignStepper campaign={campaign} />);
 
-    expect(screen.getByRole('heading', { level: 3, name: /Creative Development/i })).toBeInTheDocument();
-    expect(screen.getByText(/Creative team develops campaign content and sends it to the client for approval\./i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 3, name: /Creative In Progress/i })).toBeInTheDocument();
+    expect(screen.getByText(/Your campaign content is being prepared for your review\./i)).toBeInTheDocument();
   });
 
   it('shows correct step progression for booking_in_progress status', () => {
@@ -100,7 +100,7 @@ describe('CampaignStepper', () => {
     expect(screen.getByText('Brief Collection')).toBeInTheDocument();
     expect(screen.getByText('Planning & Strategy')).toBeInTheDocument();
     expect(screen.getByText('Client Review & Approval')).toBeInTheDocument();
-    expect(screen.getByText('Creative Development')).toBeInTheDocument();
+    expect(screen.getByText('Creative In Progress')).toBeInTheDocument();
     expect(screen.getByText('Operational Fulfillment')).toBeInTheDocument();
     expect(screen.getByText('Live Campaign Management')).toBeInTheDocument();
   });

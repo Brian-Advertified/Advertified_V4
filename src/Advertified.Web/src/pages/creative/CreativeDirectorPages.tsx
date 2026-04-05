@@ -19,9 +19,10 @@ import { buildDefaultCreativePrompt, formatChannelLabel, parseDelimitedInput } f
 import { canAccessCreativeStudio, canAccessOperations, isAdmin } from '../../lib/access';
 import { getPrimaryRecommendation } from '../../lib/campaignStatus';
 import { invalidateCreativeCampaignQueries, queryKeys } from '../../lib/queryKeys';
-import { formatCurrency } from '../../lib/utils';
+import { formatCurrency, titleCase } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import type { Campaign } from '../../types/domain';
+import { ClientCampaignShell, getCampaignQuickSteps } from '../client/clientWorkspace';
 
 function CreativePageShell({
   title,
@@ -408,78 +409,169 @@ export function CreativeStudioPreviewPage() {
   const brief = campaign.brief;
   const channelMood = recommendation ? Array.from(new Set(recommendation.items.map((item) => formatChannelLabel(item.channel)))).filter(Boolean) : [];
   const geographyFocus = [brief?.areas, brief?.cities, brief?.provinces].flatMap((items) => items ?? []).filter(Boolean);
-  const isAwaitingFinalApproval = campaign.status === 'creative_sent_to_client_for_approval';
-  const studioCollections: CreativeStudioCollection[] = [
-    {
-      icon: Palette,
-      title: 'Creative direction',
-      body: brief?.creativeNotes ?? 'Translate the approved recommendation into polished media that feels brand-right, channel-right, and campaign-ready.',
-      accent: 'from-amber-100 via-white to-rose-100',
-    },
-    {
-      icon: RadioTower,
-      title: 'Channel mood',
-      body: channelMood.length ? channelMood.join(' • ') : 'The approved media mix will appear here once placements are attached.',
-      accent: 'from-brand-soft via-white to-brand-soft',
-    },
-    {
-      icon: ClipboardList,
-      title: 'Production notes',
-      body: brief?.specialRequirements ?? 'No production notes were captured. Build from the approved recommendation and package envelope.',
-      accent: 'from-brand-soft via-white to-brand-soft',
-    },
-  ];
-  const productionSignals: CreativeStudioSignal[] = [
-    {
-      label: 'Creative readiness',
-      value: brief?.creativeReady ? 'Assets available' : 'Awaiting source assets',
-      helper: brief?.creativeReady ? 'Brand files or usable source materials are already available.' : 'Source materials may still need follow-up before final production.',
-    },
-    {
-      label: 'Audience frame',
-      value: brief?.targetAudienceNotes?.trim() ? 'Defined' : 'To refine',
-      helper: brief?.targetAudienceNotes?.trim() || 'Audience direction has not been captured in detail yet.',
-    },
-    {
-      label: 'Approved formats',
-      value: recommendation ? String(recommendation.items.length) : '0',
-      helper: recommendation ? 'These placements now shape the creative pack.' : 'No approved placements are attached yet.',
-    },
-  ];
-
   return (
-    <CreativeStudioContent
+    <ClientCreativeStudioPreview
       campaign={campaign}
+      recommendation={recommendation}
+      brief={brief}
       channelMood={channelMood}
       geographyFocus={geographyFocus}
-      brief={brief}
-      recommendation={recommendation}
-      productionSignals={productionSignals}
-      studioCollections={studioCollections}
-      isAwaitingFinalApproval={isAwaitingFinalApproval}
-      isPreview
-      isSendingFinishedMedia={false}
-      isBookingStage={campaign.status === 'creative_approved' || campaign.status === 'booking_in_progress' || campaign.status === 'launched'}
-      bookingDraft={{
-        supplierOrStation: '',
-        channel: 'radio',
-        bookingStatus: 'planned',
-        committedAmount: '',
-        liveFrom: '',
-        liveTo: '',
-        notes: '',
-      }}
-      onBookingDraftChange={() => {}}
-      onSaveBooking={() => {}}
-      isSavingBooking={false}
-      onMarkLive={() => {}}
-      isMarkingLive={false}
-      assetFileName={undefined}
-      assetType="creative_pack"
-      onAssetTypeChange={() => {}}
-      onAssetFileChange={() => {}}
-      isUploadingAsset={false}
     />
+  );
+}
+
+function ClientCreativeStudioPreview({
+  campaign,
+  recommendation,
+  brief,
+  channelMood,
+  geographyFocus,
+}: {
+  campaign: Campaign;
+  recommendation: ReturnType<typeof getPrimaryRecommendation>;
+  brief: Campaign['brief'];
+  channelMood: string[];
+  geographyFocus: string[];
+}) {
+  const quickSteps = getCampaignQuickSteps(campaign);
+  const assets = campaign.assets ?? [];
+  const creativeStatusLabel = campaign.status === 'creative_sent_to_client_for_approval'
+    ? 'Ready for your approval'
+    : campaign.status === 'creative_approved'
+      ? 'Approved and moving to launch prep'
+      : campaign.status === 'booking_in_progress'
+        ? 'Booking and launch prep'
+        : campaign.status === 'launched'
+          ? 'Campaign live'
+          : 'Creative in progress';
+
+  const nextStepMessage = campaign.status === 'creative_sent_to_client_for_approval'
+    ? 'Your finished campaign content is ready to review and approve.'
+    : campaign.status === 'creative_approved'
+      ? 'You have approved the content. Advertified is now confirming bookings and launch timing.'
+      : campaign.status === 'booking_in_progress'
+        ? 'Advertified is confirming placements and suppliers before going live.'
+        : campaign.status === 'launched'
+          ? 'Your campaign is now live and the team is monitoring delivery.'
+          : 'Advertified is preparing your campaign content for review.';
+
+  return (
+    <ClientCampaignShell
+      campaign={campaign}
+      title="Creative preview"
+      description="A simple view of what is being prepared for your campaign and what happens next."
+      activeView="overview"
+      actions={(
+        <div className="flex flex-wrap gap-3">
+          <Link to={`/campaigns/${campaign.id}/overview`} className="user-btn-secondary w-full text-center sm:w-auto">
+            Back to overview
+          </Link>
+          <Link to={`/campaigns/${campaign.id}/messages`} className="user-btn-primary w-full text-center sm:w-auto">
+            Ask your agent
+          </Link>
+        </div>
+      )}
+    >
+      <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+        <section className="user-card">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-brand">Current stage</p>
+              <h3 className="mt-3">{creativeStatusLabel}</h3>
+              <p className="mt-3 text-sm leading-7 text-ink-soft">{nextStepMessage}</p>
+            </div>
+            <span className="user-pill">{titleCase(campaign.status.replaceAll('_', ' '))}</span>
+          </div>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-3">
+            <div className="rounded-[24px] border border-line bg-slate-50/80 p-5">
+              <div className="text-xs font-semibold uppercase tracking-[0.22em] text-ink-soft">Approved formats</div>
+              <div className="mt-2 text-2xl font-semibold text-ink">{recommendation?.items.length ?? 0}</div>
+              <p className="mt-2 text-sm text-ink-soft">Placements shaping the current creative pack.</p>
+            </div>
+            <div className="rounded-[24px] border border-line bg-slate-50/80 p-5">
+              <div className="text-xs font-semibold uppercase tracking-[0.22em] text-ink-soft">Files prepared</div>
+              <div className="mt-2 text-2xl font-semibold text-ink">{assets.length}</div>
+              <p className="mt-2 text-sm text-ink-soft">Files and proof items attached to this campaign.</p>
+            </div>
+            <div className="rounded-[24px] border border-line bg-slate-50/80 p-5">
+              <div className="text-xs font-semibold uppercase tracking-[0.22em] text-ink-soft">Campaign budget</div>
+              <div className="mt-2 text-2xl font-semibold text-ink">{formatCurrency(campaign.selectedBudget)}</div>
+              <p className="mt-2 text-sm text-ink-soft">{campaign.packageBandName}</p>
+            </div>
+          </div>
+        </section>
+
+        <aside className="user-card">
+          <h3>What happens next</h3>
+          <div className="mt-4 space-y-3">
+            {quickSteps.slice(2).map((step) => (
+              <div key={step.key} className="rounded-[20px] border border-line bg-slate-50/70 p-4">
+                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">{step.state === 'current' ? 'Current' : step.state === 'complete' ? 'Complete' : 'Upcoming'}</div>
+                <div className="mt-2 text-sm font-semibold text-ink">{step.label}</div>
+                <p className="mt-2 text-sm leading-6 text-ink-soft">{step.description}</p>
+              </div>
+            ))}
+          </div>
+        </aside>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-3">
+        <section className="user-card">
+          <h3>Creative direction</h3>
+          <p className="mt-4 text-sm leading-7 text-ink-soft">
+            {brief?.creativeNotes ?? 'Your approved recommendation is being translated into campaign-ready creative content.'}
+          </p>
+        </section>
+
+        <section className="user-card">
+          <h3>Channels being prepared</h3>
+          <p className="mt-4 text-sm leading-7 text-ink-soft">
+            {channelMood.length ? channelMood.join(' • ') : 'The approved media mix will appear here once placements are attached.'}
+          </p>
+        </section>
+
+        <section className="user-card">
+          <h3>Area focus</h3>
+          <p className="mt-4 text-sm leading-7 text-ink-soft">
+            {geographyFocus.length ? geographyFocus.join(', ') : 'Your approved recommendation will guide the campaign coverage area.'}
+          </p>
+        </section>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+        <section className="user-card">
+          <h3>Creative summary</h3>
+          <div className="mt-4 space-y-4 text-sm leading-7 text-ink-soft">
+            <p>{recommendation?.summary ?? 'A creative summary will appear here once the production team finalises the campaign pack.'}</p>
+            <div className="rounded-[24px] border border-line bg-slate-50/70 p-5">
+              <div className="text-xs font-semibold uppercase tracking-[0.22em] text-ink-soft">Audience focus</div>
+              <p className="mt-2 text-sm leading-7 text-ink-soft">{brief?.targetAudienceNotes ?? 'Audience direction will appear here once confirmed.'}</p>
+            </div>
+            <div className="rounded-[24px] border border-line bg-slate-50/70 p-5">
+              <div className="text-xs font-semibold uppercase tracking-[0.22em] text-ink-soft">Campaign objective</div>
+              <p className="mt-2 text-sm leading-7 text-ink-soft">{brief?.objective ?? 'Campaign objective will appear here once confirmed.'}</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="user-card">
+          <h3>Files and approvals</h3>
+          <div className="mt-4 space-y-3">
+            {assets.length > 0 ? assets.map((asset) => (
+              <div key={asset.id} className="rounded-[20px] border border-line bg-slate-50/70 p-4">
+                <div className="text-sm font-semibold text-ink">{asset.displayName}</div>
+                <div className="mt-1 text-xs uppercase tracking-[0.18em] text-ink-soft">{titleCase(asset.assetType.replaceAll('_', ' '))}</div>
+              </div>
+            )) : (
+              <div className="rounded-[20px] border border-line bg-slate-50/70 p-4 text-sm leading-6 text-ink-soft">
+                Creative files will appear here when they are ready for your review.
+              </div>
+            )}
+          </div>
+        </section>
+      </div>
+    </ClientCampaignShell>
   );
 }
 
