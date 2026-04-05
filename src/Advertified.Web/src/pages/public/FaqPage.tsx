@@ -65,7 +65,7 @@ const faqSections = [
     title: 'Creative and launch',
     items: [
       {
-        question: 'What is the Advertified Studio?',
+        question: 'What is Advertified Studio?',
         answer: 'The AI Studio is the creative-production environment used to build campaign concepts, channel adaptations, assets, and final media packs after a recommendation has been approved.',
       },
       {

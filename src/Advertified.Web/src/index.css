@@ -1978,7 +1978,7 @@ textarea {
   position: relative;
   width: 100%;
   min-height: 500px;
-  height: 90vh;
+  height: min(82vh, 860px);
   overflow: hidden;
   border-top: 1px solid rgba(245,242,236,.05);
   opacity: 0;
@@ -2012,17 +2012,22 @@ textarea {
 }
 
 .studio-tile-photo {
-  width: 100%;
-  height: 100%;
+  inset: 7% 8% 19% 42%;
+  width: auto;
+  height: auto;
   object-fit: cover;
-  opacity: .42;
-  filter: saturate(.86) contrast(1.02) brightness(.6);
+  border-radius: 28px;
+  opacity: .28;
+  filter: saturate(.82) contrast(1) brightness(.58);
+  box-shadow: 0 28px 90px rgba(0,0,0,.28);
 }
 
 .studio-tile-photo-wash {
+  inset: 7% 8% 19% 42%;
+  border-radius: 28px;
   background:
-    linear-gradient(180deg, rgba(8,8,8,.32) 0%, rgba(8,8,8,.48) 40%, rgba(8,8,8,.78) 100%),
-    radial-gradient(circle at 50% 35%, rgba(20,184,110,.14), transparent 34%);
+    linear-gradient(180deg, rgba(8,8,8,.22) 0%, rgba(8,8,8,.38) 44%, rgba(8,8,8,.64) 100%),
+    radial-gradient(circle at 50% 35%, rgba(20,184,110,.12), transparent 36%);
 }
 
 .studio-tile-overlay {
@@ -2048,7 +2053,7 @@ textarea {
   justify-content: space-between;
   align-items: flex-end;
   gap: 1.5rem;
-  padding: 2.5rem;
+  padding: 0 2.5rem 2.5rem;
   transform: translateY(18px);
   transition: transform .55s cubic-bezier(.25,.46,.45,.94);
 }
@@ -2188,9 +2193,9 @@ textarea {
 
 .studio-v1-board {
   position: absolute;
-  top: 22%;
-  left: 50%;
-  width: 50%;
+  top: 24%;
+  left: 63%;
+  width: min(36%, 520px);
   transform: translateX(-50%);
   z-index: 2;
 }
@@ -2276,6 +2281,9 @@ textarea {
   position: relative;
   z-index: 1;
   text-align: center;
+  margin-left: 24%;
+  transform: scale(.88);
+  transform-origin: center;
 }
 
 .studio-v2-icon {
@@ -2358,6 +2366,9 @@ textarea {
   position: relative;
   z-index: 2;
   text-align: center;
+  margin-left: 24%;
+  transform: scale(.9);
+  transform-origin: center;
 }
 
 .studio-v3-play {
@@ -2406,8 +2417,8 @@ textarea {
 
 .studio-v3-progress {
   position: absolute;
-  left: 8%;
-  right: 8%;
+  left: 40%;
+  right: 10%;
   bottom: 12%;
   z-index: 3;
   height: 2px;
@@ -2439,16 +2450,18 @@ textarea {
   justify-content: center;
   gap: 18px;
   padding: 60px;
+  padding-left: 40%;
 }
 
 .studio-v4-phone {
-  width: 195px;
+  width: 156px;
   flex-shrink: 0;
   overflow: hidden;
   border: 1.5px solid #222;
   border-radius: 28px;
   background: #0d0d0d;
   transition: transform .6s cubic-bezier(.25,.46,.45,.94);
+  box-shadow: 0 20px 50px rgba(0,0,0,.24);
 }
 
 .studio-v4-phone:nth-child(1) { transform: rotate(-4deg) translateY(22px); }
@@ -2460,7 +2473,7 @@ textarea {
 .studio-v4:hover .studio-v4-phone:nth-child(3) { transform: rotate(2deg) translateY(5px); }
 
 .studio-v4-phone-wide {
-  width: 215px;
+  width: 172px;
 }
 
 .studio-v4-status-bar {
@@ -2738,6 +2751,31 @@ textarea {
 }
 
 @media (max-width: 900px) {
+  .studio-tile {
+    height: min(72vh, 700px);
+  }
+
+  .studio-tile-photo,
+  .studio-tile-photo-wash {
+    inset: 10% 6% 28% 32%;
+  }
+
+  .studio-v1-board {
+    left: 58%;
+    width: min(42%, 420px);
+  }
+
+  .studio-v2-core,
+  .studio-v3-content {
+    margin-left: 12%;
+    transform: scale(.8);
+  }
+
+  .studio-v3-progress {
+    left: 28%;
+    right: 8%;
+  }
+
   .studio-strip {
     grid-template-columns: 1fr;
     gap: 2.5rem;
@@ -2748,16 +2786,16 @@ textarea {
   }
 
   .studio-v4 {
-    padding: 30px;
+    padding: 30px 24px 30px 28%;
     gap: 10px;
   }
 
   .studio-v4-phone {
-    width: 140px;
+    width: 118px;
   }
 
   .studio-v4-phone-wide {
-    width: 160px;
+    width: 132px;
   }
 
   .studio-v4-image {
@@ -2816,12 +2854,35 @@ textarea {
   }
 
   .studio-tile {
-    height: 75vh;
+    height: 72vh;
     min-height: 460px;
   }
 
+  .studio-tile-photo,
+  .studio-tile-photo-wash {
+    inset: 10% 1.5rem 38% 1.5rem;
+  }
+
   .studio-tile-info {
-    padding: 1.5rem;
+    padding: 0 1.5rem 1.5rem;
+  }
+
+  .studio-v1-board {
+    left: 50%;
+    width: min(74%, 320px);
+    transform: translateX(-50%) scale(.78);
+    transform-origin: center;
+  }
+
+  .studio-v2-core,
+  .studio-v3-content {
+    margin-left: 0;
+    transform: scale(.78);
+  }
+
+  .studio-v3-progress {
+    left: 14%;
+    right: 14%;
   }
 
   .studio-fact-detail,

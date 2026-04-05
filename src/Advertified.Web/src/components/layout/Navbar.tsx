@@ -56,7 +56,7 @@ export function Navbar() {
                   : 'border-brand/25 bg-gradient-to-r from-brand-soft via-white to-brand-soft text-brand shadow-[0_10px_24px_rgba(15,118,110,0.2)] hover:border-brand/35 hover:shadow-[0_14px_28px_rgba(15,118,110,0.24)]'
               }`}
             >
-              AI Media Studio
+              Advertified Studio
               <span className="rounded-full bg-black/25 px-2 py-0.5 text-[10px] tracking-[0.14em] text-white">DEV</span>
             </Link>
           ) : null}
@@ -120,7 +120,7 @@ export function Navbar() {
                 }`}
                 onClick={() => setOpen(false)}
               >
-                AI Media Studio
+                Advertified Studio
                 <span className="rounded-full bg-black/25 px-2 py-0.5 text-[10px] tracking-[0.14em] text-white">DEV</span>
               </Link>
             ) : null}

@@ -302,7 +302,7 @@ export function AiStudioPage() {
             <div className="studio-loader-panel studio-loader-bottom" />
           </div>
           <div className={`studio-loader-center ${loaderStage === 'revealing' ? 'fade' : ''}`}>
-            <div className="studio-loader-eyebrow">Creative Production Studio</div>
+            <div className="studio-loader-eyebrow">Advertified Studio</div>
             <div className="studio-loader-word-wrap"><div className="studio-loader-word">Advertified</div></div>
             <div className="studio-loader-line" />
             <div className="studio-loader-counter"><div className="studio-loader-dot" /><span>{loaderCount}</span></div>
@@ -316,7 +316,7 @@ export function AiStudioPage() {
           <div className={`studio-hero-ghost ${heroReady ? 'in' : ''}`}>Studio</div>
         </div>
         <div className="studio-hero-content">
-          <p className="studio-hero-eyebrow"><span className={heroReady ? 'in' : ''}>Advertified Studio - Creative Production</span></p>
+          <p className="studio-hero-eyebrow"><span className={heroReady ? 'in' : ''}>Advertified Studio - Creative Production for Every Channel</span></p>
           <div className="studio-hero-title">
             <div className="studio-title-line"><span className={`studio-title-inner ${heroReady ? 'in' : ''}`}>From the brief</span></div>
             <div className="studio-title-line"><span className={`studio-title-inner ${heroReady ? 'in' : ''}`} style={{ transitionDelay: '160ms' }}>to <em>every channel.</em></span></div>
