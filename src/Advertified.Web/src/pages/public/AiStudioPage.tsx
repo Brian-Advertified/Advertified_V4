@@ -1,4 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import billboardImage from '../../assets/Channels/optimized/billboard-sa-optimized.jpg';
+import radioImage from '../../assets/Channels/optimized/radio-sa-optimized.jpg';
+import tvImage from '../../assets/Channels/optimized/tv-sa-optimized.jpg';
+import socialImage from '../../assets/Channels/optimized/social-platforms-optimized.jpg';
 
 type ChannelKey = 'billboard' | 'radio' | 'tv' | 'social';
 type FilterKey = 'all' | ChannelKey;
@@ -58,6 +62,8 @@ function TileVisual({ channel }: { channel: ChannelKey }) {
   if (channel === 'billboard') {
     return (
       <div className="studio-v1 studio-tile-visual">
+        <img src={billboardImage} alt="Billboard campaign mockup" className="studio-tile-photo" />
+        <div className="studio-tile-photo-wash" />
         <div className="studio-v1-sky" />
         <div className="studio-v1-stars" />
         <div className="studio-v1-city">
@@ -84,6 +90,8 @@ function TileVisual({ channel }: { channel: ChannelKey }) {
   if (channel === 'radio') {
     return (
       <div className="studio-v2 studio-tile-visual">
+        <img src={radioImage} alt="Radio campaign mockup" className="studio-tile-photo" />
+        <div className="studio-tile-photo-wash" />
         <div className="studio-v2-rings">{[0, 1, 2, 3].map((ring) => <div key={`${channel}-${ring}`} className="studio-v2-ring" />)}</div>
         <div className="studio-v2-core">
           <span className="studio-v2-icon">Mic</span>
@@ -101,6 +109,8 @@ function TileVisual({ channel }: { channel: ChannelKey }) {
   if (channel === 'tv') {
     return (
       <div className="studio-v3 studio-tile-visual">
+        <img src={tvImage} alt="TV storyboard campaign mockup" className="studio-tile-photo" />
+        <div className="studio-tile-photo-wash" />
         <div className="studio-v3-band-top" />
         <div className="studio-v3-band-bottom" />
         <div className="studio-v3-scan" />
@@ -117,6 +127,8 @@ function TileVisual({ channel }: { channel: ChannelKey }) {
 
   return (
     <div className="studio-v4 studio-tile-visual">
+      <img src={socialImage} alt="Social campaign mockup" className="studio-tile-photo" />
+      <div className="studio-tile-photo-wash" />
       {[['Campaign', 'Story', 'studio-ba', 'studio-bc', false], ['Reel', 'Feed', 'studio-bb', 'studio-ba', true], ['Story', 'Ad', 'studio-bc', 'studio-bb', false]].map(
         ([labelA, labelB, toneA, toneB, wide], index) => (
           <div key={`${channel}-${index}`} className={`studio-v4-phone${wide ? ' studio-v4-phone-wide' : ''}`}>

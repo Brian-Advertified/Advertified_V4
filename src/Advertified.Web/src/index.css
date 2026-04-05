@@ -2005,6 +2005,26 @@ textarea {
   transform: scale(1.035);
 }
 
+.studio-tile-photo,
+.studio-tile-photo-wash {
+  position: absolute;
+  inset: 0;
+}
+
+.studio-tile-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: .42;
+  filter: saturate(.86) contrast(1.02) brightness(.6);
+}
+
+.studio-tile-photo-wash {
+  background:
+    linear-gradient(180deg, rgba(8,8,8,.32) 0%, rgba(8,8,8,.48) 40%, rgba(8,8,8,.78) 100%),
+    radial-gradient(circle at 50% 35%, rgba(20,184,110,.14), transparent 34%);
+}
+
 .studio-tile-overlay {
   position: absolute;
   inset: 0;

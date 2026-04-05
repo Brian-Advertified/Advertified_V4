@@ -6,7 +6,7 @@ const currentYear = new Date().getFullYear();
 
 export function Footer() {
   return (
-    <footer className="border-t border-line bg-[linear-gradient(180deg,rgba(236,250,246,0.78)_0%,rgba(255,255,255,0.98)_65%,rgba(255,255,255,1)_100%)]">
+    <footer className="footer-shell border-t border-line">
       <div className="page-shell py-10 sm:py-12">
         <div className="grid gap-10 lg:grid-cols-[1.45fr_0.9fr_0.9fr_1fr]">
           <div className="max-w-xs">
