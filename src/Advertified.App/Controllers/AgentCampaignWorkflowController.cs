@@ -487,18 +487,19 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
 
             try
             {
-                var recommendationPdfs = await Task.WhenAll(recommendations.Select(async recommendation =>
+                var recommendationPdfs = new List<EmailAttachment>(recommendations.Count);
+                foreach (var recommendation in recommendations)
                 {
                     var pdfBytes = await _recommendationDocumentService.GetRecommendationPdfBytesAsync(campaign.Id, recommendation.Id, cancellationToken);
-                    return new EmailAttachment
+                    recommendationPdfs.Add(new EmailAttachment
                     {
                         FileName = BuildRecommendationAttachmentFileName(campaign.Id, recommendation),
                         ContentType = "application/pdf",
                         Content = pdfBytes
-                    };
-                }));
+                    });
+                }
 
-                attachments = recommendationPdfs;
+                attachments = recommendationPdfs.ToArray();
                 recommendationPackBlock = @"
                     <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">
                       We have attached a separate PDF for each recommendation option. Each PDF starts with a one-page summary followed by the full detailed media plan.
@@ -607,7 +608,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
                     </div>";
     }
 
-    private static string BuildProposalAcceptButtonsBlock(Guid campaignId, IReadOnlyList<CampaignRecommendation> recommendations)
+    private string BuildProposalAcceptButtonsBlock(Guid campaignId, IReadOnlyList<CampaignRecommendation> recommendations)
     {
         if (recommendations.Count == 0)
         {
@@ -616,20 +617,15 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
 
         var buttons = string.Join("&nbsp;&nbsp;",
             recommendations.Select((r, index) => $@"
-                <a href=""{BuildProposalButtonUrl(campaignId, r.Id)}"" 
+                <a href=""{BuildProposalUrl(campaignId, r.Id, "accept")}"" 
                    style=""display:inline-block;padding:10px 20px;background-color:#4b635a;color:white;text-decoration:none;border-radius:4px;font-size:14px;"">
-                  Review Proposal {(index + 1)}
+                  Accept Proposal {(index + 1)}
                 </a>"));
 
         return $@"
                     <div style=""text-align:center;margin:24px 0;"">
                       {buttons}
                     </div>";
-    }
-
-    private static string BuildProposalButtonUrl(Guid campaignId, Guid recommendationId)
-    {
-        return $"/proposal/{campaignId:D}?action=accept&recommendationId={recommendationId:D}";
     }
 
     private static bool IsProspectiveCampaign(Campaign campaign)
