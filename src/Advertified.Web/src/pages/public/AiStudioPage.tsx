@@ -94,7 +94,11 @@ function TileVisual({ channel }: { channel: ChannelKey }) {
         <div className="studio-tile-photo-wash" />
         <div className="studio-v2-rings">{[0, 1, 2, 3].map((ring) => <div key={`${channel}-${ring}`} className="studio-v2-ring" />)}</div>
         <div className="studio-v2-core">
-          <span className="studio-v2-icon">Mic</span>
+          <div className="studio-v2-dial">
+            <div className="studio-v2-dial-inner" />
+            <div className="studio-v2-needle" />
+            <div className="studio-v2-center-dot" />
+          </div>
           <div className="studio-v2-wave">
             {radioHeights.map((height, index) => (
               <div key={`${channel}-${height}-${index}`} className="studio-v2-bar" style={{ height: `${height}px`, animationDelay: `${(index * 0.065).toFixed(3)}s` }} />
@@ -120,7 +124,13 @@ function TileVisual({ channel }: { channel: ChannelKey }) {
           <div className="studio-v3-scene">Scene 3 - Product reveal<br />close-up, warm light.</div>
           <div className="studio-v3-shot">Shot guide / 30 sec TVC</div>
         </div>
-        <div className="studio-v3-progress"><div className="studio-v3-fill" /></div>
+        <div className="studio-v3-progress">
+          <div className="studio-v3-pause-marker" aria-hidden="true">
+            <span />
+            <span />
+          </div>
+          <div className="studio-v3-fill" />
+        </div>
       </div>
     );
   }
@@ -129,31 +139,41 @@ function TileVisual({ channel }: { channel: ChannelKey }) {
     <div className="studio-v4 studio-tile-visual">
       <img src={socialImage} alt="Social campaign mockup" className="studio-tile-photo" />
       <div className="studio-tile-photo-wash" />
-      {[['Campaign', 'Story', 'studio-ba', 'studio-bc', false], ['Reel', 'Feed', 'studio-bb', 'studio-ba', true], ['Story', 'Ad', 'studio-bc', 'studio-bb', false]].map(
-        ([labelA, labelB, toneA, toneB, wide], index) => (
-          <div key={`${channel}-${index}`} className={`studio-v4-phone${wide ? ' studio-v4-phone-wide' : ''}`}>
-            <div className="studio-v4-status-bar"><div className="studio-v4-notch" /></div>
-            <div className="studio-v4-app-bar"><div className="studio-v4-dot" /><div className="studio-v4-icons"><div className="studio-v4-icon" /><div className="studio-v4-icon" /></div></div>
-            <div className="studio-v4-feed">
-              <div className="studio-v4-post">
-                <div className={`studio-v4-image ${toneA}${wide ? ' studio-v4-image-tall' : ''}`}>{labelA}</div>
-                <div className="studio-v4-post-body">
-                  <div className="studio-v4-line" />
-                  <div className="studio-v4-line studio-v4-line-short" />
-                  <div className="studio-v4-actions"><div /><div />{wide ? <div /> : null}</div>
-                </div>
+      <div className="studio-v4-stack">
+        <div className="studio-v4-card studio-v4-card-back">
+          <div className="studio-v4-card-label">Story set</div>
+          <div className="studio-v4-card-metrics">
+            <span />
+            <span />
+            <span />
+          </div>
+        </div>
+        <div className="studio-v4-phone">
+          <div className="studio-v4-status-bar"><div className="studio-v4-notch" /></div>
+          <div className="studio-v4-app-bar"><div className="studio-v4-dot" /><div className="studio-v4-icons"><div className="studio-v4-icon" /><div className="studio-v4-icon" /></div></div>
+          <div className="studio-v4-feed">
+            <div className="studio-v4-post">
+              <div className="studio-v4-image studio-bb studio-v4-image-tall">Reel</div>
+              <div className="studio-v4-post-body">
+                <div className="studio-v4-line" />
+                <div className="studio-v4-line studio-v4-line-short" />
+                <div className="studio-v4-actions"><div /><div /><div /></div>
               </div>
-              <div className="studio-v4-post">
-                <div className={`studio-v4-image ${toneB}`}>{labelB}</div>
-                <div className="studio-v4-post-body">
-                  <div className="studio-v4-line studio-v4-line-short" />
-                  {!wide ? <div className="studio-v4-actions"><div /><div /></div> : null}
-                </div>
+            </div>
+            <div className="studio-v4-post">
+              <div className="studio-v4-image studio-ba">Feed</div>
+              <div className="studio-v4-post-body">
+                <div className="studio-v4-line" />
+                <div className="studio-v4-line studio-v4-line-short" />
               </div>
             </div>
           </div>
-        ),
-      )}
+        </div>
+        <div className="studio-v4-card studio-v4-card-front">
+          <div className="studio-v4-card-label">Paid social</div>
+          <div className="studio-v4-card-preview studio-bc">Ad cutdown</div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -346,6 +366,8 @@ export function AiStudioPage() {
                 <div className="studio-tile-title">{tile.title[0]}<br />{tile.title[1]}</div>
                 <div className="studio-tile-subtitle">{tile.subtitle}</div>
               </div>
+            </div>
+            <div className="studio-tile-cta-wrap">
               <div className="studio-tile-cta">View outputs</div>
             </div>
           </div>
