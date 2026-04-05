@@ -1592,7 +1592,8 @@ textarea {
 .studio-page {
   --studio-ink: #080808;
   --studio-paper: #f5f2ec;
-  --studio-amber: #e8960a;
+  --studio-amber: #14b86e;
+  --studio-accent-deep: #0f766e;
   background: var(--studio-ink);
   color: var(--studio-paper);
   font-family: "Syne", sans-serif;
@@ -1600,6 +1601,29 @@ textarea {
   margin-right: calc(50% - 50vw);
   width: 100vw;
   overflow: clip;
+  position: relative;
+}
+
+.studio-page::before,
+.studio-page::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.studio-page::before {
+  background:
+    radial-gradient(circle at 18% 18%, rgba(20,184,110,.12), transparent 24%),
+    radial-gradient(circle at 82% 14%, rgba(15,118,110,.12), transparent 18%),
+    linear-gradient(180deg, rgba(20,184,110,.04) 0%, transparent 18%, transparent 72%, rgba(15,118,110,.05) 100%);
+  opacity: .9;
+}
+
+.studio-page::after {
+  background:
+    linear-gradient(180deg, rgba(8,8,8,0) 0%, rgba(8,8,8,.18) 44%, rgba(8,8,8,.42) 100%);
 }
 
 .studio-page * {
@@ -1768,12 +1792,12 @@ textarea {
 
 .studio-hero {
   position: relative;
-  min-height: calc(100vh - 82px);
+  min-height: calc(84vh - 48px);
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
+  justify-content: center;
   overflow: hidden;
-  padding: 0 2.5rem 3rem;
+  padding: 3rem 2.5rem 2.5rem;
   border-bottom: 1px solid rgba(245,242,236,.05);
 }
 
@@ -1820,6 +1844,21 @@ textarea {
 .studio-hero-content {
   position: relative;
   z-index: 1;
+  width: min(1080px, 100%);
+  margin-top: 1.5rem;
+}
+
+.studio-hero-content::before {
+  content: "";
+  position: absolute;
+  left: -8%;
+  top: 8%;
+  width: 48%;
+  height: 56%;
+  background: radial-gradient(circle, rgba(20,184,110,.12) 0%, rgba(20,184,110,.04) 34%, transparent 72%);
+  filter: blur(24px);
+  pointer-events: none;
+  z-index: -1;
 }
 
 .studio-hero-eyebrow {
@@ -1863,6 +1902,7 @@ textarea {
 .studio-title-inner em {
   color: var(--studio-amber);
   font-style: normal;
+  text-shadow: 0 0 24px rgba(20,184,110,.18);
 }
 
 .studio-title-inner.in {
@@ -1904,9 +1944,10 @@ textarea {
 
 .studio-filter:hover,
 .studio-filter.active {
-  background: var(--studio-paper);
-  border-color: var(--studio-paper);
-  color: var(--studio-ink);
+  background: linear-gradient(135deg, var(--studio-accent-deep), var(--studio-amber));
+  border-color: rgba(20,184,110,.8);
+  box-shadow: 0 14px 32px rgba(15,118,110,.24);
+  color: #f3fffb;
 }
 
 .studio-scroll {
@@ -1951,7 +1992,7 @@ textarea {
 }
 
 .studio-tile:hover {
-  border-color: rgba(232,150,10,.25);
+  border-color: rgba(20,184,110,.28);
 }
 
 .studio-tile-visual {
@@ -2063,7 +2104,7 @@ textarea {
 .studio-v1-sky {
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse 55% 40% at 30% 18%, rgba(232,150,10,.04), transparent 60%);
+  background: radial-gradient(ellipse 55% 40% at 30% 18%, rgba(20,184,110,.08), transparent 60%);
 }
 
 .studio-v1-stars {
@@ -2122,7 +2163,7 @@ textarea {
   left: 8%;
   right: 8%;
   height: 2px;
-  background: repeating-linear-gradient(90deg, rgba(232,150,10,.22) 0, rgba(232,150,10,.22) 28px, transparent 28px, transparent 56px);
+  background: repeating-linear-gradient(90deg, rgba(20,184,110,.28) 0, rgba(20,184,110,.28) 28px, transparent 28px, transparent 56px);
 }
 
 .studio-v1-board {
@@ -2140,14 +2181,14 @@ textarea {
   background: #0e0c06;
   border: 2px solid #2a2618;
   padding: 2.5rem 3rem;
-  box-shadow: 0 0 80px rgba(232,150,10,.07), 0 24px 64px rgba(0,0,0,.7);
+  box-shadow: 0 0 80px rgba(20,184,110,.1), 0 24px 64px rgba(0,0,0,.7);
 }
 
 .studio-v1-face::before {
   content: "";
   position: absolute;
   inset: 0;
-  background: repeating-linear-gradient(135deg, transparent, transparent 20px, rgba(232,150,10,.012) 20px, rgba(232,150,10,.012) 21px);
+  background: repeating-linear-gradient(135deg, transparent, transparent 20px, rgba(20,184,110,.02) 20px, rgba(20,184,110,.02) 21px);
 }
 
 .studio-v1-copy {
@@ -2202,7 +2243,7 @@ textarea {
 .studio-v2-ring {
   position: absolute;
   border-radius: 50%;
-  border: 1px solid rgba(232,150,10,.07);
+  border: 1px solid rgba(20,184,110,.1);
   animation: studio-ringout 4.5s ease-out infinite;
 }
 
@@ -2241,7 +2282,7 @@ textarea {
 }
 
 .studio-v2-label {
-  color: rgba(232,150,10,.6);
+  color: rgba(20,184,110,.72);
   font-size: .65rem;
   letter-spacing: .3em;
   text-transform: uppercase;
@@ -2288,7 +2329,7 @@ textarea {
   z-index: 3;
   display: flex;
   justify-content: space-between;
-  color: rgba(232,150,10,.55);
+  color: rgba(20,184,110,.62);
   font-size: .6rem;
   letter-spacing: .14em;
 }
@@ -2308,7 +2349,7 @@ textarea {
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  border: 1.5px solid rgba(232,150,10,.35);
+  border: 1.5px solid rgba(20,184,110,.38);
 }
 
 .studio-v3-play::before {
@@ -2316,7 +2357,7 @@ textarea {
   position: absolute;
   inset: 9px;
   border-radius: 999px;
-  border: 1px solid rgba(232,150,10,.12);
+  border: 1px solid rgba(20,184,110,.16);
 }
 
 .studio-v3-arrow {
@@ -2337,7 +2378,7 @@ textarea {
 }
 
 .studio-v3-shot {
-  color: rgba(232,150,10,.55);
+  color: rgba(20,184,110,.62);
   font-size: .65rem;
   letter-spacing: .22em;
   text-transform: uppercase;
@@ -2464,7 +2505,7 @@ textarea {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: rgba(232,150,10,.65);
+  color: rgba(20,184,110,.7);
   font-family: "DM Serif Display", serif;
   font-size: .95rem;
   font-style: italic;
@@ -2474,7 +2515,7 @@ textarea {
   content: "";
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse 60% 50% at 50% 50%, rgba(232,150,10,.07), transparent);
+  background: radial-gradient(ellipse 60% 50% at 50% 50%, rgba(20,184,110,.12), transparent);
 }
 
 .studio-v4-image-tall {
@@ -2616,7 +2657,7 @@ textarea {
 }
 
 .studio-step.highlight .studio-step-number {
-  color: rgba(232,150,10,.18);
+  color: rgba(20,184,110,.22);
 }
 
 .studio-step h4 {
@@ -2722,7 +2763,8 @@ textarea {
   }
 
   .studio-hero {
-    min-height: calc(100vh - 74px);
+    min-height: calc(72vh - 20px);
+    padding-top: 2rem;
   }
 
   .studio-hero-bottom,
