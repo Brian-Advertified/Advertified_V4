@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { ArrowRight, CheckCircle2, Clapperboard, Mic2, Sparkles, WandSparkles, Workflow } from 'lucide-react';
+import { ArrowRight, Sparkles, WandSparkles, Workflow } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { Footer } from '../../components/layout/Footer';
+import { Navbar } from '../../components/layout/Navbar';
 import { canAccessAiStudioForStatus, getAiStudioAccessMessage } from '../../features/campaigns/aiStudioAccess';
 import { getActiveJobPollInterval } from '../../lib/queryPolling';
 import { advertifiedApi } from '../../services/advertifiedApi';
@@ -31,6 +33,7 @@ const studioHighlights = [
 
 const studioChannels = [
   {
+    key: 'billboard',
     title: 'Outdoor headlines & visual direction',
     tag: 'Billboards & Digital Screens',
     text: 'Campaign-specific copy, placement notes, and visual direction for real outdoor placements.',
@@ -39,6 +42,7 @@ const studioChannels = [
     outputs: ['Headline copy', 'Visual brief', 'Format specs', 'Placement notes'],
   },
   {
+    key: 'radio',
     title: 'Scripts, voice routes & broadcast lines',
     tag: 'Radio & TV Audio',
     text: '30-second scripts with CTA, voice direction, and language-ready adaptations for broadcast.',
@@ -47,6 +51,7 @@ const studioChannels = [
     outputs: ['30-sec script', 'Voice direction', 'CTA lines', 'Language variants'],
   },
   {
+    key: 'tv',
     title: 'Shot-by-shot scene guides',
     tag: 'TV & Video',
     text: 'Scene structure, visual direction, and production notes for short-form campaign video.',
@@ -55,6 +60,7 @@ const studioChannels = [
     outputs: ['Shot list', 'Scene guide', 'VO script', 'Edit notes'],
   },
   {
+    key: 'social',
     title: 'Channel-native cutdowns & media variants',
     tag: 'Social & Digital',
     text: 'Platform-ready copy, caption variants, and creative direction for mobile-first placements.',
@@ -128,291 +134,320 @@ const videoAspectRatioOptions = ['16:9', '9:16', '1:1', '4:5'] as const;
 const videoDurationOptions = [6, 10, 15, 30, 45, 60] as const;
 
 type ConsoleStep = 'queue' | 'brief' | 'qa' | 'assets' | 'regenerate';
+type StudioChannelKey = (typeof studioChannels)[number]['key'];
 
 function formatChannelLabel(value: string) {
   return value.replace(/\booh\b/gi, 'Billboards and Digital Screens');
 }
 
 export function AiStudioPage() {
-  return (
-    <div className="min-h-screen bg-[#070707] text-[#F7F4EF]">
-      <div className="sticky top-0 z-30 border-b border-white/10 bg-[#070707]/85 backdrop-blur-xl">
-        <div className="page-shell flex items-center justify-between px-6 py-5 sm:px-10">
-          <Link to="/" className="text-sm font-semibold uppercase tracking-[0.14em] text-[#F7F4EF]">
-            <span className="text-[#F5A623]">A</span>dvertified
-          </Link>
-          <div className="hidden items-center gap-8 text-xs uppercase tracking-[0.18em] text-white/45 md:flex">
-            <Link to="/ai-studio" className="transition hover:text-white">Studio</Link>
-            <Link to="/packages" className="transition hover:text-white">Packages</Link>
-            <Link to="/how-it-works" className="transition hover:text-white">How It Works</Link>
-          </div>
-          <Link to="/packages" className="rounded-md bg-[#F5A623] px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.12em] text-black transition hover:opacity-90">
-            Get Started
-          </Link>
-        </div>
-      </div>
+  const [activeFilter, setActiveFilter] = useState<'all' | StudioChannelKey>('all');
+  const [cursorPosition, setCursorPosition] = useState({ x: 0, y: 0 });
+  const [cursorVisible, setCursorVisible] = useState(false);
+  const [cursorLarge, setCursorLarge] = useState(false);
 
-      <section className="relative overflow-hidden px-6 pb-14 pt-10 sm:px-10 sm:pt-16">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_72%_40%,rgba(245,166,35,0.08),transparent_32%),radial-gradient(circle_at_18%_18%,rgba(255,255,255,0.04),transparent_26%)]" />
-        <div className="page-shell relative grid gap-10 xl:grid-cols-[0.95fr_1.05fr]">
-          <div className="flex flex-col justify-center pb-6 xl:pr-10">
-            <div className="mb-8 inline-flex w-fit items-center gap-2 rounded-full border border-[#F5A623]/30 bg-[#F5A623]/12 px-4 py-2 text-[11px] font-medium uppercase tracking-[0.22em] text-[#F5A623]">
-              <Sparkles className="size-4" />
-              Advertified Studio
+  const filteredChannels = useMemo(
+    () => studioChannels.filter((channel) => activeFilter === 'all' || channel.key === activeFilter),
+    [activeFilter],
+  );
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(pointer: fine)');
+    if (!mediaQuery.matches) {
+      return undefined;
+    }
+
+    const handleMove = (event: MouseEvent) => {
+      setCursorPosition({ x: event.clientX, y: event.clientY });
+      setCursorVisible(true);
+    };
+
+    const handleLeave = () => setCursorVisible(false);
+
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseout', handleLeave);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseout', handleLeave);
+    };
+  }, []);
+
+  const filterOptions: Array<{ key: 'all' | StudioChannelKey; label: string }> = [
+    { key: 'all', label: 'All' },
+    { key: 'billboard', label: 'Billboard' },
+    { key: 'radio', label: 'Radio' },
+    { key: 'tv', label: 'TV + Video' },
+    { key: 'social', label: 'Social' },
+  ];
+
+  return (
+    <div className="min-h-screen bg-[#050505] text-[#f6f2eb]">
+      <Navbar />
+      <div
+        className={`pointer-events-none fixed left-0 top-0 z-[70] hidden rounded-full border border-white/15 bg-[#14b86e]/75 mix-blend-screen transition-[width,height,opacity,transform] duration-300 xl:block ${
+          cursorVisible ? 'opacity-100' : 'opacity-0'
+        } ${cursorLarge ? 'h-14 w-14' : 'h-3 w-3'}`}
+        style={{ transform: `translate(${cursorPosition.x}px, ${cursorPosition.y}px) translate(-50%, -50%)` }}
+      />
+
+      <main className="overflow-hidden bg-[#050505]">
+        <section className="relative min-h-screen overflow-hidden border-b border-white/8">
+          <div
+            className="pointer-events-none absolute inset-0 opacity-70"
+            style={{
+              backgroundImage:
+                'linear-gradient(rgba(246,242,235,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(246,242,235,0.035) 1px, transparent 1px)',
+              backgroundSize: '88px 88px',
+              animation: 'ai-grid-shift 20s linear infinite',
+            }}
+          />
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_22%,rgba(20,184,110,0.16),transparent_28%),radial-gradient(circle_at_74%_24%,rgba(255,255,255,0.06),transparent_24%),linear-gradient(180deg,rgba(0,0,0,0.14),rgba(0,0,0,0.78))]" />
+          <div className="pointer-events-none absolute left-1/2 top-1/2 hidden -translate-x-1/2 -translate-y-1/2 select-none font-serif text-[clamp(8rem,22vw,24rem)] italic leading-none text-white/[0.03] lg:block">
+            Studio
+          </div>
+
+          <div className="page-shell relative flex min-h-screen flex-col justify-end px-4 pb-10 pt-28 sm:px-6 sm:pb-14 lg:pt-32">
+            <div className="max-w-5xl">
+              <div className="ai-fade-up inline-flex items-center gap-2 rounded-full border border-[#14b86e]/30 bg-[#14b86e]/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.26em] text-[#6ef0aa]">
+                <Sparkles className="size-4" />
+                Advertified Studio - Creative Production
+              </div>
+              <div className="mt-8 space-y-2">
+                <div className="overflow-hidden">
+                  <p className="ai-fade-up font-serif text-[clamp(3.2rem,8vw,6.8rem)] italic leading-[0.96] tracking-[-0.03em] text-[#f6f2eb]">
+                    From the brief
+                  </p>
+                </div>
+                <div className="overflow-hidden">
+                  <p className="ai-fade-up ai-delay-1 font-serif text-[clamp(3.2rem,8vw,6.8rem)] italic leading-[0.96] tracking-[-0.03em] text-[#f6f2eb]">
+                    to <span className="not-italic text-[#14b86e]">every channel.</span>
+                  </p>
+                </div>
+                <div className="overflow-hidden">
+                  <p className="ai-fade-up ai-delay-2 font-serif text-[clamp(3.2rem,8vw,6.8rem)] italic leading-[0.96] tracking-[-0.03em] text-[#f6f2eb]">
+                    In-house.
+                  </p>
+                </div>
+              </div>
+              <div className="ai-fade-up ai-delay-3 mt-8 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+                <p className="max-w-2xl text-base leading-8 text-white/58 sm:text-lg">
+                  Advertified Studio turns one approved campaign into billboard copy, radio scripts, social variants, and
+                  video-ready direction without the usual handoff drag.
+                </p>
+                <div className="flex items-center gap-4 text-[11px] uppercase tracking-[0.24em] text-white/35">
+                  <span
+                    className="inline-block h-10 w-px bg-white/20"
+                    style={{ animation: 'ai-scroll-pulse 2.3s ease-in-out infinite' }}
+                  />
+                  Scroll
+                </div>
+              </div>
+              <div className="ai-fade-up ai-delay-4 mt-10 flex flex-wrap gap-3">
+                {filterOptions.map((option) => (
+                  <button
+                    key={option.key}
+                    type="button"
+                    onClick={() => setActiveFilter(option.key)}
+                    onMouseEnter={() => setCursorLarge(true)}
+                    onMouseLeave={() => setCursorLarge(false)}
+                    className={`rounded-full border px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.18em] transition ${
+                      activeFilter === option.key
+                        ? 'border-[#f6f2eb] bg-[#f6f2eb] text-[#050505] shadow-[0_18px_36px_rgba(255,255,255,0.12)]'
+                        : 'border-white/16 bg-white/[0.02] text-white/55 hover:border-[#14b86e]/45 hover:bg-[#14b86e]/10 hover:text-white'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
             </div>
-            <h1 className="font-display text-[clamp(4rem,9vw,7rem)] uppercase leading-[0.88] tracking-[0.01em] text-[#F7F4EF]">
-              One Brief.
-              <br />
-              <span className="text-[#F5A623]">Every Channel.</span>
-              <br />
-              Launch-Ready.
-            </h1>
-            <p className="mt-7 max-w-xl text-base font-light leading-8 text-white/60 sm:text-lg">
-              Your approved campaign turned into real, production-ready creative across billboards, radio, TV, and social from a single brief.
-            </p>
-            <div className="mt-10 flex flex-wrap gap-3">
-              <Link to="/packages" className="inline-flex items-center gap-2 rounded-md bg-[#F5A623] px-7 py-4 text-sm font-semibold text-black transition hover:opacity-90">
-                Explore packages
-                <ArrowRight className="size-4" />
-              </Link>
-              <Link to="/partner-enquiry" className="inline-flex items-center gap-2 rounded-md border border-white/20 px-7 py-4 text-sm font-medium text-white transition hover:border-white/40">
-                Talk to the team
-              </Link>
+          </div>
+        </section>
+
+        <section className="border-b border-white/8">
+          {filteredChannels.map((channel, index) => (
+            <article
+              key={channel.key}
+              className="group relative min-h-[82vh] overflow-hidden border-b border-white/6 last:border-b-0"
+              onMouseEnter={() => setCursorLarge(true)}
+              onMouseLeave={() => setCursorLarge(false)}
+            >
+              <img
+                src={channel.image}
+                alt={channel.alt}
+                className="absolute inset-0 h-full w-full scale-[1.02] object-cover transition duration-700 ease-out group-hover:scale-[1.06]"
+              />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,5,5,0.16)_0%,rgba(5,5,5,0.36)_36%,rgba(5,5,5,0.9)_100%)] transition duration-500 group-hover:bg-[linear-gradient(180deg,rgba(5,5,5,0.08)_0%,rgba(5,5,5,0.26)_34%,rgba(5,5,5,0.88)_100%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_22%,rgba(20,184,110,0.12),transparent_24%)] opacity-80" />
+
+              <div className="page-shell relative flex min-h-[82vh] items-end px-4 py-10 sm:px-6 sm:py-12">
+                <div
+                  className={`ai-fade-up flex w-full flex-col gap-6 lg:flex-row lg:items-end lg:justify-between ${
+                    index % 2 === 0 ? 'ai-delay-1' : 'ai-delay-2'
+                  }`}
+                >
+                  <div className="max-w-2xl">
+                    <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#14b86e]/25 bg-[#14b86e]/10 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-[#75f2af]">
+                      {channel.tag}
+                    </div>
+                    <h2 className="font-serif text-[clamp(2.4rem,5vw,4.7rem)] italic leading-[0.98] tracking-[-0.03em] text-[#f6f2eb]">
+                      {channel.title}
+                    </h2>
+                    <p className="mt-4 max-w-xl text-sm leading-7 text-white/58 sm:text-base sm:leading-8">{channel.text}</p>
+                    <div className="mt-6 flex flex-wrap gap-2">
+                      {channel.outputs.map((item) => (
+                        <span key={item} className="rounded-full border border-white/12 bg-black/25 px-3 py-1.5 text-[11px] uppercase tracking-[0.15em] text-white/58 backdrop-blur-sm">
+                          {item}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/70">
+                    <Link
+                      to="/packages"
+                      className="inline-flex items-center gap-2 rounded-full border border-white/16 bg-black/35 px-5 py-3 transition hover:border-[#14b86e]/45 hover:bg-[#14b86e]/12 hover:text-white"
+                    >
+                      Explore packages
+                      <ArrowRight className="size-4" />
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            </article>
+          ))}
+        </section>
+
+        <section className="border-b border-white/8 px-4 py-20 sm:px-6">
+          <div className="page-shell grid gap-12 lg:grid-cols-[0.92fr_1.08fr] lg:items-center">
+            <div className="ai-fade-up">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#6ef0aa]">Advertified Studio</div>
+              <h2 className="mt-5 font-serif text-[clamp(2.6rem,5vw,4.6rem)] italic leading-[1.02] tracking-[-0.03em] text-[#f6f2eb]">
+                Where your approved campaign becomes <span className="not-italic text-[#14b86e]">real content.</span>
+              </h2>
             </div>
-            <div className="mt-12 grid gap-6 border-t border-white/10 pt-8 sm:grid-cols-3">
-              {[
-                ['Channels', '4+'],
-                ['Asset types', '12+'],
-                ['From brief to pack', '48h'],
-              ].map(([label, value]) => (
-                <div key={label}>
-                  <div className="text-[11px] uppercase tracking-[0.18em] text-white/45">{label}</div>
-                  <div className="mt-1 font-display text-4xl uppercase tracking-[0.04em] text-[#F7F4EF]">
-                    <span className="text-[#F5A623]">{value}</span>
+
+            <div className="space-y-5">
+              {studioHighlights.slice(0, 3).map((item, index) => (
+                <div
+                  key={item.title}
+                  className={`ai-fade-up flex items-start justify-between gap-6 border-t border-white/8 pt-5 ${index === 0 ? 'ai-delay-1' : index === 1 ? 'ai-delay-2' : 'ai-delay-3'}`}
+                >
+                  <div className="font-serif text-5xl italic leading-none text-[#14b86e]/85">{`0${index + 1}`}</div>
+                  <div className="max-w-sm text-right">
+                    <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-[#f6f2eb]">{item.title}</h3>
+                    <p className="mt-2 text-sm leading-7 text-white/55">{item.text}</p>
                   </div>
                 </div>
               ))}
             </div>
           </div>
+        </section>
 
-          <div className="flex items-center justify-center py-4 xl:py-10">
-            <div className="grid w-full max-w-[560px] gap-3 md:grid-cols-2">
-              <article className="overflow-hidden rounded-2xl border border-white/10 bg-[#111111] md:col-span-2">
-                <div className="absolute ml-4 mt-4 rounded-full border border-white/10 bg-black/55 px-3 py-1 text-[10px] font-medium uppercase tracking-[0.18em] text-white/60">
-                  Billboard
-                </div>
-                <img src={billboardImage} alt="Billboard campaign preview" className="h-[220px] w-full object-cover" />
-                <div className="border-t border-white/10 bg-[#111111] px-5 py-4">
-                  <div className="font-display text-3xl uppercase leading-none tracking-[0.04em] text-[#F5A623]">Your Brand Here</div>
-                  <div className="mt-2 text-[11px] uppercase tracking-[0.18em] text-white/45">Outdoor · 6x3m · Digital</div>
-                </div>
-              </article>
+        <section className="border-b border-white/8 px-4 py-20 sm:px-6">
+          <div className="page-shell">
+            <div className="mb-12 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+              <div className="ai-fade-up">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#6ef0aa]">The flow</div>
+                <h2 className="mt-5 font-serif text-[clamp(2.6rem,5vw,4.6rem)] italic leading-[1.02] tracking-[-0.03em] text-[#f6f2eb]">
+                  One continuous process.
+                </h2>
+              </div>
+              <p className="ai-fade-up ai-delay-1 max-w-sm text-sm leading-7 text-white/55 lg:text-right">
+                No re-formatting. No lost brief. One approved direction moving straight into content, review, and launch.
+              </p>
+            </div>
 
-              <article className="overflow-hidden rounded-2xl border border-white/10 bg-[#111111]">
-                <div className="absolute ml-4 mt-4 rounded-full border border-white/10 bg-black/55 px-3 py-1 text-[10px] font-medium uppercase tracking-[0.18em] text-white/60">
-                  Radio
-                </div>
-                <img src={radioImage} alt="Radio campaign preview" className="h-[190px] w-full object-cover" />
-                <div className="border-t border-white/10 bg-[#111111] px-4 py-4">
-                  <div className="flex items-center gap-3">
-                    <Mic2 className="size-4 text-[#F5A623]" />
-                    <div className="text-sm font-semibold text-white">30-sec spot</div>
-                  </div>
-                  <div className="mt-2 font-mono text-[11px] uppercase tracking-[0.16em] text-white/45">On air</div>
-                </div>
-              </article>
-
-              <article className="overflow-hidden rounded-2xl border border-white/10 bg-[#111111]">
-                <div className="absolute ml-4 mt-4 rounded-full border border-white/10 bg-black/55 px-3 py-1 text-[10px] font-medium uppercase tracking-[0.18em] text-white/60">
-                  TV / Video
-                </div>
-                <img src={tvImage} alt="Video campaign preview" className="h-[190px] w-full object-cover" />
-                <div className="border-t border-white/10 bg-[#111111] px-4 py-4">
-                  <div className="flex items-center gap-3">
-                    <Clapperboard className="size-4 text-[#F5A623]" />
-                    <div className="text-sm font-semibold text-white">Scene-ready cut</div>
-                  </div>
-                  <div className="mt-2 font-mono text-[11px] uppercase tracking-[0.16em] text-white/45">00:23</div>
-                </div>
-              </article>
+            <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-5">
+              {studioFlow.map((step, index) => (
+                <article
+                  key={step.title}
+                  className={`ai-fade-up border-l pl-5 ${index > 1 ? 'border-[#14b86e]/45' : 'border-white/10'} ${index === 0 ? 'ai-delay-1' : index === 1 ? 'ai-delay-2' : index === 2 ? 'ai-delay-3' : 'ai-delay-4'}`}
+                >
+                  <div className={`font-serif text-6xl italic leading-none ${index > 1 ? 'text-[#14b86e]/30' : 'text-white/[0.08]'}`}>{step.icon}</div>
+                  <h3 className="mt-5 text-sm font-semibold uppercase tracking-[0.14em] text-[#f6f2eb]">{step.title}</h3>
+                  <p className="mt-3 text-sm leading-7 text-white/52">{step.text}</p>
+                </article>
+              ))}
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section className="border-y border-white/10 bg-[#111111] px-6 py-16 sm:px-10">
-        <div className="page-shell grid gap-10 xl:grid-cols-[0.95fr_1.05fr] xl:items-center">
-          <div>
-            <div className="text-[11px] font-medium uppercase tracking-[0.24em] text-[#F5A623]">What the studio does</div>
-            <h2 className="mt-4 font-display text-[clamp(3rem,7vw,5rem)] uppercase leading-[0.9] tracking-[0.01em] text-[#F7F4EF]">
-              Where campaigns
-              <br />
-              become content.
-            </h2>
-            <p className="mt-5 max-w-xl text-base font-light leading-8 text-white/60">
-              Once your campaign is approved, Studio takes over. It translates your brief into creative direction and adapts it across every format in your media plan, ready for review, booking, and launch.
-            </p>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            {studioHighlights.map((item) => (
-              <article key={item.title} className="rounded-2xl border border-white/10 bg-[#181818] p-6">
-                <div className="mb-4 flex size-10 items-center justify-center rounded-xl bg-[#F5A623]/12">
-                  <CheckCircle2 className="size-5 text-[#F5A623]" />
-                </div>
-                <h3 className="text-sm font-semibold text-white">{item.title}</h3>
-                <p className="mt-2 text-sm leading-6 text-white/55">{item.text}</p>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="px-6 py-16 sm:px-10">
-        <div className="page-shell">
-          <div className="mb-10 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <div className="text-[11px] font-medium uppercase tracking-[0.24em] text-[#F5A623]">Channels</div>
-              <h2 className="mt-4 font-display text-[clamp(3rem,7vw,5rem)] uppercase leading-[0.9] tracking-[0.01em] text-[#F7F4EF]">
-                Every format,
-                <br />
-                one campaign.
+        <section className="px-4 py-20 sm:px-6">
+          <div className="page-shell">
+            <div className="mb-10 max-w-2xl">
+              <div className="ai-fade-up flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#6ef0aa]">
+                <Workflow className="size-4" />
+                What you get
+              </div>
+              <h2 className="ai-fade-up ai-delay-1 mt-5 font-serif text-[clamp(2.6rem,5vw,4.6rem)] italic leading-[1.02] tracking-[-0.03em] text-[#f6f2eb]">
+                A launch pack built to move.
               </h2>
             </div>
-            <p className="max-w-sm text-sm font-light leading-7 text-white/55 lg:text-right">
-              Studio produces channel-native assets for each placement in your media plan.
-            </p>
-          </div>
 
-          <div className="grid gap-4 xl:grid-cols-4 md:grid-cols-2">
-            {studioChannels.map((channel) => (
-              <article key={channel.title} className="overflow-hidden rounded-2xl border border-white/10 bg-[#111111] transition hover:-translate-y-1 hover:border-[#F5A623]/40">
-                <div className="relative">
-                  <img src={channel.image} alt={channel.alt} className="h-[250px] w-full object-cover" />
-                  <div className="absolute left-4 top-4 rounded-full border border-white/10 bg-black/60 px-3 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-white/60">
-                    {channel.tag}
-                  </div>
-                </div>
-                <div className="p-6">
-                  <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-[#F5A623]">{channel.tag}</div>
-                  <h3 className="mt-3 text-lg font-semibold leading-7 text-white">{channel.title}</h3>
-                  <p className="mt-3 text-sm leading-7 text-white/55">{channel.text}</p>
-                </div>
-                <div className="flex flex-wrap gap-2 px-6 pb-6">
-                  {channel.outputs.map((item) => (
-                    <span key={item} className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-white/55">
-                      {item}
-                    </span>
-                  ))}
-                </div>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="border-y border-white/10 bg-[#111111] px-6 py-16 sm:px-10">
-        <div className="page-shell">
-          <div className="max-w-2xl">
-            <div className="flex items-center gap-3">
-              <Workflow className="size-5 text-[#F5A623]" />
-              <div className="text-[11px] font-medium uppercase tracking-[0.24em] text-[#F5A623]">Studio flow</div>
+            <div className="grid gap-5 lg:grid-cols-3">
+              {studioOutputs.map((item, index) => (
+                <article
+                  key={item.number}
+                  className={`ai-fade-up rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01))] p-8 shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-sm ${index === 0 ? 'ai-delay-1' : index === 1 ? 'ai-delay-2' : 'ai-delay-3'}`}
+                >
+                  <div className="font-serif text-6xl italic leading-none text-[#14b86e]/24">{item.number}</div>
+                  <h3 className="mt-5 text-xl font-semibold text-[#f6f2eb]">{item.title}</h3>
+                  <p className="mt-3 text-sm leading-7 text-white/56">{item.text}</p>
+                  <ul className="mt-6 space-y-3">
+                    {item.items.map((listItem) => (
+                      <li key={listItem} className="flex items-start gap-3 text-sm leading-7 text-white/56">
+                        <span className="mt-2 size-1.5 shrink-0 rounded-full bg-[#14b86e]" />
+                        <span>{listItem}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </article>
+              ))}
             </div>
-            <h2 className="mt-4 font-display text-[clamp(3rem,7vw,5rem)] uppercase leading-[0.9] tracking-[0.01em] text-[#F7F4EF]">
-              From brief
-              <br />
-              to launch.
-            </h2>
-            <p className="mt-5 max-w-xl text-base font-light leading-8 text-white/60">
-              One continuous process. Brief in, campaign pack out.
-            </p>
           </div>
+        </section>
 
-          <div className="mt-12 grid gap-4 lg:grid-cols-5 md:grid-cols-2">
-            {studioFlow.map((step, index) => (
-              <article key={step.title} className="rounded-2xl border border-white/10 bg-[#181818] p-6 text-center">
-                <div className={`mx-auto flex size-14 items-center justify-center rounded-full border ${index < 4 ? 'border-[#F5A623]/45 bg-[#F5A623]/12 text-[#F5A623]' : 'border-white/10 bg-[#111111] text-white/60'} font-mono text-sm`}>
-                  {step.icon}
-                </div>
-                <h3 className="mt-5 text-sm font-semibold text-white">{step.title}</h3>
-                <p className="mt-3 text-sm leading-6 text-white/55">{step.text}</p>
-              </article>
-            ))}
+        <section className="border-t border-white/8 px-4 py-24 text-center sm:px-6">
+          <div className="page-shell relative overflow-hidden rounded-[36px] border border-white/10 bg-[radial-gradient(circle_at_50%_32%,rgba(20,184,110,0.16),transparent_32%),linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01))] px-6 py-16 shadow-[0_36px_110px_rgba(0,0,0,0.3)] sm:px-10">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.05),transparent_30%)]" />
+            <div className="relative">
+              <div className="ai-fade-up text-[11px] font-semibold uppercase tracking-[0.24em] text-[#6ef0aa]">Ready when you are</div>
+              <h2 className="ai-fade-up ai-delay-1 mt-5 font-serif text-[clamp(3rem,7vw,6.2rem)] italic leading-[0.95] tracking-[-0.03em] text-[#f6f2eb]">
+                Your campaign.
+                <br />
+                <span className="not-italic text-[#14b86e]">Real content.</span>
+                <br />
+                Every channel.
+              </h2>
+              <p className="ai-fade-up ai-delay-2 mx-auto mt-6 max-w-2xl text-base leading-8 text-white/58">
+                Start with one brief. Walk away with a production-ready campaign pack designed for review, booking, and launch.
+              </p>
+              <div className="ai-fade-up ai-delay-3 mt-10 flex flex-wrap justify-center gap-3">
+                <Link
+                  to="/packages"
+                  onMouseEnter={() => setCursorLarge(true)}
+                  onMouseLeave={() => setCursorLarge(false)}
+                  className="inline-flex items-center gap-2 rounded-full bg-[#14b86e] px-8 py-4 text-sm font-semibold text-[#04110b] shadow-[0_18px_38px_rgba(20,184,110,0.24)] transition hover:-translate-y-0.5 hover:shadow-[0_22px_44px_rgba(20,184,110,0.28)]"
+                >
+                  Explore packages
+                  <ArrowRight className="size-4" />
+                </Link>
+                <Link
+                  to="/partner-enquiry"
+                  onMouseEnter={() => setCursorLarge(true)}
+                  onMouseLeave={() => setCursorLarge(false)}
+                  className="inline-flex items-center gap-2 rounded-full border border-white/16 bg-white/[0.03] px-8 py-4 text-sm font-semibold text-[#f6f2eb] transition hover:border-[#14b86e]/45 hover:bg-[#14b86e]/10"
+                >
+                  Talk to the team
+                </Link>
+              </div>
+            </div>
           </div>
-        </div>
-      </section>
-
-      <section className="px-6 py-16 sm:px-10">
-        <div className="page-shell">
-          <div className="max-w-2xl">
-            <div className="text-[11px] font-medium uppercase tracking-[0.24em] text-[#F5A623]">What you get</div>
-            <h2 className="mt-4 font-display text-[clamp(3rem,7vw,5rem)] uppercase leading-[0.9] tracking-[0.01em] text-[#F7F4EF]">
-              A complete
-              <br />
-              campaign pack.
-            </h2>
-            <p className="mt-5 text-base font-light leading-8 text-white/60">
-              Every output is structured, reviewed, and ready to book.
-            </p>
-          </div>
-
-          <div className="mt-10 grid gap-4 lg:grid-cols-3">
-            {studioOutputs.map((item) => (
-              <article key={item.number} className="rounded-2xl border border-white/10 bg-[#111111] p-7">
-                <div className="font-display text-6xl uppercase leading-none text-[#F5A623]/25">{item.number}</div>
-                <h3 className="mt-4 text-lg font-semibold text-white">{item.title}</h3>
-                <p className="mt-3 text-sm leading-7 text-white/55">{item.text}</p>
-                <ul className="mt-5 space-y-2">
-                  {item.items.map((listItem) => (
-                    <li key={listItem} className="flex items-start gap-3 text-sm text-white/55">
-                      <span className="mt-2 size-1.5 shrink-0 rounded-full bg-[#F5A623]" />
-                      <span>{listItem}</span>
-                    </li>
-                  ))}
-                </ul>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="relative overflow-hidden px-6 py-20 text-center sm:px-10">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(245,166,35,0.1),transparent_38%)]" />
-        <div className="page-shell relative">
-          <div className="text-[11px] font-medium uppercase tracking-[0.24em] text-[#F5A623]">Ready when you are</div>
-          <h2 className="mt-5 font-display text-[clamp(4rem,9vw,6.6rem)] uppercase leading-[0.9] tracking-[0.01em] text-[#F7F4EF]">
-            Your campaign.
-            <br />
-            <span className="text-[#F5A623]">Real content.</span>
-            <br />
-            Every channel.
-          </h2>
-          <p className="mx-auto mt-5 max-w-lg text-base font-light leading-8 text-white/60">
-            Start with a brief. Walk away with a full campaign pack built to run.
-          </p>
-          <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
-            <Link to="/packages" className="inline-flex items-center gap-2 rounded-md bg-[#F5A623] px-7 py-4 text-sm font-semibold text-black transition hover:opacity-90">
-              Explore packages
-              <ArrowRight className="size-4" />
-            </Link>
-            <Link to="/partner-enquiry" className="inline-flex items-center gap-2 rounded-md border border-white/20 px-7 py-4 text-sm font-medium text-white transition hover:border-white/40">
-              Talk to the team
-            </Link>
-          </div>
-          <div className="mt-8 text-xs uppercase tracking-[0.14em] text-white/40">
-            <span className="text-emerald-400">●</span> No lock-in. One campaign at a time.
-          </div>
-        </div>
-      </section>
-
-      <footer className="border-t border-white/10 px-6 py-8 sm:px-10">
-        <div className="page-shell flex flex-col gap-3 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left">
-          <div className="text-xs font-semibold uppercase tracking-[0.14em] text-white/45">
-            <span className="text-[#F5A623]">A</span>dvertified Studio
-          </div>
-          <div className="text-xs text-white/25">© 2026 Advertified. All rights reserved.</div>
-        </div>
-      </footer>
+        </section>
+      </main>
+      <Footer />
     </div>
   );
 }
@@ -1214,4 +1249,5 @@ function derivePrimaryLanguage(languages: string[]) {
 
   return 'english';
 }
+
 

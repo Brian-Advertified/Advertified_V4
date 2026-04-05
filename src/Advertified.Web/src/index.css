@@ -340,6 +340,26 @@ textarea {
   }
 }
 
+@keyframes ai-grid-shift {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(88px);
+  }
+}
+
+@keyframes ai-scroll-pulse {
+  0%, 100% {
+    opacity: 0.22;
+    transform: scaleY(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scaleY(0.42);
+  }
+}
+
 @keyframes ai-sheen {
   from {
     transform: translateX(-120%);
@@ -356,6 +376,7 @@ textarea {
 .ai-delay-1 { animation-delay: 0.12s; }
 .ai-delay-2 { animation-delay: 0.24s; }
 .ai-delay-3 { animation-delay: 0.36s; }
+.ai-delay-4 { animation-delay: 0.48s; }
 
 .ai-float {
   animation: ai-soft-float 4.2s ease-in-out infinite;
