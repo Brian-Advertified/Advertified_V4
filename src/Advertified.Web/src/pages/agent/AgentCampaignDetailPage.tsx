@@ -423,7 +423,9 @@ export function AgentCampaignDetailPage() {
       : titleCase(campaign.status);
   const recommendationTitle = activeRecommendation?.summary || 'Draft recommendation';
   const canMarkLive = false;
-  const recommendationWorkflowLocked = showExecutionOperations || activeRecommendation?.status?.toLowerCase() === 'approved';
+  const recommendationStatus = activeRecommendation?.status?.toLowerCase() ?? '';
+  const awaitingClientReview = campaign.status === 'review_ready' || recommendationStatus === 'sent_to_client';
+  const recommendationWorkflowLocked = showExecutionOperations || recommendationStatus === 'approved' || awaitingClientReview;
   const showRecommendationEditing = !recommendationWorkflowLocked;
   const showAiStudioHandoff = campaign.status === 'approved'
     || campaign.status === 'creative_changes_requested'
@@ -925,6 +927,16 @@ export function AgentCampaignDetailPage() {
               >
                 <Download className="size-4" />
                 Preview client PDF
+              </button>
+            ) : null}
+            {awaitingClientReview ? (
+              <button
+                type="button"
+                disabled
+                className="button-secondary inline-flex items-center gap-2 px-5 py-3 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Send className="size-4" />
+                Sent to client
               </button>
             ) : null}
             {!recommendationWorkflowLocked ? (
