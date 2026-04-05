@@ -2,8 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { ArrowRight, Sparkles, WandSparkles, Workflow } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Footer } from '../../components/layout/Footer';
-import { Navbar } from '../../components/layout/Navbar';
 import { canAccessAiStudioForStatus, getAiStudioAccessMessage } from '../../features/campaigns/aiStudioAccess';
 import { getActiveJobPollInterval } from '../../lib/queryPolling';
 import { advertifiedApi } from '../../services/advertifiedApi';
@@ -182,8 +180,7 @@ export function AiStudioPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#050505] text-[#f6f2eb]">
-      <Navbar />
+    <div className="bg-[#050505] text-[#f6f2eb]">
       <div
         className={`pointer-events-none fixed left-0 top-0 z-[70] hidden rounded-full border border-white/15 bg-[#14b86e]/75 mix-blend-screen transition-[width,height,opacity,transform] duration-300 xl:block ${
           cursorVisible ? 'opacity-100' : 'opacity-0'
@@ -191,7 +188,7 @@ export function AiStudioPage() {
         style={{ transform: `translate(${cursorPosition.x}px, ${cursorPosition.y}px) translate(-50%, -50%)` }}
       />
 
-      <main className="overflow-hidden bg-[#050505]">
+      <div className="overflow-hidden bg-[#050505]">
         <section className="relative min-h-screen overflow-hidden border-b border-white/8">
           <div
             className="pointer-events-none absolute inset-0 opacity-70"
@@ -446,8 +443,7 @@ export function AiStudioPage() {
             </div>
           </div>
         </section>
-      </main>
-      <Footer />
+      </div>
     </div>
   );
 }
