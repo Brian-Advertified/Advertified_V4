@@ -43,7 +43,7 @@ That copies the required CSVs from `Downloads` into [seed](c:/Users/CC%20KEMPTON
 ## Step 1. Create tables
 
 ```powershell
-psql "Host=localhost;Port=5432;Database=Advertified;Username=postgres;Password=Gomo2004!@#" `
+psql "Host=localhost;Port=5432;Database=Advertified;Username=postgres;Password=YOUR_PASSWORD_HERE" `
   -f database/media_import/001_create_tables.sql
 ```
 
@@ -62,7 +62,7 @@ python tools/media_import/normalize_radio_from_raw_pages.py `
 Use `\copy`, not server-side `COPY`, so local Windows paths work.
 
 ```powershell
-psql "Host=localhost;Port=5432;Database=Advertified;Username=postgres;Password=Gomo2004!@#" `
+psql "Host=localhost;Port=5432;Database=Advertified;Username=postgres;Password=YOUR_PASSWORD_HERE" `
   -v seed_dir="'C:/Users/CC KEMPTON/source/Advertified_V4/database/media_import/seed'" `
   -f database/media_import/002_copy_seed_data.sql
 ```
@@ -70,7 +70,7 @@ psql "Host=localhost;Port=5432;Database=Advertified;Username=postgres;Password=G
 ## Step 4. Transform staging into final tables
 
 ```powershell
-psql "Host=localhost;Port=5432;Database=Advertified;Username=postgres;Password=Gomo2004!@#" `
+psql "Host=localhost;Port=5432;Database=Advertified;Username=postgres;Password=YOUR_PASSWORD_HERE" `
   -f database/media_import/003_transform_final.sql
 ```
 

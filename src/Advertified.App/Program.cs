@@ -1,3 +1,4 @@
+using Advertified.App.Authentication;
 using Advertified.App.Configuration;
 using Advertified.App.AIPlatform.Infrastructure;
 using Advertified.App.Data;
@@ -8,6 +9,8 @@ using Advertified.App.Services.Abstractions;
 using Advertified.App.Services.BroadcastMatching;
 using Advertified.App.Support;
 using Advertified.App.Validation;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
@@ -70,6 +73,20 @@ builder.Services.AddScoped<ICurrentUserAccessor, CurrentUserAccessor>();
 builder.Services.AddScoped<ISessionTokenService, SessionTokenService>();
 builder.Services.AddScoped<IProposalAccessTokenService, ProposalAccessTokenService>();
 builder.Services.AddScoped<IPasswordHashingService, PasswordHashingService>();
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = "AdvertifiedSession";
+    options.DefaultChallengeScheme = "AdvertifiedSession";
+})
+.AddScheme<AuthenticationSchemeOptions, SessionTokenAuthenticationHandler>("AdvertifiedSession", options => { });
+
+builder.Services.AddAuthorization(options =>
+{
+    options.FallbackPolicy = new AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .Build();
+});
 builder.Services.AddScoped<IPricingSettingsProvider, PricingSettingsProvider>();
 builder.Services.AddScoped<IAdminDashboardService>(_ => new AdminDashboardService(
     _.GetRequiredService<AppDbContext>(),
@@ -257,6 +274,8 @@ await InventoryReadinessValidator.ValidateAsync(app.Services, connectionString, 
 app.UseMiddleware<ProblemDetailsExceptionHandlingMiddleware>();
 
 app.UseCors(FrontendCorsPolicy);
+app.UseAuthentication();
+app.UseAuthorization();
 app.MapControllers();
 
 app.Run();

@@ -51,7 +51,7 @@ public sealed class RecommendationApprovalWorkflowService : IRecommendationAppro
 
         if (!CampaignOperationsPolicy.IsOrderOperationallyActive(campaign.PackageOrder))
         {
-            throw new InvalidOperationException("Payment required before approval.");
+            throw new PaymentRequiredException("Please complete payment for this campaign before approving a recommendation.");
         }
 
         var now = DateTime.UtcNow;

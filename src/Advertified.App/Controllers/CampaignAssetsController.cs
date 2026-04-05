@@ -1,6 +1,7 @@
 using Advertified.App.Data;
 using Advertified.App.Data.Enums;
 using Advertified.App.Services.Abstractions;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -8,6 +9,7 @@ namespace Advertified.App.Controllers;
 
 [ApiController]
 [Route("campaign-assets")]
+[Authorize]
 public sealed class CampaignAssetsController : ControllerBase
 {
     private readonly AppDbContext _db;

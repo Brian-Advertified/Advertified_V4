@@ -3,12 +3,14 @@ using Advertified.App.Data;
 using Advertified.App.Data.Entities;
 using Advertified.App.Data.Enums;
 using Advertified.App.Services.Abstractions;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 
 namespace Advertified.App.Controllers;
 
+[Authorize(Roles = "Admin")]
 /// <summary>
 /// Base controller for admin endpoints with shared authorization, audit logging, and utility methods.
 /// Derived controllers handle specific functional domains (outlets, users, AI, geography, etc.)

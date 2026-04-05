@@ -4,6 +4,7 @@ using Advertified.App.Data.Entities;
 using Advertified.App.Data.Enums;
 using Advertified.App.Services.Abstractions;
 using Advertified.App.Support;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,6 +12,7 @@ namespace Advertified.App.Controllers;
 
 [ApiController]
 [Route("notifications")]
+[Authorize]
 public sealed class NotificationsController : ControllerBase
 {
     private readonly AppDbContext _db;

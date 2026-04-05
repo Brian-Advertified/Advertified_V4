@@ -6,6 +6,7 @@ import { Link, NavLink, useParams } from 'react-router-dom';
 import { PageHero } from '../../components/marketing/PageHero';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { LoadingState } from '../../components/ui/LoadingState';
+import { QueryStateBoundary } from '../../components/ui/QueryStateBoundary';
 import { useToast } from '../../components/ui/toast';
 import { useAuth } from '../../features/auth/auth-context';
 import { CreativeStudioAssetsPanel } from '../../features/creative/components/CreativeStudioAssetsPanel';
@@ -16,11 +17,11 @@ import { CreativeStudioOverviewPanel } from '../../features/creative/components/
 import type { CreativeBookingDraft, CreativeStudioCollection, CreativeStudioSignal } from '../../features/creative/creativeStudioTypes';
 import { buildDefaultCreativePrompt, formatChannelLabel, parseDelimitedInput } from '../../features/creative/creativeStudioUtils';
 import { canAccessCreativeStudio, canAccessOperations, isAdmin } from '../../lib/access';
+import { getPrimaryRecommendation } from '../../lib/campaignStatus';
 import { invalidateCreativeCampaignQueries, queryKeys } from '../../lib/queryKeys';
 import { formatCurrency } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import type { Campaign } from '../../types/domain';
-import { getPrimaryRecommendation } from '../client/clientWorkspace';
 
 function CreativePageShell({
   title,
@@ -85,112 +86,107 @@ function CreativePageShell({
 
 export function CreativeDirectorDashboardPage() {
   const inboxQuery = useQuery({ queryKey: queryKeys.creative.inbox, queryFn: advertifiedApi.getCreativeInbox });
-
-  if (inboxQuery.isLoading) {
-    return <LoadingState label="Loading creative studio..." />;
-  }
-
-  if (inboxQuery.isError || !inboxQuery.data) {
-    return (
-      <section className="page-shell">
-        <div className="panel mx-auto max-w-3xl p-8">
-          <h1 className="text-2xl font-semibold text-ink">Creative studio unavailable</h1>
-          <p className="mt-3 text-sm leading-6 text-ink-soft">{inboxQuery.error instanceof Error ? inboxQuery.error.message : 'The creative workspace could not be loaded.'}</p>
-        </div>
-      </section>
-    );
-  }
-
-  const previewCampaign = inboxQuery.data.items[0] ?? null;
-  const readyCampaigns = inboxQuery.data.items.filter((item) =>
-    item.status === 'approved'
-    || item.status === 'creative_changes_requested'
-    || item.status === 'creative_sent_to_client_for_approval'
-    || item.status === 'creative_approved'
-    || item.status === 'booking_in_progress');
-
   return (
-    <CreativePageShell
-      title="Creative production dashboard"
-      description="A focused queue for approved campaigns that are ready for media creation and client sign-off preparation."
+    <QueryStateBoundary
+      query={inboxQuery}
+      loadingLabel="Loading creative studio..."
+      errorTitle="Creative studio unavailable"
+      errorDescription="The creative workspace could not be loaded."
     >
-      <section className="space-y-6">
-        <div className="grid gap-4 md:grid-cols-3">
-          {[
-            { label: 'Approved campaigns', value: readyCampaigns.length, helper: 'Campaigns ready for creative production.' },
-            { label: 'Time-sensitive work', value: readyCampaigns.filter((item) => item.isUrgent).length, helper: 'Approved work that looks time-sensitive.' },
-            { label: 'Client sign-off next', value: readyCampaigns.length, helper: 'These campaigns are headed toward client approval after production.' },
-          ].map((stat) => (
-            <div key={stat.label} className="panel bg-white/90 px-5 py-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">{stat.label}</p>
-              <p className="mt-4 text-3xl font-semibold text-ink">{stat.value}</p>
-              <p className="mt-2 text-sm text-ink-soft">{stat.helper}</p>
-            </div>
-          ))}
-        </div>
+      {(inbox) => {
+        const previewCampaign = inbox.items[0] ?? null;
+        const readyCampaigns = inbox.items.filter((item) =>
+          item.status === 'approved'
+          || item.status === 'creative_changes_requested'
+          || item.status === 'creative_sent_to_client_for_approval'
+          || item.status === 'creative_approved'
+          || item.status === 'booking_in_progress');
 
-        {readyCampaigns.length > 0 ? (
-          <div className="grid gap-5 xl:grid-cols-2">
-            {readyCampaigns.map((item) => (
-              <article key={item.id} className="rounded-[30px] border border-line bg-white p-6 shadow-[0_18px_60px_rgba(17,24,39,0.05)]">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <div className="text-xs font-semibold uppercase tracking-[0.24em] text-ink-soft">
-                      {item.status === 'creative_sent_to_client_for_approval'
-                        ? 'Awaiting final client approval'
-                        : item.status === 'booking_in_progress'
-                          ? 'Booking and launch prep'
-                          : item.status === 'creative_changes_requested'
-                            ? 'Creative revision needed'
-                            : 'Approved and ready'}
-                    </div>
-                    <h3 className="mt-3 text-2xl font-semibold text-ink">{item.campaignName}</h3>
-                    <p className="mt-2 text-sm text-ink-soft">{item.clientName} • {item.packageBandName}</p>
+        return (
+          <CreativePageShell
+            title="Creative production dashboard"
+            description="A focused queue for approved campaigns that are ready for media creation and client sign-off preparation."
+          >
+            <section className="space-y-6">
+              <div className="grid gap-4 md:grid-cols-3">
+                {[
+                  { label: 'Approved campaigns', value: readyCampaigns.length, helper: 'Campaigns ready for creative production.' },
+                  { label: 'Time-sensitive work', value: readyCampaigns.filter((item) => item.isUrgent).length, helper: 'Approved work that looks time-sensitive.' },
+                  { label: 'Client sign-off next', value: readyCampaigns.length, helper: 'These campaigns are headed toward client approval after production.' },
+                ].map((stat) => (
+                  <div key={stat.label} className="panel bg-white/90 px-5 py-5">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">{stat.label}</p>
+                    <p className="mt-4 text-3xl font-semibold text-ink">{stat.value}</p>
+                    <p className="mt-2 text-sm text-ink-soft">{stat.helper}</p>
                   </div>
-                  <span className="rounded-full border border-brand/20 bg-brand-soft px-3 py-1 text-xs font-semibold text-brand">
-                    {item.queueLabel}
-                  </span>
+                ))}
+              </div>
+
+              {readyCampaigns.length > 0 ? (
+                <div className="grid gap-5 xl:grid-cols-2">
+                  {readyCampaigns.map((item) => (
+                    <article key={item.id} className="rounded-[30px] border border-line bg-white p-6 shadow-[0_18px_60px_rgba(17,24,39,0.05)]">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <div className="text-xs font-semibold uppercase tracking-[0.24em] text-ink-soft">
+                            {item.status === 'creative_sent_to_client_for_approval'
+                              ? 'Awaiting final client approval'
+                              : item.status === 'booking_in_progress'
+                                ? 'Booking and launch prep'
+                                : item.status === 'creative_changes_requested'
+                                  ? 'Creative revision needed'
+                                  : 'Approved and ready'}
+                          </div>
+                          <h3 className="mt-3 text-2xl font-semibold text-ink">{item.campaignName}</h3>
+                          <p className="mt-2 text-sm text-ink-soft">{item.clientName} • {item.packageBandName}</p>
+                        </div>
+                        <span className="rounded-full border border-brand/20 bg-brand-soft px-3 py-1 text-xs font-semibold text-brand">
+                          {item.queueLabel}
+                        </span>
+                      </div>
+                      <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                        <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-ink-soft">
+                          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Budget</div>
+                          <div className="mt-2 text-lg font-semibold text-ink">{formatCurrency(item.selectedBudget)}</div>
+                        </div>
+                        <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-ink-soft">
+                          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Next step</div>
+                          <div className="mt-2 text-sm text-ink">{item.nextAction}</div>
+                        </div>
+                      </div>
+                      <div className="mt-6 flex justify-end">
+                        <Link to={`/creative/campaigns/${item.id}/studio`} className="button-primary inline-flex items-center gap-2 px-5 py-3">
+                          Open creative studio
+                          <ArrowRight className="size-4" />
+                        </Link>
+                      </div>
+                    </article>
+                  ))}
                 </div>
-                <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-ink-soft">
-                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Budget</div>
-                    <div className="mt-2 text-lg font-semibold text-ink">{formatCurrency(item.selectedBudget)}</div>
-                  </div>
-                  <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-ink-soft">
-                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Next step</div>
-                    <div className="mt-2 text-sm text-ink">{item.nextAction}</div>
-                  </div>
-                </div>
-                <div className="mt-6 flex justify-end">
-                  <Link to={`/creative/campaigns/${item.id}/studio`} className="button-primary inline-flex items-center gap-2 px-5 py-3">
-                    Open creative studio
+              ) : (
+                <EmptyState
+                  title="No approved campaigns are waiting for creative production"
+                  description={previewCampaign
+                    ? 'There is nothing in the approved creative queue yet, but you can still open the studio demo or inspect a read-only campaign preview.'
+                    : 'There is nothing in the approved creative queue yet, but you can still open the studio demo to inspect the full creative surface.'}
+                  ctaHref="/creative/studio-demo"
+                  ctaLabel="Open studio demo"
+                />
+              )}
+
+              {!readyCampaigns.length && previewCampaign ? (
+                <div className="flex justify-center">
+                  <Link to={`/campaigns/${previewCampaign.id}/studio-preview`} className="button-secondary inline-flex items-center gap-2 px-5 py-3">
+                    Open campaign studio preview
                     <ArrowRight className="size-4" />
                   </Link>
                 </div>
-              </article>
-            ))}
-          </div>
-        ) : (
-          <EmptyState
-            title="No approved campaigns are waiting for creative production"
-            description={previewCampaign
-              ? 'There is nothing in the approved creative queue yet, but you can still open the studio demo or inspect a read-only campaign preview.'
-              : 'There is nothing in the approved creative queue yet, but you can still open the studio demo to inspect the full creative surface.'}
-            ctaHref="/creative/studio-demo"
-            ctaLabel="Open studio demo"
-          />
-        )}
-
-        {!readyCampaigns.length && previewCampaign ? (
-          <div className="flex justify-center">
-            <Link to={`/campaigns/${previewCampaign.id}/studio-preview`} className="button-secondary inline-flex items-center gap-2 px-5 py-3">
-              Open campaign studio preview
-              <ArrowRight className="size-4" />
-            </Link>
-          </div>
-        ) : null}
-      </section>
-    </CreativePageShell>
+              ) : null}
+            </section>
+          </CreativePageShell>
+        );
+      }}
+    </QueryStateBoundary>
   );
 }
 

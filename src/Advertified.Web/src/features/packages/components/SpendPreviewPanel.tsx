@@ -1,9 +1,8 @@
 import { CheckCircle2, TrendingUp } from 'lucide-react';
-import { lazy, Suspense, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
+import { DeferredOutdoorPreviewMap } from './DeferredOutdoorPreviewMap';
 import { formatCurrency } from '../../../lib/utils';
 import type { PackageBand, PackagePreview } from '../../../types/domain';
-
-const OutdoorPreviewMap = lazy(async () => import('./OutdoorPreviewMap').then((module) => ({ default: module.OutdoorPreviewMap })));
 
 export function SpendPreviewPanel({
   band,
@@ -53,16 +52,7 @@ export function SpendPreviewPanel({
           </Section>
 
           <div ref={mapAnchorRef} />
-          <Suspense
-            fallback={(
-              <section className="rounded-[22px] border border-line bg-white px-4 py-4">
-                <p className="text-sm font-semibold text-ink">Loading interactive map...</p>
-                <p className="mt-2 text-sm text-ink-soft">Preparing the outdoor inventory view for this package area.</p>
-              </section>
-            )}
-          >
-            <OutdoorPreviewMap points={livePreview.outdoorMapPoints} />
-          </Suspense>
+          <DeferredOutdoorPreviewMap points={livePreview.outdoorMapPoints} />
 
           <Section title="Estimated reach" icon={<TrendingUp className="size-4 text-brand" />}>
             <p className="text-sm font-semibold text-ink">{livePreview.reachEstimate}</p>

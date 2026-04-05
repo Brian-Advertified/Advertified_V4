@@ -8,6 +8,7 @@ import {
 } from 'react';
 import { useToast } from '../../components/ui/toast';
 import { advertifiedApi } from '../../services/advertifiedApi';
+import { readStoredSession, writeStoredSession } from '../../services/sessionStore';
 import type { LoginInput, RegistrationInput, RegistrationResult, SessionUser } from '../../types/domain';
 
 type AuthContextValue = {
@@ -20,7 +21,6 @@ type AuthContextValue = {
   setPassword: (input: { password: string; confirmPassword: string }) => Promise<SessionUser>;
 };
 
-const STORAGE_KEY = 'advertified-session-user';
 const INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000;
 const ACTIVITY_EVENTS: Array<keyof WindowEventMap> = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -34,21 +34,7 @@ const sessionListeners = new Set<SessionListener>();
 let notifySessionExpired: (() => void) | null = null;
 
 function readStoredUser(): SessionUser | null {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-
-  const raw = window.localStorage.getItem(STORAGE_KEY);
-  if (!raw) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(raw) as SessionUser;
-  } catch {
-    window.localStorage.removeItem(STORAGE_KEY);
-    return null;
-  }
+  return readStoredSession();
 }
 
 function emitSessionChange() {
@@ -68,11 +54,7 @@ function persistUser(nextUser: SessionUser | null) {
   currentUser = nextUser;
 
   if (typeof window !== 'undefined') {
-    if (nextUser) {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(nextUser));
-    } else {
-      window.localStorage.removeItem(STORAGE_KEY);
-    }
+    writeStoredSession(nextUser);
   }
 
   syncInactivityTracking();

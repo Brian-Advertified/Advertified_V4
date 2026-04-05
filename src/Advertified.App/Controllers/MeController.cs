@@ -3,12 +3,14 @@ using Advertified.App.Data;
 using Advertified.App.Services.Abstractions;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Advertified.App.Controllers;
 
 [ApiController]
 [Route("me")]
+[Authorize]
 public sealed class MeController : ControllerBase
 {
     private readonly AppDbContext _db;

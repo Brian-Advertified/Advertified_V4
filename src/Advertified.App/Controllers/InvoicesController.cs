@@ -2,6 +2,7 @@ using Advertified.App.Contracts.Invoices;
 using Advertified.App.Data;
 using Advertified.App.Data.Enums;
 using Advertified.App.Services.Abstractions;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,6 +10,7 @@ namespace Advertified.App.Controllers;
 
 [ApiController]
 [Route("invoices")]
+[Authorize]
 public sealed class InvoicesController : ControllerBase
 {
     private readonly AppDbContext _db;

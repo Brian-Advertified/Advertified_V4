@@ -7,8 +7,10 @@ import { LoadingState } from '../../components/ui/LoadingState';
 import { useToast } from '../../components/ui/toast';
 import { useAuth } from '../../features/auth/auth-context';
 import { getCampaignPrimaryAction } from '../../lib/access';
+import { getPendingPaymentPollInterval } from '../../lib/queryPolling';
 import { formatCurrency } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
+import { clearCheckoutAutoApproval, readCheckoutAutoApproval } from '../../services/checkoutAutoApprovalStore';
 
 type VodaPayReturnData = {
   responseCode?: string;
@@ -36,38 +38,23 @@ export function CheckoutConfirmationPage() {
     queryFn: () => advertifiedApi.getOrder(orderId, user!.id),
     enabled: Boolean(orderId && user?.id),
     refetchInterval: (query) => {
-      if (query.state.data?.paymentStatus !== 'pending') {
+      const order = query.state.data;
+      if (order?.paymentStatus !== 'pending') {
         return false;
       }
 
-      return provider === 'lula' ? 15_000 : 4_000;
+      return getPendingPaymentPollInterval(order ? [order] : [], provider === 'lula' ? 15_000 : 4_000);
     },
-    refetchOnWindowFocus: true,
   });
   const order = orderQuery.data;
   const campaignsQuery = useQuery({
     queryKey: ['campaigns', user?.id],
     queryFn: () => advertifiedApi.getCampaigns(user!.id),
     enabled: Boolean(user?.id && order?.paymentStatus === 'paid'),
-    refetchOnWindowFocus: true,
   });
   const vodaPayReturnData = useMemo(() => parseVodaPayReturnData(searchParams.get('data')), [searchParams]);
   const storedAutoApproval = useMemo(() => {
-    if (!orderId || typeof window === 'undefined') {
-      return null;
-    }
-
-    const storageKey = `advertified:auto-approve:${orderId}`;
-    const raw = window.sessionStorage.getItem(storageKey) ?? window.localStorage.getItem(storageKey);
-    if (!raw) {
-      return null;
-    }
-
-    try {
-      return JSON.parse(raw) as { campaignId?: string; recommendationId?: string; proposalPath?: string };
-    } catch {
-      return null;
-    }
+    return readCheckoutAutoApproval(orderId);
   }, [orderId]);
   const currentReturnPath = useMemo(
     () => `/checkout/confirmation${currentSearch ? `?${currentSearch}` : ''}`,
@@ -88,11 +75,7 @@ export function CheckoutConfirmationPage() {
       return advertifiedApi.approveRecommendation(effectiveCampaignId, effectiveRecommendationId);
     },
     onSuccess: async () => {
-      if (orderId && typeof window !== 'undefined') {
-        const storageKey = `advertified:auto-approve:${orderId}`;
-        window.sessionStorage.removeItem(storageKey);
-        window.localStorage.removeItem(storageKey);
-      }
+      clearCheckoutAutoApproval(orderId);
 
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['campaigns', user?.id] }),
@@ -140,13 +123,11 @@ export function CheckoutConfirmationPage() {
   }, [attemptKey, autoApproveMutation, effectiveCampaignId, effectiveRecommendationId, order?.paymentStatus, orderId]);
 
   useEffect(() => {
-    if (!orderId || order?.paymentStatus === 'paid' || typeof window === 'undefined') {
+    if (!orderId || order?.paymentStatus === 'paid') {
       return;
     }
 
-    const storageKey = `advertified:auto-approve:${orderId}`;
-    window.sessionStorage.removeItem(storageKey);
-    window.localStorage.removeItem(storageKey);
+    clearCheckoutAutoApproval(orderId);
   }, [order?.paymentStatus, orderId]);
 
   const statusKey = `${order?.id ?? ''}:${order?.paymentStatus ?? ''}:${vodaPayReturnData?.responseCode ?? ''}:${vodaPayReturnData?.responseMessage ?? ''}`;

@@ -1,33 +1,13 @@
 import type { Campaign, SessionUser } from '../types/domain';
-
-const CAMPAIGN_STATUSES_AFTER_PAYMENT = [
-  'approved',
-  'creative_sent_to_client_for_approval',
-  'creative_changes_requested',
-  'creative_approved',
-  'booking_in_progress',
-  'launched',
-] as const;
-
-const CAMPAIGN_STATUSES_WITH_RECOMMENDATION_WORKSPACE = [
-  'planning_in_progress',
-  'review_ready',
-  'approved',
-  'creative_sent_to_client_for_approval',
-  'creative_changes_requested',
-  'creative_approved',
-  'booking_in_progress',
-  'launched',
-] as const;
-
-const CAMPAIGN_STATUSES_AFTER_RECOMMENDATION_APPROVAL = [
-  'approved',
-  'creative_sent_to_client_for_approval',
-  'creative_changes_requested',
-  'creative_approved',
-  'booking_in_progress',
-  'launched',
-] as const;
+import {
+  CAMPAIGN_STATUSES_AFTER_PAYMENT,
+  CAMPAIGN_STATUSES_AFTER_RECOMMENDATION_APPROVAL,
+  CAMPAIGN_STATUSES_WITH_BRIEF_ACCESS,
+  CAMPAIGN_STATUSES_WITH_PLANNING_ACCESS,
+  CAMPAIGN_STATUSES_WITH_RECOMMENDATION_WORKSPACE,
+  getPrimaryRecommendation,
+  isCampaignInSet,
+} from './campaignStatus';
 
 export type PackagePurchaseRestriction = 'none' | 'email_unverified' | 'identity_incomplete';
 
@@ -78,19 +58,7 @@ export function getPackagePurchaseRestriction(user: SessionUser | null): Package
 export function canOpenBrief(campaign?: Campaign | null) {
   return Boolean(
     campaign &&
-      [
-        'paid',
-        'brief_in_progress',
-        'brief_submitted',
-        'planning_in_progress',
-        'review_ready',
-        'approved',
-        'creative_sent_to_client_for_approval',
-        'creative_changes_requested',
-        'creative_approved',
-        'booking_in_progress',
-        'launched',
-      ].includes(campaign.status),
+      isCampaignInSet(campaign.status, CAMPAIGN_STATUSES_WITH_BRIEF_ACCESS),
   );
 }
 
@@ -98,7 +66,7 @@ export function canOpenPlanning(campaign?: Campaign | null) {
   return Boolean(
       campaign &&
       campaign.aiUnlocked &&
-      ['brief_submitted', 'planning_in_progress', 'review_ready', 'approved', 'creative_sent_to_client_for_approval', 'creative_changes_requested', 'creative_approved', 'booking_in_progress', 'launched'].includes(campaign.status),
+      isCampaignInSet(campaign.status, CAMPAIGN_STATUSES_WITH_PLANNING_ACCESS),
   );
 }
 
@@ -107,16 +75,15 @@ export function hasCampaignClearedPayment(campaign?: Campaign | null) {
     campaign
       && (
         campaign.paymentStatus === 'paid'
-        || CAMPAIGN_STATUSES_AFTER_PAYMENT.includes(campaign.status as typeof CAMPAIGN_STATUSES_AFTER_PAYMENT[number])
+        || isCampaignInSet(campaign.status, CAMPAIGN_STATUSES_AFTER_PAYMENT)
       ),
   );
 }
 
 export function getCampaignPrimaryAction(campaign: Campaign) {
-  const hasRecommendation = Boolean(campaign.recommendation);
-  const selectedRecommendationId = campaign.recommendations.find((item) => item.status === 'approved')?.id
-    ?? campaign.recommendations.find((item) => item.status === 'sent_to_client')?.id
-    ?? campaign.recommendation?.id;
+  const primaryRecommendation = getPrimaryRecommendation(campaign);
+  const hasRecommendation = Boolean(primaryRecommendation);
+  const selectedRecommendationId = primaryRecommendation?.id;
   const paymentRequiredBeforeApproval =
     !hasCampaignClearedPayment(campaign)
     && (campaign.status === 'review_ready' || campaign.status === 'planning_in_progress');
@@ -139,10 +106,8 @@ export function getCampaignPrimaryAction(campaign: Campaign) {
     };
   }
 
-  if (CAMPAIGN_STATUSES_WITH_RECOMMENDATION_WORKSPACE.includes(campaign.status as typeof CAMPAIGN_STATUSES_WITH_RECOMMENDATION_WORKSPACE[number]) && hasRecommendation) {
-    const recommendationApproved = CAMPAIGN_STATUSES_AFTER_RECOMMENDATION_APPROVAL.includes(
-      campaign.status as typeof CAMPAIGN_STATUSES_AFTER_RECOMMENDATION_APPROVAL[number],
-    );
+  if (isCampaignInSet(campaign.status, CAMPAIGN_STATUSES_WITH_RECOMMENDATION_WORKSPACE) && hasRecommendation) {
+    const recommendationApproved = isCampaignInSet(campaign.status, CAMPAIGN_STATUSES_AFTER_RECOMMENDATION_APPROVAL);
     const href = paymentRequiredBeforeApproval
       ? `/checkout/payment?orderId=${encodeURIComponent(campaign.packageOrderId)}&campaignId=${encodeURIComponent(campaign.id)}${selectedRecommendationId ? `&recommendationId=${encodeURIComponent(selectedRecommendationId)}` : ''}`
       : `/campaigns/${campaign.id}`;

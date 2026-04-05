@@ -2,12 +2,14 @@ using Advertified.App.Contracts.Packages;
 using Advertified.App.Data;
 using Advertified.App.Services.Abstractions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Advertified.App.Controllers;
 
 [ApiController]
 [Route("package-orders")]
+[Authorize]
 public sealed class PackageOrdersController : ControllerBase
 {
     private readonly AppDbContext _db;

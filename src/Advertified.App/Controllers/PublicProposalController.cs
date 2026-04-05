@@ -3,6 +3,7 @@ using Advertified.App.Campaigns;
 using Advertified.App.Data;
 using Advertified.App.Services.Abstractions;
 using Advertified.App.Support;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,6 +11,7 @@ namespace Advertified.App.Controllers;
 
 [ApiController]
 [Route("public/proposals")]
+[AllowAnonymous]
 public sealed class PublicProposalController : ControllerBase
 {
     private readonly AppDbContext _db;
@@ -38,7 +40,7 @@ public sealed class PublicProposalController : ControllerBase
         await EnsureValidTokenAsync(id, token, cancellationToken);
 
         var campaign = await LoadCampaignAsync(id, cancellationToken)
-            ?? throw new InvalidOperationException("Campaign not found.");
+            ?? throw new NotFoundException("Campaign not found.");
 
         return Ok(campaign.ToDetail(includeLinePricing: false));
     }
@@ -69,20 +71,7 @@ public sealed class PublicProposalController : ControllerBase
     public async Task<IActionResult> Approve(Guid id, [FromBody] PublicProposalActionRequest request, CancellationToken cancellationToken)
     {
         await EnsureValidTokenAsync(id, request.Token, cancellationToken);
-        RecommendationWorkflowResult result;
-        try
-        {
-            result = await _recommendationApprovalWorkflowService.ApproveAsync(id, request.RecommendationId, cancellationToken);
-        }
-        catch (InvalidOperationException ex) when (string.Equals(ex.Message, "Payment required before approval.", StringComparison.Ordinal))
-        {
-            return BadRequest(new ProblemDetails
-            {
-                Title = "Payment required before approval.",
-                Detail = "Please complete payment for this campaign before approving a recommendation.",
-                Status = StatusCodes.Status400BadRequest
-            });
-        }
+        var result = await _recommendationApprovalWorkflowService.ApproveAsync(id, request.RecommendationId, cancellationToken);
 
         return Accepted(new
         {
@@ -114,7 +103,7 @@ public sealed class PublicProposalController : ControllerBase
         await EnsureValidTokenAsync(id, request.Token, cancellationToken);
         if (!request.RecommendationId.HasValue)
         {
-            throw new InvalidOperationException("Recommendation not found.");
+            throw new BadRequestException("Recommendation not found.");
         }
 
         await _packagePurchaseService.PrepareRecommendationCheckoutAsync(id, request.RecommendationId.Value, cancellationToken);
@@ -125,7 +114,7 @@ public sealed class PublicProposalController : ControllerBase
     {
         if (!_proposalAccessTokenService.TryReadToken(token, out var payload) || payload.CampaignId != campaignId)
         {
-            throw new InvalidOperationException("This secure proposal link is invalid or has expired.");
+            throw new BadRequestException("This secure proposal link is invalid or has expired.");
         }
 
         var exists = await _db.Campaigns
@@ -134,7 +123,7 @@ public sealed class PublicProposalController : ControllerBase
 
         if (!exists)
         {
-            throw new InvalidOperationException("Campaign not found.");
+            throw new NotFoundException("Campaign not found.");
         }
     }
 

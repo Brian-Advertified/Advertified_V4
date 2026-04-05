@@ -6,10 +6,12 @@ import { LoadingState } from '../../components/ui/LoadingState';
 import { useAuth } from '../../features/auth/auth-context';
 import { canAccessAiStudioForStatus } from '../../features/campaigns/aiStudioAccess';
 import { getCampaignPrimaryAction, hasCampaignClearedPayment } from '../../lib/access';
+import { getPrimaryRecommendation } from '../../lib/campaignStatus';
+import { getPendingPaymentPollInterval } from '../../lib/queryPolling';
 import { formatCurrency, formatDate, titleCase } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import type { Campaign } from '../../types/domain';
-import { ClientPortalShell, getCampaignProgressPercent, getClientFacingBudget, getPrimaryRecommendation } from './clientWorkspace';
+import { ClientPortalShell, getCampaignProgressPercent, getClientFacingBudget } from './clientWorkspace';
 
 function getSimpleCampaignMessage(
   campaign: Pick<Campaign, 'status' | 'paymentStatus'>,
@@ -73,15 +75,13 @@ export function DashboardPage() {
     queryKey: ['campaigns', user?.id],
     queryFn: () => advertifiedApi.getCampaigns(user!.id),
     enabled: Boolean(user && !isOpsUser && !isCreativeDirector),
-    refetchInterval: (query) => (query.state.data?.some((campaign) => campaign.paymentStatus !== 'paid') ? 15_000 : false),
-    refetchOnWindowFocus: true,
+    refetchInterval: (query) => getPendingPaymentPollInterval(query.state.data),
   });
   const ordersQuery = useQuery({
     queryKey: ['orders', user?.id],
     queryFn: () => advertifiedApi.getOrders(user!.id),
     enabled: Boolean(user && !isOpsUser && !isCreativeDirector),
-    refetchInterval: (query) => (query.state.data?.some((order) => order.paymentStatus !== 'paid') ? 15_000 : false),
-    refetchOnWindowFocus: true,
+    refetchInterval: (query) => getPendingPaymentPollInterval(query.state.data),
   });
 
   if (isCreativeDirector) {

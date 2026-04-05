@@ -7,12 +7,17 @@ using Advertified.App.Configuration;
 using Advertified.App.Controllers;
 using Advertified.App.Domain.Campaigns;
 using Advertified.App.Data.Entities;
+using Advertified.App.Middleware;
 using Advertified.App.Services;
 using Advertified.App.Services.Abstractions;
+using Advertified.App.Support;
 using Advertified.App.Validation;
 using FluentAssertions;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using System.IO;
 using System.Text.Json;
 using CampaignBriefEntity = Advertified.App.Data.Entities.CampaignBrief;
 using CampaignEntity = Advertified.App.Data.Entities.Campaign;
@@ -78,6 +83,47 @@ public class RegisterRequestValidatorTests
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().Contain(x => x.PropertyName == nameof(RegisterRequest.Password));
+    }
+}
+
+public class ProblemDetailsExceptionHandlingMiddlewareTests
+{
+    [Fact]
+    public async Task Invoke_MapsPaymentRequiredExceptionToBadRequestProblemDetails()
+    {
+        var middleware = new ProblemDetailsExceptionHandlingMiddleware(
+            _ => throw new PaymentRequiredException("Please complete payment for this campaign before approving a recommendation."),
+            NullLogger<ProblemDetailsExceptionHandlingMiddleware>.Instance);
+        var context = new DefaultHttpContext();
+        context.Response.Body = new MemoryStream();
+
+        await middleware.Invoke(context);
+
+        context.Response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+        context.Response.Body.Position = 0;
+        var payload = await JsonSerializer.DeserializeAsync<ProblemDetails>(context.Response.Body);
+        payload.Should().NotBeNull();
+        payload!.Title.Should().Be("Payment required before approval.");
+        payload.Detail.Should().Be("Please complete payment for this campaign before approving a recommendation.");
+    }
+
+    [Fact]
+    public async Task Invoke_MapsBadRequestExceptionToBadRequestProblemDetails()
+    {
+        var middleware = new ProblemDetailsExceptionHandlingMiddleware(
+            _ => throw new BadRequestException("This secure proposal link is invalid or has expired."),
+            NullLogger<ProblemDetailsExceptionHandlingMiddleware>.Instance);
+        var context = new DefaultHttpContext();
+        context.Response.Body = new MemoryStream();
+
+        await middleware.Invoke(context);
+
+        context.Response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+        context.Response.Body.Position = 0;
+        var payload = await JsonSerializer.DeserializeAsync<ProblemDetails>(context.Response.Body);
+        payload.Should().NotBeNull();
+        payload!.Title.Should().Be("Request could not be completed.");
+        payload.Detail.Should().Be("This secure proposal link is invalid or has expired.");
     }
 }
 

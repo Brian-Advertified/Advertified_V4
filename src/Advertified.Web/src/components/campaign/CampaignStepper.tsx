@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import type { CSSProperties } from 'react';
 import { cn } from '../../lib/utils';
 import type { Campaign } from '../../types/domain';
 
@@ -103,6 +104,7 @@ export function CampaignStepper({ campaign, className }: CampaignStepperProps) {
     if (currentStepIndex === -1) return 0;
     return (currentStepIndex / (steps.length - 1)) * 100;
   }, [steps]);
+  const progressStyle = { '--step-progress-width': `${progressWidth}%` } as CSSProperties;
 
   return (
     <div className={cn("w-full", className)}>
@@ -112,8 +114,8 @@ export function CampaignStepper({ campaign, className }: CampaignStepperProps) {
       <div className="relative mb-8">
         <div className="absolute top-6 left-0 w-full h-1 bg-gray-200 rounded"></div>
         <div
-          className="absolute top-6 left-0 h-1 bg-brand rounded transition-all duration-500"
-          style={{ width: `${progressWidth}%` }}
+          className="step-progress-bar absolute top-6 left-0 h-1 bg-brand rounded transition-all duration-500"
+          style={progressStyle}
         ></div>
 
         {/* Steps */}

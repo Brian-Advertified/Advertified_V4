@@ -566,6 +566,10 @@ textarea {
   opacity: 0.28;
 }
 
+.step-progress-bar {
+  width: var(--step-progress-width, 0%);
+}
+
 @keyframes checkout-status-ring {
   0% {
     opacity: 0;

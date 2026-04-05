@@ -1,6 +1,6 @@
 import { formatCurrency, titleCase } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
-import { getPrimaryRecommendation } from '../../pages/client/clientWorkspace';
+import { getPrimaryRecommendation } from '../../lib/campaignStatus';
 
 type Campaign = Awaited<ReturnType<typeof advertifiedApi.getCampaign>>;
 

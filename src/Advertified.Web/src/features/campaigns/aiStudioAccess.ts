@@ -1,20 +1,8 @@
 import type { CampaignStatus } from '../../types/domain';
-
-const AI_STUDIO_READY_STATUSES: CampaignStatus[] = [
-  'approved',
-  'creative_changes_requested',
-  'creative_sent_to_client_for_approval',
-  'creative_approved',
-  'booking_in_progress',
-  'launched',
-];
+import { AI_STUDIO_READY_STATUSES, isCampaignInSet } from '../../lib/campaignStatus';
 
 export function canAccessAiStudioForStatus(status: string | null | undefined): boolean {
-  if (!status) {
-    return false;
-  }
-
-  return AI_STUDIO_READY_STATUSES.includes(status as CampaignStatus);
+  return isCampaignInSet(status as CampaignStatus | null | undefined, AI_STUDIO_READY_STATUSES);
 }
 
 export function getAiStudioAccessMessage(status: string | null | undefined): string {

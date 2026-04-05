@@ -2,18 +2,17 @@ import { CheckCircle2, Circle, Clock3 } from 'lucide-react';
 import type { PropsWithChildren, ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { hasCampaignClearedPayment } from '../../lib/access';
+import {
+  CAMPAIGN_STATUSES_AFTER_CREATIVE_APPROVAL,
+  getPrimaryRecommendation,
+  hasRecommendationApprovalCompleted,
+  isCampaignInSet,
+} from '../../lib/campaignStatus';
 import { cn, formatCurrency, formatDate, titleCase } from '../../lib/utils';
 import type { Campaign, CampaignRecommendation, PackageBand, PackageOrder } from '../../types/domain';
 
 function formatChannelLabel(value: string) {
   return value.replace(/\booh\b/gi, 'Billboards and Digital Screens');
-}
-
-export function getPrimaryRecommendation(campaign: Campaign) {
-  return campaign.recommendations.find((item) => item.status === 'approved')
-    ?? campaign.recommendations.find((item) => item.status === 'sent_to_client')
-    ?? campaign.recommendations[0]
-    ?? campaign.recommendation;
 }
 
 export function getClientFacingBudget(campaign: Campaign) {
@@ -61,18 +60,10 @@ export function getCampaignProgressPercent(campaign: Campaign) {
 
 export function getCampaignQuickSteps(campaign: Campaign) {
   const recommendation = getPrimaryRecommendation(campaign);
-  const recommendationApproved = Boolean(
-    recommendation?.status === 'approved'
-      || campaign.status === 'approved'
-      || campaign.status === 'creative_changes_requested'
-      || campaign.status === 'creative_sent_to_client_for_approval'
-      || campaign.status === 'creative_approved'
-      || campaign.status === 'booking_in_progress'
-      || campaign.status === 'launched',
-  );
+  const recommendationApproved = hasRecommendationApprovalCompleted(campaign.status, recommendation);
   const creativeInRevision = campaign.status === 'creative_changes_requested';
   const creativeSentForApproval = campaign.status === 'creative_sent_to_client_for_approval';
-  const creativeApproved = campaign.status === 'creative_approved' || campaign.status === 'booking_in_progress' || campaign.status === 'launched';
+  const creativeApproved = isCampaignInSet(campaign.status, CAMPAIGN_STATUSES_AFTER_CREATIVE_APPROVAL);
   const bookingInProgress = campaign.status === 'booking_in_progress';
   const campaignLive = campaign.status === 'launched';
   const creativeProductionStarted = recommendationApproved && !creativeSentForApproval && !creativeApproved;

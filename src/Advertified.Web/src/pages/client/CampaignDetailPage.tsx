@@ -9,8 +9,10 @@ import { useAuth } from '../../features/auth/auth-context';
 import { canAccessAiStudioForStatus } from '../../features/campaigns/aiStudioAccess';
 import { RecommendationViewer } from '../../features/campaigns/components/RecommendationViewer';
 import { buildApprovalDetails, getApprovalContent, getHeroContent } from '../../features/campaigns/clientCampaignDetailContent';
+import { getCampaignRecommendations, resolveRecommendationId } from '../../features/campaigns/recommendationSelection';
 import { CampaignStepper } from '../../components/campaign/CampaignStepper';
 import { hasCampaignClearedPayment } from '../../lib/access';
+import { getPrimaryRecommendation, hasRecommendationApprovalCompleted, isCampaignInSet, CAMPAIGN_STATUSES_AFTER_RECOMMENDATION_APPROVAL } from '../../lib/campaignStatus';
 import { invalidateClientCampaignQueries, queryKeys } from '../../lib/queryKeys';
 import { formatCurrency, formatDate, titleCase } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
@@ -38,11 +40,7 @@ export function CampaignDetailPage() {
     queryFn: () => advertifiedApi.getCampaignMessages(id),
     retry: false,
   });
-  const recommendations = campaignQuery.data
-    ? (campaignQuery.data.recommendations.length > 0
-      ? campaignQuery.data.recommendations
-      : (campaignQuery.data.recommendation ? [campaignQuery.data.recommendation] : []))
-    : [];
+  const recommendations = getCampaignRecommendations(campaignQuery.data);
 
   const [messageDraft, setMessageDraft] = useState('');
   const [changeNotes, setChangeNotes] = useState('');
@@ -50,19 +48,14 @@ export function CampaignDetailPage() {
   const requestedRecommendationId = searchParams.get('recommendationId')?.trim() ?? '';
   const requestedAction = searchParams.get('action')?.trim() ?? '';
   const showRejectAllFlow = requestedAction === 'reject_all';
-  const recommendationApprovalComplete = recommendations.some((item) => item.status === 'approved')
-    || ['approved', 'creative_sent_to_client_for_approval', 'creative_changes_requested', 'creative_approved', 'booking_in_progress', 'launched'].includes(campaignQuery.data?.status ?? '');
-  const approvedRecommendationId = recommendations.find((item) => item.status === 'approved')?.id ?? '';
-  const resolvedRecommendationId = recommendations.some((item) => item.id === selectedRecommendationId)
-    ? selectedRecommendationId
-    : recommendations.some((item) => item.id === approvedRecommendationId)
-      ? approvedRecommendationId
-      : recommendations.some((item) => item.id === requestedRecommendationId)
-        ? requestedRecommendationId
-        : (approvedRecommendationId
-          || recommendations.find((item) => item.status === 'sent_to_client')?.id
-          || recommendations[0]?.id
-          || '');
+  const primaryRecommendation = campaignQuery.data ? getPrimaryRecommendation(campaignQuery.data) : undefined;
+  const recommendationApprovalComplete = hasRecommendationApprovalCompleted(campaignQuery.data?.status, primaryRecommendation);
+  const approvedRecommendationId = primaryRecommendation?.status === 'approved' ? primaryRecommendation.id : '';
+  const resolvedRecommendationId = resolveRecommendationId(recommendations, {
+    currentSelectionId: selectedRecommendationId,
+    preferredRecommendationId: approvedRecommendationId,
+    requestedRecommendationId,
+  });
 
   const approveMutation = useMutation({
     mutationFn: (recommendationId?: string) => advertifiedApi.approveRecommendation(id, recommendationId),
@@ -210,7 +203,7 @@ export function CampaignDetailPage() {
 
   const campaign = campaignQuery.data;
   const thread = threadQuery.data;
-  const recommendation = recommendations.find((item) => item.id === resolvedRecommendationId) ?? recommendations[0];
+  const recommendation = recommendations.find((item) => item.id === resolvedRecommendationId) ?? primaryRecommendation ?? recommendations[0];
   const progress = getCampaignProgressPercent(campaign);
   const campaignReadiness = campaign.status === 'launched'
     ? 100
@@ -227,12 +220,7 @@ export function CampaignDetailPage() {
     recommendation
       && recommendationAwaitingDecision
       && !paymentRequiredBeforeApproval
-      && campaign.status !== 'approved'
-      && campaign.status !== 'creative_changes_requested'
-      && campaign.status !== 'creative_sent_to_client_for_approval'
-      && campaign.status !== 'creative_approved'
-      && campaign.status !== 'booking_in_progress'
-      && campaign.status !== 'launched'
+      && !isCampaignInSet(campaign.status, CAMPAIGN_STATUSES_AFTER_RECOMMENDATION_APPROVAL)
       && recommendation.status !== 'approved',
   );
   const canApproveCreative = campaign.status === 'creative_sent_to_client_for_approval';

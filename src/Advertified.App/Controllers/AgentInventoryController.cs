@@ -5,6 +5,7 @@ using Advertified.App.Data;
 using Advertified.App.Domain.Campaigns;
 using Advertified.App.Services.Abstractions;
 using Advertified.App.Support;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,6 +13,7 @@ namespace Advertified.App.Controllers;
 
 [ApiController]
 [Route("agent/inventory")]
+[Authorize(Roles = "Agent")]
 public sealed class AgentInventoryController : ControllerBase
 {
     private readonly AppDbContext _db;

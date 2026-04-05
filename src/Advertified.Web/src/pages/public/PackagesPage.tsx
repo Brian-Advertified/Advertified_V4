@@ -8,13 +8,14 @@ import { PackageCard } from '../../features/packages/components/PackageCard';
 import { SpendPreviewPanel } from '../../features/packages/components/SpendPreviewPanel';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { useAuth } from '../../features/auth/auth-context';
+import { catalogQueryOptions } from '../../lib/catalogQueryOptions';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import { formatCompactBudget } from '../../lib/utils';
 
 export function PackagesPage() {
   const [searchParams] = useSearchParams();
-  const packagesQuery = useQuery({ queryKey: ['packages'], queryFn: advertifiedApi.getPackages });
-  const packageAreasQuery = useQuery({ queryKey: ['package-areas'], queryFn: advertifiedApi.getPackageAreas });
+  const packagesQuery = useQuery({ queryKey: ['packages'], queryFn: advertifiedApi.getPackages, ...catalogQueryOptions });
+  const packageAreasQuery = useQuery({ queryKey: ['package-areas'], queryFn: advertifiedApi.getPackageAreas, ...catalogQueryOptions });
   const [selectedPackageIdState, setSelectedPackageIdState] = useState<string>();
   const { user } = useAuth();
   const [stepState, setStepState] = useState<1 | 2>();

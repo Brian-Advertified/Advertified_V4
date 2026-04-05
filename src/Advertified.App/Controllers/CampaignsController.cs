@@ -9,6 +9,7 @@ using Advertified.App.Support;
 using Advertified.App.Validation;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using System.Globalization;
@@ -17,6 +18,7 @@ namespace Advertified.App.Controllers;
 
 [ApiController]
 [Route("campaigns")]
+[Authorize]
 public sealed class CampaignsController : ControllerBase
 {
     private readonly AppDbContext _db;
@@ -110,6 +112,52 @@ public sealed class CampaignsController : ControllerBase
         return Ok(campaign.ToDetail(includeLinePricing: false));
     }
 
+    [HttpGet("{id:guid}/access")]
+    public async Task<ActionResult<CampaignAccessResponse>> GetAccess(Guid id, CancellationToken cancellationToken)
+    {
+        var userId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
+        var campaign = await _db.Campaigns
+            .AsNoTracking()
+            .Include(x => x.PackageOrder)
+            .FirstOrDefaultAsync(x => x.Id == id && x.UserId == userId, cancellationToken);
+
+        if (campaign is null)
+        {
+            return NotFound(new ProblemDetails
+            {
+                Title = "Campaign not found.",
+                Status = StatusCodes.Status404NotFound
+            });
+        }
+
+        var canOpenBrief = CampaignOperationsPolicy.IsOrderOperationallyActive(campaign.PackageOrder)
+            && (campaign.Status is CampaignStatuses.Paid
+                or CampaignStatuses.BriefInProgress
+                or CampaignStatuses.BriefSubmitted
+                or CampaignStatuses.PlanningInProgress
+                or CampaignStatuses.ReviewReady
+                or CampaignStatuses.Approved
+                or CampaignStatuses.CreativeSentToClientForApproval
+                or CampaignStatuses.CreativeChangesRequested
+                or CampaignStatuses.CreativeApproved
+                or CampaignStatuses.BookingInProgress
+                or CampaignStatuses.Launched);
+
+        var canOpenPlanning = CampaignOperationsPolicy.IsOrderOperationallyActive(campaign.PackageOrder)
+            && campaign.AiUnlocked
+            && (campaign.Status is CampaignStatuses.BriefSubmitted
+                or CampaignStatuses.PlanningInProgress
+                or CampaignStatuses.ReviewReady
+                or CampaignStatuses.Approved
+                or CampaignStatuses.CreativeSentToClientForApproval
+                or CampaignStatuses.CreativeChangesRequested
+                or CampaignStatuses.CreativeApproved
+                or CampaignStatuses.BookingInProgress
+                or CampaignStatuses.Launched);
+
+        return Ok(new CampaignAccessResponse(canOpenBrief, canOpenPlanning));
+    }
+
     [HttpGet("{id:guid}/recommendation-pdf")]
     public async Task<IActionResult> DownloadRecommendationPdf(Guid id, CancellationToken cancellationToken)
     {
@@ -193,23 +241,10 @@ public sealed class CampaignsController : ControllerBase
             .AnyAsync(x => x.Id == id && x.UserId == userId, cancellationToken);
         if (!campaignExists)
         {
-            throw new InvalidOperationException("Campaign not found.");
+            throw new NotFoundException("Campaign not found.");
         }
 
-        RecommendationWorkflowResult result;
-        try
-        {
-            result = await _recommendationApprovalWorkflowService.ApproveAsync(id, request?.RecommendationId, cancellationToken);
-        }
-        catch (InvalidOperationException ex) when (string.Equals(ex.Message, "Payment required before approval.", StringComparison.Ordinal))
-        {
-            return BadRequest(new ProblemDetails
-            {
-                Title = "Payment required before approval.",
-                Detail = "Please complete payment for this campaign before approving a recommendation.",
-                Status = StatusCodes.Status400BadRequest
-            });
-        }
+        var result = await _recommendationApprovalWorkflowService.ApproveAsync(id, request?.RecommendationId, cancellationToken);
 
         return Accepted(new
         {
@@ -229,12 +264,12 @@ public sealed class CampaignsController : ControllerBase
             .AnyAsync(x => x.Id == id && x.UserId == userId, cancellationToken);
         if (!campaignExists)
         {
-            throw new InvalidOperationException("Campaign not found.");
+            throw new NotFoundException("Campaign not found.");
         }
 
         if (!request?.RecommendationId.HasValue ?? true)
         {
-            throw new InvalidOperationException("Recommendation not found.");
+            throw new BadRequestException("Recommendation not found.");
         }
 
         await _packagePurchaseService.PrepareRecommendationCheckoutAsync(id, request!.RecommendationId!.Value, cancellationToken);
@@ -250,7 +285,7 @@ public sealed class CampaignsController : ControllerBase
             .AnyAsync(x => x.Id == id && x.UserId == userId, cancellationToken);
         if (!campaignExists)
         {
-            throw new InvalidOperationException("Campaign not found.");
+            throw new NotFoundException("Campaign not found.");
         }
 
         var result = await _recommendationApprovalWorkflowService.RequestChangesAsync(id, request.Notes, cancellationToken);

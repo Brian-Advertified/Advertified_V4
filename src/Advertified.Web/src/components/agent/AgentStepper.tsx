@@ -1,5 +1,6 @@
 import { CheckCircle2, Circle, Clock, FileText, Lightbulb, Send, Users } from 'lucide-react';
 import { useMemo } from 'react';
+import type { CSSProperties } from 'react';
 import type { Campaign } from '../../types/domain';
 
 interface AgentStep {
@@ -83,7 +84,7 @@ export function AgentStepper({ campaign }: AgentStepperProps) {
   };
 
   const currentStepIndex = getCurrentStepIndex(campaign.status);
-  const progressWidth = `${((currentStepIndex + 1) / steps.length) * 100}%`;
+  const progressStyle = { '--step-progress-width': `${((currentStepIndex + 1) / steps.length) * 100}%` } as CSSProperties;
 
   return (
     <div className="w-full">
@@ -98,8 +99,8 @@ export function AgentStepper({ campaign }: AgentStepperProps) {
       <div className="relative mb-6">
         <div className="h-2 w-full rounded-full bg-gray-200">
           <div
-            className="h-2 rounded-full bg-gradient-to-r from-brand to-amber-500 transition-all duration-500 ease-out"
-            style={{ width: progressWidth }}
+            className="step-progress-bar h-2 rounded-full bg-gradient-to-r from-brand to-amber-500 transition-all duration-500 ease-out"
+            style={progressStyle}
           />
         </div>
       </div>

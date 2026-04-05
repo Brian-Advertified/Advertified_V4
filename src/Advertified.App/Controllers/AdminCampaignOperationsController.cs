@@ -6,6 +6,7 @@ using Advertified.App.Data.Entities;
 using Advertified.App.Data.Enums;
 using Advertified.App.Services.Abstractions;
 using Advertified.App.Support;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -14,6 +15,7 @@ namespace Advertified.App.Controllers;
 
 [ApiController]
 [Route("admin/campaign-operations")]
+[Authorize(Roles = "Admin")]
 public sealed class AdminCampaignOperationsController : ControllerBase
 {
     private readonly AppDbContext _db;

@@ -1,11 +1,13 @@
 using Advertified.App.Contracts.Creatives;
 using Advertified.App.Services.Abstractions;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Advertified.App.Controllers;
 
 [ApiController]
 [Route("api/creatives")]
+[Authorize(Roles = "CreativeDirector")]
 public sealed class CreativesController : ControllerBase
 {
     // Legacy template-era API surface retained for backward compatibility.

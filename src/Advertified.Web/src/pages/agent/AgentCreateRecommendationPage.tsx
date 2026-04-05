@@ -5,6 +5,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { ProcessingOverlay } from '../../components/ui/ProcessingOverlay';
 import { useToast } from '../../components/ui/toast';
+import { catalogQueryOptions } from '../../lib/catalogQueryOptions';
 import { formatCurrency } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import { formatChannelLabel, normalizeChannelKey } from '../../features/channels/channelUtils';
@@ -163,7 +164,7 @@ export function AgentCreateRecommendationPage() {
   const { pushToast } = useToast();
   const queryClient = useQueryClient();
   const inboxQuery = useQuery({ queryKey: ['agent-inbox'], queryFn: advertifiedApi.getAgentInbox });
-  const packagesQuery = useQuery({ queryKey: ['packages'], queryFn: advertifiedApi.getPackages });
+  const packagesQuery = useQuery({ queryKey: ['packages'], queryFn: advertifiedApi.getPackages, ...catalogQueryOptions });
   const requestedCampaignId = searchParams.get('campaignId') ?? '';
   const [selectedCampaignIdState, setSelectedCampaignIdState] = useState<string>('');
   const [selectedClientIdState, setSelectedClientIdState] = useState<string>('');
@@ -449,14 +450,16 @@ export function AgentCreateRecommendationPage() {
           : 'The campaign brief has been saved for the agent workflow.',
       });
 
+      const campaignId = (campaign as { campaignId: string }).campaignId;
+
       if (variables.submitBrief) {
-        navigate(`/agent/campaigns/${campaign.id}`);
+        navigate(`/agent/campaigns/${campaignId}`);
       }
 
       void Promise.all([
         queryClient.invalidateQueries({ queryKey: ['agent-inbox'] }),
-        queryClient.invalidateQueries({ queryKey: ['agent-campaign', campaign.id] }),
-        queryClient.invalidateQueries({ queryKey: ['campaign', campaign.id] }),
+        queryClient.invalidateQueries({ queryKey: ['agent-campaign', campaignId] }),
+        queryClient.invalidateQueries({ queryKey: ['campaign', campaignId] }),
       ]);
     },
     onError: (error) => {

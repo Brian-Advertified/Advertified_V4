@@ -1,17 +1,19 @@
+using Advertified.App.Support;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Advertified.App.Configuration;
 using Advertified.App.Contracts.Messages;
 using Advertified.App.Data;
 using Advertified.App.Data.Entities;
 using Advertified.App.Data.Enums;
 using Advertified.App.Services.Abstractions;
-using Advertified.App.Support;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Advertified.App.Controllers;
 
 [ApiController]
+[Authorize]
 public sealed class CampaignMessagingController : ControllerBase
 {
     private readonly AppDbContext _db;

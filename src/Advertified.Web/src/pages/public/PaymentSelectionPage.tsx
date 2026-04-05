@@ -7,9 +7,11 @@ import { ProcessingOverlay } from '../../components/ui/ProcessingOverlay';
 import { PageHero } from '../../components/marketing/PageHero';
 import { useToast } from '../../components/ui/toast';
 import { useAuth } from '../../features/auth/auth-context';
+import { catalogQueryOptions } from '../../lib/catalogQueryOptions';
 import { canBuyPackage, getPackagePurchaseRestriction } from '../../lib/access';
 import { formatCurrency } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
+import { writeCheckoutAutoApproval } from '../../services/checkoutAutoApprovalStore';
 import type { PackageBand, PaymentProvider } from '../../types/domain';
 
 type ProviderOption = {
@@ -72,7 +74,7 @@ export function PaymentSelectionPage() {
     ? `Lula Pay Later is unavailable because the company registration year is ${registrationYear}, which indicates the business has been trading for less than 1 year.`
     : null;
 
-  const packagesQuery = useQuery({ queryKey: ['packages'], queryFn: advertifiedApi.getPackages });
+  const packagesQuery = useQuery({ queryKey: ['packages'], queryFn: advertifiedApi.getPackages, ...catalogQueryOptions });
   const existingOrderQuery = useQuery({
     queryKey: ['package-order', user?.id, orderId],
     queryFn: () => advertifiedApi.getOrder(orderId, user!.id),
@@ -126,13 +128,11 @@ export function PaymentSelectionPage() {
       }
 
       if (recommendationId && typeof window !== 'undefined') {
-        const payload = JSON.stringify({
+        writeCheckoutAutoApproval(checkout.order.id, {
           campaignId,
           recommendationId,
           proposalPath,
         });
-        window.sessionStorage.setItem(`advertified:auto-approve:${checkout.order.id}`, payload);
-        window.localStorage.setItem(`advertified:auto-approve:${checkout.order.id}`, payload);
       }
 
       window.location.assign(checkout.checkoutUrl);

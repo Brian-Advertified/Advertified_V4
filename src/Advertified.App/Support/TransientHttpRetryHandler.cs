@@ -25,7 +25,7 @@ public sealed class TransientHttpRetryHandler : DelegatingHandler
             try
             {
                 var response = await base.SendAsync(requestToSend, cancellationToken);
-                if (!ShouldRetry(response.StatusCode) || attempt == maxAttempts)
+                if (!ShouldRetry(requestToSend, response.StatusCode) || attempt == maxAttempts)
                 {
                     return response;
                 }
@@ -47,9 +47,14 @@ public sealed class TransientHttpRetryHandler : DelegatingHandler
         return await base.SendAsync(request, cancellationToken);
     }
 
-    private static bool ShouldRetry(HttpStatusCode statusCode)
+    private static bool ShouldRetry(HttpRequestMessage request, HttpStatusCode statusCode)
     {
         var code = (int)statusCode;
+        if (code == 429 && request.RequestUri?.Host.Contains("api.openai.com", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            return false;
+        }
+
         return code == 408 || code == 429 || code >= 500;
     }
 

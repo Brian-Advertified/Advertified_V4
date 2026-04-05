@@ -9,8 +9,10 @@ import {
   UserRoundSearch,
 } from 'lucide-react';
 import { PageHero } from '../../components/marketing/PageHero';
-import { LoadingState } from '../../components/ui/LoadingState';
+import { QueryStateBoundary } from '../../components/ui/QueryStateBoundary';
 import { useAuth } from '../../features/auth/auth-context';
+import { catalogQueryOptions } from '../../lib/catalogQueryOptions';
+import { shouldPollWhenVisible } from '../../lib/queryPolling';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import type { AgentInbox, Campaign, PackageBand } from '../../types/domain';
 
@@ -71,8 +73,7 @@ export function useAgentInboxQuery(): UseQueryResult<AgentInbox> {
   return useQuery<AgentInbox>({
     queryKey: ['agent-inbox'],
     queryFn: advertifiedApi.getAgentInbox,
-    refetchInterval: 15_000,
-    refetchOnWindowFocus: true,
+    refetchInterval: () => shouldPollWhenVisible() ? 15_000 : false,
   });
 }
 
@@ -80,13 +81,12 @@ export function useAgentCampaignsQuery(): UseQueryResult<Campaign[]> {
   return useQuery<Campaign[]>({
     queryKey: ['agent-campaigns'],
     queryFn: advertifiedApi.getAgentCampaigns,
-    refetchInterval: 15_000,
-    refetchOnWindowFocus: true,
+    refetchInterval: () => shouldPollWhenVisible() ? 15_000 : false,
   });
 }
 
 export function usePackagesQuery(): UseQueryResult<PackageBand[]> {
-  return useQuery<PackageBand[]>({ queryKey: ['package-bands'], queryFn: advertifiedApi.getPackages });
+  return useQuery<PackageBand[]>({ queryKey: ['packages'], queryFn: advertifiedApi.getPackages, ...catalogQueryOptions });
 }
 
 type AgentPageShellProps = {
@@ -188,20 +188,14 @@ type AgentQueryBoundaryProps = {
 };
 
 export function AgentQueryBoundary({ query, loadingLabel, children }: AgentQueryBoundaryProps) {
-  if (query.isLoading) {
-    return <LoadingState label={loadingLabel} />;
-  }
-
-  if (query.isError) {
-    return (
-      <section className="page-shell">
-        <div className="panel mx-auto max-w-3xl p-8">
-          <h1 className="text-2xl font-semibold text-ink">Agent workspace unavailable</h1>
-          <p className="mt-3 text-sm leading-6 text-ink-soft">{query.error instanceof Error ? query.error.message : 'The agent workspace could not be loaded.'}</p>
-        </div>
-      </section>
-    );
-  }
-
-  return <>{children}</>;
+  return (
+    <QueryStateBoundary
+      query={query}
+      loadingLabel={loadingLabel}
+      errorTitle="Agent workspace unavailable"
+      errorDescription="The agent workspace could not be loaded."
+    >
+      {() => children}
+    </QueryStateBoundary>
+  );
 }

@@ -2,7 +2,7 @@ import { type ReactNode } from 'react';
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { NavLink } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
-import { LoadingState } from '../../components/ui/LoadingState';
+import { QueryStateBoundary } from '../../components/ui/QueryStateBoundary';
 import { useAuth } from '../../features/auth/auth-context';
 import { PageHero } from '../../components/marketing/PageHero';
 import { advertifiedApi } from '../../services/advertifiedApi';
@@ -175,24 +175,16 @@ type AdminQueryBoundaryProps = {
 };
 
 export function AdminQueryBoundary({ query, children }: AdminQueryBoundaryProps) {
-  if (query.isLoading) {
-    return <LoadingState label="Loading admin workspace..." />;
-  }
-
-  if (query.isError) {
-    return (
-      <section className="page-shell">
-        <div className="panel mx-auto max-w-3xl p-8">
-          <h1 className="text-2xl font-semibold text-ink">Admin access required</h1>
-          <p className="mt-3 text-sm leading-6 text-ink-soft">{query.error instanceof Error ? query.error.message : 'The admin workspace could not be loaded.'}</p>
-        </div>
-      </section>
-    );
-  }
-
-  if (!query.data) {
-    return <LoadingState label="Admin dashboard data is unavailable." />;
-  }
-
-  return <>{children(query.data)}</>;
+  return (
+    <QueryStateBoundary
+      query={query}
+      loadingLabel="Loading admin workspace..."
+      errorTitle="Admin access required"
+      errorDescription="The admin workspace could not be loaded."
+      emptyTitle="Admin dashboard data is unavailable."
+      emptyDescription="The admin dashboard returned no data for this session."
+    >
+      {(dashboard) => children(dashboard)}
+    </QueryStateBoundary>
+  );
 }

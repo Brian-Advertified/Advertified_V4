@@ -150,7 +150,7 @@ describe('AgentStepper', () => {
     render(<AgentStepper campaign={mockCampaign('planning_in_progress')} />);
 
     // For step 3 (planning_in_progress), progress should be 3/6 = 50%
-    const progressBar = document.querySelector('[style*="width"]');
-    expect(progressBar).toHaveStyle({ width: '50%' });
+    const progressBar = document.querySelector('.step-progress-bar');
+    expect(progressBar).toHaveStyle({ '--step-progress-width': '50%' });
   });
 });

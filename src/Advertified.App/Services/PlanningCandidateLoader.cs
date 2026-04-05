@@ -15,13 +15,10 @@ public sealed class PlanningCandidateLoader : IPlanningCandidateLoader
 
     public async Task<List<InventoryCandidate>> LoadCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
     {
-        var oohTask = _repository.GetOohCandidatesAsync(request, cancellationToken);
-        var broadcastTask = _repository.GetBroadcastCandidatesAsync(request, cancellationToken);
-
-        await Task.WhenAll(oohTask, broadcastTask);
-
-        var ooh = await oohTask;
-        var broadcast = await broadcastTask;
+        // These repository calls can share the same EF-backed dependencies, so
+        // they must not run concurrently on the same request scope.
+        var ooh = await _repository.GetOohCandidatesAsync(request, cancellationToken);
+        var broadcast = await _repository.GetBroadcastCandidatesAsync(request, cancellationToken);
 
         return ooh
             .Concat(broadcast.RadioSlots)

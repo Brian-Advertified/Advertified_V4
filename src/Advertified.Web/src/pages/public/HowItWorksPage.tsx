@@ -1,6 +1,7 @@
 import { ArrowRight, BadgeCheck, ClipboardPenLine, CreditCard, LayoutGrid, PenSquare, Sparkles, UserRoundPlus } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import advertifiedVideo from '../../assets/Channels/advertified.mp4';
+import { DeferredVideo } from '../../components/marketing/DeferredVideo';
+import { advertifiedVideoPoster, loadAdvertifiedVideo } from '../../components/marketing/marketingMedia';
 import { PageHero } from '../../components/marketing/PageHero';
 
 const steps = [
@@ -84,10 +85,12 @@ export function HowItWorksPage() {
         aside={(
           <div className="flex justify-center">
             <div className="w-full max-w-[210px] overflow-hidden rounded-[24px] border border-line bg-slate-950 shadow-[0_12px_24px_rgba(15,23,42,0.11)]">
-              <video className="aspect-[9/15] w-full bg-slate-950" controls preload="metadata" playsInline>
-                <source src={advertifiedVideo} type="video/mp4" />
-                Your browser does not support the video tag.
-              </video>
+              <DeferredVideo
+                title="Advertified brand introduction"
+                loadSrc={loadAdvertifiedVideo}
+                posterSrc={advertifiedVideoPoster}
+                className="aspect-[9/15] w-full bg-slate-950"
+              />
             </div>
           </div>
         )}

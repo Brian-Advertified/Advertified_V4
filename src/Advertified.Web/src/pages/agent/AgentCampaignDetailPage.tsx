@@ -39,6 +39,7 @@ import { AgentInventorySelectionModal } from '../../features/agent/components/Ag
 import { AgentOpsAssetsPanel } from '../../features/agent/components/AgentOpsAssetsPanel';
 import { AgentRecommendationPanel } from '../../features/agent/components/AgentRecommendationPanel';
 import { formatChannelLabel } from '../../features/channels/channelUtils';
+import { catalogQueryOptions } from '../../lib/catalogQueryOptions';
 import { invalidateAgentCampaignQueries, queryKeys } from '../../lib/queryKeys';
 import { formatCurrency, formatDate, titleCase } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
@@ -93,6 +94,7 @@ export function AgentCampaignDetailPage() {
   const packagesQuery = useQuery({
     queryKey: queryKeys.packages.all,
     queryFn: () => advertifiedApi.getPackages(),
+    ...catalogQueryOptions,
   });
 
   const saveMutation = useMutation({

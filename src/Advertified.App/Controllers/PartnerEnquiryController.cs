@@ -1,11 +1,13 @@
 using Advertified.App.Contracts.Public;
 using Advertified.App.Services.Abstractions;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Advertified.App.Controllers;
 
 [ApiController]
 [Route("partner-enquiry")]
+[AllowAnonymous]
 public sealed class PartnerEnquiryController : ControllerBase
 {
     private readonly ITemplatedEmailService _emailService;

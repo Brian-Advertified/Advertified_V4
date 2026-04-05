@@ -1,18 +1,26 @@
 import { ArrowRight } from 'lucide-react';
+import { useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import advertifiedVideo from '../../assets/Channels/advertified.mp4';
 import { ChannelShowcaseSection } from '../../components/marketing/ChannelShowcaseSection';
+import { DeferredVideo } from '../../components/marketing/DeferredVideo';
 import { HeroSection } from '../../components/marketing/HeroSection';
+import { advertifiedVideoPoster, loadAdvertifiedVideo } from '../../components/marketing/marketingMedia';
 import { PackageCard } from '../../features/packages/components/PackageCard';
+import { catalogQueryOptions } from '../../lib/catalogQueryOptions';
+import { useNearViewport } from '../../lib/useNearViewport';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import { useQuery } from '@tanstack/react-query';
 import { LoadingState } from '../../components/ui/LoadingState';
 
 export function HomePage() {
   const navigate = useNavigate();
+  const packageSectionRef = useRef<HTMLElement | null>(null);
+  const shouldLoadPackages = useNearViewport(packageSectionRef);
   const packagesQuery = useQuery({
     queryKey: ['packages'],
     queryFn: advertifiedApi.getPackages,
+    enabled: shouldLoadPackages,
+    ...catalogQueryOptions,
   });
 
   return (
@@ -20,7 +28,7 @@ export function HomePage() {
       <HeroSection />
       <ChannelShowcaseSection />
 
-      <section className="page-shell pt-8">
+      <section ref={packageSectionRef} className="page-shell pt-8">
         <div className="panel px-6 py-8 sm:px-8 sm:py-10">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
@@ -37,7 +45,13 @@ export function HomePage() {
           </div>
 
           <div className="card-grid mt-10">
-            {packagesQuery.isLoading ? (
+            {!shouldLoadPackages ? (
+              <div className="md:col-span-2 xl:col-span-4">
+                <div className="rounded-[24px] border border-line bg-white px-6 py-8 text-sm leading-7 text-ink-soft">
+                  Package bands will load as this section comes into view.
+                </div>
+              </div>
+            ) : packagesQuery.isLoading ? (
               <div className="md:col-span-2 xl:col-span-4"><LoadingState label="Loading package bands..." /></div>
             ) : (
               packagesQuery.data?.map((band) => (
@@ -77,15 +91,12 @@ export function HomePage() {
             </div>
             <div className="rounded-[28px] border border-line bg-white/70 p-4 sm:p-5">
               <div className="mx-auto w-full max-w-[240px] overflow-hidden rounded-[30px] border border-line bg-slate-950 shadow-[0_12px_24px_rgba(15,23,42,0.11)] sm:max-w-[280px]">
-                <video
+                <DeferredVideo
+                  title="Advertified brand introduction"
+                  loadSrc={loadAdvertifiedVideo}
+                  posterSrc={advertifiedVideoPoster}
                   className="aspect-[9/15] w-full bg-slate-950"
-                  controls
-                  preload="metadata"
-                  playsInline
-                >
-                  <source src={advertifiedVideo} type="video/mp4" />
-                  Your browser does not support the video tag.
-                </video>
+                />
               </div>
             </div>
           </div>

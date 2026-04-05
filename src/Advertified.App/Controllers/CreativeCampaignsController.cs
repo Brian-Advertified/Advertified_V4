@@ -6,6 +6,7 @@ using Advertified.App.Contracts.Campaigns;
 using Advertified.App.Contracts.Creative;
 using Advertified.App.Services.Abstractions;
 using Advertified.App.Support;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
@@ -14,6 +15,7 @@ namespace Advertified.App.Controllers;
 
 [ApiController]
 [Route("creative/campaigns")]
+[Authorize(Roles = "CreativeDirector")]
 public sealed class CreativeCampaignsController : ControllerBase
 {
     private readonly AppDbContext _db;

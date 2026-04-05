@@ -1,10 +1,10 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { type AddressAutofillRetrieveResponse } from '@mapbox/search-js-core';
-import { AddressAutofill } from '@mapbox/search-js-react';
 import { Eye, EyeOff } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useState, type ReactNode } from 'react';
 import { useForm } from 'react-hook-form';
+import { AddressAutofillInput } from './AddressAutofillInput';
 import type { RegistrationSchema } from '../schemas';
 import { registrationSchema } from '../schemas';
 
@@ -201,21 +201,16 @@ export function RegistrationWizard({
 
           <Field label="Street address *" error={errors.streetAddress?.message} className="register-field-full">
             {mapboxEnabled ? (
-              <AddressAutofill
+              <AddressAutofillInput
                 accessToken={mapboxAccessToken!}
-                options={{
-                  country: 'ZA',
-                  language: 'en',
-                }}
                 onRetrieve={handleAddressRetrieve}
-              >
-                <input
-                  {...register('streetAddress')}
-                  autoComplete="street-address"
-                  className="register-input"
-                  placeholder="Search your business address *"
-                />
-              </AddressAutofill>
+                inputProps={{
+                  ...register('streetAddress'),
+                  autoComplete: 'street-address',
+                  className: 'register-input',
+                  placeholder: 'Search your business address *',
+                }}
+              />
             ) : (
               <input
                 {...register('streetAddress')}

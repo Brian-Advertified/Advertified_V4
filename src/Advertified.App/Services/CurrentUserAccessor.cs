@@ -2,6 +2,7 @@ using Advertified.App.Data;
 using Advertified.App.Services.Abstractions;
 using Advertified.App.Support;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace Advertified.App.Services;
 
@@ -20,6 +21,11 @@ public sealed class CurrentUserAccessor : ICurrentUserAccessor
 
     public async Task<Guid> GetCurrentUserIdAsync(CancellationToken cancellationToken)
     {
+        if (TryGetCurrentUserIdFromClaims(out var userId))
+        {
+            return userId;
+        }
+
         var token = ReadBearerToken();
         if (string.IsNullOrWhiteSpace(token) || !_sessionTokenService.TryReadToken(token, out var payload))
         {
@@ -40,6 +46,13 @@ public sealed class CurrentUserAccessor : ICurrentUserAccessor
         }
 
         return user.Id;
+    }
+
+    private bool TryGetCurrentUserIdFromClaims(out Guid userId)
+    {
+        userId = Guid.Empty;
+        var userIdValue = _httpContextAccessor.HttpContext?.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        return !string.IsNullOrWhiteSpace(userIdValue) && Guid.TryParse(userIdValue, out userId);
     }
 
     private string? ReadBearerToken()

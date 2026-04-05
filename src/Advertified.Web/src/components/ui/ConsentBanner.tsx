@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ShieldCheck } from 'lucide-react';
 import { useState, useSyncExternalStore } from 'react';
 import { Link } from 'react-router-dom';
+import { useIdleTrigger } from '../../lib/useIdleTrigger';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import { OPEN_CONSENT_PREFERENCES_EVENT } from './consentPreferences';
 import { useToast } from './toast';
@@ -58,6 +59,7 @@ function getBrowserId() {
 export function ConsentBanner() {
   const { pushToast } = useToast();
   const queryClient = useQueryClient();
+  const consentBootstrapReady = useIdleTrigger();
   const openPreferencesEventTick = useSyncExternalStore(
     subscribeToOpenConsentPreferences,
     getOpenConsentPreferencesSnapshot,
@@ -74,6 +76,7 @@ export function ConsentBanner() {
   const consentQuery = useQuery({
     queryKey: ['consent-preferences', browserId],
     queryFn: () => advertifiedApi.getConsentPreferences(browserId),
+    enabled: consentBootstrapReady,
   });
 
   const saveMutation = useMutation({
@@ -105,7 +108,7 @@ export function ConsentBanner() {
     },
   });
 
-  if (consentQuery.isLoading || !consentQuery.data) {
+  if (!consentBootstrapReady || consentQuery.isLoading || !consentQuery.data) {
     return null;
   }
 

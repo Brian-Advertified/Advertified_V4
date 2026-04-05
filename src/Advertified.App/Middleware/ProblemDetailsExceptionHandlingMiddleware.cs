@@ -51,6 +51,18 @@ public sealed class ProblemDetailsExceptionHandlingMiddleware
             return true;
         }
 
+        if (exception is PaymentRequiredException paymentRequired)
+        {
+            problem = BuildProblem(StatusCodes.Status400BadRequest, "Payment required before approval.", paymentRequired.Message);
+            return true;
+        }
+
+        if (exception is BadRequestException badRequest)
+        {
+            problem = BuildProblem(StatusCodes.Status400BadRequest, "Request could not be completed.", badRequest.Message);
+            return true;
+        }
+
         if (exception is ForbiddenException forbidden)
         {
             problem = BuildProblem(StatusCodes.Status403Forbidden, "Forbidden.", forbidden.Message);

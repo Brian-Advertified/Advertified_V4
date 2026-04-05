@@ -4,12 +4,14 @@ using Advertified.App.Services.Abstractions;
 using Advertified.App.Support;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Advertified.App.Controllers;
 
 [ApiController]
 [Route("agent/recommendations")]
+[Authorize(Roles = "Agent")]
 public sealed class AgentRecommendationsController : ControllerBase
 {
     private const string ClientFeedbackMarker = "Client feedback:";

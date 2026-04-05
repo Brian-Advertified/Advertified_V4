@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { StatusBadge } from '../../components/ui/StatusBadge';
+import { getPendingPaymentPollInterval } from '../../lib/queryPolling';
 import { formatCurrency, formatDate } from '../../lib/utils';
 import { useAuth } from '../../features/auth/auth-context';
 import { advertifiedApi } from '../../services/advertifiedApi';
@@ -17,15 +18,13 @@ export function OrdersPage() {
     queryKey: ['campaigns', user?.id],
     queryFn: () => advertifiedApi.getCampaigns(user!.id),
     enabled: Boolean(user && !isOpsUser && !isCreativeDirector),
-    refetchInterval: (query) => (query.state.data?.some((campaign) => campaign.paymentStatus !== 'paid') ? 15_000 : false),
-    refetchOnWindowFocus: true,
+    refetchInterval: (query) => getPendingPaymentPollInterval(query.state.data),
   });
   const ordersQuery = useQuery({
     queryKey: ['orders', user?.id],
     queryFn: () => advertifiedApi.getOrders(user!.id),
     enabled: Boolean(user && !isOpsUser && !isCreativeDirector),
-    refetchInterval: (query) => (query.state.data?.some((order) => order.paymentStatus !== 'paid') ? 15_000 : false),
-    refetchOnWindowFocus: true,
+    refetchInterval: (query) => getPendingPaymentPollInterval(query.state.data),
   });
 
   if (isCreativeDirector) {

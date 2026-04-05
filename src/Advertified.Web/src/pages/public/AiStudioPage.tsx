@@ -3,6 +3,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { ArrowRight, Sparkles, WandSparkles } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { canAccessAiStudioForStatus, getAiStudioAccessMessage } from '../../features/campaigns/aiStudioAccess';
+import { getActiveJobPollInterval } from '../../lib/queryPolling';
 import { advertifiedApi } from '../../services/advertifiedApi';
 
 const outputs = [
@@ -102,10 +103,7 @@ export function AiStudioPage() {
     queryKey: ['ai-platform-job-status', activeJobId],
     queryFn: () => advertifiedApi.getAiPlatformJobStatus(activeJobId),
     enabled: activeJobId.trim().length > 0,
-    refetchInterval: (query) => {
-      const status = query.state.data?.status?.toLowerCase();
-      return status === 'completed' || status === 'failed' ? false : 3000;
-    },
+    refetchInterval: (query) => getActiveJobPollInterval(query.state.data?.status, 3_000),
   });
 
   const regenerateMutation = useMutation({
@@ -228,10 +226,7 @@ export function AiStudioPage() {
     queryKey: ['ai-platform-asset-job-status', assetJobId],
     queryFn: () => advertifiedApi.getAiPlatformAssetJobStatus(assetJobId),
     enabled: assetJobId.trim().length > 0,
-    refetchInterval: (query) => {
-      const status = query.state.data?.status?.toLowerCase();
-      return status === 'completed' || status === 'failed' ? false : 2500;
-    },
+    refetchInterval: (query) => getActiveJobPollInterval(query.state.data?.status, 2_500),
   });
 
   const canSubmit = useMemo(

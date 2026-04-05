@@ -20,6 +20,9 @@ public sealed class OpenAICampaignReasoningService : ICampaignReasoningService
     {
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
+    private static readonly object QuotaBackoffGate = new();
+    private static readonly TimeSpan QuotaBackoffDuration = TimeSpan.FromMinutes(30);
+    private static DateTimeOffset? _quotaBackoffUntilUtc;
 
     private readonly HttpClient _httpClient;
     private readonly OpenAIOptions _options;
@@ -44,6 +47,15 @@ public sealed class OpenAICampaignReasoningService : ICampaignReasoningService
     {
         if (!_options.Enabled || string.IsNullOrWhiteSpace(_options.ApiKey))
         {
+            return null;
+        }
+
+        var quotaBackoffUntilUtc = GetQuotaBackoffUntilUtc();
+        if (quotaBackoffUntilUtc.HasValue && quotaBackoffUntilUtc.Value > DateTimeOffset.UtcNow)
+        {
+            _logger.LogWarning(
+                "Skipping OpenAI reasoning request because insufficient quota backoff is active until {BackoffUntilUtc}.",
+                quotaBackoffUntilUtc.Value);
             return null;
         }
 
@@ -84,6 +96,7 @@ public sealed class OpenAICampaignReasoningService : ICampaignReasoningService
         if (!response.IsSuccessStatusCode)
         {
             var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+            TryActivateQuotaBackoff(response.StatusCode, responseBody);
             _logger.LogWarning(
                 "OpenAI reasoning request failed. Status: {StatusCode}. Body: {Body}",
                 (int)response.StatusCode,
@@ -241,6 +254,29 @@ public sealed class OpenAICampaignReasoningService : ICampaignReasoningService
             string text when decimal.TryParse(text, out var parsed) => parsed,
             _ => null
         };
+    }
+
+    private static DateTimeOffset? GetQuotaBackoffUntilUtc()
+    {
+        lock (QuotaBackoffGate)
+        {
+            return _quotaBackoffUntilUtc;
+        }
+    }
+
+    private static void TryActivateQuotaBackoff(System.Net.HttpStatusCode statusCode, string? responseBody)
+    {
+        if (statusCode != System.Net.HttpStatusCode.TooManyRequests
+            || string.IsNullOrWhiteSpace(responseBody)
+            || !responseBody.Contains("insufficient_quota", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        lock (QuotaBackoffGate)
+        {
+            _quotaBackoffUntilUtc = DateTimeOffset.UtcNow.Add(QuotaBackoffDuration);
+        }
     }
 
     private sealed class OpenAIChatCompletionRequest

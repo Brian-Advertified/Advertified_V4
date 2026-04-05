@@ -3,6 +3,7 @@ using Advertified.App.Data;
 using Advertified.App.Data.Entities;
 using Advertified.App.Services.Abstractions;
 using Advertified.App.Validation;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.RegularExpressions;
@@ -11,6 +12,7 @@ namespace Advertified.App.Controllers;
 
 [ApiController]
 [Route("auth")]
+[AllowAnonymous]
 public sealed class AuthController : ControllerBase
 {
     private readonly AppDbContext _db;

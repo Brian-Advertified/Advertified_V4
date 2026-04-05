@@ -1,11 +1,13 @@
 using Advertified.App.Services.Abstractions;
 using Advertified.App.Support;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Advertified.App.Controllers;
 
 [ApiController]
 [Route("packages")]
+[AllowAnonymous]
 public sealed class PackagesController : ControllerBase
 {
     private readonly IPackageCatalogService _packageCatalogService;

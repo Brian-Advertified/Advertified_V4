@@ -5,8 +5,10 @@ import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } 
 import { LoadingState } from '../../components/ui/LoadingState';
 import { PageHero } from '../../components/marketing/PageHero';
 import { RecommendationViewer } from '../../features/campaigns/components/RecommendationViewer';
+import { getCampaignRecommendations, selectRecommendation } from '../../features/campaigns/recommendationSelection';
 import { useToast } from '../../components/ui/toast';
 import { useAuth } from '../../features/auth/auth-context';
+import { hasRecommendationApprovalCompleted } from '../../lib/campaignStatus';
 import { formatCurrency, titleCase } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
 
@@ -26,15 +28,6 @@ function getSafeNextPath(raw: string | null) {
   const trimmed = raw.trim();
   return trimmed.startsWith('/') ? trimmed : null;
 }
-
-const APPROVAL_COMPLETED_STATUSES = new Set([
-  'approved',
-  'creative_sent_to_client_for_approval',
-  'creative_changes_requested',
-  'creative_approved',
-  'booking_in_progress',
-  'launched',
-]);
 
 export function ProposalEntryPage() {
   const { id = '' } = useParams();
@@ -58,21 +51,14 @@ export function ProposalEntryPage() {
     retry: false,
   });
 
-  const recommendations = publicProposalQuery.data
-    ? (publicProposalQuery.data.recommendations.length > 0
-      ? publicProposalQuery.data.recommendations
-      : (publicProposalQuery.data.recommendation ? [publicProposalQuery.data.recommendation] : []))
-    : [];
+  const recommendations = getCampaignRecommendations(publicProposalQuery.data);
   const showRejectAllFlow = action === 'reject_all';
-  const resolvedRecommendationId = recommendations.some((item) => item.id === selectedRecommendationId)
-    ? selectedRecommendationId
-    : recommendations.some((item) => item.id === recommendationId)
-      ? recommendationId
-      : (recommendations.find((item) => item.status === 'sent_to_client')?.id ?? recommendations[0]?.id ?? '');
-  const recommendation = recommendations.find((item) => item.id === resolvedRecommendationId) ?? recommendations[0];
+  const recommendation = selectRecommendation(recommendations, {
+    currentSelectionId: selectedRecommendationId,
+    requestedRecommendationId: recommendationId,
+  });
   const paymentRequiredBeforeApproval = publicProposalQuery.data?.paymentStatus !== 'paid';
-  const approvalAlreadyCompleted = recommendation?.status === 'approved'
-    || APPROVAL_COMPLETED_STATUSES.has(publicProposalQuery.data?.status ?? '');
+  const approvalAlreadyCompleted = hasRecommendationApprovalCompleted(publicProposalQuery.data?.status, recommendation);
   const currentProposalPath = `${location.pathname}${location.search}`;
   const checkoutPath = publicProposalQuery.data && recommendation
     ? `/checkout/payment?orderId=${encodeURIComponent(publicProposalQuery.data.packageOrderId)}&campaignId=${encodeURIComponent(publicProposalQuery.data.id)}&recommendationId=${encodeURIComponent(recommendation.id)}&proposalPath=${encodeURIComponent(currentProposalPath)}`
