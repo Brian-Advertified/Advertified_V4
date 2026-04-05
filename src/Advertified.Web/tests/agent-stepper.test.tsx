@@ -1,4 +1,3 @@
-import React from 'react';
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { AgentStepper } from '../src/components/agent/AgentStepper';
@@ -41,7 +40,7 @@ const mockCampaign = (
 
 describe('AgentStepper', () => {
   it('renders all workflow steps', () => {
-    render(<AgentStepper campaign={mockCampaign('newly_paid')} />);
+    render(<AgentStepper campaign={mockCampaign('paid')} />);
 
     expect(screen.getByText('Lead')).toBeInTheDocument();
     expect(screen.getByText('Brief')).toBeInTheDocument();
@@ -136,7 +135,7 @@ describe('AgentStepper', () => {
   });
 
   it('displays step descriptions correctly', () => {
-    render(<AgentStepper campaign={mockCampaign('newly_paid')} />);
+    render(<AgentStepper campaign={mockCampaign('paid')} />);
 
     expect(screen.getByText('Newly paid campaign received')).toBeInTheDocument();
     expect(screen.getByText('Gather campaign requirements')).toBeInTheDocument();

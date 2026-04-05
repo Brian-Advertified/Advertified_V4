@@ -1,10 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { ArrowRight, Sparkles, WandSparkles } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Clapperboard, LayoutTemplate, Mic2, PanelsTopLeft, Sparkles, WandSparkles, Workflow } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { useAuth } from '../../features/auth/auth-context';
 import { canAccessAiStudioForStatus, getAiStudioAccessMessage } from '../../features/campaigns/aiStudioAccess';
-import { canAccessCreativeStudio } from '../../lib/access';
 import { getActiveJobPollInterval } from '../../lib/queryPolling';
 import { advertifiedApi } from '../../services/advertifiedApi';
 
@@ -29,7 +27,136 @@ function formatChannelLabel(value: string) {
 }
 
 export function AiStudioPage() {
-  const { user } = useAuth();
+  return (
+    <div className="bg-slate-950 text-white">
+      <section className="relative overflow-hidden px-6 pb-10 pt-14 sm:px-10 sm:pt-18">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(15,118,110,0.32),transparent_38%),radial-gradient(circle_at_82%_28%,rgba(56,189,248,0.18),transparent_26%),radial-gradient(circle_at_72%_78%,rgba(245,158,11,0.12),transparent_24%)]" />
+        <div className="page-shell relative grid gap-8 xl:grid-cols-[1.05fr_0.95fr]">
+          <div className="space-y-6 rounded-[34px] border border-white/10 bg-[#090b10]/95 p-8 shadow-[0_24px_80px_rgba(2,6,23,0.46)] sm:p-10">
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.06] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-100">
+              <Sparkles className="size-4 text-brand-soft" />
+              Advertified AI Studio
+            </div>
+            <div className="space-y-4">
+              <h1 className="text-4xl font-semibold leading-tight tracking-tight text-white sm:text-6xl">
+                One campaign brief.
+                <br />
+                Many ready-to-run assets.
+              </h1>
+              <p className="max-w-2xl text-base leading-8 text-slate-300 sm:text-lg">
+                Turn one approved campaign into billboard concepts, radio scripts, social cutdowns, and launch-ready creative packs.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <Link to="/packages" className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-brand to-[#14b86e] px-7 py-3 text-sm font-semibold text-white shadow-[0_16px_38px_rgba(15,118,110,0.28)] transition hover:translate-y-[-1px] hover:shadow-[0_20px_42px_rgba(15,118,110,0.32)]">
+                Explore packages
+                <ArrowRight className="size-4" />
+              </Link>
+              <Link to="/partner-enquiry" className="inline-flex items-center gap-2 rounded-xl border border-slate-600 bg-slate-950 px-7 py-3 text-sm font-semibold text-white transition hover:border-brand/45 hover:bg-slate-900">
+                Talk to the team
+              </Link>
+            </div>
+          </div>
+
+          <div className="grid gap-4">
+            <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+              <div className="rounded-[30px] border border-white/10 bg-[linear-gradient(145deg,#0f172a,#0b1220)] p-6 shadow-[0_24px_70px_rgba(2,6,23,0.4)]">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Campaign Kit</p>
+                    <h2 className="mt-3 text-2xl font-semibold text-white">Retail launch pack</h2>
+                  </div>
+                  <span className="rounded-full border border-emerald-400/25 bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-200">Ready across channels</span>
+                </div>
+                <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-2xl border border-slate-700 bg-slate-900/70 p-4">
+                    <PanelsTopLeft className="size-5 text-brand-soft" />
+                    <p className="mt-4 text-sm font-semibold text-white">Billboard layout</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-400">Headline, visual direction, and placement-ready format notes.</p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-700 bg-slate-900/70 p-4">
+                    <Mic2 className="size-5 text-amber-300" />
+                    <p className="mt-4 text-sm font-semibold text-white">Radio script</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-400">30-second script with CTA and language-ready adaptation.</p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-700 bg-slate-900/70 p-4">
+                    <LayoutTemplate className="size-5 text-sky-300" />
+                    <p className="mt-4 text-sm font-semibold text-white">Social cutdowns</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-400">Fast, channel-fit variations for mobile-first placements.</p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-700 bg-slate-900/70 p-4">
+                    <Clapperboard className="size-5 text-emerald-300" />
+                    <p className="mt-4 text-sm font-semibold text-white">Video scene guide</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-400">Shot-by-shot structure for short-form campaign video.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4 rounded-[30px] border border-white/10 bg-[#0c111b] p-6 shadow-[0_24px_70px_rgba(2,6,23,0.4)]">
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">How it feels</p>
+                <div className="space-y-3">
+                  {[
+                    'One approved brief becomes a full campaign pack.',
+                    'Creative stays aligned across every selected channel.',
+                    'Outputs arrive ready for review, approval, and launch prep.',
+                  ].map((item) => (
+                    <div key={item} className="flex items-start gap-3 rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-4">
+                      <CheckCircle2 className="mt-0.5 size-5 text-brand-soft" />
+                      <p className="text-sm leading-6 text-slate-300">{item}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="page-shell px-6 py-6 sm:px-10">
+        <div className="grid gap-5 md:grid-cols-3">
+          {outputs.map((item, index) => (
+            <article key={item.title} className={`ai-fade-up ${index === 0 ? 'ai-delay-1' : index === 1 ? 'ai-delay-2' : 'ai-delay-3'} rounded-3xl border border-slate-800 bg-[#0A0A0A] p-7 shadow-[0_18px_42px_rgba(2,6,23,0.45)] transition hover:-translate-y-1 hover:border-brand/35`}>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{item.title}</p>
+              <p className="mt-7 text-xl font-semibold leading-8 text-slate-100">{item.text}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="page-shell px-6 py-10 sm:px-10">
+        <div className="rounded-[30px] border border-slate-800 bg-[#0A0A0A] p-7 sm:p-9">
+          <div className="flex items-center gap-3">
+            <Workflow className="size-5 text-brand-soft" />
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Studio flow</p>
+          </div>
+          <div className="mt-6 grid gap-4 md:grid-cols-3">
+            {[
+              {
+                title: '1. Brief once',
+                text: 'Start with one approved campaign brief and one clear objective.',
+              },
+              {
+                title: '2. Build the pack',
+                text: 'Generate channel-specific creative directions and campaign-ready assets.',
+              },
+              {
+                title: '3. Review and launch',
+                text: 'Move into approval, booking, and live campaign delivery with the same pack.',
+              },
+            ].map((step) => (
+              <div key={step.title} className="rounded-[24px] border border-slate-800 bg-slate-950/70 p-5">
+                <div className="text-sm font-semibold text-white">{step.title}</div>
+                <p className="mt-3 text-sm leading-7 text-slate-400">{step.text}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+export function AiStudioConsolePage() {
   const [searchParams] = useSearchParams();
   const campaignIdFromUrl = searchParams.get('campaignId')?.trim() ?? '';
   const [campaignId, setCampaignId] = useState(campaignIdFromUrl);
@@ -90,11 +217,6 @@ export function AiStudioPage() {
   const aiStudioAccessMessage = selectedCampaign
     ? getAiStudioAccessMessage(selectedCampaign.status)
     : 'AI Studio becomes available only after a purchased campaign is complete and ready to go live.';
-  const isInternalStudioUser = canAccessCreativeStudio(user);
-  const primaryStudioHref = isInternalStudioUser ? '/creative/studio-demo' : '/partner-enquiry';
-  const primaryStudioLabel = isInternalStudioUser ? 'Open creative studio' : 'Start a media brief';
-  const secondaryStudioHref = isInternalStudioUser ? '/creative' : '/packages';
-  const secondaryStudioLabel = isInternalStudioUser ? 'Back to studio workspace' : 'Explore packages';
 
   const submitJobMutation = useMutation({
     mutationFn: () => advertifiedApi.submitAiPlatformJob({
@@ -361,12 +483,12 @@ export function AiStudioPage() {
               Use one approved brief to generate campaign media across billboards, radio, TV, social, and digital.
             </p>
             <div className="ai-fade-up ai-delay-3 mt-8 flex flex-wrap items-center gap-3">
-              <Link to={primaryStudioHref} className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-brand to-[#14b86e] px-7 py-3 text-sm font-semibold text-white shadow-[0_16px_38px_rgba(15,118,110,0.28)] transition hover:translate-y-[-1px] hover:shadow-[0_20px_42px_rgba(15,118,110,0.32)]">
-                {primaryStudioLabel}
+              <Link to="/creative" className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-brand to-[#14b86e] px-7 py-3 text-sm font-semibold text-white shadow-[0_16px_38px_rgba(15,118,110,0.28)] transition hover:translate-y-[-1px] hover:shadow-[0_20px_42px_rgba(15,118,110,0.32)]">
+                Back to creative dashboard
                 <ArrowRight className="size-4" />
               </Link>
-              <Link to={secondaryStudioHref} className="inline-flex items-center gap-2 rounded-xl border border-slate-600 bg-slate-950 px-7 py-3 text-sm font-semibold text-white transition hover:border-brand/45 hover:bg-slate-900">
-                {secondaryStudioLabel}
+              <Link to="/creative/studio-demo" className="inline-flex items-center gap-2 rounded-xl border border-slate-600 bg-slate-950 px-7 py-3 text-sm font-semibold text-white transition hover:border-brand/45 hover:bg-slate-900">
+                Reset to demo
               </Link>
             </div>
           </div>
@@ -650,12 +772,12 @@ export function AiStudioPage() {
             Brief once, then generate channel-ready outputs with QA and asset pipelines.
           </p>
           <div className="ai-fade-up ai-delay-2 mt-8 flex flex-wrap items-center justify-center gap-3">
-            <Link to={primaryStudioHref} className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-brand to-[#14b86e] px-8 py-4 text-base font-semibold text-white shadow-[0_16px_38px_rgba(15,118,110,0.28)] transition hover:translate-y-[-1px] hover:shadow-[0_20px_42px_rgba(15,118,110,0.32)]">
+            <Link to="/creative" className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-brand to-[#14b86e] px-8 py-4 text-base font-semibold text-white shadow-[0_16px_38px_rgba(15,118,110,0.28)] transition hover:translate-y-[-1px] hover:shadow-[0_20px_42px_rgba(15,118,110,0.32)]">
               <WandSparkles className="size-4" />
-              {primaryStudioLabel}
+              Back to creative dashboard
             </Link>
-            <Link to={secondaryStudioHref} className="inline-flex items-center gap-2 rounded-xl border border-slate-600 bg-slate-950 px-8 py-4 text-base font-semibold text-white transition hover:border-brand/45 hover:bg-slate-900">
-              {secondaryStudioLabel}
+            <Link to="/creative/studio-demo" className="inline-flex items-center gap-2 rounded-xl border border-slate-600 bg-slate-950 px-8 py-4 text-base font-semibold text-white transition hover:border-brand/45 hover:bg-slate-900">
+              Reset to demo
               <ArrowRight className="size-4" />
             </Link>
           </div>

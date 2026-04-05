@@ -124,8 +124,6 @@ test.describe('Mobile Package Selection and Checkout Flow', () => {
     await page.goto('/packages');
 
     // Get width at initial mobile size
-    const initialWidth = await page.evaluate(() => document.body.offsetWidth);
-
     // Simulate viewport resize
     await page.setViewportSize({ width: 375, height: 812 });
     await page.waitForLoadState('networkidle');

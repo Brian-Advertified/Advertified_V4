@@ -18,6 +18,7 @@ function buildCampaign(status: Campaign['status']): Campaign {
     nextAction: 'Next step',
     timeline: [],
     recommendations: [],
+    creativeSystems: [],
     assets: [],
     supplierBookings: [],
     deliveryReports: [],
