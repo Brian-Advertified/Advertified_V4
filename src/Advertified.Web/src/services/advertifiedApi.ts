@@ -7,6 +7,7 @@ import type {
   Campaign,
   CampaignConversationListItem,
   CampaignConversationThread,
+  LegalDocument,
   NotificationSummary,
   CampaignDeliveryReport,
   CampaignCreativeSystemRecord,
@@ -71,6 +72,19 @@ type ConsentPreferenceResponse = {
   marketingCookies: boolean;
   privacyAccepted: boolean;
   hasSavedPreferences: boolean;
+};
+
+type LegalDocumentSectionResponse = {
+  title: string;
+  paragraphs: string[];
+};
+
+type LegalDocumentResponse = {
+  documentKey: string;
+  title: string;
+  versionLabel: string;
+  sections: LegalDocumentSectionResponse[];
+  updatedAtUtc: string;
 };
 
 type PackageOrderResponse = {
@@ -448,6 +462,16 @@ function mapConsentPreference(response: ConsentPreferenceResponse): ConsentPrefe
     marketingCookies: response.marketingCookies,
     privacyAccepted: response.privacyAccepted,
     hasSavedPreferences: response.hasSavedPreferences,
+  };
+}
+
+function mapLegalDocument(response: LegalDocumentResponse): LegalDocument {
+  return {
+    documentKey: response.documentKey,
+    title: response.title,
+    versionLabel: response.versionLabel,
+    sections: response.sections ?? [],
+    updatedAtUtc: response.updatedAtUtc,
   };
 }
 
@@ -1128,6 +1152,10 @@ const publicApi = createPublicApi({
       method: 'POST',
       body: JSON.stringify(payload),
     });
+  },
+  async getLegalDocumentData(documentKey) {
+    const response = await apiRequest<LegalDocumentResponse>(`/public/legal-documents/${encodeURIComponent(documentKey)}`);
+    return mapLegalDocument(response);
   },
 });
 

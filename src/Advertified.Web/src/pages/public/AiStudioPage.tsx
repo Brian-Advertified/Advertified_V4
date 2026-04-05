@@ -5,10 +5,6 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { canAccessAiStudioForStatus, getAiStudioAccessMessage } from '../../features/campaigns/aiStudioAccess';
 import { getActiveJobPollInterval } from '../../lib/queryPolling';
 import { advertifiedApi } from '../../services/advertifiedApi';
-import billboardImage from '../../assets/Channels/optimized/billboard-sa-optimized.jpg';
-import radioImage from '../../assets/Channels/optimized/radio-sa-optimized.jpg';
-import socialImage from '../../assets/Channels/optimized/social-platforms-optimized.jpg';
-import tvImage from '../../assets/Channels/optimized/tv-sa-optimized.jpg';
 
 const studioHighlights = [
   {
@@ -35,8 +31,9 @@ const studioChannels = [
     title: 'Outdoor headlines & visual direction',
     tag: 'Billboards & Digital Screens',
     text: 'Campaign-specific copy, placement notes, and visual direction for real outdoor placements.',
-    image: billboardImage,
-    alt: 'Billboard campaign preview',
+    visualLabel: 'OOH System',
+    heroLine: 'MAKE THEM LOOK',
+    detailLine: 'Digital roadside billboard suite',
     outputs: ['Headline copy', 'Visual brief', 'Format specs', 'Placement notes'],
   },
   {
@@ -44,8 +41,9 @@ const studioChannels = [
     title: 'Scripts, voice routes & broadcast lines',
     tag: 'Radio & TV Audio',
     text: '30-second scripts with CTA, voice direction, and language-ready adaptations for broadcast.',
-    image: radioImage,
-    alt: 'Radio campaign preview',
+    visualLabel: 'Broadcast Audio',
+    heroLine: 'VOICE. PACE. CTA.',
+    detailLine: '30-second multilingual radio route',
     outputs: ['30-sec script', 'Voice direction', 'CTA lines', 'Language variants'],
   },
   {
@@ -53,8 +51,9 @@ const studioChannels = [
     title: 'Shot-by-shot scene guides',
     tag: 'TV & Video',
     text: 'Scene structure, visual direction, and production notes for short-form campaign video.',
-    image: tvImage,
-    alt: 'TV and video campaign preview',
+    visualLabel: 'Video Direction',
+    heroLine: 'SHOT 03 PRODUCT REVEAL',
+    detailLine: 'Scene board with VO timing',
     outputs: ['Shot list', 'Scene guide', 'VO script', 'Edit notes'],
   },
   {
@@ -62,8 +61,9 @@ const studioChannels = [
     title: 'Channel-native cutdowns & media variants',
     tag: 'Social & Digital',
     text: 'Platform-ready copy, caption variants, and creative direction for mobile-first placements.',
-    image: socialImage,
-    alt: 'Social campaign preview',
+    visualLabel: 'Social Suite',
+    heroLine: 'CAMPAIGN CUTDOWNS',
+    detailLine: 'Feed, story, reel variations',
     outputs: ['Captions', 'Story format', 'Feed post', 'Reel guide'],
   },
 ];
@@ -136,6 +136,128 @@ type StudioChannelKey = (typeof studioChannels)[number]['key'];
 
 function formatChannelLabel(value: string) {
   return value.replace(/\booh\b/gi, 'Billboards and Digital Screens');
+}
+
+function renderStudioChannelVisual(channel: (typeof studioChannels)[number]) {
+  if (channel.key === 'billboard') {
+    return (
+      <div className="relative h-full w-full overflow-hidden rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_22%_18%,rgba(20,184,110,0.18),transparent_22%),linear-gradient(180deg,#05070a_0%,#08090d_58%,#040404_100%)]">
+        <div className="absolute inset-x-0 bottom-0 h-[34%] bg-[linear-gradient(180deg,rgba(6,8,10,0)_0%,#090909_100%)]" />
+        <div className="absolute inset-x-[12%] bottom-[10%] h-px bg-[repeating-linear-gradient(90deg,rgba(20,184,110,0.22)_0,rgba(20,184,110,0.22)_28px,transparent_28px,transparent_56px)]" />
+        <div className="absolute left-1/2 top-[24%] w-[58%] -translate-x-1/2">
+          <div className="rounded-[6px] border border-[#2a3a33] bg-[linear-gradient(180deg,#0d130f_0%,#0a0c0b_100%)] px-8 py-7 shadow-[0_30px_90px_rgba(0,0,0,0.45)]">
+            <div className="text-[10px] uppercase tracking-[0.28em] text-[#6ef0aa]/80">{channel.visualLabel}</div>
+            <div className="mt-3 font-serif text-[clamp(2rem,3vw,3.5rem)] italic leading-[0.9] tracking-[-0.03em] text-[#f6f2eb]">
+              {channel.heroLine}
+            </div>
+          </div>
+          <div className="mx-auto flex w-[56%] justify-between">
+            <span className="block h-16 w-[5px] bg-white/12" />
+            <span className="block h-16 w-[5px] bg-white/12" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (channel.key === 'radio') {
+    return (
+      <div className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_center,rgba(20,184,110,0.16),transparent_24%),linear-gradient(180deg,#06080b_0%,#040506_100%)]">
+        {[0, 1, 2, 3].map((ring) => (
+          <div
+            key={ring}
+            className="absolute rounded-full border border-[#14b86e]/15"
+            style={{
+              width: `${180 + ring * 120}px`,
+              height: `${180 + ring * 120}px`,
+              animation: `ai-soft-pulse 4.8s ease-out ${ring * 0.55}s infinite`,
+            }}
+          />
+        ))}
+        <div className="relative z-10 text-center">
+          <div className="text-[10px] uppercase tracking-[0.3em] text-[#6ef0aa]/80">{channel.visualLabel}</div>
+          <div className="mt-5 flex h-16 items-end justify-center gap-[5px]">
+            {[10, 22, 34, 48, 32, 56, 38, 24, 14, 28, 44, 18].map((height, index) => (
+              <span
+                key={`${channel.key}-${height}-${index}`}
+                className="block w-[4px] rounded-full bg-[#6ef0aa]"
+                style={{ height: `${height}px`, animation: `ai-wave-bounce 1.35s ease-in-out ${index * 0.08}s infinite` }}
+              />
+            ))}
+          </div>
+          <div className="mt-6 font-serif text-[clamp(1.4rem,2vw,2.2rem)] italic tracking-[-0.03em] text-[#f6f2eb]">
+            {channel.heroLine}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (channel.key === 'tv') {
+    return (
+      <div className="relative h-full w-full overflow-hidden rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,#030303_0%,#07090c_100%)]">
+        <div className="absolute inset-x-0 top-0 h-[10%] bg-black" />
+        <div className="absolute inset-x-0 bottom-0 h-[10%] bg-black" />
+        <div className="absolute inset-0 bg-[repeating-linear-gradient(180deg,transparent,transparent_3px,rgba(255,255,255,0.02)_3px,rgba(255,255,255,0.02)_4px)] opacity-60" />
+        <div className="absolute inset-x-6 top-[14%] flex items-center justify-between text-[10px] uppercase tracking-[0.24em] text-[#6ef0aa]/70">
+          <span>{channel.visualLabel}</span>
+          <span>00:14:22</span>
+        </div>
+        <div className="relative z-10 flex h-full flex-col items-center justify-center px-8 text-center">
+          <div className="flex h-18 w-18 items-center justify-center rounded-full border border-[#14b86e]/35 bg-[#14b86e]/8">
+            <div className="ml-1 h-0 w-0 border-y-[12px] border-l-[20px] border-y-transparent border-l-[#14b86e]" />
+          </div>
+          <div className="mt-7 font-serif text-[clamp(1.8rem,2.8vw,3rem)] italic leading-[1.02] tracking-[-0.03em] text-[#f6f2eb]">
+            {channel.heroLine}
+          </div>
+          <div className="mt-3 text-[11px] uppercase tracking-[0.24em] text-white/42">{channel.detailLine}</div>
+        </div>
+        <div className="absolute inset-x-[9%] bottom-[13%] h-[2px] bg-white/10">
+          <div className="relative h-full w-[38%] bg-[#14b86e]">
+            <span className="absolute -right-1.5 top-1/2 block h-3 w-3 -translate-y-1/2 rounded-full bg-[#14b86e]" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_50%_24%,rgba(20,184,110,0.14),transparent_26%),linear-gradient(180deg,#050507_0%,#09090b_100%)] px-8">
+      <div className="flex items-end justify-center gap-5">
+        {[['-6deg', 'translate-y-8'], ['0deg', ''], ['6deg', 'translate-y-6']].map(([rotation, offset], index) => (
+          <div
+            key={`${channel.key}-phone-${index}`}
+            className={`relative h-[290px] w-[150px] overflow-hidden rounded-[28px] border border-white/12 bg-[#0b0d0f] shadow-[0_24px_60px_rgba(0,0,0,0.34)] ${offset}`}
+            style={{ transform: `rotate(${rotation})` }}
+          >
+            <div className="flex h-7 items-center justify-center border-b border-white/6 bg-black/40">
+              <div className="h-1.5 w-12 rounded-full bg-white/10" />
+            </div>
+            <div className="space-y-3 p-3">
+              <div className="flex items-center justify-between">
+                <span className="h-5 w-5 rounded-full bg-[#14b86e]" />
+                <div className="flex gap-1.5">
+                  <span className="h-3 w-3 rounded-[3px] bg-white/8" />
+                  <span className="h-3 w-3 rounded-[3px] bg-white/8" />
+                </div>
+              </div>
+              <div className="rounded-[18px] border border-white/6 bg-[radial-gradient(circle_at_50%_30%,rgba(20,184,110,0.12),transparent_26%),linear-gradient(180deg,#101214_0%,#0c0d10_100%)] p-3">
+                <div className="text-[9px] uppercase tracking-[0.24em] text-[#6ef0aa]/75">{channel.visualLabel}</div>
+                <div className="mt-4 font-serif text-lg italic leading-[0.95] tracking-[-0.03em] text-[#f6f2eb]">
+                  {index === 1 ? channel.heroLine : index === 0 ? 'STORY CUT' : 'REEL DROP'}
+                </div>
+              </div>
+              <div className="space-y-2">
+                {[0, 1].map((line) => (
+                  <div key={`${channel.key}-line-${index}-${line}`} className="h-2 rounded-full bg-white/8" style={{ width: line === 0 ? '100%' : '62%' }} />
+                ))}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export function AiStudioPage() {
@@ -270,19 +392,17 @@ export function AiStudioPage() {
               onMouseEnter={() => setCursorLarge(true)}
               onMouseLeave={() => setCursorLarge(false)}
             >
-              <img
-                src={channel.image}
-                alt={channel.alt}
-                className="absolute inset-0 h-full w-full scale-[1.02] object-cover transition duration-700 ease-out group-hover:scale-[1.06]"
-              />
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,5,5,0.16)_0%,rgba(5,5,5,0.36)_36%,rgba(5,5,5,0.9)_100%)] transition duration-500 group-hover:bg-[linear-gradient(180deg,rgba(5,5,5,0.08)_0%,rgba(5,5,5,0.26)_34%,rgba(5,5,5,0.88)_100%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_22%,rgba(20,184,110,0.12),transparent_24%)] opacity-80" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_14%,rgba(20,184,110,0.1),transparent_24%),radial-gradient(circle_at_82%_22%,rgba(255,255,255,0.05),transparent_18%),linear-gradient(180deg,#050505_0%,#070708_100%)]" />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(5,5,5,0.06)_0%,rgba(5,5,5,0.18)_32%,rgba(5,5,5,0.86)_100%)]" />
 
-              <div className="page-shell relative flex min-h-[82vh] items-end px-4 py-10 sm:px-6 sm:py-12">
+              <div className="page-shell relative grid min-h-[82vh] items-end gap-10 px-4 py-10 sm:px-6 sm:py-12 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
+                <div className={`ai-fade-up ${index % 2 === 0 ? 'ai-delay-1' : 'ai-delay-2'} order-2 lg:order-1`}>
+                  {renderStudioChannelVisual(channel)}
+                </div>
                 <div
-                  className={`ai-fade-up flex w-full flex-col gap-6 lg:flex-row lg:items-end lg:justify-between ${
+                  className={`ai-fade-up flex w-full flex-col gap-6 ${
                     index % 2 === 0 ? 'ai-delay-1' : 'ai-delay-2'
-                  }`}
+                  } order-1 lg:order-2 lg:pl-8`}
                 >
                   <div className="max-w-2xl">
                     <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#14b86e]/25 bg-[#14b86e]/10 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-[#75f2af]">

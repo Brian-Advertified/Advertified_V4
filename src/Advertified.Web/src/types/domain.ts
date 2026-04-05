@@ -42,6 +42,19 @@ export interface ConsentPreference {
   hasSavedPreferences: boolean;
 }
 
+export interface LegalDocumentSection {
+  title: string;
+  paragraphs: string[];
+}
+
+export interface LegalDocument {
+  documentKey: string;
+  title: string;
+  versionLabel: string;
+  sections: LegalDocumentSection[];
+  updatedAtUtc: string;
+}
+
 export interface PackagePreviewMapPoint {
   label: string;
   siteName: string;

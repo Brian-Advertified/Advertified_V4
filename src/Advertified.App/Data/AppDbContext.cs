@@ -58,6 +58,8 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<InvoiceLineItem> InvoiceLineItems { get; set; }
 
+    public virtual DbSet<LegalDocument> LegalDocuments { get; set; }
+
     public virtual DbSet<NotificationReadReceipt> NotificationReadReceipts { get; set; }
 
     public virtual DbSet<PackageBand> PackageBands { get; set; }

@@ -32,6 +32,37 @@ namespace Advertified.App.Tests;
 public class HttpWorkflowIntegrationTests
 {
     [Fact]
+    public async Task PublicLegalDocuments_ReturnsSeededTermsDocumentOverHttp()
+    {
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                db.LegalDocuments.Add(new LegalDocument
+                {
+                    Id = Guid.NewGuid(),
+                    DocumentKey = "terms-and-conditions",
+                    Title = "Terms and Conditions",
+                    VersionLabel = "2026-04-05",
+                    BodyJson = "[{\"title\":\"1. Agreement Formation\",\"paragraphs\":[\"Terms body paragraph one.\",\"Terms body paragraph two.\"]}]",
+                    IsActive = true,
+                    CreatedAtUtc = DateTime.UtcNow,
+                    UpdatedAtUtc = DateTime.UtcNow
+                });
+                db.SaveChanges();
+            });
+
+        var response = await harness.Client.GetAsync("/public/legal-documents/terms-and-conditions");
+        var content = await response.Content.ReadAsStringAsync();
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK, content);
+
+        using var json = System.Text.Json.JsonDocument.Parse(content);
+        json.RootElement.GetProperty("documentKey").GetString().Should().Be("terms-and-conditions");
+        json.RootElement.GetProperty("title").GetString().Should().Be("Terms and Conditions");
+        json.RootElement.GetProperty("sections")[0].GetProperty("title").GetString().Should().Be("1. Agreement Formation");
+    }
+
+    [Fact]
     public async Task AuthRegister_CompletesExistingPendingClientAccountOverHttp()
     {
         var prospectEmail = "prospect.client@example.com";
@@ -1813,7 +1844,7 @@ internal static class TestSeed
             {
                 Id = Guid.NewGuid(),
                 UserId = userId,
-                BusinessName = "Black Space PSG (Pty) Ltd",
+                BusinessName = "Advertified (Pty) Ltd",
                 BusinessType = "pty_ltd",
                 RegistrationNumber = $"2026/{Random.Shared.Next(100000, 999999)}/07",
                 Industry = "Health",

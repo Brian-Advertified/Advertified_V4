@@ -1439,7 +1439,7 @@ public class ControllerMappingsTests
                 {
                     Id = Guid.NewGuid(),
                     UserId = userId,
-                    BusinessName = "Black Space PSG (Pty) Ltd",
+                    BusinessName = "Advertified (Pty) Ltd",
                     BusinessType = "pty_ltd",
                     RegistrationNumber = "2024/123456/07",
                     Industry = "Health",

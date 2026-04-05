@@ -333,6 +333,38 @@ public partial class AppDbContext
                 .HasConstraintName("invoices_user_id_fkey");
         });
 
+        modelBuilder.Entity<LegalDocument>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("legal_documents_pkey");
+
+            entity.ToTable("legal_documents");
+
+            entity.HasIndex(e => e.DocumentKey, "uq_legal_documents_document_key").IsUnique();
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.BodyJson)
+                .HasColumnType("jsonb")
+                .HasColumnName("body_json");
+            entity.Property(e => e.CreatedAtUtc)
+                .HasDefaultValueSql("timezone('utc', now())")
+                .HasColumnName("created_at_utc");
+            entity.Property(e => e.DocumentKey)
+                .HasMaxLength(120)
+                .HasColumnName("document_key");
+            entity.Property(e => e.IsActive).HasColumnName("is_active");
+            entity.Property(e => e.Title)
+                .HasMaxLength(200)
+                .HasColumnName("title");
+            entity.Property(e => e.UpdatedAtUtc)
+                .HasDefaultValueSql("timezone('utc', now())")
+                .HasColumnName("updated_at_utc");
+            entity.Property(e => e.VersionLabel)
+                .HasMaxLength(50)
+                .HasColumnName("version_label");
+        });
+
         modelBuilder.Entity<InvoiceLineItem>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("invoice_line_items_pkey");

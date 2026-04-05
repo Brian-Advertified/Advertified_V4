@@ -1,5 +1,6 @@
 import type {
   ConsentPreference,
+  LegalDocument,
   PackageAreaOption,
   PackageBand,
   PackageCheckoutSession,
@@ -67,6 +68,7 @@ type PublicApiDependencies = {
     inventorySummary?: string;
     message: string;
   }) => Promise<{ message: string }>;
+  getLegalDocumentData: (documentKey: string) => Promise<LegalDocument>;
 };
 
 function toCheckoutSession(
@@ -128,6 +130,7 @@ export function createPublicApi({
   getOrderData,
   captureVodaPayCallbackData,
   submitPartnerEnquiryData,
+  getLegalDocumentData,
 }: PublicApiDependencies) {
   return {
     async getConsentPreferences(browserId: string) {
@@ -205,6 +208,10 @@ export function createPublicApi({
       message: string;
     }) {
       return submitPartnerEnquiryData(payload);
+    },
+
+    async getLegalDocument(documentKey: string) {
+      return getLegalDocumentData(documentKey);
     },
   };
 }
