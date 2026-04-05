@@ -89,7 +89,7 @@ set
     registration_number = '2024/104944/07',
     vat_number = '4210266484',
     address = E'08 Kikuyu Road\nSunninghill\nGauteng\n2191',
-    contact_email = 'info@blackspacegroup.co.za',
+    contact_email = 'ad@advertified.co.za',
     contact_phone = '0812549067',
     is_active = true,
     updated_at_utc = timezone('utc', now())
@@ -112,7 +112,7 @@ select
     '2024/104944/07',
     '4210266484',
     E'08 Kikuyu Road\nSunninghill\nGauteng\n2191',
-    'info@blackspacegroup.co.za',
+    'ad@advertified.co.za',
     '0812549067',
     true
 where not exists (

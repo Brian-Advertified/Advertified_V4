@@ -52,12 +52,12 @@ export function Navbar() {
               to="/ai-studio"
               className={`relative inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] transition ${
                 isAiStudioActive
-                  ? 'border-slate-900 bg-slate-900 text-white shadow-[0_12px_28px_rgba(15,23,42,0.32)]'
+                  ? 'border-brand/35 bg-gradient-to-r from-brand via-highlight to-brand text-white shadow-[0_14px_32px_rgba(15,118,110,0.28)]'
                   : 'border-brand/25 bg-gradient-to-r from-brand-soft via-white to-brand-soft text-brand shadow-[0_10px_24px_rgba(15,118,110,0.2)] hover:border-brand/35 hover:shadow-[0_14px_28px_rgba(15,118,110,0.24)]'
               }`}
             >
               AI Media Studio
-              <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[10px] tracking-[0.14em] text-white">DEV</span>
+              <span className="rounded-full bg-black/25 px-2 py-0.5 text-[10px] tracking-[0.14em] text-white">DEV</span>
             </Link>
           ) : null}
         </nav>
@@ -115,13 +115,13 @@ export function Navbar() {
                 to="/ai-studio"
                 className={`inline-flex items-center justify-center gap-2 rounded-full border px-4 py-3 text-xs font-semibold uppercase tracking-[0.22em] ${
                   isAiStudioActive
-                    ? 'border-slate-900 bg-slate-900 text-white'
+                    ? 'border-brand/35 bg-gradient-to-r from-brand via-highlight to-brand text-white'
                     : 'border-brand/25 bg-gradient-to-r from-brand-soft via-white to-brand-soft text-brand'
                 }`}
                 onClick={() => setOpen(false)}
               >
                 AI Media Studio
-                <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[10px] tracking-[0.14em] text-white">DEV</span>
+                <span className="rounded-full bg-black/25 px-2 py-0.5 text-[10px] tracking-[0.14em] text-white">DEV</span>
               </Link>
             ) : null}
             {workspaceLink ? (
