@@ -1592,8 +1592,8 @@ textarea {
 .studio-page {
   --studio-ink: #080808;
   --studio-paper: #f5f2ec;
-  --studio-amber: #14b86e;
-  --studio-accent-deep: #0f766e;
+  --studio-amber: #0f766e;
+  --studio-accent-deep: #115e59;
   background: var(--studio-ink);
   color: var(--studio-paper);
   font-family: "Syne", sans-serif;
@@ -1615,9 +1615,9 @@ textarea {
 
 .studio-page::before {
   background:
-    radial-gradient(circle at 18% 18%, rgba(20,184,110,.12), transparent 24%),
-    radial-gradient(circle at 82% 14%, rgba(15,118,110,.12), transparent 18%),
-    linear-gradient(180deg, rgba(20,184,110,.04) 0%, transparent 18%, transparent 72%, rgba(15,118,110,.05) 100%);
+    radial-gradient(circle at 18% 18%, rgba(15,118,110,.14), transparent 24%),
+    radial-gradient(circle at 82% 14%, rgba(17,94,89,.14), transparent 18%),
+    linear-gradient(180deg, rgba(15,118,110,.05) 0%, transparent 18%, transparent 72%, rgba(17,94,89,.06) 100%);
   opacity: .9;
 }
 
