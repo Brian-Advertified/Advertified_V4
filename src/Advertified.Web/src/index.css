@@ -1499,3 +1499,46 @@ textarea {
     border-radius: 20px;
   }
 }
+
+.ops-mobile-nav {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.ops-mobile-nav-item {
+  min-width: 0;
+  justify-content: center;
+}
+
+@media (min-width: 640px) and (max-width: 1023px) {
+  .ops-mobile-nav {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767px) {
+  .ops-workspace .hero-glass-card {
+    padding: 1rem;
+  }
+
+  .ops-workspace .hero-glass-card .button-primary,
+  .ops-workspace .hero-glass-card .button-secondary {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .ops-workspace table {
+    display: block;
+    width: 100%;
+    min-width: max-content;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+  }
+
+  .ops-workspace th,
+  .ops-workspace td {
+    padding: 0.85rem 0.9rem;
+  }
+}
