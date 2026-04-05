@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { ArrowRight, Sparkles, WandSparkles } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { useAuth } from '../../features/auth/auth-context';
 import { canAccessAiStudioForStatus, getAiStudioAccessMessage } from '../../features/campaigns/aiStudioAccess';
+import { canAccessCreativeStudio } from '../../lib/access';
 import { getActiveJobPollInterval } from '../../lib/queryPolling';
 import { advertifiedApi } from '../../services/advertifiedApi';
 
@@ -27,6 +29,7 @@ function formatChannelLabel(value: string) {
 }
 
 export function AiStudioPage() {
+  const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const campaignIdFromUrl = searchParams.get('campaignId')?.trim() ?? '';
   const [campaignId, setCampaignId] = useState(campaignIdFromUrl);
@@ -87,6 +90,11 @@ export function AiStudioPage() {
   const aiStudioAccessMessage = selectedCampaign
     ? getAiStudioAccessMessage(selectedCampaign.status)
     : 'AI Studio becomes available only after a purchased campaign is complete and ready to go live.';
+  const isInternalStudioUser = canAccessCreativeStudio(user);
+  const primaryStudioHref = isInternalStudioUser ? '/creative/studio-demo' : '/partner-enquiry';
+  const primaryStudioLabel = isInternalStudioUser ? 'Open creative studio' : 'Start a media brief';
+  const secondaryStudioHref = isInternalStudioUser ? '/creative' : '/packages';
+  const secondaryStudioLabel = isInternalStudioUser ? 'Back to studio workspace' : 'Explore packages';
 
   const submitJobMutation = useMutation({
     mutationFn: () => advertifiedApi.submitAiPlatformJob({
@@ -353,12 +361,12 @@ export function AiStudioPage() {
               Use one approved brief to generate campaign media across billboards, radio, TV, social, and digital.
             </p>
             <div className="ai-fade-up ai-delay-3 mt-8 flex flex-wrap items-center gap-3">
-              <Link to="/partner-enquiry" className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-brand to-[#14b86e] px-7 py-3 text-sm font-semibold text-white shadow-[0_16px_38px_rgba(15,118,110,0.28)] transition hover:translate-y-[-1px] hover:shadow-[0_20px_42px_rgba(15,118,110,0.32)]">
-                Start a media brief
+              <Link to={primaryStudioHref} className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-brand to-[#14b86e] px-7 py-3 text-sm font-semibold text-white shadow-[0_16px_38px_rgba(15,118,110,0.28)] transition hover:translate-y-[-1px] hover:shadow-[0_20px_42px_rgba(15,118,110,0.32)]">
+                {primaryStudioLabel}
                 <ArrowRight className="size-4" />
               </Link>
-              <Link to="/packages" className="inline-flex items-center gap-2 rounded-xl border border-slate-600 bg-slate-950 px-7 py-3 text-sm font-semibold text-white transition hover:border-brand/45 hover:bg-slate-900">
-                Explore packages
+              <Link to={secondaryStudioHref} className="inline-flex items-center gap-2 rounded-xl border border-slate-600 bg-slate-950 px-7 py-3 text-sm font-semibold text-white transition hover:border-brand/45 hover:bg-slate-900">
+                {secondaryStudioLabel}
               </Link>
             </div>
           </div>
@@ -642,12 +650,12 @@ export function AiStudioPage() {
             Brief once, then generate channel-ready outputs with QA and asset pipelines.
           </p>
           <div className="ai-fade-up ai-delay-2 mt-8 flex flex-wrap items-center justify-center gap-3">
-            <Link to="/partner-enquiry" className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-brand to-[#14b86e] px-8 py-4 text-base font-semibold text-white shadow-[0_16px_38px_rgba(15,118,110,0.28)] transition hover:translate-y-[-1px] hover:shadow-[0_20px_42px_rgba(15,118,110,0.32)]">
+            <Link to={primaryStudioHref} className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-brand to-[#14b86e] px-8 py-4 text-base font-semibold text-white shadow-[0_16px_38px_rgba(15,118,110,0.28)] transition hover:translate-y-[-1px] hover:shadow-[0_20px_42px_rgba(15,118,110,0.32)]">
               <WandSparkles className="size-4" />
-              Start a media brief
+              {primaryStudioLabel}
             </Link>
-            <Link to="/packages" className="inline-flex items-center gap-2 rounded-xl border border-slate-600 bg-slate-950 px-8 py-4 text-base font-semibold text-white transition hover:border-brand/45 hover:bg-slate-900">
-              Explore packages
+            <Link to={secondaryStudioHref} className="inline-flex items-center gap-2 rounded-xl border border-slate-600 bg-slate-950 px-8 py-4 text-base font-semibold text-white transition hover:border-brand/45 hover:bg-slate-900">
+              {secondaryStudioLabel}
               <ArrowRight className="size-4" />
             </Link>
           </div>
