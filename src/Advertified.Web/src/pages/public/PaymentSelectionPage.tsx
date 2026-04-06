@@ -34,16 +34,11 @@ const providerOptions: ProviderOption[] = [
 ];
 
 const lulaEligibilityRequirements = [
-  'have been operating for at least 1 year',
+  'have been operating for more than 1 year',
   'earn R40,000 or more per month',
   'are registered in South Africa',
   'fall within eligible private-sector business types',
 ] as const;
-
-function extractRegistrationYear(registrationNumber?: string) {
-  const match = registrationNumber?.trim().match(/^(\d{4})\//);
-  return match ? Number(match[1]) : null;
-}
 
 export function PaymentSelectionPage() {
   const [searchParams] = useSearchParams();
@@ -63,12 +58,6 @@ export function PaymentSelectionPage() {
   const [selectedProvider, setSelectedProvider] = React.useState<PaymentProvider>('lula');
   const [isResendingActivation, setIsResendingActivation] = React.useState(false);
   const authNextPath = `${location.pathname}${location.search}`;
-  const registrationYear = extractRegistrationYear(user?.registrationNumber);
-  const currentYear = new Date().getFullYear();
-  const lulaBlockedByRegistrationYear = registrationYear !== null && currentYear - registrationYear < 1;
-  const lulaEligibilityWarning = lulaBlockedByRegistrationYear
-    ? `Pay Later is unavailable because the company registration year is ${registrationYear}, which indicates the business has been trading for less than 1 year.`
-    : null;
 
   const packagesQuery = useQuery({ queryKey: ['packages'], queryFn: advertifiedApi.getPackages, ...catalogQueryOptions });
   const existingOrderQuery = useQuery({
@@ -91,12 +80,6 @@ export function PaymentSelectionPage() {
   const chargedAmount = isExistingOrderCheckout
     ? (selectedRecommendation?.totalCost ?? existingOrderQuery.data?.amount ?? 0)
     : amount;
-
-  React.useEffect(() => {
-    if (selectedProvider === 'lula' && lulaBlockedByRegistrationYear) {
-      setSelectedProvider('vodapay');
-    }
-  }, [lulaBlockedByRegistrationYear, selectedProvider]);
 
   const checkoutMutation = useMutation({
     mutationFn: async (paymentProvider: PaymentProvider) => {
@@ -190,7 +173,6 @@ export function PaymentSelectionPage() {
         <div className="space-y-4">
           {providerOptions.map((provider) => {
             const selected = provider.id === selectedProvider;
-            const lulaDisabled = provider.id === 'lula' && lulaBlockedByRegistrationYear;
 
             return (
               <button
@@ -198,13 +180,10 @@ export function PaymentSelectionPage() {
                 type="button"
                 aria-pressed={selected}
                 aria-label={`Select ${provider.name}. ${provider.description}`}
-                className={`payment-option-card w-full text-left min-h-[108px] px-4 py-4 sm:px-5 sm:py-5 ${selected ? 'payment-option-card-selected' : ''} ${lulaDisabled ? 'cursor-not-allowed opacity-60' : ''}`}
+                className={`payment-option-card w-full text-left min-h-[108px] px-4 py-4 sm:px-5 sm:py-5 ${selected ? 'payment-option-card-selected' : ''}`}
                 onClick={() => {
-                  if (!lulaDisabled) {
-                    setSelectedProvider(provider.id);
-                  }
+                  setSelectedProvider(provider.id);
                 }}
-                disabled={lulaDisabled}
               >
                 <div className="min-w-0">
                   <div className="flex items-center justify-between gap-3">
@@ -214,9 +193,6 @@ export function PaymentSelectionPage() {
                     <div className={`payment-option-indicator ${selected ? 'payment-option-indicator-selected' : ''}`} aria-hidden="true" />
                   </div>
                   <p className="mt-3 text-sm leading-7 text-ink-soft">{provider.description}</p>
-                  {lulaDisabled && lulaEligibilityWarning ? (
-                    <p className="mt-3 text-sm font-semibold leading-7 text-amber-800">{lulaEligibilityWarning}</p>
-                  ) : null}
                 </div>
               </button>
             );
@@ -258,11 +234,6 @@ export function PaymentSelectionPage() {
               <p className="text-sm leading-7 text-amber-900">
                 If this option is not the right fit for your business, you can still complete your order with <strong>Pay Now</strong>.
               </p>
-              {lulaEligibilityWarning ? (
-                <p className="text-sm font-semibold leading-7 text-amber-900">
-                  {lulaEligibilityWarning}
-                </p>
-              ) : null}
             </div>
           ) : null}
 

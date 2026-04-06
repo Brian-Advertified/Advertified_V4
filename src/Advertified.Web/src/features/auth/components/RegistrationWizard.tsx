@@ -49,6 +49,7 @@ export function RegistrationWizard({
   }
 
   const { businessTypes, industries, provinces, revenueBands } = formOptionsQuery.data;
+  const citizenshipField = register('isSouthAfricanCitizen');
 
   function handleAddressRetrieve(response: AddressAutofillRetrieveResponse) {
     const feature = response.features[0];
@@ -101,9 +102,18 @@ export function RegistrationWizard({
 
           <Field label="Citizenship *" error={errors.isSouthAfricanCitizen?.message} className="register-field-full">
             <select
-              {...register('isSouthAfricanCitizen', {
-                setValueAs: (value) => value === true || value === 'true',
-              })}
+              name={citizenshipField.name}
+              ref={citizenshipField.ref}
+              onBlur={citizenshipField.onBlur}
+              value={isCitizen ? 'true' : 'false'}
+              onChange={(event) => {
+                const nextValue = event.target.value === 'true';
+                setValue('isSouthAfricanCitizen', nextValue, {
+                  shouldDirty: true,
+                  shouldTouch: true,
+                  shouldValidate: true,
+                });
+              }}
               className="register-input"
             >
               <option value="true">South African Citizen</option>

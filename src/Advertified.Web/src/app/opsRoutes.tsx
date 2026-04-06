@@ -1,41 +1,39 @@
 import { Navigate } from 'react-router-dom';
 import { ProtectedRoute } from '../components/ui/ProtectedRoute';
-import { lazyPage, type AppRoute } from './routeUtils';
-
-const CreativeDirectorDashboardPage = lazyPage(() => import('../pages/creative/CreativeDirectorPages'), 'CreativeDirectorDashboardPage');
-const CreativeStudioDemoPage = lazyPage(() => import('../pages/creative/CreativeDirectorPages'), 'CreativeStudioDemoPage');
-const AgentCampaignDetailPage = lazyPage(() => import('../pages/agent/AgentCampaignDetailPage'), 'AgentCampaignDetailPage');
-const AgentCreateRecommendationPage = lazyPage(() => import('../pages/agent/AgentCreateRecommendationPage'), 'AgentCreateRecommendationPage');
-const AgentApprovalsPage = lazyPage(() => import('../pages/agent/AgentApprovalsPage'), 'AgentApprovalsPage');
-const AgentBriefsPage = lazyPage(() => import('../pages/agent/AgentBriefsPage'), 'AgentBriefsPage');
-const AgentCampaignsPage = lazyPage(() => import('../pages/agent/AgentCampaignsPage'), 'AgentCampaignsPage');
-const AgentDashboardPage = lazyPage(() => import('../pages/agent/AgentDashboardPage'), 'AgentDashboardPage');
-const AgentLeadsClientsPage = lazyPage(() => import('../pages/agent/AgentLeadsClientsPage'), 'AgentLeadsClientsPage');
-const AgentMessagesNotesPage = lazyPage(() => import('../pages/agent/AgentMessagesNotesPage'), 'AgentMessagesNotesPage');
-const AgentRecommendationBuilderPage = lazyPage(() => import('../pages/agent/AgentRecommendationBuilderPage'), 'AgentRecommendationBuilderPage');
-const AgentReviewSendPage = lazyPage(() => import('../pages/agent/AgentReviewSendPage'), 'AgentReviewSendPage');
-const AgentSalesPage = lazyPage(() => import('../pages/agent/AgentSalesPage'), 'AgentSalesPage');
-
-const CreativeDirectorStudioPage = lazyPage(() => import('../pages/creative/CreativeDirectorPages'), 'CreativeDirectorStudioPage');
-
-const AdminDashboardPage = lazyPage(() => import('../pages/admin/AdminDashboardPage'), 'AdminDashboardPage');
-const AdminCampaignOperationsPage = lazyPage(() => import('../pages/admin/AdminCampaignOperationsPage'), 'AdminCampaignOperationsPage');
-const AdminPackageOrdersPage = lazyPage(() => import('../pages/admin/AdminPackageOrdersPage'), 'AdminPackageOrdersPage');
-const AdminAuditPage = lazyPage(() => import('../pages/admin/AdminAuditPage'), 'AdminAuditPage');
-const AdminEnginePage = lazyPage(() => import('../pages/admin/AdminEnginePage'), 'AdminEnginePage');
-const AdminGeographyPage = lazyPage(() => import('../pages/admin/AdminGeographyPage'), 'AdminGeographyPage');
-const AdminHealthPage = lazyPage(() => import('../pages/admin/AdminSectionPages'), 'AdminHealthPage');
-const AdminImportsPage = lazyPage(() => import('../pages/admin/AdminSectionPages'), 'AdminImportsPage');
-const AdminIntegrationsPage = lazyPage(() => import('../pages/admin/AdminIntegrationsPage'), 'AdminIntegrationsPage');
-const AdminMonitoringPage = lazyPage(() => import('../pages/admin/AdminMonitoringPage'), 'AdminMonitoringPage');
-const AdminPreviewRulesPage = lazyPage(() => import('../pages/admin/AdminPreviewRulesPage'), 'AdminPreviewRulesPage');
-const AdminAiVoicesPage = lazyPage(() => import('../pages/admin/AdminAiVoicesPage'), 'AdminAiVoicesPage');
-const AdminAiVoicePacksPage = lazyPage(() => import('../pages/admin/AdminAiVoicePacksPage'), 'AdminAiVoicePacksPage');
-const AdminAiVoiceTemplatesPage = lazyPage(() => import('../pages/admin/AdminAiVoiceTemplatesPage'), 'AdminAiVoiceTemplatesPage');
-const AdminAiAdOpsPage = lazyPage(() => import('../pages/admin/AdminAiAdOpsPage'), 'AdminAiAdOpsPage');
-const AdminPricingPage = lazyPage(() => import('../pages/admin/AdminPricingPage'), 'AdminPricingPage');
-const AdminStationsPage = lazyPage(() => import('../pages/admin/AdminStationsPage'), 'AdminStationsPage');
-const AdminUsersPage = lazyPage(() => import('../pages/admin/AdminUsersPage'), 'AdminUsersPage');
+import type { AppRoute } from './routeUtils';
+import {
+  CreativeDirectorDashboardPage,
+  CreativeStudioDemoPage,
+  CreativeDirectorStudioPage,
+} from '../pages/creative/CreativeDirectorPages';
+import { AgentCampaignDetailPage } from '../pages/agent/AgentCampaignDetailPage';
+import { AgentCreateRecommendationPage } from '../pages/agent/AgentCreateRecommendationPage';
+import { AgentApprovalsPage } from '../pages/agent/AgentApprovalsPage';
+import { AgentBriefsPage } from '../pages/agent/AgentBriefsPage';
+import { AgentCampaignsPage } from '../pages/agent/AgentCampaignsPage';
+import { AgentDashboardPage } from '../pages/agent/AgentDashboardPage';
+import { AgentLeadsClientsPage } from '../pages/agent/AgentLeadsClientsPage';
+import { AgentMessagesNotesPage } from '../pages/agent/AgentMessagesNotesPage';
+import { AgentRecommendationBuilderPage } from '../pages/agent/AgentRecommendationBuilderPage';
+import { AgentReviewSendPage } from '../pages/agent/AgentReviewSendPage';
+import { AgentSalesPage } from '../pages/agent/AgentSalesPage';
+import { AdminDashboardPage } from '../pages/admin/AdminDashboardPage';
+import { AdminCampaignOperationsPage } from '../pages/admin/AdminCampaignOperationsPage';
+import { AdminPackageOrdersPage } from '../pages/admin/AdminPackageOrdersPage';
+import { AdminAuditPage } from '../pages/admin/AdminAuditPage';
+import { AdminEnginePage } from '../pages/admin/AdminEnginePage';
+import { AdminGeographyPage } from '../pages/admin/AdminGeographyPage';
+import { AdminHealthPage, AdminImportsPage } from '../pages/admin/AdminSectionPages';
+import { AdminIntegrationsPage } from '../pages/admin/AdminIntegrationsPage';
+import { AdminMonitoringPage } from '../pages/admin/AdminMonitoringPage';
+import { AdminPreviewRulesPage } from '../pages/admin/AdminPreviewRulesPage';
+import { AdminAiVoicesPage } from '../pages/admin/AdminAiVoicesPage';
+import { AdminAiVoicePacksPage } from '../pages/admin/AdminAiVoicePacksPage';
+import { AdminAiVoiceTemplatesPage } from '../pages/admin/AdminAiVoiceTemplatesPage';
+import { AdminAiAdOpsPage } from '../pages/admin/AdminAiAdOpsPage';
+import { AdminPricingPage } from '../pages/admin/AdminPricingPage';
+import { AdminStationsPage } from '../pages/admin/AdminStationsPage';
+import { AdminUsersPage } from '../pages/admin/AdminUsersPage';
 
 export const opsRoutes: AppRoute[] = [
   { path: '/creative', element: <ProtectedRoute requireCreativeDirector><CreativeDirectorDashboardPage /></ProtectedRoute> },
