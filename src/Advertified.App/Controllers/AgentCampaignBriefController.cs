@@ -254,7 +254,6 @@ public sealed class AgentCampaignBriefController : ControllerBase
         brief.TargetInterestsJson = Serialize(request.TargetInterests);
         brief.TargetAudienceNotes = request.TargetAudienceNotes;
         brief.CustomerType = request.CustomerType;
-        brief.CurrentCustomerNotes = request.CurrentCustomerNotes;
         brief.BuyingBehaviour = request.BuyingBehaviour;
         brief.DecisionCycle = request.DecisionCycle;
         brief.PricePositioning = request.PricePositioning;

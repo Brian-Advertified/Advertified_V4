@@ -74,6 +74,33 @@ public sealed class BroadcastInventoryRecord
     [JsonPropertyName("audience_keywords")]
     public List<string> AudienceKeywords { get; set; } = new();
 
+    [JsonPropertyName("buying_behaviour_fit")]
+    public string? BuyingBehaviourFit { get; set; }
+
+    [JsonPropertyName("price_positioning_fit")]
+    public string? PricePositioningFit { get; set; }
+
+    [JsonPropertyName("sales_model_fit")]
+    public string? SalesModelFit { get; set; }
+
+    [JsonPropertyName("objective_fit_primary")]
+    public string? ObjectiveFitPrimary { get; set; }
+
+    [JsonPropertyName("objective_fit_secondary")]
+    public string? ObjectiveFitSecondary { get; set; }
+
+    [JsonPropertyName("environment_type")]
+    public string? EnvironmentType { get; set; }
+
+    [JsonPropertyName("premium_mass_fit")]
+    public string? PremiumMassFit { get; set; }
+
+    [JsonPropertyName("data_confidence")]
+    public string? DataConfidence { get; set; }
+
+    [JsonPropertyName("intelligence_notes")]
+    public string? IntelligenceNotes { get; set; }
+
     [JsonPropertyName("packages")]
     public JsonElement Packages { get; set; }
 

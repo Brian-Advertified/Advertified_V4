@@ -361,7 +361,27 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
             ["urbanRuralMix"] = record.UrbanRuralMix,
             ["urban_rural_mix"] = record.UrbanRuralMix,
             ["targetAudience"] = record.TargetAudience,
-            ["target_audience"] = record.TargetAudience
+            ["target_audience"] = record.TargetAudience,
+            ["audienceKeywords"] = record.AudienceKeywords,
+            ["audience_keywords"] = record.AudienceKeywords,
+            ["buyingBehaviourFit"] = record.BuyingBehaviourFit,
+            ["buying_behaviour_fit"] = record.BuyingBehaviourFit,
+            ["pricePositioningFit"] = record.PricePositioningFit,
+            ["price_positioning_fit"] = record.PricePositioningFit,
+            ["salesModelFit"] = record.SalesModelFit,
+            ["sales_model_fit"] = record.SalesModelFit,
+            ["objectiveFitPrimary"] = record.ObjectiveFitPrimary,
+            ["objective_fit_primary"] = record.ObjectiveFitPrimary,
+            ["objectiveFitSecondary"] = record.ObjectiveFitSecondary,
+            ["objective_fit_secondary"] = record.ObjectiveFitSecondary,
+            ["environmentType"] = record.EnvironmentType,
+            ["environment_type"] = record.EnvironmentType,
+            ["premiumMassFit"] = record.PremiumMassFit,
+            ["premium_mass_fit"] = record.PremiumMassFit,
+            ["dataConfidence"] = record.DataConfidence,
+            ["data_confidence"] = record.DataConfidence,
+            ["inventoryIntelligenceNotes"] = record.IntelligenceNotes,
+            ["inventory_intelligence_notes"] = record.IntelligenceNotes
         };
     }
 

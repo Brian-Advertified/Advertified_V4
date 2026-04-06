@@ -21,6 +21,7 @@ var connectionString = builder.Configuration.GetConnectionString("Advertified")
 const string FrontendCorsPolicy = "AdvertifiedFrontend";
 
 builder.Services.AddControllers();
+builder.Services.AddMemoryCache();
 builder.Services.Configure<HostOptions>(options =>
 {
     options.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.StopHost;
@@ -73,6 +74,7 @@ builder.Services.AddScoped<ICurrentUserAccessor, CurrentUserAccessor>();
 builder.Services.AddScoped<ISessionTokenService, SessionTokenService>();
 builder.Services.AddScoped<IProposalAccessTokenService, ProposalAccessTokenService>();
 builder.Services.AddScoped<IPasswordHashingService, PasswordHashingService>();
+builder.Services.AddScoped<FormOptionsService>();
 
 builder.Services.AddAuthentication(options =>
 {

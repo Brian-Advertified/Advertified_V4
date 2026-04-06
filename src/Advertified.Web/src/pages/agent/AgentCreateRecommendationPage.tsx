@@ -402,7 +402,6 @@ export function AgentCreateRecommendationPage() {
       { label: 'Preferred channels', value: selectedCampaignBrief.preferredMediaTypes?.join(', ') },
       { label: 'Interests', value: selectedCampaignBrief.targetInterests?.join(', ') },
       { label: 'Audience notes', value: selectedCampaignBrief.targetAudienceNotes },
-      { label: 'Current customers', value: selectedCampaignBrief.currentCustomerNotes },
       { label: 'Special requirements', value: selectedCampaignBrief.specialRequirements },
     ].filter((item): item is { label: string; value: string } => Boolean(item.value && item.value.trim()));
   }, [selectedCampaignBrief, selectedCampaignDetails]);

@@ -17,6 +17,8 @@ import type {
   InventoryRow,
   PackageBand,
   PackageAreaOption,
+  SelectOption,
+  SharedFormOptions,
   AdminPackageOrder,
   PackagePreview,
   PackagePricingSummary,
@@ -132,6 +134,30 @@ type PackagePricingSummaryResponse = {
   aiStudioReserveAmount: number;
 };
 
+type SelectOptionResponse = {
+  value: string;
+  label: string;
+};
+
+type SharedFormOptionsResponse = {
+  businessTypes: SelectOptionResponse[];
+  industries: SelectOptionResponse[];
+  provinces: SelectOptionResponse[];
+  revenueBands: SelectOptionResponse[];
+  businessStages: SelectOptionResponse[];
+  monthlyRevenueBands: SelectOptionResponse[];
+  salesModels: SelectOptionResponse[];
+  customerTypes: SelectOptionResponse[];
+  buyingBehaviours: SelectOptionResponse[];
+  decisionCycles: SelectOptionResponse[];
+  growthTargets: SelectOptionResponse[];
+  pricePositioning: SelectOptionResponse[];
+  averageCustomerSpendBands: SelectOptionResponse[];
+  urgencyLevels: SelectOptionResponse[];
+  audienceClarity: SelectOptionResponse[];
+  valuePropositionFocus: SelectOptionResponse[];
+};
+
 type CampaignBriefResponse = {
   objective: string;
   businessStage?: string;
@@ -154,7 +180,6 @@ type CampaignBriefResponse = {
   targetInterests?: string[];
   targetAudienceNotes?: string;
   customerType?: string;
-  currentCustomerNotes?: string;
   buyingBehaviour?: string;
   decisionCycle?: string;
   pricePositioning?: string;
@@ -567,6 +592,34 @@ function mapPackagePreview(response: PackagePreviewResponse): PackagePreview {
     indicativeMix: response.indicativeMix,
     mediaMix: response.mediaMix,
     note: response.note,
+  };
+}
+
+function mapSelectOptions(response?: SelectOptionResponse[] | null): SelectOption[] {
+  return (response ?? []).map((option) => ({
+    value: option.value,
+    label: option.label,
+  }));
+}
+
+function mapSharedFormOptions(response: SharedFormOptionsResponse): SharedFormOptions {
+  return {
+    businessTypes: mapSelectOptions(response.businessTypes),
+    industries: mapSelectOptions(response.industries),
+    provinces: mapSelectOptions(response.provinces),
+    revenueBands: mapSelectOptions(response.revenueBands),
+    businessStages: mapSelectOptions(response.businessStages),
+    monthlyRevenueBands: mapSelectOptions(response.monthlyRevenueBands),
+    salesModels: mapSelectOptions(response.salesModels),
+    customerTypes: mapSelectOptions(response.customerTypes),
+    buyingBehaviours: mapSelectOptions(response.buyingBehaviours),
+    decisionCycles: mapSelectOptions(response.decisionCycles),
+    growthTargets: mapSelectOptions(response.growthTargets),
+    pricePositioning: mapSelectOptions(response.pricePositioning),
+    averageCustomerSpendBands: mapSelectOptions(response.averageCustomerSpendBands),
+    urgencyLevels: mapSelectOptions(response.urgencyLevels),
+    audienceClarity: mapSelectOptions(response.audienceClarity),
+    valuePropositionFocus: mapSelectOptions(response.valuePropositionFocus),
   };
 }
 
@@ -1114,6 +1167,10 @@ const publicApi = createPublicApi({
     return apiRequest<PackagePricingSummaryResponse>(
       `/packages/pricing-summary?selectedBudget=${encodeURIComponent(String(selectedBudget))}`,
     ) as Promise<PackagePricingSummary>;
+  },
+  async getFormOptionsData() {
+    const response = await apiRequest<SharedFormOptionsResponse>('/public/form-options');
+    return mapSharedFormOptions(response);
   },
   async createOrderData(payload) {
     return apiRequest<{

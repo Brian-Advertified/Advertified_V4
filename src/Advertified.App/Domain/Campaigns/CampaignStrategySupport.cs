@@ -76,8 +76,6 @@ public static class CampaignStrategySupport
         Add(tokens, request.SalesModel);
         Add(tokens, request.PricePositioning);
         Add(tokens, request.ValuePropositionFocus);
-        Add(tokens, request.CurrentCustomerNotes);
-
         return tokens
             .Select(NormalizeDisplayValue)
             .Where(static value => !string.IsNullOrWhiteSpace(value))
@@ -92,7 +90,6 @@ public static class CampaignStrategySupport
         AddLine(lines, "Monthly revenue", request.MonthlyRevenueBand);
         AddLine(lines, "Sales model", request.SalesModel);
         AddLine(lines, "Customer type", request.CustomerType);
-        AddLine(lines, "Current customers", request.CurrentCustomerNotes);
         AddLine(lines, "Buying behaviour", request.BuyingBehaviour);
         AddLine(lines, "Decision cycle", request.DecisionCycle);
         AddLine(lines, "Price positioning", request.PricePositioning);

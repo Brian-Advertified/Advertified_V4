@@ -46,6 +46,8 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<ConsentPreference> ConsentPreferences { get; set; }
 
+    public virtual DbSet<FormOptionItem> FormOptionItems { get; set; }
+
     public virtual DbSet<EmailTemplate> EmailTemplates { get; set; }
 
     public virtual DbSet<EmailVerificationToken> EmailVerificationTokens { get; set; }
@@ -241,7 +243,6 @@ public partial class AppDbContext : DbContext
                 .HasColumnName("created_at");
             entity.Property(e => e.CreativeNotes).HasColumnName("creative_notes");
             entity.Property(e => e.CreativeReady).HasColumnName("creative_ready");
-            entity.Property(e => e.CurrentCustomerNotes).HasColumnName("current_customer_notes");
             entity.Property(e => e.CustomerType)
                 .HasMaxLength(50)
                 .HasColumnName("customer_type");
@@ -1089,6 +1090,40 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.UserId)
                 .OnDelete(DeleteBehavior.SetNull)
                 .HasConstraintName("consent_preferences_user_id_fkey");
+        });
+
+        modelBuilder.Entity<FormOptionItem>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("form_option_items_pkey");
+
+            entity.ToTable("form_option_items");
+
+            entity.HasIndex(e => new { e.OptionSetKey, e.IsActive, e.SortOrder }, "ix_form_option_items_set_active_sort");
+
+            entity.HasIndex(e => new { e.OptionSetKey, e.Value }, "uq_form_option_items_set_value").IsUnique();
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.OptionSetKey)
+                .HasMaxLength(100)
+                .HasColumnName("option_set_key");
+            entity.Property(e => e.Value)
+                .HasMaxLength(100)
+                .HasColumnName("value");
+            entity.Property(e => e.Label)
+                .HasMaxLength(200)
+                .HasColumnName("label");
+            entity.Property(e => e.SortOrder).HasColumnName("sort_order");
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true)
+                .HasColumnName("is_active");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
         });
 
         modelBuilder.Entity<UserAccount>(entity =>

@@ -4,22 +4,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useToast } from '../../../components/ui/toast';
 import { catalogQueryOptions } from '../../../lib/catalogQueryOptions';
-import {
-  audienceClarityOptions,
-  averageCustomerSpendOptions,
-  businessStageOptions,
-  buyingBehaviourOptions,
-  customerTypeOptions,
-  decisionCycleOptions,
-  growthTargetOptions,
-  industries,
-  monthlyRevenueBands,
-  pricePositioningOptions,
-  provinces,
-  salesModelOptions,
-  urgencyLevelOptions,
-  valuePropositionFocusOptions,
-} from '../../../lib/formOptions';
+import { useSharedFormOptions } from '../../../lib/useSharedFormOptions';
 import { advertifiedApi } from '../../../services/advertifiedApi';
 
 type QuestionnaireForm = {
@@ -41,9 +26,7 @@ type QuestionnaireForm = {
   language: string;
   preferredMediaTypes: string[];
   targetAudienceNotes: string;
-  valueProposition: string;
   customerType: string;
-  currentCustomerNotes: string;
   buyingBehaviour: string;
   decisionCycle: string;
   pricePositioning: string;
@@ -137,6 +120,7 @@ type ProspectQuestionnaireFormProps = {
 
 export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestionnaireFormProps) {
   const { pushToast } = useToast();
+  const formOptionsQuery = useSharedFormOptions();
   const [submitted, setSubmitted] = useState<{ campaignId: string; campaignName: string; message: string } | null>(null);
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [form, setForm] = useState<QuestionnaireForm>({
@@ -158,9 +142,7 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
     language: '',
     preferredMediaTypes: ['ooh', 'radio'],
     targetAudienceNotes: '',
-    valueProposition: '',
     customerType: '',
-    currentCustomerNotes: '',
     buyingBehaviour: '',
     decisionCycle: '',
     pricePositioning: '',
@@ -206,7 +188,6 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
           targetLanguages: form.language.trim() ? [form.language.trim()] : undefined,
           targetAudienceNotes: form.targetAudienceNotes.trim() || undefined,
           customerType: form.customerType || undefined,
-          currentCustomerNotes: form.currentCustomerNotes.trim() || undefined,
           buyingBehaviour: form.buyingBehaviour || undefined,
           decisionCycle: form.decisionCycle || undefined,
           pricePositioning: form.pricePositioning || undefined,
@@ -215,7 +196,6 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
           urgencyLevel: form.urgencyLevel || undefined,
           audienceClarity: form.audienceClarity || undefined,
           valuePropositionFocus: form.valuePropositionFocus || undefined,
-          targetInterests: [form.valueProposition.trim()].filter(Boolean),
           preferredMediaTypes: form.preferredMediaTypes,
           openToUpsell: false,
           specialRequirements: form.specialRequirements.trim() || undefined,
@@ -254,6 +234,37 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
     && form.packageBandId,
   );
   const canContinueStep2 = form.preferredMediaTypes.length > 0;
+  const {
+    audienceClarity,
+    averageCustomerSpendBands,
+    businessStages,
+    buyingBehaviours,
+    customerTypes,
+    decisionCycles,
+    growthTargets,
+    industries,
+    monthlyRevenueBands,
+    pricePositioning,
+    provinces,
+    salesModels,
+    urgencyLevels,
+    valuePropositionFocus,
+  } = formOptionsQuery.data ?? {
+    audienceClarity: [],
+    averageCustomerSpendBands: [],
+    businessStages: [],
+    buyingBehaviours: [],
+    customerTypes: [],
+    decisionCycles: [],
+    growthTargets: [],
+    industries: [],
+    monthlyRevenueBands: [],
+    pricePositioning: [],
+    provinces: [],
+    salesModels: [],
+    urgencyLevels: [],
+    valuePropositionFocus: [],
+  };
 
   const containerClassName = variant === 'hero'
     ? 'hero-glass-card rounded-[28px] p-5 text-ink sm:p-6'
@@ -264,6 +275,14 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
   const copyClassName = variant === 'hero'
     ? 'mt-3 text-sm leading-6 text-ink-soft'
     : 'mt-4 max-w-3xl text-sm leading-7 text-ink-soft sm:text-[15px]';
+
+  if (formOptionsQuery.isPending) {
+    return <div className={containerClassName}>Loading questionnaire options...</div>;
+  }
+
+  if (formOptionsQuery.isError || !formOptionsQuery.data) {
+    return <div className={containerClassName}>We could not load questionnaire options right now. Please refresh and try again.</div>;
+  }
 
   return (
     <div className={containerClassName}>
@@ -367,25 +386,28 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                   <span className="label-base">Industry</span>
                   <select value={form.industry} onChange={(event) => setForm((current) => ({ ...current, industry: event.target.value }))} className="input-base">
                     <option value="">Select industry</option>
-                    {industries.map((item) => <option key={item} value={item}>{item}</option>)}
+                    {industries.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                   </select>
                 </label>
                 <label className="block">
                   <span className="label-base">Business stage</span>
                   <select value={form.businessStage} onChange={(event) => setForm((current) => ({ ...current, businessStage: event.target.value }))} className="input-base">
-                    {businessStageOptions.map((option) => <option key={option.value || 'unset'} value={option.value}>{option.label}</option>)}
+                    <option value="">Select business stage</option>
+                    {businessStages.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
                 </label>
                 <label className="block">
                   <span className="label-base">Monthly revenue</span>
                   <select value={form.monthlyRevenueBand} onChange={(event) => setForm((current) => ({ ...current, monthlyRevenueBand: event.target.value }))} className="input-base">
-                    {monthlyRevenueBands.map((option) => <option key={option.value || 'unset'} value={option.value}>{option.label}</option>)}
+                    <option value="">Select monthly revenue</option>
+                    {monthlyRevenueBands.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
                 </label>
                 <label className="block">
                   <span className="label-base">Sales model</span>
                   <select value={form.salesModel} onChange={(event) => setForm((current) => ({ ...current, salesModel: event.target.value }))} className="input-base">
-                    {salesModelOptions.map((option) => <option key={option.value || 'unset'} value={option.value}>{option.label}</option>)}
+                    <option value="">Select sales model</option>
+                    {salesModels.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
                 </label>
                 <label className="block">
@@ -451,7 +473,7 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                           ? 'Select city'
                           : 'Select province'}
                     </option>
-                    {(form.geographyScope === 'local' ? CITIES : provinces).map((item) => (
+                    {(form.geographyScope === 'local' ? CITIES : provinces.map((item) => item.value)).map((item) => (
                       <option key={item} value={item}>{item}</option>
                     ))}
                   </select>
@@ -514,7 +536,8 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                 <label className="block">
                   <span className="label-base">Current customer type</span>
                   <select value={form.customerType} onChange={(event) => setForm((current) => ({ ...current, customerType: event.target.value }))} className="input-base">
-                    {customerTypeOptions.map((option) => <option key={option.value || 'unset'} value={option.value}>{option.label}</option>)}
+                    <option value="">Select customer type</option>
+                    {customerTypes.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
                 </label>
                 <label className="block">
@@ -522,59 +545,59 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                   <textarea value={form.targetAudienceNotes} onChange={(event) => setForm((current) => ({ ...current, targetAudienceNotes: event.target.value }))} rows={4} className="input-base min-h-[120px] resize-y" placeholder="Who do you want to reach?" />
                 </label>
                 <label className="block">
-                  <span className="label-base">Current customer notes</span>
-                  <textarea value={form.currentCustomerNotes} onChange={(event) => setForm((current) => ({ ...current, currentCustomerNotes: event.target.value }))} rows={4} className="input-base min-h-[120px] resize-y" placeholder="Who currently buys from you?" />
-                </label>
-                <label className="block">
-                  <span className="label-base">Offer summary</span>
-                  <textarea value={form.valueProposition} onChange={(event) => setForm((current) => ({ ...current, valueProposition: event.target.value }))} rows={4} className="input-base min-h-[120px] resize-y" placeholder="What makes your offer compelling?" />
-                </label>
-                <label className="block">
                   <span className="label-base">Value proposition focus</span>
                   <select value={form.valuePropositionFocus} onChange={(event) => setForm((current) => ({ ...current, valuePropositionFocus: event.target.value }))} className="input-base">
-                    {valuePropositionFocusOptions.map((option) => <option key={option.value || 'unset'} value={option.value}>{option.label}</option>)}
+                    <option value="">Select value proposition</option>
+                    {valuePropositionFocus.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
                 </label>
                 <label className="block">
                   <span className="label-base">Buying behaviour</span>
                   <select value={form.buyingBehaviour} onChange={(event) => setForm((current) => ({ ...current, buyingBehaviour: event.target.value }))} className="input-base">
-                    {buyingBehaviourOptions.map((option) => <option key={option.value || 'unset'} value={option.value}>{option.label}</option>)}
+                    <option value="">Select buying behaviour</option>
+                    {buyingBehaviours.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
                 </label>
                 <label className="block">
                   <span className="label-base">Decision cycle</span>
                   <select value={form.decisionCycle} onChange={(event) => setForm((current) => ({ ...current, decisionCycle: event.target.value }))} className="input-base">
-                    {decisionCycleOptions.map((option) => <option key={option.value || 'unset'} value={option.value}>{option.label}</option>)}
+                    <option value="">Select decision cycle</option>
+                    {decisionCycles.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
                 </label>
                 <label className="block">
                   <span className="label-base">Price positioning</span>
                   <select value={form.pricePositioning} onChange={(event) => setForm((current) => ({ ...current, pricePositioning: event.target.value }))} className="input-base">
-                    {pricePositioningOptions.map((option) => <option key={option.value || 'unset'} value={option.value}>{option.label}</option>)}
+                    <option value="">Select price positioning</option>
+                    {pricePositioning.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
                 </label>
                 <label className="block">
                   <span className="label-base">Average customer spend</span>
                   <select value={form.averageCustomerSpendBand} onChange={(event) => setForm((current) => ({ ...current, averageCustomerSpendBand: event.target.value }))} className="input-base">
-                    {averageCustomerSpendOptions.map((option) => <option key={option.value || 'unset'} value={option.value}>{option.label}</option>)}
+                    <option value="">Select average spend</option>
+                    {averageCustomerSpendBands.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
                 </label>
                 <label className="block">
                   <span className="label-base">Growth target</span>
                   <select value={form.growthTarget} onChange={(event) => setForm((current) => ({ ...current, growthTarget: event.target.value }))} className="input-base">
-                    {growthTargetOptions.map((option) => <option key={option.value || 'unset'} value={option.value}>{option.label}</option>)}
+                    <option value="">Select growth target</option>
+                    {growthTargets.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
                 </label>
                 <label className="block">
                   <span className="label-base">Urgency</span>
                   <select value={form.urgencyLevel} onChange={(event) => setForm((current) => ({ ...current, urgencyLevel: event.target.value }))} className="input-base">
-                    {urgencyLevelOptions.map((option) => <option key={option.value || 'unset'} value={option.value}>{option.label}</option>)}
+                    <option value="">Select urgency</option>
+                    {urgencyLevels.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
                 </label>
                 <label className="block">
                   <span className="label-base">Audience clarity</span>
                   <select value={form.audienceClarity} onChange={(event) => setForm((current) => ({ ...current, audienceClarity: event.target.value }))} className="input-base">
-                    {audienceClarityOptions.map((option) => <option key={option.value || 'unset'} value={option.value}>{option.label}</option>)}
+                    <option value="">Select audience clarity</option>
+                    {audienceClarity.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
                 </label>
               </div>

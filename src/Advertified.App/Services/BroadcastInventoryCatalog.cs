@@ -55,7 +55,8 @@ public sealed class BroadcastInventoryCatalog : IBroadcastInventoryCatalog
                         listenership_weekly as ListenershipWeekly,
                         listenership_period as ListenershipPeriod,
                         target_audience as TargetAudience,
-                        data_source_enrichment as DataSourceEnrichment
+                        data_source_enrichment as DataSourceEnrichment,
+                        strategy_fit_json as StrategyFitJson
                     from media_outlet
                     order by media_type, name;
                     ",
@@ -236,6 +237,15 @@ public sealed class BroadcastInventoryCatalog : IBroadcastInventoryCatalog
             AudienceKeywords = keywords.TryGetValue(outlet.Id, out var keywordValues)
                 ? keywordValues
                 : new List<string>(),
+            BuyingBehaviourFit = GetStrategyFitValue(outlet.StrategyFitJson, "buying_behaviour_fit"),
+            PricePositioningFit = GetStrategyFitValue(outlet.StrategyFitJson, "price_positioning_fit"),
+            SalesModelFit = GetStrategyFitValue(outlet.StrategyFitJson, "sales_model_fit"),
+            ObjectiveFitPrimary = GetStrategyFitValue(outlet.StrategyFitJson, "objective_fit_primary"),
+            ObjectiveFitSecondary = GetStrategyFitValue(outlet.StrategyFitJson, "objective_fit_secondary"),
+            EnvironmentType = GetStrategyFitValue(outlet.StrategyFitJson, "environment_type"),
+            PremiumMassFit = GetStrategyFitValue(outlet.StrategyFitJson, "premium_mass_fit"),
+            DataConfidence = GetStrategyFitValue(outlet.StrategyFitJson, "data_confidence"),
+            IntelligenceNotes = GetStrategyFitValue(outlet.StrategyFitJson, "intelligence_notes"),
             Packages = CreatePackagesJson(packages.TryGetValue(outlet.Id, out var packageRows) ? packageRows : new List<PackageRow>()),
             Pricing = CreatePricingJson(rates.TryGetValue(outlet.Id, out var rateRows) ? rateRows : new List<RateRow>()),
             DataSourceEnrichment = ParseJsonOrDefault(outlet.DataSourceEnrichment),
@@ -313,6 +323,34 @@ public sealed class BroadcastInventoryCatalog : IBroadcastInventoryCatalog
         }
     }
 
+    private static string? GetStrategyFitValue(string? rawJson, string propertyName)
+    {
+        if (string.IsNullOrWhiteSpace(rawJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(rawJson);
+            if (document.RootElement.ValueKind != JsonValueKind.Object
+                || !document.RootElement.TryGetProperty(propertyName, out var value))
+            {
+                return null;
+            }
+
+            return value.ValueKind switch
+            {
+                JsonValueKind.String => value.GetString(),
+                _ => value.ToString()
+            };
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
     private sealed class MediaOutletRow
     {
         public Guid Id { get; init; }
@@ -335,6 +373,7 @@ public sealed class BroadcastInventoryCatalog : IBroadcastInventoryCatalog
         public string? ListenershipPeriod { get; init; }
         public string? TargetAudience { get; init; }
         public string? DataSourceEnrichment { get; init; }
+        public string? StrategyFitJson { get; init; }
     }
 
     private sealed class KeywordRow

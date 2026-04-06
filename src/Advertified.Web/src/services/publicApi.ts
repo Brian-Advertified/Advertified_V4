@@ -8,6 +8,7 @@ import type {
   PackagePreview,
   PackagePricingSummary,
   PaymentProvider,
+  SharedFormOptions,
 } from '../types/domain';
 
 type PublicApiDependencies = {
@@ -22,6 +23,7 @@ type PublicApiDependencies = {
   getPackageAreasData: () => Promise<PackageAreaOption[]>;
   getPackagePreviewData: (packageBandId: string, budget: number, selectedArea: string) => Promise<PackagePreview>;
   getPackagePricingSummaryData: (selectedBudget: number) => Promise<PackagePricingSummary>;
+  getFormOptionsData: () => Promise<SharedFormOptions>;
   createOrderData: (payload: {
     packageBandId: string;
     amount: number;
@@ -138,6 +140,7 @@ export function createPublicApi({
   getPackageAreasData,
   getPackagePreviewData,
   getPackagePricingSummaryData,
+  getFormOptionsData,
   createOrderData,
   initiateOrderCheckoutData,
   listOrdersData,
@@ -175,6 +178,10 @@ export function createPublicApi({
 
     async getPackagePricingSummary(selectedBudget: number) {
       return getPackagePricingSummaryData(selectedBudget);
+    },
+
+    async getFormOptions() {
+      return getFormOptionsData();
     },
 
     async createOrder(userId: string, packageBandId: string, amount: number, paymentProvider: PaymentProvider) {

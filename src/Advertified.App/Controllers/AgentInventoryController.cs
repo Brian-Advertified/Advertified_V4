@@ -76,7 +76,6 @@ public sealed class AgentInventoryController : ControllerBase
             MonthlyRevenueBand = brief?.MonthlyRevenueBand,
             SalesModel = brief?.SalesModel,
             CustomerType = brief?.CustomerType,
-            CurrentCustomerNotes = brief?.CurrentCustomerNotes,
             BuyingBehaviour = brief?.BuyingBehaviour,
             DecisionCycle = brief?.DecisionCycle,
             PricePositioning = brief?.PricePositioning,
@@ -118,7 +117,6 @@ public sealed class AgentInventoryController : ControllerBase
                     .Concat(CampaignStrategySupport.BuildContextLines(strategyRequest))
                     .Where(static value => !string.IsNullOrWhiteSpace(value))),
             CustomerType = brief?.CustomerType,
-            CurrentCustomerNotes = brief?.CurrentCustomerNotes,
             BuyingBehaviour = brief?.BuyingBehaviour,
             DecisionCycle = brief?.DecisionCycle,
             PricePositioning = brief?.PricePositioning,

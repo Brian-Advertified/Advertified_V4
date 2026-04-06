@@ -3,20 +3,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import type { ReactNode } from 'react';
 import type { CampaignBrief } from '../../../types/domain';
-import {
-  audienceClarityOptions,
-  averageCustomerSpendOptions,
-  businessStageOptions,
-  buyingBehaviourOptions,
-  customerTypeOptions,
-  decisionCycleOptions,
-  growthTargetOptions,
-  monthlyRevenueBands,
-  pricePositioningOptions,
-  salesModelOptions,
-  urgencyLevelOptions,
-  valuePropositionFocusOptions,
-} from '../../../lib/formOptions';
+import { useSharedFormOptions } from '../../../lib/useSharedFormOptions';
 
 const objectiveOptions = [
   { value: 'awareness', label: 'Brand awareness' },
@@ -91,7 +78,6 @@ const briefSchema = z
     targetInterests: z.string().optional(),
     targetAudienceNotes: z.string().optional(),
     customerType: z.string().optional(),
-    currentCustomerNotes: z.string().optional(),
     buyingBehaviour: z.string().optional(),
     decisionCycle: z.string().optional(),
     pricePositioning: z.string().optional(),
@@ -180,7 +166,6 @@ export function CampaignBriefForm({
       targetInterests: joinList(initialValue?.targetInterests),
       targetAudienceNotes: initialValue?.targetAudienceNotes,
       customerType: initialValue?.customerType ?? '',
-      currentCustomerNotes: initialValue?.currentCustomerNotes ?? '',
       buyingBehaviour: initialValue?.buyingBehaviour ?? '',
       decisionCycle: initialValue?.decisionCycle ?? '',
       pricePositioning: initialValue?.pricePositioning ?? '',
@@ -205,7 +190,31 @@ export function CampaignBriefForm({
       targetLsmBand: '',
     },
   });
+  const formOptionsQuery = useSharedFormOptions();
   const geographyScope = watch('geographyScope');
+
+  if (formOptionsQuery.isPending) {
+    return <div className="panel px-6 py-6">Loading form options...</div>;
+  }
+
+  if (formOptionsQuery.isError || !formOptionsQuery.data) {
+    return <div className="panel px-6 py-6">We could not load brief options right now. Refresh and try again.</div>;
+  }
+
+  const {
+    audienceClarity,
+    averageCustomerSpendBands,
+    businessStages,
+    buyingBehaviours,
+    customerTypes,
+    decisionCycles,
+    growthTargets,
+    monthlyRevenueBands,
+    pricePositioning,
+    salesModels,
+    urgencyLevels,
+    valuePropositionFocus,
+  } = formOptionsQuery.data;
 
   function setAgeBand(value: string) {
     if (!value) {
@@ -250,7 +259,6 @@ export function CampaignBriefForm({
       targetInterests: splitList(values.targetInterests),
       targetAudienceNotes: values.targetAudienceNotes?.trim() || undefined,
       customerType: values.customerType || undefined,
-      currentCustomerNotes: values.currentCustomerNotes?.trim() || undefined,
       buyingBehaviour: values.buyingBehaviour || undefined,
       decisionCycle: values.decisionCycle || undefined,
       pricePositioning: values.pricePositioning || undefined,
@@ -288,22 +296,25 @@ export function CampaignBriefForm({
           </Field>
           <Field label="Business stage">
             <select {...register('businessStage')} className="input-base">
-              {businessStageOptions.map((option) => (
-                <option key={option.value || 'unset'} value={option.value}>{option.label}</option>
+              <option value="">Select business stage</option>
+              {businessStages.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </select>
           </Field>
           <Field label="Monthly revenue">
             <select {...register('monthlyRevenueBand')} className="input-base">
+              <option value="">Select monthly revenue</option>
               {monthlyRevenueBands.map((option) => (
-                <option key={option.value || 'unset'} value={option.value}>{option.label}</option>
+                <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </select>
           </Field>
           <Field label="Sales model">
             <select {...register('salesModel')} className="input-base">
-              {salesModelOptions.map((option) => (
-                <option key={option.value || 'unset'} value={option.value}>{option.label}</option>
+              <option value="">Select sales model</option>
+              {salesModels.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </select>
           </Field>
@@ -412,67 +423,73 @@ export function CampaignBriefForm({
           <Field label="Target interests"><input {...register('targetInterests')} className="input-base" placeholder="Retail, family, commuters" /></Field>
           <Field label="Current customer type">
             <select {...register('customerType')} className="input-base">
-              {customerTypeOptions.map((option) => (
+              <option value="">Select customer type</option>
+              {customerTypes.map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </select>
           </Field>
-          <Field label="Current customer notes">
-            <textarea {...register('currentCustomerNotes')} className="input-base min-h-[120px]" placeholder="Who currently buys from you?" />
-          </Field>
           <Field label="Buying behaviour">
             <select {...register('buyingBehaviour')} className="input-base">
-              {buyingBehaviourOptions.map((option) => (
+              <option value="">Select buying behaviour</option>
+              {buyingBehaviours.map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </select>
           </Field>
           <Field label="Decision cycle">
             <select {...register('decisionCycle')} className="input-base">
-              {decisionCycleOptions.map((option) => (
+              <option value="">Select decision cycle</option>
+              {decisionCycles.map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </select>
           </Field>
           <Field label="Growth target (6 months)">
             <select {...register('growthTarget')} className="input-base">
-              {growthTargetOptions.map((option) => (
+              <option value="">Select growth target</option>
+              {growthTargets.map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </select>
           </Field>
           <Field label="Price positioning">
             <select {...register('pricePositioning')} className="input-base">
-              {pricePositioningOptions.map((option) => (
-                <option key={option.value || 'unset'} value={option.value}>{option.label}</option>
+              <option value="">Select price positioning</option>
+              {pricePositioning.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </select>
           </Field>
           <Field label="Average customer spend">
             <select {...register('averageCustomerSpendBand')} className="input-base">
-              {averageCustomerSpendOptions.map((option) => (
-                <option key={option.value || 'unset'} value={option.value}>{option.label}</option>
+              <option value="">Select average spend</option>
+              {averageCustomerSpendBands.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </select>
           </Field>
           <Field label="Urgency level">
             <select {...register('urgencyLevel')} className="input-base">
-              {urgencyLevelOptions.map((option) => (
-                <option key={option.value || 'unset'} value={option.value}>{option.label}</option>
+              <option value="">Select urgency</option>
+              {urgencyLevels.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </select>
           </Field>
           <Field label="Audience clarity">
             <select {...register('audienceClarity')} className="input-base">
-              {audienceClarityOptions.map((option) => (
-                <option key={option.value || 'unset'} value={option.value}>{option.label}</option>
+              <option value="">Select audience clarity</option>
+              {audienceClarity.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </select>
           </Field>
           <Field label="Value proposition focus">
             <select {...register('valuePropositionFocus')} className="input-base">
-              {valuePropositionFocusOptions.map((option) => (
-                <option key={option.value || 'unset'} value={option.value}>{option.label}</option>
+              <option value="">Select value proposition</option>
+              {valuePropositionFocus.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </select>
           </Field>

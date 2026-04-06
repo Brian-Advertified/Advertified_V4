@@ -7,7 +7,7 @@ import { useForm } from 'react-hook-form';
 import { AddressAutofillInput } from './AddressAutofillInput';
 import type { RegistrationSchema } from '../schemas';
 import { registrationSchema } from '../schemas';
-import { businessTypes, industries, provinces, revenueBands } from '../../../lib/formOptions';
+import { useSharedFormOptions } from '../../../lib/useSharedFormOptions';
 
 export function RegistrationWizard({
   onSubmit,
@@ -18,6 +18,7 @@ export function RegistrationWizard({
 }) {
   const mapboxAccessToken = (import.meta.env.VITE_MAPBOX_ACCESS_TOKEN as string | undefined)?.trim();
   const mapboxEnabled = Boolean(mapboxAccessToken);
+  const formOptionsQuery = useSharedFormOptions();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const {
@@ -38,6 +39,16 @@ export function RegistrationWizard({
   });
 
   const isCitizen = watch('isSouthAfricanCitizen');
+
+  if (formOptionsQuery.isPending) {
+    return <div className="register-section">Loading form options...</div>;
+  }
+
+  if (formOptionsQuery.isError || !formOptionsQuery.data) {
+    return <div className="register-section">We could not load registration options right now. Please refresh and try again.</div>;
+  }
+
+  const { businessTypes, industries, provinces, revenueBands } = formOptionsQuery.data;
 
   function handleAddressRetrieve(response: AddressAutofillRetrieveResponse) {
     const feature = response.features[0];
@@ -136,8 +147,8 @@ export function RegistrationWizard({
             <select {...register('businessType')} className="register-input">
               <option value="">Business type *</option>
               {businessTypes.map((item) => (
-                <option key={item} value={item}>
-                  {item}
+                <option key={item.value} value={item.value}>
+                  {item.label}
                 </option>
               ))}
             </select>
@@ -151,8 +162,8 @@ export function RegistrationWizard({
             <select {...register('industry')} className="register-input">
               <option value="">Industry *</option>
               {industries.map((item) => (
-                <option key={item} value={item}>
-                  {item}
+                <option key={item.value} value={item.value}>
+                  {item.label}
                 </option>
               ))}
             </select>
@@ -224,8 +235,8 @@ export function RegistrationWizard({
             <select {...register('province')} autoComplete="address-level1" className="register-input">
               <option value="">Province *</option>
               {provinces.map((item) => (
-                <option key={item} value={item}>
-                  {item}
+                <option key={item.value} value={item.value}>
+                  {item.label}
                 </option>
               ))}
             </select>

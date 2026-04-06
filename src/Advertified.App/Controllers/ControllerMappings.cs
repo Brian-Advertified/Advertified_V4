@@ -150,7 +150,6 @@ internal static class ControllerMappings
             TargetInterests = DeserializeList(brief.TargetInterestsJson),
             TargetAudienceNotes = brief.TargetAudienceNotes,
             CustomerType = brief.CustomerType,
-            CurrentCustomerNotes = brief.CurrentCustomerNotes,
             BuyingBehaviour = brief.BuyingBehaviour,
             DecisionCycle = brief.DecisionCycle,
             PricePositioning = brief.PricePositioning,

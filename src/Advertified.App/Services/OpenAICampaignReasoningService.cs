@@ -160,7 +160,6 @@ public sealed class OpenAICampaignReasoningService : ICampaignReasoningService
             new[]
             {
                 brief.TargetAudienceNotes,
-                brief.CurrentCustomerNotes,
                 brief.CreativeNotes,
                 brief.SpecialRequirements
             }.Where(value => !string.IsNullOrWhiteSpace(value)).Select(value => value!.Trim()));

@@ -79,7 +79,7 @@ select
     null::int as MonthlyListenership,
     false as IsFlagshipStation,
     false as IsPremiumStation,
-    jsonb_build_object(
+    jsonb_strip_nulls(jsonb_build_object(
         'sourceType', 'ooh',
         'mediaType', 'OOH',
         'package_name', mop.package_name,
@@ -92,9 +92,41 @@ select
         'province', geo.province_code,
         'city', geo.city_name,
         'language', lang.language_display,
+        'targetAudience', mo.target_audience,
+        'target_audience', mo.target_audience,
+        'audienceAgeSkew', mo.audience_age_skew,
+        'audience_age_skew', mo.audience_age_skew,
+        'audienceGenderSkew', mo.audience_gender_skew,
+        'audience_gender_skew', mo.audience_gender_skew,
+        'audienceLsmRange', mo.audience_lsm_range,
+        'audience_lsm_range', mo.audience_lsm_range,
+        'audienceRacialSkew', mo.audience_racial_skew,
+        'audience_racial_skew', mo.audience_racial_skew,
+        'urbanRuralMix', mo.audience_urban_rural,
+        'urban_rural_mix', mo.audience_urban_rural,
+        'audienceKeywords', string_to_array(coalesce(keywords.keyword_list, ''), ' | '),
+        'audience_keywords', string_to_array(coalesce(keywords.keyword_list, ''), ' | '),
+        'buyingBehaviourFit', mo.strategy_fit_json ->> 'buying_behaviour_fit',
+        'buying_behaviour_fit', mo.strategy_fit_json ->> 'buying_behaviour_fit',
+        'pricePositioningFit', mo.strategy_fit_json ->> 'price_positioning_fit',
+        'price_positioning_fit', mo.strategy_fit_json ->> 'price_positioning_fit',
+        'salesModelFit', mo.strategy_fit_json ->> 'sales_model_fit',
+        'sales_model_fit', mo.strategy_fit_json ->> 'sales_model_fit',
+        'objectiveFitPrimary', mo.strategy_fit_json ->> 'objective_fit_primary',
+        'objective_fit_primary', mo.strategy_fit_json ->> 'objective_fit_primary',
+        'objectiveFitSecondary', mo.strategy_fit_json ->> 'objective_fit_secondary',
+        'objective_fit_secondary', mo.strategy_fit_json ->> 'objective_fit_secondary',
+        'environmentType', mo.strategy_fit_json ->> 'environment_type',
+        'environment_type', mo.strategy_fit_json ->> 'environment_type',
+        'premiumMassFit', mo.strategy_fit_json ->> 'premium_mass_fit',
+        'premium_mass_fit', mo.strategy_fit_json ->> 'premium_mass_fit',
+        'dataConfidence', mo.strategy_fit_json ->> 'data_confidence',
+        'data_confidence', mo.strategy_fit_json ->> 'data_confidence',
+        'inventoryIntelligenceNotes', mo.strategy_fit_json ->> 'intelligence_notes',
+        'inventory_intelligence_notes', mo.strategy_fit_json ->> 'intelligence_notes',
         'pricingModel', 'fixed_placement_total',
         'rateBasis', 'per_placement'
-    )::text as MetadataJson
+    ))::text as MetadataJson
 from media_outlet mo
 join media_outlet_pricing_package mop on mop.media_outlet_id = mo.id
 left join lateral (
@@ -114,6 +146,11 @@ left join lateral (
     from media_outlet_language mol
     where mol.media_outlet_id = mo.id
 ) lang on true
+left join lateral (
+    select string_agg(mok.keyword, ' | ' order by mok.keyword) as keyword_list
+    from media_outlet_keyword mok
+    where mok.media_outlet_id = mo.id
+) keywords on true
 where lower(mo.media_type) = 'ooh'
   and mop.is_active = true
   and coalesce(mop.source_name, '') <> 'bootstrap seed'

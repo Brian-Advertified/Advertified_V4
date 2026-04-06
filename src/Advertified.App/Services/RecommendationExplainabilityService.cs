@@ -151,7 +151,26 @@ public sealed class RecommendationExplainabilityService : IRecommendationExplain
         if (candidate.MediaType.Equals("Radio", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(candidate.TimeBand)) score += 0.05m;
         if (candidate.MediaType.Equals("Radio", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(candidate.SlotType)) score += 0.03m;
         if (CampaignStrategySupport.BuildSignals(request).AudienceClearlyDefined) score += 0.04m;
+        score += ResolveDataConfidenceBonus(candidate);
         return Math.Min(0.95m, decimal.Round(score, 2));
+    }
+
+    private static decimal ResolveDataConfidenceBonus(InventoryCandidate candidate)
+    {
+        if (!candidate.Metadata.TryGetValue("data_confidence", out var value)
+            && !candidate.Metadata.TryGetValue("dataConfidence", out value))
+        {
+            return 0m;
+        }
+
+        var raw = value?.ToString()?.Trim().ToLowerInvariant();
+        return raw switch
+        {
+            "high" => 0.12m,
+            "medium" => 0.06m,
+            "low" => 0.02m,
+            _ => 0m
+        };
     }
 
     private static string BuildStrategySummary(CampaignStrategySignals signals)

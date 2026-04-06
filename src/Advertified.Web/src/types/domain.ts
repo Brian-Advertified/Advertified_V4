@@ -71,6 +71,30 @@ export interface PackageAreaOption {
   description: string;
 }
 
+export interface SelectOption {
+  value: string;
+  label: string;
+}
+
+export interface SharedFormOptions {
+  businessTypes: SelectOption[];
+  industries: SelectOption[];
+  provinces: SelectOption[];
+  revenueBands: SelectOption[];
+  businessStages: SelectOption[];
+  monthlyRevenueBands: SelectOption[];
+  salesModels: SelectOption[];
+  customerTypes: SelectOption[];
+  buyingBehaviours: SelectOption[];
+  decisionCycles: SelectOption[];
+  growthTargets: SelectOption[];
+  pricePositioning: SelectOption[];
+  averageCustomerSpendBands: SelectOption[];
+  urgencyLevels: SelectOption[];
+  audienceClarity: SelectOption[];
+  valuePropositionFocus: SelectOption[];
+}
+
 export interface PackageBand {
   id: string;
   code: string;
@@ -171,7 +195,6 @@ export interface CampaignBrief {
   targetInterests?: string[];
   targetAudienceNotes?: string;
   customerType?: string;
-  currentCustomerNotes?: string;
   buyingBehaviour?: string;
   decisionCycle?: string;
   pricePositioning?: string;

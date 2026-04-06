@@ -293,6 +293,31 @@ public sealed class PlanningScoreService : IPlanningScoreService
             score += 3m;
         }
 
+        if (MatchesStrategyMetadata(candidate, request.BuyingBehaviour, "buyingBehaviourFit", "buying_behaviour_fit"))
+        {
+            score += 5m;
+        }
+
+        if (MatchesStrategyMetadata(candidate, request.PricePositioning, "pricePositioningFit", "price_positioning_fit"))
+        {
+            score += 5m;
+        }
+
+        if (MatchesStrategyMetadata(candidate, request.SalesModel, "salesModelFit", "sales_model_fit"))
+        {
+            score += 6m;
+        }
+
+        if (signals.PremiumAudience && MatchesMetadataToken(candidate, "premium", "premiumMassFit", "premium_mass_fit"))
+        {
+            score += 5m;
+        }
+
+        if (signals.MassMarketAudience && MatchesMetadataToken(candidate, "mass_market", "premiumMassFit", "premium_mass_fit"))
+        {
+            score += 5m;
+        }
+
         return Math.Min(22m, Math.Max(-4m, score));
     }
 
@@ -457,6 +482,15 @@ public sealed class PlanningScoreService : IPlanningScoreService
             }
         }
 
+        if (MatchesMetadataToken(candidate, objective, "objectiveFitPrimary", "objective_fit_primary"))
+        {
+            score += 8m;
+        }
+        else if (MatchesMetadataToken(candidate, objective, "objectiveFitSecondary", "objective_fit_secondary"))
+        {
+            score += 4m;
+        }
+
         return score;
     }
 
@@ -515,7 +549,13 @@ public sealed class PlanningScoreService : IPlanningScoreService
             "audienceAgeSkew",
             "audience_age_skew",
             "audienceGenderSkew",
-            "audience_gender_skew"));
+            "audience_gender_skew",
+            "buyingBehaviourFit",
+            "buying_behaviour_fit",
+            "pricePositioningFit",
+            "price_positioning_fit",
+            "salesModelFit",
+            "sales_model_fit"));
     }
 
     private static decimal GetComparableMonthlyCost(InventoryCandidate candidate)
@@ -764,7 +804,7 @@ public sealed class PlanningScoreService : IPlanningScoreService
                 candidate.MediaType,
                 candidate.Subtype,
                 candidate.Language,
-                GetMetadataText(candidate, "targetAudience", "target_audience", "notes", "packageName", "package_name", "audienceAgeSkew", "audience_age_skew", "audienceGenderSkew", "audience_gender_skew")
+                GetMetadataText(candidate, "targetAudience", "target_audience", "notes", "packageName", "package_name", "audienceAgeSkew", "audience_age_skew", "audienceGenderSkew", "audience_gender_skew", "environmentType", "environment_type", "inventoryIntelligenceNotes", "inventory_intelligence_notes")
             }
             .Where(static part => !string.IsNullOrWhiteSpace(part))
             .ToList()!;
@@ -778,6 +818,48 @@ public sealed class PlanningScoreService : IPlanningScoreService
         }
 
         return string.Join(" ", parts.Where(static part => !string.IsNullOrWhiteSpace(part)));
+    }
+
+    private static bool MatchesStrategyMetadata(InventoryCandidate candidate, string? requestedValue, params string[] keys)
+    {
+        if (string.IsNullOrWhiteSpace(requestedValue))
+        {
+            return false;
+        }
+
+        return MatchesMetadataToken(candidate, requestedValue, keys);
+    }
+
+    private static bool MatchesMetadataToken(InventoryCandidate candidate, string requestedValue, params string[] keys)
+    {
+        return keys.Any(key =>
+            candidate.Metadata.TryGetValue(key, out var value)
+            && ExtractMetadataTokens(value).Any(token => MatchesStrategyToken(requestedValue, token)));
+    }
+
+    private static bool MatchesStrategyToken(string requestedValue, string metadataToken)
+    {
+        var normalizedRequested = NormalizeStrategyToken(requestedValue);
+        var normalizedMetadata = NormalizeStrategyToken(metadataToken);
+        if (normalizedRequested.Length == 0 || normalizedMetadata.Length == 0)
+        {
+            return false;
+        }
+
+        return normalizedRequested == normalizedMetadata
+            || normalizedMetadata.Contains(normalizedRequested, StringComparison.OrdinalIgnoreCase)
+            || normalizedRequested.Contains(normalizedMetadata, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeStrategyToken(string value)
+    {
+        return value
+            .Trim()
+            .ToLowerInvariant()
+            .Replace('|', ' ')
+            .Replace('/', ' ')
+            .Replace('-', '_')
+            .Replace(' ', '_');
     }
 
     private static IEnumerable<string> TokenizeAudienceTerms(string? text)

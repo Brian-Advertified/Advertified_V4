@@ -51,8 +51,6 @@ public partial class CampaignBrief
 
     public string? CustomerType { get; set; }
 
-    public string? CurrentCustomerNotes { get; set; }
-
     public string? BuyingBehaviour { get; set; }
 
     public string? DecisionCycle { get; set; }

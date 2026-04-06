@@ -22,7 +22,6 @@ public sealed class CampaignPlanningRequest
     public List<string> TargetInterests { get; set; } = new();
     public string? TargetAudienceNotes { get; set; }
     public string? CustomerType { get; set; }
-    public string? CurrentCustomerNotes { get; set; }
     public string? BuyingBehaviour { get; set; }
     public string? DecisionCycle { get; set; }
     public string? PricePositioning { get; set; }

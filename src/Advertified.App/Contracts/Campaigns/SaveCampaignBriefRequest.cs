@@ -23,7 +23,6 @@ public sealed class SaveCampaignBriefRequest
     public List<string>? TargetInterests { get; set; }
     public string? TargetAudienceNotes { get; set; }
     public string? CustomerType { get; set; }
-    public string? CurrentCustomerNotes { get; set; }
     public string? BuyingBehaviour { get; set; }
     public string? DecisionCycle { get; set; }
     public string? PricePositioning { get; set; }
