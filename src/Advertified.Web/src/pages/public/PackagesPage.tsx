@@ -76,7 +76,7 @@ export function PackagesPage() {
       <PageHero
         kicker="Packages"
         title="Choose your package, then set the exact spend that fits your campaign."
-        description="One decision at a time. Pick the right band first, then choose the spend you want to invest."
+        description="If you already know your budget band, continue to payment. If you want guidance first, start the questionnaire and we will help shape the right campaign setup."
       />
 
       <div className="flex flex-col gap-2 sm:flex-wrap sm:gap-3">
@@ -147,12 +147,17 @@ export function PackagesPage() {
               <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand">Selected order</p>
               <p className="truncate text-sm font-semibold text-ink">{selectedBand.name} | {formatCompactBudget(clampedSpend)}</p>
             </div>
-            <Link
-              className="button-primary shrink-0 px-5 py-2.5 text-sm"
-              to={`/checkout/payment?packageBandId=${encodeURIComponent(selectedBand.id)}&amount=${encodeURIComponent(clampedSpend)}&area=${encodeURIComponent(selectedArea)}`}
-            >
-              Continue to payment
-            </Link>
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+              <Link className="button-secondary px-4 py-2.5 text-sm" to="/start-campaign">
+                Not sure?
+              </Link>
+              <Link
+                className="button-primary px-5 py-2.5 text-sm"
+                to={`/checkout/payment?packageBandId=${encodeURIComponent(selectedBand.id)}&amount=${encodeURIComponent(clampedSpend)}&area=${encodeURIComponent(selectedArea)}`}
+              >
+                Continue to payment
+              </Link>
+            </div>
           </div>
         </div>
       ) : null}
