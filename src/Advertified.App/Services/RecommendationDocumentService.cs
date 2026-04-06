@@ -14,20 +14,23 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
 {
     private readonly AppDbContext _db;
     private readonly IWebHostEnvironment _environment;
-    private readonly IPublicAssetStorage _assetStorage;
+    private readonly IPrivateDocumentStorage _privateDocumentStorage;
+    private readonly IPublicAssetStorage _publicAssetStorage;
     private readonly FrontendOptions _frontendOptions;
     private readonly IProposalAccessTokenService _proposalAccessTokenService;
 
     public RecommendationDocumentService(
         AppDbContext db,
         IWebHostEnvironment environment,
-        IPublicAssetStorage assetStorage,
+        IPrivateDocumentStorage privateDocumentStorage,
+        IPublicAssetStorage publicAssetStorage,
         IOptions<FrontendOptions> frontendOptions,
         IProposalAccessTokenService proposalAccessTokenService)
     {
         _db = db;
         _environment = environment;
-        _assetStorage = assetStorage;
+        _privateDocumentStorage = privateDocumentStorage;
+        _publicAssetStorage = publicAssetStorage;
         _frontendOptions = frontendOptions.Value;
         _proposalAccessTokenService = proposalAccessTokenService;
     }
@@ -46,12 +49,10 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
         var existingSnapshotKey = GetSharedSnapshotKey(currentRecommendations);
         if (!string.IsNullOrWhiteSpace(existingSnapshotKey))
         {
-            try
+            var existingBytes = await TryGetStoredPdfBytesAsync(existingSnapshotKey, cancellationToken);
+            if (existingBytes is not null)
             {
-                return await _assetStorage.GetBytesAsync(existingSnapshotKey, cancellationToken);
-            }
-            catch (InvalidOperationException)
-            {
+                return existingBytes;
             }
         }
 
@@ -102,12 +103,10 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
 
         if (!string.IsNullOrWhiteSpace(recommendation.PdfStorageObjectKey))
         {
-            try
+            var existingBytes = await TryGetStoredPdfBytesAsync(recommendation.PdfStorageObjectKey, cancellationToken);
+            if (existingBytes is not null)
             {
-                return await _assetStorage.GetBytesAsync(recommendation.PdfStorageObjectKey, cancellationToken);
-            }
-            catch (InvalidOperationException)
-            {
+                return existingBytes;
             }
         }
 
@@ -400,13 +399,33 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
     private async Task<string> PersistPdfAsync(Guid campaignId, int revisionNumber, byte[] pdfBytes, CancellationToken cancellationToken)
     {
         var objectKey = $"recommendations/campaign-{campaignId:D}/revision-{revisionNumber:D3}.pdf";
-        return await _assetStorage.SaveAsync(objectKey, pdfBytes, "application/pdf", cancellationToken);
+        return await _privateDocumentStorage.SaveAsync(objectKey, pdfBytes, "application/pdf", cancellationToken);
     }
 
     private async Task<string> PersistProposalPdfAsync(Guid campaignId, int revisionNumber, Guid recommendationId, byte[] pdfBytes, CancellationToken cancellationToken)
     {
         var objectKey = $"recommendations/campaign-{campaignId:D}/revision-{revisionNumber:D3}/proposal-{recommendationId:D}.pdf";
-        return await _assetStorage.SaveAsync(objectKey, pdfBytes, "application/pdf", cancellationToken);
+        return await _privateDocumentStorage.SaveAsync(objectKey, pdfBytes, "application/pdf", cancellationToken);
+    }
+
+    private async Task<byte[]?> TryGetStoredPdfBytesAsync(string objectKey, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await _privateDocumentStorage.GetBytesAsync(objectKey, cancellationToken);
+        }
+        catch (InvalidOperationException)
+        {
+        }
+
+        try
+        {
+            return await _publicAssetStorage.GetBytesAsync(objectKey, cancellationToken);
+        }
+        catch (InvalidOperationException)
+        {
+            return null;
+        }
     }
 
     private async Task<Campaign> LoadCampaignForRecommendationsAsync(Guid campaignId, CancellationToken cancellationToken)
