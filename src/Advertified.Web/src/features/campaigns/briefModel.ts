@@ -32,6 +32,15 @@ export type RecommendationDraftFormState = {
   audience: string;
   scope: string;
   geography: string;
+  salesModel: string;
+  customerType: string;
+  buyingBehaviour: string;
+  decisionCycle: string;
+  pricePositioning: string;
+  growthTarget: string;
+  urgencyLevel: string;
+  audienceClarity: string;
+  valuePropositionFocus: string;
   brandName: string;
   tone: string;
   brief: string;
@@ -334,6 +343,15 @@ export function buildRecommendationDraftBrief(
     provinces,
     cities,
     areas: undefined,
+    salesModel: form.salesModel || undefined,
+    customerType: form.customerType || undefined,
+    buyingBehaviour: form.buyingBehaviour || undefined,
+    decisionCycle: form.decisionCycle || undefined,
+    pricePositioning: form.pricePositioning || undefined,
+    growthTarget: form.growthTarget || undefined,
+    urgencyLevel: form.urgencyLevel || undefined,
+    audienceClarity: form.audienceClarity || undefined,
+    valuePropositionFocus: form.valuePropositionFocus || undefined,
     targetAudienceNotes: [form.audience, form.tone].filter(Boolean).join(' · '),
     preferredMediaTypes: form.channels
       .filter((channel) => allowedChannels.includes(channel))

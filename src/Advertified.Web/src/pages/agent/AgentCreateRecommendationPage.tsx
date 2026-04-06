@@ -15,6 +15,7 @@ import {
   type RecommendationDraftFormState,
 } from '../../features/campaigns/briefModel';
 import { catalogQueryOptions } from '../../lib/catalogQueryOptions';
+import { useSharedFormOptions } from '../../lib/useSharedFormOptions';
 import { formatCurrency } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import { formatChannelLabel, normalizeChannelKey } from '../../features/channels/channelUtils';
@@ -157,6 +158,15 @@ function inferInitialForm(campaign: {
     audience: 'retail',
     scope: campaign.selectedBudget >= 500000 ? 'national' : 'provincial',
     geography: campaign.selectedBudget >= 500000 ? '' : 'gauteng',
+    salesModel: '',
+    customerType: '',
+    buyingBehaviour: '',
+    decisionCycle: '',
+    pricePositioning: '',
+    growthTarget: '',
+    urgencyLevel: '',
+    audienceClarity: '',
+    valuePropositionFocus: '',
     brandName: `${campaign.clientName} ${campaign.packageBandName} Campaign`,
     tone: campaign.packageBandName === 'Dominance' ? 'premium' : 'high-visibility',
     brief: hasPackageRange
@@ -195,6 +205,15 @@ function inferFormFromCampaign(
     audience: inferRecommendationAudienceFromBrief(brief),
     scope: normalizeOption(brief.geographyScope, SCOPE_OPTIONS) || fallback.scope,
     geography: inferRecommendationGeographyFromBrief(brief) || fallback.geography,
+    salesModel: brief.salesModel ?? fallback.salesModel,
+    customerType: brief.customerType ?? fallback.customerType,
+    buyingBehaviour: brief.buyingBehaviour ?? fallback.buyingBehaviour,
+    decisionCycle: brief.decisionCycle ?? fallback.decisionCycle,
+    pricePositioning: brief.pricePositioning ?? fallback.pricePositioning,
+    growthTarget: brief.growthTarget ?? fallback.growthTarget,
+    urgencyLevel: brief.urgencyLevel ?? fallback.urgencyLevel,
+    audienceClarity: brief.audienceClarity ?? fallback.audienceClarity,
+    valuePropositionFocus: brief.valuePropositionFocus ?? fallback.valuePropositionFocus,
     brandName: detailedCampaign?.campaignName || fallback.brandName,
     tone: inferRecommendationToneFromBrief(brief, campaign.packageBandName),
     brief: brief.specialRequirements?.trim()
@@ -226,6 +245,7 @@ export function AgentCreateRecommendationPage() {
   const queryClient = useQueryClient();
   const inboxQuery = useQuery({ queryKey: ['agent-inbox'], queryFn: advertifiedApi.getAgentInbox });
   const packagesQuery = useQuery({ queryKey: ['packages'], queryFn: advertifiedApi.getPackages, ...catalogQueryOptions });
+  const formOptionsQuery = useSharedFormOptions();
   const requestedCampaignId = searchParams.get('campaignId') ?? '';
   const [selectedCampaignIdState, setSelectedCampaignIdState] = useState<string>('');
   const [selectedClientIdState, setSelectedClientIdState] = useState<string>('');
@@ -238,6 +258,15 @@ export function AgentCreateRecommendationPage() {
     audience: '',
     scope: '',
     geography: '',
+    salesModel: '',
+    customerType: '',
+    buyingBehaviour: '',
+    decisionCycle: '',
+    pricePositioning: '',
+    growthTarget: '',
+    urgencyLevel: '',
+    audienceClarity: '',
+    valuePropositionFocus: '',
     brandName: '',
     tone: '',
     brief: '',
@@ -345,6 +374,7 @@ export function AgentCreateRecommendationPage() {
       }
       : undefined);
   }, [selectedCampaignBrief, selectedCampaignDetails]);
+  const sharedFormOptions = formOptionsQuery.data;
 
   const handleFormChange = <K extends keyof CampaignFormState>(key: K, value: CampaignFormState[K]) => {
     if (key === 'scope') {
@@ -561,6 +591,14 @@ export function AgentCreateRecommendationPage() {
       && form.audience
       && form.scope
       && (form.scope === 'national' || form.geography)
+      && form.salesModel
+      && form.customerType
+      && form.buyingBehaviour
+      && form.decisionCycle
+      && form.pricePositioning
+      && form.growthTarget
+      && form.urgencyLevel
+      && form.audienceClarity
       && form.brief.trim()
       && form.channels.length > 0);
   const isGenerating = pendingAction === 'generate' && initializeMutation.isPending;
@@ -619,7 +657,7 @@ export function AgentCreateRecommendationPage() {
     if (!isStep2Complete) {
       pushToast({
         title: 'Complete the campaign details first.',
-        description: 'Add the campaign objective, audience, scope, geography, and brief before generating the draft.',
+        description: 'Add the campaign objective, audience, coverage, strategy fields, and client brief before generating the draft.',
       }, 'info');
       return;
     }
@@ -628,8 +666,12 @@ export function AgentCreateRecommendationPage() {
     await initializeMutation.mutateAsync({ submitBrief: true });
   };
 
-  if (inboxQuery.isLoading || packagesQuery.isLoading) {
+  if (inboxQuery.isLoading || packagesQuery.isLoading || formOptionsQuery.isLoading) {
     return <LoadingState label="Loading recommendation flow..." />;
+  }
+
+  if (formOptionsQuery.isError || !sharedFormOptions) {
+    return <LoadingState label="We could not load recommendation form options right now." />;
   }
 
   return (
@@ -877,6 +919,98 @@ export function AgentCreateRecommendationPage() {
               </label>
             </div>
 
+            <div className="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              <label className="block">
+                <span className="label-base">Sales model</span>
+                <select value={form.salesModel} onChange={(event) => handleFormChange('salesModel', event.target.value)} className="input-base">
+                  <option value="">Select sales model</option>
+                  {sharedFormOptions.salesModels.map((item) => (
+                    <option key={item.value} value={item.value}>{item.label}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="label-base">Customer type</span>
+                <select value={form.customerType} onChange={(event) => handleFormChange('customerType', event.target.value)} className="input-base">
+                  <option value="">Select customer type</option>
+                  {sharedFormOptions.customerTypes.map((item) => (
+                    <option key={item.value} value={item.value}>{item.label}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="label-base">Buying behaviour</span>
+                <select value={form.buyingBehaviour} onChange={(event) => handleFormChange('buyingBehaviour', event.target.value)} className="input-base">
+                  <option value="">Select buying behaviour</option>
+                  {sharedFormOptions.buyingBehaviours.map((item) => (
+                    <option key={item.value} value={item.value}>{item.label}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="label-base">Decision cycle</span>
+                <select value={form.decisionCycle} onChange={(event) => handleFormChange('decisionCycle', event.target.value)} className="input-base">
+                  <option value="">Select decision cycle</option>
+                  {sharedFormOptions.decisionCycles.map((item) => (
+                    <option key={item.value} value={item.value}>{item.label}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="label-base">Price positioning</span>
+                <select value={form.pricePositioning} onChange={(event) => handleFormChange('pricePositioning', event.target.value)} className="input-base">
+                  <option value="">Select price positioning</option>
+                  {sharedFormOptions.pricePositioning.map((item) => (
+                    <option key={item.value} value={item.value}>{item.label}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="label-base">Growth target</span>
+                <select value={form.growthTarget} onChange={(event) => handleFormChange('growthTarget', event.target.value)} className="input-base">
+                  <option value="">Select growth target</option>
+                  {sharedFormOptions.growthTargets.map((item) => (
+                    <option key={item.value} value={item.value}>{item.label}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="label-base">Urgency</span>
+                <select value={form.urgencyLevel} onChange={(event) => handleFormChange('urgencyLevel', event.target.value)} className="input-base">
+                  <option value="">Select urgency</option>
+                  {sharedFormOptions.urgencyLevels.map((item) => (
+                    <option key={item.value} value={item.value}>{item.label}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="label-base">Audience clarity</span>
+                <select value={form.audienceClarity} onChange={(event) => handleFormChange('audienceClarity', event.target.value)} className="input-base">
+                  <option value="">Select audience clarity</option>
+                  {sharedFormOptions.audienceClarity.map((item) => (
+                    <option key={item.value} value={item.value}>{item.label}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="label-base">Value proposition</span>
+                <select value={form.valuePropositionFocus} onChange={(event) => handleFormChange('valuePropositionFocus', event.target.value)} className="input-base">
+                  <option value="">Select value proposition</option>
+                  {sharedFormOptions.valuePropositionFocus.map((item) => (
+                    <option key={item.value} value={item.value}>{item.label}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
             <div className="mt-5 space-y-3">
               <span className="label-base">Channels to include</span>
               <div className="flex flex-wrap gap-3">
@@ -1023,6 +1157,26 @@ export function AgentCreateRecommendationPage() {
                   <div>
                     <p className="text-ink-soft">Tone</p>
                     <p className="font-medium text-ink">{form.tone || 'Not selected'}</p>
+                  </div>
+                  <div>
+                    <p className="text-ink-soft">Sales model</p>
+                    <p className="font-medium text-ink">{form.salesModel || 'Not selected'}</p>
+                  </div>
+                  <div>
+                    <p className="text-ink-soft">Customer type</p>
+                    <p className="font-medium text-ink">{form.customerType || 'Not selected'}</p>
+                  </div>
+                  <div>
+                    <p className="text-ink-soft">Buying behaviour</p>
+                    <p className="font-medium text-ink">{form.buyingBehaviour || 'Not selected'}</p>
+                  </div>
+                  <div>
+                    <p className="text-ink-soft">Decision cycle</p>
+                    <p className="font-medium text-ink">{form.decisionCycle || 'Not selected'}</p>
+                  </div>
+                  <div>
+                    <p className="text-ink-soft">Urgency</p>
+                    <p className="font-medium text-ink">{form.urgencyLevel || 'Not selected'}</p>
                   </div>
                   <div>
                     <p className="text-ink-soft">Channels</p>
