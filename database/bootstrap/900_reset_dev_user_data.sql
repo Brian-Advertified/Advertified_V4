@@ -1,6 +1,6 @@
 begin;
 
--- Trigger marker: forced DEV user-data reset run.
+-- Trigger marker: forced DEV user-data reset run. 2026-04-06
 do $$
 declare
     table_name text;
