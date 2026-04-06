@@ -38,6 +38,7 @@ import { AgentDeliveryReportPanel } from '../../features/agent/components/AgentD
 import { AgentInventorySelectionModal } from '../../features/agent/components/AgentInventorySelectionModal';
 import { AgentOpsAssetsPanel } from '../../features/agent/components/AgentOpsAssetsPanel';
 import { AgentRecommendationPanel } from '../../features/agent/components/AgentRecommendationPanel';
+import { buildBriefClientNotes } from '../../features/campaigns/briefModel';
 import { formatChannelLabel } from '../../features/channels/channelUtils';
 import { catalogQueryOptions } from '../../lib/catalogQueryOptions';
 import { invalidateAgentCampaignQueries, queryKeys } from '../../lib/queryKeys';
@@ -415,7 +416,7 @@ export function AgentCampaignDetailPage() {
   const channelSummary = buildChannelSummary(campaign.brief, selectedPlanItems);
   const toneSummary = buildToneSummary(campaign.brief);
   const originalPrompt = buildOriginalPrompt(campaign.brief);
-  const clientNotes = campaign.brief?.specialRequirements ?? campaign.brief?.creativeNotes ?? campaign.brief?.targetAudienceNotes ?? 'No client notes captured yet.';
+  const clientNotes = buildBriefClientNotes(campaign.brief);
   const statusLabel = campaign.status === 'creative_approved' || campaign.status === 'booking_in_progress' || campaign.status === 'launched'
     ? titleCase(campaign.status)
     : activeRecommendation?.status

@@ -2,6 +2,11 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import type { ReactNode } from 'react';
+import {
+  joinCommaList,
+  optionalNumber,
+  splitCommaList,
+} from '../briefModel';
 import type { CampaignBrief } from '../../../types/domain';
 import { useSharedFormOptions } from '../../../lib/useSharedFormOptions';
 
@@ -108,23 +113,6 @@ const briefSchema = z
 
 type FormShape = z.infer<typeof briefSchema>;
 
-function splitList(value?: string) {
-  return value?.split(',').map((item) => item.trim()).filter(Boolean);
-}
-
-function joinList(value?: string[]) {
-  return value?.join(', ');
-}
-
-function optionalNumber(value?: string) {
-  if (!value) {
-    return undefined;
-  }
-
-  const parsed = Number(value);
-  return Number.isNaN(parsed) ? undefined : parsed;
-}
-
 export function CampaignBriefForm({
   initialValue,
   loading,
@@ -153,17 +141,17 @@ export function CampaignBriefForm({
       startDate: initialValue?.startDate,
       endDate: initialValue?.endDate,
       durationWeeks: initialValue?.durationWeeks?.toString(),
-      provinces: joinList(initialValue?.provinces),
-      cities: joinList(initialValue?.cities),
-      suburbs: joinList(initialValue?.suburbs),
-      areas: joinList(initialValue?.areas),
+      provinces: joinCommaList(initialValue?.provinces),
+      cities: joinCommaList(initialValue?.cities),
+      suburbs: joinCommaList(initialValue?.suburbs),
+      areas: joinCommaList(initialValue?.areas),
       targetAgeMin: initialValue?.targetAgeMin?.toString(),
       targetAgeMax: initialValue?.targetAgeMax?.toString(),
       targetGender: initialValue?.targetGender,
-      targetLanguages: joinList(initialValue?.targetLanguages),
+      targetLanguages: joinCommaList(initialValue?.targetLanguages),
       targetLsmMin: initialValue?.targetLsmMin?.toString(),
       targetLsmMax: initialValue?.targetLsmMax?.toString(),
-      targetInterests: joinList(initialValue?.targetInterests),
+      targetInterests: joinCommaList(initialValue?.targetInterests),
       targetAudienceNotes: initialValue?.targetAudienceNotes,
       customerType: initialValue?.customerType ?? '',
       buyingBehaviour: initialValue?.buyingBehaviour ?? '',
@@ -174,10 +162,10 @@ export function CampaignBriefForm({
       urgencyLevel: initialValue?.urgencyLevel ?? '',
       audienceClarity: initialValue?.audienceClarity ?? '',
       valuePropositionFocus: initialValue?.valuePropositionFocus ?? '',
-      preferredMediaTypes: joinList(initialValue?.preferredMediaTypes),
-      excludedMediaTypes: joinList(initialValue?.excludedMediaTypes),
-      mustHaveAreas: joinList(initialValue?.mustHaveAreas),
-      excludedAreas: joinList(initialValue?.excludedAreas),
+      preferredMediaTypes: joinCommaList(initialValue?.preferredMediaTypes),
+      excludedMediaTypes: joinCommaList(initialValue?.excludedMediaTypes),
+      mustHaveAreas: joinCommaList(initialValue?.mustHaveAreas),
+      excludedAreas: joinCommaList(initialValue?.excludedAreas),
       creativeReady: initialValue?.creativeReady,
       creativeNotes: initialValue?.creativeNotes,
       maxMediaItems: initialValue?.maxMediaItems?.toString(),
@@ -246,17 +234,17 @@ export function CampaignBriefForm({
       startDate: values.startDate,
       endDate: values.endDate,
       durationWeeks: optionalNumber(values.durationWeeks),
-      provinces: splitList(values.provinces),
-      cities: splitList(values.cities),
-      suburbs: splitList(values.suburbs),
-      areas: splitList(values.areas),
+      provinces: splitCommaList(values.provinces),
+      cities: splitCommaList(values.cities),
+      suburbs: splitCommaList(values.suburbs),
+      areas: splitCommaList(values.areas),
       targetAgeMin: optionalNumber(values.targetAgeMin),
       targetAgeMax: optionalNumber(values.targetAgeMax),
       targetGender: values.targetGender,
-      targetLanguages: splitList(values.targetLanguages),
+      targetLanguages: splitCommaList(values.targetLanguages),
       targetLsmMin: optionalNumber(values.targetLsmMin),
       targetLsmMax: optionalNumber(values.targetLsmMax),
-      targetInterests: splitList(values.targetInterests),
+      targetInterests: splitCommaList(values.targetInterests),
       targetAudienceNotes: values.targetAudienceNotes?.trim() || undefined,
       customerType: values.customerType || undefined,
       buyingBehaviour: values.buyingBehaviour || undefined,
@@ -267,10 +255,10 @@ export function CampaignBriefForm({
       urgencyLevel: values.urgencyLevel || undefined,
       audienceClarity: values.audienceClarity || undefined,
       valuePropositionFocus: values.valuePropositionFocus || undefined,
-      preferredMediaTypes: splitList(values.preferredMediaTypes),
-      excludedMediaTypes: splitList(values.excludedMediaTypes),
-      mustHaveAreas: splitList(values.mustHaveAreas),
-      excludedAreas: splitList(values.excludedAreas),
+      preferredMediaTypes: splitCommaList(values.preferredMediaTypes),
+      excludedMediaTypes: splitCommaList(values.excludedMediaTypes),
+      mustHaveAreas: splitCommaList(values.mustHaveAreas),
+      excludedAreas: splitCommaList(values.excludedAreas),
       creativeReady: values.creativeReady,
       creativeNotes: values.creativeNotes,
       maxMediaItems: optionalNumber(values.maxMediaItems),

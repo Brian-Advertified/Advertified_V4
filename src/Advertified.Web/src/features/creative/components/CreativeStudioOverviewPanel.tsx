@@ -1,5 +1,9 @@
 import { ArrowRight, CheckCircle2, ClipboardList, ImagePlus, Palette, RadioTower, Sparkles, WandSparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import {
+  buildBriefAudienceSummary,
+  buildBriefProductionNotes,
+} from '../../campaigns/briefModel';
 import { formatCurrency } from '../../../lib/utils';
 import type { Campaign, CampaignBrief, CampaignRecommendation } from '../../../types/domain';
 import type { CreativeStudioCollection, CreativeStudioSignal } from '../creativeStudioTypes';
@@ -90,7 +94,7 @@ export function CreativeStudioOverviewPanel({
               </div>
               <div>
                 <div className="font-semibold text-slate-900">Audience notes</div>
-                <div>{brief?.targetAudienceNotes ?? 'Audience direction has not been captured yet.'}</div>
+                <div>{buildBriefAudienceSummary(brief)}</div>
               </div>
             </div>
           </div>
@@ -128,7 +132,7 @@ export function CreativeStudioOverviewPanel({
                 <Palette className="h-4 w-4 text-amber-500" />
                 Production Notes
               </div>
-              <div className="text-sm leading-7 text-slate-700">{brief?.specialRequirements ?? 'No production notes yet. Build from the approved recommendation and package rules.'}</div>
+              <div className="text-sm leading-7 text-slate-700">{buildBriefProductionNotes(brief)}</div>
             </div>
             <div className="rounded-[24px] border border-slate-200/80 bg-slate-50/70 p-5 md:col-span-2">
               <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">

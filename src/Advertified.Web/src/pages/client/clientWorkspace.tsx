@@ -2,6 +2,7 @@ import { CheckCircle2, Circle, Clock3 } from 'lucide-react';
 import type { PropsWithChildren, ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { hasCampaignClearedPayment } from '../../lib/access';
+import { buildBriefCoverageSummary } from '../../features/campaigns/briefModel';
 import {
   CAMPAIGN_STATUSES_AFTER_CREATIVE_APPROVAL,
   getPrimaryRecommendation,
@@ -131,16 +132,11 @@ export function getCampaignQuickSteps(campaign: Campaign) {
 export function buildPackageSummary(campaign: Campaign, order?: PackageOrder, packageBand?: PackageBand) {
   const recommendation = getPrimaryRecommendation(campaign);
   const recommendedChannels = Array.from(new Set(recommendation?.items.map((item) => item.channel) ?? []));
-  const geography = [
-    ...(campaign.brief?.areas ?? []),
-    ...(campaign.brief?.cities ?? []),
-    ...(campaign.brief?.provinces ?? []),
-  ];
 
   return [
     { label: 'Package', value: campaign.packageBandName },
     { label: 'Budget', value: formatCurrency(getClientFacingBudget(campaign)) },
-    { label: 'Coverage', value: geography[0] ? geography.join(', ') : 'Not added yet' },
+    { label: 'Coverage', value: buildBriefCoverageSummary(campaign.brief) },
     { label: 'Objective', value: campaign.brief?.objective || packageBand?.packagePurpose || 'Not added yet' },
     { label: 'Included channels', value: recommendedChannels[0] ? recommendedChannels.map(formatChannelLabel).join(', ') : 'Recommendation not ready yet' },
     { label: 'Payment status', value: titleCase(order?.paymentStatus ?? 'paid') },

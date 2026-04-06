@@ -1,4 +1,8 @@
-import { titleCase } from '../../lib/utils';
+import {
+  buildBriefAudienceSummary,
+  buildBriefGeographySummary,
+  buildBriefOriginalPrompt,
+} from '../campaigns/briefModel';
 import { formatChannelLabel, normalizeChannelKey as sharedNormalizeChannelKey } from '../channels/channelUtils';
 import type { CampaignBrief, RecommendationItem, SelectedPlanInventoryItem } from '../../types/domain';
 
@@ -9,21 +13,15 @@ export type BudgetConstraintContext = {
 };
 
 export function buildAudienceSummary(brief?: CampaignBrief) {
-  if (!brief) return 'Not captured yet';
-
-  const parts: string[] = [];
-  if (brief.targetAudienceNotes) parts.push(brief.targetAudienceNotes);
-  if (brief.targetInterests?.length) parts.push(brief.targetInterests.join(', '));
-  if (brief.targetAgeMin || brief.targetAgeMax) parts.push(`Age ${brief.targetAgeMin ?? '?'}-${brief.targetAgeMax ?? '?'}`);
-  return parts[0] ?? 'General audience';
+  const summary = buildBriefAudienceSummary(brief, 'General audience');
+  return summary;
 }
 
 export function buildGeoSummary(brief?: CampaignBrief) {
-  if (!brief) return 'Not captured yet';
-
-  const areas = [...(brief.areas ?? []), ...(brief.cities ?? []), ...(brief.provinces ?? [])];
-  if (areas.length > 0) return areas.slice(0, 3).join(', ');
-  return titleCase(brief.geographyScope || 'not set');
+  const summary = buildBriefGeographySummary(brief);
+  return summary === 'Not captured yet'
+    ? summary
+    : summary.split(', ').slice(0, 3).join(', ');
 }
 
 export function buildChannelSummary(brief?: CampaignBrief, selectedPlanItems?: SelectedPlanInventoryItem[]) {
@@ -49,10 +47,7 @@ export function normalizeChannelKey(channel: string) {
 }
 
 export function buildOriginalPrompt(brief?: CampaignBrief) {
-  return brief?.specialRequirements
-    ?? brief?.creativeNotes
-    ?? brief?.targetAudienceNotes
-    ?? 'No original prompt has been captured yet.';
+  return buildBriefOriginalPrompt(brief);
 }
 
 export function inferRegionFromTitle(title: string, brief?: CampaignBrief) {

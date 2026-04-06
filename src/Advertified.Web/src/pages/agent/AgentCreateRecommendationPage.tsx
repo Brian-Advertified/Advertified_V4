@@ -5,14 +5,23 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { ProcessingOverlay } from '../../components/ui/ProcessingOverlay';
 import { useToast } from '../../components/ui/toast';
+import {
+  buildBriefQuestionnaireSummary,
+  buildRecommendationDraftBrief,
+  inferRecommendationAudienceFromBrief,
+  inferRecommendationGeographyFromBrief,
+  inferRecommendationToneFromBrief,
+  type RecommendationDraftChannel,
+  type RecommendationDraftFormState,
+} from '../../features/campaigns/briefModel';
 import { catalogQueryOptions } from '../../lib/catalogQueryOptions';
 import { formatCurrency } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import { formatChannelLabel, normalizeChannelKey } from '../../features/channels/channelUtils';
-import type { AgentInboxItem, Campaign, CampaignBrief, PackageBand } from '../../types/domain';
+import type { AgentInboxItem, Campaign, PackageBand } from '../../types/domain';
 import { pushAgentMutationError } from './agentMutationToast';
 
-type ChannelOption = 'Radio' | 'OOH' | 'TV';
+type ChannelOption = RecommendationDraftChannel;
 
 const STEP_CONFIG = [
   { id: 1, label: 'Choose campaign' },
@@ -113,16 +122,7 @@ function ensureRequiredChannels(channels: ChannelOption[]): ChannelOption[] {
   return ordered.includes('OOH') ? ordered : ['OOH', ...ordered];
 }
 
-type CampaignFormState = {
-  objective: string;
-  audience: string;
-  scope: string;
-  geography: string;
-  brandName: string;
-  tone: string;
-  brief: string;
-  channels: ChannelOption[];
-};
+type CampaignFormState = RecommendationDraftFormState;
 
 type ProspectFormState = {
   fullName: string;
@@ -166,49 +166,6 @@ function inferInitialForm(campaign: {
   };
 }
 
-function inferAudienceFromBrief(brief?: CampaignBrief): string {
-  const haystack = `${brief?.targetAudienceNotes ?? ''} ${(brief?.targetInterests ?? []).join(' ')}`.toLowerCase();
-  if (haystack.includes('youth') || haystack.includes('young')) {
-    return 'youth';
-  }
-
-  if (haystack.includes('business') || haystack.includes('professional')) {
-    return 'business';
-  }
-
-  if (haystack.includes('retail') || haystack.includes('shopper')) {
-    return 'retail';
-  }
-
-  return 'mass-market';
-}
-
-function inferToneFromBrief(brief?: CampaignBrief, packageBandName?: string): string {
-  const haystack = `${brief?.targetAudienceNotes ?? ''} ${brief?.specialRequirements ?? ''}`.toLowerCase();
-  if (haystack.includes('premium') || haystack.includes('luxury')) {
-    return 'premium';
-  }
-
-  if (haystack.includes('performance') || haystack.includes('lead')) {
-    return 'performance';
-  }
-
-  if (packageBandName === 'Dominance') {
-    return 'premium';
-  }
-
-  return 'high-visibility';
-}
-
-function inferGeographyFromBrief(brief?: CampaignBrief): string {
-  const rawValue = brief?.cities?.[0]
-    ?? brief?.areas?.[0]
-    ?? brief?.provinces?.[0]
-    ?? '';
-
-  return rawValue.trim().toLowerCase().replace(/\s+/g, '-');
-}
-
 function inferFormFromCampaign(
   campaign: {
     clientName: string;
@@ -235,11 +192,11 @@ function inferFormFromCampaign(
 
   return {
     objective: normalizeOption(brief.objective, OBJECTIVE_OPTIONS) || fallback.objective,
-    audience: inferAudienceFromBrief(brief),
+    audience: inferRecommendationAudienceFromBrief(brief),
     scope: normalizeOption(brief.geographyScope, SCOPE_OPTIONS) || fallback.scope,
-    geography: inferGeographyFromBrief(brief) || fallback.geography,
+    geography: inferRecommendationGeographyFromBrief(brief) || fallback.geography,
     brandName: detailedCampaign?.campaignName || fallback.brandName,
-    tone: inferToneFromBrief(brief, campaign.packageBandName),
+    tone: inferRecommendationToneFromBrief(brief, campaign.packageBandName),
     brief: brief.specialRequirements?.trim()
       || brief.targetAudienceNotes?.trim()
       || fallback.brief,
@@ -381,44 +338,12 @@ export function AgentCreateRecommendationPage() {
     ? scopedAiInterpretationSummary.summary
     : '';
   const questionnaireSummary = useMemo(() => {
-    if (!selectedCampaignDetails || !selectedCampaignBrief) {
-      return [];
-    }
-
-    const geography = selectedCampaignBrief.geographyScope === 'national'
-      ? 'National'
-      : selectedCampaignBrief.geographyScope === 'provincial'
-        ? (selectedCampaignBrief.provinces?.join(', ') || 'Provincial')
-        : (selectedCampaignBrief.cities?.join(', ') || selectedCampaignBrief.areas?.join(', ') || 'Local');
-    const ageRange = selectedCampaignBrief.targetAgeMin || selectedCampaignBrief.targetAgeMax
-      ? `${selectedCampaignBrief.targetAgeMin ?? '?'}-${selectedCampaignBrief.targetAgeMax ?? '?'}`
-      : '';
-
-    return [
-      { label: 'Business', value: selectedCampaignDetails.businessName },
-      { label: 'Industry', value: selectedCampaignDetails.industry },
-      { label: 'Business stage', value: selectedCampaignBrief.businessStage },
-      { label: 'Monthly revenue', value: selectedCampaignBrief.monthlyRevenueBand },
-      { label: 'Sales model', value: selectedCampaignBrief.salesModel },
-      { label: 'Objective', value: selectedCampaignBrief.objective },
-      { label: 'Geography', value: geography },
-      { label: 'Age range', value: ageRange || undefined },
-      { label: 'Gender', value: selectedCampaignBrief.targetGender },
-      { label: 'Languages', value: selectedCampaignBrief.targetLanguages?.join(', ') },
-      { label: 'Customer type', value: selectedCampaignBrief.customerType },
-      { label: 'Buying behaviour', value: selectedCampaignBrief.buyingBehaviour },
-      { label: 'Decision cycle', value: selectedCampaignBrief.decisionCycle },
-      { label: 'Price positioning', value: selectedCampaignBrief.pricePositioning },
-      { label: 'Average spend', value: selectedCampaignBrief.averageCustomerSpendBand },
-      { label: 'Growth target', value: selectedCampaignBrief.growthTarget },
-      { label: 'Urgency', value: selectedCampaignBrief.urgencyLevel },
-      { label: 'Audience clarity', value: selectedCampaignBrief.audienceClarity },
-      { label: 'Value proposition', value: selectedCampaignBrief.valuePropositionFocus },
-      { label: 'Preferred channels', value: selectedCampaignBrief.preferredMediaTypes?.join(', ') },
-      { label: 'Interests', value: selectedCampaignBrief.targetInterests?.join(', ') },
-      { label: 'Audience notes', value: selectedCampaignBrief.targetAudienceNotes },
-      { label: 'Special requirements', value: selectedCampaignBrief.specialRequirements },
-    ].filter((item): item is { label: string; value: string } => Boolean(item.value && item.value.trim()));
+    return buildBriefQuestionnaireSummary(selectedCampaignBrief, selectedCampaignDetails
+      ? {
+        businessName: selectedCampaignDetails.businessName,
+        industry: selectedCampaignDetails.industry,
+      }
+      : undefined);
   }, [selectedCampaignBrief, selectedCampaignDetails]);
 
   const handleFormChange = <K extends keyof CampaignFormState>(key: K, value: CampaignFormState[K]) => {
@@ -522,45 +447,6 @@ export function AgentCreateRecommendationPage() {
     && prospectForm.packageBandId,
   );
 
-  function buildBriefPayload(): CampaignBrief {
-    const provinceMap: Record<string, string> = {
-      gauteng: 'Gauteng',
-      'western-cape': 'Western Cape',
-      'kwazulu-natal': 'KwaZulu-Natal',
-    };
-    const cityMap: Record<string, string> = {
-      johannesburg: 'Johannesburg',
-      'cape-town': 'Cape Town',
-      durban: 'Durban',
-      pretoria: 'Pretoria',
-      'port-elizabeth': 'Port Elizabeth',
-    };
-    const normalizedScope = form.scope === 'regional' ? 'provincial' : (form.scope || 'provincial');
-    const geography = form.geography;
-    const provinces = normalizedScope === 'provincial' && geography
-      ? [provinceMap[geography] ?? geography]
-      : undefined;
-    const cities = normalizedScope === 'local' && geography
-      ? [cityMap[geography] ?? geography]
-      : undefined;
-    const areas = undefined;
-
-    return {
-      objective: form.objective || 'awareness',
-      geographyScope: normalizedScope,
-      provinces,
-      cities,
-      areas,
-      targetAudienceNotes: [form.audience, form.tone].filter(Boolean).join(' · '),
-      preferredMediaTypes: form.channels
-        .filter((channel) => allowedChannels.includes(channel))
-        .map((channel) => channel.toLowerCase()),
-      creativeNotes: form.brandName || undefined,
-      openToUpsell: false,
-      specialRequirements: form.brief,
-    };
-  }
-
   const initializeMutation = useMutation({
     mutationFn: async ({ submitBrief }: { submitBrief: boolean }) => {
       if (!selectedCampaign) {
@@ -583,7 +469,7 @@ export function AgentCreateRecommendationPage() {
         campaignName: form.brandName,
         planningMode: 'hybrid',
         submitBrief,
-        brief: buildBriefPayload(),
+        brief: buildRecommendationDraftBrief(form, allowedChannels),
       });
 
       if (submitBrief) {

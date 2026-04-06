@@ -9,6 +9,10 @@ import { LoadingState } from '../../components/ui/LoadingState';
 import { QueryStateBoundary } from '../../components/ui/QueryStateBoundary';
 import { useToast } from '../../components/ui/toast';
 import { useAuth } from '../../features/auth/auth-context';
+import {
+  buildBriefAudienceSummary,
+  buildBriefProductionNotes,
+} from '../../features/campaigns/briefModel';
 import { CreativeStudioAssetsPanel } from '../../features/creative/components/CreativeStudioAssetsPanel';
 import { CreativeStudioBookingPanel } from '../../features/creative/components/CreativeStudioBookingPanel';
 import { CreativeStudioEnginePanel } from '../../features/creative/components/CreativeStudioEnginePanel';
@@ -323,7 +327,7 @@ export function CreativeDirectorStudioPage() {
     {
       icon: ClipboardList,
       title: 'Production notes',
-      body: brief?.specialRequirements ?? 'No production notes were captured. Build from the approved recommendation and package envelope.',
+      body: buildBriefProductionNotes(brief, 'No production notes were captured. Build from the approved recommendation and package envelope.'),
       accent: 'from-brand-soft via-white to-brand-soft',
     },
   ];
@@ -336,7 +340,7 @@ export function CreativeDirectorStudioPage() {
     {
       label: 'Audience frame',
       value: brief?.targetAudienceNotes?.trim() ? 'Defined' : 'To refine',
-      helper: brief?.targetAudienceNotes?.trim() || 'Audience direction has not been captured in detail yet.',
+      helper: buildBriefAudienceSummary(brief, 'Audience direction has not been captured in detail yet.'),
     },
     {
       label: 'Approved formats',
@@ -546,7 +550,7 @@ function ClientCreativeStudioPreview({
             <p>{recommendation?.summary ?? 'A creative summary will appear here once the production team finalises the campaign pack.'}</p>
             <div className="rounded-[24px] border border-line bg-slate-50/70 p-5">
               <div className="text-xs font-semibold uppercase tracking-[0.22em] text-ink-soft">Audience focus</div>
-              <p className="mt-2 text-sm leading-7 text-ink-soft">{brief?.targetAudienceNotes ?? 'Audience direction will appear here once confirmed.'}</p>
+              <p className="mt-2 text-sm leading-7 text-ink-soft">{buildBriefAudienceSummary(brief, 'Audience direction will appear here once confirmed.')}</p>
             </div>
             <div className="rounded-[24px] border border-line bg-slate-50/70 p-5">
               <div className="text-xs font-semibold uppercase tracking-[0.22em] text-ink-soft">Campaign objective</div>
@@ -748,7 +752,7 @@ export function CreativeStudioDemoPage() {
     {
       icon: ClipboardList,
       title: 'Production notes',
-      body: brief?.specialRequirements ?? 'No production notes were captured. Build from the approved recommendation and package envelope.',
+      body: buildBriefProductionNotes(brief, 'No production notes were captured. Build from the approved recommendation and package envelope.'),
       accent: 'from-brand-soft via-white to-brand-soft',
     },
   ];
@@ -761,7 +765,7 @@ export function CreativeStudioDemoPage() {
     {
       label: 'Audience frame',
       value: 'Defined',
-      helper: brief?.targetAudienceNotes ?? 'Audience direction is already captured.',
+      helper: buildBriefAudienceSummary(brief, 'Audience direction is already captured.'),
     },
     {
       label: 'Approved formats',

@@ -4,38 +4,26 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { z } from 'zod';
 import { useToast } from '../../../components/ui/toast';
+import {
+  createDefaultQuestionnaireBriefFields,
+  parseAgeRange,
+  type QuestionnaireBriefFields,
+} from '../briefModel';
 import { catalogQueryOptions } from '../../../lib/catalogQueryOptions';
 import { useSharedFormOptions } from '../../../lib/useSharedFormOptions';
 import { advertifiedApi } from '../../../services/advertifiedApi';
 
-type QuestionnaireForm = {
+type QuestionnaireForm = QuestionnaireBriefFields & {
   fullName: string;
   email: string;
   phone: string;
   businessName: string;
   industry: string;
-  businessStage: string;
-  monthlyRevenueBand: string;
-  salesModel: string;
   packageBandId: string;
   campaignName: string;
-  objective: string;
-  geographyScope: string;
   primaryArea: string;
   ageRange: string;
-  gender: string;
   language: string;
-  preferredMediaTypes: string[];
-  customerType: string;
-  buyingBehaviour: string;
-  decisionCycle: string;
-  pricePositioning: string;
-  averageCustomerSpendBand: string;
-  growthTarget: string;
-  urgencyLevel: string;
-  audienceClarity: string;
-  valuePropositionFocus: string;
-  specialRequirements: string;
 };
 
 const OBJECTIVES = [
@@ -102,18 +90,6 @@ const LANGUAGES = [
   'Multilingual',
 ] as const;
 
-function parseAgeRange(value: string): { min?: number; max?: number } {
-  if (!value) {
-    return {};
-  }
-
-  const [min, max] = value.split('-').map((item) => Number.parseInt(item, 10));
-  return {
-    min: Number.isFinite(min) ? min : undefined,
-    max: Number.isFinite(max) ? max : undefined,
-  };
-}
-
 type ProspectQuestionnaireFormProps = {
   variant?: 'hero' | 'page';
 };
@@ -135,7 +111,7 @@ const questionnaireSchema = z.object({
   geographyScope: z.enum(['local', 'provincial', 'national'], { message: 'Geography scope is required.' }),
   primaryArea: z.string(),
   ageRange: z.string(),
-  gender: z.string(),
+  targetGender: z.string(),
   language: z.string(),
   preferredMediaTypes: z.array(z.string()).min(1, 'Select at least one preferred channel.'),
   customerType: z.string(),
@@ -206,36 +182,37 @@ function readStoredQuestionnaireDraft(): QuestionnaireForm | null {
     }
 
     const parsed = JSON.parse(raw) as Partial<QuestionnaireForm>;
+    const defaultBrief = createDefaultQuestionnaireBriefFields();
     return {
       fullName: parsed.fullName ?? '',
       email: parsed.email ?? '',
       phone: parsed.phone ?? '',
       businessName: parsed.businessName ?? '',
       industry: parsed.industry ?? '',
-      businessStage: parsed.businessStage ?? '',
-      monthlyRevenueBand: parsed.monthlyRevenueBand ?? '',
-      salesModel: parsed.salesModel ?? '',
+      businessStage: parsed.businessStage ?? defaultBrief.businessStage ?? '',
+      monthlyRevenueBand: parsed.monthlyRevenueBand ?? defaultBrief.monthlyRevenueBand ?? '',
+      salesModel: parsed.salesModel ?? defaultBrief.salesModel ?? '',
       packageBandId: parsed.packageBandId ?? '',
       campaignName: parsed.campaignName ?? '',
-      objective: parsed.objective ?? 'awareness',
-      geographyScope: parsed.geographyScope ?? 'provincial',
+      objective: parsed.objective ?? defaultBrief.objective,
+      geographyScope: parsed.geographyScope ?? defaultBrief.geographyScope,
       primaryArea: parsed.primaryArea ?? '',
       ageRange: parsed.ageRange ?? '',
-      gender: parsed.gender ?? '',
+      targetGender: parsed.targetGender ?? defaultBrief.targetGender ?? '',
       language: parsed.language ?? '',
       preferredMediaTypes: Array.isArray(parsed.preferredMediaTypes) && parsed.preferredMediaTypes.length > 0
         ? parsed.preferredMediaTypes
-        : ['ooh', 'radio'],
-      customerType: parsed.customerType ?? '',
-      buyingBehaviour: parsed.buyingBehaviour ?? '',
-      decisionCycle: parsed.decisionCycle ?? '',
-      pricePositioning: parsed.pricePositioning ?? '',
-      averageCustomerSpendBand: parsed.averageCustomerSpendBand ?? '',
-      growthTarget: parsed.growthTarget ?? '',
-      urgencyLevel: parsed.urgencyLevel ?? '',
-      audienceClarity: parsed.audienceClarity ?? '',
-      valuePropositionFocus: parsed.valuePropositionFocus ?? '',
-      specialRequirements: parsed.specialRequirements ?? '',
+        : defaultBrief.preferredMediaTypes,
+      customerType: parsed.customerType ?? defaultBrief.customerType ?? '',
+      buyingBehaviour: parsed.buyingBehaviour ?? defaultBrief.buyingBehaviour ?? '',
+      decisionCycle: parsed.decisionCycle ?? defaultBrief.decisionCycle ?? '',
+      pricePositioning: parsed.pricePositioning ?? defaultBrief.pricePositioning ?? '',
+      averageCustomerSpendBand: parsed.averageCustomerSpendBand ?? defaultBrief.averageCustomerSpendBand ?? '',
+      growthTarget: parsed.growthTarget ?? defaultBrief.growthTarget ?? '',
+      urgencyLevel: parsed.urgencyLevel ?? defaultBrief.urgencyLevel ?? '',
+      audienceClarity: parsed.audienceClarity ?? defaultBrief.audienceClarity ?? '',
+      valuePropositionFocus: parsed.valuePropositionFocus ?? defaultBrief.valuePropositionFocus ?? '',
+      specialRequirements: parsed.specialRequirements ?? defaultBrief.specialRequirements ?? '',
     };
   } catch {
     return null;
@@ -254,34 +231,35 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
   const [submitted, setSubmitted] = useState<{ campaignId: string; campaignName: string; message: string } | null>(null);
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [errors, setErrors] = useState<QuestionnaireErrors>({});
+  const defaultBrief = createDefaultQuestionnaireBriefFields();
   const [form, setForm] = useState<QuestionnaireForm>({
     fullName: '',
     email: '',
     phone: '',
     businessName: '',
     industry: '',
-    businessStage: '',
-    monthlyRevenueBand: '',
-    salesModel: '',
+    businessStage: defaultBrief.businessStage ?? '',
+    monthlyRevenueBand: defaultBrief.monthlyRevenueBand ?? '',
+    salesModel: defaultBrief.salesModel ?? '',
     packageBandId: '',
     campaignName: '',
-    objective: 'awareness',
-    geographyScope: 'provincial',
+    objective: defaultBrief.objective,
+    geographyScope: defaultBrief.geographyScope,
     primaryArea: '',
     ageRange: '',
-    gender: '',
+    targetGender: defaultBrief.targetGender ?? '',
     language: '',
-    preferredMediaTypes: ['ooh', 'radio'],
-    customerType: '',
-    buyingBehaviour: '',
-    decisionCycle: '',
-    pricePositioning: '',
-    averageCustomerSpendBand: '',
-    growthTarget: '',
-    urgencyLevel: '',
-    audienceClarity: '',
-    valuePropositionFocus: '',
-    specialRequirements: '',
+    preferredMediaTypes: defaultBrief.preferredMediaTypes,
+    customerType: defaultBrief.customerType ?? '',
+    buyingBehaviour: defaultBrief.buyingBehaviour ?? '',
+    decisionCycle: defaultBrief.decisionCycle ?? '',
+    pricePositioning: defaultBrief.pricePositioning ?? '',
+    averageCustomerSpendBand: defaultBrief.averageCustomerSpendBand ?? '',
+    growthTarget: defaultBrief.growthTarget ?? '',
+    urgencyLevel: defaultBrief.urgencyLevel ?? '',
+    audienceClarity: defaultBrief.audienceClarity ?? '',
+    valuePropositionFocus: defaultBrief.valuePropositionFocus ?? '',
+    specialRequirements: defaultBrief.specialRequirements ?? '',
   });
   const [draftRestored, setDraftRestored] = useState(false);
 
@@ -331,7 +309,7 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
           cities: form.geographyScope === 'local' && areaValue ? [areaValue] : undefined,
           targetAgeMin: ageRange.min,
           targetAgeMax: ageRange.max,
-          targetGender: form.gender || undefined,
+          targetGender: form.targetGender || undefined,
           targetLanguages: form.language.trim() ? [form.language.trim()] : undefined,
           customerType: form.customerType || undefined,
           buyingBehaviour: form.buyingBehaviour || undefined,
@@ -683,7 +661,7 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                 </label>
                 <label className="block">
                   <span className="label-base">Is the campaign mainly aimed at men, women, or everyone?</span>
-                  <select value={form.gender} onChange={(event) => setForm((current) => ({ ...current, gender: event.target.value }))} className="input-base">
+                  <select value={form.targetGender} onChange={(event) => setForm((current) => ({ ...current, targetGender: event.target.value }))} className="input-base">
                     <option value="">Prefer not to specify</option>
                     <option value="all">All</option>
                     <option value="female">Female</option>
@@ -840,28 +818,28 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                     phone: '',
                     businessName: '',
                     industry: '',
-                    businessStage: '',
-                    monthlyRevenueBand: '',
-                    salesModel: '',
+                    businessStage: defaultBrief.businessStage ?? '',
+                    monthlyRevenueBand: defaultBrief.monthlyRevenueBand ?? '',
+                    salesModel: defaultBrief.salesModel ?? '',
                     packageBandId: '',
                     campaignName: '',
-                    objective: 'awareness',
-                    geographyScope: 'provincial',
+                    objective: defaultBrief.objective,
+                    geographyScope: defaultBrief.geographyScope,
                     primaryArea: '',
                     ageRange: '',
-                    gender: '',
+                    targetGender: defaultBrief.targetGender ?? '',
                     language: '',
-                    preferredMediaTypes: ['ooh', 'radio'],
-                    customerType: '',
-                    buyingBehaviour: '',
-                    decisionCycle: '',
-                    pricePositioning: '',
-                    averageCustomerSpendBand: '',
-                    growthTarget: '',
-                    urgencyLevel: '',
-                    audienceClarity: '',
-                    valuePropositionFocus: '',
-                    specialRequirements: '',
+                    preferredMediaTypes: defaultBrief.preferredMediaTypes,
+                    customerType: defaultBrief.customerType ?? '',
+                    buyingBehaviour: defaultBrief.buyingBehaviour ?? '',
+                    decisionCycle: defaultBrief.decisionCycle ?? '',
+                    pricePositioning: defaultBrief.pricePositioning ?? '',
+                    averageCustomerSpendBand: defaultBrief.averageCustomerSpendBand ?? '',
+                    growthTarget: defaultBrief.growthTarget ?? '',
+                    urgencyLevel: defaultBrief.urgencyLevel ?? '',
+                    audienceClarity: defaultBrief.audienceClarity ?? '',
+                    valuePropositionFocus: defaultBrief.valuePropositionFocus ?? '',
+                    specialRequirements: defaultBrief.specialRequirements ?? '',
                   });
                 }}
                 className="button-secondary px-6 py-3"

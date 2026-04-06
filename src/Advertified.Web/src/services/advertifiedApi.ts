@@ -27,6 +27,7 @@ import type {
   PlanningMode,
   ConsentPreference,
 } from '../types/domain';
+import { normalizeCampaignBrief } from '../features/campaigns/briefModel';
 import { authApi } from './authApi';
 import { createAdminApi, type AdminPackageOrderResponse } from './adminApi';
 import { createAgentApi } from './agentApi';
@@ -810,7 +811,7 @@ function mapCampaign(response: CampaignResponse): Campaign {
     campaignName: response.campaignName?.trim() || `${response.packageBandName} campaign`,
     nextAction: response.nextAction,
     timeline: response.timeline ?? [],
-    brief: response.brief ?? undefined,
+    brief: normalizeCampaignBrief(response.brief),
     recommendations,
     recommendation: primaryRecommendation,
     recommendationPdfUrl: response.recommendationPdfUrl ?? undefined,

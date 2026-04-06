@@ -1,15 +1,12 @@
 import { Eye, Pencil } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { buildBriefChannelSummary } from '../../features/campaigns/briefModel';
 import {
   AgentPageShell,
   AgentQueryBoundary,
   titleize,
   useAgentCampaignsQuery,
 } from './agentWorkspace';
-
-function formatChannelLabel(value: string) {
-  return value.replace(/\booh\b/gi, 'Billboards and Digital Screens');
-}
 
 export function AgentBriefsPage() {
   const campaignsQuery = useAgentCampaignsQuery();
@@ -55,7 +52,7 @@ export function AgentBriefsPage() {
                         </td>
                         <td className="px-4 py-4 text-ink-soft">
                           {campaign.brief
-                            ? `${titleize(campaign.brief.objective)} | ${titleize(campaign.brief.geographyScope)} | ${(campaign.brief.preferredMediaTypes ?? []).map(formatChannelLabel).join(', ') || 'No channels set'}`
+                            ? `${titleize(campaign.brief.objective)} | ${titleize(campaign.brief.geographyScope)} | ${buildBriefChannelSummary(campaign.brief)}`
                             : 'No planning inputs captured yet.'}
                         </td>
                         <td className="px-4 py-4 text-ink-soft">{campaign.nextAction}</td>
