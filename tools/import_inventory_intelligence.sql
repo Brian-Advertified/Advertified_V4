@@ -83,7 +83,7 @@ CREATE TEMP TABLE staging_inventory_outlet_keywords (
     keyword text not null
 );
 
-\copy staging_inventory_intelligence_import FROM :'csv_path' WITH (FORMAT csv, HEADER true)
+\copy staging_inventory_intelligence_import FROM :csv_path WITH (FORMAT csv, HEADER true)
 
 INSERT INTO staging_inventory_outlet_keywords (media_outlet_id, keyword)
 SELECT
