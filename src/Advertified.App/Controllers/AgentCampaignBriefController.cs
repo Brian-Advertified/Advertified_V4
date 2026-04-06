@@ -21,7 +21,7 @@ namespace Advertified.App.Controllers;
 /// </summary>
 [ApiController]
 [Route("agent/campaigns")]
-[Authorize(Roles = "Agent")]
+[Authorize(Roles = "Agent,Admin")]
 public sealed class AgentCampaignBriefController : ControllerBase
 {
     private readonly AppDbContext _db;

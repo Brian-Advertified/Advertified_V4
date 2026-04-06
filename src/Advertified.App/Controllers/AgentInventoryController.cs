@@ -13,7 +13,7 @@ namespace Advertified.App.Controllers;
 
 [ApiController]
 [Route("agent/inventory")]
-[Authorize(Roles = "Agent")]
+[Authorize(Roles = "Agent,Admin")]
 public sealed class AgentInventoryController : ControllerBase
 {
     private readonly AppDbContext _db;

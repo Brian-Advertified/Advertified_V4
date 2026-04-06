@@ -21,7 +21,7 @@ namespace Advertified.App.Controllers;
 /// </summary>
 [ApiController]
 [Route("agent/campaigns")]
-[Authorize(Roles = "Agent")]
+[Authorize(Roles = "Agent,Admin")]
 public sealed class AgentCampaignWorkflowController : ControllerBase
 {
     private const string ClientFeedbackMarker = "Client feedback:";

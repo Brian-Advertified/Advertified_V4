@@ -11,7 +11,7 @@ namespace Advertified.App.Controllers;
 
 [ApiController]
 [Route("agent/recommendations")]
-[Authorize(Roles = "Agent")]
+[Authorize(Roles = "Agent,Admin")]
 public sealed class AgentRecommendationsController : ControllerBase
 {
     private const string ClientFeedbackMarker = "Client feedback:";
