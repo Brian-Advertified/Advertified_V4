@@ -2,7 +2,8 @@ import { Navigate } from 'react-router-dom';
 import { ProtectedRoute } from '../components/ui/ProtectedRoute';
 import { lazyPage, type AppRoute } from './routeUtils';
 
-const AiStudioConsolePage = lazyPage(() => import('../pages/public/AiStudioPage'), 'AiStudioConsolePage');
+const CreativeDirectorDashboardPage = lazyPage(() => import('../pages/creative/CreativeDirectorPages'), 'CreativeDirectorDashboardPage');
+const CreativeStudioDemoPage = lazyPage(() => import('../pages/creative/CreativeDirectorPages'), 'CreativeStudioDemoPage');
 const AgentCampaignDetailPage = lazyPage(() => import('../pages/agent/AgentCampaignDetailPage'), 'AgentCampaignDetailPage');
 const AgentCreateRecommendationPage = lazyPage(() => import('../pages/agent/AgentCreateRecommendationPage'), 'AgentCreateRecommendationPage');
 const AgentApprovalsPage = lazyPage(() => import('../pages/agent/AgentApprovalsPage'), 'AgentApprovalsPage');
@@ -37,8 +38,8 @@ const AdminStationsPage = lazyPage(() => import('../pages/admin/AdminStationsPag
 const AdminUsersPage = lazyPage(() => import('../pages/admin/AdminUsersPage'), 'AdminUsersPage');
 
 export const opsRoutes: AppRoute[] = [
-  { path: '/creative', element: <ProtectedRoute requireCreativeDirector><AiStudioConsolePage /></ProtectedRoute> },
-  { path: '/creative/studio-demo', element: <ProtectedRoute requireCreativeDirector><AiStudioConsolePage /></ProtectedRoute> },
+  { path: '/creative', element: <ProtectedRoute requireCreativeDirector><CreativeDirectorDashboardPage /></ProtectedRoute> },
+  { path: '/creative/studio-demo', element: <ProtectedRoute requireCreativeDirector><CreativeStudioDemoPage /></ProtectedRoute> },
   { path: '/creative/campaigns/:id/studio', element: <ProtectedRoute requireCreativeDirector><CreativeDirectorStudioPage /></ProtectedRoute> },
 
   { path: '/admin', element: <ProtectedRoute requireAdmin><AdminDashboardPage /></ProtectedRoute> },
