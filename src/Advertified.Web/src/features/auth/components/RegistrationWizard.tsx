@@ -2,8 +2,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { type AddressAutofillRetrieveResponse } from '@mapbox/search-js-core';
 import { Eye, EyeOff } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useState, type ReactNode } from 'react';
-import { useForm } from 'react-hook-form';
+import { useEffect, useState, type ReactNode } from 'react';
+import { useForm, useWatch } from 'react-hook-form';
 import { AddressAutofillInput } from './AddressAutofillInput';
 import type { RegistrationSchema } from '../schemas';
 import { registrationSchema } from '../schemas';
@@ -24,8 +24,8 @@ export function RegistrationWizard({
   const {
     register,
     handleSubmit,
+    control,
     setValue,
-    watch,
     formState: { errors },
   } = useForm<RegistrationSchema>({
     resolver: zodResolver(registrationSchema),
@@ -38,7 +38,11 @@ export function RegistrationWizard({
     } as Partial<RegistrationSchema>,
   });
 
-  const isCitizen = watch('isSouthAfricanCitizen');
+  const isCitizen = useWatch({
+    control,
+    name: 'isSouthAfricanCitizen',
+    defaultValue: true,
+  });
 
   if (formOptionsQuery.isPending) {
     return <div className="register-section">Loading form options...</div>;
@@ -49,7 +53,17 @@ export function RegistrationWizard({
   }
 
   const { businessTypes, industries, provinces, revenueBands } = formOptionsQuery.data;
-  const citizenshipField = register('isSouthAfricanCitizen');
+  useEffect(() => {
+    if (isCitizen) {
+      setValue('passportNumber', '', { shouldDirty: false, shouldTouch: false, shouldValidate: false });
+      setValue('passportCountryIso2', '', { shouldDirty: false, shouldTouch: false, shouldValidate: false });
+      setValue('passportIssueDate', '', { shouldDirty: false, shouldTouch: false, shouldValidate: false });
+      setValue('passportValidUntil', '', { shouldDirty: false, shouldTouch: false, shouldValidate: false });
+      return;
+    }
+
+    setValue('saIdNumber', '', { shouldDirty: false, shouldTouch: false, shouldValidate: false });
+  }, [isCitizen, setValue]);
 
   function handleAddressRetrieve(response: AddressAutofillRetrieveResponse) {
     const feature = response.features[0];
@@ -102,9 +116,6 @@ export function RegistrationWizard({
 
           <Field label="Citizenship *" error={errors.isSouthAfricanCitizen?.message} className="register-field-full">
             <select
-              name={citizenshipField.name}
-              ref={citizenshipField.ref}
-              onBlur={citizenshipField.onBlur}
               value={isCitizen ? 'true' : 'false'}
               onChange={(event) => {
                 const nextValue = event.target.value === 'true';
