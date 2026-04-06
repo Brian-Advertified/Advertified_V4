@@ -151,6 +151,7 @@ public sealed class AgentCampaignsController : ControllerBase
                 PackageBandId = campaign.PackageBandId,
                 PackageBandName = campaign.PackageBand.Name,
                 SelectedBudget = selectedBudget,
+                PaymentStatus = campaign.PackageOrder.PaymentStatus,
                 Status = campaign.Status,
                 PlanningMode = campaign.PlanningMode,
                 QueueStage = stage,

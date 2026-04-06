@@ -25,6 +25,9 @@ type QuestionnaireForm = {
   valueProposition: string;
   growthGoal: string;
   currentCustomers: string;
+  customerType: string;
+  buyingBehaviour: string;
+  decisionCycle: string;
   specialRequirements: string;
 };
 
@@ -57,6 +60,101 @@ const GEOGRAPHIES = [
   { value: 'provincial', label: 'Provincial' },
   { value: 'national', label: 'National' },
 ];
+
+const INDUSTRIES = [
+  'Retail',
+  'Finance',
+  'Hospitality',
+  'Real estate',
+  'Automotive',
+  'Technology',
+  'Health',
+  'Education',
+  'Legal',
+  'Property',
+  'Professional services',
+  'Manufacturing',
+  'Other',
+] as const;
+
+const PROVINCES = [
+  'Gauteng',
+  'Western Cape',
+  'KwaZulu-Natal',
+  'Eastern Cape',
+  'Free State',
+  'Limpopo',
+  'Mpumalanga',
+  'North West',
+  'Northern Cape',
+] as const;
+
+const CITIES = [
+  'Johannesburg',
+  'Cape Town',
+  'Durban',
+  'Pretoria',
+  'Sandton',
+  'Midrand',
+  'Centurion',
+  'Bloemfontein',
+  'Port Elizabeth',
+  'East London',
+  'Polokwane',
+  'Nelspruit',
+  'Rustenburg',
+  'Kimberley',
+  'Pietermaritzburg',
+  'Other',
+] as const;
+
+const LANGUAGES = [
+  'English',
+  'isiZulu',
+  'isiXhosa',
+  'Afrikaans',
+  'Sesotho',
+  'Setswana',
+  'Sepedi',
+  'Xitsonga',
+  'Tshivenda',
+  'Siswati',
+  'isiNdebele',
+  'Multilingual',
+] as const;
+
+const CUSTOMER_TYPES = [
+  { value: '', label: 'Select customer type' },
+  { value: 'b2c', label: 'Individuals (B2C)' },
+  { value: 'smb', label: 'Small businesses' },
+  { value: 'corporate', label: 'Corporate / enterprise' },
+  { value: 'government', label: 'Government / institutions' },
+] as const;
+
+const BUYING_BEHAVIOURS = [
+  { value: '', label: 'Select buying behaviour' },
+  { value: 'price_sensitive', label: 'Price-sensitive' },
+  { value: 'quality_focused', label: 'Quality-focused' },
+  { value: 'convenience_driven', label: 'Convenience-driven' },
+  { value: 'brand_conscious', label: 'Brand-conscious' },
+  { value: 'urgency_driven', label: 'Urgency-driven' },
+] as const;
+
+const DECISION_CYCLES = [
+  { value: '', label: 'Select decision cycle' },
+  { value: 'same_day', label: 'Immediate (same day)' },
+  { value: '1_7_days', label: 'Short (1-7 days)' },
+  { value: '1_4_weeks', label: 'Medium (1-4 weeks)' },
+  { value: '1_6_months', label: 'Long (1-6 months+)' },
+] as const;
+
+const GROWTH_TARGETS = [
+  { value: '', label: 'Select growth target' },
+  { value: 'maintain', label: 'Maintain current level' },
+  { value: '2x', label: '2x growth' },
+  { value: '3x', label: '3x growth' },
+  { value: '5x_plus', label: 'Aggressive scale (5x+)' },
+] as const;
 
 function parseAgeRange(value: string): { min?: number; max?: number } {
   if (!value) {
@@ -97,6 +195,9 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
     valueProposition: '',
     growthGoal: '',
     currentCustomers: '',
+    customerType: '',
+    buyingBehaviour: '',
+    decisionCycle: '',
     specialRequirements: '',
   });
 
@@ -116,6 +217,9 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
         form.valueProposition.trim() ? `Value proposition: ${form.valueProposition.trim()}` : '',
         form.growthGoal.trim() ? `Growth objective: ${form.growthGoal.trim()}` : '',
         form.currentCustomers.trim() ? `Current customers: ${form.currentCustomers.trim()}` : '',
+        form.customerType ? `Customer type: ${form.customerType}` : '',
+        form.buyingBehaviour ? `Buying behaviour: ${form.buyingBehaviour}` : '',
+        form.decisionCycle ? `Decision cycle: ${form.decisionCycle}` : '',
       ].filter(Boolean).join('\n');
 
       return advertifiedApi.submitProspectQuestionnaire({
@@ -286,7 +390,10 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                 </label>
                 <label className="block">
                   <span className="label-base">Industry</span>
-                  <input value={form.industry} onChange={(event) => setForm((current) => ({ ...current, industry: event.target.value }))} className="input-base" placeholder="Retail, property, legal..." />
+                  <select value={form.industry} onChange={(event) => setForm((current) => ({ ...current, industry: event.target.value }))} className="input-base">
+                    <option value="">Select industry</option>
+                    {INDUSTRIES.map((item) => <option key={item} value={item}>{item}</option>)}
+                  </select>
                 </label>
                 <label className="block">
                   <span className="label-base">Package band</span>
@@ -338,11 +445,30 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                 </label>
                 <label className="block">
                   <span className="label-base">Primary area</span>
-                  <input value={form.primaryArea} onChange={(event) => setForm((current) => ({ ...current, primaryArea: event.target.value }))} className="input-base" placeholder={form.geographyScope === 'local' ? 'City or suburb' : form.geographyScope === 'provincial' ? 'Province' : 'Optional'} />
+                  <select
+                    value={form.primaryArea}
+                    onChange={(event) => setForm((current) => ({ ...current, primaryArea: event.target.value }))}
+                    className="input-base"
+                    disabled={form.geographyScope === 'national'}
+                  >
+                    <option value="">
+                      {form.geographyScope === 'national'
+                        ? 'Not needed for national'
+                        : form.geographyScope === 'local'
+                          ? 'Select city'
+                          : 'Select province'}
+                    </option>
+                    {(form.geographyScope === 'local' ? CITIES : PROVINCES).map((item) => (
+                      <option key={item} value={item}>{item}</option>
+                    ))}
+                  </select>
                 </label>
                 <label className="block">
                   <span className="label-base">Target language</span>
-                  <input value={form.language} onChange={(event) => setForm((current) => ({ ...current, language: event.target.value }))} className="input-base" placeholder="English, isiZulu..." />
+                  <select value={form.language} onChange={(event) => setForm((current) => ({ ...current, language: event.target.value }))} className="input-base">
+                    <option value="">Select language</option>
+                    {LANGUAGES.map((item) => <option key={item} value={item}>{item}</option>)}
+                  </select>
                 </label>
                 <label className="block">
                   <span className="label-base">Target age range</span>
@@ -354,8 +480,10 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                   <span className="label-base">Target gender</span>
                   <select value={form.gender} onChange={(event) => setForm((current) => ({ ...current, gender: event.target.value }))} className="input-base">
                     <option value="">Prefer not to specify</option>
+                    <option value="all">All</option>
                     <option value="female">Female</option>
                     <option value="male">Male</option>
+                    <option value="mixed">Mixed</option>
                   </select>
                 </label>
               </div>
@@ -391,8 +519,10 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
 
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="block">
-                  <span className="label-base">Current customers</span>
-                  <textarea value={form.currentCustomers} onChange={(event) => setForm((current) => ({ ...current, currentCustomers: event.target.value }))} rows={4} className="input-base min-h-[120px] resize-y" placeholder="Who currently buys from you?" />
+                  <span className="label-base">Current customer type</span>
+                  <select value={form.customerType} onChange={(event) => setForm((current) => ({ ...current, customerType: event.target.value }))} className="input-base">
+                    {CUSTOMER_TYPES.map((option) => <option key={option.value || 'unset'} value={option.value}>{option.label}</option>)}
+                  </select>
                 </label>
                 <label className="block">
                   <span className="label-base">Target audience</span>
@@ -404,7 +534,28 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                 </label>
                 <label className="block">
                   <span className="label-base">Growth target</span>
-                  <textarea value={form.growthGoal} onChange={(event) => setForm((current) => ({ ...current, growthGoal: event.target.value }))} rows={4} className="input-base min-h-[120px] resize-y" placeholder="What outcome do you want next?" />
+                  <select value={form.growthGoal} onChange={(event) => setForm((current) => ({ ...current, growthGoal: event.target.value }))} className="input-base">
+                    {GROWTH_TARGETS.map((option) => <option key={option.value || 'unset'} value={option.value}>{option.label}</option>)}
+                  </select>
+                </label>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="block">
+                  <span className="label-base">Current customers</span>
+                  <textarea value={form.currentCustomers} onChange={(event) => setForm((current) => ({ ...current, currentCustomers: event.target.value }))} rows={4} className="input-base min-h-[120px] resize-y" placeholder="Any quick note about who currently buys from you?" />
+                </label>
+                <label className="block">
+                  <span className="label-base">Buying behaviour</span>
+                  <select value={form.buyingBehaviour} onChange={(event) => setForm((current) => ({ ...current, buyingBehaviour: event.target.value }))} className="input-base">
+                    {BUYING_BEHAVIOURS.map((option) => <option key={option.value || 'unset'} value={option.value}>{option.label}</option>)}
+                  </select>
+                </label>
+                <label className="block md:col-span-2">
+                  <span className="label-base">Decision cycle</span>
+                  <select value={form.decisionCycle} onChange={(event) => setForm((current) => ({ ...current, decisionCycle: event.target.value }))} className="input-base">
+                    {DECISION_CYCLES.map((option) => <option key={option.value || 'unset'} value={option.value}>{option.label}</option>)}
+                  </select>
                 </label>
               </div>
 

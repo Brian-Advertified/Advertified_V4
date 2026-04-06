@@ -72,6 +72,7 @@ public sealed class CreativeCampaignsController : ControllerBase
             SelectedBudget = PricingPolicy.ResolvePlanningBudget(
                 campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
                 campaign.PackageOrder.AiStudioReserveAmount),
+            PaymentStatus = campaign.PackageOrder.PaymentStatus,
             Status = campaign.Status,
             PlanningMode = campaign.PlanningMode,
             QueueStage = "creative_queue",

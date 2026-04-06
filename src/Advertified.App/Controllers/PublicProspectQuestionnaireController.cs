@@ -186,11 +186,7 @@ public sealed class PublicProspectQuestionnaireController : ControllerBase
 
     private static decimal ResolveProspectBudget(PackageBand packageBand)
     {
-        if (packageBand.MinBudget > 0m && packageBand.MaxBudget > packageBand.MinBudget)
-        {
-            return (packageBand.MinBudget + packageBand.MaxBudget) / 2m;
-        }
-
+        // Use the package floor until the client or agent confirms an exact spend.
         return packageBand.MinBudget > 0m ? packageBand.MinBudget : 25000m;
     }
 

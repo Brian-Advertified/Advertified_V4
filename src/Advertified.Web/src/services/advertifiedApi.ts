@@ -345,6 +345,7 @@ type AgentInboxItemResponse = {
   packageBandId: string;
   packageBandName: string;
   selectedBudget: number;
+  paymentStatus: string;
   status: string;
   planningMode?: PlanningMode;
   queueStage: AgentInboxItem['queueStage'];
@@ -810,6 +811,7 @@ function mapAgentInboxItem(response: AgentInboxItemResponse): AgentInboxItem {
     packageBandId: response.packageBandId,
     packageBandName: response.packageBandName,
     selectedBudget: response.selectedBudget,
+    paymentStatus: response.paymentStatus,
     status: response.status,
     planningMode: response.planningMode,
     queueStage: response.queueStage,

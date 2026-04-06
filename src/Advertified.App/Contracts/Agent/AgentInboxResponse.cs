@@ -29,6 +29,7 @@ public sealed class AgentInboxItemResponse
     public string PackageBandName { get; set; } = string.Empty;
     public Guid PackageBandId { get; set; }
     public decimal SelectedBudget { get; set; }
+    public string PaymentStatus { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
     public string? PlanningMode { get; set; }
     public string QueueStage { get; set; } = string.Empty;

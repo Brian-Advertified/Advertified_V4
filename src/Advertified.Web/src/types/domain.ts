@@ -467,6 +467,7 @@ export interface AgentInboxItem {
   packageBandId: string;
   packageBandName: string;
   selectedBudget: number;
+  paymentStatus: PaymentStatus | string;
   status: string;
   planningMode?: PlanningMode;
   queueStage: 'newly_paid' | 'brief_waiting' | 'planning_ready' | 'agent_review' | 'ready_to_send' | 'waiting_on_client' | 'completed' | 'watching';

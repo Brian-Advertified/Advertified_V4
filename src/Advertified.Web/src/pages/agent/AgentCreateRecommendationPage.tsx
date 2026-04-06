@@ -9,7 +9,7 @@ import { catalogQueryOptions } from '../../lib/catalogQueryOptions';
 import { formatCurrency } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import { formatChannelLabel, normalizeChannelKey } from '../../features/channels/channelUtils';
-import type { Campaign, CampaignBrief, PackageBand } from '../../types/domain';
+import type { AgentInboxItem, Campaign, CampaignBrief, PackageBand } from '../../types/domain';
 import { pushAgentMutationError } from './agentMutationToast';
 
 type ChannelOption = 'Radio' | 'OOH' | 'TV';
@@ -56,6 +56,14 @@ function normalizeChannelOption(channel: string | null | undefined): ChannelOpti
       : normalized === 'RADIO'
         ? 'Radio'
         : undefined;
+}
+
+function isProspectiveCampaign(campaign?: Pick<Campaign, 'paymentStatus' | 'status'> | Pick<AgentInboxItem, 'paymentStatus' | 'status'> | null): boolean {
+  if (!campaign) {
+    return false;
+  }
+
+  return campaign.paymentStatus !== 'paid' || campaign.status === 'awaiting_purchase';
 }
 
 function resolvePackageReferenceBudget(packageBand: PackageBand): number {
@@ -316,7 +324,9 @@ export function AgentCreateRecommendationPage() {
     queryFn: () => advertifiedApi.getAgentCampaign(selectedCampaign!.id),
     enabled: Boolean(selectedCampaign?.id),
   });
-  const selectedCampaignIsProspective = selectedCampaign?.status === 'awaiting_purchase';
+  const selectedCampaignDetails = selectedCampaignDetailsQuery.data;
+  const selectedCampaignBrief = selectedCampaignDetails?.brief;
+  const selectedCampaignIsProspective = isProspectiveCampaign(selectedCampaignDetails ?? selectedCampaign);
   const selectedProspectPackageBandId = selectedCampaignIsProspective
     ? ((selectedProspectPackageBandState?.campaignId === selectedCampaign?.id
       ? selectedProspectPackageBandState.packageBandId
@@ -355,6 +365,34 @@ export function AgentCreateRecommendationPage() {
   const aiInterpretationSummary = scopedAiInterpretationSummary?.key === activeFormKey
     ? scopedAiInterpretationSummary.summary
     : '';
+  const questionnaireSummary = useMemo(() => {
+    if (!selectedCampaignDetails || !selectedCampaignBrief) {
+      return [];
+    }
+
+    const geography = selectedCampaignBrief.geographyScope === 'national'
+      ? 'National'
+      : selectedCampaignBrief.geographyScope === 'provincial'
+        ? (selectedCampaignBrief.provinces?.join(', ') || 'Provincial')
+        : (selectedCampaignBrief.cities?.join(', ') || selectedCampaignBrief.areas?.join(', ') || 'Local');
+    const ageRange = selectedCampaignBrief.targetAgeMin || selectedCampaignBrief.targetAgeMax
+      ? `${selectedCampaignBrief.targetAgeMin ?? '?'}-${selectedCampaignBrief.targetAgeMax ?? '?'}`
+      : '';
+
+    return [
+      { label: 'Business', value: selectedCampaignDetails.businessName },
+      { label: 'Industry', value: selectedCampaignDetails.industry },
+      { label: 'Objective', value: selectedCampaignBrief.objective },
+      { label: 'Geography', value: geography },
+      { label: 'Age range', value: ageRange || undefined },
+      { label: 'Gender', value: selectedCampaignBrief.targetGender },
+      { label: 'Languages', value: selectedCampaignBrief.targetLanguages?.join(', ') },
+      { label: 'Preferred channels', value: selectedCampaignBrief.preferredMediaTypes?.join(', ') },
+      { label: 'Interests', value: selectedCampaignBrief.targetInterests?.join(', ') },
+      { label: 'Audience notes', value: selectedCampaignBrief.targetAudienceNotes },
+      { label: 'Special requirements', value: selectedCampaignBrief.specialRequirements },
+    ].filter((item): item is { label: string; value: string } => Boolean(item.value && item.value.trim()));
+  }, [selectedCampaignBrief, selectedCampaignDetails]);
 
   const handleFormChange = <K extends keyof CampaignFormState>(key: K, value: CampaignFormState[K]) => {
     if (key === 'scope') {
@@ -745,10 +783,10 @@ export function AgentCreateRecommendationPage() {
                   <option value="">Select campaign</option>
                   {filteredCampaigns.map((campaign) => (
                     <option key={campaign.id} value={campaign.id}>
-                      {campaign.packageBandName} | {campaign.status === 'awaiting_purchase' && packageBandsById.get(campaign.packageBandId)
+                      {campaign.packageBandName} | {isProspectiveCampaign(campaign) && packageBandsById.get(campaign.packageBandId)
                         ? formatPackageRange(packageBandsById.get(campaign.packageBandId)!)
                         : formatCurrency(campaign.selectedBudget)} | {campaign.queueLabel}
-                      {campaign.status === 'awaiting_purchase' ? ' | Prospective (unpaid)' : ''}
+                      {isProspectiveCampaign(campaign) ? ' | Prospective (unpaid)' : ''}
                     </option>
                   ))}
                 </select>
@@ -783,6 +821,20 @@ export function AgentCreateRecommendationPage() {
                 <p className="mt-2 text-xs text-ink-soft">
                   The recommendation options will be created inside this selected price band.
                 </p>
+              </div>
+            ) : null}
+            {selectedCampaignDetailsQuery.isSuccess && questionnaireSummary.length > 0 ? (
+              <div className="mt-4 rounded-2xl border border-line bg-slate-50 p-4">
+                <p className="text-sm font-semibold text-ink">Captured questionnaire</p>
+                <p className="mt-1 text-xs text-ink-soft">This is the brief information the client already submitted.</p>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  {questionnaireSummary.map((item) => (
+                    <div key={item.label} className="rounded-xl border border-white bg-white px-3 py-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-soft">{item.label}</p>
+                      <p className="mt-1 text-sm leading-6 text-ink">{item.value}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
             ) : null}
             <div className="mt-4">
