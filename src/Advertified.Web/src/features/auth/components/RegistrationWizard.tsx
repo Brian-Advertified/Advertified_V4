@@ -7,17 +7,7 @@ import { useForm } from 'react-hook-form';
 import { AddressAutofillInput } from './AddressAutofillInput';
 import type { RegistrationSchema } from '../schemas';
 import { registrationSchema } from '../schemas';
-
-const businessTypes = ['PTY LTD', 'Sole proprietor', 'Partnership', 'Non-profit', 'Other'];
-const industries = ['Retail', 'Finance', 'Hospitality', 'Real estate', 'Automotive', 'Technology', 'Health', 'Other'];
-const provinces = ['Gauteng', 'Western Cape', 'KwaZulu-Natal', 'Eastern Cape', 'Free State', 'Limpopo', 'Mpumalanga', 'North West', 'Northern Cape'];
-const revenueBands = [
-  { value: 'under_r1m', label: 'Under R1m' },
-  { value: 'r1m_r5m', label: 'R1m - R5m' },
-  { value: 'r5m_r20m', label: 'R5m - R20m' },
-  { value: 'r20m_r100m', label: 'R20m - R100m' },
-  { value: 'over_r100m', label: 'Over R100m' },
-];
+import { businessTypes, industries, provinces, revenueBands } from '../../../lib/formOptions';
 
 export function RegistrationWizard({
   onSubmit,

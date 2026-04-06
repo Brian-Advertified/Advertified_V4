@@ -234,6 +234,9 @@ public sealed class AgentCampaignBriefController : ControllerBase
         var normalizedAreas = NormalizeScopeList(request.Areas, normalizedScope == "local");
 
         brief.Objective = request.Objective;
+        brief.BusinessStage = request.BusinessStage;
+        brief.MonthlyRevenueBand = request.MonthlyRevenueBand;
+        brief.SalesModel = request.SalesModel;
         brief.StartDate = request.StartDate;
         brief.EndDate = request.EndDate;
         brief.DurationWeeks = request.DurationWeeks;
@@ -250,6 +253,16 @@ public sealed class AgentCampaignBriefController : ControllerBase
         brief.TargetLsmMax = request.TargetLsmMax;
         brief.TargetInterestsJson = Serialize(request.TargetInterests);
         brief.TargetAudienceNotes = request.TargetAudienceNotes;
+        brief.CustomerType = request.CustomerType;
+        brief.CurrentCustomerNotes = request.CurrentCustomerNotes;
+        brief.BuyingBehaviour = request.BuyingBehaviour;
+        brief.DecisionCycle = request.DecisionCycle;
+        brief.PricePositioning = request.PricePositioning;
+        brief.AverageCustomerSpendBand = request.AverageCustomerSpendBand;
+        brief.GrowthTarget = request.GrowthTarget;
+        brief.UrgencyLevel = request.UrgencyLevel;
+        brief.AudienceClarity = request.AudienceClarity;
+        brief.ValuePropositionFocus = request.ValuePropositionFocus;
         brief.PreferredMediaTypesJson = Serialize(request.PreferredMediaTypes);
         brief.ExcludedMediaTypesJson = Serialize(request.ExcludedMediaTypes);
         brief.MustHaveAreasJson = Serialize(request.MustHaveAreas);

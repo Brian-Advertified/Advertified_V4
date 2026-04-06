@@ -28,9 +28,11 @@ public sealed class RecommendationExplainabilityService : IRecommendationExplain
     {
         var mediaMix = string.Join(", ", recommendedPlan.Select(x => ToDisplayMediaType(x.MediaType)).Distinct());
         var targetMix = _policyService.BuildRequestedMixLabel(request);
+        var strategySignals = CampaignStrategySupport.BuildSignals(request);
+        var strategySummary = BuildStrategySummary(strategySignals);
         return string.IsNullOrWhiteSpace(targetMix)
-            ? $"Plan built within budget of {request.SelectedBudget:n0}, prioritising geography fit, audience fit, media preference, and available inventory. Selected mix: {mediaMix}."
-            : $"Plan built within budget of {request.SelectedBudget:n0}, prioritising geography fit, audience fit, media preference, requested mix targets, and available inventory. Selected mix: {mediaMix}. Requested target: {targetMix}.";
+            ? $"Plan built within budget of {request.SelectedBudget:n0}, prioritising geography fit, audience fit, business context, media preference, and available inventory. Selected mix: {mediaMix}.{strategySummary}"
+            : $"Plan built within budget of {request.SelectedBudget:n0}, prioritising geography fit, audience fit, business context, media preference, requested mix targets, and available inventory. Selected mix: {mediaMix}. Requested target: {targetMix}.{strategySummary}";
     }
 
     public IReadOnlyList<string> GetPreferredMediaFallbackFlags(CampaignPlanningRequest request, List<PlannedItem> recommendedPlan)
@@ -67,6 +69,29 @@ public sealed class RecommendationExplainabilityService : IRecommendationExplain
         if (_scoreService.MixTargetScore(candidate, request) >= 8m) reasons.Add("Supports requested mix target");
         if (_scoreService.BudgetScore(candidate, request) >= 12m) reasons.Add("Fits comfortably within budget");
         if (SupportsObjective(candidate, request)) reasons.Add("Supports campaign objective");
+        if (_scoreService.AnalyzeCandidate(candidate, request).Score >= 75m) reasons.Add("Strong overall strategic fit");
+
+        var strategySignals = CampaignStrategySupport.BuildSignals(request);
+        var mediaType = candidate.MediaType.Trim().ToLowerInvariant();
+        if (strategySignals.PremiumAudience && mediaType is "ooh" or "tv")
+        {
+            reasons.Add("Supports premium positioning");
+        }
+
+        if (strategySignals.FastDecisionCycle && mediaType is "radio" or "digital")
+        {
+            reasons.Add("Useful for faster buying cycles");
+        }
+
+        if (strategySignals.WalkInDriven && mediaType == "ooh")
+        {
+            reasons.Add("Supports walk-in footfall");
+        }
+
+        if (strategySignals.AudienceNeedsBroadReach && mediaType is "ooh" or "tv")
+        {
+            reasons.Add("Useful for broad audience discovery");
+        }
 
         if (candidate.MediaType.Equals("Radio", StringComparison.OrdinalIgnoreCase))
         {
@@ -125,7 +150,28 @@ public sealed class RecommendationExplainabilityService : IRecommendationExplain
         if (!string.IsNullOrWhiteSpace(candidate.Language)) score += 0.05m;
         if (candidate.MediaType.Equals("Radio", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(candidate.TimeBand)) score += 0.05m;
         if (candidate.MediaType.Equals("Radio", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(candidate.SlotType)) score += 0.03m;
+        if (CampaignStrategySupport.BuildSignals(request).AudienceClearlyDefined) score += 0.04m;
         return Math.Min(0.95m, decimal.Round(score, 2));
+    }
+
+    private static string BuildStrategySummary(CampaignStrategySignals signals)
+    {
+        if (signals.PremiumAudience)
+        {
+            return " Strategy weighting favoured premium audience alignment.";
+        }
+
+        if (signals.FastDecisionCycle || signals.ImmediateUrgency)
+        {
+            return " Strategy weighting favoured faster-response channels.";
+        }
+
+        if (signals.AudienceNeedsBroadReach)
+        {
+            return " Strategy weighting favoured broader-reach inventory because the audience is less defined.";
+        }
+
+        return string.Empty;
     }
 
     private bool IsPackageTotalCandidate(InventoryCandidate candidate) => _policyService.GetPricingModel(candidate).Equals("package_total", StringComparison.OrdinalIgnoreCase) || candidate.PackageOnly;

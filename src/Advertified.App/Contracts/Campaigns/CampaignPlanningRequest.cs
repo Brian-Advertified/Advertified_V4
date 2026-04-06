@@ -5,6 +5,9 @@ public sealed class CampaignPlanningRequest
     public Guid CampaignId { get; set; }
     public decimal SelectedBudget { get; set; }
     public string? Objective { get; set; }
+    public string? BusinessStage { get; set; }
+    public string? MonthlyRevenueBand { get; set; }
+    public string? SalesModel { get; set; }
     public string? GeographyScope { get; set; }
     public List<string> Provinces { get; set; } = new();
     public List<string> Cities { get; set; } = new();
@@ -18,6 +21,16 @@ public sealed class CampaignPlanningRequest
     public string? TargetGender { get; set; }
     public List<string> TargetInterests { get; set; } = new();
     public string? TargetAudienceNotes { get; set; }
+    public string? CustomerType { get; set; }
+    public string? CurrentCustomerNotes { get; set; }
+    public string? BuyingBehaviour { get; set; }
+    public string? DecisionCycle { get; set; }
+    public string? PricePositioning { get; set; }
+    public string? AverageCustomerSpendBand { get; set; }
+    public string? GrowthTarget { get; set; }
+    public string? UrgencyLevel { get; set; }
+    public string? AudienceClarity { get; set; }
+    public string? ValuePropositionFocus { get; set; }
     public int? TargetLsmMin { get; set; }
     public int? TargetLsmMax { get; set; }
     public bool OpenToUpsell { get; set; }

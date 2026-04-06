@@ -3,6 +3,20 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import type { ReactNode } from 'react';
 import type { CampaignBrief } from '../../../types/domain';
+import {
+  audienceClarityOptions,
+  averageCustomerSpendOptions,
+  businessStageOptions,
+  buyingBehaviourOptions,
+  customerTypeOptions,
+  decisionCycleOptions,
+  growthTargetOptions,
+  monthlyRevenueBands,
+  pricePositioningOptions,
+  salesModelOptions,
+  urgencyLevelOptions,
+  valuePropositionFocusOptions,
+} from '../../../lib/formOptions';
 
 const objectiveOptions = [
   { value: 'awareness', label: 'Brand awareness' },
@@ -54,42 +68,12 @@ const lsmBandOptions = [
   { value: '9-10', label: 'LSM 9-10 (premium)' },
 ] as const;
 
-const customerTypeOptions = [
-  { value: '', label: 'Select customer type' },
-  { value: 'b2c', label: 'Individuals (B2C)' },
-  { value: 'smb', label: 'Small businesses' },
-  { value: 'corporate', label: 'Corporate / enterprise' },
-  { value: 'government', label: 'Government / institutions' },
-] as const;
-
-const buyingBehaviourOptions = [
-  { value: '', label: 'Select buying behaviour' },
-  { value: 'price_sensitive', label: 'Price-sensitive' },
-  { value: 'quality_focused', label: 'Quality-focused' },
-  { value: 'convenience_driven', label: 'Convenience-driven' },
-  { value: 'brand_conscious', label: 'Brand-conscious' },
-  { value: 'urgency_driven', label: 'Urgency-driven' },
-] as const;
-
-const decisionCycleOptions = [
-  { value: '', label: 'Select decision cycle' },
-  { value: 'same_day', label: 'Immediate (same day)' },
-  { value: '1_7_days', label: 'Short (1-7 days)' },
-  { value: '1_4_weeks', label: 'Medium (1-4 weeks)' },
-  { value: '1_6_months', label: 'Long (1-6 months+)' },
-] as const;
-
-const growthTargetOptions = [
-  { value: '', label: 'Select growth target' },
-  { value: 'maintain', label: 'Maintain current level' },
-  { value: '2x', label: '2x growth' },
-  { value: '3x', label: '3x growth' },
-  { value: '5x_plus', label: 'Aggressive scale (5x+)' },
-] as const;
-
 const briefSchema = z
   .object({
     objective: z.string().min(1, 'Objective is required.'),
+    businessStage: z.string().optional(),
+    monthlyRevenueBand: z.string().optional(),
+    salesModel: z.string().optional(),
     geographyScope: z.string().min(1, 'Geography scope is required.'),
     startDate: z.string().optional(),
     endDate: z.string().optional(),
@@ -106,6 +90,16 @@ const briefSchema = z
     targetLsmMax: z.string().optional(),
     targetInterests: z.string().optional(),
     targetAudienceNotes: z.string().optional(),
+    customerType: z.string().optional(),
+    currentCustomerNotes: z.string().optional(),
+    buyingBehaviour: z.string().optional(),
+    decisionCycle: z.string().optional(),
+    pricePositioning: z.string().optional(),
+    averageCustomerSpendBand: z.string().optional(),
+    growthTarget: z.string().optional(),
+    urgencyLevel: z.string().optional(),
+    audienceClarity: z.string().optional(),
+    valuePropositionFocus: z.string().optional(),
     preferredMediaTypes: z.string().optional(),
     excludedMediaTypes: z.string().optional(),
     mustHaveAreas: z.string().optional(),
@@ -120,10 +114,6 @@ const briefSchema = z
     preferredVideoDurationSeconds: z.string().optional(),
     targetAgeBand: z.string().optional(),
     targetLsmBand: z.string().optional(),
-    customerType: z.string().optional(),
-    buyingBehaviour: z.string().optional(),
-    decisionCycle: z.string().optional(),
-    growthTarget: z.string().optional(),
   })
   .refine((value) => !value.startDate || !value.endDate || new Date(value.endDate) >= new Date(value.startDate), {
     message: 'Campaign end date must be after the start date.',
@@ -170,6 +160,9 @@ export function CampaignBriefForm({
     resolver: zodResolver(briefSchema),
     defaultValues: {
       objective: initialValue?.objective ?? '',
+      businessStage: initialValue?.businessStage ?? '',
+      monthlyRevenueBand: initialValue?.monthlyRevenueBand ?? '',
+      salesModel: initialValue?.salesModel ?? '',
       geographyScope: initialValue?.geographyScope ?? '',
       startDate: initialValue?.startDate,
       endDate: initialValue?.endDate,
@@ -186,6 +179,16 @@ export function CampaignBriefForm({
       targetLsmMax: initialValue?.targetLsmMax?.toString(),
       targetInterests: joinList(initialValue?.targetInterests),
       targetAudienceNotes: initialValue?.targetAudienceNotes,
+      customerType: initialValue?.customerType ?? '',
+      currentCustomerNotes: initialValue?.currentCustomerNotes ?? '',
+      buyingBehaviour: initialValue?.buyingBehaviour ?? '',
+      decisionCycle: initialValue?.decisionCycle ?? '',
+      pricePositioning: initialValue?.pricePositioning ?? '',
+      averageCustomerSpendBand: initialValue?.averageCustomerSpendBand ?? '',
+      growthTarget: initialValue?.growthTarget ?? '',
+      urgencyLevel: initialValue?.urgencyLevel ?? '',
+      audienceClarity: initialValue?.audienceClarity ?? '',
+      valuePropositionFocus: initialValue?.valuePropositionFocus ?? '',
       preferredMediaTypes: joinList(initialValue?.preferredMediaTypes),
       excludedMediaTypes: joinList(initialValue?.excludedMediaTypes),
       mustHaveAreas: joinList(initialValue?.mustHaveAreas),
@@ -200,21 +203,9 @@ export function CampaignBriefForm({
       preferredVideoDurationSeconds: initialValue?.preferredVideoDurationSeconds?.toString(),
       targetAgeBand: '',
       targetLsmBand: '',
-      customerType: '',
-      buyingBehaviour: '',
-      decisionCycle: '',
-      growthTarget: '',
     },
   });
   const geographyScope = watch('geographyScope');
-
-  function mergeLines(base: string | undefined, lines: string[]) {
-    const keptBase = base?.trim() ?? '';
-    const normalizedBase = keptBase.toLowerCase();
-    const freshLines = lines.filter((line) => line && !normalizedBase.includes(line.toLowerCase()));
-    const merged = [keptBase, ...freshLines].filter(Boolean).join('\n');
-    return merged || undefined;
-  }
 
   function setAgeBand(value: string) {
     if (!value) {
@@ -237,15 +228,11 @@ export function CampaignBriefForm({
   }
 
   function map(values: FormShape): CampaignBrief {
-    const strategyLines = [
-      values.customerType ? `Customer type: ${values.customerType}` : '',
-      values.buyingBehaviour ? `Buying behaviour: ${values.buyingBehaviour}` : '',
-      values.decisionCycle ? `Decision cycle: ${values.decisionCycle}` : '',
-      values.growthTarget ? `Growth target: ${values.growthTarget}` : '',
-    ].filter(Boolean);
-
     return {
       objective: values.objective,
+      businessStage: values.businessStage || undefined,
+      monthlyRevenueBand: values.monthlyRevenueBand || undefined,
+      salesModel: values.salesModel || undefined,
       geographyScope: values.geographyScope,
       startDate: values.startDate,
       endDate: values.endDate,
@@ -261,7 +248,17 @@ export function CampaignBriefForm({
       targetLsmMin: optionalNumber(values.targetLsmMin),
       targetLsmMax: optionalNumber(values.targetLsmMax),
       targetInterests: splitList(values.targetInterests),
-      targetAudienceNotes: mergeLines(values.targetAudienceNotes, strategyLines),
+      targetAudienceNotes: values.targetAudienceNotes?.trim() || undefined,
+      customerType: values.customerType || undefined,
+      currentCustomerNotes: values.currentCustomerNotes?.trim() || undefined,
+      buyingBehaviour: values.buyingBehaviour || undefined,
+      decisionCycle: values.decisionCycle || undefined,
+      pricePositioning: values.pricePositioning || undefined,
+      averageCustomerSpendBand: values.averageCustomerSpendBand || undefined,
+      growthTarget: values.growthTarget || undefined,
+      urgencyLevel: values.urgencyLevel || undefined,
+      audienceClarity: values.audienceClarity || undefined,
+      valuePropositionFocus: values.valuePropositionFocus || undefined,
       preferredMediaTypes: splitList(values.preferredMediaTypes),
       excludedMediaTypes: splitList(values.excludedMediaTypes),
       mustHaveAreas: splitList(values.mustHaveAreas),
@@ -271,7 +268,7 @@ export function CampaignBriefForm({
       maxMediaItems: optionalNumber(values.maxMediaItems),
       openToUpsell: values.openToUpsell,
       additionalBudget: optionalNumber(values.additionalBudget),
-      specialRequirements: mergeLines(values.specialRequirements, []),
+      specialRequirements: values.specialRequirements?.trim() || undefined,
       preferredVideoAspectRatio: values.preferredVideoAspectRatio || undefined,
       preferredVideoDurationSeconds: optionalNumber(values.preferredVideoDurationSeconds),
     };
@@ -286,6 +283,27 @@ export function CampaignBriefForm({
               <option value="">Select objective</option>
               {objectiveOptions.map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Business stage">
+            <select {...register('businessStage')} className="input-base">
+              {businessStageOptions.map((option) => (
+                <option key={option.value || 'unset'} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Monthly revenue">
+            <select {...register('monthlyRevenueBand')} className="input-base">
+              {monthlyRevenueBands.map((option) => (
+                <option key={option.value || 'unset'} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Sales model">
+            <select {...register('salesModel')} className="input-base">
+              {salesModelOptions.map((option) => (
+                <option key={option.value || 'unset'} value={option.value}>{option.label}</option>
               ))}
             </select>
           </Field>
@@ -399,6 +417,9 @@ export function CampaignBriefForm({
               ))}
             </select>
           </Field>
+          <Field label="Current customer notes">
+            <textarea {...register('currentCustomerNotes')} className="input-base min-h-[120px]" placeholder="Who currently buys from you?" />
+          </Field>
           <Field label="Buying behaviour">
             <select {...register('buyingBehaviour')} className="input-base">
               {buyingBehaviourOptions.map((option) => (
@@ -417,6 +438,41 @@ export function CampaignBriefForm({
             <select {...register('growthTarget')} className="input-base">
               {growthTargetOptions.map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Price positioning">
+            <select {...register('pricePositioning')} className="input-base">
+              {pricePositioningOptions.map((option) => (
+                <option key={option.value || 'unset'} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Average customer spend">
+            <select {...register('averageCustomerSpendBand')} className="input-base">
+              {averageCustomerSpendOptions.map((option) => (
+                <option key={option.value || 'unset'} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Urgency level">
+            <select {...register('urgencyLevel')} className="input-base">
+              {urgencyLevelOptions.map((option) => (
+                <option key={option.value || 'unset'} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Audience clarity">
+            <select {...register('audienceClarity')} className="input-base">
+              {audienceClarityOptions.map((option) => (
+                <option key={option.value || 'unset'} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Value proposition focus">
+            <select {...register('valuePropositionFocus')} className="input-base">
+              {valuePropositionFocusOptions.map((option) => (
+                <option key={option.value || 'unset'} value={option.value}>{option.label}</option>
               ))}
             </select>
           </Field>

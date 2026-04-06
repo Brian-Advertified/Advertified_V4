@@ -152,6 +152,7 @@ public sealed class PlanningScoreService : IPlanningScoreService
         score += BudgetScore(candidate, request);
         score += MediaPreferenceScore(candidate, request);
         score += ObjectiveFitScore(candidate, request);
+        score += StrategyFitScore(candidate, request);
         score += AvailabilityScore(candidate);
         score += OohPriorityScore(candidate, request);
         score += MixTargetScore(candidate, request);
@@ -186,6 +187,113 @@ public sealed class PlanningScoreService : IPlanningScoreService
         bonus += _policyService.GetHigherBandRadioBonus(candidate, request);
 
         return bonus;
+    }
+
+    private static decimal StrategyFitScore(InventoryCandidate candidate, CampaignPlanningRequest request)
+    {
+        var signals = CampaignStrategySupport.BuildSignals(request);
+        var mediaType = candidate.MediaType.Trim().ToLowerInvariant();
+        decimal score = 0m;
+
+        if (signals.PremiumAudience)
+        {
+            if (mediaType is "ooh" or "tv")
+            {
+                score += 4m;
+            }
+
+            if (HasLsmOverlap(candidate, 7, 10))
+            {
+                score += 6m;
+            }
+        }
+
+        if (signals.MassMarketAudience)
+        {
+            if (mediaType is "radio" or "ooh")
+            {
+                score += 4m;
+            }
+
+            if (HasLsmOverlap(candidate, 4, 7))
+            {
+                score += 5m;
+            }
+        }
+
+        if (signals.FastDecisionCycle || signals.ImmediateUrgency)
+        {
+            score += mediaType switch
+            {
+                "radio" => 6m,
+                "ooh" => 5m,
+                "digital" => 5m,
+                "tv" => 1m,
+                _ => 0m
+            };
+        }
+        else if (signals.LongDecisionCycle)
+        {
+            score += mediaType switch
+            {
+                "tv" => 5m,
+                "ooh" => 4m,
+                "radio" => 3m,
+                "digital" => 3m,
+                _ => 0m
+            };
+        }
+
+        if (signals.WalkInDriven)
+        {
+            score += mediaType switch
+            {
+                "ooh" => 6m,
+                "radio" => 4m,
+                _ => 0m
+            };
+        }
+
+        if (signals.OnlineDriven)
+        {
+            score += mediaType switch
+            {
+                "digital" => 8m,
+                "radio" => 2m,
+                "ooh" => -1m,
+                _ => 0m
+            };
+        }
+
+        if (signals.AudienceClearlyDefined && HasAudienceMetadata(candidate))
+        {
+            score += 3m;
+        }
+
+        if (signals.AudienceNeedsBroadReach)
+        {
+            if (mediaType is "ooh" or "tv")
+            {
+                score += 4m;
+            }
+
+            if (ResolveCandidateCoverage(candidate) is "national" or "provincial")
+            {
+                score += 2m;
+            }
+        }
+
+        if (signals.HighGrowthAmbition && mediaType is "ooh" or "radio" or "tv")
+        {
+            score += 2m;
+        }
+
+        if (signals.EnterpriseOrGovernment && mediaType == "radio")
+        {
+            score += 3m;
+        }
+
+        return Math.Min(22m, Math.Max(-4m, score));
     }
 
     private static decimal AgeScore(InventoryCandidate candidate, CampaignPlanningRequest request)
@@ -365,6 +473,49 @@ public sealed class PlanningScoreService : IPlanningScoreService
             Matches(preferred, "ooh") || Matches(preferred, candidate.MediaType) || Matches(preferred, candidate.Subtype));
 
         return preferredOoh ? 30m : 18m;
+    }
+
+    private static bool HasLsmOverlap(InventoryCandidate candidate, int requestMin, int requestMax)
+    {
+        if (candidate.LsmMin.HasValue && candidate.LsmMax.HasValue)
+        {
+            return !(candidate.LsmMax.Value < requestMin || candidate.LsmMin.Value > requestMax);
+        }
+
+        var lsmText = GetMetadataText(candidate, "audienceLsmRange", "audience_lsm_range", "targetAudience", "target_audience");
+        if (string.IsNullOrWhiteSpace(lsmText))
+        {
+            return false;
+        }
+
+        var values = Regex.Matches(lsmText, "\\d+")
+            .Select(match => int.TryParse(match.Value, out var parsed) ? parsed : (int?)null)
+            .Where(value => value.HasValue)
+            .Select(value => value!.Value)
+            .ToArray();
+
+        if (values.Length >= 2)
+        {
+            var candidateMin = Math.Min(values[0], values[1]);
+            var candidateMax = Math.Max(values[0], values[1]);
+            return !(candidateMax < requestMin || candidateMin > requestMax);
+        }
+
+        return false;
+    }
+
+    private static bool HasAudienceMetadata(InventoryCandidate candidate)
+    {
+        return !string.IsNullOrWhiteSpace(GetMetadataText(
+            candidate,
+            "audienceKeywords",
+            "audience_keywords",
+            "targetAudience",
+            "target_audience",
+            "audienceAgeSkew",
+            "audience_age_skew",
+            "audienceGenderSkew",
+            "audience_gender_skew"));
     }
 
     private static decimal GetComparableMonthlyCost(InventoryCandidate candidate)

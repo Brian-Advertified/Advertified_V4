@@ -3,6 +3,9 @@ namespace Advertified.App.Contracts.Campaigns;
 public sealed class SaveCampaignBriefRequest
 {
     public string Objective { get; set; } = string.Empty;
+    public string? BusinessStage { get; set; }
+    public string? MonthlyRevenueBand { get; set; }
+    public string? SalesModel { get; set; }
     public DateOnly? StartDate { get; set; }
     public DateOnly? EndDate { get; set; }
     public int? DurationWeeks { get; set; }
@@ -19,6 +22,16 @@ public sealed class SaveCampaignBriefRequest
     public int? TargetLsmMax { get; set; }
     public List<string>? TargetInterests { get; set; }
     public string? TargetAudienceNotes { get; set; }
+    public string? CustomerType { get; set; }
+    public string? CurrentCustomerNotes { get; set; }
+    public string? BuyingBehaviour { get; set; }
+    public string? DecisionCycle { get; set; }
+    public string? PricePositioning { get; set; }
+    public string? AverageCustomerSpendBand { get; set; }
+    public string? GrowthTarget { get; set; }
+    public string? UrgencyLevel { get; set; }
+    public string? AudienceClarity { get; set; }
+    public string? ValuePropositionFocus { get; set; }
     public List<string>? PreferredMediaTypes { get; set; }
     public List<string>? ExcludedMediaTypes { get; set; }
     public List<string>? MustHaveAreas { get; set; }

@@ -70,6 +70,23 @@ public sealed class AgentInventoryController : ControllerBase
             ?? throw new InvalidOperationException("Campaign not found.");
 
         var brief = campaign.CampaignBrief;
+        var strategyRequest = new CampaignPlanningRequest
+        {
+            BusinessStage = brief?.BusinessStage,
+            MonthlyRevenueBand = brief?.MonthlyRevenueBand,
+            SalesModel = brief?.SalesModel,
+            CustomerType = brief?.CustomerType,
+            CurrentCustomerNotes = brief?.CurrentCustomerNotes,
+            BuyingBehaviour = brief?.BuyingBehaviour,
+            DecisionCycle = brief?.DecisionCycle,
+            PricePositioning = brief?.PricePositioning,
+            AverageCustomerSpendBand = brief?.AverageCustomerSpendBand,
+            GrowthTarget = brief?.GrowthTarget,
+            UrgencyLevel = brief?.UrgencyLevel,
+            AudienceClarity = brief?.AudienceClarity,
+            ValuePropositionFocus = brief?.ValuePropositionFocus
+        };
+        var inferredLsmRange = CampaignStrategySupport.ResolveSuggestedLsmRange(strategyRequest);
         return new CampaignPlanningRequest
         {
             CampaignId = campaign.Id,
@@ -77,6 +94,9 @@ public sealed class AgentInventoryController : ControllerBase
                 campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
                 campaign.PackageOrder.AiStudioReserveAmount),
             Objective = brief?.Objective,
+            BusinessStage = brief?.BusinessStage,
+            MonthlyRevenueBand = brief?.MonthlyRevenueBand,
+            SalesModel = brief?.SalesModel,
             GeographyScope = brief?.GeographyScope,
             Provinces = DeserializeList(brief?.ProvincesJson),
             Cities = DeserializeList(brief?.CitiesJson),
@@ -88,10 +108,27 @@ public sealed class AgentInventoryController : ControllerBase
             TargetAgeMin = brief?.TargetAgeMin,
             TargetAgeMax = brief?.TargetAgeMax,
             TargetGender = brief?.TargetGender,
-            TargetInterests = DeserializeList(brief?.TargetInterestsJson),
-            TargetAudienceNotes = brief?.TargetAudienceNotes,
-            TargetLsmMin = brief?.TargetLsmMin,
-            TargetLsmMax = brief?.TargetLsmMax,
+            TargetInterests = DeserializeList(brief?.TargetInterestsJson)
+                .Concat(CampaignStrategySupport.BuildAudienceTerms(strategyRequest))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList(),
+            TargetAudienceNotes = string.Join(
+                Environment.NewLine,
+                new[] { brief?.TargetAudienceNotes }
+                    .Concat(CampaignStrategySupport.BuildContextLines(strategyRequest))
+                    .Where(static value => !string.IsNullOrWhiteSpace(value))),
+            CustomerType = brief?.CustomerType,
+            CurrentCustomerNotes = brief?.CurrentCustomerNotes,
+            BuyingBehaviour = brief?.BuyingBehaviour,
+            DecisionCycle = brief?.DecisionCycle,
+            PricePositioning = brief?.PricePositioning,
+            AverageCustomerSpendBand = brief?.AverageCustomerSpendBand,
+            GrowthTarget = brief?.GrowthTarget,
+            UrgencyLevel = brief?.UrgencyLevel,
+            AudienceClarity = brief?.AudienceClarity,
+            ValuePropositionFocus = brief?.ValuePropositionFocus,
+            TargetLsmMin = brief?.TargetLsmMin ?? inferredLsmRange.Min,
+            TargetLsmMax = brief?.TargetLsmMax ?? inferredLsmRange.Max,
             OpenToUpsell = brief?.OpenToUpsell ?? false,
             AdditionalBudget = brief?.AdditionalBudget,
             MaxMediaItems = brief?.MaxMediaItems

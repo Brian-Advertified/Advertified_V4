@@ -160,9 +160,11 @@ public sealed class OpenAICampaignReasoningService : ICampaignReasoningService
             new[]
             {
                 brief.TargetAudienceNotes,
+                brief.CurrentCustomerNotes,
                 brief.CreativeNotes,
                 brief.SpecialRequirements
             }.Where(value => !string.IsNullOrWhiteSpace(value)).Select(value => value!.Trim()));
+        var businessContext = CampaignStrategySupport.BuildContextLines(planningRequest);
 
         var plannedItems = recommendationResult.RecommendedPlan
             .Take(12)
@@ -205,9 +207,24 @@ public sealed class OpenAICampaignReasoningService : ICampaignReasoningService
             $"- Target age: {FormatAgeRange(planningRequest.TargetAgeMin, planningRequest.TargetAgeMax)}\n" +
             $"- Target gender: {(string.IsNullOrWhiteSpace(planningRequest.TargetGender) ? "Not specified" : planningRequest.TargetGender)}\n" +
             $"- Target interests: {targetInterests}\n" +
+            $"- Business stage: {DisplayValue(planningRequest.BusinessStage)}\n" +
+            $"- Monthly revenue: {DisplayValue(planningRequest.MonthlyRevenueBand)}\n" +
+            $"- Sales model: {DisplayValue(planningRequest.SalesModel)}\n" +
+            $"- Customer type: {DisplayValue(planningRequest.CustomerType)}\n" +
+            $"- Buying behaviour: {DisplayValue(planningRequest.BuyingBehaviour)}\n" +
+            $"- Decision cycle: {DisplayValue(planningRequest.DecisionCycle)}\n" +
+            $"- Price positioning: {DisplayValue(planningRequest.PricePositioning)}\n" +
+            $"- Average spend: {DisplayValue(planningRequest.AverageCustomerSpendBand)}\n" +
+            $"- Growth target: {DisplayValue(planningRequest.GrowthTarget)}\n" +
+            $"- Urgency: {DisplayValue(planningRequest.UrgencyLevel)}\n" +
+            $"- Audience clarity: {DisplayValue(planningRequest.AudienceClarity)}\n" +
+            $"- Value proposition: {DisplayValue(planningRequest.ValuePropositionFocus)}\n" +
             $"- Open to upsell: {brief.OpenToUpsell}\n" +
             $"- Additional budget: {(brief.AdditionalBudget.HasValue ? $"R {brief.AdditionalBudget.Value:N0}" : "None")}\n" +
             $"- Audience notes: {(string.IsNullOrWhiteSpace(notes) ? "Not specified" : notes)}\n\n" +
+            "Structured business context:\n" +
+            (businessContext.Count > 0 ? string.Join(Environment.NewLine, businessContext.Select(line => $"- {line}")) : "- Not specified") +
+            "\n\n" +
             "Deterministic planner summary:\n" +
             $"- Recommended items: {recommendationResult.RecommendedPlan.Count}\n" +
             $"- Recommended total: R {recommendationResult.RecommendedPlanTotal:N0}\n" +
@@ -229,6 +246,13 @@ public sealed class OpenAICampaignReasoningService : ICampaignReasoningService
             (int minimum, null) => $"{minimum}+",
             (null, int maximum) => $"Up to {maximum}",
         };
+    }
+
+    private static string DisplayValue(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? "Not specified"
+            : value.Trim().Replace('_', ' ');
     }
 
     private static IReadOnlyList<string> TryGetStringArray(IReadOnlyDictionary<string, object?> metadata, string key)

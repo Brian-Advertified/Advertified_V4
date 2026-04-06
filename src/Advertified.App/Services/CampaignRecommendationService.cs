@@ -115,6 +115,32 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         var areas = normalizedScope == "local"
             ? brief.GetList(nameof(CampaignBriefEntity.AreasJson))
             : new List<string>();
+        var strategyRequest = new CampaignPlanningRequest
+        {
+            BusinessStage = brief.BusinessStage,
+            MonthlyRevenueBand = brief.MonthlyRevenueBand,
+            SalesModel = brief.SalesModel,
+            CustomerType = brief.CustomerType,
+            CurrentCustomerNotes = brief.CurrentCustomerNotes,
+            BuyingBehaviour = brief.BuyingBehaviour,
+            DecisionCycle = brief.DecisionCycle,
+            PricePositioning = brief.PricePositioning,
+            AverageCustomerSpendBand = brief.AverageCustomerSpendBand,
+            GrowthTarget = brief.GrowthTarget,
+            UrgencyLevel = brief.UrgencyLevel,
+            AudienceClarity = brief.AudienceClarity,
+            ValuePropositionFocus = brief.ValuePropositionFocus
+        };
+        var inferredLsmRange = CampaignStrategySupport.ResolveSuggestedLsmRange(strategyRequest);
+        var targetInterests = brief.GetList(nameof(CampaignBriefEntity.TargetInterestsJson))
+            .Concat(CampaignStrategySupport.BuildAudienceTerms(strategyRequest))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var targetAudienceNotes = string.Join(
+            Environment.NewLine,
+            new[] { brief.TargetAudienceNotes }
+                .Concat(CampaignStrategySupport.BuildContextLines(strategyRequest))
+                .Where(static value => !string.IsNullOrWhiteSpace(value)));
 
         return new CampaignPlanningRequest
         {
@@ -123,6 +149,9 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
                 campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
                 campaign.PackageOrder.AiStudioReserveAmount),
             Objective = brief.Objective,
+            BusinessStage = brief.BusinessStage,
+            MonthlyRevenueBand = brief.MonthlyRevenueBand,
+            SalesModel = brief.SalesModel,
             GeographyScope = normalizedScope,
             Provinces = provinces,
             Cities = cities,
@@ -134,10 +163,20 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             TargetAgeMin = brief.TargetAgeMin,
             TargetAgeMax = brief.TargetAgeMax,
             TargetGender = brief.TargetGender,
-            TargetInterests = brief.GetList(nameof(CampaignBriefEntity.TargetInterestsJson)),
-            TargetAudienceNotes = brief.TargetAudienceNotes,
-            TargetLsmMin = brief.TargetLsmMin,
-            TargetLsmMax = brief.TargetLsmMax,
+            TargetInterests = targetInterests,
+            TargetAudienceNotes = string.IsNullOrWhiteSpace(targetAudienceNotes) ? null : targetAudienceNotes,
+            CustomerType = brief.CustomerType,
+            CurrentCustomerNotes = brief.CurrentCustomerNotes,
+            BuyingBehaviour = brief.BuyingBehaviour,
+            DecisionCycle = brief.DecisionCycle,
+            PricePositioning = brief.PricePositioning,
+            AverageCustomerSpendBand = brief.AverageCustomerSpendBand,
+            GrowthTarget = brief.GrowthTarget,
+            UrgencyLevel = brief.UrgencyLevel,
+            AudienceClarity = brief.AudienceClarity,
+            ValuePropositionFocus = brief.ValuePropositionFocus,
+            TargetLsmMin = brief.TargetLsmMin ?? inferredLsmRange.Min,
+            TargetLsmMax = brief.TargetLsmMax ?? inferredLsmRange.Max,
             OpenToUpsell = brief.OpenToUpsell,
             AdditionalBudget = brief.AdditionalBudget,
             MaxMediaItems = brief.MaxMediaItems,
@@ -229,6 +268,9 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             CampaignId = source.CampaignId,
             SelectedBudget = selectedBudget,
             Objective = source.Objective,
+            BusinessStage = source.BusinessStage,
+            MonthlyRevenueBand = source.MonthlyRevenueBand,
+            SalesModel = source.SalesModel,
             GeographyScope = source.GeographyScope,
             Provinces = source.Provinces.ToList(),
             Cities = source.Cities.ToList(),
@@ -242,6 +284,16 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             TargetGender = source.TargetGender,
             TargetInterests = source.TargetInterests.ToList(),
             TargetAudienceNotes = source.TargetAudienceNotes,
+            CustomerType = source.CustomerType,
+            CurrentCustomerNotes = source.CurrentCustomerNotes,
+            BuyingBehaviour = source.BuyingBehaviour,
+            DecisionCycle = source.DecisionCycle,
+            PricePositioning = source.PricePositioning,
+            AverageCustomerSpendBand = source.AverageCustomerSpendBand,
+            GrowthTarget = source.GrowthTarget,
+            UrgencyLevel = source.UrgencyLevel,
+            AudienceClarity = source.AudienceClarity,
+            ValuePropositionFocus = source.ValuePropositionFocus,
             TargetLsmMin = source.TargetLsmMin,
             TargetLsmMax = source.TargetLsmMax,
             OpenToUpsell = source.OpenToUpsell,

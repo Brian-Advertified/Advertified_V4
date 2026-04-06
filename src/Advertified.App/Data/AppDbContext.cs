@@ -217,9 +217,21 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.AdditionalBudget)
                 .HasPrecision(12, 2)
                 .HasColumnName("additional_budget");
+            entity.Property(e => e.AudienceClarity)
+                .HasMaxLength(50)
+                .HasColumnName("audience_clarity");
+            entity.Property(e => e.AverageCustomerSpendBand)
+                .HasMaxLength(50)
+                .HasColumnName("average_customer_spend_band");
             entity.Property(e => e.AreasJson)
                 .HasColumnType("jsonb")
                 .HasColumnName("areas_json");
+            entity.Property(e => e.BusinessStage)
+                .HasMaxLength(50)
+                .HasColumnName("business_stage");
+            entity.Property(e => e.BuyingBehaviour)
+                .HasMaxLength(50)
+                .HasColumnName("buying_behaviour");
             entity.Property(e => e.CampaignId).HasColumnName("campaign_id");
             entity.Property(e => e.CitiesJson)
                 .HasColumnType("jsonb")
@@ -229,6 +241,13 @@ public partial class AppDbContext : DbContext
                 .HasColumnName("created_at");
             entity.Property(e => e.CreativeNotes).HasColumnName("creative_notes");
             entity.Property(e => e.CreativeReady).HasColumnName("creative_ready");
+            entity.Property(e => e.CurrentCustomerNotes).HasColumnName("current_customer_notes");
+            entity.Property(e => e.CustomerType)
+                .HasMaxLength(50)
+                .HasColumnName("customer_type");
+            entity.Property(e => e.DecisionCycle)
+                .HasMaxLength(50)
+                .HasColumnName("decision_cycle");
             entity.Property(e => e.DurationWeeks).HasColumnName("duration_weeks");
             entity.Property(e => e.EndDate).HasColumnName("end_date");
             entity.Property(e => e.ExcludedAreasJson)
@@ -240,7 +259,13 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.GeographyScope)
                 .HasMaxLength(50)
                 .HasColumnName("geography_scope");
+            entity.Property(e => e.GrowthTarget)
+                .HasMaxLength(50)
+                .HasColumnName("growth_target");
             entity.Property(e => e.MaxMediaItems).HasColumnName("max_media_items");
+            entity.Property(e => e.MonthlyRevenueBand)
+                .HasMaxLength(50)
+                .HasColumnName("monthly_revenue_band");
             entity.Property(e => e.MustHaveAreasJson)
                 .HasColumnType("jsonb")
                 .HasColumnName("must_have_areas_json");
@@ -248,6 +273,9 @@ public partial class AppDbContext : DbContext
                 .HasMaxLength(100)
                 .HasColumnName("objective");
             entity.Property(e => e.OpenToUpsell).HasColumnName("open_to_upsell");
+            entity.Property(e => e.PricePositioning)
+                .HasMaxLength(50)
+                .HasColumnName("price_positioning");
             entity.Property(e => e.PreferredVideoAspectRatio)
                 .HasMaxLength(10)
                 .HasColumnName("preferred_video_aspect_ratio");
@@ -258,6 +286,9 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.ProvincesJson)
                 .HasColumnType("jsonb")
                 .HasColumnName("provinces_json");
+            entity.Property(e => e.SalesModel)
+                .HasMaxLength(50)
+                .HasColumnName("sales_model");
             entity.Property(e => e.SpecialRequirements).HasColumnName("special_requirements");
             entity.Property(e => e.StartDate).HasColumnName("start_date");
             entity.Property(e => e.SubmittedAt).HasColumnName("submitted_at");
@@ -281,6 +312,12 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");
+            entity.Property(e => e.UrgencyLevel)
+                .HasMaxLength(50)
+                .HasColumnName("urgency_level");
+            entity.Property(e => e.ValuePropositionFocus)
+                .HasMaxLength(50)
+                .HasColumnName("value_proposition_focus");
 
             entity.HasOne(d => d.Campaign).WithOne(p => p.CampaignBrief)
                 .HasForeignKey<CampaignBrief>(d => d.CampaignId)

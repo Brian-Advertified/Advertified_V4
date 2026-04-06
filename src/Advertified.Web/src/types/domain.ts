@@ -151,6 +151,9 @@ export interface PackageCheckoutSession {
 
 export interface CampaignBrief {
   objective: string;
+  businessStage?: string;
+  monthlyRevenueBand?: string;
+  salesModel?: string;
   startDate?: string;
   endDate?: string;
   durationWeeks?: number;
@@ -167,6 +170,16 @@ export interface CampaignBrief {
   targetLsmMax?: number;
   targetInterests?: string[];
   targetAudienceNotes?: string;
+  customerType?: string;
+  currentCustomerNotes?: string;
+  buyingBehaviour?: string;
+  decisionCycle?: string;
+  pricePositioning?: string;
+  averageCustomerSpendBand?: string;
+  growthTarget?: string;
+  urgencyLevel?: string;
+  audienceClarity?: string;
+  valuePropositionFocus?: string;
   preferredMediaTypes?: string[];
   excludedMediaTypes?: string[];
   mustHaveAreas?: string[];
