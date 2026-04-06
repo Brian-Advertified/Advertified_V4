@@ -17,6 +17,7 @@ export function LoginPage() {
     const candidate = new URLSearchParams(location.search).get('next')?.trim() ?? '';
     return candidate.startsWith('/') ? candidate : null;
   }, [location.search]);
+  const isContinuingJourney = Boolean(nextPath);
 
   async function handleSubmit(values: LoginSchema) {
     try {
@@ -48,13 +49,22 @@ export function LoginPage() {
       <div className="mx-auto grid max-w-5xl gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
         <div className="hero-mint overflow-hidden rounded-[32px] px-6 py-8 sm:px-8 sm:py-10">
           <div className="hero-kicker">Client, agent, and creative access</div>
-          <h1 className="mt-5 text-4xl font-semibold tracking-tight text-ink sm:text-5xl">Sign in to continue your package or planning journey.</h1>
+          <h1 className="mt-5 text-4xl font-semibold tracking-tight text-ink sm:text-5xl">
+            {isContinuingJourney ? 'Sign in to continue where you left off.' : 'Sign in to continue your package or planning journey.'}
+          </h1>
           <p className="mt-4 text-base leading-8 text-ink-soft">
-            Clients can continue from package purchase into campaign briefing. Agents can move into campaign operations, while creative directors move straight into the production studio.
+            {isContinuingJourney
+              ? 'You are returning to an in-progress Advertified step. Sign in and we will take you straight back to it.'
+              : 'Clients can continue from package purchase into campaign briefing. Agents can move into campaign operations, while creative directors move straight into the production studio.'}
           </p>
           {activated ? (
             <div className="mt-6 rounded-[22px] border border-brand/20 bg-brand-soft px-4 py-4 text-sm text-brand">
               Your email has been verified. Sign in to continue.
+            </div>
+          ) : null}
+          {isContinuingJourney ? (
+            <div className="mt-6 rounded-[22px] border border-brand/20 bg-white/70 px-4 py-4 text-sm text-ink-soft">
+              Your progress will continue after sign-in. You do not need to restart the journey.
             </div>
           ) : null}
         </div>

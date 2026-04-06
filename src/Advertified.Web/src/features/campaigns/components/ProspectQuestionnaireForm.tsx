@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { ClipboardList } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { z } from 'zod';
 import { useToast } from '../../../components/ui/toast';
@@ -118,6 +118,8 @@ type ProspectQuestionnaireFormProps = {
   variant?: 'hero' | 'page';
 };
 
+const QUESTIONNAIRE_DRAFT_STORAGE_KEY = 'advertified.prospect-questionnaire.draft';
+
 const questionnaireSchema = z.object({
   fullName: z.string().trim().min(1, 'Full name is required.'),
   email: z.string().trim().min(1, 'Email is required.').email('Enter a valid email address.'),
@@ -192,6 +194,60 @@ function FieldError({ message }: { message?: string }) {
   return <p className="mt-2 text-sm text-rose-700">{message}</p>;
 }
 
+function readStoredQuestionnaireDraft(): QuestionnaireForm | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(QUESTIONNAIRE_DRAFT_STORAGE_KEY);
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw) as Partial<QuestionnaireForm>;
+    return {
+      fullName: parsed.fullName ?? '',
+      email: parsed.email ?? '',
+      phone: parsed.phone ?? '',
+      businessName: parsed.businessName ?? '',
+      industry: parsed.industry ?? '',
+      businessStage: parsed.businessStage ?? '',
+      monthlyRevenueBand: parsed.monthlyRevenueBand ?? '',
+      salesModel: parsed.salesModel ?? '',
+      packageBandId: parsed.packageBandId ?? '',
+      campaignName: parsed.campaignName ?? '',
+      objective: parsed.objective ?? 'awareness',
+      geographyScope: parsed.geographyScope ?? 'provincial',
+      primaryArea: parsed.primaryArea ?? '',
+      ageRange: parsed.ageRange ?? '',
+      gender: parsed.gender ?? '',
+      language: parsed.language ?? '',
+      preferredMediaTypes: Array.isArray(parsed.preferredMediaTypes) && parsed.preferredMediaTypes.length > 0
+        ? parsed.preferredMediaTypes
+        : ['ooh', 'radio'],
+      customerType: parsed.customerType ?? '',
+      buyingBehaviour: parsed.buyingBehaviour ?? '',
+      decisionCycle: parsed.decisionCycle ?? '',
+      pricePositioning: parsed.pricePositioning ?? '',
+      averageCustomerSpendBand: parsed.averageCustomerSpendBand ?? '',
+      growthTarget: parsed.growthTarget ?? '',
+      urgencyLevel: parsed.urgencyLevel ?? '',
+      audienceClarity: parsed.audienceClarity ?? '',
+      valuePropositionFocus: parsed.valuePropositionFocus ?? '',
+      specialRequirements: parsed.specialRequirements ?? '',
+    };
+  } catch {
+    return null;
+  }
+}
+
+function clearStoredQuestionnaireDraft() {
+  if (typeof window !== 'undefined') {
+    window.localStorage.removeItem(QUESTIONNAIRE_DRAFT_STORAGE_KEY);
+  }
+}
+
 export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestionnaireFormProps) {
   const { pushToast } = useToast();
   const formOptionsQuery = useSharedFormOptions();
@@ -227,6 +283,23 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
     valuePropositionFocus: '',
     specialRequirements: '',
   });
+  const [draftRestored, setDraftRestored] = useState(false);
+
+  useEffect(() => {
+    const storedDraft = readStoredQuestionnaireDraft();
+    if (storedDraft) {
+      setForm(storedDraft);
+      setDraftRestored(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (submitted || typeof window === 'undefined') {
+      return;
+    }
+
+    window.localStorage.setItem(QUESTIONNAIRE_DRAFT_STORAGE_KEY, JSON.stringify(form));
+  }, [form, submitted]);
 
   const packagesQuery = useQuery({
     queryKey: ['packages'],
@@ -276,6 +349,7 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
       });
     },
     onSuccess: (result) => {
+      clearStoredQuestionnaireDraft();
       setSubmitted(result);
       pushToast({
         title: 'Questionnaire submitted.',
@@ -377,12 +451,23 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
 
       {submitted ? (
         <div className="mt-6 rounded-[24px] border border-emerald-200 bg-emerald-50 px-5 py-5">
-          <p className="text-sm font-semibold text-emerald-800">Submission received</p>
-          <p className="mt-2 text-sm leading-6 text-emerald-900">{submitted.message}</p>
+          <p className="text-sm font-semibold text-emerald-800">Your brief is in</p>
+          <p className="mt-2 text-sm leading-6 text-emerald-900">
+            We’ve saved your answers and queued them for review. An Advertified agent can now turn this into a recommendation.
+          </p>
+          <div className="mt-4 rounded-[20px] border border-emerald-200 bg-white/70 px-4 py-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">What happens next</p>
+            <ul className="mt-3 space-y-2 text-sm leading-6 text-emerald-900">
+              <li>1. Your answers are reviewed and shaped into a working campaign brief.</li>
+              <li>2. We use that brief to build tailored media recommendations for your business.</li>
+              <li>3. If you already know your spend band, you can continue with package selection right away.</li>
+            </ul>
+          </div>
+          <p className="mt-4 text-sm leading-6 text-emerald-900">{submitted.message}</p>
           <p className="mt-2 text-xs uppercase tracking-[0.16em] text-emerald-700">Campaign ref: {submitted.campaignId.slice(0, 8).toUpperCase()}</p>
           <div className="mt-4 flex flex-wrap gap-3">
-            <Link to="/" className="button-primary px-5 py-3">Back to homepage</Link>
-            <Link to="/packages" className="button-secondary px-5 py-3">View packages</Link>
+            <Link to="/packages" className="button-primary px-5 py-3">Continue to packages</Link>
+            <Link to="/" className="button-secondary px-5 py-3">Back to homepage</Link>
           </div>
         </div>
       ) : (
@@ -431,6 +516,12 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
           {Object.keys(errors).length > 0 ? (
             <div className="rounded-[20px] border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-800">
               Please complete the highlighted fields before continuing.
+            </div>
+          ) : null}
+
+          {draftRestored ? (
+            <div className="rounded-[20px] border border-brand/15 bg-brand/[0.06] px-4 py-4 text-sm text-ink-soft">
+              We restored your saved questionnaire so you can continue where you left off.
             </div>
           ) : null}
 
@@ -709,7 +800,47 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
             {variant === 'hero' ? (
               <Link to="/start-campaign" className="button-secondary px-6 py-3">Open full page</Link>
             ) : (
-              <Link to="/" className="button-secondary px-6 py-3">Back home</Link>
+              <button
+                type="button"
+                onClick={() => {
+                  clearStoredQuestionnaireDraft();
+                  setDraftRestored(false);
+                  setErrors({});
+                  setStep(1);
+                  setForm({
+                    fullName: '',
+                    email: '',
+                    phone: '',
+                    businessName: '',
+                    industry: '',
+                    businessStage: '',
+                    monthlyRevenueBand: '',
+                    salesModel: '',
+                    packageBandId: '',
+                    campaignName: '',
+                    objective: 'awareness',
+                    geographyScope: 'provincial',
+                    primaryArea: '',
+                    ageRange: '',
+                    gender: '',
+                    language: '',
+                    preferredMediaTypes: ['ooh', 'radio'],
+                    customerType: '',
+                    buyingBehaviour: '',
+                    decisionCycle: '',
+                    pricePositioning: '',
+                    averageCustomerSpendBand: '',
+                    growthTarget: '',
+                    urgencyLevel: '',
+                    audienceClarity: '',
+                    valuePropositionFocus: '',
+                    specialRequirements: '',
+                  });
+                }}
+                className="button-secondary px-6 py-3"
+              >
+                Clear saved draft
+              </button>
             )}
           </div>
         </form>
