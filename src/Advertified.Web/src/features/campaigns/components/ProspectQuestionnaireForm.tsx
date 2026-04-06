@@ -2,6 +2,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { ClipboardList } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { z } from 'zod';
 import { useToast } from '../../../components/ui/toast';
 import { catalogQueryOptions } from '../../../lib/catalogQueryOptions';
 import { useSharedFormOptions } from '../../../lib/useSharedFormOptions';
@@ -25,7 +26,6 @@ type QuestionnaireForm = {
   gender: string;
   language: string;
   preferredMediaTypes: string[];
-  targetAudienceNotes: string;
   customerType: string;
   buyingBehaviour: string;
   decisionCycle: string;
@@ -118,11 +118,86 @@ type ProspectQuestionnaireFormProps = {
   variant?: 'hero' | 'page';
 };
 
+const questionnaireSchema = z.object({
+  fullName: z.string().trim().min(1, 'Full name is required.'),
+  email: z.string().trim().min(1, 'Email is required.').email('Enter a valid email address.'),
+  phone: z.string().trim().min(1, 'Phone is required.'),
+  businessName: z.string(),
+  industry: z.string(),
+  businessStage: z.string(),
+  monthlyRevenueBand: z.string(),
+  salesModel: z.string(),
+  packageBandId: z.string().trim().min(1, 'Package band is required.'),
+  campaignName: z.string(),
+  objective: z.string().trim().min(1, 'Primary goal is required.'),
+  geographyScope: z.enum(['local', 'provincial', 'national'], { message: 'Geography scope is required.' }),
+  primaryArea: z.string(),
+  ageRange: z.string(),
+  gender: z.string(),
+  language: z.string(),
+  preferredMediaTypes: z.array(z.string()).min(1, 'Select at least one preferred channel.'),
+  customerType: z.string(),
+  buyingBehaviour: z.string(),
+  decisionCycle: z.string(),
+  pricePositioning: z.string(),
+  averageCustomerSpendBand: z.string(),
+  growthTarget: z.string(),
+  urgencyLevel: z.string(),
+  audienceClarity: z.string(),
+  valuePropositionFocus: z.string(),
+  specialRequirements: z.string(),
+});
+
+type QuestionnaireErrors = Partial<Record<keyof QuestionnaireForm | 'preferredMediaTypes', string>>;
+
+function validateQuestionnaireStep(step: 1 | 2 | 3, values: QuestionnaireForm): QuestionnaireErrors {
+  const result = questionnaireSchema.safeParse(values);
+  const allErrors: QuestionnaireErrors = {};
+
+  if (!result.success) {
+    for (const issue of result.error.issues) {
+      const path = issue.path[0];
+      if (typeof path === 'string' && !allErrors[path as keyof QuestionnaireErrors]) {
+        allErrors[path as keyof QuestionnaireErrors] = issue.message;
+      }
+    }
+  }
+
+  if (values.geographyScope !== 'national' && !values.primaryArea.trim()) {
+    allErrors.primaryArea = values.geographyScope === 'local'
+      ? 'Select a city.'
+      : 'Select a province.';
+  }
+
+  const stepFields: Record<1 | 2 | 3, (keyof QuestionnaireErrors)[]> = {
+    1: ['fullName', 'email', 'phone', 'packageBandId'],
+    2: ['objective', 'geographyScope', 'primaryArea', 'preferredMediaTypes'],
+    3: [],
+  };
+
+  return stepFields[step].reduce<QuestionnaireErrors>((acc, field) => {
+    if (allErrors[field]) {
+      acc[field] = allErrors[field];
+    }
+
+    return acc;
+  }, {});
+}
+
+function FieldError({ message }: { message?: string }) {
+  if (!message) {
+    return null;
+  }
+
+  return <p className="mt-2 text-sm text-rose-700">{message}</p>;
+}
+
 export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestionnaireFormProps) {
   const { pushToast } = useToast();
   const formOptionsQuery = useSharedFormOptions();
   const [submitted, setSubmitted] = useState<{ campaignId: string; campaignName: string; message: string } | null>(null);
   const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [errors, setErrors] = useState<QuestionnaireErrors>({});
   const [form, setForm] = useState<QuestionnaireForm>({
     fullName: '',
     email: '',
@@ -141,7 +216,6 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
     gender: '',
     language: '',
     preferredMediaTypes: ['ooh', 'radio'],
-    targetAudienceNotes: '',
     customerType: '',
     buyingBehaviour: '',
     decisionCycle: '',
@@ -186,7 +260,6 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
           targetAgeMax: ageRange.max,
           targetGender: form.gender || undefined,
           targetLanguages: form.language.trim() ? [form.language.trim()] : undefined,
-          targetAudienceNotes: form.targetAudienceNotes.trim() || undefined,
           customerType: form.customerType || undefined,
           buyingBehaviour: form.buyingBehaviour || undefined,
           decisionCycle: form.decisionCycle || undefined,
@@ -219,21 +292,6 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
         : [...current.preferredMediaTypes, value],
     }));
   };
-
-  const canSubmit = Boolean(
-    form.fullName.trim()
-    && form.email.trim()
-    && form.phone.trim()
-    && form.packageBandId
-    && form.targetAudienceNotes.trim(),
-  );
-  const canContinueStep1 = Boolean(
-    form.fullName.trim()
-    && form.email.trim()
-    && form.phone.trim()
-    && form.packageBandId,
-  );
-  const canContinueStep2 = form.preferredMediaTypes.length > 0;
   const {
     audienceClarity,
     averageCustomerSpendBands,
@@ -284,6 +342,9 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
     return <div className={containerClassName}>We could not load questionnaire options right now. Please refresh and try again.</div>;
   }
 
+  const stepErrors = validateQuestionnaireStep(step, form);
+  const canAdvanceFromStep = Object.keys(stepErrors).length === 0;
+
   return (
     <div className={containerClassName}>
       <div className="pill bg-white text-brand">Questionnaire</div>
@@ -329,14 +390,23 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
           className="mt-6 space-y-6"
           onSubmit={(event) => {
             event.preventDefault();
+            const nextErrors = validateQuestionnaireStep(step, form);
+            setErrors(nextErrors);
+
+            if (Object.keys(nextErrors).length > 0) {
+              pushToast({
+                title: 'Some details are still missing.',
+                description: 'Check the highlighted fields and try again.',
+              }, 'error');
+              return;
+            }
+
             if (step < 3) {
               setStep((current) => (current === 1 ? 2 : 3));
               return;
             }
 
-            if (canSubmit) {
-              submitMutation.mutate();
-            }
+            submitMutation.mutate();
           }}
         >
           <div className="flex flex-wrap gap-2">
@@ -358,6 +428,12 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
             ))}
           </div>
 
+          {Object.keys(errors).length > 0 ? (
+            <div className="rounded-[20px] border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-800">
+              Please complete the highlighted fields before continuing.
+            </div>
+          ) : null}
+
           {step === 1 ? (
             <>
               <div>
@@ -369,14 +445,17 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                 <label className="block">
                   <span className="label-base">Full name</span>
                   <input value={form.fullName} onChange={(event) => setForm((current) => ({ ...current, fullName: event.target.value }))} className="input-base" />
+                  <FieldError message={errors.fullName} />
                 </label>
                 <label className="block">
                   <span className="label-base">Email</span>
                   <input value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} className="input-base" type="email" />
+                  <FieldError message={errors.email} />
                 </label>
                 <label className="block">
                   <span className="label-base">Phone</span>
                   <input value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} className="input-base" />
+                  <FieldError message={errors.phone} />
                 </label>
                 <label className="block">
                   <span className="label-base">Business name</span>
@@ -429,6 +508,7 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                       <option key={item.id} value={item.id}>{item.name} | R {item.minBudget.toLocaleString()} - R {item.maxBudget.toLocaleString()}</option>
                     ))}
                   </select>
+                  <FieldError message={errors.packageBandId} />
                 </label>
                 <label className="block md:col-span-2">
                   <span className="label-base">Campaign name</span>
@@ -451,12 +531,14 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                   <select value={form.objective} onChange={(event) => setForm((current) => ({ ...current, objective: event.target.value }))} className="input-base">
                     {OBJECTIVES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
+                  <FieldError message={errors.objective} />
                 </label>
                 <label className="block">
                   <span className="label-base">Geography scope</span>
                   <select value={form.geographyScope} onChange={(event) => setForm((current) => ({ ...current, geographyScope: event.target.value }))} className="input-base">
                     {GEOGRAPHIES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
+                  <FieldError message={errors.geographyScope} />
                 </label>
                 <label className="block">
                   <span className="label-base">Primary area</span>
@@ -477,6 +559,7 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                       <option key={item} value={item}>{item}</option>
                     ))}
                   </select>
+                  <FieldError message={errors.primaryArea} />
                 </label>
                 <label className="block">
                   <span className="label-base">Target language</span>
@@ -521,6 +604,7 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                     );
                   })}
                 </div>
+                <FieldError message={errors.preferredMediaTypes} />
               </div>
             </>
           ) : null}
@@ -539,10 +623,6 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                     <option value="">Select customer type</option>
                     {customerTypes.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
-                </label>
-                <label className="block">
-                  <span className="label-base">Target audience</span>
-                  <textarea value={form.targetAudienceNotes} onChange={(event) => setForm((current) => ({ ...current, targetAudienceNotes: event.target.value }))} rows={4} className="input-base min-h-[120px] resize-y" placeholder="Who do you want to reach?" />
                 </label>
                 <label className="block">
                   <span className="label-base">Value proposition focus</span>
@@ -619,9 +699,7 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
               type="submit"
               disabled={
                 submitMutation.isPending
-                || (step === 1 && !canContinueStep1)
-                || (step === 2 && !canContinueStep2)
-                || (step === 3 && !canSubmit)
+                || !canAdvanceFromStep
               }
               className="button-primary inline-flex items-center gap-2 px-6 py-3 disabled:cursor-not-allowed disabled:opacity-60"
             >

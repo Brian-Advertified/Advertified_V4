@@ -247,6 +247,21 @@ function inferFormFromCampaign(
   };
 }
 
+async function waitForGeneratedRecommendation(campaignId: string, attempts = 6, delayMs = 400): Promise<Campaign> {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const campaign = await advertifiedApi.getAgentCampaign(campaignId);
+    if (campaign.recommendations.length > 0 || campaign.recommendation) {
+      return campaign;
+    }
+
+    if (attempt < attempts - 1) {
+      await new Promise((resolve) => window.setTimeout(resolve, delayMs));
+    }
+  }
+
+  return advertifiedApi.getAgentCampaign(campaignId);
+}
+
 export function AgentCreateRecommendationPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -577,7 +592,7 @@ export function AgentCreateRecommendationPage() {
 
       return campaign;
     },
-    onSuccess: (campaign, variables) => {
+    onSuccess: async (campaign, variables) => {
       setPendingAction(null);
       pushToast({
         title: variables.submitBrief ? 'Recommendation generated.' : 'Draft saved.',
@@ -589,6 +604,9 @@ export function AgentCreateRecommendationPage() {
       const campaignId = (campaign as { campaignId: string }).campaignId;
 
       if (variables.submitBrief) {
+        const refreshedCampaign = await waitForGeneratedRecommendation(campaignId);
+        queryClient.setQueryData(['agent-campaign', campaignId], refreshedCampaign);
+        queryClient.setQueryData(['campaign', campaignId], refreshedCampaign);
         navigate(`/agent/campaigns/${campaignId}`);
       }
 

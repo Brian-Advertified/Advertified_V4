@@ -17,7 +17,6 @@ import type { PackageBand, PaymentProvider } from '../../types/domain';
 type ProviderOption = {
   id: PaymentProvider;
   name: string;
-  caption: string;
   description: string;
 };
 
@@ -25,23 +24,20 @@ const providerOptions: ProviderOption[] = [
   {
     id: 'lula',
     name: 'Pay Later',
-    caption: 'This transaction is powered by Finance Partner',
     description: 'Apply for pay-later approval if your business meets Finance Partner eligibility requirements.',
   },
   {
     id: 'vodapay',
     name: 'Pay Now',
-    caption: 'This transaction is powered by VodaPay',
     description: 'Pay securely now and come straight back to Advertified when payment is complete.',
   },
 ];
 
-const lulaEligibilityBlockers = [
-  'Companies trading for less than 1 year',
-  'Turnover is less than R40,000 per month',
-  'Non-South African companies',
-  'NPOs / PBOs',
-  'Government entities',
+const lulaEligibilityRequirements = [
+  'have been operating for at least 1 year',
+  'earn R40,000 or more per month',
+  'are registered in South Africa',
+  'fall within eligible private-sector business types',
 ] as const;
 
 function extractRegistrationYear(registrationNumber?: string) {
@@ -201,7 +197,7 @@ export function PaymentSelectionPage() {
                 key={provider.id}
                 type="button"
                 aria-pressed={selected}
-                aria-label={`Select ${provider.name} - ${provider.caption}. ${provider.description}`}
+                aria-label={`Select ${provider.name}. ${provider.description}`}
                 className={`payment-option-card w-full text-left min-h-[108px] px-4 py-4 sm:px-5 sm:py-5 ${selected ? 'payment-option-card-selected' : ''} ${lulaDisabled ? 'cursor-not-allowed opacity-60' : ''}`}
                 onClick={() => {
                   if (!lulaDisabled) {
@@ -214,7 +210,6 @@ export function PaymentSelectionPage() {
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-lg font-semibold tracking-tight text-ink">{provider.name}</p>
-                      <p className="text-sm text-ink-soft">{provider.caption}</p>
                     </div>
                     <div className={`payment-option-indicator ${selected ? 'payment-option-indicator-selected' : ''}`} aria-hidden="true" />
                   </div>
@@ -251,17 +246,17 @@ export function PaymentSelectionPage() {
 
           {selectedProvider === 'lula' ? (
             <div className="space-y-3 rounded-[20px] border border-amber-200 bg-amber-50 px-4 py-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-800">Finance Partner eligibility</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-800">Check if you qualify for Pay Later</p>
               <p className="text-sm leading-7 text-amber-900">
-                Finance Partner Pay Later is not available for the following applicants:
+                Pay Later is designed for South African businesses that:
               </p>
               <ul className="space-y-2 text-sm leading-7 text-amber-800">
-                {lulaEligibilityBlockers.map((item) => (
+                {lulaEligibilityRequirements.map((item) => (
                   <li key={item}>• {item}</li>
                 ))}
               </ul>
               <p className="text-sm leading-7 text-amber-900">
-                If any of these apply to your business, choose <strong>Pay Now</strong> instead.
+                If this option is not the right fit for your business, you can still complete your order with <strong>Pay Now</strong>.
               </p>
               {lulaEligibilityWarning ? (
                 <p className="text-sm font-semibold leading-7 text-amber-900">
