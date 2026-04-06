@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Advertified.App.Contracts.Campaigns;
+using Advertified.App.Configuration;
 using Advertified.App.Data;
 using Advertified.App.Data.Entities;
 using Advertified.App.Data.Enums;
@@ -10,6 +11,7 @@ using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Advertified.App.Controllers;
 
@@ -23,19 +25,28 @@ public sealed class PublicProspectQuestionnaireController : ControllerBase
     private readonly IPasswordHashingService _passwordHashingService;
     private readonly IAgentAreaRoutingService _agentAreaRoutingService;
     private readonly IChangeAuditService _changeAuditService;
+    private readonly ITemplatedEmailService _emailService;
+    private readonly FrontendOptions _frontendOptions;
+    private readonly ILogger<PublicProspectQuestionnaireController> _logger;
 
     public PublicProspectQuestionnaireController(
         AppDbContext db,
         SaveCampaignBriefRequestValidator briefValidator,
         IPasswordHashingService passwordHashingService,
         IAgentAreaRoutingService agentAreaRoutingService,
-        IChangeAuditService changeAuditService)
+        IChangeAuditService changeAuditService,
+        ITemplatedEmailService emailService,
+        IOptions<FrontendOptions> frontendOptions,
+        ILogger<PublicProspectQuestionnaireController> logger)
     {
         _db = db;
         _briefValidator = briefValidator;
         _passwordHashingService = passwordHashingService;
         _agentAreaRoutingService = agentAreaRoutingService;
         _changeAuditService = changeAuditService;
+        _emailService = emailService;
+        _frontendOptions = frontendOptions.Value;
+        _logger = logger;
     }
 
     [HttpPost]
@@ -176,6 +187,27 @@ public sealed class PublicProspectQuestionnaireController : ControllerBase
             },
             cancellationToken);
 
+        try
+        {
+            await _emailService.SendAsync(
+                "prospect-questionnaire-thank-you",
+                email,
+                "campaigns",
+                new Dictionary<string, string?>
+                {
+                    ["FirstName"] = ExtractFirstName(fullName),
+                    ["CampaignName"] = campaignName,
+                    ["PackageName"] = packageBand.Name,
+                    ["SignInUrl"] = BuildFrontendUrl("/login")
+                },
+                null,
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send prospect questionnaire thank-you email for campaign {CampaignId}.", campaign.Id);
+        }
+
         return Ok(new PublicProspectQuestionnaireResponse
         {
             CampaignId = campaign.Id,
@@ -257,5 +289,22 @@ public sealed class PublicProspectQuestionnaireController : ControllerBase
     private static string? Serialize(IEnumerable<string>? values)
     {
         return values is null ? null : JsonSerializer.Serialize(values.Where(static value => !string.IsNullOrWhiteSpace(value)));
+    }
+
+    private string BuildFrontendUrl(string path)
+    {
+        var baseUrl = (_frontendOptions.BaseUrl ?? string.Empty).TrimEnd('/');
+        var normalizedPath = path.StartsWith('/') ? path : $"/{path}";
+        return $"{baseUrl}{normalizedPath}";
+    }
+
+    private static string ExtractFirstName(string fullName)
+    {
+        if (string.IsNullOrWhiteSpace(fullName))
+        {
+            return "there";
+        }
+
+        return fullName.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0];
     }
 }

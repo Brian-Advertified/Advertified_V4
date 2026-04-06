@@ -254,6 +254,45 @@ internal static class EmailTemplateDefaults
                   </div>
                 </div>
                 ", nowUtc),
+            Build("prospect-questionnaire-thank-you", "Thank you, we've received your campaign questionnaire", @"
+                <div style=""background:#f4fbf8;padding:32px;font-family:Arial,sans-serif;color:#12211D;"">
+                  <div style=""max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #d8e9e1;border-radius:24px;overflow:hidden;"">
+                    <div style=""padding:28px 32px;background:linear-gradient(180deg,#eefbf5 0%, #ffffff 100%);border-bottom:1px solid #d8e9e1;"">
+                      <div style=""font-size:14px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Advertified</div>
+                      <h1 style=""margin:12px 0 0;font-size:30px;line-height:1.2;color:#123A33;"">Thank you, we've received your campaign questionnaire</h1>
+                    </div>
+                    <div style=""padding:28px 32px;"">
+                      <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">
+                        Hi {{FirstName}},
+                      </p>
+                      <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">
+                        Thank you for completing your Advertified questionnaire.
+                      </p>
+                      <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">
+                        We've received your details and our team is now reviewing your campaign requirements. We'll use the information you shared to shape the right advertising approach for your business.
+                      </p>
+                      <div style=""margin:24px 0;padding:18px 20px;border:1px solid #d8e9e1;border-radius:18px;background:#f8fcfa;"">
+                        <div style=""font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">What happens next</div>
+                        <p style=""margin:10px 0 0;font-size:15px;line-height:1.7;color:#4b635a;"">1. We review your questionnaire and campaign needs</p>
+                        <p style=""margin:8px 0 0;font-size:15px;line-height:1.7;color:#4b635a;"">2. We prepare the most suitable media direction for your goals and budget</p>
+                        <p style=""margin:8px 0 0;font-size:15px;line-height:1.7;color:#4b635a;"">3. We contact you with the next step or recommendation</p>
+                      </div>
+                      <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">
+                        If we need anything else from you, we'll be in touch.
+                      </p>
+                      <p style=""margin:0 0 20px;font-size:15px;line-height:1.7;color:#4b635a;"">
+                        You can also sign in any time to continue with Advertified.
+                      </p>
+                      <p style=""margin:24px 0 0;"">
+                        <a href=""{{SignInUrl}}"" style=""display:inline-block;padding:12px 18px;background:#123A33;color:#ffffff;text-decoration:none;border-radius:12px;font-weight:700;"">Continue to Advertified</a>
+                      </p>
+                      <p style=""margin:20px 0 0;font-size:15px;line-height:1.7;color:#4b635a;"">
+                        Thank you,<br />The Advertified Team
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                ", nowUtc),
             Build("invoice-delivery", "Your paid tax invoice for {{CampaignName}}", @"
                 <div style=""background:#f4fbf8;padding:32px;font-family:Arial,sans-serif;color:#12211D;"">
                   <div style=""max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #d8e9e1;border-radius:24px;overflow:hidden;"">

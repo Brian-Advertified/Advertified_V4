@@ -171,7 +171,7 @@ export function CheckoutConfirmationPage() {
           <h1 className="text-3xl font-semibold tracking-tight text-ink">Sign in to check your payment</h1>
           <p className="mt-3 text-base leading-7 text-ink-soft">
             {provider === 'lula'
-              ? 'Sign in with the same account to view the invoice prepared for your Finance Partner payment route.'
+              ? 'Sign in with the same account to view the invoice prepared for your payment.'
               : 'Your VodaPay session has returned to Advertified. Sign in with the same account to view the latest payment state.'}
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
@@ -206,20 +206,14 @@ export function CheckoutConfirmationPage() {
       return {
         status: 'pending',
         tone: 'review' as const,
-        label: 'Pending Finance Partner approval',
-        title: 'Your Finance Partner application has been submitted',
+        label: 'Pending approval',
+        title: 'Your application has been submitted',
         description: 'Your order is safely queued for manual review. Approval can take up to 24 hours, so there is nothing else you need to keep open on this page.',
         icon: <FileText className="size-5" />,
         primaryHref: '/orders',
         primaryLabel: 'View my orders',
         secondaryHref: '/dashboard',
         secondaryLabel: 'Go to dashboard',
-        detailTitle: 'What happens next',
-        detailLines: [
-          'Finance Partner reviews your application and invoice details.',
-          'They may contact you by email or phone if they need anything else.',
-          'Your portal will update once the payment decision is ready.',
-        ],
       };
     }
 
@@ -287,9 +281,8 @@ export function CheckoutConfirmationPage() {
   })();
 
   const paymentMethodLabel = provider === 'lula' ? 'Pay Later' : 'Pay Now';
-  const paymentMethodCaption = provider === 'lula' ? 'Powered by Finance Partner' : 'Powered by VodaPay';
   const lulaNextStepMessage = provider === 'lula' && order.paymentStatus === 'pending'
-    ? `Review can take up to 24 hours. Finance Partner will contact you on ${user.email}, ${user.phone ?? 'your registered cellphone'} if they need anything else to complete the approval.`
+    ? `Review can take up to 24 hours. Our Finance Partner will contact you on ${user.email}, ${user.phone ?? 'your registered cellphone'} if they need anything else to complete the approval.`
     : null;
   const showPendingSpinner = statusContent.tone === 'loading';
   const showStatusRings = statusContent.tone !== 'loading';
@@ -301,7 +294,6 @@ export function CheckoutConfirmationPage() {
           <div className="checkout-status-brand-card">
             <span>{paymentMethodLabel}</span>
             <span aria-hidden="true">•</span>
-            <span>{paymentMethodCaption}</span>
           </div>
           <div className="checkout-status-brand-separator" />
           <img src={advertifiedLogo} alt="Advertified logo" className="checkout-status-brand-logo checkout-status-brand-logo-advertified" />
@@ -338,17 +330,6 @@ export function CheckoutConfirmationPage() {
 
         <h1 className="checkout-status-title checkout-status-animate checkout-status-delay-110">{statusContent.title}</h1>
         <p className="checkout-status-description checkout-status-animate checkout-status-delay-150">{statusContent.description}</p>
-
-        {'detailLines' in statusContent && statusContent.detailLines?.length ? (
-          <div className="checkout-status-next-step checkout-status-animate checkout-status-delay-150">
-            <div className="checkout-status-next-step-head">{statusContent.detailTitle}</div>
-            <div className="space-y-2">
-              {statusContent.detailLines.map((line) => (
-                <p key={line} className="checkout-status-next-step-copy">{line}</p>
-              ))}
-            </div>
-          </div>
-        ) : null}
 
         <div className="checkout-status-summary-panel checkout-status-animate checkout-status-delay-200">
           <div className="checkout-status-summary-head">Order Summary</div>

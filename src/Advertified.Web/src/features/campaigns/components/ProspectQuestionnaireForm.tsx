@@ -529,7 +529,7 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
             <>
               <div>
                 <p className="text-sm font-semibold text-ink">Step 1 of 3</p>
-                <p className="mt-1 text-sm leading-6 text-ink-soft">Tell us about your business so we can anchor the plan in the right commercial context.</p>
+                <p className="mt-1 text-sm leading-6 text-ink-soft">Tell us a little about your business. If you are unsure about any question, choose the closest option and we will guide the rest.</p>
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
@@ -550,7 +550,7 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                 </label>
                 <label className="block">
                   <span className="label-base">Business name</span>
-                  <input value={form.businessName} onChange={(event) => setForm((current) => ({ ...current, businessName: event.target.value }))} className="input-base" />
+                  <input value={form.businessName} onChange={(event) => setForm((current) => ({ ...current, businessName: event.target.value }))} className="input-base" placeholder="Your company or trading name" />
                 </label>
                 <label className="block">
                   <span className="label-base">Industry</span>
@@ -558,30 +558,34 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                     <option value="">Select industry</option>
                     {industries.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                   </select>
+                  <p className="mt-2 text-xs text-ink-soft">Choose the industry that best matches what your business sells or does.</p>
                 </label>
                 <label className="block">
-                  <span className="label-base">Business stage</span>
+                  <span className="label-base">Where is your business right now?</span>
                   <select value={form.businessStage} onChange={(event) => setForm((current) => ({ ...current, businessStage: event.target.value }))} className="input-base">
                     <option value="">Select business stage</option>
                     {businessStages.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
+                  <p className="mt-2 text-xs text-ink-soft">For example: newly launched, growing steadily, or already well established.</p>
                 </label>
                 <label className="block">
-                  <span className="label-base">Monthly revenue</span>
+                  <span className="label-base">About how much does the business make each month?</span>
                   <select value={form.monthlyRevenueBand} onChange={(event) => setForm((current) => ({ ...current, monthlyRevenueBand: event.target.value }))} className="input-base">
                     <option value="">Select monthly revenue</option>
                     {monthlyRevenueBands.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
+                  <p className="mt-2 text-xs text-ink-soft">An estimate is fine. This helps us recommend a realistic campaign approach.</p>
                 </label>
                 <label className="block">
-                  <span className="label-base">Sales model</span>
+                  <span className="label-base">How do you mainly sell?</span>
                   <select value={form.salesModel} onChange={(event) => setForm((current) => ({ ...current, salesModel: event.target.value }))} className="input-base">
                     <option value="">Select sales model</option>
                     {salesModels.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
+                  <p className="mt-2 text-xs text-ink-soft">For example: online, in-store, by appointment, or through a sales team.</p>
                 </label>
                 <label className="block">
-                  <span className="label-base">Package band</span>
+                  <span className="label-base">Budget range</span>
                   <select
                     value={form.packageBandId}
                     onChange={(event) => setForm((current) => ({ ...current, packageBandId: event.target.value }))}
@@ -599,11 +603,12 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                       <option key={item.id} value={item.id}>{item.name} | R {item.minBudget.toLocaleString()} - R {item.maxBudget.toLocaleString()}</option>
                     ))}
                   </select>
+                  <p className="mt-2 text-xs text-ink-soft">Choose the budget range you are most comfortable with. You can refine the spend later.</p>
                   <FieldError message={errors.packageBandId} />
                 </label>
                 <label className="block md:col-span-2">
                   <span className="label-base">Campaign name</span>
-                  <input value={form.campaignName} onChange={(event) => setForm((current) => ({ ...current, campaignName: event.target.value }))} className="input-base" placeholder="Optional campaign name" />
+                  <input value={form.campaignName} onChange={(event) => setForm((current) => ({ ...current, campaignName: event.target.value }))} className="input-base" placeholder="Optional, for example Winter Promo or New Store Launch" />
                 </label>
               </div>
             </>
@@ -613,26 +618,28 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
             <>
               <div>
                 <p className="text-sm font-semibold text-ink">Step 2 of 3</p>
-                <p className="mt-1 text-sm leading-6 text-ink-soft">Set the campaign basics so the brief starts in the right direction.</p>
+                <p className="mt-1 text-sm leading-6 text-ink-soft">Tell us what you want the advertising to achieve and where you want it to work hardest.</p>
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="block">
-                  <span className="label-base">Primary goal</span>
+                  <span className="label-base">What do you want this advertising to do?</span>
                   <select value={form.objective} onChange={(event) => setForm((current) => ({ ...current, objective: event.target.value }))} className="input-base">
                     {OBJECTIVES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
+                  <p className="mt-2 text-xs text-ink-soft">Choose the main result you want first, like awareness, leads, more visits, or a launch push.</p>
                   <FieldError message={errors.objective} />
                 </label>
                 <label className="block">
-                  <span className="label-base">Geography scope</span>
+                  <span className="label-base">How wide should the campaign reach?</span>
                   <select value={form.geographyScope} onChange={(event) => setForm((current) => ({ ...current, geographyScope: event.target.value }))} className="input-base">
                     {GEOGRAPHIES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
+                  <p className="mt-2 text-xs text-ink-soft">Choose local for one city, provincial for one province, or national for a wider rollout.</p>
                   <FieldError message={errors.geographyScope} />
                 </label>
                 <label className="block">
-                  <span className="label-base">Primary area</span>
+                  <span className="label-base">{form.geographyScope === 'local' ? 'Which city matters most?' : 'Which area matters most?'}</span>
                   <select
                     value={form.primaryArea}
                     onChange={(event) => setForm((current) => ({ ...current, primaryArea: event.target.value }))}
@@ -650,23 +657,32 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                       <option key={item} value={item}>{item}</option>
                     ))}
                   </select>
+                  <p className="mt-2 text-xs text-ink-soft">
+                    {form.geographyScope === 'national'
+                      ? 'You can skip this because the campaign is meant to reach customers across the country.'
+                      : form.geographyScope === 'local'
+                        ? 'Pick the city where you most want to attract customers.'
+                        : 'Pick the province where you most want the campaign to focus.'}
+                  </p>
                   <FieldError message={errors.primaryArea} />
                 </label>
                 <label className="block">
-                  <span className="label-base">Target language</span>
+                  <span className="label-base">What language should the message mainly use?</span>
                   <select value={form.language} onChange={(event) => setForm((current) => ({ ...current, language: event.target.value }))} className="input-base">
                     <option value="">Select language</option>
                     {LANGUAGES.map((item) => <option key={item} value={item}>{item}</option>)}
                   </select>
+                  <p className="mt-2 text-xs text-ink-soft">Choose the main language your customers are most likely to respond to.</p>
                 </label>
                 <label className="block">
-                  <span className="label-base">Target age range</span>
+                  <span className="label-base">What age group are you mainly trying to reach?</span>
                   <select value={form.ageRange} onChange={(event) => setForm((current) => ({ ...current, ageRange: event.target.value }))} className="input-base">
                     {AGE_RANGES.map((option) => <option key={option.value || 'unset'} value={option.value}>{option.label}</option>)}
                   </select>
+                  <p className="mt-2 text-xs text-ink-soft">If you are not sure, leave this open and we will keep the plan broader.</p>
                 </label>
                 <label className="block">
-                  <span className="label-base">Target gender</span>
+                  <span className="label-base">Is the campaign mainly aimed at men, women, or everyone?</span>
                   <select value={form.gender} onChange={(event) => setForm((current) => ({ ...current, gender: event.target.value }))} className="input-base">
                     <option value="">Prefer not to specify</option>
                     <option value="all">All</option>
@@ -674,11 +690,13 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                     <option value="male">Male</option>
                     <option value="mixed">Mixed</option>
                   </select>
+                  <p className="mt-2 text-xs text-ink-soft">Only choose this if one group clearly matters more for this campaign.</p>
                 </label>
               </div>
 
               <div>
-                <span className="label-base">Preferred channels</span>
+                <span className="label-base">Which advertising channels interest you most?</span>
+                <p className="mt-2 text-xs text-ink-soft">Pick the options that feel right for your business. We can still recommend a better mix if needed.</p>
                 <div className="mt-3 flex flex-wrap gap-3">
                   {CHANNELS.map((channel) => {
                     const checked = form.preferredMediaTypes.includes(channel.value);
@@ -704,78 +722,87 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
             <>
               <div>
                 <p className="text-sm font-semibold text-ink">Step 3 of 3</p>
-                <p className="mt-1 text-sm leading-6 text-ink-soft">Add the commercial context that helps us tailor the recommendation to how your business sells.</p>
+                <p className="mt-1 text-sm leading-6 text-ink-soft">A few final questions help us match the campaign to the way your customers usually buy.</p>
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="block">
-                  <span className="label-base">Current customer type</span>
+                  <span className="label-base">Who usually buys from you?</span>
                   <select value={form.customerType} onChange={(event) => setForm((current) => ({ ...current, customerType: event.target.value }))} className="input-base">
                     <option value="">Select customer type</option>
                     {customerTypes.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
+                  <p className="mt-2 text-xs text-ink-soft">Choose the type of customer you most often sell to today.</p>
                 </label>
                 <label className="block">
-                  <span className="label-base">Value proposition focus</span>
+                  <span className="label-base">What usually makes people choose you?</span>
                   <select value={form.valuePropositionFocus} onChange={(event) => setForm((current) => ({ ...current, valuePropositionFocus: event.target.value }))} className="input-base">
                     <option value="">Select value proposition</option>
                     {valuePropositionFocus.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
+                  <p className="mt-2 text-xs text-ink-soft">For example: price, quality, convenience, speed, trust, or exclusivity.</p>
                 </label>
                 <label className="block">
-                  <span className="label-base">Buying behaviour</span>
+                  <span className="label-base">How do customers usually decide to buy?</span>
                   <select value={form.buyingBehaviour} onChange={(event) => setForm((current) => ({ ...current, buyingBehaviour: event.target.value }))} className="input-base">
                     <option value="">Select buying behaviour</option>
                     {buyingBehaviours.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
+                  <p className="mt-2 text-xs text-ink-soft">Think about whether people buy quickly, compare options first, or need more trust before deciding.</p>
                 </label>
                 <label className="block">
-                  <span className="label-base">Decision cycle</span>
+                  <span className="label-base">How long does it usually take someone to buy?</span>
                   <select value={form.decisionCycle} onChange={(event) => setForm((current) => ({ ...current, decisionCycle: event.target.value }))} className="input-base">
                     <option value="">Select decision cycle</option>
                     {decisionCycles.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
+                  <p className="mt-2 text-xs text-ink-soft">Some purchases happen the same day, while others take days or weeks.</p>
                 </label>
                 <label className="block">
-                  <span className="label-base">Price positioning</span>
+                  <span className="label-base">How is your offer priced in the market?</span>
                   <select value={form.pricePositioning} onChange={(event) => setForm((current) => ({ ...current, pricePositioning: event.target.value }))} className="input-base">
                     <option value="">Select price positioning</option>
                     {pricePositioning.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
+                  <p className="mt-2 text-xs text-ink-soft">Choose whether you compete more on affordability, the middle of the market, or premium value.</p>
                 </label>
                 <label className="block">
-                  <span className="label-base">Average customer spend</span>
+                  <span className="label-base">How much does a typical customer spend with you?</span>
                   <select value={form.averageCustomerSpendBand} onChange={(event) => setForm((current) => ({ ...current, averageCustomerSpendBand: event.target.value }))} className="input-base">
                     <option value="">Select average spend</option>
                     {averageCustomerSpendBands.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
+                  <p className="mt-2 text-xs text-ink-soft">A rough average is enough. This helps us understand the scale of sale you are aiming for.</p>
                 </label>
                 <label className="block">
-                  <span className="label-base">Growth target</span>
+                  <span className="label-base">What kind of growth are you aiming for?</span>
                   <select value={form.growthTarget} onChange={(event) => setForm((current) => ({ ...current, growthTarget: event.target.value }))} className="input-base">
                     <option value="">Select growth target</option>
                     {growthTargets.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
+                  <p className="mt-2 text-xs text-ink-soft">For example: more leads, more sales, more foot traffic, or a stronger market presence.</p>
                 </label>
                 <label className="block">
-                  <span className="label-base">Urgency</span>
+                  <span className="label-base">How soon do you need this campaign to start helping?</span>
                   <select value={form.urgencyLevel} onChange={(event) => setForm((current) => ({ ...current, urgencyLevel: event.target.value }))} className="input-base">
                     <option value="">Select urgency</option>
                     {urgencyLevels.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
+                  <p className="mt-2 text-xs text-ink-soft">Choose higher urgency if you are promoting something time-sensitive or need results soon.</p>
                 </label>
                 <label className="block">
-                  <span className="label-base">Audience clarity</span>
+                  <span className="label-base">How clearly can you describe your ideal customer?</span>
                   <select value={form.audienceClarity} onChange={(event) => setForm((current) => ({ ...current, audienceClarity: event.target.value }))} className="input-base">
                     <option value="">Select audience clarity</option>
                     {audienceClarity.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
+                  <p className="mt-2 text-xs text-ink-soft">If you are still figuring that out, that is okay. This helps us know how broad or focused to make the plan.</p>
                 </label>
               </div>
 
               <label className="block">
                 <span className="label-base">Anything the agent should know?</span>
-                <textarea value={form.specialRequirements} onChange={(event) => setForm((current) => ({ ...current, specialRequirements: event.target.value }))} rows={5} className="input-base min-h-[150px] resize-y" placeholder="Add urgency, constraints, buying behaviour, or any context that should shape the recommendation." />
+                <textarea value={form.specialRequirements} onChange={(event) => setForm((current) => ({ ...current, specialRequirements: event.target.value }))} rows={5} className="input-base min-h-[150px] resize-y" placeholder="Optional. Add anything important, like launch dates, areas to avoid, seasonal timing, or special campaign needs." />
               </label>
             </>
           ) : null}

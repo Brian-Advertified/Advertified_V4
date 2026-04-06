@@ -35,16 +35,10 @@ Pay over terms – aligned with your business cycles, not upfront. Access TV, Ra
               </ul>
             </div>
             <div className="hero-glass-card rounded-[24px] p-5 text-ink">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">New here?</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Positioning</p>
               <p className="mt-3 text-xl font-semibold tracking-tight sm:text-2xl">
-                Fill out a quick questionnaire so we can guide you to the right campaign setup.
+                Choose your package. Tell us about your campaign. Get your tailored media.
               </p>
-              <div className="mt-5">
-                <Link to="/start-campaign" className="button-primary inline-flex items-center gap-2 px-5 py-3">
-                  Start questionnaire
-                  <ArrowRight className="size-4" />
-                </Link>
-              </div>
             </div>
           </div>
         </div>
