@@ -23,7 +23,7 @@ services:
     image: advertified/v4-api:dev
     restart: unless-stopped
     env_file:
-      - v4-dev.env
+      - ${APP_ENV_FILE:-v4-dev.env}
     depends_on:
       db:
         condition: service_healthy
