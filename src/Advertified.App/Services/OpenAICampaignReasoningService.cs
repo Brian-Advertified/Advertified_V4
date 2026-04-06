@@ -149,6 +149,9 @@ public sealed class OpenAICampaignReasoningService : ICampaignReasoningService
         var targetLanguages = planningRequest.TargetLanguages.Count > 0
             ? string.Join(", ", planningRequest.TargetLanguages)
             : "Not specified";
+        var targetInterests = planningRequest.TargetInterests.Count > 0
+            ? string.Join(", ", planningRequest.TargetInterests)
+            : "Not specified";
         var provinces = planningRequest.Provinces.Count > 0
             ? string.Join(", ", planningRequest.Provinces)
             : "Not specified";
@@ -199,6 +202,9 @@ public sealed class OpenAICampaignReasoningService : ICampaignReasoningService
             $"- Provinces: {provinces}\n" +
             $"- Preferred channels: {preferredChannels}\n" +
             $"- Target languages: {targetLanguages}\n" +
+            $"- Target age: {FormatAgeRange(planningRequest.TargetAgeMin, planningRequest.TargetAgeMax)}\n" +
+            $"- Target gender: {(string.IsNullOrWhiteSpace(planningRequest.TargetGender) ? "Not specified" : planningRequest.TargetGender)}\n" +
+            $"- Target interests: {targetInterests}\n" +
             $"- Open to upsell: {brief.OpenToUpsell}\n" +
             $"- Additional budget: {(brief.AdditionalBudget.HasValue ? $"R {brief.AdditionalBudget.Value:N0}" : "None")}\n" +
             $"- Audience notes: {(string.IsNullOrWhiteSpace(notes) ? "Not specified" : notes)}\n\n" +
@@ -212,6 +218,17 @@ public sealed class OpenAICampaignReasoningService : ICampaignReasoningService
             "\n\nWrite:\n" +
             "1. A concise recommendation summary.\n" +
             "2. A grounded rationale that explains the strategic fit and clearly mentions any caution if fallback flags or manual review are present.";
+    }
+
+    private static string FormatAgeRange(int? min, int? max)
+    {
+        return (min, max) switch
+        {
+            (null, null) => "Not specified",
+            (int minimum, int maximum) => $"{minimum}-{maximum}",
+            (int minimum, null) => $"{minimum}+",
+            (null, int maximum) => $"Up to {maximum}",
+        };
     }
 
     private static IReadOnlyList<string> TryGetStringArray(IReadOnlyDictionary<string, object?> metadata, string key)

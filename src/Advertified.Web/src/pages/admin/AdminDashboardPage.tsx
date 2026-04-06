@@ -12,7 +12,7 @@ export function AdminDashboardPage() {
         const priorityActions = [
           {
             title: 'Review payments',
-            helper: 'Open Lula and invoice follow-ups first.',
+            helper: 'Open Finance Partner and invoice follow-ups first.',
             href: '/admin/package-orders',
           },
           {

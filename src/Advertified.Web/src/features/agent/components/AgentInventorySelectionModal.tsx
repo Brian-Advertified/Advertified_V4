@@ -123,7 +123,7 @@ export function AgentInventorySelectionModal({
           <span>{inventorySearchInput.trim().length > 0 && inventorySearchInput.trim().length < 3 ? 'Type at least 3 characters to start search filtering.' : ''}</span>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 pb-6 pr-3">
+        <div className="min-h-0 flex-1 overflow-auto px-6 pb-6">
           <InventoryTable
             items={filteredInventoryItems}
             selectedItemIds={selectedItemIds}

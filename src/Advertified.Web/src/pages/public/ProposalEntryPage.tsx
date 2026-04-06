@@ -212,7 +212,7 @@ export function ProposalEntryPage() {
           kicker="Proposal review"
           title={publicProposalQuery.data.campaignName}
           description={approvalAlreadyCompleted
-            ? 'This proposal has already been approved and the campaign is now moving through delivery.'
+            ? 'This proposal has already been approved. You can still reopen the proposal page from any email link.'
             : 'Review the options and tell us how you want to proceed.'}
         />
 
@@ -285,12 +285,12 @@ export function ProposalEntryPage() {
             <div className="text-lg font-semibold text-ink">{approvalAlreadyCompleted ? 'Proposal approved' : 'Choose your next step'}</div>
             <p className="mt-2 text-sm leading-7 text-ink-soft">
               {approvalAlreadyCompleted
-                ? 'The recommendation has already been approved. The next stage is creative production and operational fulfilment.'
+                ? 'The recommendation has already been approved. The actions below stay visible so every proposal email still opens the same review layout.'
                 : 'Pick one action below. If you want changes or a new set, add a short note first.'}
             </p>
             {approvalAlreadyCompleted ? (
               <div className="mt-4 rounded-[14px] border border-brand/20 bg-brand/[0.06] px-4 py-3 text-sm text-ink">
-                This secure link is now read-only. If you need to review progress, open your campaign workspace or contact your Advertified team.
+                This proposal has already been accepted. You can still review it here from any proposal email link.
               </div>
             ) : paymentRequiredBeforeApproval ? (
               <div className="mt-4 rounded-[14px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -298,8 +298,6 @@ export function ProposalEntryPage() {
               </div>
             ) : null}
             <div className="mt-5 space-y-3">
-              {approvalAlreadyCompleted ? null : (
-                <>
               <label className="block text-sm font-semibold text-ink" htmlFor="proposal-review-notes">
                 Notes
               </label>
@@ -309,19 +307,24 @@ export function ProposalEntryPage() {
                 onChange={(event) => setChangeNotes(event.target.value)}
                 className="input-base min-h-[110px]"
                 placeholder="Add feedback if you want changes or want to reject all proposals."
+                disabled={approvalAlreadyCompleted}
               />
               <div className="grid gap-3">
                 <button
                   type="button"
                   onClick={() => void handlePrimaryAction()}
-                  disabled={approveMutation.isPending || prepareCheckoutMutation.isPending || requestChangesMutation.isPending || rejectAllMutation.isPending || (!checkoutPath && paymentRequiredBeforeApproval)}
+                  disabled={approvalAlreadyCompleted || approveMutation.isPending || prepareCheckoutMutation.isPending || requestChangesMutation.isPending || rejectAllMutation.isPending || (!checkoutPath && paymentRequiredBeforeApproval)}
                   className={`w-full justify-center text-center whitespace-normal px-4 py-3 text-sm ${
-                    paymentRequiredBeforeApproval
+                    approvalAlreadyCompleted
+                      ? 'user-btn-secondary border-line bg-slate-100 text-ink-soft opacity-100'
+                      : paymentRequiredBeforeApproval
                       ? 'user-btn-secondary border-amber-200 bg-amber-50 text-amber-900 opacity-100'
                       : 'user-btn-primary'
                   } disabled:cursor-not-allowed disabled:opacity-100`}
                 >
-                  {paymentRequiredBeforeApproval
+                  {approvalAlreadyCompleted
+                    ? 'Proposal already approved'
+                    : paymentRequiredBeforeApproval
                     ? (prepareCheckoutMutation.isPending
                       ? 'Preparing payment...'
                       : (isAuthenticated ? 'Pay and approve selected' : 'Create account and pay to approve'))
@@ -330,7 +333,7 @@ export function ProposalEntryPage() {
                 <button
                   type="button"
                   onClick={() => requestChangesMutation.mutate(buildSelectedProposalFeedback(changeNotes))}
-                  disabled={approveMutation.isPending || requestChangesMutation.isPending || rejectAllMutation.isPending || !changeNotes.trim()}
+                  disabled={approvalAlreadyCompleted || approveMutation.isPending || requestChangesMutation.isPending || rejectAllMutation.isPending || !changeNotes.trim()}
                   className="user-btn-secondary w-full justify-center text-center whitespace-normal px-4 py-3 text-sm disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {requestChangesMutation.isPending ? 'Sending...' : 'Request changes'}
@@ -338,14 +341,12 @@ export function ProposalEntryPage() {
                 <button
                   type="button"
                   onClick={() => rejectAllMutation.mutate(buildRejectAllFeedback(changeNotes))}
-                  disabled={approveMutation.isPending || requestChangesMutation.isPending || rejectAllMutation.isPending || !changeNotes.trim()}
+                  disabled={approvalAlreadyCompleted || approveMutation.isPending || requestChangesMutation.isPending || rejectAllMutation.isPending || !changeNotes.trim()}
                   className="user-btn-secondary w-full justify-center text-center whitespace-normal px-4 py-3 text-sm disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {rejectAllMutation.isPending ? 'Sending...' : 'Reject all'}
                 </button>
               </div>
-                </>
-              )}
             </div>
           </div>
         </div>

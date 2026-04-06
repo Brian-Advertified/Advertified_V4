@@ -25,8 +25,8 @@ const providerOptions: ProviderOption[] = [
   {
     id: 'lula',
     name: 'Pay Later',
-    caption: 'This transaction is powered by Lula',
-    description: 'Apply for pay-later approval if your business meets Lula eligibility requirements.',
+    caption: 'This transaction is powered by Finance Partner',
+    description: 'Apply for pay-later approval if your business meets Finance Partner eligibility requirements.',
   },
   {
     id: 'vodapay',
@@ -71,7 +71,7 @@ export function PaymentSelectionPage() {
   const currentYear = new Date().getFullYear();
   const lulaBlockedByRegistrationYear = registrationYear !== null && currentYear - registrationYear < 1;
   const lulaEligibilityWarning = lulaBlockedByRegistrationYear
-    ? `Lula Pay Later is unavailable because the company registration year is ${registrationYear}, which indicates the business has been trading for less than 1 year.`
+    ? `Finance Partner Pay Later is unavailable because the company registration year is ${registrationYear}, which indicates the business has been trading for less than 1 year.`
     : null;
 
   const packagesQuery = useQuery({ queryKey: ['packages'], queryFn: advertifiedApi.getPackages, ...catalogQueryOptions });
@@ -140,7 +140,7 @@ export function PaymentSelectionPage() {
     },
     onError: (error) => {
       pushToast({
-        title: selectedProvider === 'lula' ? 'We could not create the Lula invoice.' : 'We could not start the payment.',
+        title: selectedProvider === 'lula' ? 'We could not create the Finance Partner invoice.' : 'We could not start the payment.',
         description: error instanceof Error ? error.message : 'Please try again in a moment.',
       }, 'error');
     },
@@ -170,7 +170,7 @@ export function PaymentSelectionPage() {
             isResendingActivation
               ? 'Sending a fresh activation email...'
               : selectedProvider === 'lula'
-                ? 'Creating your Lula invoice...'
+                ? 'Creating your Finance Partner invoice...'
                 : 'Starting your VodaPay checkout...'
           }
         />
@@ -239,7 +239,7 @@ export function PaymentSelectionPage() {
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-brand">What happens next</p>
             <p className="text-sm leading-7 text-ink-soft">
               {selectedProvider === 'lula'
-                ? 'We will submit your Lula application for review and show you the next steps while approval is pending.'
+                ? 'We will submit your Finance Partner application for review and show you the next steps while approval is pending.'
                 : 'You will be taken to secure checkout. Once payment is complete, we will bring you back to Advertified automatically.'}
             </p>
             {selectedRecommendation ? (
@@ -251,9 +251,9 @@ export function PaymentSelectionPage() {
 
           {selectedProvider === 'lula' ? (
             <div className="space-y-3 rounded-[20px] border border-amber-200 bg-amber-50 px-4 py-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-800">Lula eligibility</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-800">Finance Partner eligibility</p>
               <p className="text-sm leading-7 text-amber-900">
-                Lula Pay Later is not available for the following applicants:
+                Finance Partner Pay Later is not available for the following applicants:
               </p>
               <ul className="space-y-2 text-sm leading-7 text-amber-800">
                 {lulaEligibilityBlockers.map((item) => (

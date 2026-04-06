@@ -498,7 +498,7 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
             var isLula = string.Equals(paymentProvider, "lula", StringComparison.OrdinalIgnoreCase);
             var adminUrl = BuildFrontendUrl("/admin/package-orders");
             var actionNote = isLula
-                ? "Lula order created. Review in admin package orders and follow up on settlement workflow."
+                ? "Finance Partner order created. Review in admin package orders and follow up on settlement workflow."
                 : "Track payment progression and campaign activation readiness.";
 
             foreach (var email in adminEmails)

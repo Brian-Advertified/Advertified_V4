@@ -18,6 +18,7 @@ const PartnerEnquiryPage = lazyPage(() => import('../pages/public/PartnerEnquiry
 const PaymentSelectionPage = lazyPage(() => import('../pages/public/PaymentSelectionPage'), 'PaymentSelectionPage');
 const CheckoutConfirmationPage = lazyPage(() => import('../pages/public/CheckoutConfirmationPage'), 'CheckoutConfirmationPage');
 const ProposalEntryPage = lazyPage(() => import('../pages/public/ProposalEntryPage'), 'ProposalEntryPage');
+const ProspectQuestionnairePage = lazyPage(() => import('../pages/public/ProspectQuestionnairePage'), 'ProspectQuestionnairePage');
 const PrivacyPolicyPage = lazyPage(() => import('../pages/public/LegalPages'), 'PrivacyPolicyPage');
 const CookiePolicyPage = lazyPage(() => import('../pages/public/LegalPages'), 'CookiePolicyPage');
 const TermsPage = lazyPage(() => import('../pages/public/LegalPages'), 'TermsPage');
@@ -35,6 +36,7 @@ export const publicRoutes: AppRoute[] = [
   { path: '/faq', element: <FaqPage /> },
   { path: '/media-partners', element: <MediaPartnersPage /> },
   { path: '/partner-enquiry', element: <PartnerEnquiryPage /> },
+  { path: '/start-campaign', element: <ProspectQuestionnairePage /> },
   { path: '/privacy', element: <PrivacyPolicyPage /> },
   { path: '/cookie-policy', element: <CookiePolicyPage /> },
   { path: '/terms-of-service', element: <TermsPage /> },

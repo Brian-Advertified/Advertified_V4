@@ -711,7 +711,7 @@ internal static class EmailTemplateDefaults
                   <div style=""max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #d8e9e1;border-radius:24px;overflow:hidden;"">
                     <div style=""padding:28px 32px;background:linear-gradient(180deg,#eefbf5 0%, #ffffff 100%);border-bottom:1px solid #d8e9e1;"">
                       <div style=""font-size:14px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Advertified billing</div>
-                      <h1 style=""margin:12px 0 0;font-size:30px;line-height:1.2;color:#123A33;"">Your Lula payment has been confirmed</h1>
+                      <h1 style=""margin:12px 0 0;font-size:30px;line-height:1.2;color:#123A33;"">Your Finance Partner payment has been confirmed</h1>
                     </div>
                     <div style=""padding:28px 32px;"">
                       <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">We have confirmed payment for <strong>{{CampaignName}}</strong>.</p>
@@ -735,10 +735,10 @@ internal static class EmailTemplateDefaults
                   <div style=""max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #d8e9e1;border-radius:24px;overflow:hidden;"">
                     <div style=""padding:28px 32px;background:linear-gradient(180deg,#eefbf5 0%, #ffffff 100%);border-bottom:1px solid #d8e9e1;"">
                       <div style=""font-size:14px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Advertified billing</div>
-                      <h1 style=""margin:12px 0 0;font-size:30px;line-height:1.2;color:#123A33;"">Your Lula payment could not be confirmed</h1>
+                      <h1 style=""margin:12px 0 0;font-size:30px;line-height:1.2;color:#123A33;"">Your Finance Partner payment could not be confirmed</h1>
                     </div>
                     <div style=""padding:28px 32px;"">
-                      <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">We could not confirm the Lula payment for <strong>{{CampaignName}}</strong>.</p>
+                      <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">We could not confirm the Finance Partner payment for <strong>{{CampaignName}}</strong>.</p>
                       <div style=""margin:24px 0;padding:18px 20px;border:1px solid #d8e9e1;border-radius:18px;background:#f8fcfa;"">
                         <p style=""margin:0;font-size:15px;line-height:1.6;""><strong>Invoice:</strong> {{InvoiceNumber}}</p>
                         <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Campaign plan:</strong> {{PackageName}}</p>

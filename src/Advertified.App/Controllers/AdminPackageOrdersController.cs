@@ -96,12 +96,12 @@ public sealed class AdminPackageOrdersController : ControllerBase
 
         if (!string.Equals(order.PaymentProvider, "lula", StringComparison.OrdinalIgnoreCase))
         {
-            return BadRequest(new { message = "Manual admin payment updates are currently supported for Lula orders only." });
+            return BadRequest(new { message = "Manual admin payment updates are currently supported for Finance Partner orders only." });
         }
 
         if (!string.Equals(order.PaymentStatus, "pending", StringComparison.OrdinalIgnoreCase))
         {
-            return BadRequest(new { message = "Only pending Lula orders can be updated manually." });
+            return BadRequest(new { message = "Only pending Finance Partner orders can be updated manually." });
         }
 
         var normalizedStatus = NormalizeRequiredText(request.PaymentStatus)?.ToLowerInvariant();
@@ -113,12 +113,12 @@ public sealed class AdminPackageOrdersController : ControllerBase
         var note = NormalizeOptionalText(request.Notes);
         if (string.IsNullOrWhiteSpace(note))
         {
-            return BadRequest(new { message = "An admin note is required when updating a Lula payment." });
+            return BadRequest(new { message = "An admin note is required when updating a Finance Partner payment." });
         }
 
         if (file is null)
         {
-            return BadRequest(new { message = "Upload a PDF before saving a Lula payment update." });
+            return BadRequest(new { message = "Upload a PDF before saving a Finance Partner payment update." });
         }
 
         var paymentReference = NormalizeOptionalText(request.PaymentReference);
@@ -158,7 +158,7 @@ public sealed class AdminPackageOrdersController : ControllerBase
 
         if (!LooksLikePdf(file))
         {
-            return BadRequest(new { message = "Only PDF files can be uploaded for Lula payment updates." });
+            return BadRequest(new { message = "Only PDF files can be uploaded for Finance Partner payment updates." });
         }
 
         var uploadedBytes = await ReadAllBytesAsync(file, cancellationToken);
@@ -309,7 +309,7 @@ public sealed class AdminPackageOrdersController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to send Lula status email for package order {PackageOrderId}.", order.Id);
+            _logger.LogError(ex, "Failed to send Finance Partner status email for package order {PackageOrderId}.", order.Id);
         }
     }
 

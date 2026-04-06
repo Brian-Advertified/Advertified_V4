@@ -68,6 +68,20 @@ type PublicApiDependencies = {
     inventorySummary?: string;
     message: string;
   }) => Promise<{ message: string }>;
+  submitProspectQuestionnaireData: (payload: {
+    fullName: string;
+    email: string;
+    phone: string;
+    businessName?: string;
+    industry?: string;
+    packageBandId: string;
+    campaignName?: string;
+    brief: Record<string, unknown>;
+  }) => Promise<{
+    campaignId: string;
+    campaignName: string;
+    message: string;
+  }>;
   getLegalDocumentData: (documentKey: string) => Promise<LegalDocument>;
 };
 
@@ -130,6 +144,7 @@ export function createPublicApi({
   getOrderData,
   captureVodaPayCallbackData,
   submitPartnerEnquiryData,
+  submitProspectQuestionnaireData,
   getLegalDocumentData,
 }: PublicApiDependencies) {
   return {
@@ -212,6 +227,19 @@ export function createPublicApi({
 
     async getLegalDocument(documentKey: string) {
       return getLegalDocumentData(documentKey);
+    },
+
+    async submitProspectQuestionnaire(payload: {
+      fullName: string;
+      email: string;
+      phone: string;
+      businessName?: string;
+      industry?: string;
+      packageBandId: string;
+      campaignName?: string;
+      brief: Record<string, unknown>;
+    }) {
+      return submitProspectQuestionnaireData(payload);
     },
   };
 }

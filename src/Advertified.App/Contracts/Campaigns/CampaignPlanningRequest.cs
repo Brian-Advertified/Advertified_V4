@@ -4,6 +4,7 @@ public sealed class CampaignPlanningRequest
 {
     public Guid CampaignId { get; set; }
     public decimal SelectedBudget { get; set; }
+    public string? Objective { get; set; }
     public string? GeographyScope { get; set; }
     public List<string> Provinces { get; set; } = new();
     public List<string> Cities { get; set; } = new();
@@ -12,6 +13,11 @@ public sealed class CampaignPlanningRequest
     public List<string> PreferredMediaTypes { get; set; } = new();
     public List<string> ExcludedMediaTypes { get; set; } = new();
     public List<string> TargetLanguages { get; set; } = new();
+    public int? TargetAgeMin { get; set; }
+    public int? TargetAgeMax { get; set; }
+    public string? TargetGender { get; set; }
+    public List<string> TargetInterests { get; set; } = new();
+    public string? TargetAudienceNotes { get; set; }
     public int? TargetLsmMin { get; set; }
     public int? TargetLsmMax { get; set; }
     public bool OpenToUpsell { get; set; }

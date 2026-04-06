@@ -66,6 +66,7 @@ public sealed class RecommendationExplainabilityService : IRecommendationExplain
         if (_scoreService.MediaPreferenceScore(candidate, request) >= 15m) reasons.Add("Matches requested channel mix");
         if (_scoreService.MixTargetScore(candidate, request) >= 8m) reasons.Add("Supports requested mix target");
         if (_scoreService.BudgetScore(candidate, request) >= 12m) reasons.Add("Fits comfortably within budget");
+        if (SupportsObjective(candidate, request)) reasons.Add("Supports campaign objective");
 
         if (candidate.MediaType.Equals("Radio", StringComparison.OrdinalIgnoreCase))
         {
@@ -147,6 +148,26 @@ public sealed class RecommendationExplainabilityService : IRecommendationExplain
         return mediaType.Equals("OOH", StringComparison.OrdinalIgnoreCase)
             ? "Billboards and Digital Screens"
             : mediaType;
+    }
+
+    private static bool SupportsObjective(InventoryCandidate candidate, CampaignPlanningRequest request)
+    {
+        var objective = request.Objective?.Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(objective))
+        {
+            return false;
+        }
+
+        var mediaType = candidate.MediaType.Trim().ToLowerInvariant();
+        return objective switch
+        {
+            "awareness" or "brand_presence" => mediaType is "ooh" or "tv" or "radio",
+            "launch" => mediaType is "ooh" or "tv" or "radio",
+            "promotion" => mediaType is "radio" or "ooh" or "digital",
+            "leads" => mediaType is "digital" or "radio",
+            "foot_traffic" => mediaType is "ooh" or "radio",
+            _ => false
+        };
     }
 }
 

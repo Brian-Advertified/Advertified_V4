@@ -419,6 +419,12 @@ type InterpretedCampaignBriefResponse = {
   summary: string;
 };
 
+type PublicProspectQuestionnaireResponse = {
+  campaignId: string;
+  campaignName: string;
+  message: string;
+};
+
 type CreativeSystemResponse = CreativeSystem;
 function mapPackageBand(response: PackageBandResponse): PackageBand {
   return {
@@ -1149,6 +1155,12 @@ const publicApi = createPublicApi({
   },
   async submitPartnerEnquiryData(payload) {
     return apiRequest<{ message: string }>('/partner-enquiry', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+  async submitProspectQuestionnaireData(payload) {
+    return apiRequest<PublicProspectQuestionnaireResponse>('/public/prospect-questionnaires', {
       method: 'POST',
       body: JSON.stringify(payload),
     });

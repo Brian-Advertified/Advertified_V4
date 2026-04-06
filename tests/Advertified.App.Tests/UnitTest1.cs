@@ -182,6 +182,23 @@ public class CampaignPlanningRequestValidatorTests
         result.IsValid.Should().BeFalse();
         result.Errors.Should().Contain(x => x.PropertyName == nameof(CampaignPlanningRequest.SelectedBudget));
     }
+
+    [Fact]
+    public async Task ValidateAsync_RejectsUnsupportedObjective()
+    {
+        var validator = new CampaignPlanningRequestValidator();
+        var request = new CampaignPlanningRequest
+        {
+            CampaignId = Guid.NewGuid(),
+            SelectedBudget = 50000m,
+            Objective = "market_expansion"
+        };
+
+        var result = await validator.ValidateAsync(request);
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(x => x.ErrorMessage == "Select a valid campaign objective.");
+    }
 }
 
 public class MediaPlanningEngineTests
@@ -502,6 +519,77 @@ public class MediaPlanningEngineTests
 
         result.ManualReviewRequired.Should().BeTrue();
         result.FallbackFlags.Should().Contain("preferred_media_unfulfilled:ooh");
+    }
+
+    [Fact]
+    public async Task GenerateAsync_PrefersAudienceAndObjectiveAlignedInventory()
+    {
+        var alignedId = Guid.NewGuid();
+        var genericId = Guid.NewGuid();
+        var repository = new StubPlanningInventoryRepository
+        {
+            RadioSlotCandidates = new List<InventoryCandidate>
+            {
+                new()
+                {
+                    SourceId = genericId,
+                    SourceType = "radio_slot",
+                    DisplayName = "Metro Talk Midday",
+                    MediaType = "Radio",
+                    Cost = 12000m,
+                    IsAvailable = true,
+                    TimeBand = "midday",
+                    DayType = "weekday",
+                    SlotType = "commercial",
+                    Metadata = new Dictionary<string, object?>
+                    {
+                        ["targetAudience"] = "Broad adult audience",
+                        ["audienceAgeSkew"] = "Adults 35-54"
+                    }
+                },
+                new()
+                {
+                    SourceId = alignedId,
+                    SourceType = "radio_slot",
+                    DisplayName = "Youth Drive",
+                    MediaType = "Radio",
+                    Cost = 12000m,
+                    IsAvailable = true,
+                    TimeBand = "drive",
+                    DayType = "weekday",
+                    SlotType = "commercial",
+                    Metadata = new Dictionary<string, object?>
+                    {
+                        ["targetAudience"] = "Young women interested in fashion, beauty and convenience-led brands",
+                        ["audienceAgeSkew"] = "18-24",
+                        ["audienceGenderSkew"] = "Female skew",
+                        ["audienceKeywords"] = new[] { "fashion", "beauty", "shopping" }
+                    }
+                }
+            }
+        };
+
+        var engine = CreateEngine(repository);
+        var request = new CampaignPlanningRequest
+        {
+            CampaignId = Guid.NewGuid(),
+            SelectedBudget = 12000m,
+            Objective = "promotion",
+            TargetAgeMin = 18,
+            TargetAgeMax = 24,
+            TargetGender = "female",
+            TargetInterests = new List<string> { "fashion", "beauty" },
+            TargetAudienceNotes = "Convenience-driven young women",
+            PreferredMediaTypes = new List<string> { "radio" },
+            MaxMediaItems = 1
+        };
+
+        var result = await engine.GenerateAsync(request, CancellationToken.None);
+
+        result.RecommendedPlan.Should().ContainSingle();
+        result.RecommendedPlan[0].SourceId.Should().Be(alignedId);
+        var reasons = result.RecommendedPlan[0].Metadata["selectionReasons"].Should().BeAssignableTo<IEnumerable<string>>().Subject;
+        reasons.Should().Contain(reason => reason.Contains("objective", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

@@ -129,7 +129,7 @@ export function AdminPackageOrderEditModal({
           ) : null}
 
           <div className="rounded-[28px] border border-line bg-slate-50/60 p-5">
-            <h3 className="text-lg font-semibold text-ink">Lula payment update</h3>
+            <h3 className="text-lg font-semibold text-ink">Finance Partner payment update</h3>
             <p className="mt-2 text-sm leading-6 text-ink-soft">
               Choose the new payment status, add the admin comment, and upload the PDF. Save becomes available once the comment and PDF are added.
             </p>
@@ -155,7 +155,7 @@ export function AdminPackageOrderEditModal({
                     className="input-base mt-2"
                     value={paymentReference}
                     onChange={(event) => setDraftValue('paymentReference', event.target.value)}
-                    placeholder="Lula settlement reference"
+                    placeholder="Finance Partner settlement reference"
                   />
                 </label>
 
@@ -177,14 +177,14 @@ export function AdminPackageOrderEditModal({
                     accept="application/pdf,.pdf"
                     onChange={(event) => setDraftValue('file', event.target.files?.[0])}
                   />
-                  <span className="mt-2 block text-xs font-normal text-ink-soft">PDF files only. Upload the Lula confirmation or settlement document.</span>
+                  <span className="mt-2 block text-xs font-normal text-ink-soft">PDF files only. Upload the Finance Partner confirmation or settlement document.</span>
                 </label>
 
                 {fileIsInvalid ? <p className="text-sm text-rose-600">Only PDF files are allowed.</p> : null}
               </div>
             ) : (
               <p className="mt-5 text-sm leading-6 text-ink-soft">
-                This order is no longer pending with Lula, so the payment status cannot be edited.
+                This order is no longer pending with Finance Partner, so the payment status cannot be edited.
               </p>
             )}
           </div>

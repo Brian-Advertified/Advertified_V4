@@ -9,7 +9,7 @@ import { catalogQueryOptions } from '../../lib/catalogQueryOptions';
 import { formatCurrency } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import { formatChannelLabel, normalizeChannelKey } from '../../features/channels/channelUtils';
-import type { CampaignBrief, PackageBand } from '../../types/domain';
+import type { Campaign, CampaignBrief, PackageBand } from '../../types/domain';
 import { pushAgentMutationError } from './agentMutationToast';
 
 type ChannelOption = 'Radio' | 'OOH' | 'TV';
@@ -158,6 +158,87 @@ function inferInitialForm(campaign: {
   };
 }
 
+function inferAudienceFromBrief(brief?: CampaignBrief): string {
+  const haystack = `${brief?.targetAudienceNotes ?? ''} ${(brief?.targetInterests ?? []).join(' ')}`.toLowerCase();
+  if (haystack.includes('youth') || haystack.includes('young')) {
+    return 'youth';
+  }
+
+  if (haystack.includes('business') || haystack.includes('professional')) {
+    return 'business';
+  }
+
+  if (haystack.includes('retail') || haystack.includes('shopper')) {
+    return 'retail';
+  }
+
+  return 'mass-market';
+}
+
+function inferToneFromBrief(brief?: CampaignBrief, packageBandName?: string): string {
+  const haystack = `${brief?.targetAudienceNotes ?? ''} ${brief?.specialRequirements ?? ''}`.toLowerCase();
+  if (haystack.includes('premium') || haystack.includes('luxury')) {
+    return 'premium';
+  }
+
+  if (haystack.includes('performance') || haystack.includes('lead')) {
+    return 'performance';
+  }
+
+  if (packageBandName === 'Dominance') {
+    return 'premium';
+  }
+
+  return 'high-visibility';
+}
+
+function inferGeographyFromBrief(brief?: CampaignBrief): string {
+  const rawValue = brief?.cities?.[0]
+    ?? brief?.areas?.[0]
+    ?? brief?.provinces?.[0]
+    ?? '';
+
+  return rawValue.trim().toLowerCase().replace(/\s+/g, '-');
+}
+
+function inferFormFromCampaign(
+  campaign: {
+    clientName: string;
+    packageBandName: string;
+    selectedBudget: number;
+    packageRangeLabel?: string;
+    isProspective?: boolean;
+    queueStage: string;
+    nextAction: string;
+    includeRadio: 'yes' | 'optional' | 'no';
+    includeTv: 'yes' | 'optional' | 'no';
+  },
+  detailedCampaign?: Campaign | null,
+): CampaignFormState {
+  const fallback = inferInitialForm(campaign);
+  const brief = detailedCampaign?.brief;
+  if (!brief) {
+    return fallback;
+  }
+
+  const briefChannels = (brief.preferredMediaTypes ?? [])
+    .map(normalizeChannelOption)
+    .filter((channel): channel is ChannelOption => Boolean(channel));
+
+  return {
+    objective: normalizeOption(brief.objective, OBJECTIVE_OPTIONS) || fallback.objective,
+    audience: inferAudienceFromBrief(brief),
+    scope: normalizeOption(brief.geographyScope, SCOPE_OPTIONS) || fallback.scope,
+    geography: inferGeographyFromBrief(brief) || fallback.geography,
+    brandName: detailedCampaign?.campaignName || fallback.brandName,
+    tone: inferToneFromBrief(brief, campaign.packageBandName),
+    brief: brief.specialRequirements?.trim()
+      || brief.targetAudienceNotes?.trim()
+      || fallback.brief,
+    channels: ensureRequiredChannels(briefChannels.length > 0 ? briefChannels : fallback.channels),
+  };
+}
+
 export function AgentCreateRecommendationPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -230,6 +311,11 @@ export function AgentCreateRecommendationPage() {
     ?? filteredCampaigns[0]
     ?? availableCampaigns[0]
     ?? null;
+  const selectedCampaignDetailsQuery = useQuery({
+    queryKey: ['agent-campaign', selectedCampaign?.id],
+    queryFn: () => advertifiedApi.getAgentCampaign(selectedCampaign!.id),
+    enabled: Boolean(selectedCampaign?.id),
+  });
   const selectedCampaignIsProspective = selectedCampaign?.status === 'awaiting_purchase';
   const selectedProspectPackageBandId = selectedCampaignIsProspective
     ? ((selectedProspectPackageBandState?.campaignId === selectedCampaign?.id
@@ -256,14 +342,14 @@ export function AgentCreateRecommendationPage() {
     : null;
   const activeFormKey = selectedCampaignHydrationKey ?? '__no-campaign__';
   const inferredForm = selectedCampaign
-    ? inferInitialForm({
+    ? inferFormFromCampaign({
       ...selectedCampaign,
       selectedBudget: selectedCampaignReferenceBudget,
       packageRangeLabel: selectedPackageBand ? formatPackageRange(selectedPackageBand) : undefined,
       isProspective: selectedCampaignIsProspective,
       includeRadio: selectedPackageBand?.includeRadio ?? 'optional',
       includeTv: selectedPackageBand?.includeTv ?? 'no',
-    })
+    }, selectedCampaignDetailsQuery.data)
     : emptyForm;
   const form = scopedForm?.key === activeFormKey ? scopedForm.value : inferredForm;
   const aiInterpretationSummary = scopedAiInterpretationSummary?.key === activeFormKey

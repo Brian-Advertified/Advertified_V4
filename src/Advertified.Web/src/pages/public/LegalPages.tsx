@@ -96,7 +96,7 @@ export function PrivacyPolicyPage() {
       </LegalSection>
 
       <LegalSection title="Payments and service providers">
-        <p>Advertified supports payment and billing workflows using providers such as VodaPay and Lula. Payment status, invoice details, and related transaction references may be stored to fulfil orders and maintain accounting records.</p>
+        <p>Advertified supports payment and billing workflows using providers such as VodaPay and Finance Partner. Payment status, invoice details, and related transaction references may be stored to fulfil orders and maintain accounting records.</p>
       </LegalSection>
 
       <LegalSection title="Cookies and optional tracking">

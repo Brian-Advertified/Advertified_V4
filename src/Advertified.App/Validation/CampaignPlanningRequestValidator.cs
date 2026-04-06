@@ -22,6 +22,16 @@ public sealed class CampaignPlanningRequestValidator : AbstractValidator<Campaig
         "digital"
     };
 
+    private static readonly HashSet<string> AllowedPlanningObjectives = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "awareness",
+        "leads",
+        "foot_traffic",
+        "promotion",
+        "launch",
+        "brand_presence"
+    };
+
     public CampaignPlanningRequestValidator()
     {
         RuleFor(x => x.CampaignId)
@@ -35,6 +45,22 @@ public sealed class CampaignPlanningRequestValidator : AbstractValidator<Campaig
         RuleFor(x => x.GeographyScope)
             .Must(value => string.IsNullOrWhiteSpace(value) || AllowedGeographyScopes.Contains(value))
             .WithMessage("Select a valid geography scope.");
+
+        RuleFor(x => x.Objective)
+            .Must(value => string.IsNullOrWhiteSpace(value) || AllowedPlanningObjectives.Contains(value))
+            .WithMessage("Select a valid campaign objective.");
+
+        RuleFor(x => x.TargetAgeMin)
+            .GreaterThanOrEqualTo(13)
+            .When(x => x.TargetAgeMin.HasValue);
+
+        RuleFor(x => x.TargetAgeMax)
+            .LessThanOrEqualTo(100)
+            .When(x => x.TargetAgeMax.HasValue);
+
+        RuleFor(x => x)
+            .Must(x => !x.TargetAgeMin.HasValue || !x.TargetAgeMax.HasValue || x.TargetAgeMin <= x.TargetAgeMax)
+            .WithMessage("Target age range is invalid.");
 
         RuleFor(x => x)
             .Must(x => !x.TargetLsmMin.HasValue || !x.TargetLsmMax.HasValue || x.TargetLsmMin <= x.TargetLsmMax)

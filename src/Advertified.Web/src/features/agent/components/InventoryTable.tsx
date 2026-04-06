@@ -23,13 +23,13 @@ export function InventoryTable({
   return (
     <div className="panel overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="min-w-[1200px] text-left text-sm">
+        <table className="min-w-[1280px] text-left text-sm">
           <thead className="bg-slate-50 text-ink-soft">
             <tr>
               {['Type', 'Station', 'Region', 'Language', 'Show / Daypart', 'Time band', 'Slot type', 'Duration', 'Rate', 'Restrictions', ...(selectable ? ['Action'] : [])].map((header) => (
                 <th
                   key={header}
-                  className={`px-4 py-4 font-semibold ${header === 'Action' ? 'pr-8 whitespace-nowrap' : ''}`}
+                  className={`px-4 py-4 font-semibold ${header === 'Action' ? 'sticky right-0 z-10 border-l border-line bg-slate-50 whitespace-nowrap' : ''}`}
                 >
                   {header}
                 </th>
@@ -50,7 +50,7 @@ export function InventoryTable({
                 <td className="px-4 py-4 font-semibold text-ink">{formatCurrency(item.rate)}</td>
                 <td className="px-4 py-4 text-ink-soft">{displayValue(item.restrictions)}</td>
                 {selectable ? (
-                  <td className="px-4 py-4 pr-8 whitespace-nowrap">
+                  <td className={`sticky right-0 px-4 py-4 border-l border-line whitespace-nowrap ${selectedSet.has(item.id) ? 'bg-brand-soft/40' : 'bg-white'}`}>
                     <button
                       type="button"
                       onClick={() => onToggleItem(item)}

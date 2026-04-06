@@ -38,13 +38,13 @@ export function AdminPackageOrdersPage() {
         setEditingOrderId(nextPending.orderId);
         pushToast({
           title: 'Payment status saved.',
-          description: 'Opening the next pending Lula order in the queue.',
+          description: 'Opening the next pending Finance Partner order in the queue.',
         });
       } else {
         setEditingOrderId(null);
         pushToast({
           title: 'Payment status saved.',
-          description: 'No more pending Lula orders in the queue.',
+          description: 'No more pending Finance Partner orders in the queue.',
         });
       }
     },
@@ -63,7 +63,7 @@ export function AdminPackageOrdersPage() {
 
   if (query.isLoading) {
     return (
-      <AdminPageShell title="Payments & Orders" description="Review every package order, invoice, and Lula settlement from one operational queue.">
+      <AdminPageShell title="Payments & Orders" description="Review every package order, invoice, and Finance Partner settlement from one operational queue.">
         <LoadingState label="Loading payments and orders..." />
       </AdminPageShell>
     );
@@ -71,7 +71,7 @@ export function AdminPackageOrdersPage() {
 
   if (query.isError) {
     return (
-      <AdminPageShell title="Payments & Orders" description="Review every package order, invoice, and Lula settlement from one operational queue.">
+      <AdminPageShell title="Payments & Orders" description="Review every package order, invoice, and Finance Partner settlement from one operational queue.">
         <div className="panel p-8">
           <h2 className="text-xl font-semibold text-ink">Payments and orders could not be loaded</h2>
           <p className="mt-3 text-sm leading-6 text-ink-soft">{query.error instanceof Error ? query.error.message : 'The admin payments workspace is unavailable right now.'}</p>
@@ -83,12 +83,12 @@ export function AdminPackageOrdersPage() {
   return (
     <AdminPageShell
       title="Payments & Orders"
-      description="Track package orders, review invoice state, and open the Lula settlement editor when a pending order needs manual intervention."
+      description="Track package orders, review invoice state, and open the Finance Partner settlement editor when a pending order needs manual intervention."
     >
       <section className="space-y-6">
         <div className="grid gap-4 md:grid-cols-4">
           <MetricCard label="Total orders" value={String(items.length)} note="Every package order across all payment providers." />
-          <MetricCard label="Pending Lula" value={String(pendingLulaCount)} note="Lula orders waiting for manual review." />
+          <MetricCard label="Pending Finance Partner" value={String(pendingLulaCount)} note="Finance Partner orders waiting for manual review." />
           <MetricCard label="Paid orders" value={String(paidCount)} note="Orders already converted into paid campaigns." />
           <MetricCard label="Declined orders" value={String(failedCount)} note="Orders manually declined or failed." />
         </div>
@@ -96,7 +96,7 @@ export function AdminPackageOrdersPage() {
         <div className="panel overflow-hidden p-0">
           <div className="border-b border-line px-6 py-5">
             <h2 className="text-xl font-semibold text-ink">Order queue</h2>
-            <p className="mt-2 text-sm text-ink-soft">Only pending Lula orders can be edited here. VodaPay orders are read-only and handled by the gateway workflow.</p>
+            <p className="mt-2 text-sm text-ink-soft">Only pending Finance Partner orders can be edited here. VodaPay orders are read-only and handled by the gateway workflow.</p>
           </div>
 
           <div className="overflow-x-auto">
@@ -130,7 +130,7 @@ export function AdminPackageOrdersPage() {
                         <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${statusTone(item.paymentStatus)}`}>
                           {titleize(item.paymentStatus)}
                         </span>
-                        {item.canUpdateLulaStatus ? <p className="text-xs text-ink-soft">Ready for Lula update</p> : null}
+                        {item.canUpdateLulaStatus ? <p className="text-xs text-ink-soft">Ready for Finance Partner update</p> : null}
                       </div>
                     </td>
                     <td className="px-4 py-4 align-top text-ink-soft">

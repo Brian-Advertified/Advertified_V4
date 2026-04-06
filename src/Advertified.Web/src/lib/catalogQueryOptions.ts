@@ -5,4 +5,5 @@ export const catalogQueryOptions = {
   staleTime: CATALOG_STALE_TIME_MS,
   gcTime: CATALOG_GC_TIME_MS,
   refetchOnWindowFocus: false as const,
+  retry: false as const,
 };

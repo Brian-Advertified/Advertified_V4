@@ -77,6 +77,7 @@ export function ConsentBanner() {
     queryKey: ['consent-preferences', browserId],
     queryFn: () => advertifiedApi.getConsentPreferences(browserId),
     enabled: consentBootstrapReady,
+    retry: false,
   });
 
   const saveMutation = useMutation({

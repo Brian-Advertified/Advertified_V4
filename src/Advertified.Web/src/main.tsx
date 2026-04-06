@@ -14,6 +14,14 @@ const queryClient = new QueryClient({
     queries: {
       staleTime: 30_000,
       refetchOnWindowFocus: false,
+      retry: (failureCount, error) => {
+        const message = error instanceof Error ? error.message : String(error ?? '');
+        if (/failed to fetch|networkerror|load failed/i.test(message)) {
+          return false;
+        }
+
+        return failureCount < 2;
+      },
     },
   },
 });

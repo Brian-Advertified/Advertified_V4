@@ -1,6 +1,7 @@
 using Advertified.App.Contracts.Campaigns;
 using Advertified.App.Domain.Campaigns;
 using Advertified.App.Services.Abstractions;
+using System.Text.RegularExpressions;
 using System.Text.Json;
 
 namespace Advertified.App.Services;
@@ -98,6 +99,10 @@ public sealed class PlanningScoreService : IPlanningScoreService
             }
         }
 
+        score += AgeScore(candidate, request);
+        score += GenderScore(candidate, request);
+        score += AudienceKeywordScore(candidate, request);
+
         return score;
     }
 
@@ -146,6 +151,7 @@ public sealed class PlanningScoreService : IPlanningScoreService
         score += AudienceScore(candidate, request);
         score += BudgetScore(candidate, request);
         score += MediaPreferenceScore(candidate, request);
+        score += ObjectiveFitScore(candidate, request);
         score += AvailabilityScore(candidate);
         score += OohPriorityScore(candidate, request);
         score += MixTargetScore(candidate, request);
@@ -180,6 +186,170 @@ public sealed class PlanningScoreService : IPlanningScoreService
         bonus += _policyService.GetHigherBandRadioBonus(candidate, request);
 
         return bonus;
+    }
+
+    private static decimal AgeScore(InventoryCandidate candidate, CampaignPlanningRequest request)
+    {
+        if (!request.TargetAgeMin.HasValue && !request.TargetAgeMax.HasValue)
+        {
+            return 0m;
+        }
+
+        var ageText = GetMetadataText(candidate, "audienceAgeSkew", "audience_age_skew", "targetAudience", "target_audience");
+        if (string.IsNullOrWhiteSpace(ageText))
+        {
+            return 0m;
+        }
+
+        var requestedMin = request.TargetAgeMin ?? request.TargetAgeMax ?? 13;
+        var requestedMax = request.TargetAgeMax ?? request.TargetAgeMin ?? 100;
+        if (TryParseAgeRange(ageText, out var candidateMin, out var candidateMax))
+        {
+            var overlap = !(candidateMax < requestedMin || candidateMin > requestedMax);
+            return overlap ? 8m : 0m;
+        }
+
+        var requestedTokens = BuildAgeTokens(requestedMin, requestedMax);
+        return requestedTokens.Any(token => ageText.Contains(token, StringComparison.OrdinalIgnoreCase))
+            ? 5m
+            : 0m;
+    }
+
+    private static decimal GenderScore(InventoryCandidate candidate, CampaignPlanningRequest request)
+    {
+        var targetGender = NormalizeGender(request.TargetGender);
+        if (string.IsNullOrWhiteSpace(targetGender))
+        {
+            return 0m;
+        }
+
+        var genderText = GetMetadataText(candidate, "audienceGenderSkew", "audience_gender_skew", "targetAudience", "target_audience");
+        if (string.IsNullOrWhiteSpace(genderText))
+        {
+            return 0m;
+        }
+
+        return GenderAliases(targetGender).Any(alias => genderText.Contains(alias, StringComparison.OrdinalIgnoreCase))
+            ? 5m
+            : 0m;
+    }
+
+    private static decimal AudienceKeywordScore(InventoryCandidate candidate, CampaignPlanningRequest request)
+    {
+        var candidateText = BuildAudienceSearchText(candidate);
+        if (string.IsNullOrWhiteSpace(candidateText))
+        {
+            return 0m;
+        }
+
+        var matches = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var interest in request.TargetInterests)
+        {
+            foreach (var token in TokenizeAudienceTerms(interest))
+            {
+                if (candidateText.Contains(token, StringComparison.OrdinalIgnoreCase))
+                {
+                    matches.Add(token);
+                }
+            }
+        }
+
+        foreach (var token in TokenizeAudienceTerms(request.TargetAudienceNotes).Take(8))
+        {
+            if (candidateText.Contains(token, StringComparison.OrdinalIgnoreCase))
+            {
+                matches.Add(token);
+            }
+        }
+
+        return matches.Count switch
+        {
+            >= 3 => 8m,
+            2 => 6m,
+            1 => 4m,
+            _ => 0m
+        };
+    }
+
+    private static decimal ObjectiveFitScore(InventoryCandidate candidate, CampaignPlanningRequest request)
+    {
+        var objective = (request.Objective ?? string.Empty).Trim().ToLowerInvariant();
+        if (objective.Length == 0)
+        {
+            return 0m;
+        }
+
+        var mediaType = candidate.MediaType.Trim().ToLowerInvariant();
+        var score = objective switch
+        {
+            "awareness" or "brand_presence" => mediaType switch
+            {
+                "ooh" => 10m,
+                "tv" => 9m,
+                "radio" => 7m,
+                "digital" => 6m,
+                _ => 0m
+            },
+            "launch" => mediaType switch
+            {
+                "ooh" => 10m,
+                "radio" => 8m,
+                "tv" => 8m,
+                "digital" => 6m,
+                _ => 0m
+            },
+            "promotion" => mediaType switch
+            {
+                "radio" => 9m,
+                "ooh" => 8m,
+                "digital" => 7m,
+                "tv" => 4m,
+                _ => 0m
+            },
+            "leads" => mediaType switch
+            {
+                "digital" => 10m,
+                "radio" => 8m,
+                "ooh" => 3m,
+                "tv" => 2m,
+                _ => 0m
+            },
+            "foot_traffic" => mediaType switch
+            {
+                "ooh" => 10m,
+                "radio" => 8m,
+                "digital" => 5m,
+                "tv" => 2m,
+                _ => 0m
+            },
+            _ => 0m
+        };
+
+        if (mediaType == "radio" && (!string.IsNullOrWhiteSpace(candidate.TimeBand) || !string.IsNullOrWhiteSpace(candidate.DayType)))
+        {
+            if (objective is "leads" or "promotion" or "foot_traffic")
+            {
+                if (Matches(candidate.TimeBand, "breakfast") || Matches(candidate.TimeBand, "drive"))
+                {
+                    score += 2m;
+                }
+
+                if (Matches(candidate.DayType, "weekday"))
+                {
+                    score += 1m;
+                }
+            }
+        }
+
+        if (mediaType == "ooh" && objective is "awareness" or "brand_presence" or "launch" or "foot_traffic")
+        {
+            if (!string.IsNullOrWhiteSpace(candidate.Area) || !string.IsNullOrWhiteSpace(candidate.City))
+            {
+                score += 1m;
+            }
+        }
+
+        return score;
     }
 
     private static decimal AvailabilityScore(InventoryCandidate candidate) => candidate.IsAvailable ? 10m : 0m;
@@ -416,5 +586,151 @@ public sealed class PlanningScoreService : IPlanningScoreService
         {
             yield return fallback.Trim();
         }
+    }
+
+    private static string GetMetadataText(InventoryCandidate candidate, params string[] keys)
+    {
+        foreach (var key in keys)
+        {
+            if (candidate.Metadata.TryGetValue(key, out var value))
+            {
+                var flattened = string.Join(" ", ExtractMetadataTokens(value));
+                if (!string.IsNullOrWhiteSpace(flattened))
+                {
+                    return flattened;
+                }
+            }
+        }
+
+        return string.Empty;
+    }
+
+    private static string BuildAudienceSearchText(InventoryCandidate candidate)
+    {
+        var parts = new[]
+            {
+                candidate.DisplayName,
+                candidate.MediaType,
+                candidate.Subtype,
+                candidate.Language,
+                GetMetadataText(candidate, "targetAudience", "target_audience", "notes", "packageName", "package_name", "audienceAgeSkew", "audience_age_skew", "audienceGenderSkew", "audience_gender_skew")
+            }
+            .Where(static part => !string.IsNullOrWhiteSpace(part))
+            .ToList()!;
+
+        foreach (var key in new[] { "audienceKeywords", "audience_keywords", "keywords" })
+        {
+            if (candidate.Metadata.TryGetValue(key, out var value))
+            {
+                parts.AddRange(ExtractMetadataTokens(value));
+            }
+        }
+
+        return string.Join(" ", parts.Where(static part => !string.IsNullOrWhiteSpace(part)));
+    }
+
+    private static IEnumerable<string> TokenizeAudienceTerms(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            yield break;
+        }
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (Match match in Regex.Matches(text, "[A-Za-z]{4,}"))
+        {
+            var token = match.Value.Trim().ToLowerInvariant();
+            if (token is "that" or "this" or "with" or "from" or "your" or "their" or "have" or "into" or "across" or "need" or "needs" or "market" or "audience" or "customer" or "customers")
+            {
+                continue;
+            }
+
+            if (seen.Add(token))
+            {
+                yield return token;
+            }
+        }
+    }
+
+    private static bool TryParseAgeRange(string text, out int min, out int max)
+    {
+        min = 0;
+        max = 0;
+
+        var normalized = text.Trim().ToLowerInvariant();
+        var values = Regex.Matches(normalized, "\\d+")
+            .Select(match => int.TryParse(match.Value, out var parsed) ? parsed : (int?)null)
+            .Where(value => value.HasValue)
+            .Select(value => value!.Value)
+            .ToArray();
+
+        if (normalized.Contains('+') && values.Length >= 1)
+        {
+            min = values[0];
+            max = 100;
+            return true;
+        }
+
+        if (values.Length >= 2)
+        {
+            min = Math.Min(values[0], values[1]);
+            max = Math.Max(values[0], values[1]);
+            return true;
+        }
+
+        return normalized switch
+        {
+            var value when value.Contains("youth", StringComparison.OrdinalIgnoreCase) => AssignAgeRange(15, 24, out min, out max),
+            var value when value.Contains("young", StringComparison.OrdinalIgnoreCase) => AssignAgeRange(18, 34, out min, out max),
+            var value when value.Contains("adult", StringComparison.OrdinalIgnoreCase) => AssignAgeRange(25, 54, out min, out max),
+            var value when value.Contains("family", StringComparison.OrdinalIgnoreCase) => AssignAgeRange(25, 54, out min, out max),
+            _ => false
+        };
+    }
+
+    private static bool AssignAgeRange(int rangeMin, int rangeMax, out int min, out int max)
+    {
+        min = rangeMin;
+        max = rangeMax;
+        return true;
+    }
+
+    private static IEnumerable<string> BuildAgeTokens(int min, int max)
+    {
+        if (max <= 24)
+        {
+            yield return "youth";
+        }
+
+        if (min <= 34 && max >= 18)
+        {
+            yield return "young";
+        }
+
+        if (max >= 25)
+        {
+            yield return "adult";
+        }
+    }
+
+    private static string NormalizeGender(string? value)
+    {
+        var normalized = (value ?? string.Empty).Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            "male" or "man" or "men" => "male",
+            "female" or "woman" or "women" => "female",
+            _ => string.Empty
+        };
+    }
+
+    private static IEnumerable<string> GenderAliases(string normalizedGender)
+    {
+        return normalizedGender switch
+        {
+            "male" => new[] { "male", "men", "man", "guy", "gent" },
+            "female" => new[] { "female", "women", "woman", "lady" },
+            _ => Array.Empty<string>()
+        };
     }
 }
