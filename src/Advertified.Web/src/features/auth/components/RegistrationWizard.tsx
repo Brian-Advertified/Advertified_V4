@@ -44,15 +44,6 @@ export function RegistrationWizard({
     defaultValue: true,
   });
 
-  if (formOptionsQuery.isPending) {
-    return <div className="register-section">Loading form options...</div>;
-  }
-
-  if (formOptionsQuery.isError || !formOptionsQuery.data) {
-    return <div className="register-section">We could not load registration options right now. Please refresh and try again.</div>;
-  }
-
-  const { businessTypes, industries, provinces, revenueBands } = formOptionsQuery.data;
   useEffect(() => {
     if (isCitizen) {
       setValue('passportNumber', '', { shouldDirty: false, shouldTouch: false, shouldValidate: false });
@@ -64,6 +55,16 @@ export function RegistrationWizard({
 
     setValue('saIdNumber', '', { shouldDirty: false, shouldTouch: false, shouldValidate: false });
   }, [isCitizen, setValue]);
+
+  if (formOptionsQuery.isPending) {
+    return <div className="register-section">Loading form options...</div>;
+  }
+
+  if (formOptionsQuery.isError || !formOptionsQuery.data) {
+    return <div className="register-section">We could not load registration options right now. Please refresh and try again.</div>;
+  }
+
+  const { businessTypes, industries, provinces, revenueBands } = formOptionsQuery.data;
 
   function handleAddressRetrieve(response: AddressAutofillRetrieveResponse) {
     const feature = response.features[0];
