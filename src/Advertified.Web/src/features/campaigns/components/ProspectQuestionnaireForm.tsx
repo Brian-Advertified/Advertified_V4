@@ -536,7 +536,6 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                     <option value="">Select industry</option>
                     {industries.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                   </select>
-                  <p className="mt-2 text-xs text-ink-soft">Choose the industry that best matches what your business sells or does.</p>
                 </label>
                 <label className="block">
                   <span className="label-base">Where is your business right now?</span>
@@ -544,7 +543,6 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                     <option value="">Select business stage</option>
                     {businessStages.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
-                  <p className="mt-2 text-xs text-ink-soft">For example: newly launched, growing steadily, or already well established.</p>
                 </label>
                 <label className="block">
                   <span className="label-base">About how much does the business make each month?</span>
@@ -552,7 +550,6 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                     <option value="">Select monthly revenue</option>
                     {monthlyRevenueBands.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
-                  <p className="mt-2 text-xs text-ink-soft">An estimate is fine. This helps us recommend a realistic campaign approach.</p>
                 </label>
                 <label className="block">
                   <span className="label-base">How do you mainly sell?</span>
@@ -560,7 +557,6 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                     <option value="">Select sales model</option>
                     {salesModels.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
-                  <p className="mt-2 text-xs text-ink-soft">For example: online, in-store, by appointment, or through a sales team.</p>
                 </label>
                 <label className="block">
                   <span className="label-base">Budget range</span>
@@ -581,7 +577,6 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                       <option key={item.id} value={item.id}>{item.name} | R {item.minBudget.toLocaleString()} - R {item.maxBudget.toLocaleString()}</option>
                     ))}
                   </select>
-                  <p className="mt-2 text-xs text-ink-soft">Choose the budget range you are most comfortable with. You can refine the spend later.</p>
                   <FieldError message={errors.packageBandId} />
                 </label>
                 <label className="block md:col-span-2">
@@ -605,7 +600,6 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                   <select value={form.objective} onChange={(event) => setForm((current) => ({ ...current, objective: event.target.value }))} className="input-base">
                     {OBJECTIVES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
-                  <p className="mt-2 text-xs text-ink-soft">Choose the main result you want first, like awareness, leads, more visits, or a launch push.</p>
                   <FieldError message={errors.objective} />
                 </label>
                 <label className="block">
@@ -613,7 +607,6 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                   <select value={form.geographyScope} onChange={(event) => setForm((current) => ({ ...current, geographyScope: event.target.value }))} className="input-base">
                     {GEOGRAPHIES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
-                  <p className="mt-2 text-xs text-ink-soft">Choose local for one city, provincial for one province, or national for a wider rollout.</p>
                   <FieldError message={errors.geographyScope} />
                 </label>
                 <label className="block">
@@ -635,13 +628,6 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                       <option key={item} value={item}>{item}</option>
                     ))}
                   </select>
-                  <p className="mt-2 text-xs text-ink-soft">
-                    {form.geographyScope === 'national'
-                      ? 'You can skip this because the campaign is meant to reach customers across the country.'
-                      : form.geographyScope === 'local'
-                        ? 'Pick the city where you most want to attract customers.'
-                        : 'Pick the province where you most want the campaign to focus.'}
-                  </p>
                   <FieldError message={errors.primaryArea} />
                 </label>
                 <label className="block">
@@ -650,14 +636,12 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                     <option value="">Select language</option>
                     {LANGUAGES.map((item) => <option key={item} value={item}>{item}</option>)}
                   </select>
-                  <p className="mt-2 text-xs text-ink-soft">Choose the main language your customers are most likely to respond to.</p>
                 </label>
                 <label className="block">
                   <span className="label-base">What age group are you mainly trying to reach?</span>
                   <select value={form.ageRange} onChange={(event) => setForm((current) => ({ ...current, ageRange: event.target.value }))} className="input-base">
                     {AGE_RANGES.map((option) => <option key={option.value || 'unset'} value={option.value}>{option.label}</option>)}
                   </select>
-                  <p className="mt-2 text-xs text-ink-soft">If you are not sure, leave this open and we will keep the plan broader.</p>
                 </label>
                 <label className="block">
                   <span className="label-base">Is the campaign mainly aimed at men, women, or everyone?</span>
@@ -668,13 +652,11 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                     <option value="male">Male</option>
                     <option value="mixed">Mixed</option>
                   </select>
-                  <p className="mt-2 text-xs text-ink-soft">Only choose this if one group clearly matters more for this campaign.</p>
                 </label>
               </div>
 
               <div>
                 <span className="label-base">Which advertising channels interest you most?</span>
-                <p className="mt-2 text-xs text-ink-soft">Pick the options that feel right for your business. We can still recommend a better mix if needed.</p>
                 <div className="mt-3 flex flex-wrap gap-3">
                   {CHANNELS.map((channel) => {
                     const checked = form.preferredMediaTypes.includes(channel.value);
@@ -710,7 +692,6 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                     <option value="">Select customer type</option>
                     {customerTypes.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
-                  <p className="mt-2 text-xs text-ink-soft">Choose the type of customer you most often sell to today.</p>
                 </label>
                 <label className="block">
                   <span className="label-base">What usually makes people choose you?</span>
@@ -718,7 +699,6 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                     <option value="">Select value proposition</option>
                     {valuePropositionFocus.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
-                  <p className="mt-2 text-xs text-ink-soft">For example: price, quality, convenience, speed, trust, or exclusivity.</p>
                 </label>
                 <label className="block">
                   <span className="label-base">How do customers usually decide to buy?</span>
@@ -726,7 +706,6 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                     <option value="">Select buying behaviour</option>
                     {buyingBehaviours.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
-                  <p className="mt-2 text-xs text-ink-soft">Think about whether people buy quickly, compare options first, or need more trust before deciding.</p>
                 </label>
                 <label className="block">
                   <span className="label-base">How long does it usually take someone to buy?</span>
@@ -734,7 +713,6 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                     <option value="">Select decision cycle</option>
                     {decisionCycles.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
-                  <p className="mt-2 text-xs text-ink-soft">Some purchases happen the same day, while others take days or weeks.</p>
                 </label>
                 <label className="block">
                   <span className="label-base">How is your offer priced in the market?</span>
@@ -742,7 +720,6 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                     <option value="">Select price positioning</option>
                     {pricePositioning.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
-                  <p className="mt-2 text-xs text-ink-soft">Choose whether you compete more on affordability, the middle of the market, or premium value.</p>
                 </label>
                 <label className="block">
                   <span className="label-base">How much does a typical customer spend with you?</span>
@@ -750,7 +727,6 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                     <option value="">Select average spend</option>
                     {averageCustomerSpendBands.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
-                  <p className="mt-2 text-xs text-ink-soft">A rough average is enough. This helps us understand the scale of sale you are aiming for.</p>
                 </label>
                 <label className="block">
                   <span className="label-base">What kind of growth are you aiming for?</span>
@@ -758,7 +734,6 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                     <option value="">Select growth target</option>
                     {growthTargets.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
-                  <p className="mt-2 text-xs text-ink-soft">For example: more leads, more sales, more foot traffic, or a stronger market presence.</p>
                 </label>
                 <label className="block">
                   <span className="label-base">How soon do you need this campaign to start helping?</span>
@@ -766,7 +741,6 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                     <option value="">Select urgency</option>
                     {urgencyLevels.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
-                  <p className="mt-2 text-xs text-ink-soft">Choose higher urgency if you are promoting something time-sensitive or need results soon.</p>
                 </label>
                 <label className="block">
                   <span className="label-base">How clearly can you describe your ideal customer?</span>
@@ -774,7 +748,6 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                     <option value="">Select audience clarity</option>
                     {audienceClarity.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
-                  <p className="mt-2 text-xs text-ink-soft">If you are still figuring that out, that is okay. This helps us know how broad or focused to make the plan.</p>
                 </label>
               </div>
 

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, ChevronRight, Sparkles, Wand2 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -252,6 +252,7 @@ export function AgentCreateRecommendationPage() {
   const [pendingAction, setPendingAction] = useState<'draft' | 'generate' | null>(null);
   const [scopedAiInterpretationSummary, setScopedAiInterpretationSummary] = useState<{ key: string; summary: string } | null>(null);
   const [scopedForm, setScopedForm] = useState<ScopedFormState | null>(null);
+  const [showDetailEditing, setShowDetailEditing] = useState(false);
   const [selectedProspectPackageBandState, setSelectedProspectPackageBandState] = useState<{ campaignId: string; packageBandId: string } | null>(null);
   const emptyForm: CampaignFormState = {
     objective: '',
@@ -375,6 +376,11 @@ export function AgentCreateRecommendationPage() {
       : undefined);
   }, [selectedCampaignBrief, selectedCampaignDetails]);
   const sharedFormOptions = formOptionsQuery.data;
+  const hasCapturedBrief = questionnaireSummary.length > 0;
+
+  useEffect(() => {
+    setShowDetailEditing(false);
+  }, [activeFormKey]);
 
   const handleFormChange = <K extends keyof CampaignFormState>(key: K, value: CampaignFormState[K]) => {
     if (key === 'scope') {
@@ -750,11 +756,6 @@ export function AgentCreateRecommendationPage() {
                 </select>
               </label>
             </div>
-            {selectedCampaignIsProspective && selectedPackageBand ? (
-              <p className="mt-1 text-xs text-ink-soft">
-                Current price band: {selectedPackageBand.name} ({formatCurrency(selectedPackageBand.minBudget)} to {formatCurrency(selectedPackageBand.maxBudget)})
-              </p>
-            ) : null}
             {selectedCampaignIsProspective ? (
               <div className="mt-4 max-w-md">
                 <label className="block">
@@ -776,9 +777,6 @@ export function AgentCreateRecommendationPage() {
                     ))}
                   </select>
                 </label>
-                <p className="mt-2 text-xs text-ink-soft">
-                  The recommendation options will be created inside this selected price band.
-                </p>
               </div>
             ) : null}
             {selectedCampaignDetailsQuery.isSuccess && questionnaireSummary.length > 0 ? (
@@ -835,9 +833,6 @@ export function AgentCreateRecommendationPage() {
                     <input value={prospectForm.campaignName} onChange={(event) => setProspectForm((current) => ({ ...current, campaignName: event.target.value }))} className="input-base" />
                   </label>
                 </div>
-                <p className="mt-3 text-xs text-ink-soft">
-                  The recommendation will stay inside the selected price band.
-                </p>
                 <div className="mt-4">
                   <button
                     type="button"
@@ -856,12 +851,77 @@ export function AgentCreateRecommendationPage() {
             <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-ink">2. Add campaign details</h2>
-                <p className="mt-1 text-sm text-ink-soft">Enter the key campaign details so the draft matches what the client needs.</p>
               </div>
-              <span className="pill bg-white text-ink-soft">AI can help</span>
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="pill bg-white text-ink-soft">AI can help</span>
+                {hasCapturedBrief ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowDetailEditing((current) => !current)}
+                    className="button-secondary px-4 py-2"
+                  >
+                    {showDetailEditing ? 'Hide field editing' : 'Edit captured details'}
+                  </button>
+                ) : null}
+              </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            {hasCapturedBrief && !showDetailEditing ? (
+              <div className="rounded-[24px] border border-brand/15 bg-brand-soft/30 px-5 py-5">
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Objective</p>
+                    <p className="mt-2 text-sm font-medium text-ink">{form.objective || 'Not set'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Audience</p>
+                    <p className="mt-2 text-sm font-medium text-ink">{form.audience || 'Not set'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Coverage</p>
+                    <p className="mt-2 text-sm font-medium text-ink">{form.scope || 'Not set'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Main area</p>
+                    <p className="mt-2 text-sm font-medium text-ink">{form.geography || 'Not needed'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Sales model</p>
+                    <p className="mt-2 text-sm font-medium text-ink">{form.salesModel || 'Not set'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Customer type</p>
+                    <p className="mt-2 text-sm font-medium text-ink">{form.customerType || 'Not set'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Buying behaviour</p>
+                    <p className="mt-2 text-sm font-medium text-ink">{form.buyingBehaviour || 'Not set'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Decision cycle</p>
+                    <p className="mt-2 text-sm font-medium text-ink">{form.decisionCycle || 'Not set'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Price positioning</p>
+                    <p className="mt-2 text-sm font-medium text-ink">{form.pricePositioning || 'Not set'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Growth target</p>
+                    <p className="mt-2 text-sm font-medium text-ink">{form.growthTarget || 'Not set'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Urgency</p>
+                    <p className="mt-2 text-sm font-medium text-ink">{form.urgencyLevel || 'Not set'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Audience clarity</p>
+                    <p className="mt-2 text-sm font-medium text-ink">{form.audienceClarity || 'Not set'}</p>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            <div className={`${hasCapturedBrief && !showDetailEditing ? 'hidden' : 'grid'} gap-4 md:grid-cols-2`}>
               <label className="block">
                 <span className="label-base">Campaign objective</span>
                 <select value={form.objective} onChange={(event) => handleFormChange('objective', event.target.value)} className="input-base">
@@ -919,99 +979,118 @@ export function AgentCreateRecommendationPage() {
               </label>
             </div>
 
-            <div className="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              <label className="block">
-                <span className="label-base">Sales model</span>
-                <select value={form.salesModel} onChange={(event) => handleFormChange('salesModel', event.target.value)} className="input-base">
-                  <option value="">Select sales model</option>
-                  {sharedFormOptions.salesModels.map((item) => (
-                    <option key={item.value} value={item.value}>{item.label}</option>
-                  ))}
-                </select>
-              </label>
+            <div className={`${hasCapturedBrief && !showDetailEditing ? 'hidden ' : ''}mt-5 rounded-[28px] border border-brand/10 bg-brand-soft/30 p-4 sm:p-5`}>
+              <div className="mb-4">
+                <p className="text-sm font-semibold text-ink">Commercial fit</p>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <label className="block">
+                  <span className="label-base">Sales model</span>
+                  <select value={form.salesModel} onChange={(event) => handleFormChange('salesModel', event.target.value)} className="input-base">
+                    <option value="">Select sales model</option>
+                    {sharedFormOptions.salesModels.map((item) => (
+                      <option key={item.value} value={item.value}>{item.label}</option>
+                    ))}
+                  </select>
+                </label>
 
-              <label className="block">
-                <span className="label-base">Customer type</span>
-                <select value={form.customerType} onChange={(event) => handleFormChange('customerType', event.target.value)} className="input-base">
-                  <option value="">Select customer type</option>
-                  {sharedFormOptions.customerTypes.map((item) => (
-                    <option key={item.value} value={item.value}>{item.label}</option>
-                  ))}
-                </select>
-              </label>
+                <label className="block">
+                  <span className="label-base">Customer type</span>
+                  <select value={form.customerType} onChange={(event) => handleFormChange('customerType', event.target.value)} className="input-base">
+                    <option value="">Select customer type</option>
+                    {sharedFormOptions.customerTypes.map((item) => (
+                      <option key={item.value} value={item.value}>{item.label}</option>
+                    ))}
+                  </select>
+                </label>
 
-              <label className="block">
-                <span className="label-base">Buying behaviour</span>
-                <select value={form.buyingBehaviour} onChange={(event) => handleFormChange('buyingBehaviour', event.target.value)} className="input-base">
-                  <option value="">Select buying behaviour</option>
-                  {sharedFormOptions.buyingBehaviours.map((item) => (
-                    <option key={item.value} value={item.value}>{item.label}</option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="block">
-                <span className="label-base">Decision cycle</span>
-                <select value={form.decisionCycle} onChange={(event) => handleFormChange('decisionCycle', event.target.value)} className="input-base">
-                  <option value="">Select decision cycle</option>
-                  {sharedFormOptions.decisionCycles.map((item) => (
-                    <option key={item.value} value={item.value}>{item.label}</option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="block">
-                <span className="label-base">Price positioning</span>
-                <select value={form.pricePositioning} onChange={(event) => handleFormChange('pricePositioning', event.target.value)} className="input-base">
-                  <option value="">Select price positioning</option>
-                  {sharedFormOptions.pricePositioning.map((item) => (
-                    <option key={item.value} value={item.value}>{item.label}</option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="block">
-                <span className="label-base">Growth target</span>
-                <select value={form.growthTarget} onChange={(event) => handleFormChange('growthTarget', event.target.value)} className="input-base">
-                  <option value="">Select growth target</option>
-                  {sharedFormOptions.growthTargets.map((item) => (
-                    <option key={item.value} value={item.value}>{item.label}</option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="block">
-                <span className="label-base">Urgency</span>
-                <select value={form.urgencyLevel} onChange={(event) => handleFormChange('urgencyLevel', event.target.value)} className="input-base">
-                  <option value="">Select urgency</option>
-                  {sharedFormOptions.urgencyLevels.map((item) => (
-                    <option key={item.value} value={item.value}>{item.label}</option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="block">
-                <span className="label-base">Audience clarity</span>
-                <select value={form.audienceClarity} onChange={(event) => handleFormChange('audienceClarity', event.target.value)} className="input-base">
-                  <option value="">Select audience clarity</option>
-                  {sharedFormOptions.audienceClarity.map((item) => (
-                    <option key={item.value} value={item.value}>{item.label}</option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="block">
-                <span className="label-base">Value proposition</span>
-                <select value={form.valuePropositionFocus} onChange={(event) => handleFormChange('valuePropositionFocus', event.target.value)} className="input-base">
-                  <option value="">Select value proposition</option>
-                  {sharedFormOptions.valuePropositionFocus.map((item) => (
-                    <option key={item.value} value={item.value}>{item.label}</option>
-                  ))}
-                </select>
-              </label>
+                <label className="block">
+                  <span className="label-base">Price positioning</span>
+                  <select value={form.pricePositioning} onChange={(event) => handleFormChange('pricePositioning', event.target.value)} className="input-base">
+                    <option value="">Select price positioning</option>
+                    {sharedFormOptions.pricePositioning.map((item) => (
+                      <option key={item.value} value={item.value}>{item.label}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
             </div>
 
-            <div className="mt-5 space-y-3">
+            <div className={`${hasCapturedBrief && !showDetailEditing ? 'hidden ' : ''}mt-4 rounded-[28px] border border-line/80 bg-white/80 p-4 sm:p-5`}>
+              <div className="mb-4">
+                <p className="text-sm font-semibold text-ink">Decision signals</p>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <label className="block">
+                  <span className="label-base">Buying behaviour</span>
+                  <select value={form.buyingBehaviour} onChange={(event) => handleFormChange('buyingBehaviour', event.target.value)} className="input-base">
+                    <option value="">Select buying behaviour</option>
+                    {sharedFormOptions.buyingBehaviours.map((item) => (
+                      <option key={item.value} value={item.value}>{item.label}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="block">
+                  <span className="label-base">Decision cycle</span>
+                  <select value={form.decisionCycle} onChange={(event) => handleFormChange('decisionCycle', event.target.value)} className="input-base">
+                    <option value="">Select decision cycle</option>
+                    {sharedFormOptions.decisionCycles.map((item) => (
+                      <option key={item.value} value={item.value}>{item.label}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="block">
+                  <span className="label-base">Urgency</span>
+                  <select value={form.urgencyLevel} onChange={(event) => handleFormChange('urgencyLevel', event.target.value)} className="input-base">
+                    <option value="">Select urgency</option>
+                    {sharedFormOptions.urgencyLevels.map((item) => (
+                      <option key={item.value} value={item.value}>{item.label}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            <div className={`${hasCapturedBrief && !showDetailEditing ? 'hidden ' : ''}mt-4 rounded-[28px] border border-line/80 bg-white/80 p-4 sm:p-5`}>
+              <div className="mb-4">
+                <p className="text-sm font-semibold text-ink">Growth and clarity</p>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <label className="block">
+                  <span className="label-base">Growth target</span>
+                  <select value={form.growthTarget} onChange={(event) => handleFormChange('growthTarget', event.target.value)} className="input-base">
+                    <option value="">Select growth target</option>
+                    {sharedFormOptions.growthTargets.map((item) => (
+                      <option key={item.value} value={item.value}>{item.label}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="block">
+                  <span className="label-base">Audience clarity</span>
+                  <select value={form.audienceClarity} onChange={(event) => handleFormChange('audienceClarity', event.target.value)} className="input-base">
+                    <option value="">Select audience clarity</option>
+                    {sharedFormOptions.audienceClarity.map((item) => (
+                      <option key={item.value} value={item.value}>{item.label}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="block">
+                  <span className="label-base">Value proposition</span>
+                  <select value={form.valuePropositionFocus} onChange={(event) => handleFormChange('valuePropositionFocus', event.target.value)} className="input-base">
+                    <option value="">Select value proposition</option>
+                    {sharedFormOptions.valuePropositionFocus.map((item) => (
+                      <option key={item.value} value={item.value}>{item.label}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            <div className={`${hasCapturedBrief && !showDetailEditing ? 'hidden ' : ''}mt-5 space-y-3`}>
               <span className="label-base">Channels to include</span>
               <div className="flex flex-wrap gap-3">
                 {CHANNEL_OPTIONS.map((channel) => {
@@ -1043,10 +1122,9 @@ export function AgentCreateRecommendationPage() {
                   );
                 })}
               </div>
-              <p className="helper-text">Billboards and digital screens are always included. Radio and TV can only be added when the selected package allows them.</p>
             </div>
 
-            <div className="mt-5 grid gap-4 md:grid-cols-2">
+            <div className={`${hasCapturedBrief && !showDetailEditing ? 'hidden ' : ''}mt-5 grid gap-4 md:grid-cols-2`}>
               <label className="block">
                 <span className="label-base">Brand / campaign name</span>
                 <input value={form.brandName} onChange={(event) => handleFormChange('brandName', event.target.value)} className="input-base" placeholder="e.g. ABC Retail Winter Launch" />
@@ -1073,9 +1151,6 @@ export function AgentCreateRecommendationPage() {
                 className="input-base min-h-[150px] resize-y"
                 placeholder="Describe the campaign in plain language."
               />
-              <p className="helper-text">
-                Paste the client request or type a simple brief here. AI can turn it into structured inputs before the draft is created.
-              </p>
               <div className="mt-3 flex flex-wrap items-center gap-3">
                 <button
                   type="button"
