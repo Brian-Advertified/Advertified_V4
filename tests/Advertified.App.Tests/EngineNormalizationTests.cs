@@ -55,6 +55,62 @@ public class EngineNormalizationTests
     }
 
     [Fact]
+    public void PlanningScoreService_AnalyzeCandidate_PrioritizesBroadcastLanguageMatchOverMismatch()
+    {
+        var service = CreatePlanningScoreService();
+        var request = new CampaignPlanningRequest
+        {
+            GeographyScope = "local",
+            Cities = new List<string> { "Johannesburg" },
+            PreferredMediaTypes = new List<string> { "radio" },
+            TargetLanguages = new List<string> { "isiZulu" },
+            SelectedBudget = 100000m,
+            Objective = "launch",
+            TargetRadioShare = 100
+        };
+
+        var matchingCandidate = new InventoryCandidate
+        {
+            SourceId = Guid.NewGuid(),
+            MediaType = "Radio",
+            DisplayName = "Ukhozi FM",
+            Language = "isiZulu",
+            City = "Johannesburg",
+            Cost = 10000m,
+            IsAvailable = true,
+            MarketScope = "local",
+            Metadata = new Dictionary<string, object?>
+            {
+                ["primaryLanguages"] = new[] { "isiZulu" },
+                ["cityLabels"] = new[] { "Johannesburg" }
+            }
+        };
+
+        var mismatchingCandidate = new InventoryCandidate
+        {
+            SourceId = Guid.NewGuid(),
+            MediaType = "Radio",
+            DisplayName = "5FM",
+            Language = "English",
+            City = "Johannesburg",
+            Cost = 10000m,
+            IsAvailable = true,
+            MarketScope = "local",
+            Metadata = new Dictionary<string, object?>
+            {
+                ["primaryLanguages"] = new[] { "English" },
+                ["cityLabels"] = new[] { "Johannesburg" }
+            }
+        };
+
+        var matchingScore = service.AnalyzeCandidate(matchingCandidate, request).Score;
+        var mismatchingScore = service.AnalyzeCandidate(mismatchingCandidate, request).Score;
+
+        matchingScore.Should().BeGreaterThan(mismatchingScore);
+        matchingScore.Should().BeGreaterThan(mismatchingScore + 40m);
+    }
+
+    [Fact]
     public void BroadcastScoreCalculator_Score_MatchesLanguageAliases()
     {
         var calculator = new BroadcastScoreCalculator(BroadcastMatcherPolicy.Default);

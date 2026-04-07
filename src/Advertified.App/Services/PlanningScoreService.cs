@@ -8,6 +8,9 @@ namespace Advertified.App.Services;
 
 public sealed class PlanningScoreService : IPlanningScoreService
 {
+    private const decimal BroadcastPrimaryLanguageMatchScore = 32m;
+    private const decimal BroadcastSecondaryLanguageMatchScore = 20m;
+    private const decimal BroadcastLanguageMismatchPenalty = -24m;
     private readonly IPlanningPolicyService _policyService;
 
     public PlanningScoreService(IPlanningPolicyService policyService)
@@ -132,15 +135,15 @@ public sealed class PlanningScoreService : IPlanningScoreService
         {
             if (hasPrimaryLanguageMatch)
             {
-                return 18m;
+                return BroadcastPrimaryLanguageMatchScore;
             }
 
             if (hasCandidateLanguageMatch || hasLanguageNotesMatch)
             {
-                return 12m;
+                return BroadcastSecondaryLanguageMatchScore;
             }
 
-            return -8m;
+            return BroadcastLanguageMismatchPenalty;
         }
 
         if (hasPrimaryLanguageMatch || hasCandidateLanguageMatch)
