@@ -3,7 +3,7 @@ import { type AddressAutofillRetrieveResponse } from '@mapbox/search-js-core';
 import { Eye, EyeOff } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useEffect, useState, type ReactNode } from 'react';
-import { useForm, useWatch } from 'react-hook-form';
+import { Controller, useForm, useWatch } from 'react-hook-form';
 import { AddressAutofillInput } from './AddressAutofillInput';
 import type { RegistrationSchema } from '../schemas';
 import { registrationSchema } from '../schemas';
@@ -116,21 +116,23 @@ export function RegistrationWizard({
           </Field>
 
           <Field label="Citizenship *" error={errors.isSouthAfricanCitizen?.message} className="register-field-full">
-            <select
-              value={isCitizen ? 'true' : 'false'}
-              onChange={(event) => {
-                const nextValue = event.target.value === 'true';
-                setValue('isSouthAfricanCitizen', nextValue, {
-                  shouldDirty: true,
-                  shouldTouch: true,
-                  shouldValidate: true,
-                });
-              }}
-              className="register-input"
-            >
-              <option value="true">South African Citizen</option>
-              <option value="false">Non-South African Citizen</option>
-            </select>
+            <Controller
+              name="isSouthAfricanCitizen"
+              control={control}
+              render={({ field }) => (
+                <select
+                  value={field.value ? 'true' : 'false'}
+                  onChange={(event) => {
+                    field.onChange(event.target.value === 'true');
+                  }}
+                  onBlur={field.onBlur}
+                  className="register-input"
+                >
+                  <option value="true">South African Citizen</option>
+                  <option value="false">Non-South African Citizen</option>
+                </select>
+              )}
+            />
           </Field>
 
           {isCitizen ? (
