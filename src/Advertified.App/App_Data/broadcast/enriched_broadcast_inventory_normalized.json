@@ -841,7 +841,7 @@
       "id": "radio_5fm",
       "station": "5FM",
       "media_type": "radio",
-      "catalog_health": "unknown",
+      "catalog_health": "strong",
       "coverage_type": "national",
       "broadcast_frequency": "24/7 national terrestrial FM + streaming",
       "province_codes": [
@@ -1524,8 +1524,8 @@
       "id": "radio_ukhozi_fm",
       "station": "Ukhozi FM",
       "media_type": "radio",
-      "catalog_health": "unknown",
-      "coverage_type": "regional",
+      "catalog_health": "strong",
+      "coverage_type": "national",
       "broadcast_frequency": "24/7 national FM; IsiZulu-language, KwaZulu-Natal primary + national",
       "province_codes": [
         "kwazulu_natal"
@@ -1612,7 +1612,7 @@
         }
       ],
       "has_pricing": true,
-      "is_national": false,
+      "is_national": true,
       "intelligence_notes": "Pricing guidance: Weekday Breakfast (06:00–09:00): R23,640–R32,760 per 30\" spot; Drive (16:00–18:00): R20,580; Midday: R15,960 (SABC FY2024-2025 rate card, eff. July 2024) | Enriched via web research April 2026; SABC data from SABC Rate Card FY2024-2025 (eff. July 2024) + BRC RAMS Amplify Jan'22-Dec'23. Cross-check with BRC TAMS/RAMS for TV."
     },
     {
@@ -1717,7 +1717,7 @@
       "id": "radio_radio_2000",
       "station": "Radio 2000",
       "media_type": "radio",
-      "catalog_health": "unknown",
+      "catalog_health": "strong",
       "coverage_type": "national",
       "broadcast_frequency": "24/7 national AM + FM + streaming; talk/sport format",
       "province_codes": [
@@ -1812,7 +1812,7 @@
       "id": "radio_rsg",
       "station": "RSG",
       "media_type": "radio",
-      "catalog_health": "unknown",
+      "catalog_health": "strong",
       "coverage_type": "national",
       "broadcast_frequency": "24/7 national FM; Afrikaans-language public broadcaster",
       "province_codes": [
@@ -1902,7 +1902,7 @@
       "id": "radio_safm",
       "station": "SAfm",
       "media_type": "radio",
-      "catalog_health": "unknown",
+      "catalog_health": "strong",
       "coverage_type": "national",
       "broadcast_frequency": "24/7 national FM; English-language public broadcaster, news/talk",
       "province_codes": [

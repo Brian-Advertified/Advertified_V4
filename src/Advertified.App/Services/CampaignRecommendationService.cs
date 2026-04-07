@@ -586,9 +586,23 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
 
     private static string BuildSummary(RecommendationResult result, CampaignPlanningRequest request)
     {
-        var mediaMix = string.Join(", ", result.RecommendedPlan.Select(x => x.MediaType).Distinct());
+        var mediaMix = string.Join(", ", result.RecommendedPlan
+            .Select(x => FormatSummaryChannelLabel(x.MediaType))
+            .Distinct(StringComparer.OrdinalIgnoreCase));
         var mixSummary = $"Radio {request.TargetRadioShare ?? 0}% | Billboards and Digital Screens {request.TargetOohShare ?? 0}% | TV {request.TargetTvShare ?? 0}% | Digital {request.TargetDigitalShare ?? 0}%";
         return $"Recommended {result.RecommendedPlan.Count} planned item(s) across {mediaMix}. Budget split target: {mixSummary}.";
+    }
+
+    private static string FormatSummaryChannelLabel(string? mediaType)
+    {
+        return (mediaType ?? string.Empty).Trim().ToLowerInvariant() switch
+        {
+            "ooh" => "Billboards and Digital Screens",
+            "radio" => "Radio",
+            "tv" => "TV",
+            "digital" => "Digital",
+            _ => mediaType ?? string.Empty
+        };
     }
 
     private static string BuildStoredRationale(RecommendationResult result, string? visibleRationaleOverride)
