@@ -23,6 +23,10 @@ const sampleImport = `name,website,location,category,source,source_reference
 Fit Lab,fitlab.co.za,Johannesburg,Fitness,google_maps,gmaps-001
 Urban Dental,,Cape Town,Healthcare,business_directory,dir-204`;
 
+const googleMapsSampleImport = `business_name,website,city,main_category,place_id
+Fit Lab,fitlab.co.za,Johannesburg,Fitness,ChIJ123
+Urban Dental,,Cape Town,Dentist,ChIJ456`;
+
 function intentTone(intentLevel: string) {
   switch (intentLevel) {
     case 'High':
@@ -34,12 +38,40 @@ function intentTone(intentLevel: string) {
   }
 }
 
+function channelConfidenceTone(confidence: string) {
+  switch (confidence) {
+    case 'detected':
+      return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+    case 'strongly_inferred':
+      return 'border-sky-200 bg-sky-50 text-sky-700';
+    case 'weakly_inferred':
+      return 'border-amber-200 bg-amber-50 text-amber-700';
+    case 'weak_signal':
+      return 'border-orange-200 bg-orange-50 text-orange-700';
+    default:
+      return 'border-slate-200 bg-slate-50 text-slate-600';
+  }
+}
+
+function formatChannelLabel(channel: string) {
+  switch (channel) {
+    case 'billboards_ooh':
+      return 'Billboards / OOH';
+    default:
+      return channel
+        .split('_')
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' ');
+  }
+}
+
 export function AgentLeadIntelligencePage() {
   const queryClient = useQueryClient();
   const [form, setForm] = useState<CreateLeadFormState>(emptyForm);
   const [selectedLeadId, setSelectedLeadId] = useState<number | null>(null);
   const [importCsv, setImportCsv] = useState(sampleImport);
   const [importSource, setImportSource] = useState('csv_import');
+  const [importProfile, setImportProfile] = useState<'standard' | 'google_maps'>('standard');
   const [interactionType, setInteractionType] = useState('note');
   const [interactionNotes, setInteractionNotes] = useState('');
   const [interactionActionId, setInteractionActionId] = useState<number | ''>('');
@@ -52,6 +84,24 @@ export function AgentLeadIntelligencePage() {
   const actionInboxQuery = useQuery({
     queryKey: ['lead-action-inbox'],
     queryFn: advertifiedApi.getLeadActionInbox,
+  });
+
+  const sourceAutomationStatusQuery = useQuery({
+    queryKey: ['lead-source-automation-status'],
+    queryFn: advertifiedApi.getLeadSourceAutomationStatus,
+  });
+
+  const processSourceAutomationMutation = useMutation({
+    mutationFn: advertifiedApi.processLeadSourceAutomationNow,
+    onSuccess: async (result) => {
+      await queryClient.invalidateQueries({ queryKey: ['lead-source-automation-status'] });
+      await queryClient.invalidateQueries({ queryKey: ['lead-intelligence'] });
+      await queryClient.invalidateQueries({ queryKey: ['lead-action-inbox'] });
+
+      if (result.importedLeadCount > 0) {
+        await selectedLead.refetch();
+      }
+    },
   });
 
   const selectedLeadSummary = useMemo<LeadIntelligence | undefined>(
@@ -94,6 +144,7 @@ export function AgentLeadIntelligencePage() {
     mutationFn: () => advertifiedApi.importLeadCsv({
       csvText: importCsv,
       defaultSource: importSource.trim() || 'csv_import',
+      importProfile,
     }),
     onSuccess: async (result) => {
       const latestLead = result.leads[0];
@@ -242,6 +293,75 @@ export function AgentLeadIntelligencePage() {
             <section className="panel border-line/90 px-6 py-6">
               <div className="flex items-start justify-between gap-4">
                 <div>
+                  <h2 className="text-lg font-semibold text-ink">Source automation</h2>
+                  <p className="mt-1 text-sm text-ink-soft">Monitor the CSV drop-folder pipeline and see whether autonomous lead discovery is ready.</p>
+                </div>
+                <div className="rounded-2xl bg-brand-soft p-3 text-brand">
+                  <DatabaseZap className="size-5" />
+                </div>
+              </div>
+
+              {sourceAutomationStatusQuery.data ? (
+                <div className="mt-5 space-y-4">
+                  <div className="grid gap-4 md:grid-cols-4">
+                    <div className="rounded-[20px] border border-line bg-white px-4 py-4">
+                      <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">Drop folder</p>
+                      <p className="mt-2 text-lg font-semibold text-ink">
+                        {sourceAutomationStatusQuery.data.dropFolderEnabled ? 'Enabled' : 'Disabled'}
+                      </p>
+                    </div>
+                    <div className="rounded-[20px] border border-line bg-white px-4 py-4">
+                      <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">Pending files</p>
+                      <p className="mt-2 text-2xl font-semibold text-ink">{sourceAutomationStatusQuery.data.pendingFileCount}</p>
+                    </div>
+                    <div className="rounded-[20px] border border-line bg-white px-4 py-4">
+                      <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">Processed files</p>
+                      <p className="mt-2 text-2xl font-semibold text-ink">{sourceAutomationStatusQuery.data.processedFileCount}</p>
+                    </div>
+                    <div className="rounded-[20px] border border-line bg-white px-4 py-4">
+                      <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">Failed files</p>
+                      <p className="mt-2 text-2xl font-semibold text-ink">{sourceAutomationStatusQuery.data.failedFileCount}</p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-[20px] border border-line bg-white px-4 py-4 text-sm text-ink-soft">
+                    <p><span className="font-semibold text-ink">Inbox:</span> {sourceAutomationStatusQuery.data.inboxPath}</p>
+                    <p className="mt-2"><span className="font-semibold text-ink">Processed:</span> {sourceAutomationStatusQuery.data.processedPath}</p>
+                    <p className="mt-2"><span className="font-semibold text-ink">Failed:</span> {sourceAutomationStatusQuery.data.failedPath}</p>
+                    <p className="mt-2">
+                      <span className="font-semibold text-ink">Default behavior:</span> source `{sourceAutomationStatusQuery.data.defaultSource}`, profile `{sourceAutomationStatusQuery.data.defaultImportProfile}`,
+                      {sourceAutomationStatusQuery.data.analyzeImportedLeads ? ' auto-analyze on import' : ' import only'}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => processSourceAutomationMutation.mutate()}
+                      disabled={processSourceAutomationMutation.isPending}
+                      className="button-secondary inline-flex items-center gap-2 px-4 py-3 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {processSourceAutomationMutation.isPending ? <LoaderCircle className="size-4 animate-spin" /> : <Radar className="size-4" />}
+                      {processSourceAutomationMutation.isPending ? 'Processing files...' : 'Process now'}
+                    </button>
+                    {processSourceAutomationMutation.data ? (
+                      <p className="text-xs text-ink-soft">
+                        Last run: {processSourceAutomationMutation.data.processedFileCount} processed, {processSourceAutomationMutation.data.failedFileCount} failed,
+                        {` ${processSourceAutomationMutation.data.importedLeadCount} imported, ${processSourceAutomationMutation.data.analyzedLeadCount} analyzed.`}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-5 rounded-[20px] border border-dashed border-line px-4 py-6 text-sm text-ink-soft">
+                  Loading source automation status...
+                </div>
+              )}
+            </section>
+
+            <section className="panel border-line/90 px-6 py-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
                   <h2 className="text-lg font-semibold text-ink">Create a lead</h2>
                   <p className="mt-1 text-sm text-ink-soft">Add a business manually, then run the signal engine when you are ready.</p>
                 </div>
@@ -295,6 +415,33 @@ export function AgentLeadIntelligencePage() {
 
               <div className="mt-5 grid gap-4 md:grid-cols-[0.35fr_0.65fr]">
                 <label className="block">
+                  <span className="label-base">Import profile</span>
+                  <select
+                    value={importProfile}
+                    onChange={(event) => {
+                      const nextProfile = event.target.value as 'standard' | 'google_maps';
+                      setImportProfile(nextProfile);
+                      setImportSource((current) =>
+                        current.trim().length > 0
+                          ? current
+                          : nextProfile === 'google_maps'
+                            ? 'google_maps'
+                            : 'csv_import');
+                      setImportCsv((current) => {
+                        if (current === sampleImport || current === googleMapsSampleImport || !current.trim()) {
+                          return nextProfile === 'google_maps' ? googleMapsSampleImport : sampleImport;
+                        }
+
+                        return current;
+                      });
+                    }}
+                    className="input-base"
+                  >
+                    <option value="standard">Standard CSV</option>
+                    <option value="google_maps">Google Maps export</option>
+                  </select>
+                </label>
+                <label className="block">
                   <span className="label-base">Default source</span>
                   <input
                     value={importSource}
@@ -324,7 +471,11 @@ export function AgentLeadIntelligencePage() {
                   {importLeadMutation.isPending ? <LoaderCircle className="size-4 animate-spin" /> : <DatabaseZap className="size-4" />}
                   {importLeadMutation.isPending ? 'Importing leads...' : 'Import CSV'}
                 </button>
-                <p className="text-xs text-ink-soft">Expected headers: `name, website, location, category, source, source_reference`.</p>
+                <p className="text-xs text-ink-soft">
+                  {importProfile === 'google_maps'
+                    ? 'Expected Google Maps-style headers: `business_name/title, website, city/address, main_category/category, place_id`.'
+                    : 'Expected headers: `name, website, location, category, source, source_reference`.'}
+                </p>
               </div>
             </section>
 
@@ -444,6 +595,41 @@ export function AgentLeadIntelligencePage() {
                   <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">Insight</p>
                   <p className="mt-3 text-sm leading-7 text-ink">{selectedLead.data.insight || 'No insight yet. Run analysis first.'}</p>
                   <p className="mt-3 text-xs text-ink-soft">{selectedLead.data.trendSummary || 'No trend summary yet.'}</p>
+                </div>
+
+                <div className="rounded-[24px] border border-line bg-white px-4 py-4">
+                  <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">Channel likelihood</p>
+                  <div className="mt-4 space-y-3">
+                    {(selectedLead.data.channelDetections ?? []).length > 0 ? (
+                      selectedLead.data.channelDetections.map((channel) => (
+                        <div key={channel.channel} className="rounded-[18px] border border-line bg-slate-50 px-4 py-3">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-semibold text-ink">{formatChannelLabel(channel.channel)}</p>
+                              <p className="mt-1 text-sm text-ink-soft">{channel.dominantReason}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm font-semibold text-ink">{channel.score}/100</p>
+                              <p className={`mt-2 inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${channelConfidenceTone(channel.confidence)}`}>
+                                {channel.confidence.replaceAll('_', ' ')}
+                              </p>
+                            </div>
+                          </div>
+                          {(channel.signals ?? []).length > 0 ? (
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {channel.signals.slice(0, 3).map((signal) => (
+                                <span key={`${channel.channel}-${signal.type}-${signal.value}`} className="rounded-full border border-line bg-white px-3 py-1 text-[11px] text-ink-soft">
+                                  {signal.type.replaceAll('_', ' ')} {signal.effectiveWeight >= 0 ? `+${signal.effectiveWeight}` : signal.effectiveWeight}
+                                </span>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-ink-soft">No channel detection yet. Run analysis first.</p>
+                    )}
+                  </div>
                 </div>
 
                 <div className="rounded-[24px] border border-line bg-white px-4 py-4">

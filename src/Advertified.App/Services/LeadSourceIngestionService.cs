@@ -3,11 +3,14 @@ using Advertified.App.Data;
 using Advertified.App.Data.Entities;
 using Advertified.App.Services.Abstractions;
 using Microsoft.EntityFrameworkCore;
+using System.Text.RegularExpressions;
 
 namespace Advertified.App.Services;
 
 public sealed class LeadSourceIngestionService : ILeadSourceIngestionService
 {
+    private static readonly Regex MultiWhitespaceRegex = new(@"\s+", RegexOptions.Compiled);
+
     private readonly AppDbContext _db;
 
     public LeadSourceIngestionService(AppDbContext db)
@@ -39,10 +42,10 @@ public sealed class LeadSourceIngestionService : ILeadSourceIngestionService
             }
 
             var normalizedWebsite = NormalizeWebsite(item.Website);
-            var normalizedName = item.Name.Trim();
-            var normalizedLocation = item.Location.Trim();
-            var normalizedCategory = item.Category.Trim();
-            var normalizedSource = item.Source.Trim();
+            var normalizedName = NormalizeText(item.Name);
+            var normalizedLocation = NormalizeLocation(item.Location);
+            var normalizedCategory = NormalizeCategory(item.Category);
+            var normalizedSource = NormalizeText(item.Source);
             var normalizedSourceReference = TrimToNull(item.SourceReference);
             var now = DateTime.UtcNow;
 
@@ -143,11 +146,58 @@ public sealed class LeadSourceIngestionService : ILeadSourceIngestionService
             return null;
         }
 
-        return trimmed
+        var withoutScheme = trimmed
             .Replace("http://", string.Empty, StringComparison.OrdinalIgnoreCase)
             .Replace("https://", string.Empty, StringComparison.OrdinalIgnoreCase)
-            .TrimEnd('/')
             .Trim();
+
+        if (withoutScheme.StartsWith("www.", StringComparison.OrdinalIgnoreCase))
+        {
+            withoutScheme = withoutScheme[4..];
+        }
+
+        var slashIndex = withoutScheme.IndexOf('/');
+        if (slashIndex >= 0)
+        {
+            withoutScheme = withoutScheme[..slashIndex];
+        }
+
+        var queryIndex = withoutScheme.IndexOfAny(new[] { '?', '#' });
+        if (queryIndex >= 0)
+        {
+            withoutScheme = withoutScheme[..queryIndex];
+        }
+
+        return TrimToNull(withoutScheme?.TrimEnd('.'));
+    }
+
+    private static string NormalizeLocation(string value)
+    {
+        var normalized = NormalizeText(value);
+        if (normalized.Contains(','))
+        {
+            normalized = normalized.Split(',', StringSplitOptions.RemoveEmptyEntries)[0].Trim();
+        }
+
+        return normalized;
+    }
+
+    private static string NormalizeCategory(string value)
+    {
+        var normalized = NormalizeText(value);
+        if (normalized.Contains('|'))
+        {
+            normalized = normalized.Split('|', StringSplitOptions.RemoveEmptyEntries)[0].Trim();
+        }
+
+        return normalized;
+    }
+
+    private static string NormalizeText(string value)
+    {
+        var trimmed = value.Trim();
+        trimmed = MultiWhitespaceRegex.Replace(trimmed, " ");
+        return trimmed;
     }
 
     private static string? TrimToNull(string? value)

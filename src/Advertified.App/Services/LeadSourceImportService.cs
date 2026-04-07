@@ -6,6 +6,48 @@ namespace Advertified.App.Services;
 
 public sealed class LeadSourceImportService : ILeadSourceImportService
 {
+    private static readonly string[][] StandardNameKeys = new[]
+    {
+        new[] { "name" },
+        new[] { "businessname" },
+        new[] { "title" }
+    };
+
+    private static readonly string[][] StandardWebsiteKeys = new[]
+    {
+        new[] { "website" },
+        new[] { "site" },
+        new[] { "domain" }
+    };
+
+    private static readonly string[][] StandardLocationKeys = new[]
+    {
+        new[] { "location" },
+        new[] { "city" },
+        new[] { "address" }
+    };
+
+    private static readonly string[][] StandardCategoryKeys = new[]
+    {
+        new[] { "category" },
+        new[] { "maincategory" },
+        new[] { "primarycategory" }
+    };
+
+    private static readonly string[][] StandardSourceKeys = new[]
+    {
+        new[] { "source" }
+    };
+
+    private static readonly string[][] StandardSourceReferenceKeys = new[]
+    {
+        new[] { "source_reference" },
+        new[] { "sourcereference" },
+        new[] { "reference" },
+        new[] { "placeid" },
+        new[] { "businessid" }
+    };
+
     private readonly ILeadSourceIngestionService _leadSourceIngestionService;
 
     public LeadSourceImportService(ILeadSourceIngestionService leadSourceIngestionService)
@@ -16,6 +58,7 @@ public sealed class LeadSourceImportService : ILeadSourceImportService
     public Task<LeadSourceIngestionResult> ImportCsvAsync(
         string csvText,
         string defaultSource,
+        string importProfile,
         CancellationToken cancellationToken)
     {
         var rows = ParseCsv(csvText);
@@ -31,7 +74,9 @@ public sealed class LeadSourceImportService : ILeadSourceImportService
                 item => item.index,
                 StringComparer.OrdinalIgnoreCase);
 
+        var profile = ResolveProfile(importProfile, defaultSource, headers);
         var leads = new List<IngestLeadSourceItemRequest>();
+
         foreach (var row in rows.Skip(1))
         {
             if (row.All(string.IsNullOrWhiteSpace))
@@ -39,34 +84,132 @@ public sealed class LeadSourceImportService : ILeadSourceImportService
                 continue;
             }
 
-            var name = GetValue(row, headers, "name");
-            var website = GetValue(row, headers, "website");
-            var location = GetValue(row, headers, "location");
-            var category = GetValue(row, headers, "category");
-            var source = GetValue(row, headers, "source") ?? defaultSource;
-            var sourceReference = GetValue(row, headers, "source_reference")
-                ?? GetValue(row, headers, "sourcereference")
-                ?? GetValue(row, headers, "reference");
-
-            if (string.IsNullOrWhiteSpace(name) ||
-                string.IsNullOrWhiteSpace(location) ||
-                string.IsNullOrWhiteSpace(category))
+            var mappedLead = MapLeadRow(row, headers, profile, defaultSource);
+            if (mappedLead is not null)
             {
-                continue;
+                leads.Add(mappedLead);
             }
-
-            leads.Add(new IngestLeadSourceItemRequest
-            {
-                Name = name,
-                Website = website,
-                Location = location,
-                Category = category,
-                Source = string.IsNullOrWhiteSpace(source) ? defaultSource : source,
-                SourceReference = sourceReference,
-            });
         }
 
         return _leadSourceIngestionService.IngestAsync(leads, cancellationToken);
+    }
+
+    private static IngestLeadSourceItemRequest? MapLeadRow(
+        IReadOnlyList<string> row,
+        IReadOnlyDictionary<string, int> headers,
+        string profile,
+        string defaultSource)
+    {
+        var name = GetFirstValue(row, headers, StandardNameKeys);
+        var website = GetFirstValue(row, headers, StandardWebsiteKeys);
+        var location = profile == "google_maps"
+            ? GetGoogleMapsLocation(row, headers)
+            : GetFirstValue(row, headers, StandardLocationKeys);
+        var category = profile == "google_maps"
+            ? GetGoogleMapsCategory(row, headers)
+            : GetFirstValue(row, headers, StandardCategoryKeys);
+        var source = GetFirstValue(row, headers, StandardSourceKeys);
+        var sourceReference = profile == "google_maps"
+            ? GetGoogleMapsSourceReference(row, headers)
+            : GetFirstValue(row, headers, StandardSourceReferenceKeys);
+
+        if (string.IsNullOrWhiteSpace(name) ||
+            string.IsNullOrWhiteSpace(location) ||
+            string.IsNullOrWhiteSpace(category))
+        {
+            return null;
+        }
+
+        var resolvedDefaultSource = string.IsNullOrWhiteSpace(defaultSource)
+            ? (profile == "google_maps" ? "google_maps" : "csv_import")
+            : defaultSource.Trim();
+
+        return new IngestLeadSourceItemRequest
+        {
+            Name = name,
+            Website = website,
+            Location = location,
+            Category = category,
+            Source = string.IsNullOrWhiteSpace(source) ? resolvedDefaultSource : source,
+            SourceReference = sourceReference,
+        };
+    }
+
+    private static string ResolveProfile(
+        string importProfile,
+        string defaultSource,
+        IReadOnlyDictionary<string, int> headers)
+    {
+        var normalizedProfile = importProfile?.Trim().ToLowerInvariant();
+        if (normalizedProfile is "google_maps" or "standard")
+        {
+            return normalizedProfile;
+        }
+
+        if (string.Equals(defaultSource?.Trim(), "google_maps", StringComparison.OrdinalIgnoreCase))
+        {
+            return "google_maps";
+        }
+
+        if (headers.ContainsKey("placeid") || headers.ContainsKey("maincategory"))
+        {
+            return "google_maps";
+        }
+
+        return "standard";
+    }
+
+    private static string? GetGoogleMapsLocation(
+        IReadOnlyList<string> row,
+        IReadOnlyDictionary<string, int> headers)
+    {
+        return GetFirstValue(row, headers,
+            new[] { "city" },
+            new[] { "location" },
+            new[] { "address" });
+    }
+
+    private static string? GetGoogleMapsCategory(
+        IReadOnlyList<string> row,
+        IReadOnlyDictionary<string, int> headers)
+    {
+        return GetFirstValue(row, headers,
+            new[] { "maincategory" },
+            new[] { "primarycategory" },
+            new[] { "category" },
+            new[] { "categories" });
+    }
+
+    private static string? GetGoogleMapsSourceReference(
+        IReadOnlyList<string> row,
+        IReadOnlyDictionary<string, int> headers)
+    {
+        return GetFirstValue(row, headers,
+            new[] { "placeid" },
+            new[] { "source_reference" },
+            new[] { "sourcereference" },
+            new[] { "reference" },
+            new[] { "businessid" });
+    }
+
+    private static string? GetFirstValue(
+        IReadOnlyList<string> row,
+        IReadOnlyDictionary<string, int> headers,
+        params string[][] keys)
+    {
+        foreach (var keySet in keys)
+        {
+            foreach (var key in keySet)
+            {
+                var value = GetValue(row, headers, key);
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    return value;
+                }
+            }
+        }
+
+        return null;
     }
 
     private static string? GetValue(IReadOnlyList<string> row, IReadOnlyDictionary<string, int> headers, string key)

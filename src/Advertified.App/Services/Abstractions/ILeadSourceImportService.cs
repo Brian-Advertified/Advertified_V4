@@ -7,5 +7,6 @@ public interface ILeadSourceImportService
     Task<LeadSourceIngestionResult> ImportCsvAsync(
         string csvText,
         string defaultSource,
+        string importProfile,
         CancellationToken cancellationToken);
 }

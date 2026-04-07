@@ -28,6 +28,9 @@ import type {
   LeadAction,
   LeadActionInbox,
   LeadActionInboxItem,
+  LeadChannelDetection,
+  LeadSourceAutomationRunResult,
+  LeadSourceAutomationStatus,
   LeadInteraction,
   LeadInsightSnapshot,
   LeadIntelligence,
@@ -547,6 +550,26 @@ type LeadActionInboxResponse = {
   items: LeadActionInboxItemResponse[];
 };
 
+type LeadSourceAutomationStatusResponse = {
+  dropFolderEnabled: boolean;
+  inboxPath: string;
+  processedPath: string;
+  failedPath: string;
+  pendingFileCount: number;
+  processedFileCount: number;
+  failedFileCount: number;
+  defaultSource: string;
+  defaultImportProfile: string;
+  analyzeImportedLeads: boolean;
+};
+
+type LeadSourceAutomationRunResultResponse = {
+  processedFileCount: number;
+  failedFileCount: number;
+  importedLeadCount: number;
+  analyzedLeadCount: number;
+};
+
 type LeadInteractionResponse = {
   id: number;
   leadId: number;
@@ -556,12 +579,34 @@ type LeadInteractionResponse = {
   createdAt: string;
 };
 
+type LeadChannelSignalResponse = {
+  type: string;
+  source: string;
+  weight: number;
+  reliabilityMultiplier: number;
+  freshnessMultiplier: number;
+  effectiveWeight: number;
+  value: string;
+};
+
+type LeadChannelDetectionResponse = {
+  leadId: number;
+  channel: string;
+  score: number;
+  confidence: string;
+  status: string;
+  dominantReason: string;
+  lastEvidenceAtUtc?: string | null;
+  signals: LeadChannelSignalResponse[];
+};
+
 type LeadIntelligenceResponse = {
   lead: LeadResponse;
   latestSignal?: LeadSignalResponse | null;
   score: LeadScoreResponse;
   insight: string;
   trendSummary?: string;
+  channelDetections?: LeadChannelDetectionResponse[];
   signalHistory?: LeadSignalResponse[];
   insightHistory?: LeadInsightResponse[];
   recommendedActions?: LeadActionResponse[];
@@ -603,6 +648,24 @@ function mapLeadIntelligence(response: LeadIntelligenceResponse): LeadIntelligen
     },
     insight: response.insight,
     trendSummary: response.trendSummary ?? '',
+    channelDetections: (response.channelDetections ?? []).map((detection): LeadChannelDetection => ({
+      leadId: detection.leadId,
+      channel: detection.channel,
+      score: detection.score,
+      confidence: detection.confidence,
+      status: detection.status,
+      dominantReason: detection.dominantReason,
+      lastEvidenceAtUtc: detection.lastEvidenceAtUtc ?? undefined,
+      signals: detection.signals.map((signal) => ({
+        type: signal.type,
+        source: signal.source,
+        weight: signal.weight,
+        reliabilityMultiplier: signal.reliabilityMultiplier,
+        freshnessMultiplier: signal.freshnessMultiplier,
+        effectiveWeight: signal.effectiveWeight,
+        value: signal.value,
+      })),
+    })),
     signalHistory: (response.signalHistory ?? []).map((signal) => ({
       id: signal.id,
       leadId: signal.leadId,
@@ -688,6 +751,30 @@ function mapLeadActionInbox(response: LeadActionInboxResponse): LeadActionInbox 
     unassignedCount: response.unassignedCount,
     highPriorityCount: response.highPriorityCount,
     items: response.items.map(mapLeadActionInboxItem),
+  };
+}
+
+function mapLeadSourceAutomationStatus(response: LeadSourceAutomationStatusResponse): LeadSourceAutomationStatus {
+  return {
+    dropFolderEnabled: response.dropFolderEnabled,
+    inboxPath: response.inboxPath,
+    processedPath: response.processedPath,
+    failedPath: response.failedPath,
+    pendingFileCount: response.pendingFileCount,
+    processedFileCount: response.processedFileCount,
+    failedFileCount: response.failedFileCount,
+    defaultSource: response.defaultSource,
+    defaultImportProfile: response.defaultImportProfile,
+    analyzeImportedLeads: response.analyzeImportedLeads,
+  };
+}
+
+function mapLeadSourceAutomationRunResult(response: LeadSourceAutomationRunResultResponse): LeadSourceAutomationRunResult {
+  return {
+    processedFileCount: response.processedFileCount,
+    failedFileCount: response.failedFileCount,
+    importedLeadCount: response.importedLeadCount,
+    analyzedLeadCount: response.analyzedLeadCount,
   };
 }
 
@@ -1490,6 +1577,16 @@ export const advertifiedApi = {
     const response = await apiRequest<LeadActionInboxResponse>('/agent/lead-actions/inbox');
     return mapLeadActionInbox(response);
   },
+  async getLeadSourceAutomationStatus() {
+    const response = await apiRequest<LeadSourceAutomationStatusResponse>('/leads/source-automation/status');
+    return mapLeadSourceAutomationStatus(response);
+  },
+  async processLeadSourceAutomationNow() {
+    const response = await apiRequest<LeadSourceAutomationRunResultResponse>('/leads/source-automation/process-now', {
+      method: 'POST',
+    });
+    return mapLeadSourceAutomationRunResult(response);
+  },
   async createLead(input: { name: string; website?: string; location: string; category: string }) {
     const response = await apiRequest<LeadResponse>('/leads', {
       method: 'POST',
@@ -1497,7 +1594,7 @@ export const advertifiedApi = {
     });
     return mapLead(response);
   },
-  async importLeadCsv(input: { csvText: string; defaultSource?: string }) {
+  async importLeadCsv(input: { csvText: string; defaultSource?: string; importProfile?: string }) {
     return apiRequest<{
       createdCount: number;
       updatedCount: number;

@@ -38,6 +38,7 @@ builder.Services.Configure<VodaPayOptions>(builder.Configuration.GetSection(Voda
 builder.Services.Configure<PlanningPolicyOptions>(builder.Configuration.GetSection(PlanningPolicyOptions.SectionName));
 builder.Services.Configure<LeadScoringOptions>(builder.Configuration.GetSection(LeadScoringOptions.SectionName));
 builder.Services.Configure<LeadIntelligenceAutomationOptions>(builder.Configuration.GetSection(LeadIntelligenceAutomationOptions.SectionName));
+builder.Services.Configure<LeadSourceDropFolderOptions>(builder.Configuration.GetSection(LeadSourceDropFolderOptions.SectionName));
 builder.Services.Configure<OpenAIOptions>(builder.Configuration.GetSection(OpenAIOptions.SectionName));
 builder.Services.Configure<ElevenLabsOptions>(builder.Configuration.GetSection(ElevenLabsOptions.SectionName));
 builder.Services.Configure<AiPlatformOptions>(builder.Configuration.GetSection(AiPlatformOptions.SectionName));
@@ -177,7 +178,10 @@ builder.Services.AddScoped<IEmailVerificationService, EmailVerificationService>(
 builder.Services.AddScoped<IInvoiceService, InvoiceService>();
 builder.Services.AddScoped<ILeadIntelligenceOrchestrator, LeadIntelligenceOrchestrator>();
 builder.Services.AddScoped<ILeadActionRecommendationService, LeadActionRecommendationService>();
+builder.Services.AddScoped<ILeadSourceAutomationStatusService, LeadSourceAutomationStatusService>();
+builder.Services.AddScoped<ILeadChannelDetectionService, LeadChannelDetectionService>();
 builder.Services.AddScoped<ILeadScoreService, LeadScoreService>();
+builder.Services.AddScoped<ILeadSourceDropFolderProcessor, LeadSourceDropFolderProcessor>();
 builder.Services.AddScoped<ILeadSourceIngestionService, LeadSourceIngestionService>();
 builder.Services.AddScoped<ILeadSourceImportService, LeadSourceImportService>();
 builder.Services.AddScoped<ISignalCollectorService, SignalCollectorService>();
@@ -200,6 +204,7 @@ builder.Services.AddHttpClient<IWebsiteSignalProvider, WebsiteSignalProvider>(cl
     client.Timeout = TimeSpan.FromSeconds(15);
 });
 builder.Services.AddHostedService<LeadIntelligenceRefreshWorker>();
+builder.Services.AddHostedService<LeadSourceDropFolderWorker>();
 builder.Services.AddSingleton(BroadcastMatcherPolicy.Default);
 builder.Services.AddScoped<IBroadcastMatchRequestNormalizer, BroadcastMatchRequestNormalizer>();
 builder.Services.AddScoped<IBroadcastMatchRequestValidator, BroadcastMatchRequestValidator>();

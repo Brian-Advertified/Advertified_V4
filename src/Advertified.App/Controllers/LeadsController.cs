@@ -14,24 +14,33 @@ public sealed class LeadsController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly ILeadScoreService _leadScoreService;
+    private readonly ILeadChannelDetectionService _leadChannelDetectionService;
     private readonly ILeadIntelligenceOrchestrator _leadIntelligenceOrchestrator;
     private readonly ILeadSourceIngestionService _leadSourceIngestionService;
     private readonly ILeadSourceImportService _leadSourceImportService;
+    private readonly ILeadSourceDropFolderProcessor _leadSourceDropFolderProcessor;
+    private readonly ILeadSourceAutomationStatusService _leadSourceAutomationStatusService;
     private readonly ICurrentUserAccessor _currentUserAccessor;
 
     public LeadsController(
         AppDbContext db,
         ILeadScoreService leadScoreService,
+        ILeadChannelDetectionService leadChannelDetectionService,
         ILeadIntelligenceOrchestrator leadIntelligenceOrchestrator,
         ILeadSourceIngestionService leadSourceIngestionService,
         ILeadSourceImportService leadSourceImportService,
+        ILeadSourceDropFolderProcessor leadSourceDropFolderProcessor,
+        ILeadSourceAutomationStatusService leadSourceAutomationStatusService,
         ICurrentUserAccessor currentUserAccessor)
     {
         _db = db;
         _leadScoreService = leadScoreService;
+        _leadChannelDetectionService = leadChannelDetectionService;
         _leadIntelligenceOrchestrator = leadIntelligenceOrchestrator;
         _leadSourceIngestionService = leadSourceIngestionService;
         _leadSourceImportService = leadSourceImportService;
+        _leadSourceDropFolderProcessor = leadSourceDropFolderProcessor;
+        _leadSourceAutomationStatusService = leadSourceAutomationStatusService;
         _currentUserAccessor = currentUserAccessor;
     }
 
@@ -90,6 +99,7 @@ public sealed class LeadsController : ControllerBase
             latestInsights.TryGetValue(lead.Id, out var insight);
             recommendedActions.TryGetValue(lead.Id, out var action);
             var score = await _leadScoreService.ScoreAsync(lead.Id, cancellationToken);
+            var channelDetections = _leadChannelDetectionService.Detect(lead, signal);
 
             results.Add(new LeadIntelligenceDto
             {
@@ -100,11 +110,32 @@ public sealed class LeadsController : ControllerBase
                     ? "No signal analysis has been run for this lead yet."
                     : string.Empty),
                 TrendSummary = insight?.TrendSummary ?? string.Empty,
+                ChannelDetections = channelDetections.Select(ToDto).ToList(),
                 RecommendedActions = action is null ? Array.Empty<LeadActionDto>() : new[] { action },
             });
         }
 
         return Ok(results);
+    }
+
+    [HttpGet("source-automation/status")]
+    public ActionResult<LeadSourceAutomationStatusDto> GetSourceAutomationStatus()
+    {
+        return Ok(_leadSourceAutomationStatusService.GetStatus());
+    }
+
+    [HttpPost("source-automation/process-now")]
+    public async Task<ActionResult<LeadSourceAutomationRunDto>> ProcessSourceAutomationNow(CancellationToken cancellationToken)
+    {
+        var result = await _leadSourceDropFolderProcessor.ProcessAsync(cancellationToken);
+
+        return Ok(new LeadSourceAutomationRunDto
+        {
+            ProcessedFileCount = result.ProcessedFileCount,
+            FailedFileCount = result.FailedFileCount,
+            ImportedLeadCount = result.ImportedLeadCount,
+            AnalyzedLeadCount = result.AnalyzedLeadCount,
+        });
     }
 
     [HttpGet("{id:int}")]
@@ -177,6 +208,7 @@ public sealed class LeadsController : ControllerBase
             .ToListAsync(cancellationToken);
 
         var score = await _leadScoreService.ScoreAsync(id, cancellationToken);
+        var channelDetections = _leadChannelDetectionService.Detect(lead, signal);
         var latestInsight = insightHistory.FirstOrDefault();
         var insight = signal is null
             ? "No signal analysis has been run for this lead yet."
@@ -189,6 +221,7 @@ public sealed class LeadsController : ControllerBase
             Score = ToDto(score),
             Insight = insight,
             TrendSummary = latestInsight?.TrendSummary ?? string.Empty,
+            ChannelDetections = channelDetections.Select(ToDto).ToList(),
             SignalHistory = signalHistory.Select(ToDto).ToList(),
             InsightHistory = insightHistory.Select(ToDto).ToList(),
             RecommendedActions = actionHistory,
@@ -263,6 +296,7 @@ public sealed class LeadsController : ControllerBase
         var result = await _leadSourceImportService.ImportCsvAsync(
             request.CsvText,
             string.IsNullOrWhiteSpace(request.DefaultSource) ? "csv_import" : request.DefaultSource.Trim(),
+            string.IsNullOrWhiteSpace(request.ImportProfile) ? "standard" : request.ImportProfile.Trim(),
             cancellationToken);
 
         return Ok(new LeadSourceIngestionResultDto
@@ -286,6 +320,7 @@ public sealed class LeadsController : ControllerBase
         }
 
         var result = await _leadIntelligenceOrchestrator.RunLeadAsync(id, cancellationToken);
+        var channelDetections = _leadChannelDetectionService.Detect(lead, result.Signal);
 
         var signalHistory = await _db.Signals
             .AsNoTracking()
@@ -327,6 +362,7 @@ public sealed class LeadsController : ControllerBase
             Score = ToDto(result.Score),
             Insight = result.Insight.Text,
             TrendSummary = result.Insight.TrendSummary,
+            ChannelDetections = channelDetections.Select(ToDto).ToList(),
             SignalHistory = signalHistory.Select(ToDto).ToList(),
             InsightHistory = insightHistory.Select(ToDto).ToList(),
             RecommendedActions = actionHistory,
@@ -579,6 +615,30 @@ public sealed class LeadsController : ControllerBase
             InteractionType = interaction.InteractionType,
             Notes = interaction.Notes,
             CreatedAt = interaction.CreatedAt,
+        };
+    }
+
+    private static LeadChannelDetectionDto ToDto(LeadChannelDetectionResult result)
+    {
+        return new LeadChannelDetectionDto
+        {
+            LeadId = result.LeadId,
+            Channel = result.Channel,
+            Score = result.Score,
+            Confidence = result.Confidence,
+            Status = result.Status,
+            DominantReason = result.DominantReason,
+            LastEvidenceAtUtc = result.LastEvidenceAtUtc,
+            Signals = result.Signals.Select(signal => new LeadChannelSignalDto
+            {
+                Type = signal.Type,
+                Source = signal.Source,
+                Weight = signal.Weight,
+                ReliabilityMultiplier = signal.ReliabilityMultiplier,
+                FreshnessMultiplier = signal.FreshnessMultiplier,
+                EffectiveWeight = (int)Math.Round(signal.EffectiveWeight, MidpointRounding.AwayFromZero),
+                Value = signal.Value
+            }).ToList()
         };
     }
 }

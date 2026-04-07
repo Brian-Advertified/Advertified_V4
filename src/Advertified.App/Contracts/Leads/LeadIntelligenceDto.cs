@@ -12,6 +12,8 @@ public sealed class LeadIntelligenceDto
 
     public string TrendSummary { get; init; } = string.Empty;
 
+    public IReadOnlyList<LeadChannelDetectionDto> ChannelDetections { get; init; } = Array.Empty<LeadChannelDetectionDto>();
+
     public IReadOnlyList<SignalDto> SignalHistory { get; init; } = Array.Empty<SignalDto>();
 
     public IReadOnlyList<LeadInsightDto> InsightHistory { get; init; } = Array.Empty<LeadInsightDto>();

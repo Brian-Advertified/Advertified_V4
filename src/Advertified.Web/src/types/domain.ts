@@ -642,6 +642,47 @@ export interface LeadActionInbox {
   items: LeadActionInboxItem[];
 }
 
+export interface LeadSourceAutomationStatus {
+  dropFolderEnabled: boolean;
+  inboxPath: string;
+  processedPath: string;
+  failedPath: string;
+  pendingFileCount: number;
+  processedFileCount: number;
+  failedFileCount: number;
+  defaultSource: string;
+  defaultImportProfile: string;
+  analyzeImportedLeads: boolean;
+}
+
+export interface LeadSourceAutomationRunResult {
+  processedFileCount: number;
+  failedFileCount: number;
+  importedLeadCount: number;
+  analyzedLeadCount: number;
+}
+
+export interface LeadChannelSignal {
+  type: string;
+  source: string;
+  weight: number;
+  reliabilityMultiplier: number;
+  freshnessMultiplier: number;
+  effectiveWeight: number;
+  value: string;
+}
+
+export interface LeadChannelDetection {
+  leadId: number;
+  channel: string;
+  score: number;
+  confidence: string;
+  status: string;
+  dominantReason: string;
+  lastEvidenceAtUtc?: string;
+  signals: LeadChannelSignal[];
+}
+
 export interface LeadInteraction {
   id: number;
   leadId: number;
@@ -657,6 +698,7 @@ export interface LeadIntelligence {
   score: LeadScore;
   insight: string;
   trendSummary: string;
+  channelDetections: LeadChannelDetection[];
   signalHistory: LeadSignal[];
   insightHistory: LeadInsightSnapshot[];
   recommendedActions: LeadAction[];
