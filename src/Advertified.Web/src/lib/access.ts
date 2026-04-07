@@ -70,6 +70,14 @@ export function canOpenPlanning(campaign?: Campaign | null) {
   );
 }
 
+export function isPaymentAwaitingManualReview(
+  paymentProvider?: string | null,
+  paymentStatus?: string | null,
+) {
+  return String(paymentProvider ?? '').toLowerCase() === 'lula'
+    && String(paymentStatus ?? '').toLowerCase() === 'pending';
+}
+
 export function hasCampaignClearedPayment(campaign?: Campaign | null) {
   return Boolean(
     campaign
@@ -80,12 +88,20 @@ export function hasCampaignClearedPayment(campaign?: Campaign | null) {
   );
 }
 
+export function campaignNeedsCheckout(campaign?: Campaign | null) {
+  return Boolean(
+    campaign
+    && !hasCampaignClearedPayment(campaign)
+    && !isPaymentAwaitingManualReview(campaign.paymentProvider, campaign.paymentStatus),
+  );
+}
+
 export function getCampaignPrimaryAction(campaign: Campaign) {
   const primaryRecommendation = getPrimaryRecommendation(campaign);
   const hasRecommendation = Boolean(primaryRecommendation);
   const selectedRecommendationId = primaryRecommendation?.id;
   const paymentRequiredBeforeApproval =
-    !hasCampaignClearedPayment(campaign)
+    campaignNeedsCheckout(campaign)
     && (campaign.status === 'review_ready' || campaign.status === 'planning_in_progress');
 
   if (campaign.status === 'paid' || campaign.status === 'brief_in_progress') {

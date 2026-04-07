@@ -150,7 +150,7 @@ export interface PackageOrder {
   packageBandName: string;
   amount: number;
   currency: string;
-  paymentProvider: string;
+  paymentProvider?: string;
   paymentStatus: PaymentStatus;
   refundStatus: RefundStatus;
   refundedAmount: number;
@@ -317,6 +317,7 @@ export interface Campaign {
   packageBandId: string;
   packageBandName: string;
   selectedBudget: number;
+  paymentProvider?: string;
   paymentStatus: PaymentStatus;
   status: CampaignStatus;
   planningMode?: PlanningMode;

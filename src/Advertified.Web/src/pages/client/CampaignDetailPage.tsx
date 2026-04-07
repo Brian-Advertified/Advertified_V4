@@ -11,7 +11,7 @@ import { RecommendationViewer } from '../../features/campaigns/components/Recomm
 import { buildApprovalDetails, getApprovalContent, getHeroContent } from '../../features/campaigns/clientCampaignDetailContent';
 import { getCampaignRecommendations, resolveRecommendationId } from '../../features/campaigns/recommendationSelection';
 import { CampaignStepper } from '../../components/campaign/CampaignStepper';
-import { hasCampaignClearedPayment } from '../../lib/access';
+import { campaignNeedsCheckout, isPaymentAwaitingManualReview } from '../../lib/access';
 import { getPrimaryRecommendation, hasRecommendationApprovalCompleted, isCampaignInSet, CAMPAIGN_STATUSES_AFTER_RECOMMENDATION_APPROVAL } from '../../lib/campaignStatus';
 import { invalidateClientCampaignQueries, queryKeys } from '../../lib/queryKeys';
 import { formatCurrency, formatDate, titleCase } from '../../lib/utils';
@@ -215,10 +215,12 @@ export function CampaignDetailPage() {
         ? Math.max(progress, 96)
         : progress;
   const recommendationAwaitingDecision = recommendation?.status === 'sent_to_client';
-  const paymentRequiredBeforeApproval = !hasCampaignClearedPayment(campaign) && !recommendationApprovalComplete;
+  const paymentRequiredBeforeApproval = campaignNeedsCheckout(campaign) && !recommendationApprovalComplete;
+  const paymentAwaitingReview = isPaymentAwaitingManualReview(campaign.paymentProvider, campaign.paymentStatus);
   const canApproveRecommendation = Boolean(
     recommendation
       && recommendationAwaitingDecision
+      && !paymentAwaitingReview
       && !paymentRequiredBeforeApproval
       && !isCampaignInSet(campaign.status, CAMPAIGN_STATUSES_AFTER_RECOMMENDATION_APPROVAL)
       && recommendation.status !== 'approved',
@@ -500,7 +502,9 @@ export function CampaignDetailPage() {
                     <p className="mt-1 text-sm text-ink-soft">
                       {recommendationApprovalComplete
                         ? 'This approval step is complete.'
-                        : paymentRequiredBeforeApproval
+                        : paymentAwaitingReview
+                          ? 'Your Pay Later application is under review.'
+                          : paymentRequiredBeforeApproval
                           ? 'Payment is still required first.'
                           : 'You can make your decision now.'}
                     </p>
@@ -579,6 +583,14 @@ export function CampaignDetailPage() {
                   </div>
                 </div>
               ) : null}
+              {paymentAwaitingReview ? (
+                <div className="rounded-[18px] border border-sky-200 bg-sky-50 p-5">
+                  <div className="mb-2 text-sm font-semibold text-sky-900">Pay Later application in review</div>
+                  <p className="text-sm leading-7 text-sky-800">
+                    Your Finance Partner application has already been submitted. You do not need to pay again while approval is pending.
+                  </p>
+                </div>
+              ) : null}
               <div className="rounded-[18px] border border-line bg-slate-50/70 p-5">
                 <div className="mb-2 text-sm font-semibold text-ink">Why this should feel safe</div>
                 <p className="text-sm leading-7 text-ink-soft">{approval.reassurance}</p>
@@ -609,7 +621,9 @@ export function CampaignDetailPage() {
                           : 'user-btn-primary'
                       } disabled:cursor-not-allowed disabled:opacity-100`}
                     >
-                      {paymentRequiredBeforeApproval
+                      {paymentAwaitingReview
+                        ? 'Awaiting Pay Later approval'
+                        : paymentRequiredBeforeApproval
                         ? 'Payment required before approval'
                         : (approveMutation.isPending ? 'Accepting...' : 'Approve selected')}
                     </button>

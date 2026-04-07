@@ -259,6 +259,7 @@ type CampaignResponse = {
   packageBandId: string;
   packageBandName: string;
   selectedBudget: number;
+  paymentProvider: string;
   paymentStatus: string;
   status: Campaign['status'];
   planningMode?: PlanningMode;
@@ -798,6 +799,7 @@ function mapCampaign(response: CampaignResponse): Campaign {
     packageBandId: response.packageBandId,
     packageBandName: response.packageBandName,
     selectedBudget: response.selectedBudget,
+    paymentProvider: response.paymentProvider ?? 'vodapay',
     paymentStatus: response.paymentStatus as Campaign['paymentStatus'],
     status: response.status,
     planningMode: response.planningMode,

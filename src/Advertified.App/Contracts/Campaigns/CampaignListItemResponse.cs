@@ -11,6 +11,8 @@ public sealed class CampaignListItemResponse
     public Guid PackageBandId { get; set; }
     public string PackageBandName { get; set; } = string.Empty;
     public decimal SelectedBudget { get; set; }
+    public string PaymentProvider { get; set; } = string.Empty;
+    public string PaymentStatus { get; set; } = string.Empty;
     public string? CampaignName { get; set; }
     public string Status { get; set; } = string.Empty;
     public string? PlanningMode { get; set; }

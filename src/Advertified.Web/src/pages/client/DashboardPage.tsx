@@ -5,7 +5,7 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { useAuth } from '../../features/auth/auth-context';
 import { canAccessAiStudioForStatus } from '../../features/campaigns/aiStudioAccess';
-import { getCampaignPrimaryAction, hasCampaignClearedPayment } from '../../lib/access';
+import { campaignNeedsCheckout, getCampaignPrimaryAction, hasCampaignClearedPayment, isPaymentAwaitingManualReview } from '../../lib/access';
 import { getPrimaryRecommendation } from '../../lib/campaignStatus';
 import { getPendingPaymentPollInterval } from '../../lib/queryPolling';
 import { formatCurrency, formatDate, titleCase } from '../../lib/utils';
@@ -14,8 +14,12 @@ import type { Campaign } from '../../types/domain';
 import { ClientPortalShell, getCampaignProgressPercent, getClientFacingBudget } from './clientWorkspace';
 
 function getSimpleCampaignMessage(
-  campaign: Pick<Campaign, 'status' | 'paymentStatus'>,
+  campaign: Pick<Campaign, 'status' | 'paymentStatus' | 'paymentProvider'>,
 ) {
+  if (isPaymentAwaitingManualReview(campaign.paymentProvider, campaign.paymentStatus)) {
+    return 'Your Pay Later application is under review. There is nothing else you need to pay right now.';
+  }
+
   if (!hasCampaignClearedPayment(campaign as Campaign)) {
     return 'Please complete payment to continue with this campaign.';
   }
@@ -48,9 +52,13 @@ function getSimpleCampaignMessage(
 }
 
 function getSimplePrimaryActionDescription(
-  campaign: Pick<Campaign, 'paymentStatus' | 'status'>,
+  campaign: Pick<Campaign, 'paymentStatus' | 'paymentProvider' | 'status'>,
   actionLabel: string,
 ) {
+  if (isPaymentAwaitingManualReview(campaign.paymentProvider, campaign.paymentStatus)) {
+    return 'Your Finance Partner application is pending review. We will update this campaign once approval is confirmed.';
+  }
+
   if (!hasCampaignClearedPayment(campaign as Campaign)) {
     return 'Pay now to continue with this campaign.';
   }
@@ -100,20 +108,25 @@ export function DashboardPage() {
   const orders = ordersQuery.data ?? [];
   const unresolvedOrderIds = new Set(
     campaigns
-      .filter((campaign) => !hasCampaignClearedPayment(campaign))
+      .filter((campaign) => campaignNeedsCheckout(campaign))
       .map((campaign) => campaign.packageOrderId),
   );
   const unpaidOrders = orders.filter((order) => order.paymentStatus !== 'paid' && (!unresolvedOrderIds.size || unresolvedOrderIds.has(order.id)));
-  const nextPendingOrder = unpaidOrders[0];
+  const actionableOrders = unpaidOrders.filter((order) => !isPaymentAwaitingManualReview(order.paymentProvider, order.paymentStatus));
+  const reviewPendingOrders = unpaidOrders.filter((order) => isPaymentAwaitingManualReview(order.paymentProvider, order.paymentStatus));
+  const nextPendingOrder = actionableOrders[0];
+  const nextReviewPendingOrder = reviewPendingOrders[0];
+  const reviewPendingCampaign = campaigns.find((campaign) => campaign.packageOrderId === nextReviewPendingOrder?.id)
+    ?? campaigns.find((campaign) => isPaymentAwaitingManualReview(campaign.paymentProvider, campaign.paymentStatus));
   const pendingCampaign = campaigns.find((campaign) => campaign.packageOrderId === nextPendingOrder?.id)
-    ?? campaigns.find((campaign) => campaign.paymentStatus !== 'paid' && campaign.status === 'review_ready')
-    ?? campaigns.find((campaign) => campaign.paymentStatus !== 'paid');
+    ?? campaigns.find((campaign) => campaignNeedsCheckout(campaign) && campaign.status === 'review_ready')
+    ?? campaigns.find((campaign) => campaignNeedsCheckout(campaign));
   const pendingRecommendation = pendingCampaign ? getPrimaryRecommendation(pendingCampaign) : undefined;
   const paymentHref = nextPendingOrder
     ? `/checkout/payment?orderId=${encodeURIComponent(nextPendingOrder.id)}${pendingCampaign ? `&campaignId=${encodeURIComponent(pendingCampaign.id)}` : ''}${pendingRecommendation?.id ? `&recommendationId=${encodeURIComponent(pendingRecommendation.id)}` : ''}`
     : null;
-  const paymentBlockedCampaignCount = campaigns.filter((campaign) => !hasCampaignClearedPayment(campaign)).length;
-  const reviewReadyAwaitingPaymentCount = campaigns.filter((campaign) => campaign.status === 'review_ready' && !hasCampaignClearedPayment(campaign)).length;
+  const paymentBlockedCampaignCount = campaigns.filter((campaign) => campaignNeedsCheckout(campaign)).length;
+  const reviewReadyAwaitingPaymentCount = campaigns.filter((campaign) => campaign.status === 'review_ready' && campaignNeedsCheckout(campaign)).length;
 
   return (
     <ClientPortalShell
@@ -153,6 +166,37 @@ export function DashboardPage() {
               ) : (
                 <Link to="/orders" className="user-btn-secondary w-full justify-center text-center">View order history</Link>
               )}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {!paymentHref && nextReviewPendingOrder ? (
+        <div className="mt-6 rounded-[28px] border border-sky-200 bg-[linear-gradient(180deg,#eff8ff_0%,#f9fcff_100%)] p-6 shadow-[0_18px_44px_rgba(14,116,144,0.08)]">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div className="max-w-3xl">
+              <div className="inline-flex items-center rounded-full border border-sky-300 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-sky-900">
+                Pay Later pending review
+              </div>
+              <h3 className="mt-4 !mb-2">Your application is already in review</h3>
+              <p className="user-muted">
+                {reviewPendingCampaign
+                  ? `${reviewPendingCampaign.campaignName} is waiting for Finance Partner approval. You do not need to make another payment while this is pending.`
+                  : 'Your order is waiting for Finance Partner approval. You do not need to make another payment while this is pending.'}
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <span className="user-pill">{nextReviewPendingOrder.packageBandName}</span>
+                <span className="user-pill">{formatCurrency(nextReviewPendingOrder.amount)}</span>
+                <span className="user-pill">{reviewPendingOrders.length} pending review order{reviewPendingOrders.length === 1 ? '' : 's'}</span>
+              </div>
+            </div>
+            <div className="flex w-full flex-col gap-3 lg:w-auto lg:min-w-[250px]">
+              {reviewPendingCampaign ? (
+                <Link to={`/campaigns/${reviewPendingCampaign.id}`} className="user-btn-primary w-full justify-center text-center">View campaign</Link>
+              ) : (
+                <Link to="/orders" className="user-btn-primary w-full justify-center text-center">View my orders</Link>
+              )}
+              <Link to="/orders" className="user-btn-secondary w-full justify-center text-center">Open order history</Link>
             </div>
           </div>
         </div>
@@ -201,7 +245,9 @@ export function DashboardPage() {
                   {(() => {
                     const linkedCampaign = campaigns.find((campaign) => campaign.packageOrderId === order.id);
                      const linkedRecommendationId = linkedCampaign ? getPrimaryRecommendation(linkedCampaign)?.id : undefined;
-                     const orderNeedsPayment = order.paymentStatus !== 'paid' && (!linkedCampaign || !hasCampaignClearedPayment(linkedCampaign));
+                     const orderNeedsPayment = !isPaymentAwaitingManualReview(order.paymentProvider, order.paymentStatus)
+                       && order.paymentStatus !== 'paid'
+                       && (!linkedCampaign || campaignNeedsCheckout(linkedCampaign));
 
                     return (
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -211,6 +257,9 @@ export function DashboardPage() {
                     </div>
                     <div className="flex flex-col gap-2 text-left lg:items-end lg:text-right">
                       <div>{titleCase(order.paymentStatus)}{order.paymentReference ? ` | ${order.paymentReference}` : ''}</div>
+                      {isPaymentAwaitingManualReview(order.paymentProvider, order.paymentStatus) ? (
+                        <div className="text-sm text-ink-soft">Awaiting Finance Partner review</div>
+                      ) : null}
                       {orderNeedsPayment ? (
                         <Link
                           to={`/checkout/payment?orderId=${encodeURIComponent(order.id)}${linkedCampaign ? `&campaignId=${encodeURIComponent(linkedCampaign.id)}` : ''}${linkedRecommendationId ? `&recommendationId=${encodeURIComponent(linkedRecommendationId)}` : ''}`}
@@ -234,7 +283,8 @@ export function DashboardPage() {
         <div className="mt-6 space-y-4">
           {campaigns.map((campaign) => {
             const action = getCampaignPrimaryAction(campaign);
-            const paymentRequired = !hasCampaignClearedPayment(campaign);
+            const paymentRequired = campaignNeedsCheckout(campaign);
+            const paymentAwaitingReview = isPaymentAwaitingManualReview(campaign.paymentProvider, campaign.paymentStatus);
             return (
               <div key={campaign.id} className="user-card">
                 <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
@@ -269,7 +319,9 @@ export function DashboardPage() {
                   <div className="user-wire">
                     <strong>{paymentRequired ? 'Payment' : 'Your campaign'}</strong>
                     <div>
-                      {paymentRequired
+                      {paymentAwaitingReview
+                        ? 'Your Pay Later application is currently under review.'
+                        : paymentRequired
                         ? 'Pay first, then you can review your recommendation.'
                         : 'Open your campaign to see updates and next steps.'}
                     </div>

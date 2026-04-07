@@ -59,6 +59,8 @@ public sealed class AgentCampaignsController : ControllerBase
                 SelectedBudget = PricingPolicy.ResolvePlanningBudget(
                     x.PackageOrder.SelectedBudget ?? x.PackageOrder.Amount,
                     x.PackageOrder.AiStudioReserveAmount),
+                PaymentProvider = x.PackageOrder.PaymentProvider ?? string.Empty,
+                PaymentStatus = x.PackageOrder.PaymentStatus,
                 CampaignName = x.CampaignName,
                 Status = x.Status,
                 PlanningMode = x.PlanningMode,
@@ -82,8 +84,10 @@ public sealed class AgentCampaignsController : ControllerBase
             PackageBandId = x.PackageBandId,
             PackageBandName = x.PackageBandName,
             SelectedBudget = x.SelectedBudget,
+            PaymentProvider = x.PaymentProvider,
+            PaymentStatus = x.PaymentStatus,
             CampaignName = x.CampaignName,
-            Status = x.Status,
+                Status = x.Status,
             PlanningMode = x.PlanningMode,
             AiUnlocked = x.AiUnlocked,
             AgentAssistanceRequested = x.AgentAssistanceRequested,
@@ -318,6 +322,8 @@ public sealed class AgentCampaignsController : ControllerBase
         public Guid PackageBandId { get; init; }
         public string PackageBandName { get; init; } = string.Empty;
         public decimal SelectedBudget { get; init; }
+        public string PaymentProvider { get; init; } = string.Empty;
+        public string PaymentStatus { get; init; } = string.Empty;
         public string? CampaignName { get; init; }
         public string Status { get; init; } = string.Empty;
         public string? PlanningMode { get; init; }
