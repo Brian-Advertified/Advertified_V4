@@ -3,6 +3,7 @@ using Advertified.App.Contracts.Campaigns;
 using Advertified.App.Domain.Campaigns;
 using Advertified.App.Services;
 using Advertified.App.Services.BroadcastMatching;
+using FluentAssertions;
 
 public class EngineNormalizationTests
 {

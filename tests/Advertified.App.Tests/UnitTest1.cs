@@ -6,6 +6,7 @@ using Advertified.App.AIPlatform.Domain;
 using Advertified.App.Configuration;
 using Advertified.App.Controllers;
 using Advertified.App.Domain.Campaigns;
+using Advertified.App.Data;
 using Advertified.App.Data.Entities;
 using Advertified.App.Middleware;
 using Advertified.App.Services;
@@ -15,6 +16,8 @@ using Advertified.App.Validation;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using System.IO;
@@ -132,7 +135,11 @@ public class SaveCampaignBriefRequestValidatorTests
     [Fact]
     public async Task ValidateAsync_RejectsInvalidAgeRange()
     {
-        var validator = new SaveCampaignBriefRequestValidator();
+        await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString("N"))
+            .Options);
+        var formOptionsService = new FormOptionsService(db, new MemoryCache(new MemoryCacheOptions()));
+        var validator = new SaveCampaignBriefRequestValidator(formOptionsService);
         var request = new SaveCampaignBriefRequest
         {
             Objective = "awareness",
@@ -1073,12 +1080,16 @@ public class MediaPlanningEngineTests
     private sealed class StubPlanningInventoryRepository : IPlanningInventoryRepository
     {
         public List<InventoryCandidate> OohCandidates { get; set; } = new();
+        public List<InventoryCandidate> DigitalCandidates { get; set; } = new();
         public List<InventoryCandidate> RadioSlotCandidates { get; set; } = new();
         public List<InventoryCandidate> RadioPackageCandidates { get; set; } = new();
         public List<InventoryCandidate> TvCandidates { get; set; } = new();
 
         public Task<List<InventoryCandidate>> GetOohCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
             => Task.FromResult(OohCandidates);
+
+        public Task<List<InventoryCandidate>> GetDigitalCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
+            => Task.FromResult(DigitalCandidates);
 
         public Task<BroadcastInventoryCandidateSet> GetBroadcastCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
             => Task.FromResult(new BroadcastInventoryCandidateSet(RadioSlotCandidates, RadioPackageCandidates, TvCandidates));

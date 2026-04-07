@@ -5,8 +5,28 @@ namespace Advertified.App.Services;
 
 public sealed partial class WebsiteSignalProvider : IWebsiteSignalProvider
 {
-    private static readonly string[] PromoKeywords = new[] { "sale", "promo", "offer" };
-    private static readonly string[] PromoPaths = new[] { "/promo", "/campaign" };
+    private static readonly string[] PromoKeywords = new[]
+    {
+        "sale",
+        "promo",
+        "offer",
+        "special",
+        "discount",
+        "clearance",
+        "limited time"
+    };
+    private static readonly string[] PromoPaths = new[]
+    {
+        "/promo",
+        "/campaign",
+        "/offer",
+        "/offers",
+        "/deal",
+        "/deals",
+        "/special",
+        "/specials",
+        "/sale"
+    };
     private static readonly string[] MetaAdMarkers = new[]
     {
         "connect.facebook.net",
