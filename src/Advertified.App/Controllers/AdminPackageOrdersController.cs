@@ -62,6 +62,7 @@ public sealed class AdminPackageOrdersController : ControllerBase
         var orders = await _db.PackageOrders
             .AsNoTracking()
             .Include(x => x.User)
+            .Include(x => x.ProspectLead)
             .Include(x => x.PackageBand)
             .Include(x => x.Invoice)
             .Include(x => x.Campaign)
@@ -137,7 +138,7 @@ public sealed class AdminPackageOrdersController : ControllerBase
         var refreshedOrder = await LoadOrderAsync(orderId, cancellationToken)
             ?? throw new InvalidOperationException("Package order not found after update.");
 
-        if (normalizedStatus == "failed" && refreshedOrder.Invoice is not null)
+        if (normalizedStatus == "failed" && refreshedOrder.Invoice is not null && refreshedOrder.User is not null)
         {
             await _invoiceService.EnsureInvoiceAsync(
                 refreshedOrder,
@@ -224,6 +225,7 @@ public sealed class AdminPackageOrdersController : ControllerBase
         return await _db.PackageOrders
             .Include(x => x.User)
                 .ThenInclude(x => x.BusinessProfile)
+            .Include(x => x.ProspectLead)
             .Include(x => x.PackageBand)
             .Include(x => x.Invoice)
             .Include(x => x.Campaign)
@@ -266,7 +268,7 @@ public sealed class AdminPackageOrdersController : ControllerBase
             entityType: "package_order",
             entityId: order.Id.ToString("D"),
             entityLabel: order.Invoice?.InvoiceNumber ?? order.Id.ToString("D"),
-            summary: $"{order.PackageBand.Name} order for {order.User.FullName} marked {order.PaymentStatus}.",
+            summary: $"{order.PackageBand.Name} order for {order.ResolveClientName()} marked {order.PaymentStatus}.",
             metadata: new
             {
                 PackageOrderId = order.Id,
@@ -291,11 +293,11 @@ public sealed class AdminPackageOrdersController : ControllerBase
         {
             await _emailService.SendAsync(
                 templateName,
-                order.User.Email,
+                order.ResolveClientEmail(),
                 "billing",
                 new Dictionary<string, string?>
                 {
-                    ["ClientName"] = order.User.FullName,
+                    ["ClientName"] = order.ResolveClientName(),
                     ["CampaignName"] = order.Campaign?.CampaignName?.Trim() ?? $"{order.PackageBand.Name} campaign",
                     ["InvoiceNumber"] = order.Invoice.InvoiceNumber,
                     ["PackageName"] = order.PackageBand.Name,
@@ -344,9 +346,9 @@ public sealed class AdminPackageOrdersController : ControllerBase
         {
             OrderId = order.Id,
             UserId = order.UserId,
-            ClientName = order.User.FullName,
-            ClientEmail = order.User.Email,
-            ClientPhone = order.User.Phone,
+            ClientName = order.ResolveClientName(),
+            ClientEmail = order.ResolveClientEmail(),
+            ClientPhone = order.ResolveClientPhone(),
             PackageBandId = order.PackageBandId,
             PackageBandName = order.PackageBand.Name,
             SelectedBudget = order.SelectedBudget ?? order.Amount,

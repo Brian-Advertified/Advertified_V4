@@ -290,8 +290,9 @@ export function AgentCreateRecommendationPage() {
   const clientOptions = useMemo(() => {
     const uniqueClients = new Map<string, { id: string; name: string; email: string }>();
     for (const item of availableCampaigns) {
-      if (!uniqueClients.has(item.userId)) {
-        uniqueClients.set(item.userId, { id: item.userId, name: item.clientName, email: item.clientEmail });
+      const ownerKey = item.userId ?? item.clientEmail ?? item.id;
+      if (!uniqueClients.has(ownerKey)) {
+        uniqueClients.set(ownerKey, { id: ownerKey, name: item.clientName, email: item.clientEmail });
       }
     }
 
@@ -300,14 +301,16 @@ export function AgentCreateRecommendationPage() {
   const requestedCampaign = requestedCampaignId
     ? availableCampaigns.find((item) => item.id === requestedCampaignId) ?? null
     : null;
-  const selectedClientId = requestedCampaign?.userId
+  const selectedClientId = (requestedCampaign?.userId ?? requestedCampaign?.clientEmail ?? requestedCampaign?.id)
     ?? selectedClientIdState
     ?? availableCampaigns[0]?.userId
+    ?? availableCampaigns[0]?.clientEmail
+    ?? availableCampaigns[0]?.id
     ?? '';
 
   const filteredCampaigns = useMemo(() => (
     selectedClientId
-      ? availableCampaigns.filter((item) => item.userId === selectedClientId)
+      ? availableCampaigns.filter((item) => (item.userId ?? item.clientEmail ?? item.id) === selectedClientId)
       : availableCampaigns
   ), [availableCampaigns, selectedClientId]);
   const selectedCampaignId = requestedCampaign?.id
@@ -425,7 +428,7 @@ export function AgentCreateRecommendationPage() {
 
   const handleClientChange = (userId: string) => {
     setSelectedClientIdState(userId);
-    const nextCampaign = availableCampaigns.find((item) => item.userId === userId);
+    const nextCampaign = availableCampaigns.find((item) => (item.userId ?? item.clientEmail ?? item.id) === userId);
     setSelectedCampaignIdState(nextCampaign?.id ?? '');
   };
 
@@ -456,7 +459,7 @@ export function AgentCreateRecommendationPage() {
       ]);
       await inboxQuery.refetch();
 
-      setSelectedClientIdState(campaign.userId);
+      setSelectedClientIdState(campaign.userId ?? campaign.clientEmail ?? campaign.id);
       setSelectedCampaignIdState(campaign.id);
       setShowProspectForm(false);
       setProspectForm({

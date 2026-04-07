@@ -140,7 +140,7 @@ public sealed class VoiceTemplateSelectionService : IVoiceTemplateSelectionServi
         return 12;
     }
 
-    private async Task<Guid?> ResolveVoicePackIdAsync(string voicePackName, Guid clientUserId, CancellationToken cancellationToken)
+    private async Task<Guid?> ResolveVoicePackIdAsync(string voicePackName, Guid? clientUserId, CancellationToken cancellationToken)
     {
         var trimmedName = voicePackName.Trim();
         if (trimmedName.Length == 0)
@@ -151,7 +151,7 @@ public sealed class VoiceTemplateSelectionService : IVoiceTemplateSelectionServi
         var row = await _db.AiVoicePacks
             .AsNoTracking()
             .Where(item => item.IsActive && item.Name == trimmedName)
-            .Where(item => !item.IsClientSpecific || item.ClientUserId == clientUserId)
+            .Where(item => !item.IsClientSpecific || (clientUserId.HasValue && item.ClientUserId == clientUserId.Value))
             .OrderBy(item => item.SortOrder)
             .FirstOrDefaultAsync(cancellationToken);
 

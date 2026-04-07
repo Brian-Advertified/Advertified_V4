@@ -332,11 +332,11 @@ public sealed class CampaignMessagingController : ControllerBase
         {
             Id = Guid.NewGuid(),
             CampaignId = campaign.Id,
-            ClientUserId = campaign.UserId,
+            ClientUserId = campaign.UserId ?? throw new InvalidOperationException("Campaign is not linked to a client account yet."),
             CreatedAt = now,
             UpdatedAt = now,
             Campaign = campaign,
-            ClientUser = campaign.User
+            ClientUser = campaign.User ?? throw new InvalidOperationException("Campaign is not linked to a client account yet.")
         };
 
         campaign.CampaignConversation = conversation;

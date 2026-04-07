@@ -65,17 +65,18 @@ public sealed class AgentCampaignBriefController : ControllerBase
             .Include(x => x.PackageOrder)
             .Include(x => x.PackageBand)
             .Include(x => x.CampaignBrief)
+            .Include(x => x.ProspectLead)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw new InvalidOperationException("Campaign not found.");
 
         var isOrderOperationallyActive = CampaignOperationsPolicy.IsOrderOperationallyActive(campaign.PackageOrder);
-        if (isOrderOperationallyActive)
+        if (isOrderOperationallyActive && campaign.UserId.HasValue)
         {
-            await _campaignBriefService.SaveDraftAsync(campaign.UserId, id, request.Brief, cancellationToken);
+            await _campaignBriefService.SaveDraftAsync(campaign.UserId.Value, id, request.Brief, cancellationToken);
             if (request.SubmitBrief)
             {
-                await _campaignBriefService.SubmitAsync(campaign.UserId, id, cancellationToken);
-                await _campaignBriefService.SetPlanningModeAsync(campaign.UserId, id, request.PlanningMode, cancellationToken);
+                await _campaignBriefService.SubmitAsync(campaign.UserId.Value, id, cancellationToken);
+                await _campaignBriefService.SetPlanningModeAsync(campaign.UserId.Value, id, request.PlanningMode, cancellationToken);
             }
         }
         else
@@ -345,10 +346,18 @@ public sealed class AgentCampaignBriefController : ControllerBase
         return _frontendOptions.BaseUrl.TrimEnd('/') + path;
     }
 
+    private string BuildClientCampaignUrl(Campaign campaign)
+    {
+        return campaign.UserId.HasValue
+            ? BuildFrontendUrl($"/campaigns/{campaign.Id}")
+            : BuildFrontendUrl($"/register?next=%2Fcampaigns%2F{campaign.Id:D}");
+    }
+
     private async Task SendAssignmentEmailIfNeededAsync(Guid campaignId, CancellationToken cancellationToken)
     {
         var campaign = await _db.Campaigns
             .Include(x => x.User)
+            .Include(x => x.ProspectLead)
             .Include(x => x.PackageBand)
             .Include(x => x.PackageOrder)
             .FirstOrDefaultAsync(x => x.Id == campaignId, cancellationToken);
@@ -362,15 +371,15 @@ public sealed class AgentCampaignBriefController : ControllerBase
         {
             await _emailService.SendAsync(
                 "campaign-assigned",
-                campaign.User.Email,
+                campaign.ResolveClientEmail(),
                 "campaigns",
                 new Dictionary<string, string?>
                 {
-                    ["ClientName"] = campaign.User.FullName,
+                    ["ClientName"] = campaign.ResolveClientName(),
                     ["CampaignName"] = string.IsNullOrWhiteSpace(campaign.CampaignName) ? $"{campaign.PackageBand.Name} campaign" : campaign.CampaignName.Trim(),
                     ["PackageName"] = campaign.PackageBand.Name,
                     ["Budget"] = FormatCurrency(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount),
-                    ["CampaignUrl"] = BuildFrontendUrl($"/campaigns/{campaign.Id}")
+                    ["CampaignUrl"] = BuildClientCampaignUrl(campaign)
                 },
                 null,
                 cancellationToken);
@@ -389,6 +398,7 @@ public sealed class AgentCampaignBriefController : ControllerBase
     {
         var campaign = await _db.Campaigns
             .Include(x => x.User)
+            .Include(x => x.ProspectLead)
             .Include(x => x.PackageBand)
             .Include(x => x.PackageOrder)
             .FirstOrDefaultAsync(x => x.Id == campaignId, cancellationToken);
@@ -402,15 +412,15 @@ public sealed class AgentCampaignBriefController : ControllerBase
         {
             await _emailService.SendAsync(
                 "agent-working",
-                campaign.User.Email,
+                campaign.ResolveClientEmail(),
                 "campaigns",
                 new Dictionary<string, string?>
                 {
-                    ["ClientName"] = campaign.User.FullName,
+                    ["ClientName"] = campaign.ResolveClientName(),
                     ["CampaignName"] = string.IsNullOrWhiteSpace(campaign.CampaignName) ? $"{campaign.PackageBand.Name} campaign" : campaign.CampaignName.Trim(),
                     ["PackageName"] = campaign.PackageBand.Name,
                     ["Budget"] = FormatCurrency(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount),
-                    ["CampaignUrl"] = BuildFrontendUrl($"/campaigns/{campaign.Id}")
+                    ["CampaignUrl"] = BuildClientCampaignUrl(campaign)
                 },
                 null,
                 cancellationToken);

@@ -3,7 +3,7 @@ namespace Advertified.App.Contracts.Packages;
 public sealed class PackageOrderListItemResponse
 {
     public Guid Id { get; set; }
-    public Guid UserId { get; set; }
+    public Guid? UserId { get; set; }
     public Guid PackageBandId { get; set; }
     public string PackageBandName { get; set; } = string.Empty;
     public decimal Amount { get; set; }

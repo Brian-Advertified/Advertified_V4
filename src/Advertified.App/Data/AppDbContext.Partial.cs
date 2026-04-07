@@ -55,11 +55,13 @@ public partial class AppDbContext
         modelBuilder.Entity<Campaign>(entity =>
         {
             entity.HasIndex(e => e.AssignedAgentUserId, "ix_campaigns_assigned_agent_user_id");
+            entity.HasIndex(e => e.ProspectLeadId, "ix_campaigns_prospect_lead_id");
 
             entity.Property(e => e.AssignedAgentUserId).HasColumnName("assigned_agent_user_id");
             entity.Property(e => e.AssignedAt).HasColumnName("assigned_at");
             entity.Property(e => e.AssignmentEmailSentAt).HasColumnName("assignment_email_sent_at");
             entity.Property(e => e.AgentWorkStartedEmailSentAt).HasColumnName("agent_work_started_email_sent_at");
+            entity.Property(e => e.ProspectLeadId).HasColumnName("prospect_lead_id");
             entity.Property(e => e.RecommendationReadyEmailSentAt).HasColumnName("recommendation_ready_email_sent_at");
 
             entity.HasOne(e => e.AssignedAgentUser)
@@ -67,6 +69,63 @@ public partial class AppDbContext
                 .HasForeignKey(e => e.AssignedAgentUserId)
                 .OnDelete(DeleteBehavior.SetNull)
                 .HasConstraintName("campaigns_assigned_agent_user_id_fkey");
+
+            entity.HasOne(e => e.ProspectLead)
+                .WithMany(e => e.Campaigns)
+                .HasForeignKey(e => e.ProspectLeadId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("campaigns_prospect_lead_id_fkey");
+        });
+
+        modelBuilder.Entity<PackageOrder>(entity =>
+        {
+            entity.HasIndex(e => e.ProspectLeadId, "ix_package_orders_prospect_lead_id");
+            entity.Property(e => e.ProspectLeadId).HasColumnName("prospect_lead_id");
+
+            entity.HasOne(e => e.ProspectLead)
+                .WithMany(e => e.PackageOrders)
+                .HasForeignKey(e => e.ProspectLeadId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("package_orders_prospect_lead_id_fkey");
+        });
+
+        modelBuilder.Entity<ProspectLead>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("prospect_leads_pkey");
+
+            entity.ToTable("prospect_leads");
+
+            entity.HasIndex(e => e.Email, "ix_prospect_leads_email");
+            entity.HasIndex(e => e.ClaimedUserId, "ix_prospect_leads_claimed_user_id");
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.FullName)
+                .HasMaxLength(200)
+                .HasColumnName("full_name");
+            entity.Property(e => e.Email)
+                .HasMaxLength(255)
+                .HasColumnName("email");
+            entity.Property(e => e.Phone)
+                .HasMaxLength(30)
+                .HasColumnName("phone");
+            entity.Property(e => e.Source)
+                .HasMaxLength(50)
+                .HasColumnName("source");
+            entity.Property(e => e.ClaimedUserId).HasColumnName("claimed_user_id");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+
+            entity.HasOne(e => e.ClaimedUser)
+                .WithMany()
+                .HasForeignKey(e => e.ClaimedUserId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("prospect_leads_claimed_user_id_fkey");
         });
 
         modelBuilder.Entity<IdentityProfile>(entity =>

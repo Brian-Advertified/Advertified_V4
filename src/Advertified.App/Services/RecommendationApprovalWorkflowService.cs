@@ -37,6 +37,7 @@ public sealed class RecommendationApprovalWorkflowService : IRecommendationAppro
             .Include(x => x.CampaignConversation!)
                 .ThenInclude(x => x.Messages)
             .Include(x => x.User)
+            .Include(x => x.ProspectLead)
             .Include(x => x.PackageBand)
             .Include(x => x.PackageOrder)
             .Include(x => x.AssignedAgentUser)
@@ -94,6 +95,7 @@ public sealed class RecommendationApprovalWorkflowService : IRecommendationAppro
             .Include(x => x.CampaignConversation!)
                 .ThenInclude(x => x.Messages)
             .Include(x => x.User)
+            .Include(x => x.ProspectLead)
             .Include(x => x.PackageBand)
             .Include(x => x.PackageOrder)
             .Include(x => x.AssignedAgentUser)
@@ -134,15 +136,15 @@ public sealed class RecommendationApprovalWorkflowService : IRecommendationAppro
         {
             await _emailService.SendAsync(
                 "recommendation-approved",
-                campaign.User.Email,
+                campaign.ResolveClientEmail(),
                 "campaigns",
                 new Dictionary<string, string?>
                 {
-                    ["ClientName"] = campaign.User.FullName,
+                    ["ClientName"] = campaign.ResolveClientName(),
                     ["CampaignName"] = ResolveCampaignName(campaign),
                     ["PackageName"] = campaign.PackageBand.Name,
                     ["Budget"] = FormatCurrency(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount),
-                    ["CampaignUrl"] = BuildFrontendUrl($"/campaigns/{campaign.Id}")
+                    ["CampaignUrl"] = BuildClientCampaignUrl(campaign)
                 },
                 null,
                 cancellationToken);
@@ -159,15 +161,15 @@ public sealed class RecommendationApprovalWorkflowService : IRecommendationAppro
         {
             await _emailService.SendAsync(
                 "activation-in-progress",
-                campaign.User.Email,
+                campaign.ResolveClientEmail(),
                 "campaigns",
                 new Dictionary<string, string?>
                 {
-                    ["ClientName"] = campaign.User.FullName,
+                    ["ClientName"] = campaign.ResolveClientName(),
                     ["CampaignName"] = ResolveCampaignName(campaign),
                     ["PackageName"] = campaign.PackageBand.Name,
                     ["Budget"] = FormatCurrency(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount),
-                    ["CampaignUrl"] = BuildFrontendUrl($"/campaigns/{campaign.Id}")
+                    ["CampaignUrl"] = BuildClientCampaignUrl(campaign)
                 },
                 null,
                 cancellationToken);
@@ -222,6 +224,17 @@ public sealed class RecommendationApprovalWorkflowService : IRecommendationAppro
 
     private CampaignMessage AddClientResponseMessage(Campaign campaign, string body, DateTime now)
     {
+        if (!campaign.UserId.HasValue)
+        {
+            return new CampaignMessage
+            {
+                Id = Guid.NewGuid(),
+                Body = body,
+                CreatedAt = now,
+                SenderRole = "client"
+            };
+        }
+
         var conversation = campaign.CampaignConversation;
         if (conversation is null)
         {
@@ -229,7 +242,7 @@ public sealed class RecommendationApprovalWorkflowService : IRecommendationAppro
             {
                 Id = Guid.NewGuid(),
                 CampaignId = campaign.Id,
-                ClientUserId = campaign.UserId,
+                ClientUserId = campaign.UserId.Value,
                 CreatedAt = now,
                 UpdatedAt = now,
                 LastMessageAt = now
@@ -247,7 +260,7 @@ public sealed class RecommendationApprovalWorkflowService : IRecommendationAppro
         {
             Id = Guid.NewGuid(),
             ConversationId = conversation.Id,
-            SenderUserId = campaign.UserId,
+            SenderUserId = campaign.UserId.Value,
             SenderRole = "client",
             Body = body,
             CreatedAt = now,
@@ -275,7 +288,7 @@ public sealed class RecommendationApprovalWorkflowService : IRecommendationAppro
                 new Dictionary<string, string?>
                 {
                     ["RecipientName"] = assignedAgent.FullName,
-                    ["SenderName"] = campaign.User.FullName,
+                    ["SenderName"] = campaign.ResolveClientName(),
                     ["SenderRole"] = "Client",
                     ["CampaignName"] = ResolveCampaignName(campaign),
                     ["PackageName"] = campaign.PackageBand.Name,
@@ -323,6 +336,13 @@ public sealed class RecommendationApprovalWorkflowService : IRecommendationAppro
     private string BuildFrontendUrl(string path)
     {
         return _frontendOptions.BaseUrl.TrimEnd('/') + path;
+    }
+
+    private string BuildClientCampaignUrl(Campaign campaign)
+    {
+        return campaign.UserId.HasValue
+            ? BuildFrontendUrl($"/campaigns/{campaign.Id}")
+            : BuildFrontendUrl($"/register?next=%2Fcampaigns%2F{campaign.Id:D}");
     }
 
     private static string FormatCurrency(decimal amount)

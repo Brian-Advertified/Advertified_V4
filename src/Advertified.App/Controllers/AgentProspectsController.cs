@@ -22,20 +22,17 @@ public sealed class AgentProspectsController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly ICurrentUserAccessor _currentUserAccessor;
-    private readonly IPasswordHashingService _passwordHashingService;
     private readonly IChangeAuditService _changeAuditService;
     private readonly ILogger<AgentProspectsController> _logger;
 
     public AgentProspectsController(
         AppDbContext db,
         ICurrentUserAccessor currentUserAccessor,
-        IPasswordHashingService passwordHashingService,
         IChangeAuditService changeAuditService,
         ILogger<AgentProspectsController> logger)
     {
         _db = db;
         _currentUserAccessor = currentUserAccessor;
-        _passwordHashingService = passwordHashingService;
         _changeAuditService = changeAuditService;
         _logger = logger;
     }
@@ -69,39 +66,37 @@ public sealed class AgentProspectsController : ControllerBase
             ?? throw new NotFoundException("Package band not found.");
         var selectedBudget = await ResolveProspectBudgetAsync(packageBand, cancellationToken);
 
-        var user = await _db.UserAccounts
-            .Include(x => x.BusinessProfile)
+        var lead = await _db.ProspectLeads
             .FirstOrDefaultAsync(x => x.Email == email, cancellationToken);
 
-        var createdNewUser = false;
-        if (user is null)
+        var createdNewLead = false;
+        if (lead is null)
         {
-            var nowUtc = DateTime.UtcNow;
-            user = new UserAccount
+            lead = new ProspectLead
             {
                 Id = Guid.NewGuid(),
                 FullName = fullName,
                 Email = email,
                 Phone = phone,
-                IsSaCitizen = true,
-                Role = UserRole.Client,
-                AccountStatus = AccountStatus.PendingVerification,
-                EmailVerified = false,
-                PhoneVerified = false,
-                CreatedAt = nowUtc,
-                UpdatedAt = nowUtc
+                Source = "agent_prospect",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
             };
-            user.PasswordHash = _passwordHashingService.HashPassword(user, Guid.NewGuid().ToString("N"));
-            _db.UserAccounts.Add(user);
-            createdNewUser = true;
-            await _db.SaveChangesAsync(cancellationToken);
+            _db.ProspectLeads.Add(lead);
+            createdNewLead = true;
+        }
+        else
+        {
+            lead.FullName = fullName;
+            lead.Phone = phone;
+            lead.UpdatedAt = DateTime.UtcNow;
         }
 
         var now = DateTime.UtcNow;
         var packageOrder = new PackageOrder
         {
             Id = Guid.NewGuid(),
-            UserId = user.Id,
+            ProspectLeadId = lead.Id,
             PackageBandId = packageBand.Id,
             Amount = selectedBudget,
             SelectedBudget = selectedBudget,
@@ -123,7 +118,7 @@ public sealed class AgentProspectsController : ControllerBase
         var campaign = new Campaign
         {
             Id = Guid.NewGuid(),
-            UserId = user.Id,
+            ProspectLeadId = lead.Id,
             PackageOrderId = packageOrder.Id,
             PackageBandId = packageBand.Id,
             CampaignName = campaignName,
@@ -143,6 +138,7 @@ public sealed class AgentProspectsController : ControllerBase
             .AsSplitQuery()
             .Include(x => x.User)
                 .ThenInclude(x => x.BusinessProfile)
+            .Include(x => x.ProspectLead)
             .Include(x => x.AssignedAgentUser)
             .Include(x => x.PackageBand)
             .Include(x => x.PackageOrder)
@@ -170,7 +166,7 @@ public sealed class AgentProspectsController : ControllerBase
                 ProspectEmail = email,
                 PackageBand = packageBand.Name,
                 SelectedBudget = selectedBudget,
-                CreatedNewUser = createdNewUser
+                CreatedNewLead = createdNewLead
             },
             cancellationToken);
 
@@ -188,6 +184,7 @@ public sealed class AgentProspectsController : ControllerBase
             .Include(x => x.PackageOrder)
             .Include(x => x.PackageBand)
             .Include(x => x.User)
+            .Include(x => x.ProspectLead)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw new InvalidOperationException("Campaign not found.");
 
@@ -235,6 +232,7 @@ public sealed class AgentProspectsController : ControllerBase
             .AsSplitQuery()
             .Include(x => x.User)
                 .ThenInclude(x => x.BusinessProfile)
+            .Include(x => x.ProspectLead)
             .Include(x => x.AssignedAgentUser)
             .Include(x => x.PackageBand)
             .Include(x => x.PackageOrder)

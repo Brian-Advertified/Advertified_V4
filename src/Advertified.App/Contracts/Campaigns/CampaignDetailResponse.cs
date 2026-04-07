@@ -3,7 +3,7 @@ namespace Advertified.App.Contracts.Campaigns;
 public sealed class CampaignDetailResponse
 {
     public Guid Id { get; set; }
-    public Guid UserId { get; set; }
+    public Guid? UserId { get; set; }
     public string ClientName { get; set; } = string.Empty;
     public string ClientEmail { get; set; } = string.Empty;
     public string? BusinessName { get; set; }

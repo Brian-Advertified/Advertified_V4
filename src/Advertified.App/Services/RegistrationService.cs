@@ -16,17 +16,20 @@ public sealed class RegistrationService : IRegistrationService
     private readonly RegisterRequestValidator _validator;
     private readonly IEmailVerificationService _emailVerificationService;
     private readonly IPasswordHashingService _passwordHashingService;
+    private readonly IProspectLeadLinkingService _prospectLeadLinkingService;
 
     public RegistrationService(
         AppDbContext db,
         RegisterRequestValidator validator,
         IEmailVerificationService emailVerificationService,
-        IPasswordHashingService passwordHashingService)
+        IPasswordHashingService passwordHashingService,
+        IProspectLeadLinkingService prospectLeadLinkingService)
     {
         _db = db;
         _validator = validator;
         _emailVerificationService = emailVerificationService;
         _passwordHashingService = passwordHashingService;
+        _prospectLeadLinkingService = prospectLeadLinkingService;
     }
 
     public async Task<RegisterResponse> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken)
@@ -128,6 +131,7 @@ public sealed class RegistrationService : IRegistrationService
             throw new InvalidOperationException(message, ex);
         }
 
+        await _prospectLeadLinkingService.ClaimByEmailAsync(user, cancellationToken);
         await _emailVerificationService.QueueActivationEmailAsync(user, request.NextPath, cancellationToken);
 
         return new RegisterResponse

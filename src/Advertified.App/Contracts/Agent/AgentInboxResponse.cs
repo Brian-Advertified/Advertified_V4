@@ -22,7 +22,7 @@ public sealed class AgentInboxResponse
 public sealed class AgentInboxItemResponse
 {
     public Guid Id { get; set; }
-    public Guid UserId { get; set; }
+    public Guid? UserId { get; set; }
     public string CampaignName { get; set; } = string.Empty;
     public string ClientName { get; set; } = string.Empty;
     public string ClientEmail { get; set; } = string.Empty;

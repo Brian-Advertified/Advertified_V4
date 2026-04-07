@@ -123,6 +123,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
             .Include(x => x.PackageBand)
             .Include(x => x.User)
                 .ThenInclude(x => x.BusinessProfile)
+            .Include(x => x.ProspectLead)
             .Include(x => x.AssignedAgentUser)
             .Include(x => x.CampaignBrief)
             .Include(x => x.CampaignCreativeSystems)
@@ -178,7 +179,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw new InvalidOperationException("Campaign not found.");
 
-        if (!refreshedCampaign.User.EmailVerified)
+        if (refreshedCampaign.User is not null && !refreshedCampaign.User.EmailVerified)
         {
             await _emailVerificationService.QueueActivationEmailAsync(refreshedCampaign.User, null, cancellationToken);
         }
@@ -259,6 +260,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
         await GetCurrentOperationsUserAsync(cancellationToken);
         var campaign = await _db.Campaigns
             .Include(x => x.User)
+            .Include(x => x.ProspectLead)
             .Include(x => x.CampaignRecommendations)
                 .ThenInclude(x => x.RecommendationItems)
             .Include(x => x.PackageBand)
@@ -377,6 +379,13 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
         return _frontendOptions.BaseUrl.TrimEnd('/') + path;
     }
 
+    private string BuildClientCampaignUrl(Campaign campaign)
+    {
+        return campaign.UserId.HasValue
+            ? BuildFrontendUrl($"/campaigns/{campaign.Id}")
+            : BuildFrontendUrl($"/register?next=%2Fcampaigns%2F{campaign.Id:D}");
+    }
+
     private string BuildProposalUrl(Guid campaignId, Guid? recommendationId = null, string? action = null)
     {
         var accessToken = _proposalAccessTokenService.CreateToken(campaignId);
@@ -402,6 +411,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
     {
         var campaign = await _db.Campaigns
             .Include(x => x.User)
+            .Include(x => x.ProspectLead)
             .Include(x => x.PackageBand)
             .Include(x => x.PackageOrder)
             .FirstOrDefaultAsync(x => x.Id == campaignId, cancellationToken);
@@ -415,15 +425,15 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
         {
             await _emailService.SendAsync(
                 "campaign-assigned",
-                campaign.User.Email,
+                campaign.ResolveClientEmail(),
                 "campaigns",
                 new Dictionary<string, string?>
                 {
-                    ["ClientName"] = campaign.User.FullName,
+                    ["ClientName"] = campaign.ResolveClientName(),
                     ["CampaignName"] = string.IsNullOrWhiteSpace(campaign.CampaignName) ? $"{campaign.PackageBand.Name} campaign" : campaign.CampaignName.Trim(),
                     ["PackageName"] = campaign.PackageBand.Name,
                     ["Budget"] = FormatCurrency(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount),
-                    ["CampaignUrl"] = BuildFrontendUrl($"/campaigns/{campaign.Id}")
+                    ["CampaignUrl"] = BuildClientCampaignUrl(campaign)
                 },
                 null,
                 cancellationToken);
@@ -444,14 +454,14 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
         {
             await _emailService.SendAsync(
                 "campaign-launched",
-                campaign.User.Email,
+                campaign.ResolveClientEmail(),
                 "campaigns",
                 new Dictionary<string, string?>
                 {
-                    ["ClientName"] = campaign.User.FullName,
+                    ["ClientName"] = campaign.ResolveClientName(),
                     ["CampaignName"] = string.IsNullOrWhiteSpace(campaign.CampaignName) ? $"{campaign.PackageBand.Name} campaign" : campaign.CampaignName.Trim(),
                     ["PackageName"] = campaign.PackageBand.Name,
-                    ["CampaignUrl"] = BuildFrontendUrl($"/campaigns/{campaign.Id}")
+                    ["CampaignUrl"] = BuildClientCampaignUrl(campaign)
                 },
                 null,
                 cancellationToken);
@@ -470,6 +480,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
     {
         var campaign = await _db.Campaigns
             .Include(x => x.User)
+            .Include(x => x.ProspectLead)
             .Include(x => x.PackageBand)
             .Include(x => x.PackageOrder)
             .FirstOrDefaultAsync(x => x.Id == campaignId, cancellationToken);
@@ -512,11 +523,11 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
 
             await _emailService.SendAsync(
                 "recommendation-ready",
-                campaign.User.Email,
+                campaign.ResolveClientEmail(),
                 "noreply",
                 new Dictionary<string, string?>
                 {
-                    ["ClientName"] = campaign.User.FullName,
+                    ["ClientName"] = campaign.ResolveClientName(),
                     ["CampaignName"] = string.IsNullOrWhiteSpace(campaign.CampaignName) ? $"{campaign.PackageBand.Name} campaign" : campaign.CampaignName.Trim(),
                     ["PackageName"] = campaign.PackageBand.Name,
                     ["BudgetLabel"] = ResolveBudgetLabel(campaign),

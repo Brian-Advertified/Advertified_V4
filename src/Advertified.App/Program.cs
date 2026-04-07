@@ -219,6 +219,7 @@ builder.Services.AddScoped<IPackagePreviewService>(_ => new PackagePreviewServic
     _.GetRequiredService<IPackagePreviewBroadcastSelector>(),
     _.GetRequiredService<IPackagePreviewFormatter>()));
 builder.Services.AddScoped<IPackagePurchaseService, PackagePurchaseService>();
+builder.Services.AddScoped<IProspectLeadLinkingService, ProspectLeadLinkingService>();
 builder.Services.AddHttpClient<IWebhookQueueService, UpstashQStashWebhookQueueService>((serviceProvider, client) =>
 {
     var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<UpstashQStashOptions>>().Value;

@@ -7,7 +7,9 @@ public partial class Campaign
 {
     public Guid Id { get; set; }
 
-    public Guid UserId { get; set; }
+    public Guid? UserId { get; set; }
+
+    public Guid? ProspectLeadId { get; set; }
 
     public Guid PackageOrderId { get; set; }
 
@@ -45,5 +47,7 @@ public partial class Campaign
 
     public virtual PackageOrder PackageOrder { get; set; } = null!;
 
-    public virtual UserAccount User { get; set; } = null!;
+    public virtual ProspectLead? ProspectLead { get; set; }
+
+    public virtual UserAccount? User { get; set; }
 }

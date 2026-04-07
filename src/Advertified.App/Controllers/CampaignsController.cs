@@ -376,7 +376,7 @@ public sealed class CampaignsController : ControllerBase
                 {
                     Id = Guid.NewGuid(),
                     CampaignId = campaign.Id,
-                    ClientUserId = campaign.UserId,
+                    ClientUserId = campaign.UserId ?? throw new InvalidOperationException("Campaign is not linked to a client account yet."),
                     CreatedAt = now,
                     UpdatedAt = now,
                     LastMessageAt = now

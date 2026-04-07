@@ -5,6 +5,7 @@ using Advertified.App.Configuration;
 using Advertified.App.Data;
 using Advertified.App.Data.Entities;
 using Advertified.App.Services.Abstractions;
+using Advertified.App.Support;
 using Dapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -38,6 +39,7 @@ public sealed class AgentAreaRoutingService : IAgentAreaRoutingService
         var campaign = await _db.Campaigns
             .Include(x => x.User)
                 .ThenInclude(x => x.BusinessProfile)
+            .Include(x => x.ProspectLead)
             .Include(x => x.PackageBand)
             .Include(x => x.PackageOrder)
             .Include(x => x.CampaignBrief)
@@ -180,7 +182,7 @@ public sealed class AgentAreaRoutingService : IAgentAreaRoutingService
         AddTerms(terms, DeserializeList(campaign.CampaignBrief?.CitiesJson));
         AddTerms(terms, DeserializeList(campaign.CampaignBrief?.ProvincesJson));
 
-        if (campaign.User.BusinessProfile is not null)
+        if (campaign.User?.BusinessProfile is not null)
         {
             AddTerm(terms, campaign.User.BusinessProfile.City);
             AddTerm(terms, campaign.User.BusinessProfile.Province);
@@ -245,7 +247,7 @@ public sealed class AgentAreaRoutingService : IAgentAreaRoutingService
                 new Dictionary<string, string?>
                 {
                     ["AgentName"] = agent.FullName,
-                    ["ClientName"] = campaign.User.FullName,
+                    ["ClientName"] = campaign.ResolveClientName(),
                     ["CampaignName"] = ResolveCampaignName(campaign),
                     ["PackageName"] = campaign.PackageBand.Name,
                     ["Budget"] = FormatCurrency(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount),

@@ -22,7 +22,6 @@ public sealed class PublicProspectQuestionnaireController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly SaveCampaignBriefRequestValidator _briefValidator;
-    private readonly IPasswordHashingService _passwordHashingService;
     private readonly IAgentAreaRoutingService _agentAreaRoutingService;
     private readonly IChangeAuditService _changeAuditService;
     private readonly ITemplatedEmailService _emailService;
@@ -32,7 +31,6 @@ public sealed class PublicProspectQuestionnaireController : ControllerBase
     public PublicProspectQuestionnaireController(
         AppDbContext db,
         SaveCampaignBriefRequestValidator briefValidator,
-        IPasswordHashingService passwordHashingService,
         IAgentAreaRoutingService agentAreaRoutingService,
         IChangeAuditService changeAuditService,
         ITemplatedEmailService emailService,
@@ -41,7 +39,6 @@ public sealed class PublicProspectQuestionnaireController : ControllerBase
     {
         _db = db;
         _briefValidator = briefValidator;
-        _passwordHashingService = passwordHashingService;
         _agentAreaRoutingService = agentAreaRoutingService;
         _changeAuditService = changeAuditService;
         _emailService = emailService;
@@ -79,44 +76,37 @@ public sealed class PublicProspectQuestionnaireController : ControllerBase
             ?? throw new NotFoundException("Package band not found.");
 
         var selectedBudget = ResolveProspectBudget(packageBand);
-        var user = await _db.UserAccounts
-            .Include(x => x.BusinessProfile)
+        var lead = await _db.ProspectLeads
             .FirstOrDefaultAsync(x => x.Email == email, cancellationToken);
 
-        var createdNewUser = false;
-        if (user is null)
+        var createdNewLead = false;
+        if (lead is null)
         {
-            var userNow = DateTime.UtcNow;
-            user = new UserAccount
+            lead = new ProspectLead
             {
                 Id = Guid.NewGuid(),
                 FullName = fullName,
                 Email = email,
                 Phone = phone,
-                IsSaCitizen = true,
-                Role = UserRole.Client,
-                AccountStatus = AccountStatus.PendingVerification,
-                EmailVerified = false,
-                PhoneVerified = false,
-                CreatedAt = userNow,
-                UpdatedAt = userNow
+                Source = "public_questionnaire",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
             };
-            user.PasswordHash = _passwordHashingService.HashPassword(user, Guid.NewGuid().ToString("N"));
-            _db.UserAccounts.Add(user);
-            createdNewUser = true;
+            _db.ProspectLeads.Add(lead);
+            createdNewLead = true;
         }
         else
         {
-            user.FullName = fullName;
-            user.Phone = phone;
-            user.UpdatedAt = DateTime.UtcNow;
+            lead.FullName = fullName;
+            lead.Phone = phone;
+            lead.UpdatedAt = DateTime.UtcNow;
         }
 
         var now = DateTime.UtcNow;
         var packageOrder = new PackageOrder
         {
             Id = Guid.NewGuid(),
-            UserId = user.Id,
+            ProspectLeadId = lead.Id,
             PackageBandId = packageBand.Id,
             Amount = selectedBudget,
             SelectedBudget = selectedBudget,
@@ -137,7 +127,7 @@ public sealed class PublicProspectQuestionnaireController : ControllerBase
         var campaign = new Campaign
         {
             Id = Guid.NewGuid(),
-            UserId = user.Id,
+            ProspectLeadId = lead.Id,
             PackageOrderId = packageOrder.Id,
             PackageBandId = packageBand.Id,
             CampaignName = campaignName,
@@ -183,7 +173,7 @@ public sealed class PublicProspectQuestionnaireController : ControllerBase
                 ProspectEmail = email,
                 PackageBand = packageBand.Name,
                 SelectedBudget = selectedBudget,
-                createdNewUser
+                createdNewLead
             },
             cancellationToken);
 

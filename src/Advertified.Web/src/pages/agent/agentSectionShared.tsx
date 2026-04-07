@@ -43,11 +43,12 @@ export function buildClientRows(campaigns: Awaited<ReturnType<typeof useAgentCam
   }>();
 
   for (const campaign of campaigns ?? []) {
+    const ownerKey = campaign.userId ?? campaign.clientEmail ?? campaign.id;
     const hasApprovedRecommendation = campaign.recommendations.some((item) => item.status === 'approved');
     const hasPendingClientDecision = campaign.status === 'creative_sent_to_client_for_approval'
       || (!hasApprovedRecommendation && campaign.recommendations.some((item) => item.status === 'sent_to_client'));
-    const current = grouped.get(campaign.userId) ?? {
-      userId: campaign.userId,
+    const current = grouped.get(ownerKey) ?? {
+      userId: ownerKey,
       clientName: campaign.clientName ?? campaign.businessName ?? campaign.campaignName ?? 'Client',
       clientEmail: campaign.clientEmail ?? campaign.businessName ?? 'Email not available',
       campaignCount: 0,
@@ -71,7 +72,7 @@ export function buildClientRows(campaigns: Awaited<ReturnType<typeof useAgentCam
       current.latestCampaignId = campaign.id;
     }
 
-    grouped.set(campaign.userId, current);
+    grouped.set(ownerKey, current);
   }
 
   return Array.from(grouped.values())

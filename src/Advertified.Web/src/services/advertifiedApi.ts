@@ -92,7 +92,7 @@ type LegalDocumentResponse = {
 
 type PackageOrderResponse = {
   id: string;
-  userId: string;
+  userId?: string | null;
   packageBandId: string;
   packageBandName: string;
   amount: number;
@@ -250,7 +250,7 @@ type CampaignRecommendationResponse = {
 
 type CampaignResponse = {
   id: string;
-  userId: string;
+  userId?: string | null;
   clientName?: string | null;
   clientEmail?: string | null;
   businessName?: string | null;
@@ -377,7 +377,7 @@ type NotificationSummaryResponse = NotificationSummary;
 
 type AgentInboxItemResponse = {
   id: string;
-  userId: string;
+  userId?: string | null;
   campaignName: string;
   clientName: string;
   clientEmail: string;
@@ -524,7 +524,7 @@ function mapLegalDocument(response: LegalDocumentResponse): LegalDocument {
 function mapPackageOrder(response: PackageOrderResponse): PackageOrder {
   return {
     id: response.id,
-    userId: response.userId,
+    userId: response.userId ?? undefined,
     packageBandId: response.packageBandId,
     packageBandName: response.packageBandName,
     amount: response.amount,
@@ -547,7 +547,7 @@ function mapPackageOrder(response: PackageOrderResponse): PackageOrder {
 function mapAdminPackageOrder(response: AdminPackageOrderResponse): AdminPackageOrder {
   return {
     orderId: response.orderId,
-    userId: response.userId,
+    userId: response.userId ?? undefined,
     clientName: response.clientName,
     clientEmail: response.clientEmail,
     clientPhone: response.clientPhone ?? '',
@@ -789,7 +789,7 @@ function mapCampaign(response: CampaignResponse): Campaign {
 
   return {
     id: response.id,
-    userId: response.userId,
+    userId: response.userId ?? undefined,
     clientName: response.clientName ?? undefined,
     clientEmail: response.clientEmail ?? undefined,
     businessName: response.businessName ?? undefined,
@@ -871,7 +871,7 @@ function mapConversationThread(response: CampaignConversationThreadResponse): Ca
 function mapAgentInboxItem(response: AgentInboxItemResponse): AgentInboxItem {
   return {
     id: response.id,
-    userId: response.userId,
+    userId: response.userId ?? undefined,
     campaignName: response.campaignName,
     clientName: response.clientName,
     clientEmail: response.clientEmail,

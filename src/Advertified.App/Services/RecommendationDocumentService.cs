@@ -58,8 +58,8 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
 
         var model = new RecommendationDocumentModel
         {
-            ClientName = campaign.User.FullName,
-            BusinessName = campaign.User.BusinessProfile?.BusinessName,
+            ClientName = campaign.ResolveClientName(),
+            BusinessName = campaign.ResolveBusinessName(),
             CampaignName = ResolveCampaignName(campaign),
             CampaignApprovalsUrl = BuildProposalUrl(campaign.Id),
             PackageName = campaign.PackageBand.Name,
@@ -112,8 +112,8 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
 
         var model = new RecommendationDocumentModel
         {
-            ClientName = campaign.User.FullName,
-            BusinessName = campaign.User.BusinessProfile?.BusinessName,
+            ClientName = campaign.ResolveClientName(),
+            BusinessName = campaign.ResolveBusinessName(),
             CampaignName = ResolveCampaignName(campaign),
             CampaignApprovalsUrl = BuildProposalUrl(campaign.Id),
             PackageName = campaign.PackageBand.Name,
@@ -434,6 +434,7 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
             .AsSplitQuery()
             .Include(x => x.User)
                 .ThenInclude(x => x.BusinessProfile)
+            .Include(x => x.ProspectLead)
             .Include(x => x.PackageBand)
             .Include(x => x.PackageOrder)
             .Include(x => x.CampaignBrief)

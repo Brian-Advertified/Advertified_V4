@@ -3,7 +3,7 @@ namespace Advertified.App.Contracts.Admin;
 public sealed class AdminPackageOrderItemResponse
 {
     public Guid OrderId { get; set; }
-    public Guid UserId { get; set; }
+    public Guid? UserId { get; set; }
     public string ClientName { get; set; } = string.Empty;
     public string ClientEmail { get; set; } = string.Empty;
     public string ClientPhone { get; set; } = string.Empty;

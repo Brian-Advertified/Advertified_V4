@@ -7,7 +7,9 @@ public partial class PackageOrder
 {
     public Guid Id { get; set; }
 
-    public Guid UserId { get; set; }
+    public Guid? UserId { get; set; }
+
+    public Guid? ProspectLeadId { get; set; }
 
     public Guid PackageBandId { get; set; }
 
@@ -48,5 +50,7 @@ public partial class PackageOrder
 
     public virtual PackageBand PackageBand { get; set; } = null!;
 
-    public virtual UserAccount User { get; set; } = null!;
+    public virtual ProspectLead? ProspectLead { get; set; }
+
+    public virtual UserAccount? User { get; set; }
 }

@@ -74,6 +74,8 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<PaymentProviderWebhookAudit> PaymentProviderWebhooks { get; set; }
 
+    public virtual DbSet<ProspectLead> ProspectLeads { get; set; }
+
     public virtual DbSet<RecommendationItem> RecommendationItems { get; set; }
 
     public virtual DbSet<UserAccount> UserAccounts { get; set; }

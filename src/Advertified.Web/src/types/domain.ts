@@ -145,7 +145,7 @@ export interface PackagePricingSummary {
 
 export interface PackageOrder {
   id: string;
-  userId: string;
+  userId?: string;
   packageBandId: string;
   packageBandName: string;
   amount: number;
@@ -308,7 +308,7 @@ export interface CampaignTimelineStep {
 
 export interface Campaign {
   id: string;
-  userId: string;
+  userId?: string;
   clientName?: string;
   clientEmail?: string;
   businessName?: string;
@@ -496,7 +496,7 @@ export interface CampaignCreativeSystemRecord {
 
 export interface AgentInboxItem {
   id: string;
-  userId: string;
+  userId?: string;
   campaignName: string;
   clientName: string;
   clientEmail: string;
@@ -640,7 +640,7 @@ export interface AdminCampaignOperationsItem {
 
 export interface AdminPackageOrder {
   orderId: string;
-  userId: string;
+  userId?: string;
   clientName: string;
   clientEmail: string;
   clientPhone: string;

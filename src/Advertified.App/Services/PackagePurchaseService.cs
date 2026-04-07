@@ -340,6 +340,7 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
             .Include(x => x.PackageBand)
             .Include(x => x.User)
                 .ThenInclude(x => x.BusinessProfile)
+            .Include(x => x.ProspectLead)
             .Include(x => x.Campaign)
                 .ThenInclude(x => x!.CampaignRecommendations)
             .FirstOrDefaultAsync(x => x.Id == packageOrderId, cancellationToken)
@@ -363,6 +364,7 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
             {
                 Id = Guid.NewGuid(),
                 UserId = order.UserId,
+                ProspectLeadId = order.ProspectLeadId,
                 PackageOrderId = order.Id,
                 PackageBandId = order.PackageBandId,
                 Status = "paid",
@@ -394,18 +396,21 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
             }
         }
 
-        await _invoiceService.EnsureInvoiceAsync(
-            order,
-            order.PackageBand,
-            order.User,
-            order.User.BusinessProfile,
-            invoiceType: "tax_invoice",
-            status: InvoiceStatuses.Paid,
-            dueAtUtc: order.PurchasedAt,
-            paidAtUtc: order.PurchasedAt,
-            paymentReference,
-            sendInvoiceEmail: string.Equals(order.PaymentProvider, "vodapay", StringComparison.OrdinalIgnoreCase),
-            cancellationToken);
+        if (order.User is not null)
+        {
+            await _invoiceService.EnsureInvoiceAsync(
+                order,
+                order.PackageBand,
+                order.User,
+                order.User.BusinessProfile,
+                invoiceType: "tax_invoice",
+                status: InvoiceStatuses.Paid,
+                dueAtUtc: order.PurchasedAt,
+                paidAtUtc: order.PurchasedAt,
+                paymentReference,
+                sendInvoiceEmail: string.Equals(order.PaymentProvider, "vodapay", StringComparison.OrdinalIgnoreCase),
+                cancellationToken);
+        }
 
         await UpdatePaymentCacheAsync(order, order.PackageBand.Code, order.PaymentReference, cancellationToken);
     }

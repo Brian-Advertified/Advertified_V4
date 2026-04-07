@@ -50,9 +50,9 @@ public sealed class AgentCampaignsController : ControllerBase
             {
                 Id = x.Id,
                 UserId = x.UserId,
-                ClientName = x.User.FullName,
-                ClientEmail = x.User.Email,
-                BusinessName = x.User.BusinessProfile != null ? x.User.BusinessProfile.BusinessName : null,
+                ClientName = x.User != null ? x.User.FullName : x.ProspectLead != null ? x.ProspectLead.FullName : string.Empty,
+                ClientEmail = x.User != null ? x.User.Email : x.ProspectLead != null ? x.ProspectLead.Email : string.Empty,
+                BusinessName = x.User != null && x.User.BusinessProfile != null ? x.User.BusinessProfile.BusinessName : null,
                 PackageOrderId = x.PackageOrderId,
                 PackageBandId = x.PackageBandId,
                 PackageBandName = x.PackageBand.Name,
@@ -106,6 +106,7 @@ public sealed class AgentCampaignsController : ControllerBase
             .AsNoTracking()
             .AsSplitQuery()
             .Include(x => x.User)
+            .Include(x => x.ProspectLead)
             .Include(x => x.AssignedAgentUser)
             .Include(x => x.PackageBand)
             .Include(x => x.PackageOrder)
@@ -146,8 +147,8 @@ public sealed class AgentCampaignsController : ControllerBase
                 Id = campaign.Id,
                 UserId = campaign.UserId,
                 CampaignName = string.IsNullOrWhiteSpace(campaign.CampaignName) ? $"{campaign.PackageBand.Name} campaign" : campaign.CampaignName.Trim(),
-                ClientName = campaign.User.FullName,
-                ClientEmail = campaign.User.Email,
+                ClientName = campaign.ResolveClientName(),
+                ClientEmail = campaign.ResolveClientEmail(),
                 PackageBandId = campaign.PackageBandId,
                 PackageBandName = campaign.PackageBand.Name,
                 SelectedBudget = selectedBudget,
@@ -216,8 +217,8 @@ public sealed class AgentCampaignsController : ControllerBase
                 CampaignId = x.Id,
                 PackageOrderId = x.PackageOrderId,
                 CampaignName = string.IsNullOrWhiteSpace(x.CampaignName) ? $"{x.PackageBand.Name} campaign" : x.CampaignName.Trim(),
-                ClientName = x.User.FullName,
-                ClientEmail = x.User.Email,
+                ClientName = x.User != null ? x.User.FullName : x.ProspectLead != null ? x.ProspectLead.FullName : string.Empty,
+                ClientEmail = x.User != null ? x.User.Email : x.ProspectLead != null ? x.ProspectLead.Email : string.Empty,
                 PackageBandName = x.PackageBand.Name,
                 SelectedBudget = PricingPolicy.ResolvePlanningBudget(
                     x.PackageOrder.SelectedBudget ?? x.PackageOrder.Amount,
@@ -253,6 +254,7 @@ public sealed class AgentCampaignsController : ControllerBase
             .AsSplitQuery()
             .Include(x => x.User)
                 .ThenInclude(x => x.BusinessProfile)
+            .Include(x => x.ProspectLead)
             .Include(x => x.AssignedAgentUser)
             .Include(x => x.PackageBand)
             .Include(x => x.PackageOrder)
@@ -308,7 +310,7 @@ public sealed class AgentCampaignsController : ControllerBase
     private sealed class AgentCampaignListProjection
     {
         public Guid Id { get; init; }
-        public Guid UserId { get; init; }
+        public Guid? UserId { get; init; }
         public string? ClientName { get; init; }
         public string? ClientEmail { get; init; }
         public string? BusinessName { get; init; }
