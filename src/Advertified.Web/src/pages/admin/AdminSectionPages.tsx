@@ -216,11 +216,39 @@ export function AdminHealthPage() {
 
   return (
     <AdminQueryBoundary query={query}>
-      {(dashboard) => (
+      {(dashboard) => {
+        const strongOutlets = dashboard.outlets
+          .filter((item) => item.catalogHealth === 'strong')
+          .sort((left, right) => left.name.localeCompare(right.name));
+
+        return (
         <AdminPageShell title="Data quality and health" description="Track weak outlets, missing pricing, and live catalog issues so the planning engine stays reliable.">
           <section className="space-y-6">
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {[['Strong', dashboard.health.strongCount], ['Mixed', dashboard.health.mixedCount], ['Weak unpriced', dashboard.health.weakUnpricedCount], ['Weak no inventory', dashboard.health.weakNoInventoryCount]].map(([label, value]) => <div key={String(label)} className="panel p-6"><p className="text-xs font-semibold uppercase tracking-[0.24em] text-ink-soft">{label}</p><p className="mt-4 text-4xl font-semibold text-ink">{value}</p></div>)}
+            </div>
+            <div className="rounded-[28px] border border-line bg-white p-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-ink">Healthy outlets</h3>
+                  <p className="mt-2 text-sm text-ink-soft">These outlets are currently landing as strong in the live catalog. The fix queue below only shows outlets that still need attention.</p>
+                </div>
+                <div className="rounded-2xl bg-brand-soft px-4 py-3 text-sm font-semibold text-brand">
+                  {strongOutlets.length} strong
+                </div>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-3">
+                {strongOutlets.map((item) => (
+                  <Link
+                    key={item.code}
+                    to={`/admin/stations?outlet=${encodeURIComponent(item.code)}&mode=view`}
+                    className="inline-flex rounded-full border border-brand/20 bg-brand-soft px-4 py-2 text-sm font-semibold text-brand transition hover:border-brand/40"
+                  >
+                    {item.name}
+                  </Link>
+                ))}
+                {strongOutlets.length === 0 ? <p className="text-sm text-ink-soft">No outlets are currently landing as strong.</p> : null}
+              </div>
             </div>
             <div className="rounded-[28px] border border-line bg-white p-6">
               <div className="flex items-start justify-between gap-4">
@@ -261,7 +289,7 @@ export function AdminHealthPage() {
             </div>
           </section>
         </AdminPageShell>
-      )}
+      )}}
     </AdminQueryBoundary>
   );
 }

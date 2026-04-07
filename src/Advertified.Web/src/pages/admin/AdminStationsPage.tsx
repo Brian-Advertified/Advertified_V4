@@ -230,6 +230,7 @@ export function AdminStationsPage() {
           return priorityScore(right) - priorityScore(left) || left.name.localeCompare(right.name);
         });
         const issueCount = dashboard.outlets.filter(hasIssue).length;
+        const strongCount = dashboard.outlets.filter((item) => item.catalogHealth === 'strong').length;
         const isReadOnly = dialogMode === 'view';
         const activeDetail = dialogMode === 'create' ? null : selectedOutletQuery.data;
         const effectiveCatalogHealth = deriveCatalogHealthForSave(
@@ -274,6 +275,16 @@ export function AdminStationsPage() {
                     Add outlet
                   </button>
                 </div>
+              </div>
+              <div className="mt-4 flex flex-wrap items-center gap-3 text-sm">
+                <span className={`inline-flex rounded-full border px-3 py-1 font-semibold ${showAllOutlets ? 'border-brand/20 bg-brand-soft text-brand' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
+                  {showAllOutlets ? 'Viewing all outlets' : 'Viewing issue queue only'}
+                </span>
+                <span className="text-ink-soft">
+                  {showAllOutlets
+                    ? `${dashboard.outlets.length} total outlets, including ${strongCount} strong and ${issueCount} needing attention.`
+                    : `${issueCount} outlets need attention. Strong outlets are hidden until you switch to Show all outlets.`}
+                </span>
               </div>
             </div>
             <div className="overflow-hidden rounded-[28px] border border-line">
