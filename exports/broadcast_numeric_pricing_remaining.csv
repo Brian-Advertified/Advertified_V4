@@ -1,0 +1,4 @@
+"channel","station","station_id","usable_inventory_present","pricing_status","missing_for_completion","current_primary_languages","current_target_audience","fill_include_in_system","fill_supplier_or_owner","fill_rate_card_received","fill_pricing_source","fill_notes"
+"radio","East Coast Radio","radio_east_coast_radio","no","missing_numeric_prices","yes_fill_required","english","KZN commercial radio audience.","","","","",""
+"radio","Kfm 94.5","radio_kfm_94_5","no","missing_numeric_prices","yes_fill_required","english","Western Cape adults 25-54, LSM 7-10.","","","","",""
+"tv","e.tv","tv_e_tv","no","missing_numeric_prices","yes_fill_required","unknown","Black urban South Africans 18-49; mass-market entertainment and local content","","","","",""
