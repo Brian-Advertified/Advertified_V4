@@ -6,6 +6,7 @@ import {
   FolderKanban,
   LayoutDashboard,
   MessageSquareText,
+  Radar,
   UserRoundSearch,
 } from 'lucide-react';
 import { PageHero } from '../../components/marketing/PageHero';
@@ -38,6 +39,7 @@ export const agentNavSections: AgentNavSection[] = [
   {
     title: 'Work',
     items: [
+      { path: '/agent/lead-intelligence', label: 'Lead Intelligence', icon: Radar },
       { path: '/agent/leads', label: 'Clients', icon: UserRoundSearch },
       { path: '/agent/campaigns', label: 'Campaigns', icon: FolderKanban, end: true },
       { path: '/agent/messages', label: 'Messages', icon: MessageSquareText },

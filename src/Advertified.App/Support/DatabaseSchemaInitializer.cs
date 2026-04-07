@@ -56,8 +56,15 @@ internal static class DatabaseSchemaInitializer
                      Path.Combine("database", "bootstrap", "034_campaign_brief_strategy_intelligence.sql"),
                      Path.Combine("database", "bootstrap", "035_form_option_items.sql"),
                      Path.Combine("database", "bootstrap", "036_inventory_strategy_intelligence.sql"),
-                     Path.Combine("database", "bootstrap", "038_social_inventory_seed.sql")
-                    })
+                     Path.Combine("database", "bootstrap", "037_prospect_leads.sql"),
+                      Path.Combine("database", "bootstrap", "038_social_inventory_seed.sql"),
+                      Path.Combine("database", "bootstrap", "039_leads_and_signals.sql"),
+                      Path.Combine("database", "bootstrap", "040_lead_insight_history.sql"),
+                      Path.Combine("database", "bootstrap", "041_lead_source_ingestion.sql"),
+                      Path.Combine("database", "bootstrap", "042_lead_actions.sql"),
+                      Path.Combine("database", "bootstrap", "043_lead_interactions.sql"),
+                      Path.Combine("database", "bootstrap", "044_lead_action_assignment.sql")
+                     })
         {
             var fullPath = baseDirectories
                 .Select(baseDirectory => Path.Combine(baseDirectory, relativePath))

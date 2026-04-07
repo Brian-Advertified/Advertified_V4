@@ -12,6 +12,7 @@ import { AgentApprovalsPage } from '../pages/agent/AgentApprovalsPage';
 import { AgentBriefsPage } from '../pages/agent/AgentBriefsPage';
 import { AgentCampaignsPage } from '../pages/agent/AgentCampaignsPage';
 import { AgentDashboardPage } from '../pages/agent/AgentDashboardPage';
+import { AgentLeadIntelligencePage } from '../pages/agent/AgentLeadIntelligencePage';
 import { AgentLeadsClientsPage } from '../pages/agent/AgentLeadsClientsPage';
 import { AgentMessagesNotesPage } from '../pages/agent/AgentMessagesNotesPage';
 import { AgentRecommendationBuilderPage } from '../pages/agent/AgentRecommendationBuilderPage';
@@ -60,6 +61,8 @@ export const opsRoutes: AppRoute[] = [
   { path: '/admin/integrations', element: <ProtectedRoute requireAdmin><AdminIntegrationsPage /></ProtectedRoute> },
 
   { path: '/agent', element: <ProtectedRoute requireAgent><AgentDashboardPage /></ProtectedRoute> },
+  { path: '/agent/lead-intelligence', element: <ProtectedRoute requireAgent><AgentLeadIntelligencePage /></ProtectedRoute> },
+  { path: '/agent/lead-actions', element: <ProtectedRoute requireAgent><AgentLeadIntelligencePage /></ProtectedRoute> },
   { path: '/agent/leads', element: <ProtectedRoute requireAgent><AgentLeadsClientsPage /></ProtectedRoute> },
   { path: '/agent/briefs', element: <ProtectedRoute requireAgent><AgentBriefsPage /></ProtectedRoute> },
   { path: '/agent/recommendation-builder', element: <ProtectedRoute requireAgent><AgentRecommendationBuilderPage /></ProtectedRoute> },

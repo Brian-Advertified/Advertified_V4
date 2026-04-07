@@ -36,6 +36,8 @@ builder.Services.Configure<UpstashQStashOptions>(builder.Configuration.GetSectio
 builder.Services.Configure<UpstashRedisOptions>(builder.Configuration.GetSection(UpstashRedisOptions.SectionName));
 builder.Services.Configure<VodaPayOptions>(builder.Configuration.GetSection(VodaPayOptions.SectionName));
 builder.Services.Configure<PlanningPolicyOptions>(builder.Configuration.GetSection(PlanningPolicyOptions.SectionName));
+builder.Services.Configure<LeadScoringOptions>(builder.Configuration.GetSection(LeadScoringOptions.SectionName));
+builder.Services.Configure<LeadIntelligenceAutomationOptions>(builder.Configuration.GetSection(LeadIntelligenceAutomationOptions.SectionName));
 builder.Services.Configure<OpenAIOptions>(builder.Configuration.GetSection(OpenAIOptions.SectionName));
 builder.Services.Configure<ElevenLabsOptions>(builder.Configuration.GetSection(ElevenLabsOptions.SectionName));
 builder.Services.Configure<AiPlatformOptions>(builder.Configuration.GetSection(AiPlatformOptions.SectionName));
@@ -173,6 +175,31 @@ builder.Services.AddHttpClient(nameof(ElevenLabsProviderStrategy), (serviceProvi
 }).AddHttpMessageHandler<TransientHttpRetryHandler>();
 builder.Services.AddScoped<IEmailVerificationService, EmailVerificationService>();
 builder.Services.AddScoped<IInvoiceService, InvoiceService>();
+builder.Services.AddScoped<ILeadIntelligenceOrchestrator, LeadIntelligenceOrchestrator>();
+builder.Services.AddScoped<ILeadActionRecommendationService, LeadActionRecommendationService>();
+builder.Services.AddScoped<ILeadScoreService, LeadScoreService>();
+builder.Services.AddScoped<ILeadSourceIngestionService, LeadSourceIngestionService>();
+builder.Services.AddScoped<ILeadSourceImportService, LeadSourceImportService>();
+builder.Services.AddScoped<ISignalCollectorService, SignalCollectorService>();
+builder.Services.AddScoped<ITrendAnalysisService, TrendAnalysisService>();
+builder.Services.AddHttpClient<IInsightService, InsightService>((serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<OpenAIOptions>>().Value;
+    if (!string.IsNullOrWhiteSpace(options.BaseUrl))
+    {
+        client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
+    }
+
+    if (options.TimeoutSeconds > 0)
+    {
+        client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
+    }
+}).AddHttpMessageHandler<TransientHttpRetryHandler>();
+builder.Services.AddHttpClient<IWebsiteSignalProvider, WebsiteSignalProvider>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(15);
+});
+builder.Services.AddHostedService<LeadIntelligenceRefreshWorker>();
 builder.Services.AddSingleton(BroadcastMatcherPolicy.Default);
 builder.Services.AddScoped<IBroadcastMatchRequestNormalizer, BroadcastMatchRequestNormalizer>();
 builder.Services.AddScoped<IBroadcastMatchRequestValidator, BroadcastMatchRequestValidator>();

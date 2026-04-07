@@ -568,6 +568,101 @@ export interface AgentSales {
   items: AgentSaleItem[];
 }
 
+export interface Lead {
+  id: number;
+  name: string;
+  website?: string;
+  location: string;
+  category: string;
+  source: string;
+  sourceReference?: string;
+  lastDiscoveredAt?: string;
+  createdAt: string;
+}
+
+export interface LeadSignal {
+  id: number;
+  leadId: number;
+  hasPromo: boolean;
+  hasMetaAds: boolean;
+  websiteUpdatedRecently: boolean;
+  createdAt: string;
+}
+
+export interface LeadScore {
+  leadId: number;
+  score: number;
+  intentLevel: 'Low' | 'Medium' | 'High' | string;
+}
+
+export interface LeadInsightSnapshot {
+  id: number;
+  leadId: number;
+  signalId?: number;
+  trendSummary: string;
+  scoreSnapshot: number;
+  intentLevelSnapshot: 'Low' | 'Medium' | 'High' | string;
+  text: string;
+  createdAt: string;
+}
+
+export interface LeadAction {
+  id: number;
+  leadId: number;
+  leadInsightId?: number;
+  actionType: string;
+  title: string;
+  description: string;
+  status: string;
+  priority: string;
+  assignedAgentUserId?: string;
+  assignedAgentName?: string;
+  assignedAt?: string;
+  isAssignedToCurrentUser: boolean;
+  isUnassigned: boolean;
+  createdAt: string;
+  completedAt?: string;
+}
+
+export interface LeadActionInboxItem {
+  actionId: number;
+  leadId: number;
+  leadName: string;
+  leadLocation: string;
+  leadCategory: string;
+  leadSource: string;
+  action: LeadAction;
+}
+
+export interface LeadActionInbox {
+  totalOpenActions: number;
+  assignedToMeCount: number;
+  unassignedCount: number;
+  highPriorityCount: number;
+  items: LeadActionInboxItem[];
+}
+
+export interface LeadInteraction {
+  id: number;
+  leadId: number;
+  leadActionId?: number;
+  interactionType: string;
+  notes: string;
+  createdAt: string;
+}
+
+export interface LeadIntelligence {
+  lead: Lead;
+  latestSignal?: LeadSignal;
+  score: LeadScore;
+  insight: string;
+  trendSummary: string;
+  signalHistory: LeadSignal[];
+  insightHistory: LeadInsightSnapshot[];
+  recommendedActions: LeadAction[];
+  interactionHistory: LeadInteraction[];
+}
+
 export interface AdminUser {
   id: string;
   fullName: string;

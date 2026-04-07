@@ -62,6 +62,14 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<LegalDocument> LegalDocuments { get; set; }
 
+    public virtual DbSet<Lead> Leads { get; set; }
+
+    public virtual DbSet<LeadAction> LeadActions { get; set; }
+
+    public virtual DbSet<LeadInteraction> LeadInteractions { get; set; }
+
+    public virtual DbSet<LeadInsight> LeadInsights { get; set; }
+
     public virtual DbSet<NotificationReadReceipt> NotificationReadReceipts { get; set; }
 
     public virtual DbSet<PackageBand> PackageBands { get; set; }
@@ -77,6 +85,8 @@ public partial class AppDbContext : DbContext
     public virtual DbSet<ProspectLead> ProspectLeads { get; set; }
 
     public virtual DbSet<RecommendationItem> RecommendationItems { get; set; }
+
+    public virtual DbSet<Signal> Signals { get; set; }
 
     public virtual DbSet<UserAccount> UserAccounts { get; set; }
 

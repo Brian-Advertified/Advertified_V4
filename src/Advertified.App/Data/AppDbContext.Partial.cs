@@ -168,6 +168,220 @@ public partial class AppDbContext
                 .HasColumnName("updated_at_utc");
         });
 
+        modelBuilder.Entity<Lead>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("leads_pkey");
+
+            entity.ToTable("leads");
+
+            entity.HasIndex(e => new { e.Name, e.Location }, "ix_leads_name_location");
+
+            entity.Property(e => e.Id)
+                .ValueGeneratedOnAdd()
+                .HasColumnName("id");
+            entity.Property(e => e.Name)
+                .IsRequired()
+                .HasMaxLength(200)
+                .HasColumnName("name");
+            entity.Property(e => e.Website)
+                .HasMaxLength(500)
+                .HasColumnName("website");
+            entity.Property(e => e.Location)
+                .IsRequired()
+                .HasMaxLength(200)
+                .HasColumnName("location");
+            entity.Property(e => e.Category)
+                .IsRequired()
+                .HasMaxLength(100)
+                .HasColumnName("category");
+            entity.Property(e => e.Source)
+                .IsRequired()
+                .HasMaxLength(100)
+                .HasDefaultValue("manual")
+                .HasColumnName("source");
+            entity.Property(e => e.SourceReference)
+                .HasMaxLength(500)
+                .HasColumnName("source_reference");
+            entity.Property(e => e.LastDiscoveredAt)
+                .HasColumnName("last_discovered_at");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("timezone('utc', now())")
+                .HasColumnName("created_at");
+        });
+
+        modelBuilder.Entity<LeadAction>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("lead_actions_pkey");
+
+            entity.ToTable("lead_actions");
+
+            entity.HasIndex(e => e.LeadId, "ix_lead_actions_lead_id");
+            entity.HasIndex(e => e.Status, "ix_lead_actions_status");
+            entity.HasIndex(e => e.AssignedAgentUserId, "ix_lead_actions_assigned_agent_user_id");
+
+            entity.Property(e => e.Id)
+                .ValueGeneratedOnAdd()
+                .HasColumnName("id");
+            entity.Property(e => e.LeadId)
+                .HasColumnName("lead_id");
+            entity.Property(e => e.LeadInsightId)
+                .HasColumnName("lead_insight_id");
+            entity.Property(e => e.ActionType)
+                .HasMaxLength(50)
+                .HasColumnName("action_type");
+            entity.Property(e => e.Title)
+                .HasMaxLength(200)
+                .HasColumnName("title");
+            entity.Property(e => e.Description)
+                .HasColumnName("description");
+            entity.Property(e => e.Status)
+                .HasMaxLength(30)
+                .HasDefaultValue("open")
+                .HasColumnName("status");
+            entity.Property(e => e.Priority)
+                .HasMaxLength(30)
+                .HasDefaultValue("medium")
+                .HasColumnName("priority");
+            entity.Property(e => e.AssignedAgentUserId)
+                .HasColumnName("assigned_agent_user_id");
+            entity.Property(e => e.AssignedAt)
+                .HasColumnName("assigned_at");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("timezone('utc', now())")
+                .HasColumnName("created_at");
+            entity.Property(e => e.CompletedAt)
+                .HasColumnName("completed_at");
+
+            entity.HasOne(e => e.Lead)
+                .WithMany(e => e.Actions)
+                .HasForeignKey(e => e.LeadId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("lead_actions_lead_id_fkey");
+
+            entity.HasOne(e => e.LeadInsight)
+                .WithMany(e => e.Actions)
+                .HasForeignKey(e => e.LeadInsightId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("lead_actions_lead_insight_id_fkey");
+
+            entity.HasOne(e => e.AssignedAgentUser)
+                .WithMany()
+                .HasForeignKey(e => e.AssignedAgentUserId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("lead_actions_assigned_agent_user_id_fkey");
+        });
+
+        modelBuilder.Entity<LeadInteraction>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("lead_interactions_pkey");
+
+            entity.ToTable("lead_interactions");
+
+            entity.HasIndex(e => e.LeadId, "ix_lead_interactions_lead_id");
+            entity.HasIndex(e => e.CreatedAt, "ix_lead_interactions_created_at");
+
+            entity.Property(e => e.Id)
+                .ValueGeneratedOnAdd()
+                .HasColumnName("id");
+            entity.Property(e => e.LeadId)
+                .HasColumnName("lead_id");
+            entity.Property(e => e.LeadActionId)
+                .HasColumnName("lead_action_id");
+            entity.Property(e => e.InteractionType)
+                .HasMaxLength(50)
+                .HasColumnName("interaction_type");
+            entity.Property(e => e.Notes)
+                .HasColumnName("notes");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("timezone('utc', now())")
+                .HasColumnName("created_at");
+
+            entity.HasOne(e => e.Lead)
+                .WithMany(e => e.Interactions)
+                .HasForeignKey(e => e.LeadId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("lead_interactions_lead_id_fkey");
+
+            entity.HasOne(e => e.LeadAction)
+                .WithMany(e => e.Interactions)
+                .HasForeignKey(e => e.LeadActionId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("lead_interactions_lead_action_id_fkey");
+        });
+
+        modelBuilder.Entity<LeadInsight>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("lead_insights_pkey");
+
+            entity.ToTable("lead_insights");
+
+            entity.HasIndex(e => e.LeadId, "ix_lead_insights_lead_id");
+            entity.HasIndex(e => e.CreatedAt, "ix_lead_insights_created_at");
+
+            entity.Property(e => e.Id)
+                .ValueGeneratedOnAdd()
+                .HasColumnName("id");
+            entity.Property(e => e.LeadId)
+                .HasColumnName("lead_id");
+            entity.Property(e => e.SignalId)
+                .HasColumnName("signal_id");
+            entity.Property(e => e.TrendSummary)
+                .HasColumnName("trend_summary");
+            entity.Property(e => e.ScoreSnapshot)
+                .HasColumnName("score_snapshot");
+            entity.Property(e => e.IntentLevelSnapshot)
+                .HasMaxLength(20)
+                .HasColumnName("intent_level_snapshot");
+            entity.Property(e => e.Text)
+                .HasColumnName("text");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("timezone('utc', now())")
+                .HasColumnName("created_at");
+
+            entity.HasOne(e => e.Lead)
+                .WithMany(e => e.Insights)
+                .HasForeignKey(e => e.LeadId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("lead_insights_lead_id_fkey");
+
+            entity.HasOne(e => e.Signal)
+                .WithMany(e => e.Insights)
+                .HasForeignKey(e => e.SignalId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("lead_insights_signal_id_fkey");
+        });
+
+        modelBuilder.Entity<Signal>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("signals_pkey");
+
+            entity.ToTable("signals");
+
+            entity.HasIndex(e => e.LeadId, "ix_signals_lead_id");
+            entity.HasIndex(e => e.CreatedAt, "ix_signals_created_at");
+
+            entity.Property(e => e.Id)
+                .ValueGeneratedOnAdd()
+                .HasColumnName("id");
+            entity.Property(e => e.LeadId)
+                .HasColumnName("lead_id");
+            entity.Property(e => e.HasPromo)
+                .HasColumnName("has_promo");
+            entity.Property(e => e.HasMetaAds)
+                .HasColumnName("has_meta_ads");
+            entity.Property(e => e.WebsiteUpdatedRecently)
+                .HasColumnName("website_updated_recently");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("timezone('utc', now())")
+                .HasColumnName("created_at");
+
+            entity.HasOne(e => e.Lead)
+                .WithMany(e => e.Signals)
+                .HasForeignKey(e => e.LeadId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("signals_lead_id_fkey");
+        });
+
         modelBuilder.Entity<PackageBandProfile>(entity =>
         {
             entity.HasKey(e => e.PackageBandId).HasName("package_band_profiles_pkey");

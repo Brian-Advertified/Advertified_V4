@@ -24,6 +24,13 @@ import type {
   PackagePricingSummary,
   PackagePreviewMapPoint,
   PackageOrder,
+  Lead,
+  LeadAction,
+  LeadActionInbox,
+  LeadActionInboxItem,
+  LeadInteraction,
+  LeadInsightSnapshot,
+  LeadIntelligence,
   PlanningMode,
   ConsentPreference,
 } from '../types/domain';
@@ -466,7 +473,224 @@ type PublicProspectQuestionnaireResponse = {
   message: string;
 };
 
+type LeadResponse = {
+  id: number;
+  name: string;
+  website?: string | null;
+  location: string;
+  category: string;
+  source: string;
+  sourceReference?: string | null;
+  lastDiscoveredAt?: string | null;
+  createdAt: string;
+};
+
+type LeadSignalResponse = {
+  id: number;
+  leadId: number;
+  hasPromo: boolean;
+  hasMetaAds: boolean;
+  websiteUpdatedRecently: boolean;
+  createdAt: string;
+};
+
+type LeadScoreResponse = {
+  leadId: number;
+  score: number;
+  intentLevel: string;
+};
+
+type LeadInsightResponse = {
+  id: number;
+  leadId: number;
+  signalId?: number | null;
+  trendSummary: string;
+  scoreSnapshot: number;
+  intentLevelSnapshot: string;
+  text: string;
+  createdAt: string;
+};
+
+type LeadActionResponse = {
+  id: number;
+  leadId: number;
+  leadInsightId?: number | null;
+  actionType: string;
+  title: string;
+  description: string;
+  status: string;
+  priority: string;
+  assignedAgentUserId?: string | null;
+  assignedAgentName?: string | null;
+  assignedAt?: string | null;
+  isAssignedToCurrentUser?: boolean;
+  isUnassigned?: boolean;
+  createdAt: string;
+  completedAt?: string | null;
+};
+
+type LeadActionInboxItemResponse = {
+  actionId: number;
+  leadId: number;
+  leadName: string;
+  leadLocation: string;
+  leadCategory: string;
+  leadSource: string;
+  action: LeadActionResponse;
+};
+
+type LeadActionInboxResponse = {
+  totalOpenActions: number;
+  assignedToMeCount: number;
+  unassignedCount: number;
+  highPriorityCount: number;
+  items: LeadActionInboxItemResponse[];
+};
+
+type LeadInteractionResponse = {
+  id: number;
+  leadId: number;
+  leadActionId?: number | null;
+  interactionType: string;
+  notes: string;
+  createdAt: string;
+};
+
+type LeadIntelligenceResponse = {
+  lead: LeadResponse;
+  latestSignal?: LeadSignalResponse | null;
+  score: LeadScoreResponse;
+  insight: string;
+  trendSummary?: string;
+  signalHistory?: LeadSignalResponse[];
+  insightHistory?: LeadInsightResponse[];
+  recommendedActions?: LeadActionResponse[];
+  interactionHistory?: LeadInteractionResponse[];
+};
+
 type CreativeSystemResponse = CreativeSystem;
+function mapLead(response: LeadResponse): Lead {
+  return {
+    id: response.id,
+    name: response.name,
+    website: response.website ?? undefined,
+    location: response.location,
+    category: response.category,
+    source: response.source,
+    sourceReference: response.sourceReference ?? undefined,
+    lastDiscoveredAt: response.lastDiscoveredAt ?? undefined,
+    createdAt: response.createdAt,
+  };
+}
+
+function mapLeadIntelligence(response: LeadIntelligenceResponse): LeadIntelligence {
+  return {
+    lead: mapLead(response.lead),
+    latestSignal: response.latestSignal
+      ? {
+          id: response.latestSignal.id,
+          leadId: response.latestSignal.leadId,
+          hasPromo: response.latestSignal.hasPromo,
+          hasMetaAds: response.latestSignal.hasMetaAds,
+          websiteUpdatedRecently: response.latestSignal.websiteUpdatedRecently,
+          createdAt: response.latestSignal.createdAt,
+        }
+      : undefined,
+    score: {
+      leadId: response.score.leadId,
+      score: response.score.score,
+      intentLevel: response.score.intentLevel,
+    },
+    insight: response.insight,
+    trendSummary: response.trendSummary ?? '',
+    signalHistory: (response.signalHistory ?? []).map((signal) => ({
+      id: signal.id,
+      leadId: signal.leadId,
+      hasPromo: signal.hasPromo,
+      hasMetaAds: signal.hasMetaAds,
+      websiteUpdatedRecently: signal.websiteUpdatedRecently,
+      createdAt: signal.createdAt,
+    })),
+    insightHistory: (response.insightHistory ?? []).map((insight): LeadInsightSnapshot => ({
+      id: insight.id,
+      leadId: insight.leadId,
+      signalId: insight.signalId ?? undefined,
+      trendSummary: insight.trendSummary,
+      scoreSnapshot: insight.scoreSnapshot,
+      intentLevelSnapshot: insight.intentLevelSnapshot,
+      text: insight.text,
+      createdAt: insight.createdAt,
+    })),
+    recommendedActions: (response.recommendedActions ?? []).map((action): LeadAction => ({
+      id: action.id,
+      leadId: action.leadId,
+      leadInsightId: action.leadInsightId ?? undefined,
+      actionType: action.actionType,
+      title: action.title,
+      description: action.description,
+      status: action.status,
+      priority: action.priority,
+      assignedAgentUserId: action.assignedAgentUserId ?? undefined,
+      assignedAgentName: action.assignedAgentName ?? undefined,
+      assignedAt: action.assignedAt ?? undefined,
+      isAssignedToCurrentUser: action.isAssignedToCurrentUser ?? false,
+      isUnassigned: action.isUnassigned ?? !action.assignedAgentUserId,
+      createdAt: action.createdAt,
+      completedAt: action.completedAt ?? undefined,
+    })),
+    interactionHistory: (response.interactionHistory ?? []).map((interaction): LeadInteraction => ({
+      id: interaction.id,
+      leadId: interaction.leadId,
+      leadActionId: interaction.leadActionId ?? undefined,
+      interactionType: interaction.interactionType,
+      notes: interaction.notes,
+      createdAt: interaction.createdAt,
+    })),
+  };
+}
+
+function mapLeadAction(response: LeadActionResponse): LeadAction {
+  return {
+    id: response.id,
+    leadId: response.leadId,
+    leadInsightId: response.leadInsightId ?? undefined,
+    actionType: response.actionType,
+    title: response.title,
+    description: response.description,
+    status: response.status,
+    priority: response.priority,
+    assignedAgentUserId: response.assignedAgentUserId ?? undefined,
+    assignedAgentName: response.assignedAgentName ?? undefined,
+    assignedAt: response.assignedAt ?? undefined,
+    isAssignedToCurrentUser: response.isAssignedToCurrentUser ?? false,
+    isUnassigned: response.isUnassigned ?? !response.assignedAgentUserId,
+    createdAt: response.createdAt,
+    completedAt: response.completedAt ?? undefined,
+  };
+}
+
+function mapLeadActionInboxItem(response: LeadActionInboxItemResponse): LeadActionInboxItem {
+  return {
+    actionId: response.actionId,
+    leadId: response.leadId,
+    leadName: response.leadName,
+    leadLocation: response.leadLocation,
+    leadCategory: response.leadCategory,
+    leadSource: response.leadSource,
+    action: mapLeadAction(response.action),
+  };
+}
+
+function mapLeadActionInbox(response: LeadActionInboxResponse): LeadActionInbox {
+  return {
+    totalOpenActions: response.totalOpenActions,
+    assignedToMeCount: response.assignedToMeCount,
+    unassignedCount: response.unassignedCount,
+    highPriorityCount: response.highPriorityCount,
+    items: response.items.map(mapLeadActionInboxItem),
+  };
+}
+
 function mapPackageBand(response: PackageBandResponse): PackageBand {
   return {
     id: response.id,
@@ -1250,6 +1474,74 @@ export const advertifiedApi = {
   toAbsoluteApiUrl,
   downloadProtectedFile,
   downloadPublicFile,
+  async getLeads() {
+    const response = await apiRequest<LeadResponse[]>('/leads');
+    return response.map(mapLead);
+  },
+  async getLeadIntelligenceList() {
+    const response = await apiRequest<LeadIntelligenceResponse[]>('/leads/intelligence');
+    return response.map(mapLeadIntelligence);
+  },
+  async getLeadIntelligence(leadId: number) {
+    const response = await apiRequest<LeadIntelligenceResponse>(`/leads/${encodeURIComponent(String(leadId))}/intelligence`);
+    return mapLeadIntelligence(response);
+  },
+  async getLeadActionInbox() {
+    const response = await apiRequest<LeadActionInboxResponse>('/agent/lead-actions/inbox');
+    return mapLeadActionInbox(response);
+  },
+  async createLead(input: { name: string; website?: string; location: string; category: string }) {
+    const response = await apiRequest<LeadResponse>('/leads', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+    return mapLead(response);
+  },
+  async importLeadCsv(input: { csvText: string; defaultSource?: string }) {
+    return apiRequest<{
+      createdCount: number;
+      updatedCount: number;
+      leads: LeadResponse[];
+    }>('/leads/import-csv', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  },
+  async analyzeLead(leadId: number) {
+    const response = await apiRequest<LeadIntelligenceResponse>(`/leads/${encodeURIComponent(String(leadId))}/analyze`, {
+      method: 'POST',
+    });
+    return mapLeadIntelligence(response);
+  },
+  async updateLeadActionStatus(leadId: number, actionId: number, status: 'open' | 'completed' | 'dismissed') {
+    const response = await apiRequest<LeadActionResponse>(`/leads/${encodeURIComponent(String(leadId))}/actions/${encodeURIComponent(String(actionId))}/status`, {
+      method: 'POST',
+      body: JSON.stringify({ status }),
+    });
+    return mapLeadAction(response);
+  },
+  async assignLeadActionToMe(leadId: number, actionId: number) {
+    const response = await apiRequest<LeadActionResponse>(`/leads/${encodeURIComponent(String(leadId))}/actions/${encodeURIComponent(String(actionId))}/assign-to-me`, {
+      method: 'POST',
+    });
+    return mapLeadAction(response);
+  },
+  async unassignLeadAction(leadId: number, actionId: number) {
+    const response = await apiRequest<LeadActionResponse>(`/leads/${encodeURIComponent(String(leadId))}/actions/${encodeURIComponent(String(actionId))}/unassign`, {
+      method: 'POST',
+    });
+    return mapLeadAction(response);
+  },
+  async createLeadInteraction(input: { leadId: number; leadActionId?: number; interactionType: string; notes: string }) {
+    return apiRequest<LeadInteractionResponse>(`/leads/${encodeURIComponent(String(input.leadId))}/interactions`, {
+      method: 'POST',
+      body: JSON.stringify({
+        leadActionId: input.leadActionId,
+        interactionType: input.interactionType,
+        notes: input.notes,
+      }),
+    });
+  },
   ...publicApi,
   ...authApi,
   ...adminApi,

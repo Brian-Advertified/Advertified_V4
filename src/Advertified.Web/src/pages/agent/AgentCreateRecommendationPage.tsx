@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, ChevronRight, Sparkles, Wand2 } from 'lucide-react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { ProcessingOverlay } from '../../components/ui/ProcessingOverlay';
 import { useToast } from '../../components/ui/toast';
@@ -152,6 +152,14 @@ type ProspectFormState = {
   campaignName: string;
 };
 
+type CampaignConversionPrefillState = {
+  convertToCampaign?: {
+    businessName?: string;
+    location?: string;
+    suggestedCampaignType?: string;
+  };
+};
+
 type ScopedFormState = {
   key: string;
   value: CampaignFormState;
@@ -267,6 +275,7 @@ async function waitForGeneratedRecommendation(campaignId: string, attempts = 6, 
 
 export function AgentCreateRecommendationPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const { pushToast } = useToast();
   const queryClient = useQueryClient();
@@ -380,6 +389,7 @@ export function AgentCreateRecommendationPage() {
     ? `${selectedCampaign.id}:${selectedProspectPackageBandId}:${selectedPackageBand?.includeRadio ?? 'optional'}:${selectedPackageBand?.includeTv ?? 'no'}`
     : null;
   const activeFormKey = selectedCampaignHydrationKey ?? '__no-campaign__';
+  const routePrefill = (location.state as CampaignConversionPrefillState | null)?.convertToCampaign;
   const inferredForm = selectedCampaign
     ? inferFormFromCampaign({
       ...selectedCampaign,
@@ -390,7 +400,26 @@ export function AgentCreateRecommendationPage() {
       includeTv: selectedPackageBand?.includeTv ?? 'no',
     }, selectedCampaignDetailsQuery.data)
     : emptyForm;
-  const form = scopedForm?.key === activeFormKey ? scopedForm.value : inferredForm;
+  const prefilledForm = useMemo(() => {
+    if (!routePrefill) {
+      return inferredForm;
+    }
+
+    const normalizedObjective = normalizeOption(routePrefill.suggestedCampaignType, OBJECTIVE_OPTIONS);
+    const normalizedLocation = routePrefill.location?.trim() ?? '';
+
+    return {
+      ...inferredForm,
+      brandName: routePrefill.businessName?.trim() || inferredForm.brandName,
+      geography: normalizedLocation || inferredForm.geography,
+      objective: normalizedObjective || inferredForm.objective,
+      scope: normalizedLocation && inferredForm.scope !== 'national' ? inferredForm.scope || 'provincial' : inferredForm.scope,
+      brief: routePrefill.businessName?.trim()
+        ? `Build a ${normalizedObjective || 'awareness'} campaign for ${routePrefill.businessName.trim()}${normalizedLocation ? ` in ${normalizedLocation}` : ''}. ${inferredForm.brief}`.trim()
+        : inferredForm.brief,
+    };
+  }, [inferredForm, routePrefill]);
+  const form = scopedForm?.key === activeFormKey ? scopedForm.value : prefilledForm;
   const aiInterpretationSummary = scopedAiInterpretationSummary?.key === activeFormKey
     ? scopedAiInterpretationSummary.summary
     : '';

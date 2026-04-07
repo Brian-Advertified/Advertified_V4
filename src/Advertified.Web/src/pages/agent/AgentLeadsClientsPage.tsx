@@ -1,6 +1,6 @@
-import { Search, Eye, Pencil } from 'lucide-react';
+import { Search, Eye, Pencil, ArrowRightCircle } from 'lucide-react';
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   AgentPageShell,
   AgentQueryBoundary,
@@ -13,6 +13,39 @@ import { buildClientRows } from './agentSectionShared';
 export function AgentLeadsClientsPage() {
   const campaignsQuery = useAgentCampaignsQuery();
   const [search, setSearch] = useState('');
+  const navigate = useNavigate();
+
+  function inferSuggestedCampaignType(input: { topPackage: string; latestActivity: string }): 'awareness' | 'launch' | 'promotion' | 'brand_presence' | 'leads' {
+    const combined = `${input.topPackage} ${input.latestActivity}`.toLowerCase();
+    if (combined.includes('lead')) return 'leads';
+    if (combined.includes('launch')) return 'launch';
+    if (combined.includes('promo')) return 'promotion';
+    if (combined.includes('presence')) return 'brand_presence';
+    return 'awareness';
+  }
+
+  function handleConvertToCampaign(row: {
+    latestCampaignId?: string;
+    clientName: string;
+    topRegion: string;
+    topPackage: string;
+    latestActivity: string;
+  }) {
+    const suggestedCampaignType = inferSuggestedCampaignType(row);
+    const targetPath = row.latestCampaignId
+      ? `/agent/recommendations/new?campaignId=${encodeURIComponent(row.latestCampaignId)}`
+      : '/agent/recommendation-builder';
+
+    navigate(targetPath, {
+      state: {
+        convertToCampaign: {
+          businessName: row.clientName,
+          location: row.topRegion === 'Not set' ? '' : row.topRegion,
+          suggestedCampaignType,
+        },
+      },
+    });
+  }
 
   return (
     <AgentQueryBoundary query={campaignsQuery} loadingLabel="Loading leads and clients...">
@@ -61,6 +94,14 @@ export function AgentLeadsClientsPage() {
                         </td>
                         <td className="px-4 py-4">
                           <div className="flex justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleConvertToCampaign(row)}
+                              className="button-secondary p-2"
+                              title={`Convert ${row.clientName} to campaign`}
+                            >
+                              <ArrowRightCircle className="size-4" />
+                            </button>
                             <Link to={row.latestCampaignId ? `/agent/campaigns/${row.latestCampaignId}` : '/agent/campaigns'} className="button-secondary p-2" title={`View campaigns for ${row.clientName}`}>
                               <Eye className="size-4" />
                             </Link>
