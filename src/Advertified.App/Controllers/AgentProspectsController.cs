@@ -64,7 +64,7 @@ public sealed class AgentProspectsController : ControllerBase
         var packageBand = await _db.PackageBands
             .FirstOrDefaultAsync(x => x.Id == request.PackageBandId && x.IsActive, cancellationToken)
             ?? throw new NotFoundException("Package band not found.");
-        var selectedBudget = await ResolveProspectBudgetAsync(packageBand, cancellationToken);
+        var selectedBudget = ResolveProspectBudget(packageBand);
 
         var lead = await _db.ProspectLeads
             .FirstOrDefaultAsync(x => x.Email == email, cancellationToken);
@@ -133,26 +133,7 @@ public sealed class AgentProspectsController : ControllerBase
         _db.Campaigns.Add(campaign);
         await _db.SaveChangesAsync(cancellationToken);
 
-        var refreshedCampaign = await _db.Campaigns
-            .AsNoTracking()
-            .AsSplitQuery()
-            .Include(x => x.User)
-                .ThenInclude(x => x.BusinessProfile)
-            .Include(x => x.ProspectLead)
-            .Include(x => x.AssignedAgentUser)
-            .Include(x => x.PackageBand)
-            .Include(x => x.PackageOrder)
-            .Include(x => x.CampaignBrief)
-            .Include(x => x.CampaignAssets)
-            .Include(x => x.CampaignSupplierBookings)
-                .ThenInclude(x => x.ProofAsset)
-            .Include(x => x.CampaignDeliveryReports)
-                .ThenInclude(x => x.EvidenceAsset)
-            .Include(x => x.CampaignPauseWindows)
-            .Include(x => x.CampaignRecommendations)
-                .ThenInclude(x => x.RecommendationItems)
-            .FirstOrDefaultAsync(x => x.Id == campaign.Id, cancellationToken)
-            ?? throw new InvalidOperationException("Campaign not found.");
+        var refreshedCampaign = await LoadCampaignDetailAsync(campaign.Id, cancellationToken);
 
         await WriteChangeAuditAsync(
             "create_prospect_campaign",
@@ -201,7 +182,7 @@ public sealed class AgentProspectsController : ControllerBase
         var packageBand = await _db.PackageBands
             .FirstOrDefaultAsync(x => x.Id == request.PackageBandId && x.IsActive, cancellationToken)
             ?? throw new InvalidOperationException("Package band not found.");
-        var selectedBudget = await ResolveProspectBudgetAsync(packageBand, cancellationToken);
+        var selectedBudget = ResolveProspectBudget(packageBand);
 
         campaign.PackageBandId = packageBand.Id;
         campaign.PackageOrder.PackageBandId = packageBand.Id;
@@ -227,27 +208,7 @@ public sealed class AgentProspectsController : ControllerBase
             cancellationToken);
 
         _db.ChangeTracker.Clear();
-        var refreshedCampaign = await _db.Campaigns
-            .AsNoTracking()
-            .AsSplitQuery()
-            .Include(x => x.User)
-                .ThenInclude(x => x.BusinessProfile)
-            .Include(x => x.ProspectLead)
-            .Include(x => x.AssignedAgentUser)
-            .Include(x => x.PackageBand)
-            .Include(x => x.PackageOrder)
-            .Include(x => x.CampaignBrief)
-            .Include(x => x.CampaignCreativeSystems)
-            .Include(x => x.CampaignAssets)
-            .Include(x => x.CampaignSupplierBookings)
-                .ThenInclude(x => x.ProofAsset)
-            .Include(x => x.CampaignDeliveryReports)
-                .ThenInclude(x => x.EvidenceAsset)
-            .Include(x => x.CampaignPauseWindows)
-            .Include(x => x.CampaignRecommendations)
-                .ThenInclude(x => x.RecommendationItems)
-            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
-            ?? throw new InvalidOperationException("Campaign not found.");
+        var refreshedCampaign = await LoadCampaignDetailAsync(id, cancellationToken);
 
         var response = refreshedCampaign.ToDetail(currentUser.Id);
         var queueStage = CampaignWorkflowPolicy.ResolveAgentQueueStage(refreshedCampaign);
@@ -292,7 +253,32 @@ public sealed class AgentProspectsController : ControllerBase
             : campaign.CampaignName.Trim();
     }
 
-    private async Task<decimal> ResolveProspectBudgetAsync(PackageBand packageBand, CancellationToken cancellationToken)
+    private async Task<Campaign> LoadCampaignDetailAsync(Guid campaignId, CancellationToken cancellationToken)
+    {
+        return await _db.Campaigns
+            .AsNoTracking()
+            .AsSplitQuery()
+            .Include(x => x.User)
+                .ThenInclude(x => x.BusinessProfile)
+            .Include(x => x.ProspectLead)
+            .Include(x => x.AssignedAgentUser)
+            .Include(x => x.PackageBand)
+            .Include(x => x.PackageOrder)
+            .Include(x => x.CampaignBrief)
+            .Include(x => x.CampaignCreativeSystems)
+            .Include(x => x.CampaignAssets)
+            .Include(x => x.CampaignSupplierBookings)
+                .ThenInclude(x => x.ProofAsset)
+            .Include(x => x.CampaignDeliveryReports)
+                .ThenInclude(x => x.EvidenceAsset)
+            .Include(x => x.CampaignPauseWindows)
+            .Include(x => x.CampaignRecommendations)
+                .ThenInclude(x => x.RecommendationItems)
+            .FirstOrDefaultAsync(x => x.Id == campaignId, cancellationToken)
+            ?? throw new InvalidOperationException("Campaign not found.");
+    }
+
+    private static decimal ResolveProspectBudget(PackageBand packageBand)
     {
         // Use the package floor until the client or agent confirms an exact spend.
         return packageBand.MinBudget > 0m ? packageBand.MinBudget : 25000m;

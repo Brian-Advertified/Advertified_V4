@@ -81,14 +81,7 @@ public sealed class PlanningScoreService : IPlanningScoreService
     public decimal AudienceScore(InventoryCandidate candidate, CampaignPlanningRequest request)
     {
         decimal score = 0m;
-
-        if (request.TargetLanguages.Count > 0 && !string.IsNullOrWhiteSpace(candidate.Language))
-        {
-            if (request.TargetLanguages.Any(x => Matches(x, candidate.Language)))
-            {
-                score += 10m;
-            }
-        }
+        score += LanguageScore(candidate, request);
 
         if (request.TargetLsmMin.HasValue && request.TargetLsmMax.HasValue && candidate.LsmMin.HasValue && candidate.LsmMax.HasValue)
         {
@@ -104,6 +97,55 @@ public sealed class PlanningScoreService : IPlanningScoreService
         score += AudienceKeywordScore(candidate, request);
 
         return score;
+    }
+
+    private static decimal LanguageScore(InventoryCandidate candidate, CampaignPlanningRequest request)
+    {
+        if (request.TargetLanguages.Count == 0)
+        {
+            return 0m;
+        }
+
+        var requested = request.TargetLanguages
+            .Where(static value => !string.IsNullOrWhiteSpace(value))
+            .ToArray();
+
+        if (requested.Length == 0)
+        {
+            return 0m;
+        }
+
+        var hasPrimaryLanguageMatch = requested.Any(value =>
+            MatchesAnyMetadataToken(candidate, value, "primaryLanguages", "primary_languages", "language"));
+
+        var hasLanguageNotesMatch = requested.Any(value =>
+            MatchesAnyMetadataToken(candidate, value, "languageNotes", "language_notes", "targetAudience", "target_audience"));
+
+        var hasCandidateLanguageMatch = !string.IsNullOrWhiteSpace(candidate.Language)
+            && requested.Any(value => Matches(value, candidate.Language));
+
+        if (candidate.MediaType.Equals("Radio", StringComparison.OrdinalIgnoreCase)
+            || candidate.MediaType.Equals("TV", StringComparison.OrdinalIgnoreCase))
+        {
+            if (hasPrimaryLanguageMatch)
+            {
+                return 18m;
+            }
+
+            if (hasCandidateLanguageMatch || hasLanguageNotesMatch)
+            {
+                return 12m;
+            }
+
+            return -8m;
+        }
+
+        if (hasPrimaryLanguageMatch || hasCandidateLanguageMatch)
+        {
+            return 10m;
+        }
+
+        return hasLanguageNotesMatch ? 6m : 0m;
     }
 
     public decimal BudgetScore(InventoryCandidate candidate, CampaignPlanningRequest request)

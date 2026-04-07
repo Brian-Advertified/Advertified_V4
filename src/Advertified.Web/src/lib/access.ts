@@ -33,6 +33,8 @@ export type ClientCampaignState = {
   actionLabel: string;
 };
 
+type CampaignPaymentState = 'cleared' | 'manual_review' | 'payment_required';
+
 export function isAgent(user: SessionUser | null) {
   return user?.role === 'agent';
 }
@@ -110,20 +112,33 @@ export function hasCampaignClearedPayment(campaign?: Campaign | null) {
   );
 }
 
+export function getCampaignPaymentState(campaign?: Campaign | null): CampaignPaymentState {
+  if (!campaign) {
+    return 'payment_required';
+  }
+
+  if (hasCampaignClearedPayment(campaign)) {
+    return 'cleared';
+  }
+
+  if (isPaymentAwaitingManualReview(campaign.paymentProvider, campaign.paymentStatus)) {
+    return 'manual_review';
+  }
+
+  return 'payment_required';
+}
+
 export function campaignNeedsCheckout(campaign?: Campaign | null) {
-  return Boolean(
-    campaign
-    && !hasCampaignClearedPayment(campaign)
-    && !isPaymentAwaitingManualReview(campaign.paymentProvider, campaign.paymentStatus),
-  );
+  return getCampaignPaymentState(campaign) === 'payment_required';
 }
 
 export function getClientCampaignState(campaign: Campaign): ClientCampaignState {
   const recommendation = getPrimaryRecommendation(campaign);
   const recommendationApproved = hasRecommendationApprovalCompleted(campaign.status, recommendation);
   const recommendationAwaitingDecision = recommendation?.status === 'sent_to_client';
-  const paymentReview = isPaymentAwaitingManualReview(campaign.paymentProvider, campaign.paymentStatus);
-  const paymentRequired = campaignNeedsCheckout(campaign) && !recommendationApproved;
+  const paymentState = getCampaignPaymentState(campaign);
+  const paymentReview = paymentState === 'manual_review';
+  const paymentRequired = paymentState === 'payment_required' && !recommendationApproved;
 
   if (paymentReview) {
     return {
@@ -256,7 +271,7 @@ export function getCampaignPrimaryAction(campaign: Campaign) {
   const hasRecommendation = Boolean(primaryRecommendation);
   const selectedRecommendationId = primaryRecommendation?.id;
   const paymentRequiredBeforeApproval =
-    campaignNeedsCheckout(campaign)
+    getCampaignPaymentState(campaign) === 'payment_required'
     && (campaign.status === 'review_ready' || campaign.status === 'planning_in_progress');
 
   if (campaign.status === 'paid' || campaign.status === 'brief_in_progress') {
@@ -282,27 +297,16 @@ export function getCampaignPrimaryAction(campaign: Campaign) {
     const href = paymentRequiredBeforeApproval
       ? `/checkout/payment?orderId=${encodeURIComponent(campaign.packageOrderId)}&campaignId=${encodeURIComponent(campaign.id)}${selectedRecommendationId ? `&recommendationId=${encodeURIComponent(selectedRecommendationId)}` : ''}`
       : `/campaigns/${campaign.id}`;
-    const label = paymentRequiredBeforeApproval
-      ? 'Complete payment'
-      : recommendationApproved
-        ? clientState.actionLabel
-        : clientState.actionLabel;
-    const description = paymentRequiredBeforeApproval
-      ? clientState.description
-      : recommendationApproved
-        ? clientState.description
-        : clientState.description;
-    const stepLabel = paymentRequiredBeforeApproval
-      ? 'Payment required'
-      : recommendationApproved
-        ? 'Open workspace'
-        : 'Needs action';
 
     return {
       href,
-      label,
-      description,
-      stepLabel,
+      label: paymentRequiredBeforeApproval ? 'Complete payment' : clientState.actionLabel,
+      description: clientState.description,
+      stepLabel: paymentRequiredBeforeApproval
+        ? 'Payment required'
+        : recommendationApproved
+          ? 'Open workspace'
+          : 'Needs action',
     };
   }
 

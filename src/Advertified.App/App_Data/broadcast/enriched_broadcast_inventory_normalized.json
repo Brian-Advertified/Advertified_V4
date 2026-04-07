@@ -88,10 +88,7 @@
       ],
       "city_labels": [
         "Johannesburg",
-        "Pretoria boundary",
-        "East Rand",
-        "Vanderbijlpark",
-        "Carletonville"
+        "Gauteng"
       ],
       "primary_languages": [
         "english"
@@ -214,6 +211,11 @@
           "source_type": "csv_enrichment",
           "source_label": "broadcast_outlet_enriched (1).csv",
           "detail": "verified metadata updates April 2026"
+        },
+        {
+          "source_type": "csv_enrichment",
+          "source_label": "station_catalog_fixes.csv",
+          "detail": "language and footprint corrections April 2026"
         }
       ],
       "has_pricing": true,
@@ -234,11 +236,7 @@
         "Cape Town",
         "Paarl",
         "Stellenbosch",
-        "Somerset West",
-        "Southern Suburbs",
-        "Northern Suburbs",
-        "Atlantic Seaboard",
-        "Winelands"
+        "Somerset West"
       ],
       "primary_languages": [
         "english",
@@ -353,6 +351,11 @@
           "source_type": "csv_enrichment",
           "source_label": "broadcast_outlet_enriched (1).csv",
           "detail": "verified metadata updates April 2026"
+        },
+        {
+          "source_type": "csv_enrichment",
+          "source_label": "station_catalog_fixes.csv",
+          "detail": "language and footprint corrections April 2026"
         }
       ],
       "has_pricing": true,
@@ -363,7 +366,7 @@
       "id": "radio_jozi_fm",
       "station": "Jozi FM",
       "media_type": "radio",
-      "catalog_health": "mixed",
+      "catalog_health": "strong",
       "coverage_type": "regional",
       "broadcast_frequency": "105.8 FM",
       "province_codes": [
@@ -371,19 +374,17 @@
       ],
       "city_labels": [
         "Johannesburg",
-        "Soweto",
-        "Kagiso",
-        "Lenasia",
-        "Krugersdorp",
-        "Randfontein",
-        "Kempton Park",
-        "Germiston",
-        "Alberton"
+        "Soweto"
       ],
       "primary_languages": [
-        "unknown"
+        "english",
+        "isizulu",
+        "sesotho",
+        "sepedi",
+        "setswana",
+        "xitsonga"
       ],
-      "language_display": "Multilingual",
+      "language_display": "English / isiZulu / Sesotho / Sepedi / Setswana / Xitsonga",
       "language_notes": "English, isiZulu, Sesotho, Sepedi, Setswana and Xitsonga.",
       "listenership_daily": null,
       "listenership_weekly": 1500000,
@@ -482,6 +483,11 @@
           "source_type": "csv_enrichment",
           "source_label": "broadcast_outlet_enriched (1).csv",
           "detail": "verified metadata updates April 2026"
+        },
+        {
+          "source_type": "csv_enrichment",
+          "source_label": "station_catalog_fixes.csv",
+          "detail": "language and footprint corrections April 2026"
         }
       ],
       "has_pricing": true,
@@ -492,7 +498,7 @@
       "id": "radio_algoa_fm",
       "station": "Algoa FM",
       "media_type": "radio",
-      "catalog_health": "mixed",
+      "catalog_health": "strong",
       "coverage_type": "regional",
       "broadcast_frequency": "94.0-97.0 MHz",
       "province_codes": [
@@ -500,18 +506,9 @@
         "western_cape"
       ],
       "city_labels": [
-        "Port Elizabeth/Gqeberha",
-        "Mossel Bay",
-        "George",
-        "Knysna",
-        "Hermanus",
-        "Oudtshoorn",
-        "Caledon",
-        "Worcester",
-        "Saldanha",
-        "Beaufort West",
-        "Wild Coast",
+        "Gqeberha",
         "Garden Route",
+        "Wild Coast",
         "Karoo"
       ],
       "primary_languages": [
@@ -623,6 +620,11 @@
           "source_type": "csv_enrichment",
           "source_label": "broadcast_outlet_enriched (1).csv",
           "detail": "verified metadata updates April 2026"
+        },
+        {
+          "source_type": "csv_enrichment",
+          "source_label": "station_catalog_fixes.csv",
+          "detail": "language and footprint corrections April 2026"
         }
       ],
       "has_pricing": true,
@@ -633,7 +635,7 @@
       "id": "radio_metro_fm",
       "station": "Metro FM",
       "media_type": "radio",
-      "catalog_health": "mixed",
+      "catalog_health": "strong",
       "coverage_type": "national",
       "broadcast_frequency": "24/7 national terrestrial FM + streaming",
       "province_codes": [
@@ -732,16 +734,14 @@
       "id": "radio_good_hope_fm",
       "station": "Good Hope FM",
       "media_type": "radio",
-      "catalog_health": "unknown",
+      "catalog_health": "strong",
       "coverage_type": "regional",
       "broadcast_frequency": "24/7 terrestrial FM, Western Cape region",
       "province_codes": [
         "western_cape"
       ],
       "city_labels": [
-        "Cape Town",
-        "Overberg",
-        "Plettenberg Bay"
+        "Cape Town"
       ],
       "primary_languages": [
         "english"
@@ -826,6 +826,11 @@
           "source_type": "uploaded_file",
           "source_label": "SABC Radio Rates FY2024-2025 PDF",
           "detail": "structured slot rates extracted from station rate pages"
+        },
+        {
+          "source_type": "csv_enrichment",
+          "source_label": "station_catalog_fixes.csv",
+          "detail": "language and footprint corrections April 2026"
         }
       ],
       "has_pricing": true,
@@ -836,7 +841,7 @@
       "id": "radio_5fm",
       "station": "5FM",
       "media_type": "radio",
-      "catalog_health": "unknown",
+      "catalog_health": "strong",
       "coverage_type": "national",
       "broadcast_frequency": "24/7 national terrestrial FM + streaming",
       "province_codes": [
@@ -930,18 +935,21 @@
       "id": "radio_ikwekwezi_fm",
       "station": "Ikwekwezi FM",
       "media_type": "radio",
-      "catalog_health": "unknown",
-      "coverage_type": "regional",
-      "broadcast_frequency": "24/7 terrestrial FM; isiNdebele-speaking, Limpopo & Mpumalanga",
+      "catalog_health": "strong",
+      "coverage_type": "national",
+      "broadcast_frequency": "24/7 terrestrial FM; isiNdebele-speaking national service with primary reach across Mpumalanga, Gauteng, Limpopo, and parts of North West",
       "province_codes": [
-        "mpumalanga"
+        "mpumalanga",
+        "gauteng",
+        "limpopo",
+        "north_west"
       ],
       "city_labels": [],
       "primary_languages": [
         "isindebele"
       ],
       "language_display": "isiNdebele",
-      "language_notes": "Only national radio station catering to the isiNdebele community.",
+      "language_notes": "South Africa's primary radio station for the isiNdebele-speaking community, operating as a national service with strongest audience concentration in the northeast.",
       "listenership_daily": 1156000,
       "listenership_weekly": null,
       "listenership_period": "Adults 15+, BRC RAMS Amplify Xtab Dec 2023 RA23 Q4",
@@ -950,13 +958,17 @@
       "audience_lsm_range": "LSM 3-6",
       "audience_racial_skew": null,
       "urban_rural_mix": "mixed",
-      "target_audience": "isiNdebele-speaking and understanding audiences.",
+      "target_audience": "isiNdebele-speaking audiences nationally, with strongest concentration across Mpumalanga, Gauteng, Limpopo, and parts of North West.",
       "audience_keywords": [
         "isiNdebele",
         "community",
         "music",
         "talk",
-        "Mpumalanga"
+        "Mpumalanga",
+        "Gauteng",
+        "Limpopo",
+        "North West",
+        "national reach"
       ],
       "packages": [],
       "pricing": {
@@ -1024,7 +1036,7 @@
       "id": "radio_lesedi_fm",
       "station": "Lesedi FM",
       "media_type": "radio",
-      "catalog_health": "unknown",
+      "catalog_health": "strong",
       "coverage_type": "regional",
       "broadcast_frequency": "24/7 terrestrial FM; Sesotho-language, national with Lesotho spillover",
       "province_codes": [
@@ -1120,7 +1132,7 @@
       "id": "radio_ligwalagwala_fm",
       "station": "Ligwalagwala FM",
       "media_type": "radio",
-      "catalog_health": "unknown",
+      "catalog_health": "strong",
       "coverage_type": "regional",
       "broadcast_frequency": "24/7 terrestrial FM; Swati-language, Mpumalanga and Eswatini",
       "province_codes": [
@@ -1217,7 +1229,7 @@
       "id": "radio_motsweding_fm",
       "station": "Motsweding FM",
       "media_type": "radio",
-      "catalog_health": "unknown",
+      "catalog_health": "strong",
       "coverage_type": "regional",
       "broadcast_frequency": "24/7 terrestrial FM; Setswana-language, North West and Northern Cape",
       "province_codes": [
@@ -1310,7 +1322,7 @@
       "id": "radio_munghana_lonene_fm",
       "station": "Munghana Lonene FM",
       "media_type": "radio",
-      "catalog_health": "unknown",
+      "catalog_health": "strong",
       "coverage_type": "regional",
       "broadcast_frequency": "24/7 terrestrial FM; Xitsonga/Shangaan-language, Limpopo",
       "province_codes": [
@@ -1411,7 +1423,7 @@
       "id": "radio_phalaphala_fm",
       "station": "Phalaphala FM",
       "media_type": "radio",
-      "catalog_health": "unknown",
+      "catalog_health": "strong",
       "coverage_type": "regional",
       "broadcast_frequency": "24/7 terrestrial FM; Tshivenda-language, Limpopo",
       "province_codes": [
@@ -1512,7 +1524,7 @@
       "id": "radio_ukhozi_fm",
       "station": "Ukhozi FM",
       "media_type": "radio",
-      "catalog_health": "unknown",
+      "catalog_health": "strong",
       "coverage_type": "regional",
       "broadcast_frequency": "24/7 national FM; IsiZulu-language, KwaZulu-Natal primary + national",
       "province_codes": [
@@ -1607,13 +1619,16 @@
       "id": "radio_lotus_fm",
       "station": "Lotus FM",
       "media_type": "radio",
-      "catalog_health": "unknown",
+      "catalog_health": "strong",
       "coverage_type": "regional",
       "broadcast_frequency": "24/7 terrestrial FM; primarily KZN, serving Indian South African community",
       "province_codes": [
         "kwazulu_natal"
       ],
-      "city_labels": [],
+      "city_labels": [
+        "Durban",
+        "KwaZulu-Natal"
+      ],
       "primary_languages": [
         "english"
       ],
@@ -1687,6 +1702,11 @@
           "source_type": "uploaded_file",
           "source_label": "SABC Radio Rates FY2024-2025 PDF",
           "detail": "structured slot rates extracted from station rate pages"
+        },
+        {
+          "source_type": "csv_enrichment",
+          "source_label": "station_catalog_fixes.csv",
+          "detail": "language and footprint corrections April 2026"
         }
       ],
       "has_pricing": true,
@@ -1697,7 +1717,7 @@
       "id": "radio_radio_2000",
       "station": "Radio 2000",
       "media_type": "radio",
-      "catalog_health": "unknown",
+      "catalog_health": "strong",
       "coverage_type": "national",
       "broadcast_frequency": "24/7 national AM + FM + streaming; talk/sport format",
       "province_codes": [
@@ -1705,10 +1725,11 @@
       ],
       "city_labels": [],
       "primary_languages": [
-        "english"
+        "english",
+        "afrikaans"
       ],
-      "language_display": "English",
-      "language_notes": "National English station per SABC mosaic page.",
+      "language_display": "English / Afrikaans",
+      "language_notes": "National urban adult contemporary station; English-led service with strong English/Afrikaans bilingual appeal in SABC audience materials.",
       "listenership_daily": 1929000,
       "listenership_weekly": null,
       "listenership_period": "Adults 15+, BRC RAMS Amplify Xtab Dec 2023 RA23 Q4 (province/station mosaic page)",
@@ -1776,6 +1797,11 @@
           "source_type": "uploaded_file",
           "source_label": "SABC Radio Rates FY2024-2025 PDF",
           "detail": "structured slot rates extracted from station rate pages"
+        },
+        {
+          "source_type": "csv_enrichment",
+          "source_label": "station_catalog_fixes.csv",
+          "detail": "language and footprint corrections April 2026"
         }
       ],
       "has_pricing": true,
@@ -1786,7 +1812,7 @@
       "id": "radio_rsg",
       "station": "RSG",
       "media_type": "radio",
-      "catalog_health": "unknown",
+      "catalog_health": "strong",
       "coverage_type": "national",
       "broadcast_frequency": "24/7 national FM; Afrikaans-language public broadcaster",
       "province_codes": [
@@ -1876,7 +1902,7 @@
       "id": "radio_safm",
       "station": "SAfm",
       "media_type": "radio",
-      "catalog_health": "unknown",
+      "catalog_health": "strong",
       "coverage_type": "national",
       "broadcast_frequency": "24/7 national FM; English-language public broadcaster, news/talk",
       "province_codes": [
@@ -1971,15 +1997,19 @@
       "id": "radio_xk_fm",
       "station": "XK FM",
       "media_type": "radio",
-      "catalog_health": "unknown",
+      "catalog_health": "strong",
       "coverage_type": "regional",
       "broadcast_frequency": "Daytime only; !Xuntali and Khwedam (San/Khoisan languages) + Afrikaans; Northern Cape",
       "province_codes": [
         "northern_cape"
       ],
-      "city_labels": [],
+      "city_labels": [
+        "Platfontein",
+        "Kimberley"
+      ],
       "primary_languages": [
-        "unknown"
+        "!xuntali",
+        "khwedam"
       ],
       "language_display": "!Xuntali & Khwedam",
       "language_notes": "Very small indigenous-language audience per SABC mosaic page.",
@@ -2041,6 +2071,11 @@
           "source_type": "uploaded_file",
           "source_label": "SABC Radio Rates FY2024-2025 PDF",
           "detail": "structured slot rates extracted from station rate pages"
+        },
+        {
+          "source_type": "csv_enrichment",
+          "source_label": "station_catalog_fixes.csv",
+          "detail": "language and footprint corrections April 2026"
         }
       ],
       "has_pricing": true,
@@ -2057,9 +2092,13 @@
       "province_codes": [],
       "city_labels": [],
       "primary_languages": [
-        "unknown"
+        "english",
+        "french",
+        "portuguese",
+        "kiswahili",
+        "chinyanja"
       ],
-      "language_display": null,
+      "language_display": "English / French / Portuguese / Kiswahili / Chinyanja",
       "language_notes": "Africa-and-beyond service listed in SABC radio rate card contents; detailed pricing page not reviewed here.",
       "listenership_daily": null,
       "listenership_weekly": 350000,
@@ -2131,6 +2170,11 @@
           "source_type": "uploaded_file",
           "source_label": "SABC Radio Rates FY2024-2025 PDF",
           "detail": "structured slot rates extracted from station rate pages"
+        },
+        {
+          "source_type": "csv_enrichment",
+          "source_label": "station_catalog_fixes.csv",
+          "detail": "language and footprint corrections April 2026"
         }
       ],
       "has_pricing": true,
@@ -2148,7 +2192,8 @@
         "gauteng"
       ],
       "city_labels": [
-        "Johannesburg"
+        "Johannesburg",
+        "Gauteng"
       ],
       "primary_languages": [
         "english"
@@ -2220,6 +2265,11 @@
           "source_type": "csv_enrichment",
           "source_label": "broadcast_outlet_enriched (1).csv",
           "detail": "verified metadata updates April 2026"
+        },
+        {
+          "source_type": "csv_enrichment",
+          "source_label": "station_catalog_fixes.csv",
+          "detail": "language and footprint corrections April 2026"
         }
       ],
       "has_pricing": true,
@@ -2288,16 +2338,7 @@
       ],
       "city_labels": [
         "Cape Town",
-        "Mossel Bay",
-        "George",
-        "Knysna",
-        "Hermanus",
-        "Oudtshoorn",
-        "Caledon",
-        "Worcester",
-        "Malmesbury",
-        "Saldanha",
-        "Beaufort West"
+        "Western Cape"
       ],
       "primary_languages": [
         "english"
@@ -2339,6 +2380,11 @@
           "source_type": "csv_enrichment",
           "source_label": "broadcast_outlet_enriched (1).csv",
           "detail": "verified metadata updates April 2026"
+        },
+        {
+          "source_type": "csv_enrichment",
+          "source_label": "station_catalog_fixes.csv",
+          "detail": "language and footprint corrections April 2026"
         }
       ],
       "has_pricing": true,
@@ -2439,10 +2485,11 @@
       ],
       "city_labels": [],
       "primary_languages": [
-        "unknown"
+        "english",
+        "afrikaans"
       ],
-      "language_display": null,
-      "language_notes": null,
+      "language_display": "English / Afrikaans",
+      "language_notes": "Current public channel descriptions identify SABC 3 / S3 as an English- and Afrikaans-carrying channel.",
       "listenership_daily": null,
       "listenership_weekly": 8000000,
       "listenership_period": "~8 million viewers weekly (BRC TAMS, 2024)",
@@ -2477,6 +2524,11 @@
           "source_type": "csv_enrichment",
           "source_label": "broadcast_outlet_enriched (1).csv",
           "detail": "verified metadata updates April 2026"
+        },
+        {
+          "source_type": "csv_enrichment",
+          "source_label": "station_catalog_fixes.csv",
+          "detail": "language and footprint corrections April 2026"
         }
       ],
       "has_pricing": true,
@@ -2497,8 +2549,8 @@
       "primary_languages": [
         "unknown"
       ],
-      "language_display": null,
-      "language_notes": null,
+      "language_display": "Multilingual",
+      "language_notes": "SABC News says it serves South African audiences in all official languages; a single-language label would be misleading.",
       "listenership_daily": null,
       "listenership_weekly": 2,
       "listenership_period": "~2–3 million viewers weekly (BRC TAMS, 2024; DStv-restricted reach)",
@@ -2542,6 +2594,11 @@
           "source_type": "csv_enrichment",
           "source_label": "broadcast_outlet_enriched (1).csv",
           "detail": "verified metadata updates April 2026"
+        },
+        {
+          "source_type": "csv_enrichment",
+          "source_label": "station_catalog_fixes.csv",
+          "detail": "language and footprint corrections April 2026"
         }
       ],
       "has_pricing": true,
@@ -2562,8 +2619,8 @@
       "primary_languages": [
         "unknown"
       ],
-      "language_display": null,
-      "language_notes": null,
+      "language_display": "Multilingual",
+      "language_notes": "SABC Sport distributes sports coverage across South African audiences and is not cleanly a single-language channel.",
       "listenership_daily": null,
       "listenership_weekly": 4,
       "listenership_period": "~4–6 million per major event (PSL soccer, cricket, rugby) (BRC TAMS, 2024)",
@@ -2599,6 +2656,11 @@
           "source_type": "csv_enrichment",
           "source_label": "broadcast_outlet_enriched (1).csv",
           "detail": "verified metadata updates April 2026"
+        },
+        {
+          "source_type": "csv_enrichment",
+          "source_label": "station_catalog_fixes.csv",
+          "detail": "language and footprint corrections April 2026"
         }
       ],
       "has_pricing": true,
@@ -2617,10 +2679,10 @@
       ],
       "city_labels": [],
       "primary_languages": [
-        "unknown"
+        "english"
       ],
-      "language_display": null,
-      "language_notes": "No pricing or inventory in uploaded catalog set.",
+      "language_display": "English",
+      "language_notes": "e.tv describes itself as the most viewed English channel in South Africa, while also carrying some multilingual/dubbed programming.",
       "listenership_daily": null,
       "listenership_weekly": 15000000,
       "listenership_period": "Reaches ~15 million viewers weekly (BRC TAMS, 2024); second-largest FTA channel",
@@ -2646,6 +2708,11 @@
           "source_type": "csv_enrichment",
           "source_label": "broadcast_outlet_enriched (1).csv",
           "detail": "verified metadata updates April 2026"
+        },
+        {
+          "source_type": "csv_enrichment",
+          "source_label": "station_catalog_fixes.csv",
+          "detail": "language and footprint corrections April 2026"
         }
       ],
       "has_pricing": true,

@@ -23,6 +23,7 @@ export function AdminStationsPage() {
   const { pushToast } = useToast();
   const handledSearchRef = useRef<string | null>(null);
   const [sortBy, setSortBy] = useState<'priority' | 'name' | 'coverage'>('priority');
+  const [showAllOutlets, setShowAllOutlets] = useState(false);
   const [dialogMode, setDialogMode] = useState<'create' | 'view' | 'edit' | null>(null);
   const [selectedOutletCode, setSelectedOutletCode] = useState<string | null>(null);
   const [outletForm, setOutletForm] = useState({
@@ -213,11 +214,22 @@ export function AdminStationsPage() {
           return score;
         };
 
-        const sortedOutlets = [...dashboard.outlets].sort((left, right) => {
+        const hasIssue = (item: (typeof dashboard.outlets)[number]) =>
+          item.catalogHealth !== 'strong' ||
+          !item.hasPricing ||
+          (item.packageCount === 0 && item.slotRateCount === 0) ||
+          !item.languageDisplay;
+
+        const visibleOutlets = showAllOutlets
+          ? dashboard.outlets
+          : dashboard.outlets.filter(hasIssue);
+
+        const sortedOutlets = [...visibleOutlets].sort((left, right) => {
           if (sortBy === 'name') return left.name.localeCompare(right.name);
           if (sortBy === 'coverage') return left.coverageType.localeCompare(right.coverageType) || left.name.localeCompare(right.name);
           return priorityScore(right) - priorityScore(left) || left.name.localeCompare(right.name);
         });
+        const issueCount = dashboard.outlets.filter(hasIssue).length;
         const isReadOnly = dialogMode === 'view';
         const activeDetail = dialogMode === 'create' ? null : selectedOutletQuery.data;
         const effectiveCatalogHealth = deriveCatalogHealthForSave(
@@ -238,9 +250,20 @@ export function AdminStationsPage() {
               <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div>
                   <h3 className="text-lg font-semibold text-ink">Outlet management</h3>
-                  <p className="mt-2 text-sm text-ink-soft">Use live actions to review, update, or remove broadcast outlets. The highest-priority records are surfaced first.</p>
+                  <p className="mt-2 text-sm text-ink-soft">
+                    {showAllOutlets
+                      ? 'Showing every live broadcast outlet. Switch back to focus only on records that still need attention.'
+                      : `Showing only outlets with issues so you can work the fix queue faster. ${issueCount} outlet${issueCount === 1 ? '' : 's'} currently need attention.`}
+                  </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    className="button-secondary px-4 py-3"
+                    onClick={() => setShowAllOutlets((current) => !current)}
+                  >
+                    {showAllOutlets ? 'Show issue queue only' : 'Show all outlets'}
+                  </button>
                   <select className="input-base min-w-[210px]" value={sortBy} onChange={(event) => setSortBy(event.target.value as 'priority' | 'name' | 'coverage')}>
                     <option value="priority">Sort by priority</option>
                     <option value="name">Sort by name</option>

@@ -305,9 +305,6 @@ export function AgentCreateRecommendationPage() {
     : null;
   const selectedClientId = (requestedCampaign?.userId ?? requestedCampaign?.clientEmail ?? requestedCampaign?.id)
     ?? selectedClientIdState
-    ?? availableCampaigns[0]?.userId
-    ?? availableCampaigns[0]?.clientEmail
-    ?? availableCampaigns[0]?.id
     ?? '';
 
   const filteredCampaigns = useMemo(() => (
@@ -317,14 +314,10 @@ export function AgentCreateRecommendationPage() {
   ), [availableCampaigns, selectedClientId]);
   const selectedCampaignId = requestedCampaign?.id
     ?? selectedCampaignIdState
-    ?? filteredCampaigns[0]?.id
-    ?? availableCampaigns[0]?.id
     ?? '';
 
   const selectedCampaign = filteredCampaigns.find((item) => item.id === selectedCampaignId)
     ?? availableCampaigns.find((item) => item.id === selectedCampaignId)
-    ?? filteredCampaigns[0]
-    ?? availableCampaigns[0]
     ?? null;
   const selectedCampaignDetailsQuery = useQuery({
     queryKey: ['agent-campaign', selectedCampaign?.id],
@@ -336,7 +329,7 @@ export function AgentCreateRecommendationPage() {
   const selectedCampaignIsProspective = isProspectiveCampaign(selectedCampaignDetails ?? selectedCampaign);
   const selectedProspectPackageBandId = selectedCampaignIsProspective
     ? ((selectedProspectPackageBandState?.campaignId === selectedCampaign?.id
-      ? selectedProspectPackageBandState.packageBandId
+      ? selectedProspectPackageBandState?.packageBandId
       : selectedCampaign?.packageBandId) || '')
     : (selectedCampaign?.packageBandId || '');
   const selectedPackageBand = useMemo(
@@ -430,13 +423,13 @@ export function AgentCreateRecommendationPage() {
 
   const handleClientChange = (userId: string) => {
     setSelectedClientIdState(userId);
-    const nextCampaign = availableCampaigns.find((item) => (item.userId ?? item.clientEmail ?? item.id) === userId);
-    setSelectedCampaignIdState(nextCampaign?.id ?? '');
+    setSelectedCampaignIdState('');
   };
 
   const handleCampaignChange = (campaignId: string) => {
     setSelectedCampaignIdState(campaignId);
     const nextCampaign = availableCampaigns.find((item) => item.id === campaignId) ?? null;
+    setSelectedClientIdState(nextCampaign ? (nextCampaign.userId ?? nextCampaign.clientEmail ?? nextCampaign.id) : '');
     setSelectedProspectPackageBandState(
       nextCampaign?.status === 'awaiting_purchase'
         ? { campaignId: nextCampaign.id, packageBandId: nextCampaign.packageBandId }

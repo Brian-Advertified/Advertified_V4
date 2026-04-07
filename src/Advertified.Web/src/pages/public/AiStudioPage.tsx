@@ -75,7 +75,7 @@ function TileVisual({ channel }: { channel: ChannelKey }) {
         <div className="studio-v1-board">
           <div className="studio-v1-face">
             <div className="studio-v1-copy">
-              <small>Billboard / Digital OOH</small>
+              <small>Billboards and Digital Screens</small>
               Make them
               <br />
               stop & look.

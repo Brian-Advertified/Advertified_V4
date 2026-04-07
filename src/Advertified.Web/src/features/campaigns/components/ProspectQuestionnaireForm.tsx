@@ -182,41 +182,46 @@ function readStoredQuestionnaireDraft(): QuestionnaireForm | null {
     }
 
     const parsed = JSON.parse(raw) as Partial<QuestionnaireForm>;
-    const defaultBrief = createDefaultQuestionnaireBriefFields();
-    return {
-      fullName: parsed.fullName ?? '',
-      email: parsed.email ?? '',
-      phone: parsed.phone ?? '',
-      businessName: parsed.businessName ?? '',
-      industry: parsed.industry ?? '',
-      businessStage: parsed.businessStage ?? defaultBrief.businessStage ?? '',
-      monthlyRevenueBand: parsed.monthlyRevenueBand ?? defaultBrief.monthlyRevenueBand ?? '',
-      salesModel: parsed.salesModel ?? defaultBrief.salesModel ?? '',
-      packageBandId: parsed.packageBandId ?? '',
-      campaignName: parsed.campaignName ?? '',
-      objective: parsed.objective ?? defaultBrief.objective,
-      geographyScope: parsed.geographyScope ?? defaultBrief.geographyScope,
-      primaryArea: parsed.primaryArea ?? '',
-      ageRange: parsed.ageRange ?? '',
-      targetGender: parsed.targetGender ?? defaultBrief.targetGender ?? '',
-      language: parsed.language ?? '',
-      preferredMediaTypes: Array.isArray(parsed.preferredMediaTypes) && parsed.preferredMediaTypes.length > 0
-        ? parsed.preferredMediaTypes
-        : defaultBrief.preferredMediaTypes,
-      customerType: parsed.customerType ?? defaultBrief.customerType ?? '',
-      buyingBehaviour: parsed.buyingBehaviour ?? defaultBrief.buyingBehaviour ?? '',
-      decisionCycle: parsed.decisionCycle ?? defaultBrief.decisionCycle ?? '',
-      pricePositioning: parsed.pricePositioning ?? defaultBrief.pricePositioning ?? '',
-      averageCustomerSpendBand: parsed.averageCustomerSpendBand ?? defaultBrief.averageCustomerSpendBand ?? '',
-      growthTarget: parsed.growthTarget ?? defaultBrief.growthTarget ?? '',
-      urgencyLevel: parsed.urgencyLevel ?? defaultBrief.urgencyLevel ?? '',
-      audienceClarity: parsed.audienceClarity ?? defaultBrief.audienceClarity ?? '',
-      valuePropositionFocus: parsed.valuePropositionFocus ?? defaultBrief.valuePropositionFocus ?? '',
-      specialRequirements: parsed.specialRequirements ?? defaultBrief.specialRequirements ?? '',
-    };
+    return createQuestionnaireFormState(parsed);
   } catch {
     return null;
   }
+}
+
+function createQuestionnaireFormState(overrides?: Partial<QuestionnaireForm>): QuestionnaireForm {
+  const defaultBrief = createDefaultQuestionnaireBriefFields();
+
+  return {
+    fullName: overrides?.fullName ?? '',
+    email: overrides?.email ?? '',
+    phone: overrides?.phone ?? '',
+    businessName: overrides?.businessName ?? '',
+    industry: overrides?.industry ?? '',
+    businessStage: overrides?.businessStage ?? defaultBrief.businessStage ?? '',
+    monthlyRevenueBand: overrides?.monthlyRevenueBand ?? defaultBrief.monthlyRevenueBand ?? '',
+    salesModel: overrides?.salesModel ?? defaultBrief.salesModel ?? '',
+    packageBandId: overrides?.packageBandId ?? '',
+    campaignName: overrides?.campaignName ?? '',
+    objective: overrides?.objective ?? defaultBrief.objective,
+    geographyScope: overrides?.geographyScope ?? defaultBrief.geographyScope,
+    primaryArea: overrides?.primaryArea ?? '',
+    ageRange: overrides?.ageRange ?? '',
+    targetGender: overrides?.targetGender ?? defaultBrief.targetGender ?? '',
+    language: overrides?.language ?? '',
+    preferredMediaTypes: Array.isArray(overrides?.preferredMediaTypes) && overrides.preferredMediaTypes.length > 0
+      ? overrides.preferredMediaTypes
+      : defaultBrief.preferredMediaTypes,
+    customerType: overrides?.customerType ?? defaultBrief.customerType ?? '',
+    buyingBehaviour: overrides?.buyingBehaviour ?? defaultBrief.buyingBehaviour ?? '',
+    decisionCycle: overrides?.decisionCycle ?? defaultBrief.decisionCycle ?? '',
+    pricePositioning: overrides?.pricePositioning ?? defaultBrief.pricePositioning ?? '',
+    averageCustomerSpendBand: overrides?.averageCustomerSpendBand ?? defaultBrief.averageCustomerSpendBand ?? '',
+    growthTarget: overrides?.growthTarget ?? defaultBrief.growthTarget ?? '',
+    urgencyLevel: overrides?.urgencyLevel ?? defaultBrief.urgencyLevel ?? '',
+    audienceClarity: overrides?.audienceClarity ?? defaultBrief.audienceClarity ?? '',
+    valuePropositionFocus: overrides?.valuePropositionFocus ?? defaultBrief.valuePropositionFocus ?? '',
+    specialRequirements: overrides?.specialRequirements ?? defaultBrief.specialRequirements ?? '',
+  };
 }
 
 function clearStoredQuestionnaireDraft() {
@@ -231,36 +236,7 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
   const [submitted, setSubmitted] = useState<{ campaignId: string; campaignName: string; message: string } | null>(null);
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [errors, setErrors] = useState<QuestionnaireErrors>({});
-  const defaultBrief = createDefaultQuestionnaireBriefFields();
-  const [form, setForm] = useState<QuestionnaireForm>({
-    fullName: '',
-    email: '',
-    phone: '',
-    businessName: '',
-    industry: '',
-    businessStage: defaultBrief.businessStage ?? '',
-    monthlyRevenueBand: defaultBrief.monthlyRevenueBand ?? '',
-    salesModel: defaultBrief.salesModel ?? '',
-    packageBandId: '',
-    campaignName: '',
-    objective: defaultBrief.objective,
-    geographyScope: defaultBrief.geographyScope,
-    primaryArea: '',
-    ageRange: '',
-    targetGender: defaultBrief.targetGender ?? '',
-    language: '',
-    preferredMediaTypes: defaultBrief.preferredMediaTypes,
-    customerType: defaultBrief.customerType ?? '',
-    buyingBehaviour: defaultBrief.buyingBehaviour ?? '',
-    decisionCycle: defaultBrief.decisionCycle ?? '',
-    pricePositioning: defaultBrief.pricePositioning ?? '',
-    averageCustomerSpendBand: defaultBrief.averageCustomerSpendBand ?? '',
-    growthTarget: defaultBrief.growthTarget ?? '',
-    urgencyLevel: defaultBrief.urgencyLevel ?? '',
-    audienceClarity: defaultBrief.audienceClarity ?? '',
-    valuePropositionFocus: defaultBrief.valuePropositionFocus ?? '',
-    specialRequirements: defaultBrief.specialRequirements ?? '',
-  });
+  const [form, setForm] = useState<QuestionnaireForm>(() => createQuestionnaireFormState());
   const [draftRestored, setDraftRestored] = useState(false);
 
   useEffect(() => {
@@ -786,35 +762,7 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                   setDraftRestored(false);
                   setErrors({});
                   setStep(1);
-                  setForm({
-                    fullName: '',
-                    email: '',
-                    phone: '',
-                    businessName: '',
-                    industry: '',
-                    businessStage: defaultBrief.businessStage ?? '',
-                    monthlyRevenueBand: defaultBrief.monthlyRevenueBand ?? '',
-                    salesModel: defaultBrief.salesModel ?? '',
-                    packageBandId: '',
-                    campaignName: '',
-                    objective: defaultBrief.objective,
-                    geographyScope: defaultBrief.geographyScope,
-                    primaryArea: '',
-                    ageRange: '',
-                    targetGender: defaultBrief.targetGender ?? '',
-                    language: '',
-                    preferredMediaTypes: defaultBrief.preferredMediaTypes,
-                    customerType: defaultBrief.customerType ?? '',
-                    buyingBehaviour: defaultBrief.buyingBehaviour ?? '',
-                    decisionCycle: defaultBrief.decisionCycle ?? '',
-                    pricePositioning: defaultBrief.pricePositioning ?? '',
-                    averageCustomerSpendBand: defaultBrief.averageCustomerSpendBand ?? '',
-                    growthTarget: defaultBrief.growthTarget ?? '',
-                    urgencyLevel: defaultBrief.urgencyLevel ?? '',
-                    audienceClarity: defaultBrief.audienceClarity ?? '',
-                    valuePropositionFocus: defaultBrief.valuePropositionFocus ?? '',
-                    specialRequirements: defaultBrief.specialRequirements ?? '',
-                  });
+                  setForm(createQuestionnaireFormState());
                 }}
                 className="button-secondary px-6 py-3"
               >
