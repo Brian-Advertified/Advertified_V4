@@ -366,7 +366,7 @@
       "id": "radio_jozi_fm",
       "station": "Jozi FM",
       "media_type": "radio",
-      "catalog_health": "strong",
+      "catalog_health": "mixed",
       "coverage_type": "regional",
       "broadcast_frequency": "105.8 FM",
       "province_codes": [
@@ -498,7 +498,7 @@
       "id": "radio_algoa_fm",
       "station": "Algoa FM",
       "media_type": "radio",
-      "catalog_health": "strong",
+      "catalog_health": "mixed",
       "coverage_type": "regional",
       "broadcast_frequency": "94.0-97.0 MHz",
       "province_codes": [
@@ -635,7 +635,7 @@
       "id": "radio_metro_fm",
       "station": "Metro FM",
       "media_type": "radio",
-      "catalog_health": "strong",
+      "catalog_health": "mixed",
       "coverage_type": "national",
       "broadcast_frequency": "24/7 national terrestrial FM + streaming",
       "province_codes": [
@@ -734,7 +734,7 @@
       "id": "radio_good_hope_fm",
       "station": "Good Hope FM",
       "media_type": "radio",
-      "catalog_health": "strong",
+      "catalog_health": "unknown",
       "coverage_type": "regional",
       "broadcast_frequency": "24/7 terrestrial FM, Western Cape region",
       "province_codes": [
@@ -841,7 +841,7 @@
       "id": "radio_5fm",
       "station": "5FM",
       "media_type": "radio",
-      "catalog_health": "strong",
+      "catalog_health": "unknown",
       "coverage_type": "national",
       "broadcast_frequency": "24/7 national terrestrial FM + streaming",
       "province_codes": [
@@ -1036,7 +1036,7 @@
       "id": "radio_lesedi_fm",
       "station": "Lesedi FM",
       "media_type": "radio",
-      "catalog_health": "strong",
+      "catalog_health": "unknown",
       "coverage_type": "regional",
       "broadcast_frequency": "24/7 terrestrial FM; Sesotho-language, national with Lesotho spillover",
       "province_codes": [
@@ -1132,7 +1132,7 @@
       "id": "radio_ligwalagwala_fm",
       "station": "Ligwalagwala FM",
       "media_type": "radio",
-      "catalog_health": "strong",
+      "catalog_health": "unknown",
       "coverage_type": "regional",
       "broadcast_frequency": "24/7 terrestrial FM; Swati-language, Mpumalanga and Eswatini",
       "province_codes": [
@@ -1229,7 +1229,7 @@
       "id": "radio_motsweding_fm",
       "station": "Motsweding FM",
       "media_type": "radio",
-      "catalog_health": "strong",
+      "catalog_health": "unknown",
       "coverage_type": "regional",
       "broadcast_frequency": "24/7 terrestrial FM; Setswana-language, North West and Northern Cape",
       "province_codes": [
@@ -1322,7 +1322,7 @@
       "id": "radio_munghana_lonene_fm",
       "station": "Munghana Lonene FM",
       "media_type": "radio",
-      "catalog_health": "strong",
+      "catalog_health": "unknown",
       "coverage_type": "regional",
       "broadcast_frequency": "24/7 terrestrial FM; Xitsonga/Shangaan-language, Limpopo",
       "province_codes": [
@@ -1423,7 +1423,7 @@
       "id": "radio_phalaphala_fm",
       "station": "Phalaphala FM",
       "media_type": "radio",
-      "catalog_health": "strong",
+      "catalog_health": "unknown",
       "coverage_type": "regional",
       "broadcast_frequency": "24/7 terrestrial FM; Tshivenda-language, Limpopo",
       "province_codes": [
@@ -1524,7 +1524,7 @@
       "id": "radio_ukhozi_fm",
       "station": "Ukhozi FM",
       "media_type": "radio",
-      "catalog_health": "strong",
+      "catalog_health": "unknown",
       "coverage_type": "regional",
       "broadcast_frequency": "24/7 national FM; IsiZulu-language, KwaZulu-Natal primary + national",
       "province_codes": [
@@ -1619,7 +1619,7 @@
       "id": "radio_lotus_fm",
       "station": "Lotus FM",
       "media_type": "radio",
-      "catalog_health": "strong",
+      "catalog_health": "unknown",
       "coverage_type": "regional",
       "broadcast_frequency": "24/7 terrestrial FM; primarily KZN, serving Indian South African community",
       "province_codes": [
@@ -1717,7 +1717,7 @@
       "id": "radio_radio_2000",
       "station": "Radio 2000",
       "media_type": "radio",
-      "catalog_health": "strong",
+      "catalog_health": "unknown",
       "coverage_type": "national",
       "broadcast_frequency": "24/7 national AM + FM + streaming; talk/sport format",
       "province_codes": [
@@ -1812,7 +1812,7 @@
       "id": "radio_rsg",
       "station": "RSG",
       "media_type": "radio",
-      "catalog_health": "strong",
+      "catalog_health": "unknown",
       "coverage_type": "national",
       "broadcast_frequency": "24/7 national FM; Afrikaans-language public broadcaster",
       "province_codes": [
@@ -1902,7 +1902,7 @@
       "id": "radio_safm",
       "station": "SAfm",
       "media_type": "radio",
-      "catalog_health": "strong",
+      "catalog_health": "unknown",
       "coverage_type": "national",
       "broadcast_frequency": "24/7 national FM; English-language public broadcaster, news/talk",
       "province_codes": [
@@ -1997,7 +1997,7 @@
       "id": "radio_xk_fm",
       "station": "XK FM",
       "media_type": "radio",
-      "catalog_health": "strong",
+      "catalog_health": "unknown",
       "coverage_type": "regional",
       "broadcast_frequency": "Daytime only; !Xuntali and Khwedam (San/Khoisan languages) + Afrikaans; Northern Cape",
       "province_codes": [
