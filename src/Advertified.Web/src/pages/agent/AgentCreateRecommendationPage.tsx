@@ -8,6 +8,7 @@ import { useToast } from '../../components/ui/toast';
 import {
   buildBriefQuestionnaireSummary,
   buildRecommendationDraftBrief,
+  formatAgeRange,
   inferRecommendationAudienceFromBrief,
   inferRecommendationGeographyFromBrief,
   inferRecommendationToneFromBrief,
@@ -33,6 +34,8 @@ const STEP_CONFIG = [
 const CHANNEL_OPTIONS: ChannelOption[] = ['OOH', 'Radio', 'TV', 'Digital'];
 const OBJECTIVE_OPTIONS = ['awareness', 'launch', 'promotion', 'brand_presence', 'leads'] as const;
 const AUDIENCE_OPTIONS = ['mass-market', 'youth', 'business', 'retail'] as const;
+const AGE_RANGE_OPTIONS = ['18-24', '25-34', '35-44', '45-54', '55-100'] as const;
+const GENDER_OPTIONS = ['all', 'female', 'male', 'mixed'] as const;
 const SCOPE_OPTIONS = ['local', 'provincial', 'national'] as const;
 const GEOGRAPHY_OPTIONS = [
   'johannesburg',
@@ -45,6 +48,20 @@ const GEOGRAPHY_OPTIONS = [
   'kwazulu-natal',
 ] as const;
 const TONE_OPTIONS = ['premium', 'balanced', 'high-visibility', 'performance'] as const;
+const LANGUAGE_OPTIONS = [
+  'English',
+  'isiZulu',
+  'isiXhosa',
+  'Afrikaans',
+  'Sesotho',
+  'Setswana',
+  'Sepedi',
+  'Xitsonga',
+  'Tshivenda',
+  'Siswati',
+  'isiNdebele',
+  'Multilingual',
+] as const;
 
 function normalizeOption<T extends readonly string[]>(value: string | null | undefined, allowed: T): T[number] | '' {
   if (!value) {
@@ -160,6 +177,10 @@ function inferInitialForm(campaign: {
     audience: 'retail',
     scope: campaign.selectedBudget >= 500000 ? 'national' : 'provincial',
     geography: campaign.selectedBudget >= 500000 ? '' : 'gauteng',
+    ageRange: '',
+    language: '',
+    targetGender: '',
+    targetInterests: '',
     salesModel: '',
     customerType: '',
     buyingBehaviour: '',
@@ -207,6 +228,10 @@ function inferFormFromCampaign(
     audience: inferRecommendationAudienceFromBrief(brief),
     scope: normalizeOption(brief.geographyScope, SCOPE_OPTIONS) || fallback.scope,
     geography: inferRecommendationGeographyFromBrief(brief) || fallback.geography,
+    ageRange: formatAgeRange(brief.targetAgeMin, brief.targetAgeMax),
+    language: brief.targetLanguages?.[0] ?? fallback.language,
+    targetGender: normalizeOption(brief.targetGender, GENDER_OPTIONS) || fallback.targetGender,
+    targetInterests: (brief.targetInterests ?? []).join(', '),
     salesModel: brief.salesModel ?? fallback.salesModel,
     customerType: brief.customerType ?? fallback.customerType,
     buyingBehaviour: brief.buyingBehaviour ?? fallback.buyingBehaviour,
@@ -261,6 +286,10 @@ export function AgentCreateRecommendationPage() {
     audience: '',
     scope: '',
     geography: '',
+    ageRange: '',
+    language: '',
+    targetGender: '',
+    targetInterests: '',
     salesModel: '',
     customerType: '',
     buyingBehaviour: '',
@@ -982,6 +1011,54 @@ export function AgentCreateRecommendationPage() {
 
             <div className={`${hasCapturedBrief && !showDetailEditing ? 'hidden ' : ''}mt-5 rounded-[28px] border border-brand/10 bg-brand-soft/30 p-4 sm:p-5`}>
               <div className="mb-4">
+                <p className="text-sm font-semibold text-ink">Audience profile</p>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <label className="block">
+                  <span className="label-base">Age group</span>
+                  <select value={form.ageRange} onChange={(event) => handleFormChange('ageRange', event.target.value)} className="input-base">
+                    <option value="">Select age group</option>
+                    {AGE_RANGE_OPTIONS.map((option) => (
+                      <option key={option} value={option}>{option === '55-100' ? '55+' : option}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="block">
+                  <span className="label-base">Gender focus</span>
+                  <select value={form.targetGender} onChange={(event) => handleFormChange('targetGender', event.target.value)} className="input-base">
+                    <option value="">Select gender focus</option>
+                    <option value="all">All</option>
+                    <option value="female">Female</option>
+                    <option value="male">Male</option>
+                    <option value="mixed">Mixed</option>
+                  </select>
+                </label>
+
+                <label className="block">
+                  <span className="label-base">Primary language</span>
+                  <select value={form.language} onChange={(event) => handleFormChange('language', event.target.value)} className="input-base">
+                    <option value="">Select language</option>
+                    {LANGUAGE_OPTIONS.map((option) => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="block md:col-span-2 xl:col-span-3">
+                  <span className="label-base">Audience interests</span>
+                  <input
+                    value={form.targetInterests}
+                    onChange={(event) => handleFormChange('targetInterests', event.target.value)}
+                    className="input-base"
+                    placeholder="Retail, family, commuters"
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div className={`${hasCapturedBrief && !showDetailEditing ? 'hidden ' : ''}mt-5 rounded-[28px] border border-brand/10 bg-brand-soft/30 p-4 sm:p-5`}>
+              <div className="mb-4">
                 <p className="text-sm font-semibold text-ink">Commercial fit</p>
               </div>
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -1229,6 +1306,22 @@ export function AgentCreateRecommendationPage() {
                   <div>
                     <p className="text-ink-soft">Geography</p>
                     <p className="font-medium text-ink">{form.geography || 'Not selected'}</p>
+                  </div>
+                  <div>
+                    <p className="text-ink-soft">Age group</p>
+                    <p className="font-medium text-ink">{form.ageRange ? (form.ageRange === '55-100' ? '55+' : form.ageRange) : 'Not selected'}</p>
+                  </div>
+                  <div>
+                    <p className="text-ink-soft">Gender focus</p>
+                    <p className="font-medium text-ink">{form.targetGender || 'Not selected'}</p>
+                  </div>
+                  <div>
+                    <p className="text-ink-soft">Language</p>
+                    <p className="font-medium text-ink">{form.language || 'Not selected'}</p>
+                  </div>
+                  <div>
+                    <p className="text-ink-soft">Interests</p>
+                    <p className="font-medium text-ink">{form.targetInterests || 'Not selected'}</p>
                   </div>
                   <div>
                     <p className="text-ink-soft">Tone</p>

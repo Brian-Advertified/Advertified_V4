@@ -108,6 +108,9 @@ public sealed class PlanningScoreService : IPlanningScoreService
 
         var requested = request.TargetLanguages
             .Where(static value => !string.IsNullOrWhiteSpace(value))
+            .Select(NormalizeLanguage)
+            .Where(static value => value.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
         if (requested.Length == 0)
@@ -122,7 +125,7 @@ public sealed class PlanningScoreService : IPlanningScoreService
             MatchesAnyMetadataToken(candidate, value, "languageNotes", "language_notes", "targetAudience", "target_audience"));
 
         var hasCandidateLanguageMatch = !string.IsNullOrWhiteSpace(candidate.Language)
-            && requested.Any(value => Matches(value, candidate.Language));
+            && requested.Any(value => MatchesLanguage(value, candidate.Language));
 
         if (candidate.MediaType.Equals("Radio", StringComparison.OrdinalIgnoreCase)
             || candidate.MediaType.Equals("TV", StringComparison.OrdinalIgnoreCase))
@@ -393,7 +396,7 @@ public sealed class PlanningScoreService : IPlanningScoreService
     private static decimal GenderScore(InventoryCandidate candidate, CampaignPlanningRequest request)
     {
         var targetGender = NormalizeGender(request.TargetGender);
-        if (string.IsNullOrWhiteSpace(targetGender))
+        if (string.IsNullOrWhiteSpace(targetGender) || targetGender == "all")
         {
             return 0m;
         }
@@ -750,7 +753,7 @@ public sealed class PlanningScoreService : IPlanningScoreService
 
         return keys.Any(key =>
             candidate.Metadata.TryGetValue(key, out var value)
-            && ExtractMetadataTokens(value).Any(token => MatchesGeo(requestedValue, token)));
+            && ExtractMetadataTokens(value).Any(token => MatchesGeo(requestedValue, token) || MatchesLanguage(requestedValue, token)));
     }
 
     private static IEnumerable<string> ExtractMetadataTokens(object? value)
@@ -995,7 +998,43 @@ public sealed class PlanningScoreService : IPlanningScoreService
         {
             "male" or "man" or "men" => "male",
             "female" or "woman" or "women" => "female",
+            "all" or "everyone" or "mixed" => "all",
             _ => string.Empty
+        };
+    }
+
+    private static bool MatchesLanguage(string? left, string? right)
+    {
+        if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right))
+        {
+            return false;
+        }
+
+        return string.Equals(NormalizeLanguage(left), NormalizeLanguage(right), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeLanguage(string? value)
+    {
+        var normalized = (value ?? string.Empty).Trim().ToLowerInvariant()
+            .Replace(" ", string.Empty)
+            .Replace("-", string.Empty)
+            .Replace("_", string.Empty);
+
+        return normalized switch
+        {
+            "english" => "english",
+            "isizulu" or "zulu" => "zulu",
+            "isixhosa" or "xhosa" => "xhosa",
+            "afrikaans" => "afrikaans",
+            "sesotho" or "sotho" => "sotho",
+            "setswana" or "tswana" => "tswana",
+            "sepedi" or "pedi" => "pedi",
+            "xitsonga" or "itsonga" => "xitsonga",
+            "tshivenda" or "venda" => "venda",
+            "siswati" or "swati" => "swati",
+            "isindebele" or "ndebele" => "ndebele",
+            "multilingual" or "multi" => "multilingual",
+            _ => normalized
         };
     }
 

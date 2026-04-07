@@ -372,8 +372,8 @@ public sealed class BroadcastScoreCalculator : IBroadcastScoreCalculator
                 .Concat(request.TargetCityLabels.Intersect(outlet.CityNames, StringComparer.OrdinalIgnoreCase))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList(),
-            Languages = request.TargetLanguages
-                .Intersect(outlet.PrimaryLanguages, StringComparer.OrdinalIgnoreCase)
+            Languages = outlet.PrimaryLanguages
+                .Where(language => BroadcastMatchingHelpers.HasOverlap(new[] { language }, request.TargetLanguages))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList(),
             AudienceKeywords = request.TargetKeywords

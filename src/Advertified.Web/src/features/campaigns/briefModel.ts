@@ -32,6 +32,10 @@ export type RecommendationDraftFormState = {
   audience: string;
   scope: string;
   geography: string;
+  ageRange: string;
+  language: string;
+  targetGender: string;
+  targetInterests: string;
   salesModel: string;
   customerType: string;
   buyingBehaviour: string;
@@ -135,6 +139,14 @@ export function parseAgeRange(value: string): { min?: number; max?: number } {
     min: Number.isFinite(min) ? min : undefined,
     max: Number.isFinite(max) ? max : undefined,
   };
+}
+
+export function formatAgeRange(min?: number, max?: number): string {
+  if (!min && !max) {
+    return '';
+  }
+
+  return `${min ?? '?'}-${max ?? '?'}`;
 }
 
 export function inferRecommendationAudienceFromBrief(brief?: CampaignBrief): string {
@@ -336,6 +348,7 @@ export function buildRecommendationDraftBrief(
   const cities = normalizedScope === 'local' && geography
     ? [cityMap[geography] ?? geography]
     : undefined;
+  const ageRange = parseAgeRange(form.ageRange);
 
   return {
     objective: form.objective || 'awareness',
@@ -343,6 +356,11 @@ export function buildRecommendationDraftBrief(
     provinces,
     cities,
     areas: undefined,
+    targetAgeMin: ageRange.min,
+    targetAgeMax: ageRange.max,
+    targetGender: form.targetGender || undefined,
+    targetLanguages: form.language.trim() ? [form.language.trim()] : undefined,
+    targetInterests: splitCommaList(form.targetInterests),
     salesModel: form.salesModel || undefined,
     customerType: form.customerType || undefined,
     buyingBehaviour: form.buyingBehaviour || undefined,

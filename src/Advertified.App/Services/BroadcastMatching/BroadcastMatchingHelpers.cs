@@ -4,8 +4,24 @@ namespace Advertified.App.Services.BroadcastMatching;
 
 internal static class BroadcastMatchingHelpers
 {
-    public static string NormalizeToken(string value) =>
-        value.Trim().Replace(" ", "_").Replace("-", "_").ToLowerInvariant();
+    public static string NormalizeToken(string value)
+    {
+        var normalized = value.Trim().Replace(" ", "_").Replace("-", "_").ToLowerInvariant();
+        return normalized switch
+        {
+            "isizulu" => "zulu",
+            "isixhosa" => "xhosa",
+            "sesotho" => "sotho",
+            "setswana" => "tswana",
+            "sepedi" => "pedi",
+            "siswati" => "swati",
+            "isitshivenda" => "venda",
+            "tshivenda" => "venda",
+            "isindebele" => "ndebele",
+            "itsonga" => "xitsonga",
+            _ => normalized
+        };
+    }
 
     public static List<string> NormalizeTokens(IEnumerable<string> values) =>
         values
@@ -21,11 +37,19 @@ internal static class BroadcastMatchingHelpers
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-    public static int OverlapCount(IEnumerable<string> left, IEnumerable<string> right) =>
-        left.Intersect(right, StringComparer.OrdinalIgnoreCase).Count();
+    public static int OverlapCount(IEnumerable<string> left, IEnumerable<string> right)
+    {
+        var normalizedLeft = NormalizeTokens(left);
+        var normalizedRight = NormalizeTokens(right);
+        return normalizedLeft.Intersect(normalizedRight, StringComparer.OrdinalIgnoreCase).Count();
+    }
 
-    public static bool HasOverlap(IEnumerable<string> left, IEnumerable<string> right) =>
-        left.Intersect(right, StringComparer.OrdinalIgnoreCase).Any();
+    public static bool HasOverlap(IEnumerable<string> left, IEnumerable<string> right)
+    {
+        var normalizedLeft = NormalizeTokens(left);
+        var normalizedRight = NormalizeTokens(right);
+        return normalizedLeft.Intersect(normalizedRight, StringComparer.OrdinalIgnoreCase).Any();
+    }
 
     public static decimal Ratio(int matched, int total) =>
         total <= 0 ? 0m : decimal.Divide(matched, total);
@@ -35,7 +59,7 @@ internal static class BroadcastMatchingHelpers
     public static bool EqualsText(string? left, string? right) =>
         !string.IsNullOrWhiteSpace(left)
         && !string.IsNullOrWhiteSpace(right)
-        && string.Equals(left.Trim(), right.Trim(), StringComparison.OrdinalIgnoreCase);
+        && string.Equals(NormalizeToken(left), NormalizeToken(right), StringComparison.OrdinalIgnoreCase);
 
     public static bool RangeOverlaps(string? left, string? right)
     {
@@ -57,7 +81,8 @@ internal static class BroadcastMatchingHelpers
             return false;
         }
 
-        return terms.Any(term => source.Contains(term, StringComparison.OrdinalIgnoreCase));
+        var normalizedSource = NormalizeToken(source);
+        return terms.Any(term => normalizedSource.Contains(NormalizeToken(term), StringComparison.OrdinalIgnoreCase));
     }
 
     public static decimal PercentileRank(long value, IReadOnlyList<long> sortedValues)
