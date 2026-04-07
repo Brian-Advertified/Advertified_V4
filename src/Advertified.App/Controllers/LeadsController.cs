@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Advertified.App.Controllers;
 
 [ApiController]
-[Route("api/leads")]
+[Route("leads")]
 public sealed class LeadsController : ControllerBase
 {
     private readonly AppDbContext _db;
