@@ -8,9 +8,11 @@ import { loginSchema } from '../schemas';
 export function LoginForm({
   onSubmit,
   loading,
+  initialEmail = '',
 }: {
   onSubmit: (values: LoginSchema) => Promise<void>;
   loading: boolean;
+  initialEmail?: string;
 }) {
   const [showPassword, setShowPassword] = useState(false);
   const {
@@ -20,7 +22,7 @@ export function LoginForm({
   } = useForm<LoginSchema>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: '',
+      email: initialEmail,
       password: '',
     },
   });

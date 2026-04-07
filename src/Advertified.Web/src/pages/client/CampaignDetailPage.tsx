@@ -11,7 +11,7 @@ import { RecommendationViewer } from '../../features/campaigns/components/Recomm
 import { buildApprovalDetails, getApprovalContent, getHeroContent } from '../../features/campaigns/clientCampaignDetailContent';
 import { getCampaignRecommendations, resolveRecommendationId } from '../../features/campaigns/recommendationSelection';
 import { CampaignStepper } from '../../components/campaign/CampaignStepper';
-import { campaignNeedsCheckout, isPaymentAwaitingManualReview } from '../../lib/access';
+import { getClientCampaignState } from '../../lib/access';
 import { getPrimaryRecommendation, hasRecommendationApprovalCompleted, isCampaignInSet, CAMPAIGN_STATUSES_AFTER_RECOMMENDATION_APPROVAL } from '../../lib/campaignStatus';
 import { invalidateClientCampaignQueries, queryKeys } from '../../lib/queryKeys';
 import { formatCurrency, formatDate, titleCase } from '../../lib/utils';
@@ -214,9 +214,10 @@ export function CampaignDetailPage() {
       : campaign.status === 'creative_approved'
         ? Math.max(progress, 96)
         : progress;
+  const clientState = getClientCampaignState(campaign);
   const recommendationAwaitingDecision = recommendation?.status === 'sent_to_client';
-  const paymentRequiredBeforeApproval = campaignNeedsCheckout(campaign) && !recommendationApprovalComplete;
-  const paymentAwaitingReview = isPaymentAwaitingManualReview(campaign.paymentProvider, campaign.paymentStatus);
+  const paymentRequiredBeforeApproval = clientState.key === 'payment_required';
+  const paymentAwaitingReview = clientState.key === 'payment_under_review';
   const canApproveRecommendation = Boolean(
     recommendation
       && recommendationAwaitingDecision
@@ -226,8 +227,8 @@ export function CampaignDetailPage() {
       && recommendation.status !== 'approved',
   );
   const canApproveCreative = campaign.status === 'creative_sent_to_client_for_approval';
-  const hero = getHeroContent(campaign, recommendation?.status);
-  const approval = getApprovalContent(campaign, recommendation?.status);
+  const hero = getHeroContent(campaign);
+  const approval = getApprovalContent(campaign);
   const details = buildApprovalDetails(campaign, recommendation);
   const latestAgentMessage = [...thread.messages].reverse().find((message) => message.senderRole === 'agent');
   const activeView = location.pathname.endsWith('/approvals')
@@ -292,7 +293,7 @@ export function CampaignDetailPage() {
             <section id="overview" className="rounded-[30px] border border-line bg-white p-7 shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
           <div className="inline-flex items-center gap-2 rounded-full bg-brand-soft px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-brand">
             <Sparkles className="size-4" />
-            {campaign.status === 'approved' || campaign.status === 'creative_changes_requested' || campaign.status === 'creative_approved' || campaign.status === 'booking_in_progress' || campaign.status === 'launched'
+            {!clientState.requiresClientAction
               ? 'You are all set'
               : 'One thing to do'}
           </div>
@@ -502,11 +503,7 @@ export function CampaignDetailPage() {
                     <p className="mt-1 text-sm text-ink-soft">
                       {recommendationApprovalComplete
                         ? 'This approval step is complete.'
-                        : paymentAwaitingReview
-                          ? 'Your Pay Later application is under review.'
-                          : paymentRequiredBeforeApproval
-                          ? 'Payment is still required first.'
-                          : 'You can make your decision now.'}
+                        : clientState.description}
                     </p>
                   </div>
                 </div>
@@ -585,9 +582,9 @@ export function CampaignDetailPage() {
               ) : null}
               {paymentAwaitingReview ? (
                 <div className="rounded-[18px] border border-sky-200 bg-sky-50 p-5">
-                  <div className="mb-2 text-sm font-semibold text-sky-900">Pay Later application in review</div>
+                  <div className="mb-2 text-sm font-semibold text-sky-900">Pay Later under review</div>
                   <p className="text-sm leading-7 text-sky-800">
-                    Your Finance Partner application has already been submitted. You do not need to pay again while approval is pending.
+                    Your Finance Partner application has already been submitted. There is nothing else you need to approve or pay while this review is pending.
                   </p>
                 </div>
               ) : null}
@@ -624,7 +621,7 @@ export function CampaignDetailPage() {
                       {paymentAwaitingReview
                         ? 'Awaiting Pay Later approval'
                         : paymentRequiredBeforeApproval
-                        ? 'Payment required before approval'
+                          ? 'Payment required before approval'
                         : (approveMutation.isPending ? 'Accepting...' : 'Approve selected')}
                     </button>
                     <button
@@ -682,7 +679,7 @@ export function CampaignDetailPage() {
               ) : (
                 <div className="flex flex-wrap gap-3">
                   <Link to={`${campaignBasePath}/messages`} className="user-btn-primary">Ask question</Link>
-                  {campaign.recommendationPdfUrl ? (
+                  {campaign.recommendationPdfUrl && !paymentAwaitingReview ? (
                     <button type="button" onClick={() => void handleDownloadRecommendationPdf()} className="user-btn-secondary">Open document</button>
                   ) : null}
                 </div>

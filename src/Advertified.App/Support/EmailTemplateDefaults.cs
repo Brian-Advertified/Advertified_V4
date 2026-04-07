@@ -22,7 +22,7 @@ internal static class EmailTemplateDefaults
                         Hi {{UserName}}, you are one step away from activating your Advertified account.
                       </p>
                       <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">
-                        Once activated, you will set your password and continue directly into your workspace.
+                        Once activated, you will set your password and continue directly into your Advertified workspace.
                       </p>
                       <div style=""margin:24px 0;padding:18px 20px;border:1px solid #d8e9e1;border-radius:18px;background:#f8fcfa;"">
                         <div style=""font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Activation details</div>
@@ -427,7 +427,7 @@ internal static class EmailTemplateDefaults
                         Hi {{ClientName}}, your Advertified strategist has prepared recommendation options for <strong>{{CampaignName}}</strong>.
                       </p>
                       <p style=""margin:0 0 18px;font-size:15px;line-height:1.7;color:#4b635a;"">
-                        {{ProposalSummary}} Approve your preferred option below, or open the full review page if you want to compare everything first.
+                        {{ProposalSummary}} Review your preferred option below, or open the full review page if you want to compare everything first. If any payment or finance review step still needs to happen first, your workspace will guide you clearly before anything else needs your confirmation.
                       </p>
                       {{ProposalAcceptButtonsBlock}}
                       <div style=""margin:18px 0 20px;"">
@@ -530,7 +530,7 @@ internal static class EmailTemplateDefaults
                         Hi {{ClientName}}, your recommendation for <strong>{{CampaignName}}</strong> has been approved successfully.
                       </p>
                       <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">
-                        This means the strategy and draft media plan have been signed off and the campaign can now move into the fulfilment and activation stage.
+                        This means the strategy and draft media plan have been signed off and our team can now move the campaign into creative production and operational preparation.
                       </p>
                       <div style=""margin:24px 0;padding:18px 20px;border:1px solid #d8e9e1;border-radius:18px;background:#f8fcfa;"">
                         <div style=""font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Approval summary</div>
@@ -540,44 +540,11 @@ internal static class EmailTemplateDefaults
                         <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Status:</strong> Recommendation approved</p>
                       </div>
                       <p style=""margin:0 0 18px;font-size:15px;line-height:1.7;color:#4b635a;"">
-                        Our team will now begin coordinating the next operational steps to move your campaign toward activation.
+                        There is nothing else you need to do right now. We will update your workspace again when the next real approval or delivery milestone is ready for you.
                       </p>
                       <div style=""margin:22px 0 20px;"">
                         <a href=""{{CampaignUrl}}"" style=""display:inline-block;padding:12px 18px;border-radius:14px;background:#123A33;color:#ffffff;text-decoration:none;font-weight:700;"">
                           Open campaign
-                        </a>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                ", nowUtc),
-            Build("activation-in-progress", "Activation is now in progress for {{CampaignName}}", @"
-                <div style=""background:#f4fbf8;padding:32px;font-family:Arial,sans-serif;color:#12211D;"">
-                  <div style=""max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #d8e9e1;border-radius:24px;overflow:hidden;"">
-                    <div style=""padding:28px 32px;background:linear-gradient(180deg,#eefbf5 0%, #ffffff 100%);border-bottom:1px solid #d8e9e1;"">
-                      <div style=""font-size:14px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Advertified activation</div>
-                      <h1 style=""margin:12px 0 0;font-size:30px;line-height:1.2;color:#123A33;"">Your campaign is moving into activation</h1>
-                    </div>
-                    <div style=""padding:28px 32px;"">
-                      <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">
-                        Hi {{ClientName}}, activation is now in progress for <strong>{{CampaignName}}</strong>.
-                      </p>
-                      <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">
-                        Advertified is now moving from recommendation approval into the operational fulfilment phase, including confirming the plan, artwork readiness, and the next media execution steps where applicable.
-                      </p>
-                      <div style=""margin:24px 0;padding:18px 20px;border:1px solid #d8e9e1;border-radius:18px;background:#f8fcfa;"">
-                        <div style=""font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Activation summary</div>
-                        <p style=""margin:10px 0 0;font-size:15px;line-height:1.6;""><strong>Campaign:</strong> {{CampaignName}}</p>
-                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Package:</strong> {{PackageName}}</p>
-                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Selected budget:</strong> {{Budget}}</p>
-                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Status:</strong> Activation in progress</p>
-                      </div>
-                      <p style=""margin:0 0 18px;font-size:15px;line-height:1.7;color:#4b635a;"">
-                        If we need anything further from you, we will reach out directly. Otherwise, you can follow progress from your campaign page at any time.
-                      </p>
-                      <div style=""margin:22px 0 20px;"">
-                        <a href=""{{CampaignUrl}}"" style=""display:inline-block;padding:12px 18px;border-radius:14px;background:#123A33;color:#ffffff;text-decoration:none;font-weight:700;"">
-                          View campaign progress
                         </a>
                       </div>
                     </div>
@@ -745,47 +712,77 @@ internal static class EmailTemplateDefaults
                   </div>
                 </div>
                 ", nowUtc),
-            Build("payment-approved-lula", "Payment confirmed for {{CampaignName}}", @"
+            Build("payment-submitted-lula", "Your Pay Later application is under review for {{CampaignName}}", @"
+                <div style=""background:#f4fbf8;padding:32px;font-family:Arial,sans-serif;color:#12211D;"">
+                  <div style=""max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #d8e9e1;border-radius:24px;overflow:hidden;"">
+                    <div style=""padding:28px 32px;background:linear-gradient(180deg,#eefbf5 0%, #ffffff 100%);border-bottom:1px solid #d8e9e1;"">
+                      <div style=""font-size:14px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Advertified finance review</div>
+                      <h1 style=""margin:12px 0 0;font-size:30px;line-height:1.2;color:#123A33;"">Your Pay Later application is under review</h1>
+                    </div>
+                    <div style=""padding:28px 32px;"">
+                      <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">
+                        Hi {{ClientName}}, we have received your Pay Later application for <strong>{{CampaignName}}</strong>.
+                      </p>
+                      <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">
+                        Finance Partner is now reviewing the application. You do not need to make another payment or approve anything else while this review is pending.
+                      </p>
+                      <div style=""margin:24px 0;padding:18px 20px;border:1px solid #d8e9e1;border-radius:18px;background:#f8fcfa;"">
+                        <p style=""margin:0;font-size:15px;line-height:1.6;""><strong>Campaign:</strong> {{CampaignName}}</p>
+                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Package:</strong> {{PackageName}}</p>
+                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Amount:</strong> {{Amount}}</p>
+                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Status:</strong> Pay Later under review</p>
+                      </div>
+                      <p style=""margin:0 0 18px;font-size:15px;line-height:1.7;color:#4b635a;"">
+                        We will email you again as soon as the review outcome is confirmed. Until then, your Advertified workspace will keep the latest status visible.
+                      </p>
+                      <p style=""margin:22px 0 0;"">
+                        <a href=""{{OrdersUrl}}"" style=""display:inline-block;padding:12px 18px;background:#123A33;color:#ffffff;text-decoration:none;border-radius:12px;font-weight:700;"">View order status</a>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                ", nowUtc),
+            Build("payment-approved-lula", "Your Pay Later application has been approved for {{CampaignName}}", @"
                 <div style=""background:#f4fbf8;padding:32px;font-family:Arial,sans-serif;color:#12211D;"">
                   <div style=""max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #d8e9e1;border-radius:24px;overflow:hidden;"">
                     <div style=""padding:28px 32px;background:linear-gradient(180deg,#eefbf5 0%, #ffffff 100%);border-bottom:1px solid #d8e9e1;"">
                       <div style=""font-size:14px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Advertified billing</div>
-                      <h1 style=""margin:12px 0 0;font-size:30px;line-height:1.2;color:#123A33;"">Your Finance Partner payment has been confirmed</h1>
+                      <h1 style=""margin:12px 0 0;font-size:30px;line-height:1.2;color:#123A33;"">Your Pay Later application has been approved</h1>
                     </div>
                     <div style=""padding:28px 32px;"">
-                      <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">We have confirmed payment for <strong>{{CampaignName}}</strong>.</p>
+                      <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">We have confirmed your approved Pay Later payment for <strong>{{CampaignName}}</strong>.</p>
                       <div style=""margin:24px 0;padding:18px 20px;border:1px solid #d8e9e1;border-radius:18px;background:#f8fcfa;"">
                         <p style=""margin:0;font-size:15px;line-height:1.6;""><strong>Invoice:</strong> {{InvoiceNumber}}</p>
                         <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Campaign plan:</strong> {{PackageName}}</p>
                         <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Amount settled:</strong> {{Amount}}</p>
                         <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Reference:</strong> {{PaymentReference}}</p>
-                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Status:</strong> Paid, awaiting activation</p>
+                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Status:</strong> Pay Later approved and confirmed</p>
                       </div>
                       <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">
-                        Advertified will now move your campaign into activation and fulfilment. If you need artwork support or flighting updates, reply to this email and our team will help you.
+                        Advertified can now continue with the next campaign stage. If you need artwork support or timing updates, reply to this email and our team will help you.
                       </p>
                       {{AdminNoteBlock}}
                     </div>
                   </div>
                 </div>
                 ", nowUtc),
-            Build("payment-declined-lula", "Payment could not be confirmed for {{CampaignName}}", @"
+            Build("payment-declined-lula", "Your Pay Later application could not be approved for {{CampaignName}}", @"
                 <div style=""background:#f4fbf8;padding:32px;font-family:Arial,sans-serif;color:#12211D;"">
                   <div style=""max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #d8e9e1;border-radius:24px;overflow:hidden;"">
                     <div style=""padding:28px 32px;background:linear-gradient(180deg,#eefbf5 0%, #ffffff 100%);border-bottom:1px solid #d8e9e1;"">
                       <div style=""font-size:14px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Advertified billing</div>
-                      <h1 style=""margin:12px 0 0;font-size:30px;line-height:1.2;color:#123A33;"">Your Finance Partner payment could not be confirmed</h1>
+                      <h1 style=""margin:12px 0 0;font-size:30px;line-height:1.2;color:#123A33;"">Your Pay Later application could not be approved</h1>
                     </div>
                     <div style=""padding:28px 32px;"">
-                      <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">We could not confirm the Finance Partner payment for <strong>{{CampaignName}}</strong>.</p>
+                      <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">We could not approve the Pay Later application for <strong>{{CampaignName}}</strong>.</p>
                       <div style=""margin:24px 0;padding:18px 20px;border:1px solid #d8e9e1;border-radius:18px;background:#f8fcfa;"">
                         <p style=""margin:0;font-size:15px;line-height:1.6;""><strong>Invoice:</strong> {{InvoiceNumber}}</p>
                         <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Campaign plan:</strong> {{PackageName}}</p>
                         <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Amount:</strong> {{Amount}}</p>
-                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Current status:</strong> Payment not confirmed</p>
+                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Current status:</strong> Pay Later not approved</p>
                       </div>
                       <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">
-                        You can still work with the Advertified team to retry settlement or choose a different payment route. Reply to this email if you would like us to help you complete the campaign.
+                        You can still continue your campaign with a different payment route. Reply to this email if you would like help completing the campaign.
                       </p>
                       {{AdminNoteBlock}}
                     </div>

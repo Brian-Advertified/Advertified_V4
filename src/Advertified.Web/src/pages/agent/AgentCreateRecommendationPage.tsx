@@ -30,7 +30,7 @@ const STEP_CONFIG = [
   { id: 3, label: 'Create draft' },
 ] as const;
 
-const CHANNEL_OPTIONS: ChannelOption[] = ['OOH', 'Radio', 'TV'];
+const CHANNEL_OPTIONS: ChannelOption[] = ['OOH', 'Radio', 'TV', 'Digital'];
 const OBJECTIVE_OPTIONS = ['awareness', 'launch', 'promotion', 'brand_presence', 'leads'] as const;
 const AUDIENCE_OPTIONS = ['mass-market', 'youth', 'business', 'retail'] as const;
 const SCOPE_OPTIONS = ['local', 'provincial', 'national'] as const;
@@ -65,6 +65,8 @@ function normalizeChannelOption(channel: string | null | undefined): ChannelOpti
       ? 'OOH'
       : normalized === 'RADIO'
         ? 'Radio'
+        : normalized === 'DIGITAL'
+          ? 'Digital'
         : undefined;
 }
 
@@ -106,7 +108,7 @@ function getAllowedChannels(campaign?: {
   includeRadio: 'yes' | 'optional' | 'no';
   includeTv: 'yes' | 'optional' | 'no';
 } | null): ChannelOption[] {
-  const allowed: ChannelOption[] = ['OOH'];
+  const allowed: ChannelOption[] = ['OOH', 'Digital'];
   if (campaign?.includeRadio !== 'no') {
     allowed.unshift('Radio');
   }
@@ -470,8 +472,8 @@ export function AgentCreateRecommendationPage() {
         campaignName: '',
       });
       pushToast({
-        title: 'Prospect campaign created.',
-        description: 'You can now generate and send a recommendation before payment.',
+        title: 'Prospect lead created.',
+        description: 'This creates a lead record and campaign workspace, not a registered client account.',
       });
     },
     onError: (error) => {
@@ -728,7 +730,7 @@ export function AgentCreateRecommendationPage() {
             <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-ink">1. Choose the campaign</h2>
-                <p className="mt-1 text-sm text-ink-soft">Start from an existing client campaign, whether it is already paid or still prospective.</p>
+                <p className="mt-1 text-sm text-ink-soft">Start from an existing campaign, or create a prospect lead if the person has not registered yet.</p>
               </div>
               <span className="pill bg-white text-ink-soft">Required</span>
             </div>
@@ -785,7 +787,7 @@ export function AgentCreateRecommendationPage() {
             {selectedCampaignDetailsQuery.isSuccess && questionnaireSummary.length > 0 ? (
               <div className="mt-4 rounded-2xl border border-line bg-slate-50 p-4">
                 <p className="text-sm font-semibold text-ink">Captured questionnaire</p>
-                <p className="mt-1 text-xs text-ink-soft">This is the brief information the client already submitted.</p>
+                <p className="mt-1 text-xs text-ink-soft">This is the brief information already captured. Use it as the starting point for the recommendation.</p>
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
                   {questionnaireSummary.map((item) => (
                     <div key={item.label} className="rounded-xl border border-white bg-white px-3 py-3">
@@ -802,13 +804,13 @@ export function AgentCreateRecommendationPage() {
                 onClick={() => setShowProspectForm((current) => !current)}
                 className="button-secondary px-4 py-2"
               >
-                {showProspectForm ? 'Hide prospective client form' : 'Add prospective client'}
+                {showProspectForm ? 'Hide prospect lead form' : 'Add prospect lead'}
               </button>
             </div>
             {showProspectForm ? (
               <div className="mt-4 rounded-2xl border border-line bg-slate-50 p-4">
-                <p className="text-sm font-semibold text-ink">Create a prospective campaign</p>
-                <p className="mt-1 text-xs text-ink-soft">Use this when the client is not registered yet and you still want to prepare a recommendation.</p>
+                <p className="text-sm font-semibold text-ink">Create a prospect lead</p>
+                <p className="mt-1 text-xs text-ink-soft">Use this when the person has not registered yet. It creates a lead record and campaign workspace without creating a client login account.</p>
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
                   <label className="block">
                     <span className="label-base">Full name</span>
@@ -843,7 +845,7 @@ export function AgentCreateRecommendationPage() {
                     disabled={createProspectMutation.isPending || !canCreateProspectCampaign}
                     className="button-primary px-4 py-2 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {createProspectMutation.isPending ? 'Creating...' : 'Create campaign'}
+                    {createProspectMutation.isPending ? 'Creating...' : 'Create lead'}
                   </button>
                 </div>
               </div>
@@ -853,7 +855,7 @@ export function AgentCreateRecommendationPage() {
           <div className="panel border-line/90 px-6 py-6 md:px-7">
             <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 className="text-lg font-semibold text-ink">2. Add campaign details</h2>
+                <h2 className="text-lg font-semibold text-ink">{hasCapturedBrief ? '2. Review captured brief' : '2. Add campaign details'}</h2>
               </div>
               <div className="flex flex-wrap items-center gap-3">
                 <span className="pill bg-white text-ink-soft">AI can help</span>
@@ -863,7 +865,7 @@ export function AgentCreateRecommendationPage() {
                     onClick={() => setShowDetailEditing((current) => !current)}
                     className="button-secondary px-4 py-2"
                   >
-                    {showDetailEditing ? 'Hide field editing' : 'Edit captured details'}
+                    {showDetailEditing ? 'Hide planning inputs' : 'Refine planning inputs'}
                   </button>
                 ) : null}
               </div>
@@ -871,6 +873,9 @@ export function AgentCreateRecommendationPage() {
 
             {hasCapturedBrief && !showDetailEditing ? (
               <div className="rounded-[24px] border border-brand/15 bg-brand-soft/30 px-5 py-5">
+                <div className="mb-5 rounded-[18px] border border-brand/10 bg-white/70 px-4 py-3 text-sm text-ink-soft">
+                  We are using the captured brief as the recommendation source. Open planning inputs only if you want to override or refine them before drafting.
+                </div>
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Objective</p>

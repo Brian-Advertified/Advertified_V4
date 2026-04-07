@@ -335,7 +335,9 @@ export function RegistrationWizard({
         {loading ? 'Creating account...' : 'Create account'}
       </button>
 
-      <p className="register-footer-copy">Already registered? Check your activation email or browse FAQs.</p>
+      <p className="register-footer-copy">
+        Already registered? <Link to="/login" className="font-semibold text-brand underline">Sign in instead</Link>.
+      </p>
     </form>
   );
 }

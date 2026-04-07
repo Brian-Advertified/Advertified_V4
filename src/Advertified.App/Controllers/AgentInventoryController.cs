@@ -32,6 +32,7 @@ public sealed class AgentInventoryController : ControllerBase
         var candidates = new List<InventoryCandidate>();
 
         candidates.AddRange(await _inventoryRepository.GetOohCandidatesAsync(request, cancellationToken));
+        candidates.AddRange(await _inventoryRepository.GetDigitalCandidatesAsync(request, cancellationToken));
         candidates.AddRange(await _inventoryRepository.GetRadioSlotCandidatesAsync(request, cancellationToken));
         candidates.AddRange(await _inventoryRepository.GetRadioPackageCandidatesAsync(request, cancellationToken));
         candidates.AddRange(await _inventoryRepository.GetTvCandidatesAsync(request, cancellationToken));

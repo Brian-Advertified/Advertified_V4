@@ -79,6 +79,24 @@ export function PackagesPage() {
         description="If you already know your budget band, continue to payment. If you want guidance first, start the questionnaire and we will help shape the right campaign setup."
       />
 
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="rounded-[24px] border border-line bg-white px-5 py-5">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-brand">This route is best if</p>
+          <p className="mt-3 text-sm leading-7 text-ink-soft">
+            you already know the budget band you want and are comfortable continuing toward payment before planning starts.
+          </p>
+        </div>
+        <div className="rounded-[24px] border border-brand/15 bg-brand-soft/25 px-5 py-5">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-brand">Not sure yet?</p>
+          <p className="mt-3 text-sm leading-7 text-ink-soft">
+            Start the questionnaire first if you want Advertified to shape the brief and point you to the right route before checkout.
+          </p>
+          <Link to="/start-campaign" className="mt-4 inline-flex items-center gap-2 font-semibold text-brand">
+            Start questionnaire
+          </Link>
+        </div>
+      </div>
+
       <div className="flex flex-col gap-2 sm:flex-wrap sm:gap-3">
         <div className={`pill ${step === 1 ? 'bg-brand text-white border-brand' : ''}`}>Step 1: Choose package</div>
         <div className={`pill ${step === 2 ? 'bg-brand text-white border-brand' : ''}`}>Step 2: Choose spend</div>
@@ -149,7 +167,7 @@ export function PackagesPage() {
             </div>
             <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
               <Link className="button-secondary px-4 py-2.5 text-sm" to="/start-campaign">
-                Not sure?
+                Not sure? Start questionnaire
               </Link>
               <Link
                 className="button-primary px-5 py-2.5 text-sm"

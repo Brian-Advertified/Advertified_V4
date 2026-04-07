@@ -138,6 +138,8 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
                 sendInvoiceEmail: false,
                 cancellationToken);
 
+            await SendLulaSubmittedEmailAsync(order, band, user, cancellationToken);
+
             return new CreatePackageOrderResponse
             {
                 PackageOrderId = order.Id,
@@ -201,6 +203,12 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
             .Include(x => x.Invoice)
             .FirstOrDefaultAsync(x => x.Id == packageOrderId && x.UserId == userId, cancellationToken)
             ?? throw new InvalidOperationException("Package order not found.");
+        var shouldSendLulaSubmittedEmail =
+            string.Equals(normalizedProvider, "lula", StringComparison.OrdinalIgnoreCase)
+            && (
+                !string.Equals(order.PaymentProvider, "lula", StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(order.PaymentStatus, "pending", StringComparison.OrdinalIgnoreCase)
+            );
 
         if (string.Equals(order.PaymentStatus, "paid", StringComparison.OrdinalIgnoreCase))
         {
@@ -239,6 +247,11 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
                 paymentReference: null,
                 sendInvoiceEmail: false,
                 cancellationToken);
+
+            if (shouldSendLulaSubmittedEmail)
+            {
+                await SendLulaSubmittedEmailAsync(order, order.PackageBand, order.User, cancellationToken);
+            }
 
             return new CreatePackageOrderResponse
             {
@@ -532,6 +545,35 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to send admin sale alert for package order {PackageOrderId}.", order.Id);
+        }
+    }
+
+    private async Task SendLulaSubmittedEmailAsync(
+        PackageOrder order,
+        PackageBand band,
+        UserAccount user,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _emailService.SendAsync(
+                "payment-submitted-lula",
+                user.Email,
+                "billing",
+                new Dictionary<string, string?>
+                {
+                    ["ClientName"] = user.FullName,
+                    ["CampaignName"] = order.Campaign?.CampaignName?.Trim() ?? $"{band.Name} campaign",
+                    ["PackageName"] = band.Name,
+                    ["Amount"] = FormatCurrency(order.Amount),
+                    ["OrdersUrl"] = BuildFrontendUrl("/orders")
+                },
+                null,
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send Pay Later submitted email for package order {PackageOrderId}.", order.Id);
         }
     }
 

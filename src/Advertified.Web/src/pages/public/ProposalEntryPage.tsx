@@ -9,6 +9,7 @@ import { getCampaignRecommendations, selectRecommendation } from '../../features
 import { useToast } from '../../components/ui/toast';
 import { useAuth } from '../../features/auth/auth-context';
 import { hasRecommendationApprovalCompleted } from '../../lib/campaignStatus';
+import { isPaymentAwaitingManualReview } from '../../lib/access';
 import { formatCurrency, titleCase } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
 
@@ -57,7 +58,12 @@ export function ProposalEntryPage() {
     currentSelectionId: selectedRecommendationId,
     requestedRecommendationId: recommendationId,
   });
-  const paymentRequiredBeforeApproval = publicProposalQuery.data?.paymentStatus !== 'paid';
+  const paymentAwaitingReview = publicProposalQuery.data
+    ? isPaymentAwaitingManualReview(publicProposalQuery.data.paymentProvider, publicProposalQuery.data.paymentStatus)
+    : false;
+  const paymentRequiredBeforeApproval = Boolean(
+    publicProposalQuery.data?.paymentStatus !== 'paid' && !paymentAwaitingReview,
+  );
   const approvalAlreadyCompleted = hasRecommendationApprovalCompleted(publicProposalQuery.data?.status, recommendation);
   const currentProposalPath = `${location.pathname}${location.search}`;
   const checkoutPath = publicProposalQuery.data && recommendation
@@ -213,7 +219,9 @@ export function ProposalEntryPage() {
           title={publicProposalQuery.data.campaignName}
           description={approvalAlreadyCompleted
             ? 'This proposal has already been approved. You can still reopen the proposal page from any email link.'
-            : 'Review the options and tell us how you want to proceed.'}
+            : paymentAwaitingReview
+              ? 'Your proposal is saved. Finance Partner is reviewing your Pay Later application, so there is nothing else you need to do right now.'
+              : 'Review the options and tell us how you want to proceed.'}
         />
 
         {recommendations.length > 1 ? (
@@ -269,10 +277,14 @@ export function ProposalEntryPage() {
               </div>
               <div className="rounded-[18px] border border-line bg-slate-50/80 px-4 py-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Payment status</p>
-                <p className="mt-2 text-base font-semibold text-ink">{formatPaymentStatusLabel(publicProposalQuery.data.paymentStatus)}</p>
+                <p className="mt-2 text-base font-semibold text-ink">
+                  {paymentAwaitingReview ? 'Pay Later under review' : formatPaymentStatusLabel(publicProposalQuery.data.paymentStatus)}
+                </p>
                 <p className="mt-1 text-sm text-ink-soft">
                   {approvalAlreadyCompleted
                     ? 'Approval is complete and Advertified is moving this campaign forward.'
+                    : paymentAwaitingReview
+                      ? 'Your Finance Partner application is under review. We will bring you back here when the next client action is available.'
                     : paymentRequiredBeforeApproval
                       ? 'Payment must be completed before final approval.'
                       : 'This proposal can be approved now.'}
@@ -291,6 +303,10 @@ export function ProposalEntryPage() {
             {approvalAlreadyCompleted ? (
               <div className="mt-4 rounded-[14px] border border-brand/20 bg-brand/[0.06] px-4 py-3 text-sm text-ink">
                 This proposal has already been accepted. You can still review it here from any proposal email link.
+              </div>
+            ) : paymentAwaitingReview ? (
+              <div className="mt-4 rounded-[14px] border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+                Your Finance Partner application has already been submitted. There is nothing else you need to approve or pay while this review is pending.
               </div>
             ) : paymentRequiredBeforeApproval ? (
               <div className="mt-4 rounded-[14px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -313,10 +329,12 @@ export function ProposalEntryPage() {
                 <button
                   type="button"
                   onClick={() => void handlePrimaryAction()}
-                  disabled={approvalAlreadyCompleted || approveMutation.isPending || prepareCheckoutMutation.isPending || requestChangesMutation.isPending || rejectAllMutation.isPending || (!checkoutPath && paymentRequiredBeforeApproval)}
+                  disabled={approvalAlreadyCompleted || paymentAwaitingReview || approveMutation.isPending || prepareCheckoutMutation.isPending || requestChangesMutation.isPending || rejectAllMutation.isPending || (!checkoutPath && paymentRequiredBeforeApproval)}
                   className={`w-full justify-center text-center whitespace-normal px-4 py-3 text-sm ${
                     approvalAlreadyCompleted
                       ? 'user-btn-secondary border-line bg-slate-100 text-ink-soft opacity-100'
+                      : paymentAwaitingReview
+                      ? 'user-btn-secondary border-sky-200 bg-sky-50 text-sky-900 opacity-100'
                       : paymentRequiredBeforeApproval
                       ? 'user-btn-secondary border-amber-200 bg-amber-50 text-amber-900 opacity-100'
                       : 'user-btn-primary'
@@ -324,6 +342,8 @@ export function ProposalEntryPage() {
                 >
                   {approvalAlreadyCompleted
                     ? 'Proposal already approved'
+                    : paymentAwaitingReview
+                    ? 'Awaiting Pay Later review'
                     : paymentRequiredBeforeApproval
                     ? (prepareCheckoutMutation.isPending
                       ? 'Preparing payment...'

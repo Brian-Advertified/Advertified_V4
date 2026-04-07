@@ -1,7 +1,7 @@
 import { CheckCircle2, Circle, Clock3 } from 'lucide-react';
 import type { PropsWithChildren, ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { hasCampaignClearedPayment } from '../../lib/access';
+import { getClientCampaignState, hasCampaignClearedPayment } from '../../lib/access';
 import { buildBriefCoverageSummary } from '../../features/campaigns/briefModel';
 import {
   CAMPAIGN_STATUSES_AFTER_CREATIVE_APPROVAL,
@@ -139,7 +139,7 @@ export function buildPackageSummary(campaign: Campaign, order?: PackageOrder, pa
     { label: 'Coverage', value: buildBriefCoverageSummary(campaign.brief) },
     { label: 'Objective', value: campaign.brief?.objective || packageBand?.packagePurpose || 'Not added yet' },
     { label: 'Included channels', value: recommendedChannels[0] ? recommendedChannels.map(formatChannelLabel).join(', ') : 'Recommendation not ready yet' },
-    { label: 'Payment status', value: titleCase(order?.paymentStatus ?? 'paid') },
+    { label: 'Current status', value: getClientCampaignState(campaign).statusLabel || titleCase(order?.paymentStatus ?? 'paid') },
   ];
 }
 

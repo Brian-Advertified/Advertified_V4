@@ -38,7 +38,7 @@ const CHANNELS = [
   { value: 'ooh', label: 'Billboards and digital screens' },
   { value: 'radio', label: 'Radio' },
   { value: 'tv', label: 'TV' },
-  { value: 'digital', label: 'Digital' },
+  { value: 'digital', label: 'Social media' },
 ];
 
 const AGE_RANGES = [
@@ -401,10 +401,10 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
     <div className={containerClassName}>
       <div className="pill bg-white text-brand">Questionnaire</div>
       <h2 className={titleClassName}>
-        Start here.
+        Start with your campaign brief.
       </h2>
       <p className={copyClassName}>
-        Share your campaign requirements and an agent will turn them into a recommendation.
+        Use this route if you want guidance before choosing a package. We will turn your answers into a working brief and use it to guide the next step.
       </p>
 
       {packagesQuery.isError ? (
@@ -431,19 +431,20 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
         <div className="mt-6 rounded-[24px] border border-emerald-200 bg-emerald-50 px-5 py-5">
           <p className="text-sm font-semibold text-emerald-800">Your brief is in</p>
           <p className="mt-2 text-sm leading-6 text-emerald-900">
-            We’ve saved your answers and queued them for review. An Advertified agent can now turn this into a recommendation.
+            We've saved your answers and queued them for review. An Advertified agent can now turn this into a recommendation.
           </p>
           <div className="mt-4 rounded-[20px] border border-emerald-200 bg-white/70 px-4 py-4">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">What happens next</p>
             <ul className="mt-3 space-y-2 text-sm leading-6 text-emerald-900">
               <li>1. Your answers are reviewed and shaped into a working campaign brief.</li>
               <li>2. We use that brief to build tailored media recommendations for your business.</li>
-              <li>3. If you already know your spend band, you can continue with package selection right away.</li>
+              <li>3. No account has been created yet. If you want to track this inside Advertified, create an account later with the same email address.</li>
             </ul>
           </div>
           <p className="mt-4 text-sm leading-6 text-emerald-900">{submitted.message}</p>
           <p className="mt-2 text-xs uppercase tracking-[0.16em] text-emerald-700">Campaign ref: {submitted.campaignId.slice(0, 8).toUpperCase()}</p>
           <div className="mt-4 flex flex-wrap gap-3">
+            <Link to="/register?next=%2Fdashboard" className="button-secondary px-5 py-3">Create account to track this</Link>
             <Link to="/packages" className="button-primary px-5 py-3">Continue to packages</Link>
             <Link to="/" className="button-secondary px-5 py-3">Back to homepage</Link>
           </div>
@@ -507,7 +508,7 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
             <>
               <div>
                 <p className="text-sm font-semibold text-ink">Step 1 of 3</p>
-                <p className="mt-1 text-sm leading-6 text-ink-soft">Tell us a little about your business. If you are unsure about any question, choose the closest option and we will guide the rest.</p>
+                <p className="mt-1 text-sm leading-6 text-ink-soft">Tell us about the business behind the campaign. If you are unsure, choose the closest option and we will guide the rest.</p>
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
@@ -591,7 +592,7 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
             <>
               <div>
                 <p className="text-sm font-semibold text-ink">Step 2 of 3</p>
-                <p className="mt-1 text-sm leading-6 text-ink-soft">Tell us what you want the advertising to achieve and where you want it to work hardest.</p>
+                <p className="mt-1 text-sm leading-6 text-ink-soft">Tell us what the advertising should do and where it should work hardest.</p>
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
@@ -682,7 +683,7 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
             <>
               <div>
                 <p className="text-sm font-semibold text-ink">Step 3 of 3</p>
-                <p className="mt-1 text-sm leading-6 text-ink-soft">A few final questions help us match the campaign to the way your customers usually buy.</p>
+                <p className="mt-1 text-sm leading-6 text-ink-soft">These final questions help us match the campaign to the way your customers usually buy.</p>
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
@@ -826,3 +827,4 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
     </div>
   );
 }
+

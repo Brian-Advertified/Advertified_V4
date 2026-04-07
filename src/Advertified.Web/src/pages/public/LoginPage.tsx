@@ -17,6 +17,8 @@ export function LoginPage() {
     const candidate = new URLSearchParams(location.search).get('next')?.trim() ?? '';
     return candidate.startsWith('/') ? candidate : null;
   }, [location.search]);
+  const initialEmail = useMemo(() => new URLSearchParams(location.search).get('email')?.trim() ?? '', [location.search]);
+  const existingAccount = useMemo(() => new URLSearchParams(location.search).get('existing') === '1', [location.search]);
   const isContinuingJourney = Boolean(nextPath);
 
   async function handleSubmit(values: LoginSchema) {
@@ -62,13 +64,18 @@ export function LoginPage() {
               Your email has been verified. Sign in to continue.
             </div>
           ) : null}
+          {existingAccount ? (
+            <div className="mt-6 rounded-[22px] border border-brand/20 bg-white/70 px-4 py-4 text-sm text-ink-soft">
+              This email already has an Advertified account. Sign in to continue and we will reconnect you to the same journey.
+            </div>
+          ) : null}
           {isContinuingJourney ? (
             <div className="mt-6 rounded-[22px] border border-brand/20 bg-white/70 px-4 py-4 text-sm text-ink-soft">
               Your progress will continue after sign-in. You do not need to restart the journey.
             </div>
           ) : null}
         </div>
-        <LoginForm onSubmit={handleSubmit} loading={loading} />
+        <LoginForm onSubmit={handleSubmit} loading={loading} initialEmail={initialEmail} />
       </div>
     </section>
   );

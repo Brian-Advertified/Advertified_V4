@@ -69,7 +69,6 @@ public sealed class RecommendationApprovalWorkflowService : IRecommendationAppro
         await _db.SaveChangesAsync(cancellationToken);
         await SendAssignedAgentClientResponseEmailAsync(campaign, responseMessage.Body, cancellationToken);
         await SendRecommendationApprovedEmailAsync(campaign, cancellationToken);
-        await SendActivationInProgressEmailAsync(campaign, cancellationToken);
         await SendInternalCreativeQueueUpdateAsync(
             campaign,
             eventTitle: "Creative production can now begin",
@@ -152,31 +151,6 @@ public sealed class RecommendationApprovalWorkflowService : IRecommendationAppro
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to send recommendation approved email for campaign {CampaignId}.", campaign.Id);
-        }
-    }
-
-    private async Task SendActivationInProgressEmailAsync(Campaign campaign, CancellationToken cancellationToken)
-    {
-        try
-        {
-            await _emailService.SendAsync(
-                "activation-in-progress",
-                campaign.ResolveClientEmail(),
-                "campaigns",
-                new Dictionary<string, string?>
-                {
-                    ["ClientName"] = campaign.ResolveClientName(),
-                    ["CampaignName"] = ResolveCampaignName(campaign),
-                    ["PackageName"] = campaign.PackageBand.Name,
-                    ["Budget"] = FormatCurrency(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount),
-                    ["CampaignUrl"] = BuildClientCampaignUrl(campaign)
-                },
-                null,
-                cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to send activation in progress email for campaign {CampaignId}.", campaign.Id);
         }
     }
 

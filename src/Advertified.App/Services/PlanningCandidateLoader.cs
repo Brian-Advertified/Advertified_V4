@@ -19,8 +19,10 @@ public sealed class PlanningCandidateLoader : IPlanningCandidateLoader
         // they must not run concurrently on the same request scope.
         var ooh = await _repository.GetOohCandidatesAsync(request, cancellationToken);
         var broadcast = await _repository.GetBroadcastCandidatesAsync(request, cancellationToken);
+        var digital = await _repository.GetDigitalCandidatesAsync(request, cancellationToken);
 
         return ooh
+            .Concat(digital)
             .Concat(broadcast.RadioSlots)
             .Concat(broadcast.RadioPackages)
             .Concat(broadcast.Tv)

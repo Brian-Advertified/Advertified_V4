@@ -193,6 +193,7 @@ builder.Services.AddScoped<IOohPlanningInventorySource>(_ => new OohPlanningInve
     _.GetRequiredService<Npgsql.NpgsqlDataSource>(),
     _.GetRequiredService<IPricingSettingsProvider>()));
 builder.Services.AddScoped<IBroadcastPlanningInventorySource, BroadcastPlanningInventorySource>();
+builder.Services.AddScoped<ISocialPlanningInventorySource, SocialPlanningInventorySource>();
 builder.Services.AddScoped<IPlanningInventoryCandidateMapper, PlanningInventoryCandidateMapper>();
 builder.Services.AddScoped<IMediaPlanningEngine>(_ => new MediaPlanningEngine(
     _.GetRequiredService<IPlanningCandidateLoader>(),

@@ -5,7 +5,7 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { useAuth } from '../../features/auth/auth-context';
 import { canAccessAiStudioForStatus } from '../../features/campaigns/aiStudioAccess';
-import { campaignNeedsCheckout, getCampaignPrimaryAction, hasCampaignClearedPayment, isPaymentAwaitingManualReview } from '../../lib/access';
+import { campaignNeedsCheckout, getCampaignPrimaryAction, getClientCampaignState, isPaymentAwaitingManualReview } from '../../lib/access';
 import { getPrimaryRecommendation } from '../../lib/campaignStatus';
 import { getPendingPaymentPollInterval } from '../../lib/queryPolling';
 import { formatCurrency, formatDate, titleCase } from '../../lib/utils';
@@ -16,62 +16,47 @@ import { ClientPortalShell, getCampaignProgressPercent, getClientFacingBudget } 
 function getSimpleCampaignMessage(
   campaign: Pick<Campaign, 'status' | 'paymentStatus' | 'paymentProvider'>,
 ) {
-  if (isPaymentAwaitingManualReview(campaign.paymentProvider, campaign.paymentStatus)) {
-    return 'Your Pay Later application is under review. There is nothing else you need to pay right now.';
-  }
-
-  if (!hasCampaignClearedPayment(campaign as Campaign)) {
-    return 'Please complete payment to continue with this campaign.';
-  }
-
-  switch (campaign.status) {
-    case 'paid':
-    case 'brief_in_progress':
-      return 'Your campaign is ready for the next details from you.';
-    case 'brief_submitted':
-      return 'We are reviewing your campaign details.';
-    case 'planning_in_progress':
-      return 'We are preparing your recommendation.';
-    case 'review_ready':
-      return 'Your recommendation is ready for you to review.';
-    case 'approved':
-      return 'Your campaign has been approved and work is underway.';
-    case 'creative_sent_to_client_for_approval':
-      return 'Your campaign content is ready for your approval.';
-    case 'creative_changes_requested':
-      return 'We are working on the changes you requested.';
-    case 'creative_approved':
-      return 'Your campaign content is approved and booking will begin next.';
-    case 'booking_in_progress':
-      return 'We are now booking your campaign with suppliers.';
-    case 'launched':
-      return 'Your campaign is now live.';
-    default:
-      return 'Open your campaign to see the latest update.';
-  }
+  return getClientCampaignState(campaign as Campaign).description;
 }
 
 function getSimplePrimaryActionDescription(
   campaign: Pick<Campaign, 'paymentStatus' | 'paymentProvider' | 'status'>,
   actionLabel: string,
 ) {
-  if (isPaymentAwaitingManualReview(campaign.paymentProvider, campaign.paymentStatus)) {
-    return 'Your Finance Partner application is pending review. We will update this campaign once approval is confirmed.';
+  const state = getClientCampaignState(campaign as Campaign);
+  return state.requiresClientAction ? `${actionLabel} to keep things moving.` : state.nextStep;
+}
+
+function getOrderStatusLabel(order: Pick<Campaign, 'paymentStatus' | 'paymentProvider'>) {
+  if (isPaymentAwaitingManualReview(order.paymentProvider, order.paymentStatus)) {
+    return 'Pay Later under review';
   }
 
-  if (!hasCampaignClearedPayment(campaign as Campaign)) {
-    return 'Pay now to continue with this campaign.';
+  if (order.paymentStatus === 'paid') {
+    return 'Payment confirmed';
   }
 
-  if (campaign.status === 'review_ready') {
-    return 'Open your recommendation and choose what you want to do next.';
+  if (order.paymentStatus === 'failed') {
+    return 'Payment not confirmed';
   }
 
-  if (campaign.status === 'approved' || campaign.status === 'creative_sent_to_client_for_approval' || campaign.status === 'creative_changes_requested' || campaign.status === 'creative_approved' || campaign.status === 'booking_in_progress' || campaign.status === 'launched') {
-    return 'Open your campaign to see the latest progress.';
+  return 'Payment required';
+}
+
+function getOrderStatusDescription(order: Pick<Campaign, 'paymentStatus' | 'paymentProvider'>) {
+  if (isPaymentAwaitingManualReview(order.paymentProvider, order.paymentStatus)) {
+    return 'Your Finance Partner application is being reviewed. There is nothing else you need to do right now.';
   }
 
-  return `${actionLabel} to keep things moving.`;
+  if (order.paymentStatus === 'paid') {
+    return 'Payment is complete and Advertified can continue with the next campaign stage.';
+  }
+
+  if (order.paymentStatus === 'failed') {
+    return 'This payment did not go through. You can retry or choose a different payment route.';
+  }
+
+  return 'Payment still needs to be completed before this campaign can move forward.';
 }
 
 export function DashboardPage() {
@@ -219,8 +204,8 @@ export function DashboardPage() {
         </div>
         <div className="user-card">
           <h3>Ready To Review</h3>
-          <div className="user-metric">{campaigns.filter((campaign) => campaign.aiUnlocked).length}</div>
-          <div className="user-muted">Campaigns with updates ready for you.</div>
+          <div className="user-metric">{campaigns.filter((campaign) => getClientCampaignState(campaign).requiresClientAction).length}</div>
+          <div className="user-muted">Campaigns that currently need something from you.</div>
         </div>
         <div className="user-card">
           <h3>Approved</h3>
@@ -256,10 +241,8 @@ export function DashboardPage() {
                       <div>{formatDate(order.createdAt)} | {formatCurrency(order.amount)}</div>
                     </div>
                     <div className="flex flex-col gap-2 text-left lg:items-end lg:text-right">
-                      <div>{titleCase(order.paymentStatus)}{order.paymentReference ? ` | ${order.paymentReference}` : ''}</div>
-                      {isPaymentAwaitingManualReview(order.paymentProvider, order.paymentStatus) ? (
-                        <div className="text-sm text-ink-soft">Awaiting Finance Partner review</div>
-                      ) : null}
+                      <div>{getOrderStatusLabel(order)}{order.paymentReference ? ` | ${order.paymentReference}` : ''}</div>
+                      <div className="text-sm text-ink-soft">{getOrderStatusDescription(order)}</div>
                       {orderNeedsPayment ? (
                         <Link
                           to={`/checkout/payment?orderId=${encodeURIComponent(order.id)}${linkedCampaign ? `&campaignId=${encodeURIComponent(linkedCampaign.id)}` : ''}${linkedRecommendationId ? `&recommendationId=${encodeURIComponent(linkedRecommendationId)}` : ''}`}
@@ -283,6 +266,7 @@ export function DashboardPage() {
         <div className="mt-6 space-y-4">
           {campaigns.map((campaign) => {
             const action = getCampaignPrimaryAction(campaign);
+            const state = getClientCampaignState(campaign);
             const paymentRequired = campaignNeedsCheckout(campaign);
             const paymentAwaitingReview = isPaymentAwaitingManualReview(campaign.paymentProvider, campaign.paymentStatus);
             return (
@@ -292,7 +276,7 @@ export function DashboardPage() {
                     <div className="flex flex-wrap gap-2">
                       <span className="user-pill">{campaign.packageBandName}</span>
                       <span className="user-pill">{formatCurrency(getClientFacingBudget(campaign))}</span>
-                      <span className="user-pill">{titleCase(campaign.status)}</span>
+                      <span className="user-pill">{state.statusLabel}</span>
                     </div>
                     <div>
                       <h3 className="!mb-2">{campaign.campaignName}</h3>
@@ -309,7 +293,7 @@ export function DashboardPage() {
                 <div className="user-grid-3 mt-4">
                   <div className="user-wire">
                     <strong>What to do next</strong>
-                    <div>{action.label}</div>
+                    <div>{state.actionLabel}</div>
                     <div className="mt-2">{getSimplePrimaryActionDescription(campaign, action.label)}</div>
                   </div>
                   <div className="user-wire">
@@ -317,13 +301,13 @@ export function DashboardPage() {
                     <div>{campaign.planningMode ? titleCase(campaign.planningMode) : 'We are still setting this up'}</div>
                   </div>
                   <div className="user-wire">
-                    <strong>{paymentRequired ? 'Payment' : 'Your campaign'}</strong>
+                    <strong>{paymentRequired ? 'Payment' : 'Current status'}</strong>
                     <div>
                       {paymentAwaitingReview
                         ? 'Your Pay Later application is currently under review.'
                         : paymentRequired
-                        ? 'Pay first, then you can review your recommendation.'
-                        : 'Open your campaign to see updates and next steps.'}
+                          ? 'Pay first, then recommendation review can continue.'
+                          : state.statusLabel}
                     </div>
                   </div>
                 </div>

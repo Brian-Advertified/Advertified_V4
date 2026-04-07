@@ -25,7 +25,7 @@ export type QuestionnaireBriefFields = {
   [K in QuestionnaireBriefFieldKey]-?: CampaignBrief[K] extends string[] | undefined ? string[] : string;
 };
 
-export type RecommendationDraftChannel = 'Radio' | 'OOH' | 'TV';
+export type RecommendationDraftChannel = 'Radio' | 'OOH' | 'TV' | 'Digital';
 
 export type RecommendationDraftFormState = {
   objective: string;

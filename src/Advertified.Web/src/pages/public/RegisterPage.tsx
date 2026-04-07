@@ -19,6 +19,17 @@ export function RegisterPage() {
   })();
   const isContinuingJourney = nextPath.length > 0;
 
+  function buildLoginRedirect(email: string) {
+    const query = new URLSearchParams();
+    query.set('existing', '1');
+    query.set('email', email);
+    if (nextPath) {
+      query.set('next', nextPath);
+    }
+
+    return `/login?${query.toString()}`;
+  }
+
   async function handleSubmit(values: RegistrationSchema) {
     try {
       setLoading(true);
@@ -35,9 +46,19 @@ export function RegisterPage() {
         : `/verify-email?email=${encodeURIComponent(result.email)}`;
       navigate(verifyUrl);
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'Please review the form and try again.';
+      if (message.toLowerCase().includes('already exists')) {
+        pushToast({
+          title: 'This email already has an account.',
+          description: 'Sign in instead and continue from the same journey.',
+        }, 'info');
+        navigate(buildLoginRedirect(values.email), { replace: true });
+        return;
+      }
+
       pushToast({
         title: 'We could not create your account.',
-        description: error instanceof Error ? error.message : 'Please review the form and try again.',
+        description: message,
       }, 'error');
     } finally {
       setLoading(false);

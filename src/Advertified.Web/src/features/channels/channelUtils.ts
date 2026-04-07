@@ -6,7 +6,7 @@ const CHANNEL_LABELS: Record<string, string> = {
   RADIO: 'Radio',
   OOH: 'Billboards and Digital Screens',
   TV: 'TV',
-  DIGITAL: 'Digital',
+  DIGITAL: 'Social Media',
   NEWSPAPER: 'Newspaper',
 };
 
@@ -20,8 +20,13 @@ const CHANNEL_ALIASES: Record<string, NormalizedChannelKey> = {
   television: 'TV',
   tv: 'TV',
   digital: 'DIGITAL',
+  social: 'DIGITAL',
+  social_media: 'DIGITAL',
+  socialmedia: 'DIGITAL',
   meta: 'DIGITAL',
   tiktok: 'DIGITAL',
+  youtube: 'DIGITAL',
+  linkedin: 'DIGITAL',
   google: 'DIGITAL',
   newspaper: 'NEWSPAPER',
   print: 'NEWSPAPER',

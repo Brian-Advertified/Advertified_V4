@@ -1,6 +1,7 @@
 import { formatCurrency, titleCase } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import { getPrimaryRecommendation } from '../../lib/campaignStatus';
+import { getClientCampaignState } from '../../lib/access';
 
 type Campaign = Awaited<ReturnType<typeof advertifiedApi.getCampaign>>;
 
@@ -8,7 +9,19 @@ function formatChannelLabel(value: string) {
   return value.replace(/\booh\b/gi, 'Billboards and Digital Screens');
 }
 
-export function getHeroContent(campaign: Campaign, recommendationStatus?: string) {
+export function getHeroContent(campaign: Campaign) {
+  const state = getClientCampaignState(campaign);
+
+  if (state.key === 'payment_under_review') {
+    return {
+      title: state.headline,
+      description: state.description,
+      primaryAction: state.actionLabel,
+      timeLabel: 'No action required',
+      reassurance: 'We will update this workspace as soon as the review outcome is confirmed',
+    };
+  }
+
   if (campaign.status === 'launched') {
     return {
       title: 'Your campaign is now live',
@@ -69,11 +82,11 @@ export function getHeroContent(campaign: Campaign, recommendationStatus?: string
     };
   }
 
-  if (recommendationStatus === 'sent_to_client' || campaign.status === 'review_ready' || campaign.status === 'planning_in_progress') {
+  if (state.key === 'recommendation_ready') {
     return {
-      title: 'Approve your campaign recommendation',
+      title: state.headline,
       description: 'We have simplified the workspace so you only see what matters now: one approval, one way to ask for help, and a calm handoff to the Advertified team after that.',
-      primaryAction: 'Review recommendation',
+      primaryAction: state.actionLabel,
       timeLabel: 'Takes about 2 minutes',
       reassurance: 'You can still request changes later',
     };
@@ -88,7 +101,23 @@ export function getHeroContent(campaign: Campaign, recommendationStatus?: string
   };
 }
 
-export function getApprovalContent(campaign: Campaign, recommendationStatus?: string) {
+export function getApprovalContent(campaign: Campaign) {
+  const state = getClientCampaignState(campaign);
+
+  if (state.key === 'payment_under_review') {
+    return {
+      title: 'Pay Later application in review',
+      body: state.description,
+      badge: 'Pending review',
+      badgeClass: 'border-sky-200 bg-sky-50 text-sky-700',
+      highlightClass: 'border-sky-200 bg-[linear-gradient(180deg,#f4fbff_0%,#eef6ff_100%)]',
+      guidance: 'There is nothing for you to do right now. We will bring you back here when approval is confirmed and the next client action is available.',
+      reassurance: 'Your selected recommendation and payment application are both saved. This workspace will unlock the next step once the review result is in.',
+      statusText: state.statusLabel,
+      nextPhaseText: 'Recommendation approval will resume after payment review',
+    };
+  }
+
   if (campaign.status === 'launched') {
     return {
       title: 'Your campaign is live',
@@ -173,16 +202,16 @@ export function getApprovalContent(campaign: Campaign, recommendationStatus?: st
     };
   }
 
-  if (recommendationStatus === 'sent_to_client' || campaign.status === 'review_ready' || campaign.status === 'planning_in_progress') {
+  if (state.key === 'recommendation_ready') {
     return {
-      title: 'Approve recommendation',
-      body: 'Review the recommended media plan and approve it so the Advertified team can continue. If anything feels unclear, ask your agent before deciding.',
-      badge: 'Needs approval',
+      title: state.headline,
+      body: state.description,
+      badge: state.statusLabel,
       badgeClass: 'border-blue-200 bg-blue-50 text-blue-700',
       highlightClass: 'border-brand/25 bg-[linear-gradient(180deg,#f4fbf8_0%,#eef8f4_100%)]',
       guidance: 'Approve this plan so we can continue, or send it back with notes if you want changes before creative production starts.',
       reassurance: 'This recommendation has already been reviewed by the Advertified team, and you can still request adjustments after approving.',
-      statusText: 'Waiting for your approval',
+      statusText: state.statusLabel,
       nextPhaseText: 'Our team starts creative production',
     };
   }

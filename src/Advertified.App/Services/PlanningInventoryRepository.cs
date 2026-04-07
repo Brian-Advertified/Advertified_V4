@@ -8,15 +8,18 @@ public sealed class PlanningInventoryRepository : IPlanningInventoryRepository
 {
     private readonly IOohPlanningInventorySource _oohSource;
     private readonly IBroadcastPlanningInventorySource _broadcastSource;
+    private readonly ISocialPlanningInventorySource _socialSource;
     private readonly IPlanningInventoryCandidateMapper _candidateMapper;
 
     public PlanningInventoryRepository(
         IOohPlanningInventorySource oohSource,
         IBroadcastPlanningInventorySource broadcastSource,
+        ISocialPlanningInventorySource socialSource,
         IPlanningInventoryCandidateMapper candidateMapper)
     {
         _oohSource = oohSource;
         _broadcastSource = broadcastSource;
+        _socialSource = socialSource;
         _candidateMapper = candidateMapper;
     }
 
@@ -33,6 +36,12 @@ public sealed class PlanningInventoryRepository : IPlanningInventoryRepository
             RadioSlots: seeds.RadioSlots.Select(_candidateMapper.MapBroadcast).ToList(),
             RadioPackages: seeds.RadioPackages.Select(_candidateMapper.MapBroadcast).ToList(),
             Tv: seeds.Tv.Select(_candidateMapper.MapBroadcast).ToList());
+    }
+
+    public async Task<List<InventoryCandidate>> GetDigitalCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
+    {
+        var seeds = await _socialSource.GetCandidatesAsync(request, cancellationToken);
+        return seeds.Select(_candidateMapper.MapBroadcast).ToList();
     }
 
     public async Task<List<InventoryCandidate>> GetRadioSlotCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
