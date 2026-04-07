@@ -2004,4 +2004,15 @@ public class CampaignRecommendationServiceTests
 
         withinTolerance.Should().BeFalse();
     }
+
+    [Fact]
+    public void IsWithinProposalTierTolerance_AllowsSmallRoundingSlackNearFloor()
+    {
+        var withinTolerance = CampaignRecommendationService.IsWithinProposalTierTolerance(
+            356520m,
+            366666.67m,
+            500000m);
+
+        withinTolerance.Should().BeTrue();
+    }
 }

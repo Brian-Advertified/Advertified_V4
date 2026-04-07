@@ -20,6 +20,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
     private const string TierBoundaryToleranceFlag = "tier_boundary_tolerance_used";
     private const decimal ProposalTierMaxBudgetToleranceRatio = 0.02m;
     private const decimal ProposalTierSpanToleranceRatio = 0.15m;
+    private const decimal ProposalTierRoundingSlack = 1000m;
     private readonly AppDbContext _db;
     private readonly IMediaPlanningEngine _planningEngine;
     private readonly ICampaignReasoningService _campaignReasoningService;
@@ -669,7 +670,8 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             return false;
         }
 
-        return total >= minBudget - tolerance && total <= maxBudget + tolerance;
+        return total >= minBudget - tolerance - ProposalTierRoundingSlack
+            && total <= maxBudget + tolerance + ProposalTierRoundingSlack;
     }
 
     internal static decimal GetProposalTierTolerance(decimal minBudget, decimal maxBudget)
