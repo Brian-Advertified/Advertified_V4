@@ -8,7 +8,9 @@ import { useToast } from '../../components/ui/toast';
 import { useAuth } from '../../features/auth/auth-context';
 import { canAccessAiStudioForStatus } from '../../features/campaigns/aiStudioAccess';
 import { CampaignPerformancePanel } from '../../features/campaigns/components/CampaignPerformancePanel';
-import { buildCampaignPerformanceSnapshot, hasCampaignPerformanceData } from '../../features/campaigns/components/campaignPerformance';
+import {
+  resolveCampaignPerformanceViewState,
+} from '../../features/campaigns/components/campaignPerformance';
 import { RecommendationViewer } from '../../features/campaigns/components/RecommendationViewer';
 import { parseCampaignOpportunityContext } from '../../features/campaigns/briefModel';
 import { formatChannelLabel } from '../../features/channels/channelUtils';
@@ -38,6 +40,12 @@ export function CampaignDetailPage() {
   const threadQuery = useQuery({
     queryKey: queryKeys.campaigns.messages(id),
     queryFn: () => advertifiedApi.getCampaignMessages(id),
+    retry: false,
+  });
+  const performanceQuery = useQuery({
+    queryKey: queryKeys.campaigns.performance(id),
+    queryFn: () => advertifiedApi.getCampaignPerformance(id),
+    enabled: Boolean(id),
     retry: false,
   });
   const recommendations = getCampaignRecommendations(campaignQuery.data);
@@ -240,8 +248,9 @@ export function CampaignDetailPage() {
       ? 'messages'
       : 'overview';
   const campaignBasePath = `/campaigns/${campaign.id}`;
-  const hasPerformanceView = hasCampaignPerformanceData(campaign);
-  const performanceSnapshot = buildCampaignPerformanceSnapshot(campaign);
+  const performanceViewState = resolveCampaignPerformanceViewState(campaign, performanceQuery.data);
+  const performanceSnapshot = performanceViewState.snapshot;
+  const hasPerformanceView = performanceViewState.hasPerformanceView;
 
   function buildSelectedProposalFeedback(noteBody: string) {
     const selectedLabel = recommendation?.proposalLabel ?? recommendation?.id ?? 'Selected proposal';
@@ -418,6 +427,7 @@ export function CampaignDetailPage() {
               <>
                 <CampaignPerformancePanel
                   campaign={campaign}
+                  snapshot={performanceSnapshot}
                   title="Campaign performance"
                   subtitle="Metrics, trend movement, and channel delivery."
                 />

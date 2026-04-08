@@ -40,6 +40,7 @@ import { AgentOpsAssetsPanel } from '../../features/agent/components/AgentOpsAss
 import { AgentRecommendationPanel } from '../../features/agent/components/AgentRecommendationPanel';
 import { buildBriefClientNotes, parseCampaignOpportunityContext } from '../../features/campaigns/briefModel';
 import { CampaignPerformancePanel } from '../../features/campaigns/components/CampaignPerformancePanel';
+import { resolveCampaignPerformanceViewState } from '../../features/campaigns/components/campaignPerformance';
 import { formatChannelLabel } from '../../features/channels/channelUtils';
 import { catalogQueryOptions } from '../../lib/catalogQueryOptions';
 import { invalidateAgentCampaignQueries, queryKeys } from '../../lib/queryKeys';
@@ -85,6 +86,12 @@ export function AgentCampaignDetailPage() {
   const campaignQuery = useQuery({
     queryKey: queryKeys.agent.campaign(id),
     queryFn: () => advertifiedApi.getAgentCampaign(id),
+    retry: false,
+  });
+  const performanceQuery = useQuery({
+    queryKey: queryKeys.agent.performance(id),
+    queryFn: () => advertifiedApi.getAgentCampaignPerformance(id),
+    enabled: Boolean(id),
     retry: false,
   });
   const inventoryQuery = useQuery({
@@ -195,7 +202,10 @@ export function AgentCampaignDetailPage() {
   const uploadOpsAssetMutation = useMutation({
     mutationFn: ({ file, type }: { file: File; type: string }) => advertifiedApi.uploadAgentCampaignAsset(id, file, type),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.agent.campaign(id) });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.agent.campaign(id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.agent.performance(id) }),
+      ]);
       pushToast({
         title: 'Campaign asset uploaded.',
         description: 'The file is now available for supplier proof, delivery reporting, or execution support.',
@@ -225,7 +235,10 @@ export function AgentCampaignDetailPage() {
       proofAssetId: draft.proofAssetId || undefined,
     }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.agent.campaign(id) });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.agent.campaign(id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.agent.performance(id) }),
+      ]);
       pushToast({
         title: 'Supplier booking saved.',
         description: 'Execution details are now attached to this campaign.',
@@ -255,7 +268,10 @@ export function AgentCampaignDetailPage() {
       evidenceAssetId: draft.evidenceAssetId || undefined,
     }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.agent.campaign(id) });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.agent.campaign(id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.agent.performance(id) }),
+      ]);
       pushToast({
         title: 'Delivery report saved.',
         description: 'The latest live reporting update is now visible on the campaign.',
@@ -400,7 +416,8 @@ export function AgentCampaignDetailPage() {
     : false;
   const isOverBudget = hasSelectedPackageBand ? isOutsideProspectBand : budgetDelta < 0;
   const activeProposalLabel = activeRecommendation?.proposalLabel ?? 'Current proposal';
-  const hasExecutionData = campaign.supplierBookings.length > 0 || campaign.deliveryReports.length > 0 || campaign.assets.length > 0;
+  const performanceViewState = resolveCampaignPerformanceViewState(campaign, performanceQuery.data);
+  const hasExecutionData = performanceViewState.hasPerformanceView || campaign.assets.length > 0;
   const showExecutionOperations = hasExecutionData
     || campaign.status === 'creative_approved'
     || campaign.status === 'booking_in_progress'
@@ -890,7 +907,7 @@ export function AgentCampaignDetailPage() {
             </div>
           ) : null}
 
-          <CampaignPerformancePanel campaign={campaign} />
+          <CampaignPerformancePanel campaign={campaign} snapshot={performanceViewState.snapshot} />
 
           {showExecutionOperations ? (
             <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">

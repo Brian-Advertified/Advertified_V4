@@ -2,14 +2,13 @@ using Advertified.App.AIPlatform.Domain;
 using Advertified.App.Data;
 using Advertified.App.Data.Entities;
 using Advertified.App.Services.Abstractions;
+using Advertified.App.Support;
 using Microsoft.EntityFrameworkCore;
 
 namespace Advertified.App.Services;
 
 public sealed class CampaignPerformanceProjectionService : ICampaignPerformanceProjectionService
 {
-    private const string SyncedBookingNotes = "System-managed ad platform performance sync.";
-    private const string SyncedReportType = "ad_platform_sync";
     private readonly AppDbContext _db;
 
     public CampaignPerformanceProjectionService(AppDbContext db)
@@ -25,13 +24,15 @@ public sealed class CampaignPerformanceProjectionService : ICampaignPerformanceP
         string? supplierLabel,
         CancellationToken cancellationToken)
     {
+        var normalizedRecordedAt = NormalizeRecordedAtUtc(recordedAtUtc);
+        var normalizedMetrics = NormalizeMetrics(metrics);
         var platformLabel = ResolvePlatformLabel(platform, supplierLabel);
         var booking = await _db.CampaignSupplierBookings
             .FirstOrDefaultAsync(
                 item => item.CampaignId == campaignId
                     && item.Channel == "digital"
                     && item.SupplierOrStation == platformLabel
-                    && item.Notes == SyncedBookingNotes,
+                    && item.Notes == CampaignPerformanceConstants.SyncedBookingNotes,
                 cancellationToken);
 
         if (booking is null)
@@ -42,34 +43,34 @@ public sealed class CampaignPerformanceProjectionService : ICampaignPerformanceP
                 CampaignId = campaignId,
                 SupplierOrStation = platformLabel,
                 Channel = "digital",
-                BookingStatus = metrics.Impressions > 0 || metrics.Clicks > 0 || metrics.Conversions > 0 ? "live" : "booked",
+                BookingStatus = HasLiveSignals(normalizedMetrics) ? "live" : "booked",
                 CommittedAmount = 0m,
-                BookedAt = recordedAtUtc,
-                Notes = SyncedBookingNotes,
-                CreatedAt = recordedAtUtc,
-                UpdatedAt = recordedAtUtc
+                BookedAt = normalizedRecordedAt,
+                Notes = CampaignPerformanceConstants.SyncedBookingNotes,
+                CreatedAt = normalizedRecordedAt,
+                UpdatedAt = normalizedRecordedAt
             };
             _db.CampaignSupplierBookings.Add(booking);
         }
         else
         {
-            booking.BookingStatus = metrics.Impressions > 0 || metrics.Clicks > 0 || metrics.Conversions > 0 ? "live" : "booked";
-            booking.UpdatedAt = recordedAtUtc;
+            booking.BookingStatus = HasLiveSignals(normalizedMetrics) ? "live" : "booked";
+            booking.UpdatedAt = normalizedRecordedAt;
         }
 
         var report = await _db.CampaignDeliveryReports
             .Where(item =>
                 item.CampaignId == campaignId
                 && item.SupplierBookingId == booking.Id
-                && item.ReportType == SyncedReportType
+                && item.ReportType == CampaignPerformanceConstants.SyncedReportType
                 && item.ReportedAt.HasValue
-                && item.ReportedAt.Value >= recordedAtUtc.Date
-                && item.ReportedAt.Value < recordedAtUtc.Date.AddDays(1))
+                && item.ReportedAt.Value >= normalizedRecordedAt.Date
+                && item.ReportedAt.Value < normalizedRecordedAt.Date.AddDays(1))
             .FirstOrDefaultAsync(
                 cancellationToken);
 
         var headline = $"{platformLabel} performance";
-        var summary = BuildSummary(metrics);
+        var summary = BuildSummary(normalizedMetrics);
         if (report is null)
         {
             report = new CampaignDeliveryReport
@@ -77,14 +78,14 @@ public sealed class CampaignPerformanceProjectionService : ICampaignPerformanceP
                 Id = Guid.NewGuid(),
                 CampaignId = campaignId,
                 SupplierBookingId = booking.Id,
-                ReportType = SyncedReportType,
+                ReportType = CampaignPerformanceConstants.SyncedReportType,
                 Headline = headline,
                 Summary = summary,
-                ReportedAt = recordedAtUtc,
-                Impressions = metrics.Impressions,
-                PlaysOrSpots = metrics.Clicks,
-                SpendDelivered = metrics.CostZar,
-                CreatedAt = recordedAtUtc
+                ReportedAt = normalizedRecordedAt,
+                Impressions = normalizedMetrics.Impressions,
+                PlaysOrSpots = normalizedMetrics.Clicks,
+                SpendDelivered = normalizedMetrics.CostZar,
+                CreatedAt = normalizedRecordedAt
             };
             _db.CampaignDeliveryReports.Add(report);
             return;
@@ -92,10 +93,10 @@ public sealed class CampaignPerformanceProjectionService : ICampaignPerformanceP
 
         report.Headline = headline;
         report.Summary = summary;
-        report.ReportedAt = recordedAtUtc;
-        report.Impressions = metrics.Impressions;
-        report.PlaysOrSpots = metrics.Clicks;
-        report.SpendDelivered = metrics.CostZar;
+        report.ReportedAt = normalizedRecordedAt;
+        report.Impressions = normalizedMetrics.Impressions;
+        report.PlaysOrSpots = normalizedMetrics.Clicks;
+        report.SpendDelivered = normalizedMetrics.CostZar;
     }
 
     private static string ResolvePlatformLabel(string platform, string? supplierLabel)
@@ -120,5 +121,29 @@ public sealed class CampaignPerformanceProjectionService : ICampaignPerformanceP
     private static string BuildSummary(ExternalAdMetrics metrics)
     {
         return $"Clicks {metrics.Clicks:n0} | Conversions {metrics.Conversions:n0} | Spend {metrics.CostZar:n2}";
+    }
+
+    private static DateTime NormalizeRecordedAtUtc(DateTime value)
+    {
+        return value.Kind switch
+        {
+            DateTimeKind.Utc => value,
+            DateTimeKind.Local => value.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+        };
+    }
+
+    private static ExternalAdMetrics NormalizeMetrics(ExternalAdMetrics metrics)
+    {
+        return new ExternalAdMetrics(
+            Math.Max(0, metrics.Impressions),
+            Math.Max(0, metrics.Clicks),
+            Math.Max(0, metrics.Conversions),
+            Math.Max(0m, metrics.CostZar));
+    }
+
+    private static bool HasLiveSignals(ExternalAdMetrics metrics)
+    {
+        return metrics.Impressions > 0 || metrics.Clicks > 0 || metrics.Conversions > 0;
     }
 }

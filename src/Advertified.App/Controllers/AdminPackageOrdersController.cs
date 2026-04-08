@@ -223,7 +223,7 @@ public sealed class AdminPackageOrdersController : ControllerBase
     private async Task<PackageOrder?> LoadOrderAsync(Guid orderId, CancellationToken cancellationToken)
     {
         return await _db.PackageOrders
-            .Include(x => x.User)
+            .Include(x => x.User!)
                 .ThenInclude(x => x.BusinessProfile)
             .Include(x => x.ProspectLead)
             .Include(x => x.PackageBand)

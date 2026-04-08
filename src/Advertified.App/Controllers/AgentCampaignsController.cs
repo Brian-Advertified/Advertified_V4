@@ -256,7 +256,7 @@ public sealed class AgentCampaignsController : ControllerBase
         var campaign = await _db.Campaigns
             .AsNoTracking()
             .AsSplitQuery()
-            .Include(x => x.User)
+            .Include(x => x.User!)
                 .ThenInclude(x => x.BusinessProfile)
             .Include(x => x.ProspectLead)
             .Include(x => x.AssignedAgentUser)
@@ -290,6 +290,29 @@ public sealed class AgentCampaignsController : ControllerBase
         }
 
         return Ok(response);
+    }
+
+    [HttpGet("{id:guid}/performance")]
+    public async Task<ActionResult<CampaignPerformanceSnapshotResponse>> GetPerformance(Guid id, CancellationToken cancellationToken)
+    {
+        await GetCurrentOperationsUserAsync(cancellationToken);
+        var campaign = await _db.Campaigns
+            .AsNoTracking()
+            .AsSplitQuery()
+            .Include(x => x.CampaignSupplierBookings)
+            .Include(x => x.CampaignDeliveryReports)
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+
+        if (campaign is null)
+        {
+            return NotFound(new ProblemDetails
+            {
+                Title = "Campaign not found.",
+                Status = StatusCodes.Status404NotFound
+            });
+        }
+
+        return Ok(campaign.ToPerformanceSnapshot());
     }
 
     [HttpGet("{id:guid}/recommendation-pdf")]

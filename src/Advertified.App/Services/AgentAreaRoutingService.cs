@@ -37,7 +37,7 @@ public sealed class AgentAreaRoutingService : IAgentAreaRoutingService
     public async Task TryAssignCampaignAsync(Guid campaignId, string trigger, CancellationToken cancellationToken)
     {
         var campaign = await _db.Campaigns
-            .Include(x => x.User)
+            .Include(x => x.User!)
                 .ThenInclude(x => x.BusinessProfile)
             .Include(x => x.ProspectLead)
             .Include(x => x.PackageBand)

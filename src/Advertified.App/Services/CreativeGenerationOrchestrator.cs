@@ -81,21 +81,22 @@ public sealed class CreativeGenerationOrchestrator : ICreativeGenerationOrchestr
 
         var campaign = await _db.Campaigns
             .AsNoTracking()
-            .Include(x => x.User)
+            .Include(x => x.User!)
                 .ThenInclude(x => x.BusinessProfile)
             .Include(x => x.CampaignBrief)
             .Include(x => x.PackageOrder)
             .FirstOrDefaultAsync(x => x.Id == existing.CampaignId, cancellationToken)
             ?? throw new InvalidOperationException("Campaign not found.");
+        var campaignUser = RequireCampaignUser(campaign);
 
         var requestModel = new GenerateCreativesRequest
         {
             CampaignId = campaign.Id.ToString(),
             Business = new CreativeBusinessRequest
             {
-                Name = campaign.User.BusinessProfile?.BusinessName ?? campaign.User.FullName,
-                Industry = campaign.User.BusinessProfile?.Industry ?? "General",
-                Location = campaign.User.BusinessProfile?.City ?? campaign.User.BusinessProfile?.Province ?? "South Africa"
+                Name = campaignUser.BusinessProfile?.BusinessName ?? campaignUser.FullName,
+                Industry = campaignUser.BusinessProfile?.Industry ?? "General",
+                Location = campaignUser.BusinessProfile?.City ?? campaignUser.BusinessProfile?.Province ?? "South Africa"
             },
             Objective = campaign.CampaignBrief?.Objective ?? "Awareness",
             Budget = campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
@@ -124,12 +125,13 @@ public sealed class CreativeGenerationOrchestrator : ICreativeGenerationOrchestr
     {
         var campaign = await _db.Campaigns
             .AsNoTracking()
-            .Include(x => x.User)
+            .Include(x => x.User!)
                 .ThenInclude(x => x.BusinessProfile)
             .Include(x => x.CampaignBrief)
             .Include(x => x.PackageOrder)
             .FirstOrDefaultAsync(x => x.Id == campaignId, cancellationToken)
             ?? throw new InvalidOperationException("Campaign not found.");
+        var campaignUser = RequireCampaignUser(campaign);
 
         var inferredChannels = channels?.Where(x => !string.IsNullOrWhiteSpace(x)).ToArray()
             ?? InferChannelsFromPrompt(prompt);
@@ -139,9 +141,9 @@ public sealed class CreativeGenerationOrchestrator : ICreativeGenerationOrchestr
             CampaignId = campaign.Id.ToString(),
             Business = new CreativeBusinessRequest
             {
-                Name = campaign.User.BusinessProfile?.BusinessName ?? campaign.User.FullName,
-                Industry = campaign.User.BusinessProfile?.Industry ?? "General",
-                Location = campaign.User.BusinessProfile?.City ?? campaign.User.BusinessProfile?.Province ?? "South Africa"
+                Name = campaignUser.BusinessProfile?.BusinessName ?? campaignUser.FullName,
+                Industry = campaignUser.BusinessProfile?.Industry ?? "General",
+                Location = campaignUser.BusinessProfile?.City ?? campaignUser.BusinessProfile?.Province ?? "South Africa"
             },
             Objective = string.IsNullOrWhiteSpace(objective)
                 ? campaign.CampaignBrief?.Objective ?? "Awareness"
@@ -586,4 +588,10 @@ public sealed class CreativeGenerationOrchestrator : ICreativeGenerationOrchestr
         string Cta,
         IReadOnlyList<string> AudienceInsights,
         IReadOnlyList<string> Languages);
+
+    private static UserAccount RequireCampaignUser(Data.Entities.Campaign campaign)
+    {
+        return campaign.User
+            ?? throw new InvalidOperationException("Campaign is missing its client account.");
+    }
 }

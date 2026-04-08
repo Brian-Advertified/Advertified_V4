@@ -258,7 +258,7 @@ public sealed class AgentProspectsController : ControllerBase
         return await _db.Campaigns
             .AsNoTracking()
             .AsSplitQuery()
-            .Include(x => x.User)
+            .Include(x => x.User!)
                 .ThenInclude(x => x.BusinessProfile)
             .Include(x => x.ProspectLead)
             .Include(x => x.AssignedAgentUser)

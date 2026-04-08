@@ -132,7 +132,7 @@ public sealed class PublicProposalController : ControllerBase
         return _db.Campaigns
             .AsNoTracking()
             .AsSplitQuery()
-            .Include(x => x.User)
+            .Include(x => x.User!)
                 .ThenInclude(x => x.BusinessProfile)
             .Include(x => x.ProspectLead)
             .Include(x => x.PackageBand)

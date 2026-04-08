@@ -1,11 +1,11 @@
-import { useState, type Dispatch, type SetStateAction } from 'react';
+import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PauseCircle, PlayCircle, RotateCcw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { invalidateAdminOperationsQueries, queryKeys } from '../../lib/queryKeys';
 import { advertifiedApi } from '../../services/advertifiedApi';
-import type { AdminCampaignOperationsItem } from '../../types/domain';
+import type { AdminCampaignOperationsItem, AdminCampaignOperationsSort } from '../../types/domain';
 import { AdminPageShell, fmtCurrency, fmtDate, titleize } from './adminWorkspace';
 
 type DraftState = {
@@ -17,14 +17,26 @@ type DraftState = {
 };
 
 export function AdminCampaignOperationsPage() {
+  const pageSize = 25;
   const queryClient = useQueryClient();
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>();
   const [editorState, setEditorState] = useState<{ campaignId?: string; isOpen: boolean }>({ isOpen: false });
   const [drafts, setDrafts] = useState<Record<string, DraftState>>({});
+  const [page, setPage] = useState(1);
+  const [queueSort, setQueueSort] = useState<AdminCampaignOperationsSort>('delivery_risk');
+  const [attentionOnly, setAttentionOnly] = useState(false);
 
   const query = useQuery({
-    queryKey: queryKeys.admin.campaignOperations,
-    queryFn: advertifiedApi.getAdminCampaignOperations,
+    queryKey: queryKeys.admin.campaignOperations(page, pageSize, queueSort, attentionOnly),
+    queryFn: () => advertifiedApi.getAdminCampaignOperations({ page, pageSize, sortBy: queueSort, attentionOnly }),
+  });
+  const queueItems = query.data?.items ?? [];
+  const resolvedSelectedCampaign = queueItems.find((item) => item.campaignId === selectedCampaignId) ?? queueItems[0];
+  const selectedCampaignIdForPerformance = resolvedSelectedCampaign?.campaignId;
+  const performanceQuery = useQuery({
+    queryKey: queryKeys.admin.campaignPerformance(selectedCampaignIdForPerformance ?? 'none'),
+    queryFn: () => advertifiedApi.getAdminCampaignPerformance(selectedCampaignIdForPerformance!),
+    enabled: Boolean(selectedCampaignIdForPerformance),
   });
 
   const pauseMutation = useMutation({
@@ -43,10 +55,19 @@ export function AdminCampaignOperationsPage() {
     onSuccess: () => invalidateAdminOperationsQueries(queryClient),
   });
 
-  const items = query.data ?? [];
-  const selected = items.find((item) => item.campaignId === selectedCampaignId) ?? items[0];
+  const selected = resolvedSelectedCampaign;
+  const selectedPerformance = selected && selectedCampaignIdForPerformance === selected.campaignId
+    ? performanceQuery.data
+    : undefined;
   const isEditorOpen = Boolean(selected?.campaignId && editorState.isOpen && editorState.campaignId === selected.campaignId);
   const selectedDraft = selected ? getDraft(selected, drafts) : undefined;
+
+  useEffect(() => {
+    const effectivePage = query.data?.page;
+    if (effectivePage && effectivePage !== page) {
+      setPage(effectivePage);
+    }
+  }, [query.data?.page, page]);
 
   if (query.isLoading) {
     return (
@@ -67,9 +88,11 @@ export function AdminCampaignOperationsPage() {
     );
   }
 
-  const pausedCount = items.filter((item) => item.isPaused).length;
-  const refundAttentionCount = items.filter((item) => item.canProcessRefund && item.refundPolicyStage === 'post_delivery_or_live').length;
-  const scheduledCount = items.filter((item) => item.daysLeft != null).length;
+  const pausedCount = query.data?.totalPausedCount ?? 0;
+  const refundAttentionCount = query.data?.totalRefundAttentionCount ?? 0;
+  const scheduledCount = query.data?.totalScheduledCount ?? 0;
+  const performanceAttentionCount = query.data?.totalPerformanceAttentionCount ?? 0;
+  const performanceAttentionThresholdPercent = query.data?.performanceAttentionThresholdPercent ?? 60;
 
   return (
     <AdminPageShell
@@ -77,17 +100,72 @@ export function AdminCampaignOperationsPage() {
       description="Process refunds, pause campaigns, resume campaigns, and keep campaign day counts accurate when operations are put on hold."
     >
       <section className="space-y-6">
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard label="Paused campaigns" value={String(pausedCount)} note="Campaigns currently frozen and not consuming remaining days." />
           <MetricCard label="Manual refund review" value={String(refundAttentionCount)} note="Delivered or live campaigns that need a deliberate refund amount." />
           <MetricCard label="Scheduled campaigns" value={String(scheduledCount)} note="Campaigns with enough timing data to calculate days left." />
+          <MetricCard
+            label="Performance attention"
+            value={String(performanceAttentionCount)}
+            note={`Booked campaigns with no report yet or delivery below ${performanceAttentionThresholdPercent}%.`}
+            actionLabel={attentionOnly ? 'Showing filtered queue' : 'Show attention queue'}
+            onClick={() => {
+              setAttentionOnly(true);
+              setPage(1);
+            }}
+          />
         </div>
 
         <div className="grid gap-6 xl:grid-cols-[1.3fr_0.9fr]">
           <div className="panel overflow-hidden p-0">
             <div className="border-b border-line px-6 py-5">
-              <h2 className="text-xl font-semibold text-ink">Operational queue</h2>
-              <p className="mt-2 text-sm text-ink-soft">Select a campaign to process a refund, pause it, resume it, or review the current schedule impact.</p>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-semibold text-ink">Operational queue</h2>
+                  <p className="mt-2 text-sm text-ink-soft">Select a campaign to process a refund, pause it, resume it, or review the current schedule impact.</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <label className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">
+                    Sort
+                    <select
+                      className="input-base mt-2 min-w-[210px] bg-white py-2 text-sm font-medium normal-case tracking-normal text-ink"
+                      value={queueSort}
+                      onChange={(event) => {
+                        setQueueSort(event.target.value as AdminCampaignOperationsSort);
+                        setPage(1);
+                      }}
+                    >
+                      <option value="delivery_risk">Delivery risk (worst first)</option>
+                      <option value="highest_spend">Highest spend</option>
+                      <option value="latest_update">Latest update</option>
+                      <option value="campaign_name">Campaign name</option>
+                    </select>
+                  </label>
+                  <label className="inline-flex items-center gap-2 rounded-full border border-line px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-ink-soft">
+                    <input
+                      type="checkbox"
+                      checked={attentionOnly}
+                      onChange={(event) => {
+                        setAttentionOnly(event.target.checked);
+                        setPage(1);
+                      }}
+                    />
+                    Attention only
+                  </label>
+                  {attentionOnly ? (
+                    <button
+                      type="button"
+                      className="button-secondary rounded-full px-3 py-1.5 text-xs"
+                      onClick={() => {
+                        setAttentionOnly(false);
+                        setPage(1);
+                      }}
+                    >
+                      Clear filter
+                    </button>
+                  ) : null}
+                </div>
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-sm">
@@ -95,12 +173,13 @@ export function AdminCampaignOperationsPage() {
                   <tr>
                     <th className="px-4 py-4">Campaign</th>
                     <th className="px-4 py-4">Status</th>
+                    <th className="px-4 py-4">Performance</th>
                     <th className="px-4 py-4">Refund policy</th>
                     <th className="px-4 py-4">Days left</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {items.map((item) => (
+                  {queueItems.map((item) => (
                     <tr
                       key={item.campaignId}
                       className={`cursor-pointer border-t border-line transition ${selected?.campaignId === item.campaignId ? 'bg-brand-soft/50' : 'hover:bg-slate-50'}`}
@@ -123,6 +202,21 @@ export function AdminCampaignOperationsPage() {
                         </div>
                       </td>
                       <td className="px-4 py-4 align-top">
+                        <div className="space-y-1 text-xs text-ink-soft">
+                          <p>
+                            Spend {fmtCurrency(item.performanceDeliveredSpend)} / {fmtCurrency(item.performanceBookedSpend)} ({item.performanceDeliveryPercent}%)
+                          </p>
+                          <p>
+                            Impr {item.performanceImpressions.toLocaleString('en-ZA')} | Clicks/spots {item.performancePlaysOrSpots.toLocaleString('en-ZA')}
+                          </p>
+                          {item.performanceLatestReportDate ? (
+                            <p>Updated {formatDateOnly(item.performanceLatestReportDate)}</p>
+                          ) : (
+                            <p>No report yet</p>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 align-top">
                         <p className="font-semibold text-ink">{item.refundPolicyLabel}</p>
                         <p className="mt-1 text-xs leading-5 text-ink-soft">{item.refundPolicySummary}</p>
                       </td>
@@ -131,13 +225,39 @@ export function AdminCampaignOperationsPage() {
                       </td>
                     </tr>
                   ))}
-                  {items.length === 0 ? (
+                  {queueItems.length === 0 ? (
                     <tr>
-                      <td className="px-4 py-8 text-sm text-ink-soft" colSpan={4}>No campaign operations data is available yet.</td>
+                      <td className="px-4 py-8 text-sm text-ink-soft" colSpan={5}>No campaigns match the current queue filter.</td>
                     </tr>
                   ) : null}
                 </tbody>
               </table>
+            </div>
+            <div className="flex items-center justify-between border-t border-line px-6 py-4 text-xs text-ink-soft">
+              <span>
+                Showing {queueItems.length} of {query.data?.totalCount ?? 0}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="button-secondary rounded-full px-3 py-1.5"
+                  disabled={!(query.data?.hasPreviousPage ?? false)}
+                  onClick={() => setPage((current) => Math.max(1, current - 1))}
+                >
+                  Previous
+                </button>
+                <span>
+                  Page {query.data?.page ?? page} of {query.data?.totalPages ?? 1}
+                </span>
+                <button
+                  type="button"
+                  className="button-secondary rounded-full px-3 py-1.5"
+                  disabled={!(query.data?.hasNextPage ?? false)}
+                  onClick={() => setPage((current) => current + 1)}
+                >
+                  Next
+                </button>
+              </div>
             </div>
           </div>
 
@@ -180,6 +300,29 @@ export function AdminCampaignOperationsPage() {
                     <InfoRow label="Days left" value={selected.daysLeft != null ? `${selected.daysLeft} day(s)` : 'Not scheduled'} />
                     <InfoRow label="Paused days added" value={`${selected.totalPausedDays} day(s)`} />
                   </div>
+                </div>
+
+                <div className="panel p-6">
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <h3 className="text-lg font-semibold text-ink">Performance snapshot</h3>
+                    <span className="text-xs text-ink-soft">
+                      {selectedPerformance?.latestReportDate ? `Updated ${formatDateOnly(selectedPerformance.latestReportDate)}` : 'No updates yet'}
+                    </span>
+                  </div>
+                  {performanceQuery.isLoading ? (
+                    <p className="text-sm text-ink-soft">Loading performance...</p>
+                  ) : selectedPerformance ? (
+                    <div className="grid gap-3 text-sm text-ink-soft">
+                      <InfoRow label="Booked spend" value={fmtCurrency(selectedPerformance.totalBookedSpend)} />
+                      <InfoRow label="Delivered spend" value={fmtCurrency(selectedPerformance.totalDeliveredSpend)} />
+                      <InfoRow label="Delivery %" value={`${selectedPerformance.spendDeliveryPercent}%`} />
+                      <InfoRow label="Impressions" value={selectedPerformance.totalImpressions.toLocaleString('en-ZA')} />
+                      <InfoRow label="Clicks / spots" value={selectedPerformance.totalPlaysOrSpots.toLocaleString('en-ZA')} />
+                      <InfoRow label="Synced clicks" value={selectedPerformance.totalSyncedClicks.toLocaleString('en-ZA')} />
+                    </div>
+                  ) : (
+                    <p className="text-sm text-ink-soft">No performance data for this campaign yet.</p>
+                  )}
                 </div>
 
                 {isEditorOpen ? (
@@ -315,12 +458,33 @@ export function AdminCampaignOperationsPage() {
   );
 }
 
-function MetricCard({ label, value, note }: { label: string; value: string; note: string }) {
+function MetricCard({
+  label,
+  value,
+  note,
+  onClick,
+  actionLabel,
+}: {
+  label: string;
+  value: string;
+  note: string;
+  onClick?: () => void;
+  actionLabel?: string;
+}) {
   return (
     <div className="panel p-6">
       <p className="text-xs font-semibold uppercase tracking-[0.24em] text-ink-soft">{label}</p>
       <p className="mt-4 text-4xl font-semibold text-ink">{value}</p>
       <p className="mt-3 text-sm leading-6 text-ink-soft">{note}</p>
+      {onClick ? (
+        <button
+          type="button"
+          className="button-secondary mt-4 rounded-full px-3 py-1.5 text-xs"
+          onClick={onClick}
+        >
+          {actionLabel ?? 'View'}
+        </button>
+      ) : null}
     </div>
   );
 }

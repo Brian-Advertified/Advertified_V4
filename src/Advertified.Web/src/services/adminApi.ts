@@ -1,6 +1,8 @@
 import type {
   AdminAuditEntry,
   AdminCampaignOperationsItem,
+  AdminCampaignOperationsList,
+  AdminCampaignOperationsSort,
   AdminCreateGeographyInput,
   AdminCreateOutletInput,
   AdminCreateUserInput,
@@ -12,6 +14,7 @@ import type {
   AdminOutletMasterData,
   AdminOutletPricing,
   AdminPackageOrder,
+  CampaignPerformanceSnapshot,
   AdminPreviewRuleUpdateInput,
   AdminRateCardUpdateInput,
   AdminRateCardUploadInput,
@@ -467,9 +470,27 @@ export function createAdminApi({ mapAdminPackageOrder }: AdminApiDependencies) {
       });
     },
 
-    async getAdminCampaignOperations() {
-      const response = await apiRequest<{ items: AdminCampaignOperationsItem[] }>('/admin/campaign-operations');
-      return response.items;
+    async getAdminCampaignOperations(input?: {
+      page?: number;
+      pageSize?: number;
+      sortBy?: AdminCampaignOperationsSort;
+      attentionOnly?: boolean;
+    }) {
+      const page = input?.page ?? 1;
+      const pageSize = input?.pageSize ?? 25;
+      const sortBy = input?.sortBy ?? 'delivery_risk';
+      const attentionOnly = input?.attentionOnly ?? false;
+      const params = new URLSearchParams({
+        page: String(page),
+        pageSize: String(pageSize),
+        sortBy,
+        attentionOnly: String(attentionOnly),
+      });
+      return apiRequest<AdminCampaignOperationsList>(`/admin/campaign-operations?${params.toString()}`);
+    },
+
+    async getAdminCampaignPerformance(campaignId: string) {
+      return apiRequest<CampaignPerformanceSnapshot>(`/admin/campaign-operations/${encodeURIComponent(campaignId)}/performance`);
     },
 
     async getAdminPackageOrders() {

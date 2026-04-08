@@ -316,6 +316,33 @@ export interface CampaignPerformanceTimelinePoint {
   spendDelivered: number;
 }
 
+export interface CampaignPerformanceChannelSnapshot {
+  channel: string;
+  label: string;
+  bookedSpend: number;
+  deliveredSpend: number;
+  impressions: number;
+  playsOrSpots: number;
+  syncedClicks: number;
+  bookingCount: number;
+  reportCount: number;
+}
+
+export interface CampaignPerformanceSnapshot {
+  campaignId: string;
+  totalBookedSpend: number;
+  totalDeliveredSpend: number;
+  totalImpressions: number;
+  totalPlaysOrSpots: number;
+  totalSyncedClicks: number;
+  bookingCount: number;
+  reportCount: number;
+  spendDeliveryPercent: number;
+  latestReportDate?: string;
+  timeline: CampaignPerformanceTimelinePoint[];
+  channels: CampaignPerformanceChannelSnapshot[];
+}
+
 export interface CampaignTimelineStep {
   key: string;
   label: string;
@@ -792,6 +819,32 @@ export interface AdminCampaignOperationsItem {
   canPause: boolean;
   canUnpause: boolean;
   canProcessRefund: boolean;
+  performanceBookedSpend: number;
+  performanceDeliveredSpend: number;
+  performanceDeliveryPercent: number;
+  performanceImpressions: number;
+  performancePlaysOrSpots: number;
+  performanceSyncedClicks: number;
+  performanceLatestReportDate?: string;
+}
+
+export type AdminCampaignOperationsSort = 'delivery_risk' | 'highest_spend' | 'latest_update' | 'campaign_name';
+
+export interface AdminCampaignOperationsList {
+  items: AdminCampaignOperationsItem[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
+  sortBy: AdminCampaignOperationsSort;
+  attentionOnly: boolean;
+  performanceAttentionThresholdPercent: number;
+  totalPausedCount: number;
+  totalRefundAttentionCount: number;
+  totalScheduledCount: number;
+  totalPerformanceAttentionCount: number;
 }
 
 export interface AdminPackageOrder {

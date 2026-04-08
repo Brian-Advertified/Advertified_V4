@@ -112,6 +112,67 @@ internal static class ControllerMappings
         };
     }
 
+    public static CampaignPerformanceSnapshotResponse ToPerformanceSnapshot(this Campaign campaign)
+    {
+        var bookingById = campaign.CampaignSupplierBookings
+            .ToDictionary(item => item.Id, item => item);
+        var channels = new Dictionary<string, CampaignPerformanceChannelResponse>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var booking in campaign.CampaignSupplierBookings)
+        {
+            var channel = NormalizeChannel(booking.Channel);
+            var current = GetOrCreateChannel(channels, channel);
+            current.BookedSpend += booking.CommittedAmount;
+            current.BookingCount += 1;
+        }
+
+        foreach (var report in campaign.CampaignDeliveryReports)
+        {
+            var channel = ResolveChannelForReport(report, bookingById);
+            var current = GetOrCreateChannel(channels, channel);
+            current.DeliveredSpend += report.SpendDelivered ?? 0m;
+            current.Impressions += report.Impressions ?? 0;
+            current.PlaysOrSpots += report.PlaysOrSpots ?? 0;
+            current.ReportCount += 1;
+            if (string.Equals(report.ReportType, CampaignPerformanceConstants.SyncedReportType, StringComparison.OrdinalIgnoreCase))
+            {
+                current.SyncedClicks += report.PlaysOrSpots ?? 0;
+            }
+        }
+
+        var totalBookedSpend = campaign.CampaignSupplierBookings.Sum(item => item.CommittedAmount);
+        var totalDeliveredSpend = campaign.CampaignDeliveryReports.Sum(item => item.SpendDelivered ?? 0m);
+        var totalImpressions = campaign.CampaignDeliveryReports.Sum(item => item.Impressions ?? 0);
+        var totalPlaysOrSpots = campaign.CampaignDeliveryReports.Sum(item => item.PlaysOrSpots ?? 0);
+        var totalSyncedClicks = campaign.CampaignDeliveryReports
+            .Where(item => string.Equals(item.ReportType, CampaignPerformanceConstants.SyncedReportType, StringComparison.OrdinalIgnoreCase))
+            .Sum(item => item.PlaysOrSpots ?? 0);
+        var latestReportDate = campaign.CampaignDeliveryReports
+            .Where(item => item.ReportedAt.HasValue)
+            .Select(item => DateOnly.FromDateTime(item.ReportedAt!.Value))
+            .OrderBy(item => item)
+            .LastOrDefault();
+
+        return new CampaignPerformanceSnapshotResponse
+        {
+            CampaignId = campaign.Id,
+            TotalBookedSpend = totalBookedSpend,
+            TotalDeliveredSpend = totalDeliveredSpend,
+            TotalImpressions = totalImpressions,
+            TotalPlaysOrSpots = totalPlaysOrSpots,
+            TotalSyncedClicks = totalSyncedClicks,
+            BookingCount = campaign.CampaignSupplierBookings.Count,
+            ReportCount = campaign.CampaignDeliveryReports.Count,
+            SpendDeliveryPercent = ClampPercent(totalBookedSpend > 0m ? (totalDeliveredSpend / totalBookedSpend) * 100m : 0m),
+            LatestReportDate = latestReportDate == default ? null : latestReportDate,
+            Timeline = BuildPerformanceTimeline(campaign.CampaignDeliveryReports),
+            Channels = channels.Values
+                .OrderByDescending(item => item.DeliveredSpend + item.BookedSpend)
+                .ThenByDescending(item => item.Impressions + item.PlaysOrSpots)
+                .ToArray()
+        };
+    }
+
     public static PackageOrderListItemResponse ToListItem(this PackageOrder order)
     {
         return new PackageOrderListItemResponse
@@ -276,6 +337,74 @@ internal static class ControllerMappings
             })
             .OrderBy(item => item.Date)
             .ToArray();
+    }
+
+    private static CampaignPerformanceChannelResponse GetOrCreateChannel(
+        IDictionary<string, CampaignPerformanceChannelResponse> channels,
+        string channel)
+    {
+        if (channels.TryGetValue(channel, out var existing))
+        {
+            return existing;
+        }
+
+        var created = new CampaignPerformanceChannelResponse
+        {
+            Channel = channel,
+            Label = BuildChannelLabel(channel)
+        };
+        channels[channel] = created;
+        return created;
+    }
+
+    private static string ResolveChannelForReport(
+        CampaignDeliveryReport report,
+        IReadOnlyDictionary<Guid, CampaignSupplierBooking> bookingById)
+    {
+        if (report.SupplierBookingId.HasValue
+            && bookingById.TryGetValue(report.SupplierBookingId.Value, out var booking))
+        {
+            return NormalizeChannel(booking.Channel);
+        }
+
+        return "unknown";
+    }
+
+    private static string NormalizeChannel(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "unknown";
+        }
+
+        return value.Trim().ToLowerInvariant();
+    }
+
+    private static string BuildChannelLabel(string channel)
+    {
+        return channel switch
+        {
+            "ooh" => "OOH",
+            "tv" => "TV",
+            "unknown" => "Unknown",
+            _ => string.Join(' ', channel.Split('_', StringSplitOptions.RemoveEmptyEntries)
+                .Select(part => char.ToUpperInvariant(part[0]) + part[1..]))
+        };
+    }
+
+    private static int ClampPercent(decimal value)
+    {
+        if (value <= 0m)
+        {
+            return 0;
+        }
+
+        if (value >= 100m)
+        {
+            return 100;
+        }
+
+        return (int)Math.Round(value, MidpointRounding.AwayFromZero);
     }
 
     private static CampaignCreativeSystemResponse ToResponse(CampaignCreativeSystem creativeSystem)

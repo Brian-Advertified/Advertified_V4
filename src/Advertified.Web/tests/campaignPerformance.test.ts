@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { buildCampaignPerformanceSnapshot, hasCampaignPerformanceData } from '../src/features/campaigns/components/campaignPerformance';
-import type { Campaign } from '../src/types/domain';
+import {
+  buildCampaignPerformanceSnapshot,
+  buildCampaignPerformanceSnapshotFromProjection,
+  hasCampaignPerformanceData,
+  resolveCampaignPerformanceViewState,
+} from '../src/features/campaigns/components/campaignPerformance';
+import { AD_PLATFORM_SYNC_REPORT_TYPE } from '../src/features/campaigns/constants/performance';
+import type { Campaign, CampaignPerformanceSnapshot as DomainCampaignPerformanceSnapshot } from '../src/types/domain';
 
 function buildCampaign(): Campaign {
   return {
@@ -78,7 +84,7 @@ function buildDigitalCampaign(): Campaign {
       {
         id: 'report-digital',
         supplierBookingId: 'booking-digital',
-        reportType: 'ad_platform_sync',
+        reportType: AD_PLATFORM_SYNC_REPORT_TYPE,
         headline: 'Meta Ads performance',
         reportedAt: '2026-04-07T00:00:00Z',
         impressions: 1200,
@@ -125,5 +131,46 @@ describe('campaign performance snapshot', () => {
     expect(snapshot.channels[0]?.activityLabel).toBe('Clicks');
     expect(snapshot.channels[0]?.playsOrSpots).toBe(38);
     expect(snapshot.totalSyncedClicks).toBe(38);
+  });
+
+  it('prefers projection data for chart snapshot when available', () => {
+    const projection: DomainCampaignPerformanceSnapshot = {
+      campaignId: 'campaign-1',
+      totalBookedSpend: 175000,
+      totalDeliveredSpend: 93000,
+      totalImpressions: 980000,
+      totalPlaysOrSpots: 77,
+      totalSyncedClicks: 41,
+      bookingCount: 3,
+      reportCount: 4,
+      spendDeliveryPercent: 53,
+      latestReportDate: '2026-04-08',
+      timeline: [
+        { date: '2026-04-07', impressions: 450000, playsOrSpots: 31, spendDelivered: 42000 },
+        { date: '2026-04-08', impressions: 530000, playsOrSpots: 46, spendDelivered: 51000 },
+      ],
+      channels: [
+        {
+          channel: 'digital',
+          label: 'Digital',
+          bookedSpend: 60000,
+          deliveredSpend: 51000,
+          impressions: 530000,
+          playsOrSpots: 41,
+          syncedClicks: 41,
+          bookingCount: 1,
+          reportCount: 2,
+        },
+      ],
+    };
+
+    const viewState = resolveCampaignPerformanceViewState(buildCampaign(), projection);
+    const projected = buildCampaignPerformanceSnapshotFromProjection(projection);
+
+    expect(viewState.hasPerformanceView).toBe(true);
+    expect(viewState.snapshot.totalDeliveredSpend).toBe(projected.totalDeliveredSpend);
+    expect(viewState.snapshot.totalSyncedClicks).toBe(41);
+    expect(viewState.snapshot.channels[0]?.activityLabel).toBe('Clicks');
+    expect(viewState.snapshot.timeline).toHaveLength(2);
   });
 });

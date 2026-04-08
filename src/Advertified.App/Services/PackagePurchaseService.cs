@@ -197,12 +197,13 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
 
         var order = await _db.PackageOrders
             .Include(x => x.PackageBand)
-            .Include(x => x.User)
+            .Include(x => x.User!)
                 .ThenInclude(x => x.BusinessProfile)
             .Include(x => x.Campaign)
             .Include(x => x.Invoice)
             .FirstOrDefaultAsync(x => x.Id == packageOrderId && x.UserId == userId, cancellationToken)
             ?? throw new InvalidOperationException("Package order not found.");
+        var purchaser = RequireOrderUser(order);
         var shouldSendLulaSubmittedEmail =
             string.Equals(normalizedProvider, "lula", StringComparison.OrdinalIgnoreCase)
             && (
@@ -238,8 +239,8 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
             var invoice = await _invoiceService.EnsureInvoiceAsync(
                 order,
                 order.PackageBand,
-                order.User,
-                order.User.BusinessProfile,
+                purchaser,
+                purchaser.BusinessProfile,
                 invoiceType: "manual_lula",
                 status: InvoiceStatuses.Issued,
                 dueAtUtc: DateTime.UtcNow.AddDays(7),
@@ -250,7 +251,7 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
 
             if (shouldSendLulaSubmittedEmail)
             {
-                await SendLulaSubmittedEmailAsync(order, order.PackageBand, order.User, cancellationToken);
+                await SendLulaSubmittedEmailAsync(order, order.PackageBand, purchaser, cancellationToken);
             }
 
             return new CreatePackageOrderResponse
@@ -270,8 +271,8 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
         var checkout = await _vodaPayCheckoutService.InitiateAsync(
             order,
             order.PackageBand,
-            order.User,
-            order.User.BusinessProfile,
+            purchaser,
+            purchaser.BusinessProfile,
             cancellationToken);
 
         order.PaymentReference = checkout.ProviderReference ?? checkout.SessionId;
@@ -351,7 +352,7 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
     {
         var order = await _db.PackageOrders
             .Include(x => x.PackageBand)
-            .Include(x => x.User)
+            .Include(x => x.User!)
                 .ThenInclude(x => x.BusinessProfile)
             .Include(x => x.ProspectLead)
             .Include(x => x.Campaign)
@@ -486,6 +487,12 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
             PackageOrderId = order.Id,
             UpdatedAtUtc = DateTime.UtcNow
         }, cancellationToken);
+    }
+
+    private static UserAccount RequireOrderUser(PackageOrder order)
+    {
+        return order.User
+            ?? throw new InvalidOperationException("Package order is missing its purchaser account.");
     }
 
     private async Task SendAdminSaleAlertAsync(

@@ -115,6 +115,7 @@ public sealed class CampaignBriefService : ICampaignBriefService
         var brief = await _db.CampaignBriefs
             .FirstOrDefaultAsync(x => x.CampaignId == campaignId, cancellationToken)
             ?? throw new InvalidOperationException("Campaign brief not found.");
+        var campaignUser = RequireCampaignUser(campaign);
 
         brief.SubmittedAt = DateTime.UtcNow;
         brief.UpdatedAt = DateTime.UtcNow;
@@ -128,11 +129,11 @@ public sealed class CampaignBriefService : ICampaignBriefService
         {
             await _emailService.SendAsync(
                 "brief-submitted",
-                campaign.User.Email,
+                campaignUser.Email,
                 "campaigns",
                 new Dictionary<string, string?>
                 {
-                    ["ClientName"] = campaign.User.FullName,
+                    ["ClientName"] = campaignUser.FullName,
                     ["CampaignName"] = string.IsNullOrWhiteSpace(campaign.CampaignName) ? $"{campaign.PackageBand.Name} campaign" : campaign.CampaignName.Trim(),
                     ["PackageName"] = campaign.PackageBand.Name,
                     ["Budget"] = FormatCurrency(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount),
@@ -263,5 +264,11 @@ public sealed class CampaignBriefService : ICampaignBriefService
     private static string FormatCurrency(decimal amount)
     {
         return $"R {amount.ToString("N2", CultureInfo.GetCultureInfo("en-ZA"))}";
+    }
+
+    private static UserAccount RequireCampaignUser(Campaign campaign)
+    {
+        return campaign.User
+            ?? throw new InvalidOperationException("Campaign is missing its client account.");
     }
 }

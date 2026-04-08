@@ -438,7 +438,7 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
     {
         return await _db.Campaigns
             .AsSplitQuery()
-            .Include(x => x.User)
+            .Include(x => x.User!)
                 .ThenInclude(x => x.BusinessProfile)
             .Include(x => x.ProspectLead)
             .Include(x => x.PackageBand)

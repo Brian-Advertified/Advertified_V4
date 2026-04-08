@@ -2,12 +2,14 @@ import type {
   Campaign,
   CampaignBrief,
   CampaignConversationThread,
+  CampaignPerformanceSnapshot,
   NotificationSummary,
   PlanningMode,
 } from '../types/domain';
 
 type CampaignApiDependencies = {
   getCampaignById: (campaignId: string) => Promise<Campaign>;
+  getCampaignPerformanceById: (campaignId: string) => Promise<CampaignPerformanceSnapshot>;
   getPublicProposalById: (campaignId: string, token: string) => Promise<Campaign>;
   listCampaigns: () => Promise<Campaign[]>;
   getCampaignThread: (campaignId: string) => Promise<CampaignConversationThread>;
@@ -18,6 +20,7 @@ type CampaignApiDependencies = {
 
 export function createCampaignApi({
   getCampaignById,
+  getCampaignPerformanceById,
   getPublicProposalById,
   listCampaigns,
   getCampaignThread,
@@ -32,6 +35,10 @@ export function createCampaignApi({
 
     async getCampaign(campaignId: string) {
       return getCampaignById(campaignId);
+    },
+
+    async getCampaignPerformance(campaignId: string) {
+      return getCampaignPerformanceById(campaignId);
     },
 
     async getPublicProposal(campaignId: string, token: string) {

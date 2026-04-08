@@ -3,6 +3,19 @@ namespace Advertified.App.Contracts.Admin;
 public sealed class AdminCampaignOperationsResponse
 {
     public IReadOnlyList<AdminCampaignOperationsItemResponse> Items { get; set; } = Array.Empty<AdminCampaignOperationsItemResponse>();
+    public int Page { get; set; }
+    public int PageSize { get; set; }
+    public int TotalCount { get; set; }
+    public int TotalPages { get; set; }
+    public bool HasPreviousPage { get; set; }
+    public bool HasNextPage { get; set; }
+    public string SortBy { get; set; } = "delivery_risk";
+    public bool AttentionOnly { get; set; }
+    public int PerformanceAttentionThresholdPercent { get; set; }
+    public int TotalPausedCount { get; set; }
+    public int TotalRefundAttentionCount { get; set; }
+    public int TotalScheduledCount { get; set; }
+    public int TotalPerformanceAttentionCount { get; set; }
 }
 
 public sealed class AdminCampaignOperationsItemResponse
@@ -39,4 +52,11 @@ public sealed class AdminCampaignOperationsItemResponse
     public bool CanPause { get; set; }
     public bool CanUnpause { get; set; }
     public bool CanProcessRefund { get; set; }
+    public decimal PerformanceBookedSpend { get; set; }
+    public decimal PerformanceDeliveredSpend { get; set; }
+    public int PerformanceDeliveryPercent { get; set; }
+    public long PerformanceImpressions { get; set; }
+    public int PerformancePlaysOrSpots { get; set; }
+    public int PerformanceSyncedClicks { get; set; }
+    public DateOnly? PerformanceLatestReportDate { get; set; }
 }

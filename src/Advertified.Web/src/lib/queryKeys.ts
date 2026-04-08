@@ -15,6 +15,7 @@ export const queryKeys = {
   campaigns: {
     list: (userId?: string) => ['campaigns', userId ?? 'anonymous'] as const,
     detail: (campaignId: string) => ['campaign', campaignId] as const,
+    performance: (campaignId: string) => ['campaign-performance', campaignId] as const,
     messages: (campaignId: string) => ['campaign-messages', campaignId] as const,
   },
   creative: {
@@ -26,6 +27,7 @@ export const queryKeys = {
     inbox: ['agent-inbox'] as const,
     campaigns: ['agent-campaigns'] as const,
     campaign: (campaignId: string) => ['agent-campaign', campaignId] as const,
+    performance: (campaignId: string) => ['agent-campaign-performance', campaignId] as const,
     inventory: (campaignId?: string) => ['inventory', campaignId ?? 'all'] as const,
     messages: {
       inbox: ['agent-message-inbox'] as const,
@@ -34,7 +36,9 @@ export const queryKeys = {
   },
   admin: {
     dashboard: ['admin-dashboard'] as const,
-    campaignOperations: ['admin-campaign-operations'] as const,
+    campaignOperations: (page: number, pageSize: number, sortBy: string, attentionOnly: boolean) =>
+      ['admin-campaign-operations', page, pageSize, sortBy, attentionOnly] as const,
+    campaignPerformance: (campaignId: string) => ['admin-campaign-performance', campaignId] as const,
     packageOrders: ['admin-package-orders'] as const,
     outlet: (outletCode: string) => ['admin-outlet', outletCode] as const,
     outletPricing: (outletCode: string) => ['admin-outlet-pricing', outletCode] as const,
@@ -52,6 +56,7 @@ export const queryKeys = {
 export async function invalidateClientCampaignQueries(queryClient: QueryClient, campaignId: string, userId?: string, includeMessages = false) {
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: queryKeys.campaigns.detail(campaignId) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.campaigns.performance(campaignId) }),
     queryClient.invalidateQueries({ queryKey: queryKeys.campaigns.list(userId) }),
     includeMessages ? queryClient.invalidateQueries({ queryKey: queryKeys.campaigns.messages(campaignId) }) : Promise.resolve(),
     queryClient.invalidateQueries({ queryKey: queryKeys.notifications.summary('client') }),
@@ -61,6 +66,7 @@ export async function invalidateClientCampaignQueries(queryClient: QueryClient, 
 export async function invalidateAgentCampaignQueries(queryClient: QueryClient, campaignId: string, includeClientList = true) {
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: queryKeys.agent.campaign(campaignId) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.agent.performance(campaignId) }),
     queryClient.invalidateQueries({ queryKey: queryKeys.agent.inbox }),
     queryClient.invalidateQueries({ queryKey: queryKeys.agent.campaigns }),
     includeClientList ? queryClient.invalidateQueries({ queryKey: queryKeys.campaigns.detail(campaignId) }) : Promise.resolve(),
@@ -80,7 +86,7 @@ export async function invalidateCreativeCampaignQueries(queryClient: QueryClient
 
 export async function invalidateAdminOperationsQueries(queryClient: QueryClient) {
   await Promise.all([
-    queryClient.invalidateQueries({ queryKey: queryKeys.admin.campaignOperations }),
+    queryClient.invalidateQueries({ queryKey: ['admin-campaign-operations'] }),
     queryClient.invalidateQueries({ queryKey: queryKeys.admin.packageOrders }),
     queryClient.invalidateQueries({ queryKey: queryKeys.notifications.summary('admin') }),
   ]);

@@ -45,7 +45,7 @@ public sealed class AgentCampaignBookingsController : ControllerBase
     {
         var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
         var campaign = await _db.Campaigns
-            .Include(x => x.User)
+            .Include(x => x.User!)
             .Include(x => x.PackageBand)
             .Include(x => x.PackageOrder)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
@@ -107,7 +107,7 @@ public sealed class AgentCampaignBookingsController : ControllerBase
     {
         var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
         var campaign = await _db.Campaigns
-            .Include(x => x.User)
+            .Include(x => x.User!)
             .Include(x => x.PackageBand)
             .Include(x => x.PackageOrder)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
@@ -210,15 +210,16 @@ public sealed class AgentCampaignBookingsController : ControllerBase
 
     private async Task SendSupplierBookingEmailAsync(Campaign campaign, CampaignSupplierBooking booking, CancellationToken cancellationToken)
     {
+        var campaignUser = RequireCampaignUser(campaign);
         try
         {
             await _emailService.SendAsync(
                 "supplier-booking-confirmation",
-                campaign.User.Email,
+                campaignUser.Email,
                 "campaigns",
                 new Dictionary<string, string?>
                 {
-                    ["ClientName"] = campaign.User.FullName,
+                    ["ClientName"] = campaignUser.FullName,
                     ["CampaignName"] = string.IsNullOrWhiteSpace(campaign.CampaignName) ? $"{campaign.PackageBand.Name} campaign" : campaign.CampaignName.Trim(),
                     ["SupplierOrStation"] = booking.SupplierOrStation,
                     ["Channel"] = booking.Channel,
@@ -235,15 +236,16 @@ public sealed class AgentCampaignBookingsController : ControllerBase
 
     private async Task SendDeliveryReportEmailAsync(Campaign campaign, CampaignDeliveryReport report, CancellationToken cancellationToken)
     {
+        var campaignUser = RequireCampaignUser(campaign);
         try
         {
             await _emailService.SendAsync(
                 "delivery-report-confirmation",
-                campaign.User.Email,
+                campaignUser.Email,
                 "campaigns",
                 new Dictionary<string, string?>
                 {
-                    ["ClientName"] = campaign.User.FullName,
+                    ["ClientName"] = campaignUser.FullName,
                     ["CampaignName"] = string.IsNullOrWhiteSpace(campaign.CampaignName) ? $"{campaign.PackageBand.Name} campaign" : campaign.CampaignName.Trim(),
                     ["ReportHeadline"] = report.Headline,
                     ["ReportType"] = report.ReportType,
@@ -258,5 +260,11 @@ public sealed class AgentCampaignBookingsController : ControllerBase
         {
             _logger.LogWarning(ex, "Failed to send delivery report email for campaign {CampaignId}.", campaign.Id);
         }
+    }
+
+    private static UserAccount RequireCampaignUser(Campaign campaign)
+    {
+        return campaign.User
+            ?? throw new InvalidOperationException("Campaign is missing its client account.");
     }
 }

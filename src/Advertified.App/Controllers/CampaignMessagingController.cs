@@ -62,8 +62,8 @@ public sealed class CampaignMessagingController : ControllerBase
                     ? $"{campaign.PackageBand.Name} campaign"
                     : campaign.CampaignName.Trim(),
                 CampaignStatus = campaign.Status,
-                ClientName = campaign.User.FullName,
-                ClientEmail = campaign.User.Email,
+                ClientName = campaign.User != null ? campaign.User.FullName : string.Empty,
+                ClientEmail = campaign.User != null ? campaign.User.Email : string.Empty,
                 PackageBandName = campaign.PackageBand.Name,
                 AssignedAgentName = campaign.AssignedAgentUser != null ? campaign.AssignedAgentUser.FullName : null,
                 LatestMessageBody = campaign.CampaignConversation != null
@@ -148,10 +148,11 @@ public sealed class CampaignMessagingController : ControllerBase
         campaign.UpdatedAt = now;
         await _db.SaveChangesAsync(cancellationToken);
 
+        var campaignUser = RequireCampaignUser(campaign);
         await SendMessageNotificationAsync(
             campaign,
-            recipientEmail: campaign.User.Email,
-            recipientName: campaign.User.FullName,
+            recipientEmail: campaignUser.Email,
+            recipientName: campaignUser.FullName,
             senderName: currentUser.FullName,
             senderRole: "Agent",
             threadUrl: BuildFrontendUrl($"/campaigns/{campaign.Id}/messages"),
@@ -277,7 +278,7 @@ public sealed class CampaignMessagingController : ControllerBase
     private async Task<Campaign?> LoadCampaignForMessagingAsync(Guid campaignId, CancellationToken cancellationToken)
     {
         return await _db.Campaigns
-            .Include(x => x.User)
+            .Include(x => x.User!)
             .Include(x => x.PackageBand)
             .Include(x => x.AssignedAgentUser)
             .Include(x => x.CampaignConversation!)
@@ -392,8 +393,8 @@ public sealed class CampaignMessagingController : ControllerBase
             ConversationId = conversation?.Id,
             CampaignName = ResolveCampaignName(campaign),
             CampaignStatus = campaign.Status,
-            ClientName = campaign.User.FullName,
-            ClientEmail = campaign.User.Email,
+            ClientName = RequireCampaignUser(campaign).FullName,
+            ClientEmail = RequireCampaignUser(campaign).Email,
             PackageBandName = campaign.PackageBand.Name,
             AssignedAgentName = campaign.AssignedAgentUser?.FullName,
             UnreadCount = viewerRole == ConversationParticipantRoles.Agent
@@ -449,6 +450,12 @@ public sealed class CampaignMessagingController : ControllerBase
         return string.IsNullOrWhiteSpace(campaign.CampaignName)
             ? $"{campaign.PackageBand.Name} campaign"
             : campaign.CampaignName.Trim();
+    }
+
+    private static UserAccount RequireCampaignUser(Campaign campaign)
+    {
+        return campaign.User
+            ?? throw new InvalidOperationException("Campaign is not linked to a client account yet.");
     }
 
     private static string Truncate(string value, int maxLength)

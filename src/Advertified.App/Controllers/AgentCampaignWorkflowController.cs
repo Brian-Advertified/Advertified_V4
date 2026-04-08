@@ -121,7 +121,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
         var campaign = await _db.Campaigns
             .Include(x => x.PackageOrder)
             .Include(x => x.PackageBand)
-            .Include(x => x.User)
+            .Include(x => x.User!)
                 .ThenInclude(x => x.BusinessProfile)
             .Include(x => x.ProspectLead)
             .Include(x => x.AssignedAgentUser)
@@ -161,7 +161,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
         var refreshedCampaign = await _db.Campaigns
             .AsNoTracking()
             .AsSplitQuery()
-            .Include(x => x.User)
+            .Include(x => x.User!)
                 .ThenInclude(x => x.BusinessProfile)
             .Include(x => x.AssignedAgentUser)
             .Include(x => x.PackageBand)

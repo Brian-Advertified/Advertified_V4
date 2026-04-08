@@ -1506,6 +1506,359 @@ public class HttpWorkflowIntegrationTests
     }
 
     [Fact]
+    public async Task AdminCampaignOperations_SupportsPagingSortAndAttentionFilter()
+    {
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var now = DateTime.UtcNow;
+                var clientUser = TestSeed.CreateUser();
+                var adminUser = TestSeed.CreateAdmin();
+                var (scaleBand, scaleOrder, attentionCampaign) = TestSeed.CreateCampaignGraph(clientUser, selectedBudget: 250000m, status: "launched");
+                var (dominanceBand, dominanceOrder, healthyCampaign) = TestSeed.CreateCampaignGraph(clientUser, selectedBudget: 550000m, status: "launched");
+
+                attentionCampaign.CampaignName = "Attention campaign";
+                healthyCampaign.CampaignName = "Healthy campaign";
+                healthyCampaign.PausedAt = now;
+                healthyCampaign.PauseReason = "Ops hold";
+
+                var attentionBooking = new CampaignSupplierBooking
+                {
+                    Id = Guid.NewGuid(),
+                    CampaignId = attentionCampaign.Id,
+                    SupplierOrStation = "Station A",
+                    Channel = "radio",
+                    BookingStatus = "live",
+                    CommittedAmount = 100000m,
+                    LiveFrom = DateOnly.FromDateTime(now.Date.AddDays(-3)),
+                    LiveTo = DateOnly.FromDateTime(now.Date.AddDays(10)),
+                    CreatedAt = now,
+                    UpdatedAt = now
+                };
+                var healthyBooking = new CampaignSupplierBooking
+                {
+                    Id = Guid.NewGuid(),
+                    CampaignId = healthyCampaign.Id,
+                    SupplierOrStation = "Station B",
+                    Channel = "radio",
+                    BookingStatus = "live",
+                    CommittedAmount = 250000m,
+                    LiveFrom = DateOnly.FromDateTime(now.Date.AddDays(-5)),
+                    LiveTo = DateOnly.FromDateTime(now.Date.AddDays(7)),
+                    CreatedAt = now,
+                    UpdatedAt = now
+                };
+
+                var attentionReport = new CampaignDeliveryReport
+                {
+                    Id = Guid.NewGuid(),
+                    CampaignId = attentionCampaign.Id,
+                    SupplierBookingId = attentionBooking.Id,
+                    ReportType = "delivery_update",
+                    Headline = "Under-delivering",
+                    ReportedAt = now.AddDays(-1),
+                    Impressions = 12000,
+                    PlaysOrSpots = 40,
+                    SpendDelivered = 20000m,
+                    CreatedAt = now
+                };
+                var healthyReport = new CampaignDeliveryReport
+                {
+                    Id = Guid.NewGuid(),
+                    CampaignId = healthyCampaign.Id,
+                    SupplierBookingId = healthyBooking.Id,
+                    ReportType = "delivery_update",
+                    Headline = "On track",
+                    ReportedAt = now.AddDays(-1),
+                    Impressions = 180000,
+                    PlaysOrSpots = 450,
+                    SpendDelivered = 225000m,
+                    CreatedAt = now
+                };
+
+                attentionCampaign.CampaignBrief = new CampaignBrief
+                {
+                    Id = Guid.NewGuid(),
+                    CampaignId = attentionCampaign.Id,
+                    Objective = "launch",
+                    GeographyScope = "regional",
+                    StartDate = DateOnly.FromDateTime(now.Date.AddDays(-7)),
+                    EndDate = DateOnly.FromDateTime(now.Date.AddDays(14)),
+                    CreatedAt = now,
+                    UpdatedAt = now
+                };
+                healthyCampaign.CampaignBrief = new CampaignBrief
+                {
+                    Id = Guid.NewGuid(),
+                    CampaignId = healthyCampaign.Id,
+                    Objective = "launch",
+                    GeographyScope = "regional",
+                    StartDate = DateOnly.FromDateTime(now.Date.AddDays(-7)),
+                    EndDate = DateOnly.FromDateTime(now.Date.AddDays(14)),
+                    CreatedAt = now,
+                    UpdatedAt = now
+                };
+
+                db.UserAccounts.AddRange(clientUser, adminUser);
+                db.PackageBands.AddRange(scaleBand, dominanceBand);
+                db.PackageOrders.AddRange(scaleOrder, dominanceOrder);
+                db.Campaigns.AddRange(attentionCampaign, healthyCampaign);
+                db.CampaignSupplierBookings.AddRange(attentionBooking, healthyBooking);
+                db.CampaignDeliveryReports.AddRange(attentionReport, healthyReport);
+                db.SaveChanges();
+            });
+
+        var adminUserId = await harness.ExecuteDbAsync(db => db.UserAccounts.Where(x => x.Role == UserRole.Admin).Select(x => x.Id).SingleAsync());
+        harness.Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await harness.CreateSessionTokenAsync(adminUserId));
+
+        var firstPageResponse = await harness.Client.GetAsync("/admin/campaign-operations?page=1&pageSize=1&sortBy=highest_spend&attentionOnly=false");
+        firstPageResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var firstPagePayload = await firstPageResponse.Content.ReadFromJsonAsync<AdminCampaignOperationsResponse>();
+        firstPagePayload.Should().NotBeNull();
+        firstPagePayload!.Page.Should().Be(1);
+        firstPagePayload.PageSize.Should().Be(10);
+        firstPagePayload.SortBy.Should().Be("highest_spend");
+        firstPagePayload.AttentionOnly.Should().BeFalse();
+        firstPagePayload.TotalCount.Should().Be(2);
+        firstPagePayload.TotalPages.Should().Be(1);
+        firstPagePayload.HasPreviousPage.Should().BeFalse();
+        firstPagePayload.HasNextPage.Should().BeFalse();
+        firstPagePayload.PerformanceAttentionThresholdPercent.Should().Be(60);
+        firstPagePayload.TotalPausedCount.Should().Be(1);
+        firstPagePayload.TotalScheduledCount.Should().Be(2);
+        firstPagePayload.TotalPerformanceAttentionCount.Should().Be(1);
+        firstPagePayload.Items.Should().HaveCount(2);
+        firstPagePayload.Items[0].CampaignName.Should().Be("Healthy campaign");
+
+        var attentionResponse = await harness.Client.GetAsync("/admin/campaign-operations?page=1&pageSize=10&sortBy=highest_spend&attentionOnly=true");
+        attentionResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var attentionPayload = await attentionResponse.Content.ReadFromJsonAsync<AdminCampaignOperationsResponse>();
+        attentionPayload.Should().NotBeNull();
+        attentionPayload!.AttentionOnly.Should().BeTrue();
+        attentionPayload.TotalCount.Should().Be(1);
+        attentionPayload.TotalPages.Should().Be(1);
+        attentionPayload.HasPreviousPage.Should().BeFalse();
+        attentionPayload.HasNextPage.Should().BeFalse();
+        attentionPayload.Items.Should().ContainSingle();
+        attentionPayload.Items[0].CampaignName.Should().Be("Attention campaign");
+        attentionPayload.Items[0].PerformanceDeliveryPercent.Should().BeLessThan(60);
+    }
+
+    [Fact]
+    public async Task AdminCampaignOperations_DeliveryRiskSort_PrioritizesNoReportAndLowDelivery()
+    {
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var now = DateTime.UtcNow;
+                var clientUser = TestSeed.CreateUser();
+                var adminUser = TestSeed.CreateAdmin();
+                var (scaleBand, scaleOrder, noReportCampaign) = TestSeed.CreateCampaignGraph(clientUser, selectedBudget: 180000m, status: "launched");
+                var (dominanceBand, dominanceOrder, lowDeliveryCampaign) = TestSeed.CreateCampaignGraph(clientUser, selectedBudget: 550000m, status: "launched");
+                var (boostBand, boostOrder, healthyCampaign) = TestSeed.CreateCampaignGraph(clientUser, selectedBudget: 300000m, status: "launched");
+
+                noReportCampaign.CampaignName = "No report campaign";
+                lowDeliveryCampaign.CampaignName = "Low delivery campaign";
+                healthyCampaign.CampaignName = "Healthy campaign";
+
+                var noReportBooking = new CampaignSupplierBooking
+                {
+                    Id = Guid.NewGuid(),
+                    CampaignId = noReportCampaign.Id,
+                    SupplierOrStation = "Station NR",
+                    Channel = "radio",
+                    BookingStatus = "live",
+                    CommittedAmount = 180000m,
+                    LiveFrom = DateOnly.FromDateTime(now.Date.AddDays(-2)),
+                    LiveTo = DateOnly.FromDateTime(now.Date.AddDays(10)),
+                    CreatedAt = now,
+                    UpdatedAt = now
+                };
+                var lowDeliveryBooking = new CampaignSupplierBooking
+                {
+                    Id = Guid.NewGuid(),
+                    CampaignId = lowDeliveryCampaign.Id,
+                    SupplierOrStation = "Station LD",
+                    Channel = "radio",
+                    BookingStatus = "live",
+                    CommittedAmount = 200000m,
+                    LiveFrom = DateOnly.FromDateTime(now.Date.AddDays(-2)),
+                    LiveTo = DateOnly.FromDateTime(now.Date.AddDays(10)),
+                    CreatedAt = now,
+                    UpdatedAt = now
+                };
+                var healthyBooking = new CampaignSupplierBooking
+                {
+                    Id = Guid.NewGuid(),
+                    CampaignId = healthyCampaign.Id,
+                    SupplierOrStation = "Station H",
+                    Channel = "radio",
+                    BookingStatus = "live",
+                    CommittedAmount = 200000m,
+                    LiveFrom = DateOnly.FromDateTime(now.Date.AddDays(-2)),
+                    LiveTo = DateOnly.FromDateTime(now.Date.AddDays(10)),
+                    CreatedAt = now,
+                    UpdatedAt = now
+                };
+
+                var lowDeliveryReport = new CampaignDeliveryReport
+                {
+                    Id = Guid.NewGuid(),
+                    CampaignId = lowDeliveryCampaign.Id,
+                    SupplierBookingId = lowDeliveryBooking.Id,
+                    ReportType = "delivery_update",
+                    Headline = "Low delivery",
+                    ReportedAt = now.AddDays(-1),
+                    Impressions = 15000,
+                    PlaysOrSpots = 30,
+                    SpendDelivered = 40000m,
+                    CreatedAt = now
+                };
+                var healthyReport = new CampaignDeliveryReport
+                {
+                    Id = Guid.NewGuid(),
+                    CampaignId = healthyCampaign.Id,
+                    SupplierBookingId = healthyBooking.Id,
+                    ReportType = "delivery_update",
+                    Headline = "Healthy delivery",
+                    ReportedAt = now.AddDays(-1),
+                    Impressions = 150000,
+                    PlaysOrSpots = 320,
+                    SpendDelivered = 180000m,
+                    CreatedAt = now
+                };
+
+                db.UserAccounts.AddRange(clientUser, adminUser);
+                db.PackageBands.AddRange(scaleBand, dominanceBand, boostBand);
+                db.PackageOrders.AddRange(scaleOrder, dominanceOrder, boostOrder);
+                db.Campaigns.AddRange(noReportCampaign, lowDeliveryCampaign, healthyCampaign);
+                db.CampaignSupplierBookings.AddRange(noReportBooking, lowDeliveryBooking, healthyBooking);
+                db.CampaignDeliveryReports.AddRange(lowDeliveryReport, healthyReport);
+                db.SaveChanges();
+            });
+
+        var adminUserId = await harness.ExecuteDbAsync(db => db.UserAccounts.Where(x => x.Role == UserRole.Admin).Select(x => x.Id).SingleAsync());
+        harness.Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await harness.CreateSessionTokenAsync(adminUserId));
+
+        var riskResponse = await harness.Client.GetAsync("/admin/campaign-operations?page=1&pageSize=25&sortBy=delivery_risk&attentionOnly=false");
+        riskResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var riskPayload = await riskResponse.Content.ReadFromJsonAsync<AdminCampaignOperationsResponse>();
+        riskPayload.Should().NotBeNull();
+        riskPayload!.Items.Should().HaveCount(3);
+        riskPayload.TotalPages.Should().Be(1);
+        riskPayload.HasPreviousPage.Should().BeFalse();
+        riskPayload.HasNextPage.Should().BeFalse();
+        riskPayload.PerformanceAttentionThresholdPercent.Should().Be(60);
+        riskPayload.TotalPerformanceAttentionCount.Should().Be(2);
+        riskPayload.Items[0].CampaignName.Should().Be("No report campaign");
+        riskPayload.Items[1].CampaignName.Should().Be("Low delivery campaign");
+        riskPayload.Items[2].CampaignName.Should().Be("Healthy campaign");
+
+        var attentionOnlyResponse = await harness.Client.GetAsync("/admin/campaign-operations?page=1&pageSize=25&sortBy=delivery_risk&attentionOnly=true");
+        attentionOnlyResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var attentionOnlyPayload = await attentionOnlyResponse.Content.ReadFromJsonAsync<AdminCampaignOperationsResponse>();
+        attentionOnlyPayload.Should().NotBeNull();
+        attentionOnlyPayload!.Items.Should().HaveCount(2);
+        attentionOnlyPayload.TotalPages.Should().Be(1);
+        attentionOnlyPayload.HasPreviousPage.Should().BeFalse();
+        attentionOnlyPayload.HasNextPage.Should().BeFalse();
+        attentionOnlyPayload.Items.Select(x => x.CampaignName).Should().Contain(new[] { "No report campaign", "Low delivery campaign" });
+    }
+
+    [Fact]
+    public async Task AdminCampaignOperations_NormalizesInvalidPagingAndSortInputs()
+    {
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var clientUser = TestSeed.CreateUser();
+                var adminUser = TestSeed.CreateAdmin();
+                var (scaleBand, scaleOrder, firstCampaign) = TestSeed.CreateCampaignGraph(clientUser, selectedBudget: 180000m, status: "launched");
+                var (boostBand, boostOrder, secondCampaign) = TestSeed.CreateCampaignGraph(clientUser, selectedBudget: 280000m, status: "launched");
+
+                firstCampaign.CampaignName = "First campaign";
+                secondCampaign.CampaignName = "Second campaign";
+
+                db.UserAccounts.AddRange(clientUser, adminUser);
+                db.PackageBands.AddRange(scaleBand, boostBand);
+                db.PackageOrders.AddRange(scaleOrder, boostOrder);
+                db.Campaigns.AddRange(firstCampaign, secondCampaign);
+                db.SaveChanges();
+            });
+
+        var adminUserId = await harness.ExecuteDbAsync(db => db.UserAccounts.Where(x => x.Role == UserRole.Admin).Select(x => x.Id).SingleAsync());
+        harness.Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await harness.CreateSessionTokenAsync(adminUserId));
+
+        var response = await harness.Client.GetAsync("/admin/campaign-operations?page=999&pageSize=1000&sortBy=invalid_mode&attentionOnly=false");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var payload = await response.Content.ReadFromJsonAsync<AdminCampaignOperationsResponse>();
+
+        payload.Should().NotBeNull();
+        payload!.Page.Should().Be(1);
+        payload.PageSize.Should().Be(100);
+        payload.TotalCount.Should().Be(2);
+        payload.TotalPages.Should().Be(1);
+        payload.HasPreviousPage.Should().BeFalse();
+        payload.HasNextPage.Should().BeFalse();
+        payload.SortBy.Should().Be("delivery_risk");
+        payload.AttentionOnly.Should().BeFalse();
+        payload.Items.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task AdminCampaignOperations_ReturnsCorrectPagingFlagsAcrossMultiplePages()
+    {
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var clientUser = TestSeed.CreateUser();
+                var adminUser = TestSeed.CreateAdmin();
+                db.UserAccounts.AddRange(clientUser, adminUser);
+
+                for (var index = 0; index < 12; index++)
+                {
+                    var (band, order, campaign) = TestSeed.CreateCampaignGraph(
+                        clientUser,
+                        selectedBudget: 180000m + (index * 1000m),
+                        status: "launched");
+                    campaign.CampaignName = $"Campaign {index + 1:D2}";
+                    db.PackageBands.Add(band);
+                    db.PackageOrders.Add(order);
+                    db.Campaigns.Add(campaign);
+                }
+
+                db.SaveChanges();
+            });
+
+        var adminUserId = await harness.ExecuteDbAsync(db => db.UserAccounts.Where(x => x.Role == UserRole.Admin).Select(x => x.Id).SingleAsync());
+        harness.Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await harness.CreateSessionTokenAsync(adminUserId));
+
+        var firstPageResponse = await harness.Client.GetAsync("/admin/campaign-operations?page=1&pageSize=10&sortBy=campaign_name&attentionOnly=false");
+        firstPageResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var firstPagePayload = await firstPageResponse.Content.ReadFromJsonAsync<AdminCampaignOperationsResponse>();
+        firstPagePayload.Should().NotBeNull();
+        firstPagePayload!.Page.Should().Be(1);
+        firstPagePayload.PageSize.Should().Be(10);
+        firstPagePayload.TotalCount.Should().Be(12);
+        firstPagePayload.TotalPages.Should().Be(2);
+        firstPagePayload.HasPreviousPage.Should().BeFalse();
+        firstPagePayload.HasNextPage.Should().BeTrue();
+        firstPagePayload.Items.Should().HaveCount(10);
+
+        var secondPageResponse = await harness.Client.GetAsync("/admin/campaign-operations?page=2&pageSize=10&sortBy=campaign_name&attentionOnly=false");
+        secondPageResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var secondPagePayload = await secondPageResponse.Content.ReadFromJsonAsync<AdminCampaignOperationsResponse>();
+        secondPagePayload.Should().NotBeNull();
+        secondPagePayload!.Page.Should().Be(2);
+        secondPagePayload.PageSize.Should().Be(10);
+        secondPagePayload.TotalCount.Should().Be(12);
+        secondPagePayload.TotalPages.Should().Be(2);
+        secondPagePayload.HasPreviousPage.Should().BeTrue();
+        secondPagePayload.HasNextPage.Should().BeFalse();
+        secondPagePayload.Items.Should().HaveCount(2);
+    }
+
+    [Fact]
     public async Task AdminPackageOrders_ClientUserIsForbidden()
     {
         await using var harness = await TestApiHarness.CreateAsync(

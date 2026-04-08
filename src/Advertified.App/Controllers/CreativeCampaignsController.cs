@@ -45,7 +45,7 @@ public sealed class CreativeCampaignsController : ControllerBase
 
         var campaigns = await _db.Campaigns
             .AsNoTracking()
-            .Include(x => x.User)
+            .Include(x => x.User!)
             .Include(x => x.AssignedAgentUser)
             .Include(x => x.PackageBand)
             .Include(x => x.PackageOrder)
@@ -61,50 +61,55 @@ public sealed class CreativeCampaignsController : ControllerBase
             .ThenByDescending(x => x.CreatedAt)
             .ToArrayAsync(cancellationToken);
 
-        var items = campaigns.Select(campaign => new AgentInboxItemResponse
+        var items = campaigns.Select(campaign =>
         {
-            Id = campaign.Id,
-            UserId = campaign.UserId,
-            CampaignName = ResolveCampaignLabel(campaign),
-            ClientName = campaign.User.FullName,
-            ClientEmail = campaign.User.Email,
-            PackageBandName = campaign.PackageBand.Name,
-            SelectedBudget = PricingPolicy.ResolvePlanningBudget(
-                campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
-                campaign.PackageOrder.AiStudioReserveAmount),
-            PaymentStatus = campaign.PackageOrder.PaymentStatus,
-            Status = campaign.Status,
-            PlanningMode = campaign.PlanningMode,
-            QueueStage = "creative_queue",
-            QueueLabel = campaign.Status switch
+            var campaignUser = RequireCampaignUser(campaign);
+
+            return new AgentInboxItemResponse
             {
-                CampaignStatuses.CreativeSentToClientForApproval => "Awaiting client approval",
-                CampaignStatuses.BookingInProgress => "Booking in progress",
-                _ => "Creative production"
-            },
-            AssignedAgentUserId = campaign.AssignedAgentUserId,
-            AssignedAgentName = campaign.AssignedAgentUser?.FullName,
-            AssignedAt = campaign.AssignedAt.HasValue ? new DateTimeOffset(campaign.AssignedAt.Value, TimeSpan.Zero) : null,
-            IsAssignedToCurrentUser = false,
-            IsUnassigned = campaign.AssignedAgentUserId is null,
-            NextAction = campaign.Status switch
-            {
-                CampaignStatuses.Approved => "Open the studio and start building the creative system.",
-                CampaignStatuses.CreativeChangesRequested => "Revise the creative pack and prepare a fresh client handoff.",
-                CampaignStatuses.CreativeSentToClientForApproval => "Monitor client sign-off and handle any final revision notes.",
-                CampaignStatuses.CreativeApproved => "Creative is approved. Start supplier booking and launch prep.",
-                CampaignStatuses.BookingInProgress => "Contact suppliers, log bookings, and update the client as launch prep moves forward.",
-                _ => "Review the creative workload."
-            },
-            ManualReviewRequired = false,
-            IsOverBudget = false,
-            IsStale = false,
-            IsUrgent = campaign.Status is CampaignStatuses.Approved or CampaignStatuses.CreativeChangesRequested,
-            AgeInDays = Math.Max(0, (int)Math.Floor((DateTimeOffset.UtcNow - new DateTimeOffset(campaign.UpdatedAt, TimeSpan.Zero)).TotalDays)),
-            HasBrief = campaign.CampaignBrief is not null,
-            HasRecommendation = campaign.CampaignRecommendations.Any(),
-            CreatedAt = new DateTimeOffset(campaign.CreatedAt, TimeSpan.Zero),
-            UpdatedAt = new DateTimeOffset(campaign.UpdatedAt, TimeSpan.Zero)
+                Id = campaign.Id,
+                UserId = campaign.UserId,
+                CampaignName = ResolveCampaignLabel(campaign),
+                ClientName = campaignUser.FullName,
+                ClientEmail = campaignUser.Email,
+                PackageBandName = campaign.PackageBand.Name,
+                SelectedBudget = PricingPolicy.ResolvePlanningBudget(
+                    campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
+                    campaign.PackageOrder.AiStudioReserveAmount),
+                PaymentStatus = campaign.PackageOrder.PaymentStatus,
+                Status = campaign.Status,
+                PlanningMode = campaign.PlanningMode,
+                QueueStage = "creative_queue",
+                QueueLabel = campaign.Status switch
+                {
+                    CampaignStatuses.CreativeSentToClientForApproval => "Awaiting client approval",
+                    CampaignStatuses.BookingInProgress => "Booking in progress",
+                    _ => "Creative production"
+                },
+                AssignedAgentUserId = campaign.AssignedAgentUserId,
+                AssignedAgentName = campaign.AssignedAgentUser?.FullName,
+                AssignedAt = campaign.AssignedAt.HasValue ? new DateTimeOffset(campaign.AssignedAt.Value, TimeSpan.Zero) : null,
+                IsAssignedToCurrentUser = false,
+                IsUnassigned = campaign.AssignedAgentUserId is null,
+                NextAction = campaign.Status switch
+                {
+                    CampaignStatuses.Approved => "Open the studio and start building the creative system.",
+                    CampaignStatuses.CreativeChangesRequested => "Revise the creative pack and prepare a fresh client handoff.",
+                    CampaignStatuses.CreativeSentToClientForApproval => "Monitor client sign-off and handle any final revision notes.",
+                    CampaignStatuses.CreativeApproved => "Creative is approved. Start supplier booking and launch prep.",
+                    CampaignStatuses.BookingInProgress => "Contact suppliers, log bookings, and update the client as launch prep moves forward.",
+                    _ => "Review the creative workload."
+                },
+                ManualReviewRequired = false,
+                IsOverBudget = false,
+                IsStale = false,
+                IsUrgent = campaign.Status is CampaignStatuses.Approved or CampaignStatuses.CreativeChangesRequested,
+                AgeInDays = Math.Max(0, (int)Math.Floor((DateTimeOffset.UtcNow - new DateTimeOffset(campaign.UpdatedAt, TimeSpan.Zero)).TotalDays)),
+                HasBrief = campaign.CampaignBrief is not null,
+                HasRecommendation = campaign.CampaignRecommendations.Any(),
+                CreatedAt = new DateTimeOffset(campaign.CreatedAt, TimeSpan.Zero),
+                UpdatedAt = new DateTimeOffset(campaign.UpdatedAt, TimeSpan.Zero)
+            };
         }).ToArray();
 
         return Ok(new AgentInboxResponse
@@ -135,7 +140,7 @@ public sealed class CreativeCampaignsController : ControllerBase
         var campaign = await _db.Campaigns
             .AsNoTracking()
             .AsSplitQuery()
-            .Include(x => x.User)
+            .Include(x => x.User!)
                 .ThenInclude(x => x.BusinessProfile)
             .Include(x => x.AssignedAgentUser)
             .Include(x => x.PackageBand)
@@ -293,7 +298,7 @@ public sealed class CreativeCampaignsController : ControllerBase
         }
 
         var campaign = await _db.Campaigns
-            .Include(x => x.User)
+            .Include(x => x.User!)
                 .ThenInclude(x => x.BusinessProfile)
             .Include(x => x.PackageBand)
             .Include(x => x.PackageOrder)
@@ -380,5 +385,11 @@ public sealed class CreativeCampaignsController : ControllerBase
         return string.IsNullOrWhiteSpace(campaign.CampaignName)
             ? $"{campaign.PackageBand?.Name ?? "Campaign"} campaign"
             : campaign.CampaignName.Trim();
+    }
+
+    private static UserAccount RequireCampaignUser(Advertified.App.Data.Entities.Campaign campaign)
+    {
+        return campaign.User
+            ?? throw new InvalidOperationException("Campaign is missing its client account.");
     }
 }

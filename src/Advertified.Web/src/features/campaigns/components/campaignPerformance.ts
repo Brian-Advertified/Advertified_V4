@@ -1,4 +1,10 @@
-import type { Campaign, CampaignDeliveryReport, CampaignSupplierBooking } from '../../../types/domain';
+import type {
+  Campaign,
+  CampaignDeliveryReport,
+  CampaignPerformanceSnapshot as DomainCampaignPerformanceSnapshot,
+  CampaignSupplierBooking,
+} from '../../../types/domain';
+import { AD_PLATFORM_SYNC_REPORT_TYPE } from '../constants/performance';
 import { formatChannelLabel, normalizeChannelKey } from '../../channels/channelUtils';
 
 export type CampaignPerformanceMetricKey = 'impressions' | 'playsOrSpots' | 'spendDelivered';
@@ -34,6 +40,24 @@ export interface CampaignPerformanceSnapshot {
   channels: CampaignPerformanceChannelSnapshot[];
   latestReportDate?: string;
   topChannel?: CampaignPerformanceChannelSnapshot;
+}
+
+export interface CampaignPerformanceViewState {
+  snapshot: CampaignPerformanceSnapshot;
+  hasPerformanceView: boolean;
+}
+
+export function hasProjectedPerformanceData(snapshot: DomainCampaignPerformanceSnapshot | undefined) {
+  if (!snapshot) {
+    return false;
+  }
+
+  return snapshot.bookingCount > 0
+    || snapshot.reportCount > 0
+    || snapshot.totalBookedSpend > 0
+    || snapshot.totalDeliveredSpend > 0
+    || snapshot.totalImpressions > 0
+    || snapshot.totalPlaysOrSpots > 0;
 }
 
 export function hasCampaignPerformanceData(campaign: Campaign) {
@@ -94,7 +118,7 @@ function resolveActivityLabel(
   report: CampaignDeliveryReport | undefined,
   booking: CampaignSupplierBooking | undefined)
 {
-  if (report?.reportType === 'ad_platform_sync') {
+  if (report?.reportType === AD_PLATFORM_SYNC_REPORT_TYPE) {
     return 'Clicks';
   }
 
@@ -171,7 +195,7 @@ export function buildCampaignPerformanceSnapshot(campaign: Campaign): CampaignPe
     totalDeliveredSpend += report.spendDelivered ?? 0;
     totalImpressions += report.impressions ?? 0;
     totalPlaysOrSpots += report.playsOrSpots ?? 0;
-    if (report.reportType === 'ad_platform_sync') {
+    if (report.reportType === AD_PLATFORM_SYNC_REPORT_TYPE) {
       totalSyncedClicks += report.playsOrSpots ?? 0;
     }
 
@@ -247,5 +271,82 @@ export function buildCampaignPerformanceSnapshot(campaign: Campaign): CampaignPe
       .sort()
       .at(-1),
     topChannel: channelSnapshots[0],
+  };
+}
+
+export function buildCampaignPerformanceSnapshotFromProjection(
+  snapshot: DomainCampaignPerformanceSnapshot): CampaignPerformanceSnapshot
+{
+  const primaryMetric = resolvePrimaryMetric(snapshot.totalImpressions, snapshot.totalPlaysOrSpots);
+
+  const timeline = [...snapshot.timeline]
+    .sort((left, right) => Date.parse(left.date) - Date.parse(right.date))
+    .slice(-8)
+    .map((point) => ({
+      date: point.date,
+      value: primaryMetric === 'impressions'
+        ? point.impressions
+        : primaryMetric === 'playsOrSpots'
+          ? point.playsOrSpots
+          : point.spendDelivered,
+    }));
+
+  const channels = snapshot.channels
+    .map((channel): CampaignPerformanceChannelSnapshot => {
+      const status: CampaignPerformanceChannelSnapshot['status'] =
+        channel.reportCount > 0 && (channel.deliveredSpend > 0 || channel.impressions > 0 || channel.playsOrSpots > 0)
+          ? 'on_track'
+          : channel.reportCount > 0
+            ? 'live'
+            : channel.bookedSpend > 0
+              ? 'booked'
+              : 'no_data';
+
+      return {
+        channel: channel.channel,
+        label: channel.label,
+        bookedSpend: channel.bookedSpend,
+        deliveredSpend: channel.deliveredSpend,
+        impressions: channel.impressions,
+        playsOrSpots: channel.playsOrSpots,
+        activityLabel: channel.syncedClicks > 0 ? 'Clicks' : 'Plays / spots',
+        reportCount: channel.reportCount,
+        status,
+      };
+    })
+    .sort((left, right) => {
+      const rightStrength = right.deliveredSpend + right.bookedSpend + right.impressions + right.playsOrSpots;
+      const leftStrength = left.deliveredSpend + left.bookedSpend + left.impressions + left.playsOrSpots;
+      return rightStrength - leftStrength;
+    });
+
+  return {
+    totalBookedSpend: snapshot.totalBookedSpend,
+    totalDeliveredSpend: snapshot.totalDeliveredSpend,
+    totalImpressions: snapshot.totalImpressions,
+    totalPlaysOrSpots: snapshot.totalPlaysOrSpots,
+    totalSyncedClicks: snapshot.totalSyncedClicks,
+    reportCount: snapshot.reportCount,
+    bookingCount: snapshot.bookingCount,
+    spendDeliveryPercent: snapshot.spendDeliveryPercent,
+    primaryMetric,
+    timeline,
+    channels,
+    latestReportDate: snapshot.latestReportDate,
+    topChannel: channels[0],
+  };
+}
+
+export function resolveCampaignPerformanceViewState(
+  campaign: Campaign,
+  projection?: DomainCampaignPerformanceSnapshot): CampaignPerformanceViewState
+{
+  const projectedSnapshot = projection
+    ? buildCampaignPerformanceSnapshotFromProjection(projection)
+    : undefined;
+
+  return {
+    snapshot: projectedSnapshot ?? buildCampaignPerformanceSnapshot(campaign),
+    hasPerformanceView: hasProjectedPerformanceData(projection) || hasCampaignPerformanceData(campaign),
   };
 }

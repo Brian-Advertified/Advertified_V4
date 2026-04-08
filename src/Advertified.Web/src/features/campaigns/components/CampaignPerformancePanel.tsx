@@ -1,6 +1,6 @@
 import type { Campaign } from '../../../types/domain';
 import { formatCompactBudget, formatCurrency, formatDate } from '../../../lib/utils';
-import { buildCampaignPerformanceSnapshot, type CampaignPerformanceMetricKey } from './campaignPerformance';
+import { buildCampaignPerformanceSnapshot, type CampaignPerformanceMetricKey, type CampaignPerformanceSnapshot } from './campaignPerformance';
 
 function formatMetricLabel(metric: CampaignPerformanceMetricKey) {
   if (metric === 'impressions') {
@@ -48,22 +48,24 @@ function getBarWidth(value: number, maxValue: number) {
 
 export function CampaignPerformancePanel({
   campaign,
+  snapshot,
   title = 'Performance',
   subtitle = 'Live campaign delivery across channels.',
 }: {
   campaign: Campaign;
+  snapshot?: CampaignPerformanceSnapshot;
   title?: string;
   subtitle?: string;
 }) {
-  const snapshot = buildCampaignPerformanceSnapshot(campaign);
+  const view = snapshot ?? buildCampaignPerformanceSnapshot(campaign);
 
-  if (snapshot.bookingCount === 0 && snapshot.reportCount === 0) {
+  if (view.bookingCount === 0 && view.reportCount === 0) {
     return null;
   }
 
-  const timelinePeak = Math.max(...snapshot.timeline.map((item) => item.value), 0);
-  const channelPeak = Math.max(...snapshot.channels.map((item) => Math.max(item.deliveredSpend, item.bookedSpend, item.impressions, item.playsOrSpots)), 0);
-  const primaryMetricLabel = formatMetricLabel(snapshot.primaryMetric);
+  const timelinePeak = Math.max(...view.timeline.map((item) => item.value), 0);
+  const channelPeak = Math.max(...view.channels.map((item) => Math.max(item.deliveredSpend, item.bookedSpend, item.impressions, item.playsOrSpots)), 0);
+  const primaryMetricLabel = formatMetricLabel(view.primaryMetric);
 
   return (
     <section className="rounded-[30px] border border-line bg-white p-7 shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
@@ -74,25 +76,25 @@ export function CampaignPerformancePanel({
           <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <div className="rounded-[18px] border border-line bg-slate-50/80 px-4 py-4">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Booked</p>
-              <p className="mt-2 text-2xl font-semibold text-ink">{formatCurrency(snapshot.totalBookedSpend)}</p>
+              <p className="mt-2 text-2xl font-semibold text-ink">{formatCurrency(view.totalBookedSpend)}</p>
             </div>
             <div className="rounded-[18px] border border-line bg-slate-50/80 px-4 py-4">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Delivered</p>
-              <p className="mt-2 text-2xl font-semibold text-ink">{formatCurrency(snapshot.totalDeliveredSpend)}</p>
+              <p className="mt-2 text-2xl font-semibold text-ink">{formatCurrency(view.totalDeliveredSpend)}</p>
             </div>
             <div className="rounded-[18px] border border-line bg-slate-50/80 px-4 py-4">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Impressions</p>
-              <p className="mt-2 text-2xl font-semibold text-ink">{formatCompactBudget(snapshot.totalImpressions)}</p>
+              <p className="mt-2 text-2xl font-semibold text-ink">{formatCompactBudget(view.totalImpressions)}</p>
             </div>
-            {snapshot.totalSyncedClicks > 0 ? (
+            {view.totalSyncedClicks > 0 ? (
               <div className="rounded-[18px] border border-line bg-slate-50/80 px-4 py-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Clicks</p>
-                <p className="mt-2 text-2xl font-semibold text-ink">{formatCompactBudget(snapshot.totalSyncedClicks)}</p>
+                <p className="mt-2 text-2xl font-semibold text-ink">{formatCompactBudget(view.totalSyncedClicks)}</p>
               </div>
             ) : null}
             <div className="rounded-[18px] border border-line bg-slate-50/80 px-4 py-4">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Delivery</p>
-              <p className="mt-2 text-2xl font-semibold text-ink">{snapshot.spendDeliveryPercent}%</p>
+              <p className="mt-2 text-2xl font-semibold text-ink">{view.spendDeliveryPercent}%</p>
             </div>
           </div>
         </div>
@@ -100,8 +102,8 @@ export function CampaignPerformancePanel({
         <div className="rounded-[20px] border border-brand/15 bg-brand-soft/30 px-5 py-4 text-sm text-ink">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand">Live reporting</p>
           <div className="mt-2 flex flex-wrap gap-2">
-            <span className="user-pill">{snapshot.reportCount} updates</span>
-            <span className="user-pill">{snapshot.bookingCount} bookings</span>
+            <span className="user-pill">{view.reportCount} updates</span>
+            <span className="user-pill">{view.bookingCount} bookings</span>
             <span className="user-pill">{primaryMetricLabel}</span>
           </div>
         </div>
@@ -113,9 +115,9 @@ export function CampaignPerformancePanel({
             <p className="text-sm font-semibold text-ink">Trend</p>
             <span className="text-xs font-semibold uppercase tracking-[0.14em] text-ink-soft">{primaryMetricLabel}</span>
           </div>
-          {snapshot.timeline.length > 0 ? (
+          {view.timeline.length > 0 ? (
             <div className="grid grid-cols-6 items-end gap-3">
-              {snapshot.timeline.map((point, index) => (
+              {view.timeline.map((point, index) => (
                 <div key={`${point.date}-${index}`} className="flex flex-col items-center gap-2">
                   <div className="flex h-40 w-full items-end rounded-[16px] bg-white px-2 py-2">
                     <div
@@ -124,7 +126,7 @@ export function CampaignPerformancePanel({
                     />
                   </div>
                   <div className="text-center">
-                    <div className="text-xs font-semibold text-ink">{formatMetricValue(snapshot.primaryMetric, point.value)}</div>
+                    <div className="text-xs font-semibold text-ink">{formatMetricValue(view.primaryMetric, point.value)}</div>
                     <div className="text-[11px] text-ink-soft">
                       {point.date ? formatDate(point.date) : `Update ${index + 1}`}
                     </div>
@@ -144,9 +146,9 @@ export function CampaignPerformancePanel({
             <p className="text-sm font-semibold text-ink">Channel split</p>
             <span className="text-xs font-semibold uppercase tracking-[0.14em] text-ink-soft">Live vs booked</span>
           </div>
-          {snapshot.channels.length > 0 ? (
+          {view.channels.length > 0 ? (
             <div className="space-y-4">
-              {snapshot.channels.map((channel) => (
+              {view.channels.map((channel) => (
                 <div key={channel.channel} className="rounded-[16px] border border-line bg-white px-4 py-4">
                   <div className="mb-3 flex items-start justify-between gap-3">
                     <div>

@@ -20,12 +20,13 @@ public sealed class DbMediaPlanningIntegrationService : IMediaPlanningIntegratio
     {
         var campaign = await _db.Campaigns
             .AsNoTracking()
-            .Include(item => item.User)
+            .Include(item => item.User!)
                 .ThenInclude(item => item.BusinessProfile)
             .Include(item => item.PackageOrder)
             .Include(item => item.CampaignBrief)
             .FirstOrDefaultAsync(item => item.Id == campaignId, cancellationToken)
             ?? throw new InvalidOperationException("Campaign not found.");
+        var campaignUser = RequireCampaignUser(campaign);
 
         var preferredMedia = campaign.CampaignBrief?.GetList(nameof(Data.Entities.CampaignBrief.PreferredMediaTypesJson))
             ?? new List<string>();
@@ -35,10 +36,10 @@ public sealed class DbMediaPlanningIntegrationService : IMediaPlanningIntegratio
 
         return new MediaPlanningContext(
             CampaignId: campaignId,
-            BusinessName: campaign.User.BusinessProfile?.BusinessName ?? campaign.User.FullName,
-            Industry: campaign.User.BusinessProfile?.Industry ?? "General",
-            Location: campaign.User.BusinessProfile?.City
-                ?? campaign.User.BusinessProfile?.Province
+            BusinessName: campaignUser.BusinessProfile?.BusinessName ?? campaignUser.FullName,
+            Industry: campaignUser.BusinessProfile?.Industry ?? "General",
+            Location: campaignUser.BusinessProfile?.City
+                ?? campaignUser.BusinessProfile?.Province
                 ?? "South Africa",
             Objective: campaign.CampaignBrief?.Objective ?? "Awareness",
             Budget: campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
@@ -61,6 +62,12 @@ public sealed class DbMediaPlanningIntegrationService : IMediaPlanningIntegratio
             "newspaper" => AdvertisingChannel.Newspaper,
             _ => null
         };
+    }
+
+    private static Data.Entities.UserAccount RequireCampaignUser(Data.Entities.Campaign campaign)
+    {
+        return campaign.User
+            ?? throw new InvalidOperationException("Campaign is missing its client account.");
     }
 }
 

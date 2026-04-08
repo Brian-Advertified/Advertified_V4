@@ -458,12 +458,12 @@ public class AdMetricsProjectionTests
             && item.SupplierOrStation == "Meta Ads");
 
         booking.BookingStatus.Should().Be("live");
-        booking.Notes.Should().Be("System-managed ad platform performance sync.");
+        booking.Notes.Should().Be(CampaignPerformanceConstants.SyncedBookingNotes);
 
         var report = await db.CampaignDeliveryReports.SingleAsync(item =>
             item.CampaignId == campaign.Id
             && item.SupplierBookingId == booking.Id
-            && item.ReportType == "ad_platform_sync");
+            && item.ReportType == CampaignPerformanceConstants.SyncedReportType);
 
         report.Headline.Should().Be("Meta Ads performance");
         report.Impressions.Should().BeGreaterThan(0);
@@ -757,7 +757,7 @@ public class CampaignPerformanceProjectionServiceTests
             BookingStatus = "live",
             CommittedAmount = 0m,
             BookedAt = DateTime.UtcNow,
-            Notes = "System-managed ad platform performance sync.",
+            Notes = CampaignPerformanceConstants.SyncedBookingNotes,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         });
@@ -786,13 +786,212 @@ public class CampaignPerformanceProjectionServiceTests
         await db.SaveChangesAsync();
 
         var reports = await db.CampaignDeliveryReports
-            .Where(item => item.CampaignId == campaignId && item.ReportType == "ad_platform_sync")
+            .Where(item => item.CampaignId == campaignId && item.ReportType == CampaignPerformanceConstants.SyncedReportType)
             .OrderBy(item => item.ReportedAt)
             .ToArrayAsync();
 
         reports.Should().HaveCount(2);
         reports[0].Summary.Should().Contain("Clicks 42");
         reports[1].Summary.Should().Contain("Clicks 63");
+    }
+
+    [Fact]
+    public async Task UpsertAdPlatformMetricsAsync_UpdatesExistingSameDayReport()
+    {
+        await using var db = BuildDbContext();
+        var campaignId = Guid.NewGuid();
+        var bookingId = Guid.NewGuid();
+
+        db.Campaigns.Add(new Campaign
+        {
+            Id = campaignId,
+            PackageOrderId = Guid.NewGuid(),
+            PackageBandId = Guid.NewGuid(),
+            CampaignName = "Projection Same Day Update",
+            Status = "launched",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+
+        db.CampaignSupplierBookings.Add(new CampaignSupplierBooking
+        {
+            Id = bookingId,
+            CampaignId = campaignId,
+            SupplierOrStation = "Meta Ads",
+            Channel = "digital",
+            BookingStatus = "live",
+            CommittedAmount = 0m,
+            BookedAt = DateTime.UtcNow,
+            Notes = CampaignPerformanceConstants.SyncedBookingNotes,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
+
+        var service = new CampaignPerformanceProjectionService(db);
+        var recordedAtMorning = new DateTime(2026, 4, 8, 9, 0, 0, DateTimeKind.Utc);
+        var recordedAtEvening = new DateTime(2026, 4, 8, 18, 0, 0, DateTimeKind.Utc);
+
+        await service.UpsertAdPlatformMetricsAsync(
+            campaignId,
+            "meta",
+            new ExternalAdMetrics(1200, 42, 6, 105m),
+            recordedAtMorning,
+            null,
+            CancellationToken.None);
+        await db.SaveChangesAsync();
+
+        await service.UpsertAdPlatformMetricsAsync(
+            campaignId,
+            "meta",
+            new ExternalAdMetrics(2400, 88, 12, 210m),
+            recordedAtEvening,
+            null,
+            CancellationToken.None);
+        await db.SaveChangesAsync();
+
+        var reports = await db.CampaignDeliveryReports
+            .Where(item => item.CampaignId == campaignId && item.ReportType == CampaignPerformanceConstants.SyncedReportType)
+            .OrderBy(item => item.ReportedAt)
+            .ToArrayAsync();
+
+        reports.Should().ContainSingle();
+        reports[0].Impressions.Should().Be(2400);
+        reports[0].PlaysOrSpots.Should().Be(88);
+        reports[0].SpendDelivered.Should().Be(210m);
+        reports[0].ReportedAt.Should().Be(recordedAtEvening);
+    }
+
+    [Fact]
+    public async Task UpsertAdPlatformMetricsAsync_CreatesBookingWithSupplierLabelWhenMissing()
+    {
+        await using var db = BuildDbContext();
+        var campaignId = Guid.NewGuid();
+        db.Campaigns.Add(new Campaign
+        {
+            Id = campaignId,
+            PackageOrderId = Guid.NewGuid(),
+            PackageBandId = Guid.NewGuid(),
+            CampaignName = "Projection Supplier Label",
+            Status = "launched",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
+
+        var service = new CampaignPerformanceProjectionService(db);
+        var recordedAt = new DateTime(2026, 4, 8, 10, 0, 0, DateTimeKind.Utc);
+
+        await service.UpsertAdPlatformMetricsAsync(
+            campaignId,
+            "meta",
+            new ExternalAdMetrics(800, 21, 4, 80m),
+            recordedAt,
+            "Meta Business Account 01",
+            CancellationToken.None);
+        await db.SaveChangesAsync();
+
+        var booking = await db.CampaignSupplierBookings
+            .SingleAsync(item => item.CampaignId == campaignId);
+        var report = await db.CampaignDeliveryReports
+            .SingleAsync(item => item.CampaignId == campaignId && item.ReportType == CampaignPerformanceConstants.SyncedReportType);
+
+        booking.SupplierOrStation.Should().Be("Meta Business Account 01");
+        booking.Channel.Should().Be("digital");
+        booking.Notes.Should().Be(CampaignPerformanceConstants.SyncedBookingNotes);
+        report.SupplierBookingId.Should().Be(booking.Id);
+    }
+
+    [Fact]
+    public async Task UpsertAdPlatformMetricsAsync_NormalizesNegativeMetricsToZero()
+    {
+        await using var db = BuildDbContext();
+        var campaignId = Guid.NewGuid();
+        db.Campaigns.Add(new Campaign
+        {
+            Id = campaignId,
+            PackageOrderId = Guid.NewGuid(),
+            PackageBandId = Guid.NewGuid(),
+            CampaignName = "Projection Negative Metrics",
+            Status = "launched",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
+
+        var service = new CampaignPerformanceProjectionService(db);
+        var recordedAt = new DateTime(2026, 4, 8, 10, 0, 0, DateTimeKind.Utc);
+
+        await service.UpsertAdPlatformMetricsAsync(
+            campaignId,
+            "meta",
+            new ExternalAdMetrics(-50, -7, -2, -99m),
+            recordedAt,
+            null,
+            CancellationToken.None);
+        await db.SaveChangesAsync();
+
+        var booking = await db.CampaignSupplierBookings.SingleAsync(item => item.CampaignId == campaignId);
+        var report = await db.CampaignDeliveryReports.SingleAsync(item => item.CampaignId == campaignId && item.ReportType == CampaignPerformanceConstants.SyncedReportType);
+
+        booking.BookingStatus.Should().Be("booked");
+        report.Impressions.Should().Be(0);
+        report.PlaysOrSpots.Should().Be(0);
+        report.SpendDelivered.Should().Be(0m);
+        report.Summary.Should().Contain("Clicks 0");
+        report.Summary.Should().Contain("Conversions 0");
+        report.Summary.Should().Contain("Spend 0.00");
+    }
+
+    [Fact]
+    public async Task UpsertAdPlatformMetricsAsync_NormalizesLocalRecordedAtToUtcDayWindow()
+    {
+        await using var db = BuildDbContext();
+        var campaignId = Guid.NewGuid();
+        db.Campaigns.Add(new Campaign
+        {
+            Id = campaignId,
+            PackageOrderId = Guid.NewGuid(),
+            PackageBandId = Guid.NewGuid(),
+            CampaignName = "Projection Local Time",
+            Status = "launched",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
+
+        var service = new CampaignPerformanceProjectionService(db);
+        var localMorning = new DateTime(2026, 4, 8, 8, 0, 0, DateTimeKind.Local);
+        var localEvening = new DateTime(2026, 4, 8, 18, 0, 0, DateTimeKind.Local);
+
+        await service.UpsertAdPlatformMetricsAsync(
+            campaignId,
+            "meta",
+            new ExternalAdMetrics(1000, 35, 5, 120m),
+            localMorning,
+            null,
+            CancellationToken.None);
+        await db.SaveChangesAsync();
+
+        await service.UpsertAdPlatformMetricsAsync(
+            campaignId,
+            "meta",
+            new ExternalAdMetrics(1800, 60, 8, 180m),
+            localEvening,
+            null,
+            CancellationToken.None);
+        await db.SaveChangesAsync();
+
+        var reports = await db.CampaignDeliveryReports
+            .Where(item => item.CampaignId == campaignId && item.ReportType == CampaignPerformanceConstants.SyncedReportType)
+            .ToArrayAsync();
+
+        reports.Should().ContainSingle();
+        reports[0].Impressions.Should().Be(1800);
+        reports[0].PlaysOrSpots.Should().Be(60);
+        reports[0].SpendDelivered.Should().Be(180m);
+        reports[0].ReportedAt.Should().NotBeNull();
+        reports[0].ReportedAt!.Value.Kind.Should().Be(DateTimeKind.Utc);
     }
 
     private static AppDbContext BuildDbContext()

@@ -1,6 +1,7 @@
 using System.Globalization;
 using Advertified.App.Configuration;
 using Advertified.App.Contracts.Admin;
+using Advertified.App.Contracts.Campaigns;
 using Advertified.App.Data;
 using Advertified.App.Data.Entities;
 using Advertified.App.Data.Enums;
@@ -18,6 +19,7 @@ namespace Advertified.App.Controllers;
 [Authorize(Roles = "Admin")]
 public sealed class AdminCampaignOperationsController : ControllerBase
 {
+    private const int PerformanceAttentionThresholdPercent = 60;
     private readonly AppDbContext _db;
     private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly IChangeAuditService _changeAuditService;
@@ -42,7 +44,12 @@ public sealed class AdminCampaignOperationsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<AdminCampaignOperationsResponse>> Get(CancellationToken cancellationToken)
+    public async Task<ActionResult<AdminCampaignOperationsResponse>> Get(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25,
+        [FromQuery] string sortBy = "delivery_risk",
+        [FromQuery] bool attentionOnly = false,
+        CancellationToken cancellationToken = default)
     {
         var gateResult = await EnsureAdminAsync(cancellationToken);
         if (gateResult is not null)
@@ -61,8 +68,8 @@ public sealed class AdminCampaignOperationsController : ControllerBase
                 PackageOrderId = campaign.PackageOrderId,
                 CampaignName = campaign.CampaignName,
                 CampaignStatus = campaign.Status,
-                ClientName = campaign.User.FullName,
-                ClientEmail = campaign.User.Email,
+                ClientName = campaign.User != null ? campaign.User.FullName : string.Empty,
+                ClientEmail = campaign.User != null ? campaign.User.Email : string.Empty,
                 PackageBandName = campaign.PackageBand.Name,
                 SelectedBudget = campaign.PackageOrder.SelectedBudget,
                 ChargedTotal = campaign.PackageOrder.Amount,
@@ -80,13 +87,59 @@ public sealed class AdminCampaignOperationsController : ControllerBase
                 BriefDurationWeeks = campaign.CampaignBrief != null ? campaign.CampaignBrief.DurationWeeks : null,
                 BookedStartDate = campaign.CampaignSupplierBookings.Where(booking => booking.LiveFrom.HasValue).Min(booking => booking.LiveFrom),
                 BookedEndDate = campaign.CampaignSupplierBookings.Where(booking => booking.LiveTo.HasValue).Max(booking => booking.LiveTo),
-                PausedDaysFromWindows = campaign.CampaignPauseWindows.Sum(window => window.PausedDayCount)
+                PausedDaysFromWindows = campaign.CampaignPauseWindows.Sum(window => window.PausedDayCount),
+                PerformanceBookedSpend = campaign.CampaignSupplierBookings.Sum(booking => (decimal?)booking.CommittedAmount) ?? 0m,
+                PerformanceDeliveredSpend = campaign.CampaignDeliveryReports.Sum(report => (decimal?)report.SpendDelivered) ?? 0m,
+                PerformanceImpressions = campaign.CampaignDeliveryReports.Sum(report => (long?)report.Impressions) ?? 0L,
+                PerformancePlaysOrSpots = campaign.CampaignDeliveryReports.Sum(report => (int?)report.PlaysOrSpots) ?? 0,
+                PerformanceSyncedClicks = campaign.CampaignDeliveryReports
+                    .Where(report => report.ReportType == CampaignPerformanceConstants.SyncedReportType)
+                    .Sum(report => (int?)report.PlaysOrSpots) ?? 0,
+                PerformanceLatestReportDate = campaign.CampaignDeliveryReports
+                    .Where(report => report.ReportedAt.HasValue)
+                    .Max(report => (DateTime?)report.ReportedAt)
             })
             .ToArrayAsync(cancellationToken);
 
+        var normalizedPage = Math.Max(1, page);
+        var normalizedPageSize = Math.Clamp(pageSize, 10, 100);
+        var normalizedSort = NormalizeQueueSort(sortBy);
+        var mappedItems = campaigns
+            .Select(campaign => MapOperationsItem(campaign, today))
+            .ToArray();
+        var totalPausedCount = mappedItems.Count(item => item.IsPaused);
+        var totalRefundAttentionCount = mappedItems.Count(item =>
+            item.CanProcessRefund && string.Equals(item.RefundPolicyStage, "post_delivery_or_live", StringComparison.OrdinalIgnoreCase));
+        var totalScheduledCount = mappedItems.Count(item => item.DaysLeft.HasValue);
+        var totalPerformanceAttentionCount = mappedItems.Count(NeedsPerformanceAttention);
+        var filteredItems = attentionOnly
+            ? mappedItems.Where(NeedsPerformanceAttention).ToArray()
+            : mappedItems;
+        var sortedItems = SortQueueItems(filteredItems, normalizedSort).ToArray();
+        var totalCount = sortedItems.Length;
+        var totalPages = totalCount == 0 ? 1 : (int)Math.Ceiling(totalCount / (double)normalizedPageSize);
+        var effectivePage = Math.Min(normalizedPage, totalPages);
+        var pagedItems = sortedItems
+            .Skip((effectivePage - 1) * normalizedPageSize)
+            .Take(normalizedPageSize)
+            .ToArray();
+
         return Ok(new AdminCampaignOperationsResponse
         {
-            Items = campaigns.Select(campaign => MapOperationsItem(campaign, today)).ToArray()
+            Items = pagedItems,
+            Page = effectivePage,
+            PageSize = normalizedPageSize,
+            TotalCount = totalCount,
+            TotalPages = totalPages,
+            HasPreviousPage = effectivePage > 1,
+            HasNextPage = effectivePage < totalPages,
+            SortBy = normalizedSort,
+            AttentionOnly = attentionOnly,
+            PerformanceAttentionThresholdPercent = PerformanceAttentionThresholdPercent,
+            TotalPausedCount = totalPausedCount,
+            TotalRefundAttentionCount = totalRefundAttentionCount,
+            TotalScheduledCount = totalScheduledCount,
+            TotalPerformanceAttentionCount = totalPerformanceAttentionCount
         });
     }
 
@@ -292,6 +345,34 @@ public sealed class AdminCampaignOperationsController : ControllerBase
         return Ok(MapOperationsItem(campaign, DateOnly.FromDateTime(now)));
     }
 
+    [HttpGet("{campaignId:guid}/performance")]
+    public async Task<ActionResult<CampaignPerformanceSnapshotResponse>> GetPerformance(Guid campaignId, CancellationToken cancellationToken)
+    {
+        var gateResult = await EnsureAdminAsync(cancellationToken);
+        if (gateResult is not null)
+        {
+            return gateResult;
+        }
+
+        var campaign = await _db.Campaigns
+            .AsNoTracking()
+            .AsSplitQuery()
+            .Include(x => x.CampaignSupplierBookings)
+            .Include(x => x.CampaignDeliveryReports)
+            .FirstOrDefaultAsync(x => x.Id == campaignId, cancellationToken);
+
+        if (campaign is null)
+        {
+            return NotFound(new ProblemDetails
+            {
+                Title = "Campaign not found.",
+                Status = StatusCodes.Status404NotFound
+            });
+        }
+
+        return Ok(campaign.ToPerformanceSnapshot());
+    }
+
     private AdminCampaignOperationsItemResponse MapOperationsItem(AdminCampaignOperationsListRow campaign, DateOnly today)
     {
         var refundSnapshot = CampaignOperationsPolicy.BuildRefundSnapshot(
@@ -345,12 +426,22 @@ public sealed class AdminCampaignOperationsController : ControllerBase
             DaysLeft = scheduleSnapshot.DaysLeft,
             CanPause = !campaign.PausedAt.HasValue && !string.Equals(campaign.RefundStatus, "refunded", StringComparison.OrdinalIgnoreCase),
             CanUnpause = campaign.PausedAt.HasValue,
-            CanProcessRefund = string.Equals(campaign.PaymentStatus, "paid", StringComparison.OrdinalIgnoreCase) && refundSnapshot.MaxManualRefundAmount > 0m
+            CanProcessRefund = string.Equals(campaign.PaymentStatus, "paid", StringComparison.OrdinalIgnoreCase) && refundSnapshot.MaxManualRefundAmount > 0m,
+            PerformanceBookedSpend = campaign.PerformanceBookedSpend,
+            PerformanceDeliveredSpend = campaign.PerformanceDeliveredSpend,
+            PerformanceDeliveryPercent = ToDeliveryPercent(campaign.PerformanceBookedSpend, campaign.PerformanceDeliveredSpend),
+            PerformanceImpressions = campaign.PerformanceImpressions,
+            PerformancePlaysOrSpots = campaign.PerformancePlaysOrSpots,
+            PerformanceSyncedClicks = campaign.PerformanceSyncedClicks,
+            PerformanceLatestReportDate = campaign.PerformanceLatestReportDate.HasValue
+                ? DateOnly.FromDateTime(campaign.PerformanceLatestReportDate.Value)
+                : null
         };
     }
 
     private AdminCampaignOperationsItemResponse MapOperationsItem(Campaign campaign, DateOnly today)
     {
+        var campaignUser = RequireCampaignUser(campaign);
         var refundSnapshot = CampaignOperationsPolicy.BuildRefundSnapshot(campaign);
         var scheduleSnapshot = CampaignOperationsPolicy.BuildScheduleSnapshot(campaign, today);
         var campaignName = ResolveCampaignName(campaign);
@@ -361,8 +452,8 @@ public sealed class AdminCampaignOperationsController : ControllerBase
             PackageOrderId = campaign.PackageOrderId,
             CampaignName = campaignName,
             CampaignStatus = campaign.Status,
-            ClientName = campaign.User.FullName,
-            ClientEmail = campaign.User.Email,
+            ClientName = campaignUser.FullName,
+            ClientEmail = campaignUser.Email,
             PackageBandName = campaign.PackageBand.Name,
             SelectedBudget = PricingPolicy.ResolvePlanningBudget(
                 campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
@@ -390,18 +481,34 @@ public sealed class AdminCampaignOperationsController : ControllerBase
             DaysLeft = scheduleSnapshot.DaysLeft,
             CanPause = !campaign.PausedAt.HasValue && !string.Equals(campaign.PackageOrder.RefundStatus, "refunded", StringComparison.OrdinalIgnoreCase),
             CanUnpause = campaign.PausedAt.HasValue,
-            CanProcessRefund = string.Equals(campaign.PackageOrder.PaymentStatus, "paid", StringComparison.OrdinalIgnoreCase) && refundSnapshot.MaxManualRefundAmount > 0m
+            CanProcessRefund = string.Equals(campaign.PackageOrder.PaymentStatus, "paid", StringComparison.OrdinalIgnoreCase) && refundSnapshot.MaxManualRefundAmount > 0m,
+            PerformanceBookedSpend = campaign.CampaignSupplierBookings.Sum(item => item.CommittedAmount),
+            PerformanceDeliveredSpend = campaign.CampaignDeliveryReports.Sum(item => item.SpendDelivered ?? 0m),
+            PerformanceDeliveryPercent = ToDeliveryPercent(
+                campaign.CampaignSupplierBookings.Sum(item => item.CommittedAmount),
+                campaign.CampaignDeliveryReports.Sum(item => item.SpendDelivered ?? 0m)),
+            PerformanceImpressions = campaign.CampaignDeliveryReports.Sum(item => item.Impressions ?? 0),
+            PerformancePlaysOrSpots = campaign.CampaignDeliveryReports.Sum(item => item.PlaysOrSpots ?? 0),
+            PerformanceSyncedClicks = campaign.CampaignDeliveryReports
+                .Where(item => string.Equals(item.ReportType, CampaignPerformanceConstants.SyncedReportType, StringComparison.OrdinalIgnoreCase))
+                .Sum(item => item.PlaysOrSpots ?? 0),
+            PerformanceLatestReportDate = campaign.CampaignDeliveryReports
+                .Where(item => item.ReportedAt.HasValue)
+                .Select(item => DateOnly.FromDateTime(item.ReportedAt!.Value))
+                .OrderBy(item => item)
+                .LastOrDefault()
         };
     }
 
     private async Task<Campaign?> LoadCampaignAsync(Guid campaignId, CancellationToken cancellationToken)
     {
         return await _db.Campaigns
-            .Include(x => x.User)
+            .Include(x => x.User!)
             .Include(x => x.PackageBand)
             .Include(x => x.PackageOrder)
             .Include(x => x.CampaignBrief)
             .Include(x => x.CampaignSupplierBookings)
+            .Include(x => x.CampaignDeliveryReports)
             .Include(x => x.CampaignPauseWindows)
             .FirstOrDefaultAsync(x => x.Id == campaignId, cancellationToken);
     }
@@ -447,15 +554,16 @@ public sealed class AdminCampaignOperationsController : ControllerBase
 
     private async Task SendRefundProcessedEmailAsync(Campaign campaign, decimal refundAmount, CampaignOperationsPolicy.RefundPolicySnapshot snapshot, CancellationToken cancellationToken)
     {
+        var campaignUser = RequireCampaignUser(campaign);
         try
         {
             await _emailService.SendAsync(
                 "refund-processed",
-                campaign.User.Email,
+                campaignUser.Email,
                 "campaigns",
                 new Dictionary<string, string?>
                 {
-                    ["ClientName"] = campaign.User.FullName,
+                    ["ClientName"] = campaignUser.FullName,
                     ["CampaignName"] = ResolveCampaignName(campaign),
                     ["PackageName"] = campaign.PackageBand.Name,
                     ["RefundAmount"] = FormatCurrency(refundAmount),
@@ -475,15 +583,16 @@ public sealed class AdminCampaignOperationsController : ControllerBase
 
     private async Task SendCampaignPausedEmailAsync(Campaign campaign, CancellationToken cancellationToken)
     {
+        var campaignUser = RequireCampaignUser(campaign);
         try
         {
             await _emailService.SendAsync(
                 "campaign-paused",
-                campaign.User.Email,
+                campaignUser.Email,
                 "campaigns",
                 new Dictionary<string, string?>
                 {
-                    ["ClientName"] = campaign.User.FullName,
+                    ["ClientName"] = campaignUser.FullName,
                     ["CampaignName"] = ResolveCampaignName(campaign),
                     ["PackageName"] = campaign.PackageBand.Name,
                     ["PauseReason"] = campaign.PauseReason ?? "No reason supplied",
@@ -500,16 +609,17 @@ public sealed class AdminCampaignOperationsController : ControllerBase
 
     private async Task SendCampaignResumedEmailAsync(Campaign campaign, int pausedDays, CancellationToken cancellationToken)
     {
+        var campaignUser = RequireCampaignUser(campaign);
         try
         {
             var schedule = CampaignOperationsPolicy.BuildScheduleSnapshot(campaign, DateOnly.FromDateTime(DateTime.UtcNow));
             await _emailService.SendAsync(
                 "campaign-resumed",
-                campaign.User.Email,
+                campaignUser.Email,
                 "campaigns",
                 new Dictionary<string, string?>
                 {
-                    ["ClientName"] = campaign.User.FullName,
+                    ["ClientName"] = campaignUser.FullName,
                     ["CampaignName"] = ResolveCampaignName(campaign),
                     ["PackageName"] = campaign.PackageBand.Name,
                     ["PausedDays"] = pausedDays.ToString(CultureInfo.InvariantCulture),
@@ -555,6 +665,12 @@ public sealed class AdminCampaignOperationsController : ControllerBase
             : campaignName.Trim();
     }
 
+    private static UserAccount RequireCampaignUser(Campaign campaign)
+    {
+        return campaign.User
+            ?? throw new InvalidOperationException("Campaign is missing its client account.");
+    }
+
     private sealed class AdminCampaignOperationsListRow
     {
         public Guid CampaignId { get; init; }
@@ -581,6 +697,12 @@ public sealed class AdminCampaignOperationsController : ControllerBase
         public DateOnly? BookedStartDate { get; init; }
         public DateOnly? BookedEndDate { get; init; }
         public int PausedDaysFromWindows { get; init; }
+        public decimal PerformanceBookedSpend { get; init; }
+        public decimal PerformanceDeliveredSpend { get; init; }
+        public long PerformanceImpressions { get; init; }
+        public int PerformancePlaysOrSpots { get; init; }
+        public int PerformanceSyncedClicks { get; init; }
+        public DateTime? PerformanceLatestReportDate { get; init; }
     }
 
     private static string? NormalizeOptionalText(string? value)
@@ -596,5 +718,79 @@ public sealed class AdminCampaignOperationsController : ControllerBase
     private static string FormatCurrency(decimal amount)
     {
         return $"R {amount.ToString("N2", CultureInfo.GetCultureInfo("en-ZA"))}";
+    }
+
+    private static int ToDeliveryPercent(decimal bookedSpend, decimal deliveredSpend)
+    {
+        if (bookedSpend <= 0m || deliveredSpend <= 0m)
+        {
+            return 0;
+        }
+
+        var ratio = deliveredSpend / bookedSpend;
+        if (ratio >= 1m)
+        {
+            return 100;
+        }
+
+        return (int)Math.Round(ratio * 100m, MidpointRounding.AwayFromZero);
+    }
+
+    private static bool NeedsPerformanceAttention(AdminCampaignOperationsItemResponse item)
+    {
+        if (item.PerformanceBookedSpend <= 0m)
+        {
+            return false;
+        }
+
+        return item.PerformanceLatestReportDate is null || item.PerformanceDeliveryPercent < PerformanceAttentionThresholdPercent;
+    }
+
+    private static IEnumerable<AdminCampaignOperationsItemResponse> SortQueueItems(
+        IEnumerable<AdminCampaignOperationsItemResponse> items,
+        string sortBy)
+    {
+        return sortBy switch
+        {
+            "highest_spend" => items
+                .OrderByDescending(item => item.PerformanceBookedSpend)
+                .ThenBy(item => item.CampaignName),
+            "latest_update" => items
+                .OrderByDescending(item => item.PerformanceLatestReportDate)
+                .ThenBy(item => item.CampaignName),
+            "campaign_name" => items
+                .OrderBy(item => item.CampaignName),
+            _ => items
+                .OrderByDescending(GetDeliveryRiskScore)
+                .ThenByDescending(item => item.PerformanceBookedSpend)
+                .ThenBy(item => item.CampaignName)
+        };
+    }
+
+    private static int GetDeliveryRiskScore(AdminCampaignOperationsItemResponse item)
+    {
+        if (item.PerformanceBookedSpend <= 0m)
+        {
+            return -1000;
+        }
+
+        var score = 100 - item.PerformanceDeliveryPercent;
+        if (item.PerformanceLatestReportDate is null)
+        {
+            score += 40;
+        }
+
+        return score;
+    }
+
+    private static string NormalizeQueueSort(string? sortBy)
+    {
+        return (sortBy ?? string.Empty).Trim().ToLowerInvariant() switch
+        {
+            "highest_spend" => "highest_spend",
+            "latest_update" => "latest_update",
+            "campaign_name" => "campaign_name",
+            _ => "delivery_risk"
+        };
     }
 }

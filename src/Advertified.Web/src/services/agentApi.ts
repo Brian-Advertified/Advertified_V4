@@ -2,6 +2,7 @@ import type {
   AgentInbox,
   AgentSales,
   Campaign,
+  CampaignPerformanceSnapshot,
   CampaignBrief,
   CampaignAsset,
   CampaignConversationListItem,
@@ -13,6 +14,7 @@ import type {
 
 type AgentApiDependencies = {
   getAgentCampaignById: (campaignId: string) => Promise<Campaign>;
+  getAgentCampaignPerformanceById: (campaignId: string) => Promise<CampaignPerformanceSnapshot>;
   listAgentCampaigns: () => Promise<Campaign[]>;
   getAgentInboxData: () => Promise<AgentInbox>;
   getAgentSalesData: () => Promise<AgentSales>;
@@ -47,6 +49,7 @@ type AgentApiDependencies = {
 
 export function createAgentApi({
   getAgentCampaignById,
+  getAgentCampaignPerformanceById,
   listAgentCampaigns,
   getAgentInboxData,
   getAgentSalesData,
@@ -66,6 +69,10 @@ export function createAgentApi({
   return {
     async getAgentCampaign(campaignId: string) {
       return getAgentCampaignById(campaignId);
+    },
+
+    async getAgentCampaignPerformance(campaignId: string) {
+      return getAgentCampaignPerformanceById(campaignId);
     },
 
     async createAgentProspectCampaign(payload: {

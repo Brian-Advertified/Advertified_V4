@@ -7,6 +7,7 @@ import type {
   Campaign,
   CampaignConversationListItem,
   CampaignConversationThread,
+  CampaignPerformanceSnapshot,
   LegalDocument,
   NotificationSummary,
   CampaignDeliveryReport,
@@ -373,6 +374,36 @@ type CampaignResponse = {
   effectiveEndDate?: string | null;
   daysLeft?: number | null;
   createdAt: string;
+};
+
+type CampaignPerformanceSnapshotResponse = {
+  campaignId: string;
+  totalBookedSpend: number;
+  totalDeliveredSpend: number;
+  totalImpressions: number;
+  totalPlaysOrSpots: number;
+  totalSyncedClicks: number;
+  bookingCount: number;
+  reportCount: number;
+  spendDeliveryPercent: number;
+  latestReportDate?: string | null;
+  timeline: Array<{
+    date: string;
+    impressions: number;
+    playsOrSpots: number;
+    spendDelivered: number;
+  }>;
+  channels: Array<{
+    channel: string;
+    label: string;
+    bookedSpend: number;
+    deliveredSpend: number;
+    impressions: number;
+    playsOrSpots: number;
+    syncedClicks: number;
+    bookingCount: number;
+    reportCount: number;
+  }>;
 };
 
 type CampaignConversationListItemResponse = CampaignConversationListItem;
@@ -1176,6 +1207,38 @@ function mapCampaign(response: CampaignResponse): Campaign {
   };
 }
 
+function mapCampaignPerformanceSnapshot(response: CampaignPerformanceSnapshotResponse): CampaignPerformanceSnapshot {
+  return {
+    campaignId: response.campaignId,
+    totalBookedSpend: response.totalBookedSpend,
+    totalDeliveredSpend: response.totalDeliveredSpend,
+    totalImpressions: response.totalImpressions,
+    totalPlaysOrSpots: response.totalPlaysOrSpots,
+    totalSyncedClicks: response.totalSyncedClicks,
+    bookingCount: response.bookingCount,
+    reportCount: response.reportCount,
+    spendDeliveryPercent: response.spendDeliveryPercent,
+    latestReportDate: response.latestReportDate ?? undefined,
+    timeline: (response.timeline ?? []).map((point) => ({
+      date: point.date,
+      impressions: point.impressions,
+      playsOrSpots: point.playsOrSpots,
+      spendDelivered: point.spendDelivered,
+    })),
+    channels: (response.channels ?? []).map((channel) => ({
+      channel: channel.channel,
+      label: channel.label,
+      bookedSpend: channel.bookedSpend,
+      deliveredSpend: channel.deliveredSpend,
+      impressions: channel.impressions,
+      playsOrSpots: channel.playsOrSpots,
+      syncedClicks: channel.syncedClicks,
+      bookingCount: channel.bookingCount,
+      reportCount: channel.reportCount,
+    })),
+  };
+}
+
 function mapConversationListItem(response: CampaignConversationListItemResponse): CampaignConversationListItem {
   return {
     campaignId: response.campaignId,
@@ -1308,6 +1371,10 @@ const campaignApi = createCampaignApi({
     const response = await apiRequest<CampaignResponse>(`/campaigns/${campaignId}`);
     return mapCampaign(response);
   },
+  async getCampaignPerformanceById(campaignId) {
+    const response = await apiRequest<CampaignPerformanceSnapshotResponse>(`/campaigns/${campaignId}/performance`);
+    return mapCampaignPerformanceSnapshot(response);
+  },
   async getPublicProposalById(campaignId, token) {
     const response = await apiRequest<CampaignResponse>(
       `/public/proposals/${encodeURIComponent(campaignId)}?token=${encodeURIComponent(token)}`,
@@ -1344,6 +1411,10 @@ const agentApi = createAgentApi({
   async getAgentCampaignById(campaignId) {
     const response = await apiRequest<CampaignResponse>(`/agent/campaigns/${campaignId}`);
     return mapCampaign(response);
+  },
+  async getAgentCampaignPerformanceById(campaignId) {
+    const response = await apiRequest<CampaignPerformanceSnapshotResponse>(`/agent/campaigns/${campaignId}/performance`);
+    return mapCampaignPerformanceSnapshot(response);
   },
   async listAgentCampaigns() {
     const response = await apiRequest<CampaignResponse[]>('/agent/campaigns');

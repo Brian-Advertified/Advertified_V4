@@ -84,7 +84,7 @@ public sealed class CampaignsController : ControllerBase
         var campaign = await _db.Campaigns
             .AsNoTracking()
             .AsSplitQuery()
-            .Include(x => x.User)
+            .Include(x => x.User!)
                 .ThenInclude(x => x.BusinessProfile)
             .Include(x => x.PackageBand)
             .Include(x => x.PackageOrder)
@@ -112,6 +112,29 @@ public sealed class CampaignsController : ControllerBase
         }
 
         return Ok(campaign.ToDetail(includeLinePricing: false));
+    }
+
+    [HttpGet("{id:guid}/performance")]
+    public async Task<ActionResult<CampaignPerformanceSnapshotResponse>> GetPerformance(Guid id, CancellationToken cancellationToken)
+    {
+        var userId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
+        var campaign = await _db.Campaigns
+            .AsNoTracking()
+            .AsSplitQuery()
+            .Include(x => x.CampaignSupplierBookings)
+            .Include(x => x.CampaignDeliveryReports)
+            .FirstOrDefaultAsync(x => x.Id == id && x.UserId == userId, cancellationToken);
+
+        if (campaign is null)
+        {
+            return NotFound(new ProblemDetails
+            {
+                Title = "Campaign not found.",
+                Status = StatusCodes.Status404NotFound
+            });
+        }
+
+        return Ok(campaign.ToPerformanceSnapshot());
     }
 
     [HttpGet("{id:guid}/access")]
