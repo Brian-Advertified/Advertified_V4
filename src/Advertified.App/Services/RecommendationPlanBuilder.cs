@@ -32,6 +32,7 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
                     !usedSourceIds.Contains(item.SourceId)
                     && item.Cost > 0m
                     && spent + item.Cost <= request.SelectedBudget
+                    && !ExceedsStationDiversityCap(result, item)
                     && (!request.MaxMediaItems.HasValue || result.Count < request.MaxMediaItems.Value)
                     && (!diversify
                         || !usedMediaTypes.Contains(item.MediaType)
@@ -84,16 +85,17 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
                 break;
             }
 
-            var channelCandidate = candidates
-                .Where(candidate => MatchesChannel(candidate.MediaType, shareTarget.Channel))
-                .Where(candidate => candidate.Cost > 0m)
-                .Where(candidate => !usedSourceIds.Contains(candidate.SourceId))
-                .Where(candidate => spentTotal + candidate.Cost <= request.SelectedBudget)
-                .OrderByDescending(candidate => HasMatchingOohSite(result, candidate))
-                .ThenBy(candidate => GetStationSelectionCount(result, candidate, shareTarget.Channel))
-                .ThenByDescending(candidate => candidate.Score)
-                .ThenByDescending(candidate => candidate.Cost)
-                .FirstOrDefault();
+                var channelCandidate = candidates
+                    .Where(candidate => MatchesChannel(candidate.MediaType, shareTarget.Channel))
+                    .Where(candidate => candidate.Cost > 0m)
+                    .Where(candidate => !usedSourceIds.Contains(candidate.SourceId))
+                    .Where(candidate => spentTotal + candidate.Cost <= request.SelectedBudget)
+                    .Where(candidate => !ExceedsStationDiversityCap(result, candidate))
+                    .OrderByDescending(candidate => HasMatchingOohSite(result, candidate))
+                    .ThenBy(candidate => GetStationSelectionCount(result, candidate, shareTarget.Channel))
+                    .ThenByDescending(candidate => candidate.Score)
+                    .ThenByDescending(candidate => candidate.Cost)
+                    .FirstOrDefault();
 
             if (channelCandidate is null)
             {
@@ -136,6 +138,7 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
                     .Where(candidate => candidate.Cost > 0m)
                     .Where(candidate => !usedSourceIds.Contains(candidate.SourceId))
                     .Where(candidate => spentTotal + candidate.Cost <= request.SelectedBudget)
+                    .Where(candidate => !ExceedsStationDiversityCap(result, candidate))
                     .OrderByDescending(candidate => HasMatchingOohSite(result, candidate))
                     .ThenBy(candidate => GetStationSelectionCount(result, candidate, shareTarget.Channel))
                     .ThenByDescending(candidate => candidate.Score)
@@ -244,10 +247,12 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
             var candidate = fillCandidates
                 .Where(x =>
                     x.Cost <= remaining &&
+                    !ExceedsStationDiversityCap(result, x) &&
                     ((result.Any(item => item.SourceId == x.SourceId) && _policyService.IsRepeatableCandidate(x))
                         || !maxItems.HasValue
                         || result.Count < maxItems.Value))
                 .OrderByDescending(x => HasMatchingOohSite(result, x))
+                .ThenBy(x => GetStationSelectionCount(result, x, x.MediaType))
                 .ThenByDescending(x => x.Score)
                 .ThenByDescending(x => x.Cost)
                 .FirstOrDefault();
@@ -286,6 +291,11 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
             var wouldRepeatExisting = !wouldAddNewLine;
 
             if (wouldRepeatExisting && !_policyService.IsRepeatableCandidate(candidate))
+            {
+                continue;
+            }
+
+            if (ExceedsStationDiversityCap(currentPlan, candidate))
             {
                 continue;
             }
@@ -344,6 +354,11 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
                 return;
             }
 
+            if (ExceedsStationDiversityCap(result, candidate))
+            {
+                return;
+            }
+
             existing.Quantity += 1;
             return;
         }
@@ -384,7 +399,8 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
         InventoryCandidate candidate,
         string requestedChannel)
     {
-        if (!string.Equals(requestedChannel, "tv", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(requestedChannel, "tv", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(requestedChannel, "radio", StringComparison.OrdinalIgnoreCase))
         {
             return 0;
         }
@@ -398,6 +414,51 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
         return currentPlan.Count(item =>
             string.Equals(item.MediaType?.Trim(), "tv", StringComparison.OrdinalIgnoreCase)
             && string.Equals(GetStationKey(item.DisplayName), station, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool ExceedsStationDiversityCap(
+        IReadOnlyList<PlannedItem> currentPlan,
+        InventoryCandidate candidate)
+    {
+        if (!IsStationDiversityChannel(candidate.MediaType))
+        {
+            return false;
+        }
+
+        var station = GetStationKey(candidate.DisplayName);
+        if (string.IsNullOrWhiteSpace(station))
+        {
+            return false;
+        }
+
+        var cap = GetStationCap(candidate.MediaType);
+        var currentCount = currentPlan
+            .Where(item => string.Equals(item.MediaType?.Trim(), candidate.MediaType?.Trim(), StringComparison.OrdinalIgnoreCase))
+            .Where(item => string.Equals(GetStationKey(item.DisplayName), station, StringComparison.OrdinalIgnoreCase))
+            .Sum(item => Math.Max(1, item.Quantity));
+
+        return currentCount >= cap;
+    }
+
+    private static bool IsStationDiversityChannel(string? mediaType)
+    {
+        if (string.IsNullOrWhiteSpace(mediaType))
+        {
+            return false;
+        }
+
+        return mediaType.Trim().Equals("radio", StringComparison.OrdinalIgnoreCase)
+            || mediaType.Trim().Equals("tv", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static int GetStationCap(string? mediaType)
+    {
+        if (string.IsNullOrWhiteSpace(mediaType))
+        {
+            return int.MaxValue;
+        }
+
+        return mediaType.Trim().Equals("radio", StringComparison.OrdinalIgnoreCase) ? 2 : 2;
     }
 
     private static string GetStationKey(string? displayName)
