@@ -11,6 +11,7 @@ using Advertified.App.Data.Entities;
 using Advertified.App.Domain.Campaigns;
 using Advertified.App.Services;
 using Advertified.App.Services.Abstractions;
+using Advertified.App.Support;
 using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
@@ -989,6 +990,41 @@ public class CampaignBriefInterpretationServiceTests
             CancellationToken.None);
 
         result.Geography.Should().Be("kwazulu_natal");
+    }
+}
+
+public class CampaignGeographyNormalizerTests
+{
+    [Fact]
+    public void Normalize_ConvertsInvalidProvincialValueToLocalAreaAndCity()
+    {
+        var result = CampaignGeographyNormalizer.Normalize(
+            "provincial",
+            new[] { "Hyde Park" },
+            null,
+            null,
+            null);
+
+        result.Scope.Should().Be("local");
+        result.Areas.Should().ContainSingle().Which.Should().Be("Hyde Park");
+        result.Cities.Should().Contain("Johannesburg");
+        result.Provinces.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Normalize_ConvertsCanonicalProvinceLabels()
+    {
+        var result = CampaignGeographyNormalizer.Normalize(
+            "provincial",
+            new[] { "gauteng", "KZN" },
+            null,
+            null,
+            null);
+
+        result.Scope.Should().Be("provincial");
+        result.Provinces.Should().BeEquivalentTo(new[] { "Gauteng", "KwaZulu-Natal" });
+        result.Cities.Should().BeEmpty();
+        result.Areas.Should().BeEmpty();
     }
 }
 

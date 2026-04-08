@@ -185,19 +185,12 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             preferredMediaTypes.Add("tv");
         }
 
-        var normalizedScope = NormalizeGeographyScope(brief.GeographyScope);
-        var provinces = normalizedScope == "provincial"
-            ? brief.GetList(nameof(CampaignBriefEntity.ProvincesJson))
-            : new List<string>();
-        var cities = normalizedScope == "local"
-            ? brief.GetList(nameof(CampaignBriefEntity.CitiesJson))
-            : new List<string>();
-        var suburbs = normalizedScope == "local"
-            ? brief.GetList(nameof(CampaignBriefEntity.SuburbsJson))
-            : new List<string>();
-        var areas = normalizedScope == "local"
-            ? brief.GetList(nameof(CampaignBriefEntity.AreasJson))
-            : new List<string>();
+        var normalizedGeography = CampaignGeographyNormalizer.Normalize(
+            brief.GeographyScope,
+            brief.GetList(nameof(CampaignBriefEntity.ProvincesJson)),
+            brief.GetList(nameof(CampaignBriefEntity.CitiesJson)),
+            brief.GetList(nameof(CampaignBriefEntity.SuburbsJson)),
+            brief.GetList(nameof(CampaignBriefEntity.AreasJson)));
         var strategyRequest = new CampaignPlanningRequest
         {
             BusinessStage = brief.BusinessStage,
@@ -234,11 +227,11 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             BusinessStage = brief.BusinessStage,
             MonthlyRevenueBand = brief.MonthlyRevenueBand,
             SalesModel = brief.SalesModel,
-            GeographyScope = normalizedScope,
-            Provinces = provinces,
-            Cities = cities,
-            Suburbs = suburbs,
-            Areas = areas,
+            GeographyScope = normalizedGeography.Scope,
+            Provinces = normalizedGeography.Provinces.ToList(),
+            Cities = normalizedGeography.Cities.ToList(),
+            Suburbs = normalizedGeography.Suburbs.ToList(),
+            Areas = normalizedGeography.Areas.ToList(),
             PreferredMediaTypes = preferredMediaTypes,
             ExcludedMediaTypes = brief.GetList(nameof(CampaignBriefEntity.ExcludedMediaTypesJson)),
             TargetLanguages = brief.GetList(nameof(CampaignBriefEntity.TargetLanguagesJson)),
@@ -265,18 +258,6 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             TargetOohShare = request?.TargetOohShare,
             TargetTvShare = request?.TargetTvShare,
             TargetDigitalShare = request?.TargetDigitalShare
-        };
-    }
-
-    private static string NormalizeGeographyScope(string? scope)
-    {
-        return (scope ?? string.Empty).Trim().ToLowerInvariant() switch
-        {
-            "regional" => "provincial",
-            "local" => "local",
-            "provincial" => "provincial",
-            "national" => "national",
-            _ => "provincial"
         };
     }
 

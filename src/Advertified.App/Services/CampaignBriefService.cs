@@ -173,11 +173,12 @@ public sealed class CampaignBriefService : ICampaignBriefService
 
     private static void MapBrief(CampaignBrief brief, SaveCampaignBriefRequest request, DateTime now)
     {
-        var normalizedScope = NormalizeGeographyScope(request.GeographyScope);
-        var normalizedProvinces = NormalizeScopeList(request.Provinces, normalizedScope == "provincial");
-        var normalizedCities = NormalizeScopeList(request.Cities, normalizedScope == "local");
-        var normalizedSuburbs = NormalizeScopeList(request.Suburbs, normalizedScope == "local");
-        var normalizedAreas = NormalizeScopeList(request.Areas, normalizedScope == "local");
+        var normalizedGeography = CampaignGeographyNormalizer.Normalize(
+            request.GeographyScope,
+            request.Provinces,
+            request.Cities,
+            request.Suburbs,
+            request.Areas);
 
         brief.Objective = request.Objective;
         brief.BusinessStage = request.BusinessStage;
@@ -186,11 +187,11 @@ public sealed class CampaignBriefService : ICampaignBriefService
         brief.StartDate = request.StartDate;
         brief.EndDate = request.EndDate;
         brief.DurationWeeks = request.DurationWeeks;
-        brief.GeographyScope = normalizedScope;
-        brief.ProvincesJson = Serialize(normalizedProvinces);
-        brief.CitiesJson = Serialize(normalizedCities);
-        brief.SuburbsJson = Serialize(normalizedSuburbs);
-        brief.AreasJson = Serialize(normalizedAreas);
+        brief.GeographyScope = normalizedGeography.Scope;
+        brief.ProvincesJson = Serialize(normalizedGeography.Provinces);
+        brief.CitiesJson = Serialize(normalizedGeography.Cities);
+        brief.SuburbsJson = Serialize(normalizedGeography.Suburbs);
+        brief.AreasJson = Serialize(normalizedGeography.Areas);
         brief.TargetAgeMin = request.TargetAgeMin;
         brief.TargetAgeMax = request.TargetAgeMax;
         brief.TargetGender = request.TargetGender;
@@ -226,34 +227,6 @@ public sealed class CampaignBriefService : ICampaignBriefService
     private static string? Serialize<T>(T value)
     {
         return value == null ? null : JsonSerializer.Serialize(value);
-    }
-
-    private static string NormalizeGeographyScope(string? scope)
-    {
-        return (scope ?? string.Empty).Trim().ToLowerInvariant() switch
-        {
-            "regional" => "provincial",
-            "local" => "local",
-            "provincial" => "provincial",
-            "national" => "national",
-            _ => "provincial"
-        };
-    }
-
-    private static IReadOnlyList<string>? NormalizeScopeList(IReadOnlyList<string>? values, bool enabled)
-    {
-        if (!enabled || values is null)
-        {
-            return null;
-        }
-
-        var normalized = values
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .Select(value => value.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
-        return normalized.Length == 0 ? null : normalized;
     }
 
     private string BuildFrontendUrl(string path)
