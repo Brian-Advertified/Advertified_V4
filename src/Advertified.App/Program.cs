@@ -93,15 +93,18 @@ builder.Services.AddAuthorization(options =>
         .Build();
 });
 builder.Services.AddScoped<IPricingSettingsProvider, PricingSettingsProvider>();
+builder.Services.AddScoped<IBroadcastMasterDataService, BroadcastMasterDataService>();
 builder.Services.AddScoped<IAdminDashboardService>(_ => new AdminDashboardService(
     _.GetRequiredService<AppDbContext>(),
     _.GetRequiredService<IBroadcastInventoryCatalog>(),
     _.GetRequiredService<PlanningPolicySnapshotProvider>(),
-    _.GetRequiredService<Npgsql.NpgsqlDataSource>()));
+    _.GetRequiredService<Npgsql.NpgsqlDataSource>(),
+    _.GetRequiredService<IBroadcastMasterDataService>()));
 builder.Services.AddScoped<IAdminMutationService>(_ => new AdminMutationService(
     _.GetRequiredService<Npgsql.NpgsqlDataSource>(),
     _.GetRequiredService<IWebHostEnvironment>(),
-    _.GetRequiredService<IBroadcastInventoryCatalog>()));
+    _.GetRequiredService<IBroadcastInventoryCatalog>(),
+    _.GetRequiredService<IBroadcastMasterDataService>()));
 builder.Services.AddScoped<ICampaignAccessService, CampaignAccessService>();
 builder.Services.AddScoped<IAgentAreaRoutingService, AgentAreaRoutingService>();
 builder.Services.AddScoped<ICampaignBriefService, CampaignBriefService>();

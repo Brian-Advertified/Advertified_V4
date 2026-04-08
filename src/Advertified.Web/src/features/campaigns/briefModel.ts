@@ -405,8 +405,8 @@ export function buildRecommendationDraftBrief(
 ): CampaignBrief {
   const provinceMap: Record<string, string> = {
     gauteng: 'Gauteng',
-    'western-cape': 'Western Cape',
-    'kwazulu-natal': 'KwaZulu-Natal',
+    western_cape: 'Western Cape',
+    kwazulu_natal: 'KwaZulu-Natal',
   };
   const cityMap: Record<string, string> = {
     johannesburg: 'Johannesburg',

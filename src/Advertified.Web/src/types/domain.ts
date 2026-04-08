@@ -878,6 +878,17 @@ export interface AdminOutletDetail {
   minSlotRate?: number;
 }
 
+export interface AdminOutletMasterData {
+  languages: SelectOption[];
+  provinces: SelectOption[];
+  coverageTypes: SelectOption[];
+  catalogHealthStates: SelectOption[];
+  cities: SelectOption[];
+  audienceKeywords: SelectOption[];
+  broadcastFrequencySuggestions: string[];
+  targetAudienceSuggestions: string[];
+}
+
 export interface AdminImportDocument {
   sourceFile: string;
   channel: string;
@@ -898,6 +909,7 @@ export interface AdminHealth {
 export interface AdminHealthIssue {
   outletCode: string;
   outletName: string;
+  category: string;
   issue: string;
   impact: string;
   suggestedFix: string;

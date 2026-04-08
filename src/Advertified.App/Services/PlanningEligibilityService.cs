@@ -8,10 +8,12 @@ namespace Advertified.App.Services;
 public sealed class PlanningEligibilityService : IPlanningEligibilityService
 {
     private readonly IPlanningPolicyService _policyService;
+    private readonly IBroadcastMasterDataService _broadcastMasterDataService;
 
-    public PlanningEligibilityService(IPlanningPolicyService policyService)
+    public PlanningEligibilityService(IPlanningPolicyService policyService, IBroadcastMasterDataService broadcastMasterDataService)
     {
         _policyService = policyService;
+        _broadcastMasterDataService = broadcastMasterDataService;
     }
 
     public PlanningPolicyOutcome FilterEligibleCandidates(List<InventoryCandidate> candidates, CampaignPlanningRequest request)
@@ -43,7 +45,7 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
             rejections.Concat(policyOutcome.Rejections).ToList());
     }
 
-    private static string? GetEligibilityRejectionReason(InventoryCandidate candidate, CampaignPlanningRequest request)
+    private string? GetEligibilityRejectionReason(InventoryCandidate candidate, CampaignPlanningRequest request)
     {
         if (!candidate.IsAvailable)
         {
@@ -65,7 +67,7 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
             : "geography_mismatch";
     }
 
-    private static bool MatchesRequestedGeography(InventoryCandidate candidate, CampaignPlanningRequest request)
+    private bool MatchesRequestedGeography(InventoryCandidate candidate, CampaignPlanningRequest request)
     {
         var normalizedScope = NormalizeScope(request.GeographyScope);
         if (normalizedScope == "national")
@@ -129,7 +131,7 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
             || Matches(normalizedScope, candidate.RegionClusterCode);
     }
 
-    private static bool Matches(string? left, string? right)
+    private bool Matches(string? left, string? right)
     {
         if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right))
         {
@@ -141,8 +143,8 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
             return true;
         }
 
-        var normalizedLeft = NormalizeGeoToken(left);
-        var normalizedRight = NormalizeGeoToken(right);
+        var normalizedLeft = _broadcastMasterDataService.NormalizeGeographyForMatching(left);
+        var normalizedRight = _broadcastMasterDataService.NormalizeGeographyForMatching(right);
         if (normalizedLeft.Length == 0 || normalizedRight.Length == 0)
         {
             return false;
@@ -151,7 +153,7 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
         return normalizedLeft == normalizedRight;
     }
 
-    private static bool MatchesAnyMetadataToken(InventoryCandidate candidate, string requestedValue, params string[] keys)
+    private bool MatchesAnyMetadataToken(InventoryCandidate candidate, string requestedValue, params string[] keys)
     {
         if (string.IsNullOrWhiteSpace(requestedValue) || candidate.Metadata.Count == 0)
         {
@@ -240,28 +242,6 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
             "local" => "local",
             "provincial" => "provincial",
             "national" => "national",
-            _ => normalized
-        };
-    }
-
-    private static string NormalizeGeoToken(string value)
-    {
-        var normalized = value.Trim().ToLowerInvariant()
-            .Replace(" ", string.Empty)
-            .Replace("-", string.Empty)
-            .Replace("_", string.Empty);
-
-        return normalized switch
-        {
-            "zaec" or "ec" => "easterncape",
-            "zafs" or "fs" => "freestate",
-            "zagt" or "gt" => "gauteng",
-            "zakzn" or "kzn" => "kwazulunatal",
-            "zalp" or "lp" => "limpopo",
-            "zamp" or "mp" => "mpumalanga",
-            "zanc" or "nc" => "northerncape",
-            "zanw" or "nw" => "northwest",
-            "zawc" or "wc" => "westerncape",
             _ => normalized
         };
     }

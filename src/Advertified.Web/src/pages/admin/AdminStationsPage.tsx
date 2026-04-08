@@ -9,12 +9,149 @@ import type { AdminCreateOutletInput, AdminUpdateOutletInput } from '../../types
 import { AdminPageShell, splitList, titleize, tone } from './adminWorkspace';
 import { ActionButton, hasText } from './adminSectionShared';
 
-const LANGUAGE_OPTIONS = ['English', 'Xitsonga', 'isiZulu', 'isiXhosa', 'Sesotho', 'Setswana', 'Afrikaans', 'Sepedi', 'Tshivenda'];
-const PROVINCE_OPTIONS = ['Eastern Cape', 'Free State', 'Gauteng', 'KwaZulu-Natal', 'Limpopo', 'Mpumalanga', 'North West', 'Northern Cape', 'Western Cape'];
-const CITY_OPTIONS = ['Johannesburg', 'Pretoria', 'Sandton', 'Randburg', 'Soweto', 'Cape Town', 'Bellville', 'Durban', 'Umhlanga', 'Pietermaritzburg', 'Gqeberha', 'East London', 'Bloemfontein', 'Polokwane', 'Mbombela', 'Rustenburg'];
-const AUDIENCE_KEYWORD_OPTIONS = ['Commuters', 'Professionals', 'Youth', 'Families', 'Shoppers', 'SMEs', 'Mass market', 'Premium audience', 'Pan-African'];
+type SelectOption = {
+  value: string;
+  label: string;
+};
+
+const LANGUAGE_OPTIONS: SelectOption[] = [
+  { value: 'english', label: 'English' },
+  { value: 'xitsonga', label: 'Xitsonga' },
+  { value: 'isizulu', label: 'isiZulu' },
+  { value: 'isixhosa', label: 'isiXhosa' },
+  { value: 'sesotho', label: 'Sesotho' },
+  { value: 'setswana', label: 'Setswana' },
+  { value: 'afrikaans', label: 'Afrikaans' },
+  { value: 'sepedi', label: 'Sepedi' },
+  { value: 'tshivenda', label: 'Tshivenda' },
+  { value: 'siswati', label: 'Siswati' },
+  { value: 'isindebele', label: 'isiNdebele' },
+  { value: 'multilingual', label: 'Multilingual' },
+  { value: 'unknown', label: 'Unknown' },
+];
+const PROVINCE_OPTIONS: SelectOption[] = [
+  { value: 'eastern_cape', label: 'Eastern Cape' },
+  { value: 'free_state', label: 'Free State' },
+  { value: 'gauteng', label: 'Gauteng' },
+  { value: 'kwazulu_natal', label: 'KwaZulu-Natal' },
+  { value: 'limpopo', label: 'Limpopo' },
+  { value: 'mpumalanga', label: 'Mpumalanga' },
+  { value: 'north_west', label: 'North West' },
+  { value: 'northern_cape', label: 'Northern Cape' },
+  { value: 'western_cape', label: 'Western Cape' },
+  { value: 'national', label: 'National' },
+];
+const CITY_OPTIONS: SelectOption[] = [
+  { value: 'Johannesburg', label: 'Johannesburg' },
+  { value: 'Pretoria', label: 'Pretoria' },
+  { value: 'Sandton', label: 'Sandton' },
+  { value: 'Randburg', label: 'Randburg' },
+  { value: 'Soweto', label: 'Soweto' },
+  { value: 'Cape Town', label: 'Cape Town' },
+  { value: 'Bellville', label: 'Bellville' },
+  { value: 'Durban', label: 'Durban' },
+  { value: 'Umhlanga', label: 'Umhlanga' },
+  { value: 'Pietermaritzburg', label: 'Pietermaritzburg' },
+  { value: 'Gqeberha', label: 'Gqeberha' },
+  { value: 'East London', label: 'East London' },
+  { value: 'Bloemfontein', label: 'Bloemfontein' },
+  { value: 'Polokwane', label: 'Polokwane' },
+  { value: 'Mbombela', label: 'Mbombela' },
+  { value: 'Rustenburg', label: 'Rustenburg' },
+];
+const AUDIENCE_KEYWORD_OPTIONS: SelectOption[] = [
+  { value: 'commuters', label: 'Commuters' },
+  { value: 'professionals', label: 'Professionals' },
+  { value: 'youth', label: 'Youth' },
+  { value: 'families', label: 'Families' },
+  { value: 'shoppers', label: 'Shoppers' },
+  { value: 'smes', label: 'SMEs' },
+  { value: 'mass market', label: 'Mass market' },
+  { value: 'premium audience', label: 'Premium audience' },
+  { value: 'pan-african', label: 'Pan-African' },
+];
 const BROADCAST_FREQUENCY_OPTIONS = ['Hourly', 'Daily', 'Weekdays only', 'Weekends only', 'Drive time', 'All day rotation'];
 const TARGET_AUDIENCE_OPTIONS = ['General audience', 'Youth audience', 'Working professionals', 'Households and families', 'Business decision-makers', 'Pan-African / beyond-SA audience'];
+const COVERAGE_TYPE_OPTIONS: SelectOption[] = [
+  { value: 'local', label: 'Local' },
+  { value: 'regional', label: 'Regional' },
+  { value: 'national', label: 'National' },
+  { value: 'digital', label: 'Digital' },
+  { value: 'mixed', label: 'Mixed' },
+  { value: 'unknown', label: 'Unknown' },
+];
+const CATALOG_HEALTH_OPTIONS: SelectOption[] = [
+  { value: 'strong', label: 'Strong' },
+  { value: 'mixed', label: 'Mixed' },
+  { value: 'mixed_not_fully_healthy', label: 'Mixed not fully healthy' },
+  { value: 'unknown', label: 'Unknown' },
+  { value: 'weak_partial_pricing', label: 'Weak partial pricing' },
+  { value: 'weak_unpriced', label: 'Weak unpriced' },
+  { value: 'weak_no_inventory', label: 'Weak no inventory' },
+];
+
+function humanizeToken(value: string) {
+  return value
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function mergeOptionValues(
+  baseOptions: SelectOption[],
+  ...valueSets: Array<string | undefined>
+) {
+  const merged = new Map<string, SelectOption>();
+
+  for (const option of baseOptions) {
+    if (hasText(option.value)) {
+      merged.set(option.value.trim().toLowerCase(), option);
+    }
+  }
+
+  for (const valueSet of valueSets) {
+    for (const value of splitList(valueSet ?? '')) {
+      if (!hasText(value)) {
+        continue;
+      }
+
+      const trimmed = value.trim();
+      const key = trimmed.toLowerCase();
+      if (!merged.has(key)) {
+        merged.set(key, { value: trimmed, label: humanizeToken(trimmed) });
+      }
+    }
+  }
+
+  return Array.from(merged.values());
+}
+
+function mergeTextOptions(baseOptions: string[], ...valueSets: Array<string | undefined>) {
+  const merged = new Map<string, string>();
+
+  for (const option of baseOptions) {
+    if (!hasText(option)) {
+      continue;
+    }
+
+    merged.set(option.trim().toLowerCase(), option.trim());
+  }
+
+  for (const valueSet of valueSets) {
+    for (const value of splitList(valueSet ?? '')) {
+      if (!hasText(value)) {
+        continue;
+      }
+
+      const trimmed = value.trim();
+      const key = trimmed.toLowerCase();
+      if (!merged.has(key)) {
+        merged.set(key, trimmed);
+      }
+    }
+  }
+
+  return Array.from(merged.values());
+}
 
 export function AdminStationsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -55,6 +192,10 @@ export function AdminStationsPage() {
     queryKey: ['admin-outlet', selectedOutletCode],
     queryFn: () => advertifiedApi.getAdminOutlet(selectedOutletCode!),
     enabled: dialogMode !== null && dialogMode !== 'create' && !!selectedOutletCode,
+  });
+  const outletMasterDataQuery = useQuery({
+    queryKey: ['admin-outlet-master-data'],
+    queryFn: () => advertifiedApi.getAdminOutletMasterData(),
   });
 
   const openCreateDialog = () => {
@@ -240,6 +381,15 @@ export function AdminStationsPage() {
           activeDetail?.packageCount ?? 0,
           activeDetail?.slotRateCount ?? 0,
         );
+        const masterData = outletMasterDataQuery.data;
+        const languageOptions = mergeOptionValues(masterData?.languages ?? LANGUAGE_OPTIONS, outletForm.primaryLanguages);
+        const provinceOptions = mergeOptionValues(masterData?.provinces ?? PROVINCE_OPTIONS, outletForm.provinceCodes);
+        const cityOptions = mergeOptionValues(masterData?.cities ?? CITY_OPTIONS, outletForm.cityLabels);
+        const audienceKeywordOptions = mergeOptionValues(masterData?.audienceKeywords ?? AUDIENCE_KEYWORD_OPTIONS, outletForm.audienceKeywords);
+        const broadcastFrequencyOptions = mergeTextOptions(masterData?.broadcastFrequencySuggestions ?? BROADCAST_FREQUENCY_OPTIONS, outletForm.broadcastFrequency);
+        const targetAudienceOptions = mergeTextOptions(masterData?.targetAudienceSuggestions ?? TARGET_AUDIENCE_OPTIONS, outletForm.targetAudience);
+        const coverageTypeOptions = masterData?.coverageTypes ?? COVERAGE_TYPE_OPTIONS;
+        const catalogHealthOptions = masterData?.catalogHealthStates ?? CATALOG_HEALTH_OPTIONS;
         const canMarkStrong = outletForm.hasPricing && ((activeDetail?.packageCount ?? 0) > 0 || (activeDetail?.slotRateCount ?? 0) > 0);
         const displayCatalogHealth = canMarkStrong || outletForm.catalogHealth !== 'strong'
           ? outletForm.catalogHealth
@@ -345,21 +495,22 @@ export function AdminStationsPage() {
                       <option value="tv">TV</option>
                     </select>
                     <select disabled={isReadOnly} className="input-base disabled:bg-slate-50" value={outletForm.coverageType} onChange={(event) => setOutletForm((current) => ({ ...current, coverageType: event.target.value }))}>
-                      <option value="local">Local</option>
-                      <option value="regional">Regional</option>
-                      <option value="national">National</option>
+                      {coverageTypeOptions.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
                     </select>
                     <select disabled={isReadOnly} className="input-base disabled:bg-slate-50" value={displayCatalogHealth} onChange={(event) => setOutletForm((current) => ({ ...current, catalogHealth: event.target.value }))}>
-                      <option value="strong" disabled={!canMarkStrong}>Strong</option>
-                      <option value="mixed_not_fully_healthy">Mixed not fully healthy</option>
-                      <option value="weak_unpriced">Weak unpriced</option>
-                      <option value="weak_no_inventory">Weak no inventory</option>
+                      {catalogHealthOptions.map((option) => (
+                        <option key={option.value} value={option.value} disabled={option.value === 'strong' && !canMarkStrong}>
+                          {option.label}
+                        </option>
+                      ))}
                     </select>
                     <LabeledMultiSelect
                       disabled={isReadOnly}
                       label="Primary languages"
                       help="Choose the languages this outlet mainly serves."
-                      options={LANGUAGE_OPTIONS}
+                      options={languageOptions}
                       value={outletForm.primaryLanguages}
                       onChange={(value) => setOutletForm((current) => ({ ...current, primaryLanguages: value }))}
                     />
@@ -367,7 +518,7 @@ export function AdminStationsPage() {
                       disabled={isReadOnly}
                       label="Province coverage"
                       help="Choose the provinces this outlet covers."
-                      options={PROVINCE_OPTIONS}
+                      options={provinceOptions}
                       value={outletForm.provinceCodes}
                       onChange={(value) => setOutletForm((current) => ({ ...current, provinceCodes: value }))}
                     />
@@ -375,7 +526,7 @@ export function AdminStationsPage() {
                       disabled={isReadOnly}
                       label="City coverage"
                       help="Choose the main cities or metros this outlet reaches."
-                      options={CITY_OPTIONS}
+                      options={cityOptions}
                       value={outletForm.cityLabels}
                       onChange={(value) => setOutletForm((current) => ({ ...current, cityLabels: value }))}
                     />
@@ -383,34 +534,38 @@ export function AdminStationsPage() {
                       disabled={isReadOnly}
                       label="Audience keywords"
                       help="Choose the closest audience descriptors."
-                      options={AUDIENCE_KEYWORD_OPTIONS}
+                      options={audienceKeywordOptions}
                       value={outletForm.audienceKeywords}
                       onChange={(value) => setOutletForm((current) => ({ ...current, audienceKeywords: value }))}
                     />
                     <label className="block text-sm font-semibold text-ink">
                       Broadcast frequency
-                      <select
+                      <input
+                        list="broadcast-frequency-options"
                         disabled={isReadOnly}
                         className="input-base mt-2 disabled:bg-slate-50"
                         value={outletForm.broadcastFrequency}
                         onChange={(event) => setOutletForm((current) => ({ ...current, broadcastFrequency: event.target.value }))}
-                      >
-                        <option value="">Choose frequency</option>
-                        {BROADCAST_FREQUENCY_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
-                      </select>
+                        placeholder="Choose frequency"
+                      />
+                      <datalist id="broadcast-frequency-options">
+                        {broadcastFrequencyOptions.map((option) => <option key={option} value={option} />)}
+                      </datalist>
                       <span className="mt-2 block text-xs font-normal text-ink-soft">Use this when the station follows a known broadcast rhythm.</span>
                     </label>
                     <label className="block text-sm font-semibold text-ink">
                       Target audience
-                      <select
+                      <input
+                        list="target-audience-options"
                         disabled={isReadOnly}
                         className="input-base mt-2 disabled:bg-slate-50"
                         value={outletForm.targetAudience}
                         onChange={(event) => setOutletForm((current) => ({ ...current, targetAudience: event.target.value }))}
-                      >
-                        <option value="">Choose target audience</option>
-                        {TARGET_AUDIENCE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
-                      </select>
+                        placeholder="Choose target audience"
+                      />
+                      <datalist id="target-audience-options">
+                        {targetAudienceOptions.map((option) => <option key={option} value={option} />)}
+                      </datalist>
                       <span className="mt-2 block text-xs font-normal text-ink-soft">Pick the closest audience profile instead of writing a custom phrase.</span>
                     </label>
                   </div>
@@ -468,7 +623,7 @@ function LabeledMultiSelect({
   disabled: boolean;
   label: string;
   help: string;
-  options: string[];
+  options: SelectOption[];
   value: string;
   onChange: (value: string) => void;
 }) {
@@ -487,7 +642,7 @@ function LabeledMultiSelect({
           onChange(next);
         }}
       >
-        {options.map((option) => <option key={option} value={option}>{option}</option>)}
+        {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select>
       <span className="mt-2 block text-xs font-normal text-ink-soft">{help}</span>
     </label>

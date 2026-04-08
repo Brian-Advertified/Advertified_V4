@@ -19,15 +19,18 @@ public sealed class CampaignBriefInterpretationService : ICampaignBriefInterpret
     private readonly HttpClient _httpClient;
     private readonly OpenAIOptions _options;
     private readonly ILogger<CampaignBriefInterpretationService> _logger;
+    private readonly IBroadcastMasterDataService _broadcastMasterDataService;
 
     public CampaignBriefInterpretationService(
         HttpClient httpClient,
         IOptions<OpenAIOptions> options,
-        ILogger<CampaignBriefInterpretationService> logger)
+        ILogger<CampaignBriefInterpretationService> logger,
+        IBroadcastMasterDataService broadcastMasterDataService)
     {
         _httpClient = httpClient;
         _options = options.Value;
         _logger = logger;
+        _broadcastMasterDataService = broadcastMasterDataService;
     }
 
     public async Task<InterpretedCampaignBriefResponse> InterpretAsync(
@@ -70,7 +73,7 @@ public sealed class CampaignBriefInterpretationService : ICampaignBriefInterpret
                             "  \"objective\": \"awareness|launch|promotion|brand_presence|leads\",\n" +
                             "  \"audience\": \"mass-market|youth|business|retail\",\n" +
                             "  \"scope\": \"local|regional|national\",\n" +
-                            "  \"geography\": \"gauteng|western-cape|kwazulu-natal|national\",\n" +
+                            "  \"geography\": \"gauteng|western_cape|kwazulu_natal|national\",\n" +
                             "  \"tone\": \"premium|balanced|high-visibility|performance\",\n" +
                             "  \"campaignName\": \"string\",\n" +
                             "  \"channels\": [\"Radio\", \"Billboards and Digital Screens\", \"TV\"],\n" +
@@ -121,7 +124,7 @@ public sealed class CampaignBriefInterpretationService : ICampaignBriefInterpret
             result.Objective = NormalizeObjective(result.Objective);
             result.Audience = NormalizeAudience(result.Audience);
             result.Scope = NormalizeScope(result.Scope);
-            result.Geography = NormalizeGeography(result.Geography);
+            result.Geography = NormalizeGeography(result.Geography, _broadcastMasterDataService);
             result.Tone = NormalizeTone(result.Tone);
             result.Channels = NormalizeChannels(result.Channels);
             result.CampaignName = string.IsNullOrWhiteSpace(result.CampaignName)
@@ -141,7 +144,7 @@ public sealed class CampaignBriefInterpretationService : ICampaignBriefInterpret
         }
     }
 
-    private static InterpretedCampaignBriefResponse InterpretHeuristically(InterpretCampaignBriefRequest request)
+    private InterpretedCampaignBriefResponse InterpretHeuristically(InterpretCampaignBriefRequest request)
     {
         var brief = request.Brief ?? string.Empty;
         var lower = brief.ToLowerInvariant();
@@ -161,8 +164,8 @@ public sealed class CampaignBriefInterpretationService : ICampaignBriefInterpret
             : request.SelectedBudget >= 500000m ? "regional"
             : "local";
 
-        var geography = lower.Contains("western cape") ? "western-cape"
-            : lower.Contains("kwazulu") || lower.Contains("durban") ? "kwazulu-natal"
+        var geography = lower.Contains("western cape") ? "western_cape"
+            : lower.Contains("kwazulu") || lower.Contains("durban") ? "kwazulu_natal"
             : lower.Contains("national") ? "national"
             : "gauteng";
 
@@ -185,7 +188,7 @@ public sealed class CampaignBriefInterpretationService : ICampaignBriefInterpret
             Objective = objective,
             Audience = audience,
             Scope = scope,
-            Geography = geography,
+            Geography = NormalizeGeography(geography, _broadcastMasterDataService),
             Tone = tone,
             CampaignName = string.IsNullOrWhiteSpace(request.CampaignName) ? "Campaign recommendation" : request.CampaignName.Trim(),
             Channels = channels,
@@ -211,10 +214,10 @@ public sealed class CampaignBriefInterpretationService : ICampaignBriefInterpret
         return normalized is "local" or "national" ? normalized : "regional";
     }
 
-    private static string NormalizeGeography(string? value)
+    private static string NormalizeGeography(string? value, IBroadcastMasterDataService broadcastMasterDataService)
     {
-        var normalized = (value ?? string.Empty).Trim().ToLowerInvariant();
-        return normalized is "western-cape" or "kwazulu-natal" or "national" ? normalized : "gauteng";
+        var normalized = broadcastMasterDataService.NormalizeProvinceCode(value);
+        return normalized is "western_cape" or "kwazulu_natal" or "national" ? normalized : "gauteng";
     }
 
     private static string NormalizeTone(string? value)

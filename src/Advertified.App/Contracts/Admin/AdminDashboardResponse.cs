@@ -75,6 +75,7 @@ public sealed class AdminHealthIssueResponse
 {
     public string OutletCode { get; set; } = string.Empty;
     public string OutletName { get; set; } = string.Empty;
+    public string Category { get; set; } = string.Empty;
     public string Issue { get; set; } = string.Empty;
     public string Impact { get; set; } = string.Empty;
     public string SuggestedFix { get; set; } = string.Empty;

@@ -9,6 +9,7 @@ import type {
   AdminIntegrationStatus,
   AdminOutletPage,
   AdminOutletDetail,
+  AdminOutletMasterData,
   AdminOutletPricing,
   AdminPackageOrder,
   AdminPreviewRuleUpdateInput,
@@ -251,6 +252,10 @@ export function createAdminApi({ mapAdminPackageOrder }: AdminApiDependencies) {
 
     async getAdminOutlet(code: string) {
       return apiRequest<AdminOutletDetail>(`/admin/outlets/${encodeURIComponent(code)}`);
+    },
+
+    async getAdminOutletMasterData() {
+      return apiRequest<AdminOutletMasterData>('/admin/outlets/master-data');
     },
 
     async updateAdminOutlet(existingCode: string, input: AdminUpdateOutletInput) {

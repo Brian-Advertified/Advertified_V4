@@ -8,12 +8,41 @@ import type {
   AdminGeographyDetail,
   AdminUpdateGeographyInput,
   AdminUpsertGeographyMappingInput,
+  SelectOption,
 } from '../../types/domain';
 import { ActionButton, EmptyTableState, ReadOnlyNotice, hasText } from './adminSectionShared';
 import { AdminPageShell, AdminQueryBoundary, useAdminDashboardQuery } from './adminWorkspace';
 
-const PROVINCE_OPTIONS = ['Eastern Cape', 'Free State', 'Gauteng', 'KwaZulu-Natal', 'Limpopo', 'Mpumalanga', 'North West', 'Northern Cape', 'Western Cape'];
-const CITY_OPTIONS = ['Johannesburg', 'Pretoria', 'Sandton', 'Randburg', 'Soweto', 'Cape Town', 'Bellville', 'Durban', 'Umhlanga', 'Pietermaritzburg', 'Gqeberha', 'East London', 'Bloemfontein', 'Polokwane', 'Mbombela', 'Rustenburg'];
+const PROVINCE_OPTIONS: SelectOption[] = [
+  { value: 'eastern_cape', label: 'Eastern Cape' },
+  { value: 'free_state', label: 'Free State' },
+  { value: 'gauteng', label: 'Gauteng' },
+  { value: 'kwazulu_natal', label: 'KwaZulu-Natal' },
+  { value: 'limpopo', label: 'Limpopo' },
+  { value: 'mpumalanga', label: 'Mpumalanga' },
+  { value: 'north_west', label: 'North West' },
+  { value: 'northern_cape', label: 'Northern Cape' },
+  { value: 'western_cape', label: 'Western Cape' },
+  { value: 'national', label: 'National' },
+];
+const CITY_OPTIONS: SelectOption[] = [
+  { value: 'Johannesburg', label: 'Johannesburg' },
+  { value: 'Pretoria', label: 'Pretoria' },
+  { value: 'Sandton', label: 'Sandton' },
+  { value: 'Randburg', label: 'Randburg' },
+  { value: 'Soweto', label: 'Soweto' },
+  { value: 'Cape Town', label: 'Cape Town' },
+  { value: 'Bellville', label: 'Bellville' },
+  { value: 'Durban', label: 'Durban' },
+  { value: 'Umhlanga', label: 'Umhlanga' },
+  { value: 'Pietermaritzburg', label: 'Pietermaritzburg' },
+  { value: 'Gqeberha', label: 'Gqeberha' },
+  { value: 'East London', label: 'East London' },
+  { value: 'Bloemfontein', label: 'Bloemfontein' },
+  { value: 'Polokwane', label: 'Polokwane' },
+  { value: 'Mbombela', label: 'Mbombela' },
+  { value: 'Rustenburg', label: 'Rustenburg' },
+];
 const SORT_ORDER_OPTIONS = [
   { value: 1, label: '1 - Featured area priority' },
   { value: 10, label: '10 - High priority' },
@@ -40,7 +69,7 @@ function LabeledMultiSelect({
   label: string;
   helperText?: string;
   value: string[];
-  options: string[];
+  options: SelectOption[];
   disabled?: boolean;
   onChange: (value: string[]) => void;
 }) {
@@ -55,8 +84,8 @@ function LabeledMultiSelect({
         onChange={(event) => onChange(Array.from(event.target.selectedOptions).map((option) => option.value))}
       >
         {options.map((option) => (
-          <option key={option} value={option}>
-            {option}
+          <option key={option.value} value={option.value}>
+            {option.label}
           </option>
         ))}
       </select>
@@ -93,6 +122,10 @@ export function AdminGeographyPage() {
     queryKey: ['admin-geography', selectedAreaCode],
     queryFn: () => advertifiedApi.getAdminGeography(selectedAreaCode),
     enabled: !!selectedAreaCode,
+  });
+  const outletMasterDataQuery = useQuery({
+    queryKey: ['admin-outlet-master-data'],
+    queryFn: () => advertifiedApi.getAdminOutletMasterData(),
   });
 
   const areaPayloadIsValid = hasText(areaForm.code) && hasText(areaForm.label);
@@ -172,6 +205,8 @@ export function AdminGeographyPage() {
         const selectedMapping = mappingDialog?.id && selectedDetail
           ? selectedDetail.mappings.find((item) => item.id === mappingDialog.id) ?? null
           : null;
+        const provinceOptions = outletMasterDataQuery.data?.provinces ?? PROVINCE_OPTIONS;
+        const cityOptions = outletMasterDataQuery.data?.cities ?? CITY_OPTIONS;
         const openAreaDialog = (mode: 'create' | 'view' | 'edit', detail?: AdminGeographyDetail | null) => {
           if (mode === 'create' || !detail) {
             setAreaForm({ code: '', label: '', description: '', fallbackLocations: [], sortOrder: 100, isActive: true });
@@ -306,7 +341,7 @@ export function AdminGeographyPage() {
                         label="Fallback locations"
                         helperText="Choose the key cities or commuter hubs this area should fall back to when inventory matching is broader than one suburb."
                         value={areaForm.fallbackLocations}
-                        options={CITY_OPTIONS}
+                        options={cityOptions}
                         disabled={areaDialog.mode === 'view'}
                         onChange={(value) => setAreaForm((current) => ({ ...current, fallbackLocations: value }))}
                       />
@@ -360,14 +395,14 @@ export function AdminGeographyPage() {
                         Province
                         <select disabled={mappingDialog.mode === 'view'} className="input-base mt-2 disabled:bg-slate-50" value={mappingForm.province ?? ''} onChange={(event) => setMappingForm((current) => ({ ...current, province: event.target.value }))}>
                           <option value="">Choose province</option>
-                          {PROVINCE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+                          {provinceOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                         </select>
                       </label>
                       <label className="block text-sm font-semibold text-ink">
                         City
                         <select disabled={mappingDialog.mode === 'view'} className="input-base mt-2 disabled:bg-slate-50" value={mappingForm.city ?? ''} onChange={(event) => setMappingForm((current) => ({ ...current, city: event.target.value }))}>
                           <option value="">Choose city</option>
-                          {CITY_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+                          {cityOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                         </select>
                       </label>
                       <input disabled={mappingDialog.mode === 'view'} className="input-base md:col-span-2 disabled:bg-slate-50" placeholder="Station or channel name. Example: Jozi FM" value={mappingForm.stationOrChannelName ?? ''} onChange={(event) => setMappingForm((current) => ({ ...current, stationOrChannelName: event.target.value }))} />

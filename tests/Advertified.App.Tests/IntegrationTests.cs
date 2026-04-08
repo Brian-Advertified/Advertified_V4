@@ -1557,6 +1557,9 @@ internal sealed class StubAdminDashboardService : IAdminDashboardService
 {
     public Task<AdminDashboardResponse> GetDashboardAsync(CancellationToken cancellationToken)
         => throw new NotSupportedException();
+
+    public Task<AdminOutletPageResponse> GetOutletPageAsync(int page, int pageSize, bool issuesOnly, string sortBy, CancellationToken cancellationToken)
+        => throw new NotSupportedException();
 }
 
 internal sealed class StubAdminMutationService : IAdminMutationService

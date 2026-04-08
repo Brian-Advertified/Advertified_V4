@@ -18,17 +18,20 @@ public sealed class AdminDashboardService : IAdminDashboardService
     private readonly IBroadcastInventoryCatalog _broadcastInventoryCatalog;
     private readonly PlanningPolicySnapshotProvider _planningPolicySnapshotProvider;
     private readonly Npgsql.NpgsqlDataSource _dataSource;
+    private readonly IBroadcastMasterDataService _broadcastMasterDataService;
 
     public AdminDashboardService(
         AppDbContext db,
         IBroadcastInventoryCatalog broadcastInventoryCatalog,
         PlanningPolicySnapshotProvider planningPolicySnapshotProvider,
-        Npgsql.NpgsqlDataSource dataSource)
+        Npgsql.NpgsqlDataSource dataSource,
+        IBroadcastMasterDataService broadcastMasterDataService)
     {
         _db = db;
         _broadcastInventoryCatalog = broadcastInventoryCatalog;
         _planningPolicySnapshotProvider = planningPolicySnapshotProvider;
         _dataSource = dataSource;
+        _broadcastMasterDataService = broadcastMasterDataService;
     }
 
     public async Task<AdminDashboardResponse> GetDashboardAsync(CancellationToken cancellationToken)
@@ -39,6 +42,7 @@ public sealed class AdminDashboardService : IAdminDashboardService
             .OrderBy(x => x.MediaType)
             .ThenBy(x => x.Name)
             .ToArray();
+        var outletMasterData = await _broadcastMasterDataService.GetOutletMasterDataAsync(cancellationToken);
 
         var packageSettings = await GetPackageSettingsAsync(cancellationToken);
         var pricingSettings = await GetPricingSettingsAsync(cancellationToken);
@@ -49,8 +53,9 @@ public sealed class AdminDashboardService : IAdminDashboardService
         var weakNoInventoryCount = outletRecords.Count(x => string.Equals(DetermineHealthBucket(x), "weak_no_inventory", StringComparison.OrdinalIgnoreCase));
         var weakOutletCount = outletRecords.Count(x => !string.Equals(DetermineHealthBucket(x), "strong", StringComparison.OrdinalIgnoreCase));
         var weakOutlets = outletRecords
-            .Where(x => !string.Equals(DetermineHealthBucket(x), "strong", StringComparison.OrdinalIgnoreCase))
-            .Select(MapHealthIssue)
+            .Select(record => MapHealthIssue(record, outletMasterData))
+            .Where(static issue => issue is not null)
+            .Select(static issue => issue!)
             .Take(10)
             .ToArray();
 
@@ -640,10 +645,74 @@ public sealed class AdminDashboardService : IAdminDashboardService
         };
     }
 
-    private static AdminHealthIssueResponse MapHealthIssue(BroadcastInventoryRecord record)
+    private static AdminHealthIssueResponse? MapHealthIssue(BroadcastInventoryRecord record, AdminOutletMasterDataResponse masterData)
     {
         var normalizedHealth = DetermineHealthBucket(record);
         var hasGeography = record.ProvinceCodes.Count > 0 || record.CityLabels.Count > 0;
+        var validLanguageCodes = masterData.Languages.Select(x => x.Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var validProvinceCodes = masterData.Provinces.Select(x => x.Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var validCoverageTypes = masterData.CoverageTypes.Select(x => x.Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var validCatalogHealthStates = masterData.CatalogHealthStates.Select(x => x.Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var invalidLanguages = record.PrimaryLanguages.Where(x => !validLanguageCodes.Contains(x)).ToArray();
+        if (invalidLanguages.Length > 0)
+        {
+            return new AdminHealthIssueResponse
+            {
+                OutletCode = record.Id,
+                OutletName = record.Station,
+                Category = "master_data",
+                Issue = "Invalid language code",
+                Impact = $"Lookup constraints and filtering will drift for {string.Join(", ", invalidLanguages)}.",
+                SuggestedFix = "Replace unsupported language codes with canonical reference data values."
+            };
+        }
+
+        var invalidProvinces = record.ProvinceCodes.Where(x => !validProvinceCodes.Contains(x)).ToArray();
+        if (invalidProvinces.Length > 0)
+        {
+            return new AdminHealthIssueResponse
+            {
+                OutletCode = record.Id,
+                OutletName = record.Station,
+                Category = "master_data",
+                Issue = "Invalid province code",
+                Impact = $"Geography matching will drift for {string.Join(", ", invalidProvinces)}.",
+                SuggestedFix = "Replace unsupported province codes with canonical reference data values."
+            };
+        }
+
+        if (!string.IsNullOrWhiteSpace(record.CoverageType) && !validCoverageTypes.Contains(record.CoverageType))
+        {
+            return new AdminHealthIssueResponse
+            {
+                OutletCode = record.Id,
+                OutletName = record.Station,
+                Category = "master_data",
+                Issue = "Invalid coverage type",
+                Impact = "Planner and admin filters will not classify this outlet correctly.",
+                SuggestedFix = "Use a canonical coverage type from the broadcast master data set."
+            };
+        }
+
+        if (!string.IsNullOrWhiteSpace(record.CatalogHealth) && !validCatalogHealthStates.Contains(record.CatalogHealth))
+        {
+            return new AdminHealthIssueResponse
+            {
+                OutletCode = record.Id,
+                OutletName = record.Station,
+                Category = "master_data",
+                Issue = "Invalid health state",
+                Impact = "Catalog health routing and admin queues will be inconsistent.",
+                SuggestedFix = "Use a canonical catalog health state from the broadcast master data set."
+            };
+        }
+
+        if (string.Equals(normalizedHealth, "strong", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
         var issue = normalizedHealth switch
         {
             "weak_unpriced" => "Missing pricing",
@@ -669,10 +738,19 @@ public sealed class AdminDashboardService : IAdminDashboardService
             _ => "Review metadata and pricing coverage."
         };
 
+        var category = normalizedHealth switch
+        {
+            "weak_unpriced" => "pricing",
+            "weak_no_inventory" => "inventory",
+            _ when !hasGeography => "geography",
+            _ => "review"
+        };
+
         return new AdminHealthIssueResponse
         {
             OutletCode = record.Id,
             OutletName = record.Station,
+            Category = category,
             Issue = issue,
             Impact = impact,
             SuggestedFix = suggestedFix

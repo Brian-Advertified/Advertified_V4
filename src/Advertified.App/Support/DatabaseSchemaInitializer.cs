@@ -20,7 +20,6 @@ internal static class DatabaseSchemaInitializer
         foreach (var relativePath in new[]
                  {
                      Path.Combine("database", "bootstrap", "001_package_catalog.sql"),
-                     Path.Combine("database", "media_import", "001_create_tables.sql"),
                      Path.Combine("database", "bootstrap", "002_normalized_media_catalog.sql"),
                      Path.Combine("database", "bootstrap", "003_payment_audit.sql"),
                      Path.Combine("database", "bootstrap", "004_invoicing.sql"),
@@ -64,7 +63,9 @@ internal static class DatabaseSchemaInitializer
                       Path.Combine("database", "bootstrap", "041_lead_source_ingestion.sql"),
                       Path.Combine("database", "bootstrap", "042_lead_actions.sql"),
                       Path.Combine("database", "bootstrap", "043_lead_interactions.sql"),
-                      Path.Combine("database", "bootstrap", "044_lead_action_assignment.sql")
+                      Path.Combine("database", "bootstrap", "044_lead_action_assignment.sql"),
+                      Path.Combine("database", "bootstrap", "045_broadcast_outlet_curation.sql"),
+                      Path.Combine("database", "bootstrap", "046_broadcast_master_data.sql")
                      })
         {
             var fullPath = baseDirectories

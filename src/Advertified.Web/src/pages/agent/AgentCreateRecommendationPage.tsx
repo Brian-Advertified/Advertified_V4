@@ -44,8 +44,8 @@ const GEOGRAPHY_OPTIONS = [
   'pretoria',
   'port-elizabeth',
   'gauteng',
-  'western-cape',
-  'kwazulu-natal',
+  'western_cape',
+  'kwazulu_natal',
 ] as const;
 const TONE_OPTIONS = ['premium', 'balanced', 'high-visibility', 'performance'] as const;
 const LANGUAGE_OPTIONS = [
@@ -1117,8 +1117,8 @@ export function AgentCreateRecommendationPage() {
                   <select value={form.geography} onChange={(event) => handleFormChange('geography', event.target.value)} className="input-base">
                     <option value="">Select province</option>
                     <option value="gauteng">Gauteng</option>
-                    <option value="western-cape">Western Cape</option>
-                    <option value="kwazulu-natal">KwaZulu-Natal</option>
+                    <option value="western_cape">Western Cape</option>
+                    <option value="kwazulu_natal">KwaZulu-Natal</option>
                   </select>
                 )}
               </label>

@@ -11,15 +11,18 @@ public sealed class AdminMutationService : IAdminMutationService
     private readonly Npgsql.NpgsqlDataSource _dataSource;
     private readonly IWebHostEnvironment _environment;
     private readonly IBroadcastInventoryCatalog _broadcastInventoryCatalog;
+    private readonly IBroadcastMasterDataService _broadcastMasterDataService;
 
     public AdminMutationService(
         Npgsql.NpgsqlDataSource dataSource,
         IWebHostEnvironment environment,
-        IBroadcastInventoryCatalog broadcastInventoryCatalog)
+        IBroadcastInventoryCatalog broadcastInventoryCatalog,
+        IBroadcastMasterDataService broadcastMasterDataService)
     {
         _dataSource = dataSource;
         _environment = environment;
         _broadcastInventoryCatalog = broadcastInventoryCatalog;
+        _broadcastMasterDataService = broadcastMasterDataService;
     }
 
     public async Task<AdminOutletDetailResponse> GetOutletAsync(string code, CancellationToken cancellationToken)
@@ -733,7 +736,7 @@ public sealed class AdminMutationService : IAdminMutationService
             {
                 Id = mappingId,
                 ClusterId = clusterId,
-                Province = TrimToNull(request.Province),
+                Province = NormalizeProvinceCode(request.Province),
                 City = TrimToNull(request.City),
                 StationOrChannelName = TrimToNull(request.StationOrChannelName),
             },
@@ -762,7 +765,7 @@ public sealed class AdminMutationService : IAdminMutationService
             {
                 Id = mappingId,
                 ClusterId = clusterId,
-                Province = TrimToNull(request.Province),
+                Province = NormalizeProvinceCode(request.Province),
                 City = TrimToNull(request.City),
                 StationOrChannelName = TrimToNull(request.StationOrChannelName),
             },
@@ -1325,7 +1328,7 @@ public sealed class AdminMutationService : IAdminMutationService
             cancellationToken: cancellationToken));
     }
 
-    private static async Task UpsertOutletAsync(
+    private async Task UpsertOutletAsync(
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
         Guid outletId,
@@ -1364,6 +1367,10 @@ public sealed class AdminMutationService : IAdminMutationService
                     language_notes = @LanguageNotes,
                     target_audience = @TargetAudience,
                     broadcast_frequency = @BroadcastFrequency,
+                    preserve_imported_core_metadata = true,
+                    preserve_imported_languages = true,
+                    preserve_imported_geography = true,
+                    preserve_imported_keywords = true,
                     updated_at = now()
                 where id = @Id;",
                 new
@@ -1372,8 +1379,8 @@ public sealed class AdminMutationService : IAdminMutationService
                     Code = code,
                     Name = name.Trim(),
                     MediaType = NormalizeToken(mediaType),
-                    CoverageType = NormalizeToken(coverageType),
-                    CatalogHealth = NormalizeToken(catalogHealth),
+                    CoverageType = _broadcastMasterDataService.NormalizeCoverageType(coverageType),
+                    CatalogHealth = _broadcastMasterDataService.NormalizeCatalogHealth(catalogHealth),
                     OperatorName = TrimToNull(operatorName),
                     IsNational = isNational,
                     HasPricing = hasPricing,
@@ -1394,11 +1401,13 @@ public sealed class AdminMutationService : IAdminMutationService
                 @"
                 insert into media_outlet (
                     id, code, name, media_type, coverage_type, catalog_health, operator_name,
-                    is_national, has_pricing, language_notes, target_audience, broadcast_frequency
+                    is_national, has_pricing, language_notes, target_audience, broadcast_frequency,
+                    preserve_imported_core_metadata, preserve_imported_languages, preserve_imported_geography, preserve_imported_keywords
                 )
                 values (
                     @Id, @Code, @Name, @MediaType, @CoverageType, @CatalogHealth, @OperatorName,
-                    @IsNational, @HasPricing, @LanguageNotes, @TargetAudience, @BroadcastFrequency
+                    @IsNational, @HasPricing, @LanguageNotes, @TargetAudience, @BroadcastFrequency,
+                    true, true, true, true
                 );",
                 new
                 {
@@ -1406,8 +1415,8 @@ public sealed class AdminMutationService : IAdminMutationService
                     Code = code,
                     Name = name.Trim(),
                     MediaType = NormalizeToken(mediaType),
-                    CoverageType = NormalizeToken(coverageType),
-                    CatalogHealth = NormalizeToken(catalogHealth),
+                    CoverageType = _broadcastMasterDataService.NormalizeCoverageType(coverageType),
+                    CatalogHealth = _broadcastMasterDataService.NormalizeCatalogHealth(catalogHealth),
                     OperatorName = TrimToNull(operatorName),
                     IsNational = isNational,
                     HasPricing = hasPricing,
@@ -1419,7 +1428,10 @@ public sealed class AdminMutationService : IAdminMutationService
                 cancellationToken: cancellationToken));
         }
 
-        foreach (var language in primaryLanguages.Select(NormalizeToken).Where(static x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase))
+        foreach (var language in primaryLanguages
+            .Select(_broadcastMasterDataService.NormalizeLanguageCode)
+            .Where(static x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase))
         {
             await connection.ExecuteAsync(new CommandDefinition(
                 "insert into media_outlet_language (id, media_outlet_id, language_code, is_primary) values (@Id, @MediaOutletId, @LanguageCode, @IsPrimary);",
@@ -1428,7 +1440,10 @@ public sealed class AdminMutationService : IAdminMutationService
                 cancellationToken: cancellationToken));
         }
 
-        foreach (var province in provinceCodes.Select(NormalizeToken).Where(static x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase))
+        foreach (var province in provinceCodes
+            .Select(_broadcastMasterDataService.NormalizeProvinceCode)
+            .Where(static x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase))
         {
             await connection.ExecuteAsync(new CommandDefinition(
                 "insert into media_outlet_geography (id, media_outlet_id, province_code, city_name, geography_type) values (@Id, @MediaOutletId, @ProvinceCode, null, 'province');",
@@ -1464,6 +1479,17 @@ public sealed class AdminMutationService : IAdminMutationService
         }
 
         return value.Trim();
+    }
+
+    private string? NormalizeProvinceCode(string? value)
+    {
+        var trimmed = TrimToNull(value);
+        if (trimmed is null)
+        {
+            return null;
+        }
+
+        return _broadcastMasterDataService.NormalizeProvinceCode(trimmed);
     }
 
     private static string SerializeJsonArray(IEnumerable<string> values)

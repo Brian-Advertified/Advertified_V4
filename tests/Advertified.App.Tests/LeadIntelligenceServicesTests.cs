@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
+using Advertified.App.Contracts.Admin;
+using Advertified.App.Contracts.Agent;
 using Advertified.App.Configuration;
 using Advertified.App.Contracts.Leads;
 using Advertified.App.Contracts.Campaigns;
@@ -753,6 +755,32 @@ public class CampaignRecommendationServiceAuditTests
     }
 }
 
+public class CampaignBriefInterpretationServiceTests
+{
+    [Fact]
+    public async Task InterpretAsync_UsesCanonicalProvinceCodesInHeuristicFallback()
+    {
+        var service = new CampaignBriefInterpretationService(
+            new HttpClient(new StubHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError))),
+            Options.Create(new OpenAIOptions
+            {
+                Enabled = false
+            }),
+            NullLogger<CampaignBriefInterpretationService>.Instance,
+            new StubBroadcastMasterDataService());
+
+        var result = await service.InterpretAsync(
+            new InterpretCampaignBriefRequest
+            {
+                SelectedBudget = 250000m,
+                Brief = "Run a Durban radio push with local awareness focus"
+            },
+            CancellationToken.None);
+
+        result.Geography.Should().Be("kwazulu_natal");
+    }
+}
+
 sealed class StubHttpMessageHandler : HttpMessageHandler
 {
     private readonly Func<HttpRequestMessage, HttpResponseMessage> _handler;
@@ -933,4 +961,29 @@ sealed class StubRecommendationAuditCampaignReasoningService : ICampaignReasonin
             Rationale = "The selected board aligns strongly with the requested local reach strategy."
         });
     }
+}
+
+sealed class StubBroadcastMasterDataService : IBroadcastMasterDataService
+{
+    public Task<AdminOutletMasterDataResponse> GetOutletMasterDataAsync(CancellationToken cancellationToken)
+        => Task.FromResult(new AdminOutletMasterDataResponse());
+
+    public string NormalizeLanguageCode(string? value) => value ?? string.Empty;
+
+    public string NormalizeProvinceCode(string? value)
+    {
+        var normalized = (value ?? string.Empty).Trim().ToLowerInvariant().Replace("-", "_").Replace(" ", "_");
+        return normalized switch
+        {
+            "western_cape" => "western_cape",
+            "kwazulu_natal" => "kwazulu_natal",
+            "national" => "national",
+            _ => "gauteng"
+        };
+    }
+
+    public string NormalizeCoverageType(string? value) => value ?? string.Empty;
+    public string NormalizeCatalogHealth(string? value) => value ?? string.Empty;
+    public string NormalizeLanguageForMatching(string? value) => value ?? string.Empty;
+    public string NormalizeGeographyForMatching(string? value) => value ?? string.Empty;
 }

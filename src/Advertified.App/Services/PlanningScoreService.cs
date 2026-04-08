@@ -12,10 +12,12 @@ public sealed class PlanningScoreService : IPlanningScoreService
     private const decimal BroadcastSecondaryLanguageMatchScore = 20m;
     private const decimal BroadcastLanguageMismatchPenalty = -24m;
     private readonly IPlanningPolicyService _policyService;
+    private readonly IBroadcastMasterDataService _broadcastMasterDataService;
 
-    public PlanningScoreService(IPlanningPolicyService policyService)
+    public PlanningScoreService(IPlanningPolicyService policyService, IBroadcastMasterDataService broadcastMasterDataService)
     {
         _policyService = policyService;
+        _broadcastMasterDataService = broadcastMasterDataService;
     }
 
     public PlanningCandidateAnalysis AnalyzeCandidate(InventoryCandidate candidate, CampaignPlanningRequest request)
@@ -102,7 +104,7 @@ public sealed class PlanningScoreService : IPlanningScoreService
         return score;
     }
 
-    private static decimal LanguageScore(InventoryCandidate candidate, CampaignPlanningRequest request)
+    private decimal LanguageScore(InventoryCandidate candidate, CampaignPlanningRequest request)
     {
         if (request.TargetLanguages.Count == 0)
         {
@@ -111,7 +113,7 @@ public sealed class PlanningScoreService : IPlanningScoreService
 
         var requested = request.TargetLanguages
             .Where(static value => !string.IsNullOrWhiteSpace(value))
-            .Select(NormalizeLanguage)
+            .Select(_broadcastMasterDataService.NormalizeLanguageForMatching)
             .Where(static value => value.Length > 0)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
@@ -704,7 +706,7 @@ public sealed class PlanningScoreService : IPlanningScoreService
         return "unknown";
     }
 
-    private static bool MatchesGeo(string? left, string? right)
+    private bool MatchesGeo(string? left, string? right)
     {
         if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right)) return false;
         if (string.Equals(left.Trim(), right.Trim(), StringComparison.OrdinalIgnoreCase))
@@ -712,7 +714,8 @@ public sealed class PlanningScoreService : IPlanningScoreService
             return true;
         }
 
-        return NormalizeGeoToken(left) == NormalizeGeoToken(right);
+        return _broadcastMasterDataService.NormalizeGeographyForMatching(left)
+            == _broadcastMasterDataService.NormalizeGeographyForMatching(right);
     }
 
     private static bool Matches(string? left, string? right)
@@ -725,29 +728,7 @@ public sealed class PlanningScoreService : IPlanningScoreService
         return string.Equals(left.Trim(), right.Trim(), StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string NormalizeGeoToken(string value)
-    {
-        var normalized = value.Trim().ToLowerInvariant()
-            .Replace(" ", string.Empty)
-            .Replace("-", string.Empty)
-            .Replace("_", string.Empty);
-
-        return normalized switch
-        {
-            "zaec" or "ec" => "easterncape",
-            "zafs" or "fs" => "freestate",
-            "zagt" or "gt" => "gauteng",
-            "zakzn" or "kzn" => "kwazulunatal",
-            "zalp" or "lp" => "limpopo",
-            "zamp" or "mp" => "mpumalanga",
-            "zanc" or "nc" => "northerncape",
-            "zanw" or "nw" => "northwest",
-            "zawc" or "wc" => "westerncape",
-            _ => normalized
-        };
-    }
-
-    private static bool MatchesAnyMetadataToken(InventoryCandidate candidate, string requestedValue, params string[] keys)
+    private bool MatchesAnyMetadataToken(InventoryCandidate candidate, string requestedValue, params string[] keys)
     {
         if (string.IsNullOrWhiteSpace(requestedValue) || candidate.Metadata.Count == 0)
         {
@@ -1006,39 +987,17 @@ public sealed class PlanningScoreService : IPlanningScoreService
         };
     }
 
-    private static bool MatchesLanguage(string? left, string? right)
+    private bool MatchesLanguage(string? left, string? right)
     {
         if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right))
         {
             return false;
         }
 
-        return string.Equals(NormalizeLanguage(left), NormalizeLanguage(right), StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static string NormalizeLanguage(string? value)
-    {
-        var normalized = (value ?? string.Empty).Trim().ToLowerInvariant()
-            .Replace(" ", string.Empty)
-            .Replace("-", string.Empty)
-            .Replace("_", string.Empty);
-
-        return normalized switch
-        {
-            "english" => "english",
-            "isizulu" or "zulu" => "zulu",
-            "isixhosa" or "xhosa" => "xhosa",
-            "afrikaans" => "afrikaans",
-            "sesotho" or "sotho" => "sotho",
-            "setswana" or "tswana" => "tswana",
-            "sepedi" or "pedi" => "pedi",
-            "xitsonga" or "itsonga" => "xitsonga",
-            "tshivenda" or "venda" => "venda",
-            "siswati" or "swati" => "swati",
-            "isindebele" or "ndebele" => "ndebele",
-            "multilingual" or "multi" => "multilingual",
-            _ => normalized
-        };
+        return string.Equals(
+            _broadcastMasterDataService.NormalizeLanguageForMatching(left),
+            _broadcastMasterDataService.NormalizeLanguageForMatching(right),
+            StringComparison.OrdinalIgnoreCase);
     }
 
     private static IEnumerable<string> GenderAliases(string normalizedGender)

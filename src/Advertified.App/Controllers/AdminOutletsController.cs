@@ -11,17 +11,20 @@ public sealed class AdminOutletsController : BaseAdminController
 {
     private readonly IAdminMutationService _adminMutationService;
     private readonly IAdminDashboardService _adminDashboardService;
+    private readonly IBroadcastMasterDataService _broadcastMasterDataService;
 
     public AdminOutletsController(
         AppDbContext db,
         ICurrentUserAccessor currentUserAccessor,
         IChangeAuditService changeAuditService,
         IAdminDashboardService adminDashboardService,
-        IAdminMutationService adminMutationService)
+        IAdminMutationService adminMutationService,
+        IBroadcastMasterDataService broadcastMasterDataService)
         : base(db, currentUserAccessor, changeAuditService)
     {
         _adminDashboardService = adminDashboardService;
         _adminMutationService = adminMutationService;
+        _broadcastMasterDataService = broadcastMasterDataService;
     }
 
     [HttpGet("")]
@@ -62,6 +65,18 @@ public sealed class AdminOutletsController : BaseAdminController
         {
             return BadRequest(new { message = ex.Message });
         }
+    }
+
+    [HttpGet("master-data")]
+    public async Task<ActionResult<AdminOutletMasterDataResponse>> GetOutletMasterData(CancellationToken cancellationToken)
+    {
+        var gateResult = await EnsureAdminAsync(cancellationToken);
+        if (gateResult is not null)
+        {
+            return gateResult;
+        }
+
+        return Ok(await _broadcastMasterDataService.GetOutletMasterDataAsync(cancellationToken));
     }
 
     [HttpGet("{code}")]

@@ -263,8 +263,9 @@ export function AdminHealthPage() {
                   <thead className="bg-brand-soft text-left text-xs uppercase tracking-[0.18em] text-ink-soft"><tr><th className="px-4 py-4">Outlet</th><th className="px-4 py-4">Issue</th><th className="px-4 py-4">Impact</th><th className="px-4 py-4">Suggested fix</th><th className="px-4 py-4 text-right">Action</th></tr></thead>
                   <tbody>
                     {dashboard.healthIssues.map((item) => {
-                      const goesToPricing = item.issue.toLowerCase().includes('pricing') || item.issue.toLowerCase().includes('inventory');
-                      const href = goesToPricing ? `/admin/pricing?outlet=${encodeURIComponent(item.outletCode)}` : `/admin/stations?outlet=${encodeURIComponent(item.outletCode)}&mode=edit`;
+                      const href = item.category === 'pricing' || item.category === 'inventory'
+                        ? `/admin/pricing?outlet=${encodeURIComponent(item.outletCode)}`
+                        : `/admin/stations?outlet=${encodeURIComponent(item.outletCode)}&mode=edit`;
 
                       return (
                         <tr key={`${item.outletCode}-${item.issue}`} className="border-t border-line">

@@ -151,6 +151,6 @@ public class EngineNormalizationTests
             Dominance = new PackagePlanningPolicy()
         }));
 
-        return new PlanningScoreService(policyService);
+        return new PlanningScoreService(policyService, new TestBroadcastMasterDataService());
     }
 }
