@@ -750,6 +750,14 @@ internal static class RecommendationOpportunityContextParser
             || !string.IsNullOrWhiteSpace(flexibleRollout)
             || !string.IsNullOrWhiteSpace(nextStep);
 
+        var campaignNotes = remainingSections.Count > 0
+            ? string.Join(Environment.NewLine + Environment.NewLine, remainingSections)
+            : null;
+        if (isLeadOutreach)
+        {
+            campaignNotes = null;
+        }
+
         return new RecommendationOpportunityContextParseResult(
             hasOpportunityContext
                 ? new RecommendationOpportunityContextModel
@@ -768,7 +776,7 @@ internal static class RecommendationOpportunityContextParser
                     IsLeadOutreach = isLeadOutreach
                 }
                 : null,
-            remainingSections.Count > 0 ? string.Join(Environment.NewLine + Environment.NewLine, remainingSections) : null);
+            campaignNotes);
     }
 
     private static bool TryParseDetectedGaps(string section, List<string> detectedGaps)

@@ -76,16 +76,7 @@ internal static class RecommendationPdfGenerator
                             if (!string.IsNullOrWhiteSpace(model.OpportunityContext.WhoWeAre))
                             {
                                 opportunity.Item().Text("Who we are").SemiBold();
-                                opportunity.Item().Text(ToClientCopy(model.OpportunityContext.WhoWeAre)).FontColor("#4B5563");
-                            }
-
-                            if (model.OpportunityContext.ResearchBasis.Count > 0)
-                            {
-                                opportunity.Item().Text("Research basis").SemiBold();
-                                foreach (var evidence in model.OpportunityContext.ResearchBasis)
-                                {
-                                    opportunity.Item().Text($"- {ToClientCopy(evidence)}").FontColor("#4B5563");
-                                }
+                                opportunity.Item().Text(TruncateClientCopy(model.OpportunityContext.WhoWeAre, 220)).FontColor("#4B5563");
                             }
 
                             if (!string.IsNullOrWhiteSpace(model.OpportunityContext.LastResearchedAtUtc))
@@ -93,47 +84,43 @@ internal static class RecommendationPdfGenerator
                                 opportunity.Item().Text($"Last researched: {ToClientCopy(model.OpportunityContext.LastResearchedAtUtc)}").FontColor("#4B5563");
                             }
 
-                            if (!string.IsNullOrWhiteSpace(model.OpportunityContext.SocialQualityNote))
+                            var topGaps = model.OpportunityContext.DetectedGaps
+                                .Where(static gap => !string.IsNullOrWhiteSpace(gap))
+                                .Take(3)
+                                .ToArray();
+                            if (topGaps.Length > 0)
                             {
-                                opportunity.Item().Text("Social quality note").SemiBold();
-                                opportunity.Item().Text(ToClientCopy(model.OpportunityContext.SocialQualityNote)).FontColor("#4B5563");
-                            }
-
-                            foreach (var gap in model.OpportunityContext.DetectedGaps)
-                            {
-                                opportunity.Item().Text($"- {ToClientCopy(gap)}").FontColor("#4B5563");
-                            }
-
-                            if (!string.IsNullOrWhiteSpace(model.OpportunityContext.LeadInsightSummary))
-                            {
-                                opportunity.Item()
-                                    .Text($"Lead intelligence summary: {ToClientCopy(model.OpportunityContext.LeadInsightSummary)}")
-                                    .FontColor("#4B5563");
+                                opportunity.Item().Text("Where growth can be unlocked").SemiBold();
+                                foreach (var gap in topGaps)
+                                {
+                                    opportunity.Item().Text($"- {TruncateClientCopy(gap, 150)}").FontColor("#4B5563");
+                                }
                             }
 
                             if (!string.IsNullOrWhiteSpace(model.OpportunityContext.ExpectedOutcome))
                             {
+                                opportunity.Item().Text("Expected outcome").SemiBold();
                                 opportunity.Item()
-                                    .Text(ToClientCopy(model.OpportunityContext.ExpectedOutcome))
-                                    .SemiBold();
+                                    .Text(TruncateClientCopy(model.OpportunityContext.ExpectedOutcome, 220))
+                                    .FontColor("#4B5563");
                             }
 
                             if (!string.IsNullOrWhiteSpace(model.OpportunityContext.WhyActNow))
                             {
                                 opportunity.Item().Text("Why timing matters").SemiBold();
-                                opportunity.Item().Text(ToClientCopy(model.OpportunityContext.WhyActNow)).FontColor("#4B5563");
+                                opportunity.Item().Text(TruncateClientCopy(model.OpportunityContext.WhyActNow, 180)).FontColor("#4B5563");
                             }
 
                             if (!string.IsNullOrWhiteSpace(model.OpportunityContext.FlexibleRollout))
                             {
                                 opportunity.Item().Text("Flexible rollout").SemiBold();
-                                opportunity.Item().Text(ToClientCopy(model.OpportunityContext.FlexibleRollout)).FontColor("#4B5563");
+                                opportunity.Item().Text(TruncateClientCopy(model.OpportunityContext.FlexibleRollout, 180)).FontColor("#4B5563");
                             }
 
                             if (!string.IsNullOrWhiteSpace(model.OpportunityContext.NextStep))
                             {
                                 opportunity.Item().Text("Next step").SemiBold();
-                                opportunity.Item().Text(ToClientCopy(model.OpportunityContext.NextStep)).FontColor("#4B5563");
+                                opportunity.Item().Text(TruncateClientCopy(model.OpportunityContext.NextStep, 180)).FontColor("#4B5563");
                             }
                         });
                     }
@@ -408,7 +395,28 @@ internal static class RecommendationPdfGenerator
             return string.Empty;
         }
 
-        return Regex.Replace(value, "\\booh\\b", "Billboards and Digital Screens", RegexOptions.IgnoreCase);
+        var normalized = value
+            .Replace("â€™", "'")
+            .Replace("â€˜", "'")
+            .Replace("â€œ", "\"")
+            .Replace("â€", "\"")
+            .Replace("â€“", "-")
+            .Replace("â€”", "-")
+            .Replace("\u00A0", " ");
+        normalized = Regex.Replace(normalized, "\\s+", " ").Trim();
+
+        return Regex.Replace(normalized, "\\booh\\b", "Billboards and Digital Screens", RegexOptions.IgnoreCase);
+    }
+
+    private static string TruncateClientCopy(string? value, int maxLength)
+    {
+        var clean = ToClientCopy(value);
+        if (clean.Length <= maxLength)
+        {
+            return clean;
+        }
+
+        return clean[..Math.Max(0, maxLength - 3)].TrimEnd() + "...";
     }
 
     private static IReadOnlyList<string> BuildClientSelectionSummary(RecommendationDocumentModel model, RecommendationLineDocumentModel item)
