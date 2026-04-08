@@ -58,10 +58,14 @@ public sealed class CampaignPerformanceProjectionService : ICampaignPerformanceP
         }
 
         var report = await _db.CampaignDeliveryReports
+            .Where(item =>
+                item.CampaignId == campaignId
+                && item.SupplierBookingId == booking.Id
+                && item.ReportType == SyncedReportType
+                && item.ReportedAt.HasValue
+                && item.ReportedAt.Value >= recordedAtUtc.Date
+                && item.ReportedAt.Value < recordedAtUtc.Date.AddDays(1))
             .FirstOrDefaultAsync(
-                item => item.CampaignId == campaignId
-                    && item.SupplierBookingId == booking.Id
-                    && item.ReportType == SyncedReportType,
                 cancellationToken);
 
         var headline = $"{platformLabel} performance";

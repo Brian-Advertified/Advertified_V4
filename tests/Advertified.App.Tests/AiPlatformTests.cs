@@ -727,3 +727,79 @@ public class AdPlatformConnectionServiceTests
         return new AppDbContext(options);
     }
 }
+
+public class CampaignPerformanceProjectionServiceTests
+{
+    [Fact]
+    public async Task UpsertAdPlatformMetricsAsync_CreatesDailyReportSnapshots()
+    {
+        await using var db = BuildDbContext();
+        var campaignId = Guid.NewGuid();
+        var bookingId = Guid.NewGuid();
+
+        db.Campaigns.Add(new Campaign
+        {
+            Id = campaignId,
+            PackageOrderId = Guid.NewGuid(),
+            PackageBandId = Guid.NewGuid(),
+            CampaignName = "Projection Test Campaign",
+            Status = "launched",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+
+        db.CampaignSupplierBookings.Add(new CampaignSupplierBooking
+        {
+            Id = bookingId,
+            CampaignId = campaignId,
+            SupplierOrStation = "Meta Ads",
+            Channel = "digital",
+            BookingStatus = "live",
+            CommittedAmount = 0m,
+            BookedAt = DateTime.UtcNow,
+            Notes = "System-managed ad platform performance sync.",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
+
+        var service = new CampaignPerformanceProjectionService(db);
+        var dayOne = new DateTime(2026, 4, 7, 9, 0, 0, DateTimeKind.Utc);
+        var dayTwo = new DateTime(2026, 4, 8, 9, 0, 0, DateTimeKind.Utc);
+
+        await service.UpsertAdPlatformMetricsAsync(
+            campaignId,
+            "meta",
+            new ExternalAdMetrics(1200, 42, 6, 105m),
+            dayOne,
+            null,
+            CancellationToken.None);
+        await db.SaveChangesAsync();
+
+        await service.UpsertAdPlatformMetricsAsync(
+            campaignId,
+            "meta",
+            new ExternalAdMetrics(1800, 63, 9, 160m),
+            dayTwo,
+            null,
+            CancellationToken.None);
+        await db.SaveChangesAsync();
+
+        var reports = await db.CampaignDeliveryReports
+            .Where(item => item.CampaignId == campaignId && item.ReportType == "ad_platform_sync")
+            .OrderBy(item => item.ReportedAt)
+            .ToArrayAsync();
+
+        reports.Should().HaveCount(2);
+        reports[0].Summary.Should().Contain("Clicks 42");
+        reports[1].Summary.Should().Contain("Clicks 63");
+    }
+
+    private static AppDbContext BuildDbContext()
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase($"campaign-performance-projection-tests-{Guid.NewGuid():N}")
+            .Options;
+        return new AppDbContext(options);
+    }
+}
