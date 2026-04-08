@@ -234,9 +234,84 @@ public sealed class PlanningScoreService : IPlanningScoreService
             bonus += 4m;
         }
 
+        bonus += ReachPriorityBonus(candidate);
+        bonus += LocalProvincialRelevanceBonus(candidate, request);
         bonus += _policyService.GetHigherBandRadioBonus(candidate, request);
 
         return bonus;
+    }
+
+    private decimal ReachPriorityBonus(InventoryCandidate candidate)
+    {
+        if (!candidate.MonthlyListenership.HasValue || candidate.MonthlyListenership.Value <= 0)
+        {
+            return 0m;
+        }
+
+        var monthlyReach = candidate.MonthlyListenership.Value;
+        if (monthlyReach >= 5_000_000) return 12m;
+        if (monthlyReach >= 3_000_000) return 9m;
+        if (monthlyReach >= 1_500_000) return 6m;
+        if (monthlyReach >= 750_000) return 3m;
+        return 0m;
+    }
+
+    private decimal LocalProvincialRelevanceBonus(InventoryCandidate candidate, CampaignPlanningRequest request)
+    {
+        var scope = NormalizeScope(request.GeographyScope);
+        if (scope is not ("local" or "provincial"))
+        {
+            return 0m;
+        }
+
+        decimal adjustment = 0m;
+        if (IsMainstreamHighReachStation(candidate.DisplayName))
+        {
+            adjustment += 8m;
+        }
+
+        // Prevent broad pan-Africa stations from dominating strictly local/provincial plans.
+        if (LooksPanRegionalGlobalAudience(candidate))
+        {
+            adjustment -= 8m;
+        }
+
+        return adjustment;
+    }
+
+    private static bool IsMainstreamHighReachStation(string? displayName)
+    {
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            return false;
+        }
+
+        return displayName.Contains("metro fm", StringComparison.OrdinalIgnoreCase)
+            || displayName.Contains("5fm", StringComparison.OrdinalIgnoreCase)
+            || displayName.Contains("5 fm", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool LooksPanRegionalGlobalAudience(InventoryCandidate candidate)
+    {
+        if (candidate.DisplayName.Contains("channel africa", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var audienceText = GetMetadataText(candidate,
+            "targetAudience",
+            "target_audience",
+            "inventoryIntelligenceNotes",
+            "inventory_intelligence_notes");
+        if (string.IsNullOrWhiteSpace(audienceText))
+        {
+            return false;
+        }
+
+        return audienceText.Contains("pan-afric", StringComparison.OrdinalIgnoreCase)
+            || audienceText.Contains("pan african", StringComparison.OrdinalIgnoreCase)
+            || audienceText.Contains("across africa", StringComparison.OrdinalIgnoreCase)
+            || audienceText.Contains("international", StringComparison.OrdinalIgnoreCase);
     }
 
     private static decimal StrategyFitScore(InventoryCandidate candidate, CampaignPlanningRequest request)

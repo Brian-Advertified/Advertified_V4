@@ -112,6 +112,54 @@ public class EngineNormalizationTests
     }
 
     [Fact]
+    public void PlanningScoreService_AnalyzeCandidate_PrioritizesMetroFmOverChannelAfrica_ForLocalAwareness()
+    {
+        var service = CreatePlanningScoreService();
+        var request = new CampaignPlanningRequest
+        {
+            GeographyScope = "local",
+            Cities = new List<string> { "Johannesburg" },
+            PreferredMediaTypes = new List<string> { "radio" },
+            SelectedBudget = 100000m,
+            Objective = "awareness",
+            TargetRadioShare = 100
+        };
+
+        var metroCandidate = new InventoryCandidate
+        {
+            SourceId = Guid.NewGuid(),
+            MediaType = "Radio",
+            DisplayName = "Metro FM - Breakfast",
+            City = "Johannesburg",
+            Cost = 12000m,
+            IsAvailable = true,
+            MarketScope = "national",
+            MonthlyListenership = 8_000_000
+        };
+
+        var channelAfricaCandidate = new InventoryCandidate
+        {
+            SourceId = Guid.NewGuid(),
+            MediaType = "Radio",
+            DisplayName = "Channel Africa - Drive",
+            City = "Johannesburg",
+            Cost = 12000m,
+            IsAvailable = true,
+            MarketScope = "national",
+            MonthlyListenership = 500_000,
+            Metadata = new Dictionary<string, object?>
+            {
+                ["targetAudience"] = "Pan-African international audience"
+            }
+        };
+
+        var metroScore = service.AnalyzeCandidate(metroCandidate, request).Score;
+        var channelAfricaScore = service.AnalyzeCandidate(channelAfricaCandidate, request).Score;
+
+        metroScore.Should().BeGreaterThan(channelAfricaScore);
+    }
+
+    [Fact]
     public void BroadcastScoreCalculator_Score_MatchesLanguageAliases()
     {
         var calculator = new BroadcastScoreCalculator(BroadcastMatcherPolicy.Default);
