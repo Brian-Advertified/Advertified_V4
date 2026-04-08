@@ -4,6 +4,7 @@ using Advertified.App.Configuration;
 using Advertified.App.Data;
 using Advertified.App.Data.Entities;
 using Advertified.App.Services.Abstractions;
+using Advertified.App.Support;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
@@ -457,15 +458,7 @@ public sealed class DbAdVariantService : IAdVariantService
 
     private static string NormalizeProviderKey(string? value)
     {
-        var normalized = (value ?? string.Empty).Trim().ToLowerInvariant();
-        return normalized switch
-        {
-            "google" => "googleads",
-            "google_ads" => "googleads",
-            "meta" => "meta",
-            "facebook" => "meta",
-            _ => normalized
-        };
+        return AdPlatformProviderNormalizer.Normalize(value, fallback: string.Empty);
     }
 
     public async Task<int> SyncAllPublishedCampaignsAsync(CancellationToken cancellationToken)
@@ -767,15 +760,10 @@ public sealed class AdPlatformPublisherFactory : IAdPlatformPublisherFactory
 
     public IAdPlatformPublisher GetRequired(string platform)
     {
-        var key = string.IsNullOrWhiteSpace(platform) ? "meta" : platform.Trim().ToLowerInvariant();
+        var key = AdPlatformProviderNormalizer.Normalize(platform);
         if (_publishers.TryGetValue(key, out var publisher))
         {
             return publisher;
-        }
-
-        if (key is "google" or "googleads" && _publishers.TryGetValue("googleads", out var googlePublisher))
-        {
-            return googlePublisher;
         }
 
         throw new InvalidOperationException($"No ad platform publisher is registered for '{platform}'.");

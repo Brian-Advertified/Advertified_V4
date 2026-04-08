@@ -2,6 +2,7 @@ using Advertified.App.AIPlatform.Api;
 using Advertified.App.Data;
 using Advertified.App.Data.Entities;
 using Advertified.App.Services.Abstractions;
+using Advertified.App.Support;
 using Microsoft.EntityFrameworkCore;
 
 namespace Advertified.App.Services;
@@ -149,20 +150,7 @@ public sealed class AdPlatformConnectionService : IAdPlatformConnectionService
 
     private static string NormalizeProvider(string? value)
     {
-        var normalized = (value ?? string.Empty).Trim().ToLowerInvariant();
-        return normalized switch
-        {
-            "google" => "googleads",
-            "google ads" => "googleads",
-            "google_ads" => "googleads",
-            "googleads" => "googleads",
-            "meta" => "meta",
-            "facebook" => "meta",
-            "facebookads" => "meta",
-            "linkedin" => "linkedin",
-            "tiktok" => "tiktok",
-            _ => string.IsNullOrWhiteSpace(normalized) ? "meta" : normalized
-        };
+        return AdPlatformProviderNormalizer.Normalize(value);
     }
 
     private static string NormalizeStatus(string? value)
@@ -182,4 +170,3 @@ public sealed class AdPlatformConnectionService : IAdPlatformConnectionService
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 }
-

@@ -6,6 +6,7 @@ using Advertified.App.Configuration;
 using Advertified.App.Data;
 using Advertified.App.Data.Entities;
 using Advertified.App.Services;
+using Advertified.App.Support;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -67,6 +68,25 @@ public class MultiAiProviderOrchestratorTests
 
         public Task<string> ExecuteAsync(string inputJson, CancellationToken cancellationToken)
             => Task.FromResult(_payload);
+    }
+}
+
+public class AdPlatformProviderNormalizerTests
+{
+    [Theory]
+    [InlineData("google", "googleads")]
+    [InlineData("Google Ads", "googleads")]
+    [InlineData("google_ads", "googleads")]
+    [InlineData("facebook", "meta")]
+    [InlineData("facebook ads", "meta")]
+    [InlineData("meta", "meta")]
+    [InlineData("linkedin", "linkedin")]
+    [InlineData("tiktok", "tiktok")]
+    public void Normalize_ReturnsCanonicalProviderKey(string input, string expected)
+    {
+        var result = AdPlatformProviderNormalizer.Normalize(input);
+
+        result.Should().Be(expected);
     }
 }
 

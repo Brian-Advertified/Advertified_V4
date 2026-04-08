@@ -3,6 +3,7 @@ using Advertified.App.Configuration;
 using Advertified.App.Data;
 using Advertified.App.Data.Entities;
 using Advertified.App.Services.Abstractions;
+using Advertified.App.Support;
 using Microsoft.Extensions.Options;
 
 namespace Advertified.App.Services;
@@ -87,7 +88,7 @@ public sealed class AdPlatformAccessTokenService : IAdPlatformAccessTokenService
 
     private AdPlatformProviderOptions? ResolveProviderOptions(string platform)
     {
-        var normalized = NormalizeProviderKey(platform);
+        var normalized = AdPlatformProviderNormalizer.Normalize(platform);
         return normalized switch
         {
             "meta" => _options.Meta,
@@ -154,19 +155,6 @@ public sealed class AdPlatformAccessTokenService : IAdPlatformAccessTokenService
             expiresAt);
     }
 
-    private static string NormalizeProviderKey(string? value)
-    {
-        var normalized = (value ?? string.Empty).Trim().ToLowerInvariant();
-        return normalized switch
-        {
-            "google" => "googleads",
-            "google_ads" => "googleads",
-            "meta" => "meta",
-            "facebook" => "meta",
-            _ => normalized
-        };
-    }
-
     private sealed record RefreshTokenResult(string AccessToken, string? RefreshToken, DateTime? ExpiresAtUtc);
 
     private sealed class TokenRefreshResponse
@@ -176,4 +164,3 @@ public sealed class AdPlatformAccessTokenService : IAdPlatformAccessTokenService
         public int? expires_in { get; set; }
     }
 }
-
