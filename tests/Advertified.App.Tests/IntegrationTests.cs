@@ -2055,13 +2055,13 @@ internal sealed class StubAdVariantService : IAdVariantService
     public Task<CampaignAdMetricsSummary> GetCampaignMetricsSummaryAsync(Guid campaignId, CancellationToken cancellationToken)
     {
         SummaryCallCount++;
-        return Task.FromResult(new CampaignAdMetricsSummary(campaignId, 0, 0, 0, 0, 0, 0m, 0m, 0m, null, null, null));
+        return Task.FromResult(new CampaignAdMetricsSummary(campaignId, 0, 0, 0, 0, 0, 0m, 0m, 0m, null, null, null, null, null));
     }
 
     public Task<SyncCampaignMetricsResult> SyncCampaignMetricsAsync(Guid campaignId, CancellationToken cancellationToken)
     {
         SyncCallCount++;
-        return Task.FromResult(new SyncCampaignMetricsResult(campaignId, 0, new CampaignAdMetricsSummary(campaignId, 0, 0, 0, 0, 0, 0m, 0m, 0m, null, null, null)));
+        return Task.FromResult(new SyncCampaignMetricsResult(campaignId, 0, new CampaignAdMetricsSummary(campaignId, 0, 0, 0, 0, 0, 0m, 0m, 0m, null, null, null, null, null)));
     }
 
     public Task<int> SyncAllPublishedCampaignsAsync(CancellationToken cancellationToken)

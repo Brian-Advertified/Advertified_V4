@@ -69,6 +69,39 @@ public class WebsiteSignalProviderTests
     }
 
     [Fact]
+    public async Task CollectAsync_DoesNotTreatResponseDateHeaderAsWebsiteFreshness()
+    {
+        var client = new HttpClient(new StubHttpMessageHandler(_ =>
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("<html><body>hello</body></html>")
+            };
+            response.Headers.Date = DateTimeOffset.UtcNow;
+            return response;
+        }));
+
+        var provider = new WebsiteSignalProvider(client);
+
+        var result = await provider.CollectAsync("https://example.com", CancellationToken.None);
+
+        result.WebsiteUpdatedRecently.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task CollectAsync_DoesNotMarkMetaAdsForPlainInstagramLinks()
+    {
+        var html = "<html><body><a href=\"https://instagram.com/brand\">Instagram</a></body></html>";
+        var client = new HttpClient(new StubHttpMessageHandler(_ =>
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(html) }));
+        var provider = new WebsiteSignalProvider(client);
+
+        var result = await provider.CollectAsync("https://example.com", CancellationToken.None);
+
+        result.HasMetaAds.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task CollectAsync_ReturnsEmptySignalsWhenRequestFails()
     {
         var client = new HttpClient(new StubHttpMessageHandler(_ => throw new HttpRequestException("boom")));

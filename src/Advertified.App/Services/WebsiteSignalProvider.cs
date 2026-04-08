@@ -9,11 +9,12 @@ public sealed partial class WebsiteSignalProvider : IWebsiteSignalProvider
     {
         "sale",
         "promo",
-        "offer",
-        "special",
         "discount",
         "clearance",
-        "limited time"
+        "limited time",
+        "coupon",
+        "deal",
+        "save"
     };
     private static readonly string[] PromoPaths = new[]
     {
@@ -33,8 +34,7 @@ public sealed partial class WebsiteSignalProvider : IWebsiteSignalProvider
         "facebook pixel",
         "fbq(",
         "meta pixel",
-        "www.facebook.com/tr",
-        "instagram.com"
+        "www.facebook.com/tr"
     };
 
     private readonly HttpClient _httpClient;
@@ -67,8 +67,7 @@ public sealed partial class WebsiteSignalProvider : IWebsiteSignalProvider
             }
 
             var content = await response.Content.ReadAsStringAsync(cancellationToken);
-            var lastModified = response.Content.Headers.LastModified?.UtcDateTime
-                ?? response.Headers.Date?.UtcDateTime;
+            var lastModified = response.Content.Headers.LastModified?.UtcDateTime;
 
             return BuildResult(content, lastModified, websiteUri);
         }
@@ -85,13 +84,15 @@ public sealed partial class WebsiteSignalProvider : IWebsiteSignalProvider
     private static WebsiteSignalResult BuildResult(string content, DateTime? lastModifiedUtc, Uri? websiteUri)
     {
         var lowered = content.ToLowerInvariant();
-        var hasPromoKeyword = PromoKeywords.Any(keyword => lowered.Contains(keyword, StringComparison.OrdinalIgnoreCase));
+        var hasPromoKeyword = PromoKeywords.Any(keyword => ContainsWholeWord(lowered, keyword))
+            || DiscountPatternRegex().IsMatch(content);
         var hasPromoPath = PromoPaths.Any(path =>
             lowered.Contains($"href=\"{path}", StringComparison.OrdinalIgnoreCase)
             || lowered.Contains($"href='{path}", StringComparison.OrdinalIgnoreCase)
             || lowered.Contains(path, StringComparison.OrdinalIgnoreCase));
         var hasMetaAds = MetaAdMarkers.Any(marker => lowered.Contains(marker, StringComparison.OrdinalIgnoreCase))
             || MetaPixelRegex().IsMatch(content);
+        // Only trust explicit document freshness metadata. Date headers are often request-time echoes.
         var updatedRecently = lastModifiedUtc.HasValue && lastModifiedUtc.Value >= DateTime.UtcNow.AddDays(-30);
 
         if (!hasPromoPath && websiteUri is not null)
@@ -118,4 +119,19 @@ public sealed partial class WebsiteSignalProvider : IWebsiteSignalProvider
 
     [GeneratedRegex(@"fbq\s*\(|facebook\.com/tr|meta\s+pixel", RegexOptions.IgnoreCase | RegexOptions.Compiled)]
     private static partial Regex MetaPixelRegex();
+
+    [GeneratedRegex(@"\b\d{1,3}%\s*(off|discount)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled)]
+    private static partial Regex DiscountPatternRegex();
+
+    private static bool ContainsWholeWord(string source, string token)
+    {
+        if (string.IsNullOrWhiteSpace(source) || string.IsNullOrWhiteSpace(token))
+        {
+            return false;
+        }
+
+        var escaped = Regex.Escape(token.Trim());
+        var regex = new Regex($@"\b{escaped}\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        return regex.IsMatch(source);
+    }
 }
