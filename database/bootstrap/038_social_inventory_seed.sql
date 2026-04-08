@@ -118,7 +118,7 @@ SET
     updated_at = now();
 
 INSERT INTO media_outlet_language (id, media_outlet_id, language_code, is_primary)
-SELECT gen_random_uuid(), id, 'English', true
+SELECT gen_random_uuid(), id, 'english', true
 FROM media_outlet
 WHERE code IN ('social_meta', 'social_tiktok', 'social_youtube', 'social_linkedin')
 ON CONFLICT (media_outlet_id, language_code) DO NOTHING;
