@@ -72,6 +72,15 @@ public sealed class LeadsController : ControllerBase
                 .ThenByDescending(x => x.Id)
                 .First())
             .ToDictionaryAsync(x => x.LeadId, cancellationToken);
+        var latestSignalIds = latestSignals.Values.Select(signal => signal.Id).Distinct().ToArray();
+        var latestSignalEvidenceBySignalId = latestSignalIds.Length == 0
+            ? new Dictionary<int, List<LeadSignalEvidence>>()
+            : await _db.LeadSignalEvidences
+                .AsNoTracking()
+                .Where(item => latestSignalIds.Contains(item.SignalId))
+                .OrderByDescending(item => item.CreatedAt)
+                .GroupBy(item => item.SignalId)
+                .ToDictionaryAsync(group => group.Key, group => group.ToList(), cancellationToken);
 
         var latestInsights = await _db.LeadInsights
             .AsNoTracking()
@@ -96,10 +105,21 @@ public sealed class LeadsController : ControllerBase
         foreach (var lead in leads)
         {
             latestSignals.TryGetValue(lead.Id, out var signal);
+            IReadOnlyList<LeadSignalEvidence> signalEvidence;
+            if (signal is null)
+            {
+                signalEvidence = Array.Empty<LeadSignalEvidence>();
+            }
+            else
+            {
+                signalEvidence = latestSignalEvidenceBySignalId.TryGetValue(signal.Id, out var rows)
+                    ? rows
+                    : Array.Empty<LeadSignalEvidence>();
+            }
             latestInsights.TryGetValue(lead.Id, out var insight);
             recommendedActions.TryGetValue(lead.Id, out var action);
             var score = await _leadScoreService.ScoreAsync(lead.Id, cancellationToken);
-            var channelDetections = _leadChannelDetectionService.Detect(lead, signal);
+            var channelDetections = _leadChannelDetectionService.Detect(lead, signal, signalEvidence);
 
             results.Add(new LeadIntelligenceDto
             {
@@ -208,7 +228,14 @@ public sealed class LeadsController : ControllerBase
             .ToListAsync(cancellationToken);
 
         var score = await _leadScoreService.ScoreAsync(id, cancellationToken);
-        var channelDetections = _leadChannelDetectionService.Detect(lead, signal);
+        var signalEvidence = signal is null
+            ? Array.Empty<LeadSignalEvidence>()
+            : await _db.LeadSignalEvidences
+                .AsNoTracking()
+                .Where(item => item.SignalId == signal.Id)
+                .OrderByDescending(item => item.CreatedAt)
+                .ToArrayAsync(cancellationToken);
+        var channelDetections = _leadChannelDetectionService.Detect(lead, signal, signalEvidence);
         var latestInsight = insightHistory.FirstOrDefault();
         var insight = signal is null
             ? "No signal analysis has been run for this lead yet."
@@ -320,7 +347,12 @@ public sealed class LeadsController : ControllerBase
         }
 
         var result = await _leadIntelligenceOrchestrator.RunLeadAsync(id, cancellationToken);
-        var channelDetections = _leadChannelDetectionService.Detect(lead, result.Signal);
+        var resultSignalEvidence = await _db.LeadSignalEvidences
+            .AsNoTracking()
+            .Where(item => item.SignalId == result.Signal.Id)
+            .OrderByDescending(item => item.CreatedAt)
+            .ToArrayAsync(cancellationToken);
+        var channelDetections = _leadChannelDetectionService.Detect(lead, result.Signal, resultSignalEvidence);
 
         var signalHistory = await _db.Signals
             .AsNoTracking()

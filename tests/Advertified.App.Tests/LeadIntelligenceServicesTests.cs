@@ -484,7 +484,7 @@ public class LeadSourceAutomationStatusServiceTests
 public class LeadChannelDetectionServiceTests
 {
     [Fact]
-    public void Detect_ScoresSocialAsDetectedWhenMetaAdsArePresent()
+    public void Detect_ScoresSocialAsDetectedWhenDirectMetaEvidenceIsPresent()
     {
         var service = new LeadChannelDetectionService();
         var lead = new Lead
@@ -504,7 +504,26 @@ public class LeadChannelDetectionServiceTests
             CreatedAt = DateTime.UtcNow.AddDays(-2)
         };
 
-        var results = service.Detect(lead, signal);
+        var evidence = new[]
+        {
+            new LeadSignalEvidence
+            {
+                LeadId = 61,
+                SignalId = 1,
+                Channel = "social",
+                SignalType = "meta_ad_library_active_ads",
+                Source = "meta_ad_library",
+                Confidence = "detected",
+                Weight = 40,
+                ReliabilityMultiplier = 1.0m,
+                FreshnessMultiplier = 1.0m,
+                EffectiveWeight = 40m,
+                IsPositive = true,
+                Value = "Direct active ad evidence."
+            }
+        };
+
+        var results = service.Detect(lead, signal, evidence);
         var social = results.Single(x => x.Channel == "social");
 
         social.Score.Should().BeGreaterThanOrEqualTo(80);
@@ -652,6 +671,89 @@ Keep the campaign family-safe and visible near commuter routes.";
 
 public class CampaignRecommendationServiceAuditTests
 {
+    [Fact]
+    public async Task GenerateAndSaveAsync_RecoversProposalBWhenTierIsUnderfilled()
+    {
+        await using var db = LeadIntelligenceTestHelpers.CreateDbContext();
+        var packageBandId = Guid.NewGuid();
+        var packageOrderId = Guid.NewGuid();
+        var campaignId = Guid.NewGuid();
+
+        db.PackageBands.Add(new Advertified.App.Data.Entities.PackageBand
+        {
+            Id = packageBandId,
+            Code = "scale",
+            Name = "Scale",
+            MinBudget = 20_000m,
+            MaxBudget = 100_000m,
+            SortOrder = 1,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow
+        });
+
+        db.PackageOrders.Add(new Advertified.App.Data.Entities.PackageOrder
+        {
+            Id = packageOrderId,
+            PackageBandId = packageBandId,
+            Amount = 60_000m,
+            SelectedBudget = 60_000m,
+            Currency = "ZAR",
+            PaymentStatus = "paid",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+
+        db.Campaigns.Add(new Advertified.App.Data.Entities.Campaign
+        {
+            Id = campaignId,
+            PackageBandId = packageBandId,
+            PackageOrderId = packageOrderId,
+            Status = "paid",
+            PlanningMode = "ai_assisted",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+
+        db.CampaignBriefs.Add(new Advertified.App.Data.Entities.CampaignBrief
+        {
+            Id = Guid.NewGuid(),
+            CampaignId = campaignId,
+            Objective = "Awareness",
+            GeographyScope = "local",
+            CitiesJson = JsonSerializer.Serialize(new[] { "Johannesburg" }),
+            PreferredMediaTypesJson = JsonSerializer.Serialize(new[] { "ooh", "radio", "digital" }),
+            TargetLanguagesJson = JsonSerializer.Serialize(new[] { "English" }),
+            MaxMediaItems = 3,
+            OpenToUpsell = false,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+
+        await db.SaveChangesAsync();
+
+        var policySnapshotProvider = new PlanningPolicySnapshotProvider(new PlanningPolicyOptions());
+        var service = new CampaignRecommendationService(
+            db,
+            new TierRecoveryMediaPlanningEngineStub(),
+            new StubRecommendationAuditCampaignReasoningService(),
+            policySnapshotProvider,
+            new PlanningPolicyService(policySnapshotProvider));
+
+        var recommendationId = await service.GenerateAndSaveAsync(campaignId, null, CancellationToken.None);
+
+        recommendationId.Should().NotBe(Guid.Empty);
+        db.CampaignRecommendations.Should().HaveCount(3);
+
+        var proposalB = await db.CampaignRecommendations
+            .AsNoTracking()
+            .SingleAsync(item => item.RecommendationType.EndsWith(":ooh_focus"));
+
+        proposalB.TotalCost.Should().BeGreaterThanOrEqualTo(46_666.67m);
+        proposalB.TotalCost.Should().BeLessThanOrEqualTo(73_333.33m);
+        proposalB.Rationale.Should().Contain("tier_recovery_used");
+        proposalB.Rationale.Should().Contain("tier_recovery_relaxed_max_media_items");
+    }
+
     [Fact]
     public async Task GenerateAndSaveAsync_PersistsRecommendationRunAudit()
     {
@@ -1052,6 +1154,49 @@ sealed class StubRecommendationAuditMediaPlanningEngine : IMediaPlanningEngine
                 }
             }
         });
+    }
+}
+
+sealed class TierRecoveryMediaPlanningEngineStub : IMediaPlanningEngine
+{
+    public Task<RecommendationResult> GenerateAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
+    {
+        var total = ResolveTotal(request);
+        return Task.FromResult(new RecommendationResult
+        {
+            RecommendedPlan = new List<PlannedItem>
+            {
+                new PlannedItem
+                {
+                    SourceId = Guid.NewGuid(),
+                    SourceType = "ooh",
+                    DisplayName = "Tier Recovery Test Placement",
+                    MediaType = "ooh",
+                    UnitCost = total,
+                    Quantity = 1,
+                    Score = 80m,
+                    Metadata = new Dictionary<string, object?>()
+                }
+            },
+            FallbackFlags = new List<string>(),
+            ManualReviewRequired = false,
+            Rationale = "Generated for tier recovery validation."
+        });
+    }
+
+    private static decimal ResolveTotal(CampaignPlanningRequest request)
+    {
+        if (request.TargetOohShare == 60 && request.MaxMediaItems.HasValue)
+        {
+            return 18_480m;
+        }
+
+        if (request.TargetOohShare == 60 && !request.MaxMediaItems.HasValue)
+        {
+            return 55_000m;
+        }
+
+        return request.SelectedBudget * 0.8m;
     }
 }
 

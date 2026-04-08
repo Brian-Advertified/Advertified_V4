@@ -1,5 +1,6 @@
 using Advertified.App.Configuration;
 using Advertified.App.Data;
+using Advertified.App.Data.Entities;
 using Advertified.App.Services.Abstractions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -36,8 +37,16 @@ public sealed class LeadScoreService : ILeadScoreService
             .ThenByDescending(x => x.Id)
             .FirstOrDefaultAsync(cancellationToken);
 
+        var signalEvidences = latestSignal is null
+            ? Array.Empty<LeadSignalEvidence>()
+            : await _db.LeadSignalEvidences
+                .AsNoTracking()
+                .Where(item => item.SignalId == latestSignal.Id)
+                .OrderByDescending(item => item.CreatedAt)
+                .ToArrayAsync(cancellationToken);
+
         var channelScores = _leadChannelDetectionService
-            .Detect(lead, latestSignal)
+            .Detect(lead, latestSignal, signalEvidences)
             .ToDictionary(item => item.Channel, item => item.Score, StringComparer.OrdinalIgnoreCase);
 
         var activityScore = 0;

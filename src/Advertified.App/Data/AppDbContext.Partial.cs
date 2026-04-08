@@ -676,6 +676,76 @@ public partial class AppDbContext
                 .HasConstraintName("signals_lead_id_fkey");
         });
 
+        modelBuilder.Entity<LeadSignalEvidence>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("lead_signal_evidence_pkey");
+
+            entity.ToTable("lead_signal_evidence");
+
+            entity.HasIndex(e => e.LeadId, "ix_lead_signal_evidence_lead_id");
+            entity.HasIndex(e => e.SignalId, "ix_lead_signal_evidence_signal_id");
+            entity.HasIndex(e => new { e.LeadId, e.Channel, e.CreatedAt }, "ix_lead_signal_evidence_lead_channel_created");
+            entity.HasIndex(
+                    e => new
+                    {
+                        e.SignalId,
+                        e.Channel,
+                        e.SignalType,
+                        e.Source,
+                        e.EvidenceUrl,
+                        e.Value
+                    },
+                    "ux_lead_signal_evidence_signal_unique")
+                .IsUnique();
+
+            entity.Property(e => e.Id)
+                .ValueGeneratedOnAdd()
+                .HasColumnName("id");
+            entity.Property(e => e.LeadId).HasColumnName("lead_id");
+            entity.Property(e => e.SignalId).HasColumnName("signal_id");
+            entity.Property(e => e.Channel)
+                .HasMaxLength(40)
+                .HasColumnName("channel");
+            entity.Property(e => e.SignalType)
+                .HasMaxLength(80)
+                .HasColumnName("signal_type");
+            entity.Property(e => e.Source)
+                .HasMaxLength(80)
+                .HasColumnName("source");
+            entity.Property(e => e.Confidence)
+                .HasMaxLength(30)
+                .HasColumnName("confidence");
+            entity.Property(e => e.Weight).HasColumnName("weight");
+            entity.Property(e => e.ReliabilityMultiplier)
+                .HasPrecision(6, 4)
+                .HasColumnName("reliability_multiplier");
+            entity.Property(e => e.FreshnessMultiplier)
+                .HasPrecision(6, 4)
+                .HasColumnName("freshness_multiplier");
+            entity.Property(e => e.EffectiveWeight)
+                .HasPrecision(8, 2)
+                .HasColumnName("effective_weight");
+            entity.Property(e => e.IsPositive).HasColumnName("is_positive");
+            entity.Property(e => e.ObservedAt).HasColumnName("observed_at");
+            entity.Property(e => e.EvidenceUrl).HasColumnName("evidence_url");
+            entity.Property(e => e.Value).HasColumnName("value");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("timezone('utc', now())")
+                .HasColumnName("created_at");
+
+            entity.HasOne(e => e.Lead)
+                .WithMany(e => e.SignalEvidences)
+                .HasForeignKey(e => e.LeadId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("lead_signal_evidence_lead_id_fkey");
+
+            entity.HasOne(e => e.Signal)
+                .WithMany(e => e.Evidences)
+                .HasForeignKey(e => e.SignalId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("lead_signal_evidence_signal_id_fkey");
+        });
+
         modelBuilder.Entity<PackageBandProfile>(entity =>
         {
             entity.HasKey(e => e.PackageBandId).HasName("package_band_profiles_pkey");

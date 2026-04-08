@@ -96,6 +96,40 @@ type LeadArchetypeProfile = {
   recommendedChannels: string[];
 };
 
+type AutoBriefConfidence = 'detected' | 'strongly_inferred' | 'weakly_inferred' | 'no_evidence';
+
+type AutoBriefField = {
+  value: string;
+  confidence: AutoBriefConfidence;
+  reason: string;
+};
+
+type AutoBriefPayload = {
+  fields: {
+    objective: AutoBriefField;
+    audience: AutoBriefField;
+    scope: AutoBriefField;
+    geography: AutoBriefField;
+    tone: AutoBriefField;
+    salesModel: AutoBriefField;
+    customerType: AutoBriefField;
+    buyingBehaviour: AutoBriefField;
+    decisionCycle: AutoBriefField;
+    urgencyLevel: AutoBriefField;
+    language: AutoBriefField;
+    targetInterests: AutoBriefField;
+    targetGender: AutoBriefField;
+    ageRange: AutoBriefField;
+  };
+  channels: {
+    values: string[];
+    confidence: AutoBriefConfidence;
+    reason: string;
+  };
+  uncertainFields: string[];
+  generatedAtUtc: string;
+};
+
 const STRONG_CHANNEL_MIN = 60;
 const WEAK_CHANNEL_MAX = 39;
 
@@ -314,6 +348,144 @@ function buildEstimatedImpactRange(score: number): string {
   return 'R5k - R25k / month';
 }
 
+function normalizeGeographyValue(location: string): string {
+  const normalized = location.trim().toLowerCase();
+  const mappings: Array<{ pattern: RegExp; value: string }> = [
+    { pattern: /johannesburg|joburg|jhb/, value: 'johannesburg' },
+    { pattern: /cape[\s-]?town|capetown/, value: 'cape-town' },
+    { pattern: /durban|ethekwini/, value: 'durban' },
+    { pattern: /pretoria|tshwane/, value: 'pretoria' },
+    { pattern: /port[\s-]?elizabeth|gqeberha/, value: 'port-elizabeth' },
+    { pattern: /gauteng/, value: 'gauteng' },
+    { pattern: /western[\s-]?cape/, value: 'western_cape' },
+    { pattern: /kwazulu[\s-]?natal|kzn/, value: 'kwazulu_natal' },
+  ];
+
+  const mapped = mappings.find((item) => item.pattern.test(normalized));
+  if (mapped) {
+    return mapped.value;
+  }
+
+  return normalized.replace(/\s+/g, '-');
+}
+
+function inferScopeFromLeadLocation(location: string): { value: string; confidence: AutoBriefConfidence; reason: string } {
+  const normalized = location.trim().toLowerCase();
+  if (/south africa|nationwide|national/.test(normalized)) {
+    return {
+      value: 'national',
+      confidence: 'strongly_inferred',
+      reason: 'Location signal indicates a national footprint.',
+    };
+  }
+
+  return {
+    value: 'provincial',
+    confidence: 'weakly_inferred',
+    reason: 'No explicit national footprint signal was found, so provincial is the safer default.',
+  };
+}
+
+function buildAutoBriefFromLead(lead: LeadIntelligence, archetype: LeadArchetypeProfile): AutoBriefPayload {
+  const scope = inferScopeFromLeadLocation(lead.lead.location);
+  const audienceValue = /retail|grocery|supermarket|shop/i.test(lead.lead.category) ? 'retail' : 'mass-market';
+  const toneValue = lead.latestSignal?.hasPromo || lead.score.score >= 60 ? 'performance' : 'balanced';
+
+  const uncertainFields = [
+    'Age group',
+    'Gender focus',
+    'Language',
+    'Interests',
+    'Sales model',
+    'Customer type',
+    'Buying behaviour',
+    'Decision cycle',
+    'Urgency',
+  ];
+
+  return {
+    fields: {
+      objective: {
+        value: archetype.suggestedCampaignType,
+        confidence: 'strongly_inferred',
+        reason: 'Mapped from detected lead archetype and observed growth gaps.',
+      },
+      audience: {
+        value: audienceValue,
+        confidence: 'strongly_inferred',
+        reason: 'Inferred from business category and lead profile.',
+      },
+      scope: {
+        value: scope.value,
+        confidence: scope.confidence,
+        reason: scope.reason,
+      },
+      geography: {
+        value: normalizeGeographyValue(lead.lead.location),
+        confidence: 'strongly_inferred',
+        reason: 'Mapped from lead location signal.',
+      },
+      tone: {
+        value: toneValue,
+        confidence: 'weakly_inferred',
+        reason: 'Inferred from campaign momentum and promotional signal mix.',
+      },
+      salesModel: {
+        value: '',
+        confidence: 'no_evidence',
+        reason: 'No reliable public signal available.',
+      },
+      customerType: {
+        value: '',
+        confidence: 'no_evidence',
+        reason: 'No reliable public signal available.',
+      },
+      buyingBehaviour: {
+        value: '',
+        confidence: 'no_evidence',
+        reason: 'No reliable public signal available.',
+      },
+      decisionCycle: {
+        value: '',
+        confidence: 'no_evidence',
+        reason: 'No reliable public signal available.',
+      },
+      urgencyLevel: {
+        value: '',
+        confidence: 'no_evidence',
+        reason: 'No reliable public signal available.',
+      },
+      language: {
+        value: '',
+        confidence: 'no_evidence',
+        reason: 'No reliable public signal available.',
+      },
+      targetInterests: {
+        value: '',
+        confidence: 'no_evidence',
+        reason: 'No reliable public signal available.',
+      },
+      targetGender: {
+        value: '',
+        confidence: 'no_evidence',
+        reason: 'No reliable public signal available.',
+      },
+      ageRange: {
+        value: '',
+        confidence: 'no_evidence',
+        reason: 'No reliable public signal available.',
+      },
+    },
+    channels: {
+      values: archetype.recommendedChannels,
+      confidence: 'strongly_inferred',
+      reason: 'Aligned to detected archetype and channel gap profile.',
+    },
+    uncertainFields,
+    generatedAtUtc: new Date().toISOString(),
+  };
+}
+
 function formatCoverageStatus(score: number): { label: string; tone: string } {
   if (score >= 80) {
     return { label: 'Detected', tone: 'border-emerald-200 bg-emerald-50 text-emerald-700' };
@@ -495,6 +667,7 @@ export function AgentLeadIntelligencePage() {
       }
 
       const archetype = inferLeadArchetype(lead);
+      const autoBrief = buildAutoBriefFromLead(lead, archetype);
       const evidenceLines = buildResearchEvidenceLines(lead);
       const socialQualityNote = buildSocialQualityNote(lead);
       const outreachEmailBody = buildOutreachEmailDraft(
@@ -540,6 +713,7 @@ export function AgentLeadIntelligencePage() {
               'Reply with your preferred option and we will handle setup, creative coordination, and launch planning.',
             outreachEmailBody,
             autoGenerateDraft: true,
+            autoBrief,
           },
         },
       });

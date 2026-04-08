@@ -36,6 +36,18 @@ public sealed partial class WebsiteSignalProvider : IWebsiteSignalProvider
         "meta pixel",
         "www.facebook.com/tr"
     };
+    private static readonly string[] LinkedInAdMarkers = new[]
+    {
+        "snap.licdn.com",
+        "linkedin insight tag",
+        "_linkedin_partner_id"
+    };
+    private static readonly string[] TikTokAdMarkers = new[]
+    {
+        "analytics.tiktok.com",
+        "tiktok pixel",
+        "ttq.track"
+    };
 
     private readonly HttpClient _httpClient;
 
@@ -92,6 +104,8 @@ public sealed partial class WebsiteSignalProvider : IWebsiteSignalProvider
             || lowered.Contains(path, StringComparison.OrdinalIgnoreCase));
         var hasMetaAds = MetaAdMarkers.Any(marker => lowered.Contains(marker, StringComparison.OrdinalIgnoreCase))
             || MetaPixelRegex().IsMatch(content);
+        var hasLinkedInAdsTag = LinkedInAdMarkers.Any(marker => lowered.Contains(marker, StringComparison.OrdinalIgnoreCase));
+        var hasTikTokAdsTag = TikTokAdMarkers.Any(marker => lowered.Contains(marker, StringComparison.OrdinalIgnoreCase));
         // Only trust explicit document freshness metadata. Date headers are often request-time echoes.
         var updatedRecently = lastModifiedUtc.HasValue && lastModifiedUtc.Value >= DateTime.UtcNow.AddDays(-30);
 
@@ -104,7 +118,11 @@ public sealed partial class WebsiteSignalProvider : IWebsiteSignalProvider
         {
             HasPromo = hasPromoKeyword || hasPromoPath,
             HasMetaAds = hasMetaAds,
-            WebsiteUpdatedRecently = updatedRecently
+            WebsiteUpdatedRecently = updatedRecently,
+            HasLinkedInAdsTag = hasLinkedInAdsTag,
+            HasTikTokAdsTag = hasTikTokAdsTag,
+            SourceUrl = websiteUri?.ToString(),
+            LastObservedAtUtc = DateTime.UtcNow
         };
     }
 

@@ -17,35 +17,45 @@ public sealed class LeadChannelDetectionService : ILeadChannelDetectionService
         "influencer"
     };
 
-    public IReadOnlyList<LeadChannelDetectionResult> Detect(Lead lead, Signal? signal)
+    public IReadOnlyList<LeadChannelDetectionResult> Detect(
+        Lead lead,
+        Signal? signal,
+        IReadOnlyList<LeadSignalEvidence>? evidences = null)
     {
         return Channels
-            .Select(channel => BuildChannelResult(channel, lead, signal))
+            .Select(channel => BuildChannelResult(channel, lead, signal, evidences))
             .OrderByDescending(x => x.Score)
             .ThenBy(x => x.Channel, StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
 
-    private static LeadChannelDetectionResult BuildChannelResult(string channel, Lead lead, Signal? signal)
+    private static LeadChannelDetectionResult BuildChannelResult(
+        string channel,
+        Lead lead,
+        Signal? signal,
+        IReadOnlyList<LeadSignalEvidence>? evidences)
     {
-        var evidence = new List<LeadChannelSignalEvidence>();
+        var evidence = BuildPersistedEvidence(channel, evidences);
         var leadCategory = lead.Category.Trim();
         var hasWebsite = !string.IsNullOrWhiteSpace(lead.Website);
         var freshnessMultiplier = GetFreshnessMultiplier(signal?.CreatedAt);
         var offlineChannel = channel is "tv" or "radio" or "billboards_ooh" or "print";
+        var hasSignalTypeEvidence = evidence
+            .Select(item => item.Type)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         switch (channel)
         {
             case "social":
-                if (signal?.HasMetaAds == true)
+                if (signal?.HasMetaAds == true && !hasSignalTypeEvidence.Contains("meta_pixel_detected") && !hasSignalTypeEvidence.Contains("meta_ad_library_active_ads"))
                 {
                     evidence.Add(CreateEvidence("meta_ad_proxy_signal", "website_signal", 30, 0.75m, freshnessMultiplier, "Website markers suggest possible Meta advertising activity."));
                 }
-                if (signal?.HasPromo == true)
+                if (signal?.HasPromo == true && !hasSignalTypeEvidence.Contains("campaign_mention"))
                 {
                     evidence.Add(CreateEvidence("campaign_mention", "website_signal", 15, 0.8m, freshnessMultiplier, "Promotional activity suggests active campaign traffic."));
                 }
-                if (signal?.WebsiteUpdatedRecently == true)
+                if (signal?.WebsiteUpdatedRecently == true && !hasSignalTypeEvidence.Contains("recent_content_refresh"))
                 {
                     evidence.Add(CreateEvidence("recent_content_refresh", "website_signal", 8, 0.7m, freshnessMultiplier, "Recent website updates support active social campaigns."));
                 }
@@ -53,15 +63,15 @@ public sealed class LeadChannelDetectionService : ILeadChannelDetectionService
                 break;
 
             case "search":
-                if (hasWebsite)
+                if (hasWebsite && !hasSignalTypeEvidence.Contains("conversion_surface"))
                 {
                     evidence.Add(CreateEvidence("conversion_surface", "website_signal", 10, 0.7m, freshnessMultiplier, "A live website provides a destination for paid search traffic."));
                 }
-                if (signal?.HasPromo == true)
+                if (signal?.HasPromo == true && !hasSignalTypeEvidence.Contains("paid_landing_page_pattern"))
                 {
                     evidence.Add(CreateEvidence("paid_landing_page_pattern", "website_signal", 10, 0.75m, freshnessMultiplier, "Promotional website patterns can support search campaigns."));
                 }
-                if (signal?.WebsiteUpdatedRecently == true)
+                if (signal?.WebsiteUpdatedRecently == true && !hasSignalTypeEvidence.Contains("fresh_website"))
                 {
                     evidence.Add(CreateEvidence("fresh_website", "website_signal", 8, 0.7m, freshnessMultiplier, "Recently updated site content supports search marketing."));
                 }
@@ -232,7 +242,9 @@ public sealed class LeadChannelDetectionService : ILeadChannelDetectionService
         return signalType switch
         {
             // Keep "direct evidence" strict. Website pattern signals are inference, not proof.
+            "meta_ad_library_active_ads" => true,
             "google_ads_evidence" => true,
+            "google_ads_transparency_signal" => true,
             "display_creative_detected" => true,
             "tv_ad_found" => true,
             "radio_promotion_found" => true,
@@ -241,6 +253,30 @@ public sealed class LeadChannelDetectionService : ILeadChannelDetectionService
             "paid_partnership_found" => true,
             _ => false
         };
+    }
+
+    private static List<LeadChannelSignalEvidence> BuildPersistedEvidence(
+        string channel,
+        IReadOnlyList<LeadSignalEvidence>? evidences)
+    {
+        if (evidences is null || evidences.Count == 0)
+        {
+            return new List<LeadChannelSignalEvidence>();
+        }
+
+        return evidences
+            .Where(item => item.Channel.Equals(channel, StringComparison.OrdinalIgnoreCase))
+            .Select(item => new LeadChannelSignalEvidence
+            {
+                Type = item.SignalType,
+                Source = item.Source,
+                Weight = item.Weight,
+                ReliabilityMultiplier = item.ReliabilityMultiplier,
+                FreshnessMultiplier = item.FreshnessMultiplier,
+                EffectiveWeight = item.EffectiveWeight,
+                Value = item.Value
+            })
+            .ToList();
     }
 
     private static void AddCategoryPriors(string channel, string category, ICollection<LeadChannelSignalEvidence> evidence)

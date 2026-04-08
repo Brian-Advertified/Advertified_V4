@@ -192,6 +192,20 @@ builder.Services.AddScoped<ILeadSourceDropFolderProcessor, LeadSourceDropFolderP
 builder.Services.AddScoped<ILeadSourceIngestionService, LeadSourceIngestionService>();
 builder.Services.AddScoped<ILeadSourceImportService, LeadSourceImportService>();
 builder.Services.AddScoped<ISignalCollectorService, SignalCollectorService>();
+builder.Services.AddScoped<ILeadSignalEvidenceProvider, WebsiteLeadSignalEvidenceProvider>();
+builder.Services.AddHttpClient<MetaAdLibraryLeadSignalEvidenceProvider>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(20);
+}).AddHttpMessageHandler<TransientHttpRetryHandler>();
+builder.Services.AddHttpClient<GoogleAdsEvidenceProvider>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(20);
+}).AddHttpMessageHandler<TransientHttpRetryHandler>();
+builder.Services.AddScoped<ILeadSignalEvidenceProvider>(serviceProvider =>
+    serviceProvider.GetRequiredService<MetaAdLibraryLeadSignalEvidenceProvider>());
+builder.Services.AddScoped<ILeadSignalEvidenceProvider>(serviceProvider =>
+    serviceProvider.GetRequiredService<GoogleAdsEvidenceProvider>());
+builder.Services.AddScoped<ILeadPaidMediaEvidenceSyncService, LeadPaidMediaEvidenceSyncService>();
 builder.Services.AddScoped<ITrendAnalysisService, TrendAnalysisService>();
 builder.Services.AddHttpClient<IInsightService, InsightService>((serviceProvider, client) =>
 {
@@ -211,6 +225,7 @@ builder.Services.AddHttpClient<IWebsiteSignalProvider, WebsiteSignalProvider>(cl
     client.Timeout = TimeSpan.FromSeconds(15);
 });
 builder.Services.AddHostedService<LeadIntelligenceRefreshWorker>();
+builder.Services.AddHostedService<LeadPaidMediaEvidenceSyncWorker>();
 builder.Services.AddHostedService<LeadSourceDropFolderWorker>();
 builder.Services.AddSingleton(BroadcastMatcherPolicy.Default);
 builder.Services.AddScoped<IBroadcastMatchRequestNormalizer, BroadcastMatchRequestNormalizer>();

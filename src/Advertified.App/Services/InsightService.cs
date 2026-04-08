@@ -61,6 +61,7 @@ public sealed class InsightService : IInsightService
                                 "Return a concise 2-3 sentence business insight.\n" +
                                 "Stay grounded in the provided business details, detected signals, score, and change over time.\n" +
                                 "Do not invent facts, metrics, or channels that were not provided.\n" +
+                                "Use confidence-safe wording: say 'we found evidence of' or 'we did not find strong evidence of' instead of absolute claims.\n" +
                                 "Keep the output short, clear, and practical."
                         },
                         new InsightChatMessage
@@ -136,6 +137,7 @@ public sealed class InsightService : IInsightService
             "- Mention what changed over time.\n" +
             "- Mention likely marketing behavior.\n" +
             "- Mention any obvious gap or opportunity.\n" +
+            "- Use cautious wording for uncertain signals (e.g., 'we found evidence of', 'we did not find strong evidence of').\n" +
             "- Do not use bullet points.\n" +
             "- Do not exceed 60 words.";
     }
@@ -164,8 +166,8 @@ public sealed class InsightService : IInsightService
         }
 
         var firstSentence = activity.Count > 0
-            ? $"{lead.Name} appears to be {JoinPhrases(activity)}."
-            : $"{lead.Name} shows limited recent digital activity from the detected signals.";
+            ? $"We found evidence that {lead.Name} is {JoinPhrases(activity)}."
+            : $"We did not find strong evidence of recent digital campaign activity for {lead.Name}.";
 
         var secondSentence = score.IntentLevel switch
         {

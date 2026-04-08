@@ -70,6 +70,8 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<LeadInsight> LeadInsights { get; set; }
 
+    public virtual DbSet<LeadSignalEvidence> LeadSignalEvidences { get; set; }
+
     public virtual DbSet<NotificationReadReceipt> NotificationReadReceipts { get; set; }
 
     public virtual DbSet<PackageBand> PackageBands { get; set; }

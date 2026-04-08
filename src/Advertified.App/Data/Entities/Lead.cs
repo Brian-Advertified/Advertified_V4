@@ -29,5 +29,7 @@ public class Lead
 
     public virtual ICollection<LeadInsight> Insights { get; set; } = new List<LeadInsight>();
 
+    public virtual ICollection<LeadSignalEvidence> SignalEvidences { get; set; } = new List<LeadSignalEvidence>();
+
     public virtual ICollection<Signal> Signals { get; set; } = new List<Signal>();
 }

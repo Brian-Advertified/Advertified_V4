@@ -19,6 +19,9 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
     private const string FallbackFlagsMarker = "Fallback flags:";
     private const string ManualReviewMarker = "Manual review required:";
     private const string TierBoundaryToleranceFlag = "tier_boundary_tolerance_used";
+    private const string TierRecoveryUsedFlag = "tier_recovery_used";
+    private const string TierRecoveryRelaxedMaxItemsFlag = "tier_recovery_relaxed_max_media_items";
+    private const string TierRecoveryRelaxedMixFlag = "tier_recovery_relaxed_channel_mix";
     private const decimal ProposalTierMaxBudgetToleranceRatio = 0.02m;
     private const decimal ProposalTierSpanToleranceRatio = 0.15m;
     private const decimal ProposalTierRoundingSlack = 1000m;
@@ -84,7 +87,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         {
             var variant = proposalVariants[index];
             var policyContext = _policyService.BuildPolicyContext(variant.Request);
-            var recommendationResult = await _planningEngine.GenerateAsync(variant.Request, cancellationToken);
+            var recommendationResult = await GenerateRecommendationForVariantAsync(variant, cancellationToken);
             EnsureRecommendationFallsWithinTier(variant, recommendationResult);
 
             var aiReasoning = await _campaignReasoningService.GenerateAsync(campaign, brief, variant.Request, recommendationResult, cancellationToken);
@@ -128,6 +131,43 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
 
         await _db.SaveChangesAsync(cancellationToken);
         return primaryRecommendationId ?? Guid.Empty;
+    }
+
+    private async Task<RecommendationResult> GenerateRecommendationForVariantAsync(ProposalVariant variant, CancellationToken cancellationToken)
+    {
+        var primary = await _planningEngine.GenerateAsync(variant.Request, cancellationToken);
+        if (variant.BudgetBand is null)
+        {
+            return primary;
+        }
+
+        if (primary.RecommendedPlanTotal >= variant.BudgetBand.MinBudget)
+        {
+            return primary;
+        }
+
+        RecommendationResult best = primary;
+        foreach (var candidate in BuildTierRecoveryRequests(variant.Request))
+        {
+            var retried = await _planningEngine.GenerateAsync(candidate.Request, cancellationToken);
+            var improved = retried.RecommendedPlanTotal > best.RecommendedPlanTotal;
+            if (improved)
+            {
+                best = retried;
+            }
+
+            var withinTier = IsWithinProposalTier(retried.RecommendedPlanTotal, variant.BudgetBand.MinBudget, variant.BudgetBand.MaxBudget)
+                || IsWithinProposalTierTolerance(retried.RecommendedPlanTotal, variant.BudgetBand.MinBudget, variant.BudgetBand.MaxBudget);
+            if (!withinTier)
+            {
+                continue;
+            }
+
+            MarkTierRecoveryFlags(retried, candidate.RelaxedMaxItems, candidate.RelaxedMix);
+            return retried;
+        }
+
+        return best;
     }
 
     private static CampaignPlanningRequest BuildRequest(
@@ -702,6 +742,105 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         };
     }
 
+    private static IEnumerable<TierRecoveryRequest> BuildTierRecoveryRequests(CampaignPlanningRequest request)
+    {
+        if (request.MaxMediaItems.HasValue)
+        {
+            var relaxedMaxItems = CloneRequest(request);
+            relaxedMaxItems.MaxMediaItems = null;
+            yield return new TierRecoveryRequest(relaxedMaxItems, RelaxedMaxItems: true, RelaxedMix: false);
+        }
+
+        if (request.TargetRadioShare.HasValue
+            || request.TargetOohShare.HasValue
+            || request.TargetTvShare.HasValue
+            || request.TargetDigitalShare.HasValue)
+        {
+            var relaxedMix = CloneRequest(request);
+            relaxedMix.TargetRadioShare = null;
+            relaxedMix.TargetOohShare = null;
+            relaxedMix.TargetTvShare = null;
+            relaxedMix.TargetDigitalShare = null;
+            yield return new TierRecoveryRequest(relaxedMix, RelaxedMaxItems: false, RelaxedMix: true);
+
+            if (request.MaxMediaItems.HasValue)
+            {
+                var relaxedBoth = CloneRequest(relaxedMix);
+                relaxedBoth.MaxMediaItems = null;
+                yield return new TierRecoveryRequest(relaxedBoth, RelaxedMaxItems: true, RelaxedMix: true);
+            }
+        }
+    }
+
+    private static CampaignPlanningRequest CloneRequest(CampaignPlanningRequest source)
+    {
+        return new CampaignPlanningRequest
+        {
+            CampaignId = source.CampaignId,
+            SelectedBudget = source.SelectedBudget,
+            Objective = source.Objective,
+            BusinessStage = source.BusinessStage,
+            MonthlyRevenueBand = source.MonthlyRevenueBand,
+            SalesModel = source.SalesModel,
+            GeographyScope = source.GeographyScope,
+            Provinces = source.Provinces.ToList(),
+            Cities = source.Cities.ToList(),
+            Suburbs = source.Suburbs.ToList(),
+            Areas = source.Areas.ToList(),
+            PreferredMediaTypes = source.PreferredMediaTypes.ToList(),
+            ExcludedMediaTypes = source.ExcludedMediaTypes.ToList(),
+            TargetLanguages = source.TargetLanguages.ToList(),
+            TargetAgeMin = source.TargetAgeMin,
+            TargetAgeMax = source.TargetAgeMax,
+            TargetGender = source.TargetGender,
+            TargetInterests = source.TargetInterests.ToList(),
+            TargetAudienceNotes = source.TargetAudienceNotes,
+            CustomerType = source.CustomerType,
+            BuyingBehaviour = source.BuyingBehaviour,
+            DecisionCycle = source.DecisionCycle,
+            PricePositioning = source.PricePositioning,
+            AverageCustomerSpendBand = source.AverageCustomerSpendBand,
+            GrowthTarget = source.GrowthTarget,
+            UrgencyLevel = source.UrgencyLevel,
+            AudienceClarity = source.AudienceClarity,
+            ValuePropositionFocus = source.ValuePropositionFocus,
+            TargetLsmMin = source.TargetLsmMin,
+            TargetLsmMax = source.TargetLsmMax,
+            OpenToUpsell = source.OpenToUpsell,
+            AdditionalBudget = source.AdditionalBudget,
+            MaxMediaItems = source.MaxMediaItems,
+            TargetRadioShare = source.TargetRadioShare,
+            TargetOohShare = source.TargetOohShare,
+            TargetTvShare = source.TargetTvShare,
+            TargetDigitalShare = source.TargetDigitalShare
+        };
+    }
+
+    private static void MarkTierRecoveryFlags(RecommendationResult recommendationResult, bool relaxedMaxItems, bool relaxedMix)
+    {
+        recommendationResult.ManualReviewRequired = true;
+        AddFallbackFlag(recommendationResult, TierRecoveryUsedFlag);
+        if (relaxedMaxItems)
+        {
+            AddFallbackFlag(recommendationResult, TierRecoveryRelaxedMaxItemsFlag);
+        }
+
+        if (relaxedMix)
+        {
+            AddFallbackFlag(recommendationResult, TierRecoveryRelaxedMixFlag);
+        }
+    }
+
+    private static void AddFallbackFlag(RecommendationResult recommendationResult, string flag)
+    {
+        if (recommendationResult.FallbackFlags.Contains(flag, StringComparer.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        recommendationResult.FallbackFlags.Add(flag);
+    }
+
     private static string BuildStoredRationale(RecommendationResult result, string? visibleRationaleOverride)
     {
         var visibleRationale = string.IsNullOrWhiteSpace(visibleRationaleOverride)
@@ -851,6 +990,11 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         Guid BatchId,
         string SourceIdentifier,
         DateTime ActiveAt);
+
+    private sealed record TierRecoveryRequest(
+        CampaignPlanningRequest Request,
+        bool RelaxedMaxItems,
+        bool RelaxedMix);
 
     private static CampaignPlanningRequestSnapshot BuildRequestSnapshot(CampaignPlanningRequest request)
     {

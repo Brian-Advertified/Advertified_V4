@@ -11,4 +11,8 @@ public sealed class LeadIntelligenceAutomationOptions
     public int BatchSize { get; set; } = 100;
 
     public bool RunOnStartup { get; set; }
+
+    public bool EnablePaidMediaEvidenceSync { get; set; }
+
+    public int PaidMediaSyncIntervalMinutes { get; set; } = 180;
 }
