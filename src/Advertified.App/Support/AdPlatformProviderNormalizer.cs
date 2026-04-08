@@ -20,6 +20,12 @@ public static class AdPlatformProviderNormalizer
             "facebook" => "meta",
             "facebook ads" => "meta",
             "facebookads" => "meta",
+            "linkedin ads" => "linkedin",
+            "linkedinads" => "linkedin",
+            "linked_in" => "linkedin",
+            "tiktok ads" => "tiktok",
+            "tiktokads" => "tiktok",
+            "tik_tok" => "tiktok",
             _ => normalized
         };
     }

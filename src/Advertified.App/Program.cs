@@ -111,6 +111,7 @@ builder.Services.AddScoped<ICampaignBriefService, CampaignBriefService>();
 builder.Services.AddScoped<ICampaignRecommendationService, CampaignRecommendationService>();
 builder.Services.AddScoped<IRecommendationDocumentService, RecommendationDocumentService>();
 builder.Services.AddScoped<IRecommendationApprovalWorkflowService, RecommendationApprovalWorkflowService>();
+builder.Services.AddScoped<ICampaignExecutionTaskService, CampaignExecutionTaskService>();
 // Legacy template-based creative endpoints still depend on this registration.
 // The creative studio and AI platform now use the AI generation pipeline instead.
 builder.Services.AddScoped<ICreativeGenerationOrchestrator, CreativeGenerationOrchestrator>();
@@ -180,6 +181,7 @@ builder.Services.AddHttpClient(nameof(ElevenLabsProviderStrategy), (serviceProvi
 builder.Services.AddScoped<IEmailVerificationService, EmailVerificationService>();
 builder.Services.AddScoped<IInvoiceService, InvoiceService>();
 builder.Services.AddScoped<IAdPlatformAccessTokenService, AdPlatformAccessTokenService>();
+builder.Services.AddScoped<IAdPlatformTokenCipher, AdPlatformTokenCipher>();
 builder.Services.AddScoped<IAdPlatformConnectionService, AdPlatformConnectionService>();
 builder.Services.AddScoped<ILeadIntelligenceOrchestrator, LeadIntelligenceOrchestrator>();
 builder.Services.AddScoped<ILeadActionRecommendationService, LeadActionRecommendationService>();

@@ -38,6 +38,7 @@ function buildCampaign(status: Campaign['status'], recommendations: CampaignReco
     recommendation: recommendations[0],
     creativeSystems: [],
     assets: [],
+    executionTasks: [],
     supplierBookings: [],
     deliveryReports: [],
     createdAt: '2026-03-30T00:00:00Z',

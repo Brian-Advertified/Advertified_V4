@@ -12,6 +12,7 @@ import {
   resolveCampaignPerformanceViewState,
 } from '../../features/campaigns/components/campaignPerformance';
 import { RecommendationViewer } from '../../features/campaigns/components/RecommendationViewer';
+import { CreativeStudioPerformancePanel } from '../../features/creative/components/CreativeStudioPerformancePanel';
 import { parseCampaignOpportunityContext } from '../../features/campaigns/briefModel';
 import { formatChannelLabel } from '../../features/channels/channelUtils';
 import { buildApprovalDetails, getApprovalContent, getHeroContent } from '../../features/campaigns/clientCampaignDetailContent';
@@ -45,6 +46,18 @@ export function CampaignDetailPage() {
   const performanceQuery = useQuery({
     queryKey: queryKeys.campaigns.performance(id),
     queryFn: () => advertifiedApi.getCampaignPerformance(id),
+    enabled: Boolean(id),
+    retry: false,
+  });
+  const adMetricsSummaryQuery = useQuery({
+    queryKey: ['ai-platform-campaign-metrics-summary', id],
+    queryFn: () => advertifiedApi.getAiCampaignAdMetricsSummary(id),
+    enabled: Boolean(id),
+    retry: false,
+  });
+  const adVariantsQuery = useQuery({
+    queryKey: ['ai-platform-ad-variants', id],
+    queryFn: () => advertifiedApi.getAiAdVariants(id),
     enabled: Boolean(id),
     retry: false,
   });
@@ -431,6 +444,13 @@ export function CampaignDetailPage() {
                   title="Campaign performance"
                   subtitle="Metrics, trend movement, and channel delivery."
                 />
+                <CreativeStudioPerformancePanel
+                  title="Creative and ad performance"
+                  subtitle="KPI-first outcomes from generated ad variants connected to this campaign."
+                  summary={adMetricsSummaryQuery.data}
+                  variants={adVariantsQuery.data ?? []}
+                  isLoading={adMetricsSummaryQuery.isLoading || adVariantsQuery.isLoading}
+                />
                 <section className="rounded-[30px] border border-line bg-white p-7 shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
                   <div className="mb-5">
                     <h3 className="text-xl font-semibold text-ink">Live campaign details</h3>
@@ -445,6 +465,27 @@ export function CampaignDetailPage() {
                           <p className="mt-2 text-sm leading-6 text-ink-soft">
                             Effective end date {campaign.effectiveEndDate ? formatDate(`${campaign.effectiveEndDate}T00:00:00`) : 'Pending'}
                           </p>
+                        </div>
+                      ) : null}
+
+                      {campaign.executionTasks.length > 0 ? (
+                        <div className="rounded-[18px] border border-line bg-slate-50/70 p-5">
+                          <div className="mb-2 text-sm font-semibold text-ink">Launch checkpoints</div>
+                          <div className="space-y-2">
+                            {campaign.executionTasks.map((task) => (
+                              <div key={task.id} className="flex items-center justify-between rounded-[12px] border border-line bg-white px-3 py-2">
+                                <div>
+                                  <p className="text-sm font-medium text-ink">{task.title}</p>
+                                  {task.completedAt ? (
+                                    <p className="text-xs text-ink-soft">Completed {formatDate(task.completedAt)}</p>
+                                  ) : null}
+                                </div>
+                                <span className={`rounded-full px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${task.status === 'completed' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                                  {task.status}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       ) : null}
 

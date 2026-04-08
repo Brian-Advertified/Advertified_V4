@@ -148,6 +148,7 @@ public sealed class CreativeCampaignsController : ControllerBase
             .Include(x => x.CampaignBrief)
             .Include(x => x.CampaignCreativeSystems)
             .Include(x => x.CampaignAssets)
+            .Include(x => x.CampaignExecutionTasks)
             .Include(x => x.CampaignSupplierBookings)
                 .ThenInclude(x => x.ProofAsset)
             .Include(x => x.CampaignDeliveryReports)

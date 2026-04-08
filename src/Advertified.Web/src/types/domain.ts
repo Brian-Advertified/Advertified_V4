@@ -313,6 +313,9 @@ export interface CampaignPerformanceTimelinePoint {
   date: string;
   impressions: number;
   playsOrSpots: number;
+  leads: number;
+  cplZar?: number;
+  roas?: number;
   spendDelivered: number;
 }
 
@@ -323,6 +326,9 @@ export interface CampaignPerformanceChannelSnapshot {
   deliveredSpend: number;
   impressions: number;
   playsOrSpots: number;
+  leads: number;
+  cplZar?: number;
+  roas?: number;
   syncedClicks: number;
   bookingCount: number;
   reportCount: number;
@@ -334,6 +340,9 @@ export interface CampaignPerformanceSnapshot {
   totalDeliveredSpend: number;
   totalImpressions: number;
   totalPlaysOrSpots: number;
+  totalLeads: number;
+  averageCplZar?: number;
+  averageRoas?: number;
   totalSyncedClicks: number;
   bookingCount: number;
   reportCount: number;
@@ -341,6 +350,17 @@ export interface CampaignPerformanceSnapshot {
   latestReportDate?: string;
   timeline: CampaignPerformanceTimelinePoint[];
   channels: CampaignPerformanceChannelSnapshot[];
+}
+
+export interface CampaignExecutionTask {
+  id: string;
+  taskKey: string;
+  title: string;
+  details?: string;
+  status: string;
+  sortOrder: number;
+  dueAt?: string;
+  completedAt?: string;
 }
 
 export interface CampaignTimelineStep {
@@ -384,6 +404,7 @@ export interface Campaign {
   assets: CampaignAsset[];
   supplierBookings: CampaignSupplierBooking[];
   deliveryReports: CampaignDeliveryReport[];
+  executionTasks: CampaignExecutionTask[];
   performanceTimeline?: CampaignPerformanceTimelinePoint[];
   effectiveEndDate?: string;
   daysLeft?: number;

@@ -2183,6 +2183,7 @@ internal sealed class TestApiHarness : IAsyncDisposable
         builder.Services.AddScoped<IPrivateDocumentStorage, StubPrivateDocumentStorage>();
         builder.Services.AddScoped<IRecommendationDocumentService, StubRecommendationDocumentService>();
         builder.Services.AddScoped<IRecommendationApprovalWorkflowService, RecommendationApprovalWorkflowService>();
+        builder.Services.AddScoped<ICampaignExecutionTaskService, CampaignExecutionTaskService>();
         builder.Services.AddScoped<IPublicAssetStorage, StubPublicAssetStorage>();
         builder.Services.AddScoped<IMediaPlanningEngine, StubMediaPlanningEngine>();
         builder.Services.AddScoped<ICampaignReasoningService, StubCampaignReasoningService>();

@@ -18,8 +18,10 @@ import { CreativeStudioBookingPanel } from '../../features/creative/components/C
 import { CreativeStudioEnginePanel } from '../../features/creative/components/CreativeStudioEnginePanel';
 import { CreativeStudioOutputPanel } from '../../features/creative/components/CreativeStudioOutputPanel';
 import { CreativeStudioOverviewPanel } from '../../features/creative/components/CreativeStudioOverviewPanel';
+import { CreativeStudioPerformancePanel } from '../../features/creative/components/CreativeStudioPerformancePanel';
+import { useCreativeStudioRuntime } from '../../features/creative/hooks/useCreativeStudioRuntime';
 import type { CreativeBookingDraft, CreativeStudioCollection, CreativeStudioSignal } from '../../features/creative/creativeStudioTypes';
-import { buildDefaultCreativePrompt, formatChannelLabel, parseDelimitedInput } from '../../features/creative/creativeStudioUtils';
+import { formatChannelLabel } from '../../features/creative/creativeStudioUtils';
 import { canAccessCreativeStudio, canAccessOperations, isAdmin } from '../../lib/access';
 import { getPrimaryRecommendation } from '../../lib/campaignStatus';
 import { invalidateCreativeCampaignQueries, queryKeys } from '../../lib/queryKeys';
@@ -722,6 +724,7 @@ function buildDemoCampaign(): Campaign {
     creativeSystems: [],
     latestCreativeSystem: undefined,
     assets: [],
+    executionTasks: [],
     supplierBookings: [],
     deliveryReports: [],
     effectiveEndDate: undefined,
@@ -877,139 +880,51 @@ function CreativeStudioContent({
   onUploadAsset?: () => void;
   isUploadingAsset: boolean;
 }) {
-  const { pushToast } = useToast();
-  const queryClient = useQueryClient();
   const supplierBookings = campaign.supplierBookings ?? [];
   const canSaveBooking = bookingDraft.supplierOrStation.trim().length > 0;
   const canMarkLive = !isPreview && campaign.status === 'booking_in_progress';
-  const [prompt, setPrompt] = useState(() => buildDefaultCreativePrompt({
-    campaignName: campaign.campaignName,
-    businessName: campaign.businessName ?? campaign.clientName,
-    packageBandName: campaign.packageBandName,
-    briefObjective: brief?.objective,
-    audience: brief?.targetAudienceNotes,
-    creativeNotes: brief?.creativeNotes,
+  const {
+    prompt,
+    setPrompt,
+    brandInput,
+    setBrandInput,
+    productInput,
+    setProductInput,
+    audienceInput,
+    setAudienceInput,
+    objectiveInput,
+    setObjectiveInput,
+    toneInput,
+    setToneInput,
+    channelsInput,
+    setChannelsInput,
+    ctaInput,
+    setCtaInput,
+    constraintsInput,
+    setConstraintsInput,
+    activeAiJobId,
+    setActiveAiJobId,
+    regenCreativeId,
+    setRegenCreativeId,
+    regenFeedback,
+    setRegenFeedback,
+    creativeStateKey,
+    creativeSystem,
+    lastIterationLabel,
+    setScopedCreativeState,
+    creativeSystemMutation,
+    campaignCreativesQuery,
+    adMetricsSummaryQuery,
+    adVariantsQuery,
+    submitAiJobMutation,
+    aiJobStatusQuery,
+    syncMetricsMutation,
+    regenerateAiMutation,
+  } = useCreativeStudioRuntime({
+    campaign,
+    brief,
     channelMood,
-  }));
-  const [brandInput, setBrandInput] = useState(campaign.businessName ?? campaign.clientName ?? '');
-  const [productInput, setProductInput] = useState(campaign.campaignName ?? '');
-  const [audienceInput, setAudienceInput] = useState(brief?.targetAudienceNotes ?? '');
-  const [objectiveInput, setObjectiveInput] = useState(brief?.objective ?? '');
-  const [toneInput, setToneInput] = useState(brief?.creativeNotes ?? '');
-  const [channelsInput, setChannelsInput] = useState(channelMood.join(', '));
-  const [ctaInput, setCtaInput] = useState('');
-  const [constraintsInput, setConstraintsInput] = useState(brief?.specialRequirements ?? '');
-  const [activeAiJobId, setActiveAiJobId] = useState('');
-  const [regenCreativeId, setRegenCreativeId] = useState('');
-  const [regenFeedback, setRegenFeedback] = useState('');
-  const [scopedCreativeState, setScopedCreativeState] = useState<{
-    key: string;
-    creativeSystem: Awaited<ReturnType<typeof advertifiedApi.generateCreativeSystem>> | null;
-    lastIterationLabel: string | null;
-  } | null>(null);
-  const creativeStateKey = campaign.latestCreativeSystem?.id ?? `campaign:${campaign.id}:none`;
-  const creativeSystem = scopedCreativeState?.key === creativeStateKey
-    ? scopedCreativeState.creativeSystem
-    : (campaign.latestCreativeSystem?.output ?? null);
-  const lastIterationLabel = scopedCreativeState?.key === creativeStateKey
-    ? scopedCreativeState.lastIterationLabel
-    : (campaign.latestCreativeSystem?.iterationLabel ?? null);
-
-  const creativeSystemMutation = useMutation({
-    mutationFn: async (variables: { iterationLabel?: string; iterationInstruction?: string } = {}) => {
-      const { iterationInstruction } = variables;
-      const normalizedPrompt = iterationInstruction
-        ? `${prompt.trim()}\n\nIteration direction: ${iterationInstruction}`
-        : prompt.trim();
-
-      return advertifiedApi.generateCreativeSystem(campaign.id, {
-        prompt: normalizedPrompt,
-        iterationLabel: variables.iterationLabel,
-        brand: brandInput.trim() || undefined,
-        product: productInput.trim() || undefined,
-        audience: audienceInput.trim() || undefined,
-        objective: objectiveInput.trim() || undefined,
-        tone: toneInput.trim() || undefined,
-        channels: parseDelimitedInput(channelsInput),
-        cta: ctaInput.trim() || undefined,
-        constraints: parseDelimitedInput(constraintsInput),
-      });
-    },
-    onSuccess: (result, variables) => {
-      setScopedCreativeState({
-        key: creativeStateKey,
-        creativeSystem: result,
-        lastIterationLabel: variables.iterationLabel ?? null,
-      });
-      queryClient.invalidateQueries({ queryKey: queryKeys.creative.campaign(campaign.id) }).catch(() => {});
-      pushToast({
-        title: variables.iterationLabel ? `Creative system updated: ${variables.iterationLabel}.` : 'Creative system generated.',
-        description: 'The studio output is ready for review and handoff.',
-      });
-    },
-    onError: (error) => {
-      pushToast({
-        title: 'Creative system could not be generated.',
-        description: error instanceof Error ? error.message : 'Please try again.',
-      }, 'error');
-    },
-  });
-
-  const campaignCreativesQuery = useQuery({
-    queryKey: ['ai-platform-campaign-creatives', campaign.id],
-    queryFn: () => advertifiedApi.getAiPlatformCampaignCreatives(campaign.id),
-    enabled: !isPreview,
-  });
-
-  const submitAiJobMutation = useMutation({
-    mutationFn: async () => advertifiedApi.submitAiPlatformJob({
-      campaignId: campaign.id,
-      promptOverride: prompt.trim() || undefined,
-    }),
-    onSuccess: (response) => {
-      setActiveAiJobId(response.jobId);
-      pushToast({
-        title: 'AI platform job queued.',
-        description: `Job ${response.jobId.slice(0, 8)} is running in the queue.`,
-      });
-    },
-    onError: (error) => {
-      pushToast({
-        title: 'Could not queue AI platform job.',
-        description: error instanceof Error ? error.message : 'Please try again.',
-      }, 'error');
-    },
-  });
-
-  const aiJobStatusQuery = useQuery({
-    queryKey: ['ai-platform-job-status', activeAiJobId],
-    queryFn: () => advertifiedApi.getAiPlatformJobStatus(activeAiJobId),
-    enabled: activeAiJobId.trim().length > 0,
-    refetchInterval: (query) => {
-      const status = query.state.data?.status?.toLowerCase();
-      return status === 'completed' || status === 'failed' ? false : 3000;
-    },
-  });
-
-  const regenerateAiMutation = useMutation({
-    mutationFn: async () => advertifiedApi.regenerateAiPlatformCreative({
-      creativeId: regenCreativeId.trim(),
-      campaignId: campaign.id,
-      feedback: regenFeedback.trim(),
-    }),
-    onSuccess: (response) => {
-      campaignCreativesQuery.refetch().catch(() => {});
-      pushToast({
-        title: 'AI creative regenerated.',
-        description: `Created ${response.creativeCount} creatives and ${response.assetCount} assets.`,
-      });
-    },
-    onError: (error) => {
-      pushToast({
-        title: 'Regeneration failed.',
-        description: error instanceof Error ? error.message : 'Please try again.',
-      }, 'error');
-    },
+    isPreview,
   });
 
   return (
@@ -1031,7 +946,8 @@ function CreativeStudioContent({
           isAwaitingFinalApproval={isAwaitingFinalApproval}
           isSendingFinishedMedia={isSendingFinishedMedia}
           onSendFinishedMedia={onSendFinishedMedia}
-        />        {isBookingStage ? (
+        />
+        {isBookingStage ? (
           <CreativeStudioBookingPanel
             campaign={campaign}
             isPreview={isPreview}
@@ -1045,7 +961,8 @@ function CreativeStudioContent({
             isMarkingLive={isMarkingLive}
             supplierBookings={supplierBookings}
           />
-        ) : null}        <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+        ) : null}
+        <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
           <CreativeStudioEnginePanel
             campaign={campaign}
             isPreview={isPreview}
@@ -1105,6 +1022,17 @@ function CreativeStudioContent({
             }}
           />
         </div>
+        {!isPreview ? (
+          <CreativeStudioPerformancePanel
+            title="Creative and ad performance"
+            subtitle="KPI-first view of spend, reach, leads, CPL, and conversion quality for generated variants."
+            summary={adMetricsSummaryQuery.data}
+            variants={adVariantsQuery.data ?? []}
+            isLoading={adMetricsSummaryQuery.isLoading || adVariantsQuery.isLoading}
+            isSyncing={syncMetricsMutation.isPending}
+            onSyncMetrics={() => syncMetricsMutation.mutate()}
+          />
+        ) : null}
         <CreativeStudioAssetsPanel
           campaign={campaign}
           isPreview={isPreview}
@@ -1114,7 +1042,8 @@ function CreativeStudioContent({
           onAssetFileChange={onAssetFileChange}
           onUploadAsset={onUploadAsset}
           isUploadingAsset={isUploadingAsset}
-        />      </section>
+        />
+      </section>
     </CreativePageShell>
   );
 }

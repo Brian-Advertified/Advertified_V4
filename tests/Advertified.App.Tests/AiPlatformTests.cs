@@ -6,6 +6,7 @@ using Advertified.App.Configuration;
 using Advertified.App.Data;
 using Advertified.App.Data.Entities;
 using Advertified.App.Services;
+using Advertified.App.Services.Abstractions;
 using Advertified.App.Support;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
@@ -444,6 +445,7 @@ public class AdMetricsProjectionTests
                 new StubHttpClientFactory(),
                 Options.Create(new AdPlatformOptions { DryRunMode = true }),
                 db,
+                new NoOpAdPlatformTokenCipher(),
                 NullLogger<AdPlatformAccessTokenService>.Instance),
             projectionService,
             NullLogger<DbAdVariantService>.Instance);
@@ -556,6 +558,7 @@ public class AdMetricsProjectionTests
                 new StubHttpClientFactory(),
                 Options.Create(new AdPlatformOptions { DryRunMode = true }),
                 db,
+                new NoOpAdPlatformTokenCipher(),
                 NullLogger<AdPlatformAccessTokenService>.Instance),
             new CampaignPerformanceProjectionService(db),
             NullLogger<DbAdVariantService>.Instance);
@@ -639,7 +642,7 @@ public class AdPlatformConnectionServiceTests
         db.Campaigns.Add(campaign);
         await db.SaveChangesAsync();
 
-        var service = new AdPlatformConnectionService(db);
+        var service = new AdPlatformConnectionService(db, new NoOpAdPlatformTokenCipher());
         var row = await service.UpsertCampaignConnectionAsync(
             campaign.Id,
             user.Id,
@@ -681,7 +684,7 @@ public class AdPlatformConnectionServiceTests
         db.Campaigns.Add(campaign);
         await db.SaveChangesAsync();
 
-        var service = new AdPlatformConnectionService(db);
+        var service = new AdPlatformConnectionService(db, new NoOpAdPlatformTokenCipher());
         await service.UpsertCampaignConnectionAsync(
             campaign.Id,
             user.Id,
@@ -773,6 +776,7 @@ public class CampaignPerformanceProjectionServiceTests
             new ExternalAdMetrics(1200, 42, 6, 105m),
             dayOne,
             null,
+            null,
             CancellationToken.None);
         await db.SaveChangesAsync();
 
@@ -781,6 +785,7 @@ public class CampaignPerformanceProjectionServiceTests
             "meta",
             new ExternalAdMetrics(1800, 63, 9, 160m),
             dayTwo,
+            null,
             null,
             CancellationToken.None);
         await db.SaveChangesAsync();
@@ -838,6 +843,7 @@ public class CampaignPerformanceProjectionServiceTests
             new ExternalAdMetrics(1200, 42, 6, 105m),
             recordedAtMorning,
             null,
+            null,
             CancellationToken.None);
         await db.SaveChangesAsync();
 
@@ -846,6 +852,7 @@ public class CampaignPerformanceProjectionServiceTests
             "meta",
             new ExternalAdMetrics(2400, 88, 12, 210m),
             recordedAtEvening,
+            null,
             null,
             CancellationToken.None);
         await db.SaveChangesAsync();
@@ -888,6 +895,7 @@ public class CampaignPerformanceProjectionServiceTests
             new ExternalAdMetrics(800, 21, 4, 80m),
             recordedAt,
             "Meta Business Account 01",
+            null,
             CancellationToken.None);
         await db.SaveChangesAsync();
 
@@ -927,6 +935,7 @@ public class CampaignPerformanceProjectionServiceTests
             "meta",
             new ExternalAdMetrics(-50, -7, -2, -99m),
             recordedAt,
+            null,
             null,
             CancellationToken.None);
         await db.SaveChangesAsync();
@@ -970,6 +979,7 @@ public class CampaignPerformanceProjectionServiceTests
             new ExternalAdMetrics(1000, 35, 5, 120m),
             localMorning,
             null,
+            null,
             CancellationToken.None);
         await db.SaveChangesAsync();
 
@@ -978,6 +988,7 @@ public class CampaignPerformanceProjectionServiceTests
             "meta",
             new ExternalAdMetrics(1800, 60, 8, 180m),
             localEvening,
+            null,
             null,
             CancellationToken.None);
         await db.SaveChangesAsync();
@@ -1001,4 +1012,10 @@ public class CampaignPerformanceProjectionServiceTests
             .Options;
         return new AppDbContext(options);
     }
+}
+
+internal sealed class NoOpAdPlatformTokenCipher : IAdPlatformTokenCipher
+{
+    public string? Protect(string? value) => value;
+    public string? Unprotect(string? value) => value;
 }

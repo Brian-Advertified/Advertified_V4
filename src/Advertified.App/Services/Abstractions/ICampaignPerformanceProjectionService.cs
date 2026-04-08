@@ -10,5 +10,6 @@ public interface ICampaignPerformanceProjectionService
         ExternalAdMetrics metrics,
         DateTime recordedAtUtc,
         string? supplierLabel,
+        decimal? attributedRevenueZar,
         CancellationToken cancellationToken);
 }

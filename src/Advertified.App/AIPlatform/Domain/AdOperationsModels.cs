@@ -28,7 +28,15 @@ public sealed record AdVariantSummary(
     string Status,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
-    DateTimeOffset? PublishedAt);
+    DateTimeOffset? PublishedAt,
+    int Impressions = 0,
+    int Clicks = 0,
+    int Conversions = 0,
+    decimal CostZar = 0m,
+    decimal Ctr = 0m,
+    decimal ConversionRate = 0m,
+    decimal? CplZar = null,
+    decimal? Roas = null);
 
 public sealed record ExternalAdMetrics(
     int Impressions,
@@ -46,6 +54,8 @@ public sealed record CampaignAdMetricsSummary(
     decimal CostZar,
     decimal Ctr,
     decimal ConversionRate,
+    decimal? CplZar,
+    decimal? Roas,
     Guid? TopVariantId,
     decimal? TopVariantConversionRate,
     DateTimeOffset? LastRecordedAt);

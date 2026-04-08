@@ -265,6 +265,7 @@ public sealed class AgentCampaignsController : ControllerBase
             .Include(x => x.CampaignBrief)
             .Include(x => x.CampaignCreativeSystems)
             .Include(x => x.CampaignAssets)
+            .Include(x => x.CampaignExecutionTasks)
             .Include(x => x.CampaignSupplierBookings)
                 .ThenInclude(x => x.ProofAsset)
             .Include(x => x.CampaignDeliveryReports)
@@ -299,6 +300,7 @@ public sealed class AgentCampaignsController : ControllerBase
         var campaign = await _db.Campaigns
             .AsNoTracking()
             .AsSplitQuery()
+            .Include(x => x.CampaignChannelMetrics)
             .Include(x => x.CampaignSupplierBookings)
             .Include(x => x.CampaignDeliveryReports)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);

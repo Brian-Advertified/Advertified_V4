@@ -369,7 +369,20 @@ type CampaignResponse = {
     date: string;
     impressions: number;
     playsOrSpots: number;
+    leads: number;
+    cplZar?: number | null;
+    roas?: number | null;
     spendDelivered: number;
+  }> | null;
+  executionTasks?: Array<{
+    id: string;
+    taskKey: string;
+    title: string;
+    details?: string | null;
+    status: string;
+    sortOrder: number;
+    dueAt?: string | null;
+    completedAt?: string | null;
   }> | null;
   effectiveEndDate?: string | null;
   daysLeft?: number | null;
@@ -382,6 +395,9 @@ type CampaignPerformanceSnapshotResponse = {
   totalDeliveredSpend: number;
   totalImpressions: number;
   totalPlaysOrSpots: number;
+  totalLeads: number;
+  averageCplZar?: number | null;
+  averageRoas?: number | null;
   totalSyncedClicks: number;
   bookingCount: number;
   reportCount: number;
@@ -391,6 +407,9 @@ type CampaignPerformanceSnapshotResponse = {
     date: string;
     impressions: number;
     playsOrSpots: number;
+    leads: number;
+    cplZar?: number | null;
+    roas?: number | null;
     spendDelivered: number;
   }>;
   channels: Array<{
@@ -400,6 +419,9 @@ type CampaignPerformanceSnapshotResponse = {
     deliveredSpend: number;
     impressions: number;
     playsOrSpots: number;
+    leads: number;
+    cplZar?: number | null;
+    roas?: number | null;
     syncedClicks: number;
     bookingCount: number;
     reportCount: number;
@@ -1093,6 +1115,9 @@ function mapPerformanceTimelinePoint(
     date: response.date,
     impressions: response.impressions,
     playsOrSpots: response.playsOrSpots,
+    leads: response.leads,
+    cplZar: response.cplZar ?? undefined,
+    roas: response.roas ?? undefined,
     spendDelivered: response.spendDelivered,
   };
 }
@@ -1201,6 +1226,16 @@ function mapCampaign(response: CampaignResponse): Campaign {
     supplierBookings: (response.supplierBookings ?? []).map(mapSupplierBooking),
     deliveryReports: (response.deliveryReports ?? []).map(mapDeliveryReport),
     performanceTimeline: (response.performanceTimeline ?? []).map(mapPerformanceTimelinePoint),
+    executionTasks: (response.executionTasks ?? []).map((task) => ({
+      id: task.id,
+      taskKey: task.taskKey,
+      title: task.title,
+      details: task.details ?? undefined,
+      status: task.status,
+      sortOrder: task.sortOrder,
+      dueAt: task.dueAt ?? undefined,
+      completedAt: task.completedAt ?? undefined,
+    })),
     effectiveEndDate: response.effectiveEndDate ?? undefined,
     daysLeft: response.daysLeft ?? undefined,
     createdAt: response.createdAt,
@@ -1214,6 +1249,9 @@ function mapCampaignPerformanceSnapshot(response: CampaignPerformanceSnapshotRes
     totalDeliveredSpend: response.totalDeliveredSpend,
     totalImpressions: response.totalImpressions,
     totalPlaysOrSpots: response.totalPlaysOrSpots,
+    totalLeads: response.totalLeads,
+    averageCplZar: response.averageCplZar ?? undefined,
+    averageRoas: response.averageRoas ?? undefined,
     totalSyncedClicks: response.totalSyncedClicks,
     bookingCount: response.bookingCount,
     reportCount: response.reportCount,
@@ -1223,6 +1261,9 @@ function mapCampaignPerformanceSnapshot(response: CampaignPerformanceSnapshotRes
       date: point.date,
       impressions: point.impressions,
       playsOrSpots: point.playsOrSpots,
+      leads: point.leads,
+      cplZar: point.cplZar ?? undefined,
+      roas: point.roas ?? undefined,
       spendDelivered: point.spendDelivered,
     })),
     channels: (response.channels ?? []).map((channel) => ({
@@ -1232,6 +1273,9 @@ function mapCampaignPerformanceSnapshot(response: CampaignPerformanceSnapshotRes
       deliveredSpend: channel.deliveredSpend,
       impressions: channel.impressions,
       playsOrSpots: channel.playsOrSpots,
+      leads: channel.leads,
+      cplZar: channel.cplZar ?? undefined,
+      roas: channel.roas ?? undefined,
       syncedClicks: channel.syncedClicks,
       bookingCount: channel.bookingCount,
       reportCount: channel.reportCount,

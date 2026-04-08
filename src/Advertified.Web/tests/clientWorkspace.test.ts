@@ -20,6 +20,7 @@ function buildCampaign(status: Campaign['status']): Campaign {
     recommendations: [],
     creativeSystems: [],
     assets: [],
+    executionTasks: [],
     supplierBookings: [],
     deliveryReports: [],
     createdAt: '2026-03-30T00:00:00Z',

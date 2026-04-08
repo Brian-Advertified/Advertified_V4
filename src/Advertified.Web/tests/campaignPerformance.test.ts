@@ -63,6 +63,7 @@ function buildCampaign(): Campaign {
         spendDelivered: 45000,
       },
     ],
+    executionTasks: [],
     createdAt: '2026-03-30T00:00:00Z',
   };
 }
@@ -140,14 +141,17 @@ describe('campaign performance snapshot', () => {
       totalDeliveredSpend: 93000,
       totalImpressions: 980000,
       totalPlaysOrSpots: 77,
+      totalLeads: 34,
+      averageCplZar: 2735.29,
+      averageRoas: 2.1,
       totalSyncedClicks: 41,
       bookingCount: 3,
       reportCount: 4,
       spendDeliveryPercent: 53,
       latestReportDate: '2026-04-08',
       timeline: [
-        { date: '2026-04-07', impressions: 450000, playsOrSpots: 31, spendDelivered: 42000 },
-        { date: '2026-04-08', impressions: 530000, playsOrSpots: 46, spendDelivered: 51000 },
+        { date: '2026-04-07', impressions: 450000, playsOrSpots: 31, leads: 15, cplZar: 2800, roas: 1.95, spendDelivered: 42000 },
+        { date: '2026-04-08', impressions: 530000, playsOrSpots: 46, leads: 19, cplZar: 2684.21, roas: 2.23, spendDelivered: 51000 },
       ],
       channels: [
         {
@@ -157,6 +161,9 @@ describe('campaign performance snapshot', () => {
           deliveredSpend: 51000,
           impressions: 530000,
           playsOrSpots: 41,
+          leads: 19,
+          cplZar: 2684.21,
+          roas: 2.23,
           syncedClicks: 41,
           bookingCount: 1,
           reportCount: 2,

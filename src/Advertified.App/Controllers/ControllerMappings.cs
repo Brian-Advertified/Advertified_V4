@@ -106,6 +106,11 @@ internal static class ControllerMappings
                 .OrderByDescending(x => x.ReportedAt ?? x.CreatedAt)
                 .Select(ToResponse)
                 .ToArray(),
+            ExecutionTasks = campaign.CampaignExecutionTasks
+                .OrderBy(x => x.SortOrder)
+                .ThenBy(x => x.CreatedAt)
+                .Select(ToResponse)
+                .ToArray(),
             PerformanceTimeline = BuildPerformanceTimeline(campaign.CampaignDeliveryReports),
             EffectiveEndDate = schedule.EffectiveEndDate,
             DaysLeft = schedule.DaysLeft
@@ -117,6 +122,9 @@ internal static class ControllerMappings
         var bookingById = campaign.CampaignSupplierBookings
             .ToDictionary(item => item.Id, item => item);
         var channels = new Dictionary<string, CampaignPerformanceChannelResponse>(StringComparer.OrdinalIgnoreCase);
+        var metricsByChannel = campaign.CampaignChannelMetrics
+            .GroupBy(item => NormalizeChannel(item.Channel))
+            .ToDictionary(group => group.Key, group => group.ToArray(), StringComparer.OrdinalIgnoreCase);
 
         foreach (var booking in campaign.CampaignSupplierBookings)
         {
@@ -140,18 +148,50 @@ internal static class ControllerMappings
             }
         }
 
+        foreach (var channelMetrics in metricsByChannel)
+        {
+            var channel = channelMetrics.Key;
+            var current = GetOrCreateChannel(channels, channel);
+            var metricRows = channelMetrics.Value;
+            var leads = metricRows.Sum(item => item.Leads);
+            var spend = metricRows.Sum(item => item.SpendZar);
+            var attributedRevenue = metricRows.Sum(item => item.AttributedRevenueZar);
+
+            current.Leads += leads;
+            current.CplZar = leads > 0
+                ? decimal.Round(spend / leads, 2, MidpointRounding.AwayFromZero)
+                : null;
+            current.Roas = spend > 0m && attributedRevenue > 0m
+                ? decimal.Round(attributedRevenue / spend, 4, MidpointRounding.AwayFromZero)
+                : null;
+        }
+
         var totalBookedSpend = campaign.CampaignSupplierBookings.Sum(item => item.CommittedAmount);
         var totalDeliveredSpend = campaign.CampaignDeliveryReports.Sum(item => item.SpendDelivered ?? 0m);
         var totalImpressions = campaign.CampaignDeliveryReports.Sum(item => item.Impressions ?? 0);
         var totalPlaysOrSpots = campaign.CampaignDeliveryReports.Sum(item => item.PlaysOrSpots ?? 0);
+        var totalLeads = campaign.CampaignChannelMetrics.Sum(item => item.Leads);
+        var totalMetricSpend = campaign.CampaignChannelMetrics.Sum(item => item.SpendZar);
+        var totalAttributedRevenue = campaign.CampaignChannelMetrics.Sum(item => item.AttributedRevenueZar);
         var totalSyncedClicks = campaign.CampaignDeliveryReports
             .Where(item => string.Equals(item.ReportType, CampaignPerformanceConstants.SyncedReportType, StringComparison.OrdinalIgnoreCase))
             .Sum(item => item.PlaysOrSpots ?? 0);
-        var latestReportDate = campaign.CampaignDeliveryReports
+        var latestDeliveryDate = campaign.CampaignDeliveryReports
             .Where(item => item.ReportedAt.HasValue)
             .Select(item => DateOnly.FromDateTime(item.ReportedAt!.Value))
             .OrderBy(item => item)
             .LastOrDefault();
+        var latestMetricDate = campaign.CampaignChannelMetrics
+            .Select(item => item.MetricDate)
+            .OrderBy(item => item)
+            .LastOrDefault();
+        var latestReportDate = latestMetricDate > latestDeliveryDate ? latestMetricDate : latestDeliveryDate;
+        var avgCpl = totalLeads > 0
+            ? decimal.Round(totalMetricSpend / totalLeads, 2, MidpointRounding.AwayFromZero)
+            : (decimal?)null;
+        var avgRoas = totalMetricSpend > 0m && totalAttributedRevenue > 0m
+            ? decimal.Round(totalAttributedRevenue / totalMetricSpend, 4, MidpointRounding.AwayFromZero)
+            : (decimal?)null;
 
         return new CampaignPerformanceSnapshotResponse
         {
@@ -160,12 +200,15 @@ internal static class ControllerMappings
             TotalDeliveredSpend = totalDeliveredSpend,
             TotalImpressions = totalImpressions,
             TotalPlaysOrSpots = totalPlaysOrSpots,
+            TotalLeads = totalLeads,
+            AverageCplZar = avgCpl,
+            AverageRoas = avgRoas,
             TotalSyncedClicks = totalSyncedClicks,
             BookingCount = campaign.CampaignSupplierBookings.Count,
             ReportCount = campaign.CampaignDeliveryReports.Count,
             SpendDeliveryPercent = ClampPercent(totalBookedSpend > 0m ? (totalDeliveredSpend / totalBookedSpend) * 100m : 0m),
             LatestReportDate = latestReportDate == default ? null : latestReportDate,
-            Timeline = BuildPerformanceTimeline(campaign.CampaignDeliveryReports),
+            Timeline = BuildPerformanceTimeline(campaign.CampaignDeliveryReports, campaign.CampaignChannelMetrics),
             Channels = channels.Values
                 .OrderByDescending(item => item.DeliveredSpend + item.BookedSpend)
                 .ThenByDescending(item => item.Impressions + item.PlaysOrSpots)
@@ -322,6 +365,21 @@ internal static class ControllerMappings
         };
     }
 
+    private static CampaignExecutionTaskResponse ToResponse(CampaignExecutionTask task)
+    {
+        return new CampaignExecutionTaskResponse
+        {
+            Id = task.Id,
+            TaskKey = task.TaskKey,
+            Title = task.Title,
+            Details = task.Details,
+            Status = task.Status,
+            SortOrder = task.SortOrder,
+            DueAt = task.DueAt.HasValue ? new DateTimeOffset(task.DueAt.Value, TimeSpan.Zero) : null,
+            CompletedAt = task.CompletedAt.HasValue ? new DateTimeOffset(task.CompletedAt.Value, TimeSpan.Zero) : null
+        };
+    }
+
     private static IReadOnlyList<CampaignPerformanceTimelinePointResponse> BuildPerformanceTimeline(
         IEnumerable<CampaignDeliveryReport> reports)
     {
@@ -337,6 +395,52 @@ internal static class ControllerMappings
             })
             .OrderBy(item => item.Date)
             .ToArray();
+    }
+
+    private static IReadOnlyList<CampaignPerformanceTimelinePointResponse> BuildPerformanceTimeline(
+        IEnumerable<CampaignDeliveryReport> reports,
+        IEnumerable<CampaignChannelMetric> channelMetrics)
+    {
+        var metricRows = channelMetrics.ToArray();
+        if (metricRows.Length == 0)
+        {
+            return BuildPerformanceTimeline(reports);
+        }
+
+        var deliveryRows = reports
+            .Where(report => report.ReportedAt.HasValue)
+            .ToArray();
+
+        var timeline = metricRows
+            .GroupBy(item => item.MetricDate)
+            .Select(group =>
+            {
+                var groupedDelivery = deliveryRows
+                    .Where(report => DateOnly.FromDateTime(report.ReportedAt!.Value) == group.Key)
+                    .ToArray();
+                var spend = group.Sum(item => item.SpendZar);
+                var leads = group.Sum(item => item.Leads);
+                var attributedRevenue = group.Sum(item => item.AttributedRevenueZar);
+
+                return new CampaignPerformanceTimelinePointResponse
+                {
+                    Date = group.Key,
+                    Impressions = group.Sum(item => item.Impressions) + groupedDelivery.Sum(item => item.Impressions ?? 0),
+                    PlaysOrSpots = group.Sum(item => item.Clicks) + groupedDelivery.Sum(item => item.PlaysOrSpots ?? 0),
+                    Leads = leads,
+                    CplZar = leads > 0
+                        ? decimal.Round(spend / leads, 2, MidpointRounding.AwayFromZero)
+                        : null,
+                    Roas = spend > 0m && attributedRevenue > 0m
+                        ? decimal.Round(attributedRevenue / spend, 4, MidpointRounding.AwayFromZero)
+                        : null,
+                    SpendDelivered = spend + groupedDelivery.Sum(item => item.SpendDelivered ?? 0m)
+                };
+            })
+            .OrderBy(item => item.Date)
+            .ToArray();
+
+        return timeline;
     }
 
     private static CampaignPerformanceChannelResponse GetOrCreateChannel(

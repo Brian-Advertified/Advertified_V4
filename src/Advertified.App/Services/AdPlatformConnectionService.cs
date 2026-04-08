@@ -10,10 +10,12 @@ namespace Advertified.App.Services;
 public sealed class AdPlatformConnectionService : IAdPlatformConnectionService
 {
     private readonly AppDbContext _db;
+    private readonly IAdPlatformTokenCipher _tokenCipher;
 
-    public AdPlatformConnectionService(AppDbContext db)
+    public AdPlatformConnectionService(AppDbContext db, IAdPlatformTokenCipher tokenCipher)
     {
         _db = db;
+        _tokenCipher = tokenCipher;
     }
 
     public async Task<IReadOnlyList<CampaignAdPlatformConnectionResponse>> GetCampaignConnectionsAsync(
@@ -39,6 +41,7 @@ public sealed class AdPlatformConnectionService : IAdPlatformConnectionService
         CancellationToken cancellationToken)
     {
         var provider = NormalizeProvider(request.Provider);
+        EnsureSupportedProvider(provider);
         var externalAccountId = (request.ExternalAccountId ?? string.Empty).Trim();
         var accountName = (request.AccountName ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(externalAccountId) || string.IsNullOrWhiteSpace(accountName))
@@ -62,8 +65,8 @@ public sealed class AdPlatformConnectionService : IAdPlatformConnectionService
                 ExternalAccountId = externalAccountId,
                 AccountName = accountName,
                 Status = NormalizeStatus(request.Status),
-                AccessToken = NormalizeOptionalText(request.AccessToken),
-                RefreshToken = NormalizeOptionalText(request.RefreshToken),
+                AccessToken = _tokenCipher.Protect(NormalizeOptionalText(request.AccessToken)),
+                RefreshToken = _tokenCipher.Protect(NormalizeOptionalText(request.RefreshToken)),
                 TokenExpiresAt = request.TokenExpiresAt?.UtcDateTime,
                 CreatedAt = now,
                 UpdatedAt = now
@@ -75,8 +78,8 @@ public sealed class AdPlatformConnectionService : IAdPlatformConnectionService
             connection.OwnerUserId ??= ownerUserId;
             connection.AccountName = accountName;
             connection.Status = NormalizeStatus(request.Status);
-            connection.AccessToken = NormalizeOptionalText(request.AccessToken) ?? connection.AccessToken;
-            connection.RefreshToken = NormalizeOptionalText(request.RefreshToken) ?? connection.RefreshToken;
+            connection.AccessToken = _tokenCipher.Protect(NormalizeOptionalText(request.AccessToken)) ?? connection.AccessToken;
+            connection.RefreshToken = _tokenCipher.Protect(NormalizeOptionalText(request.RefreshToken)) ?? connection.RefreshToken;
             connection.TokenExpiresAt = request.TokenExpiresAt?.UtcDateTime ?? connection.TokenExpiresAt;
             connection.UpdatedAt = now;
         }
@@ -151,6 +154,16 @@ public sealed class AdPlatformConnectionService : IAdPlatformConnectionService
     private static string NormalizeProvider(string? value)
     {
         return AdPlatformProviderNormalizer.Normalize(value);
+    }
+
+    private static void EnsureSupportedProvider(string normalizedProvider)
+    {
+        if (normalizedProvider is "meta" or "googleads" or "linkedin" or "tiktok")
+        {
+            return;
+        }
+
+        throw new InvalidOperationException("Provider must be one of meta, googleads, linkedin, or tiktok.");
     }
 
     private static string NormalizeStatus(string? value)

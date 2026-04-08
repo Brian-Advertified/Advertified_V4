@@ -38,16 +38,16 @@ export function CreativeStudioOutputPanel({
                   <div><strong>CTA:</strong> {creativeSystem.campaignSummary.cta}</div>
                 </div>
                 <div className="mt-3 text-sm leading-7 text-slate-700">
-                  <strong>Channels:</strong> {creativeSystem.campaignSummary.channels.map(formatChannelLabel).join(' • ')}
+                  <strong>Channels:</strong> {creativeSystem.campaignSummary.channels.map(formatChannelLabel).join(' | ')}
                 </div>
                 {creativeSystem.campaignSummary.constraints.length ? (
                   <div className="mt-3 text-sm leading-7 text-slate-700">
-                    <strong>Constraints:</strong> {creativeSystem.campaignSummary.constraints.join(' • ')}
+                    <strong>Constraints:</strong> {creativeSystem.campaignSummary.constraints.join(' | ')}
                   </div>
                 ) : null}
                 {creativeSystem.campaignSummary.assumptions.length ? (
                   <div className="mt-3 text-sm leading-7 text-slate-700">
-                    <strong>Assumptions:</strong> {creativeSystem.campaignSummary.assumptions.join(' • ')}
+                    <strong>Assumptions:</strong> {creativeSystem.campaignSummary.assumptions.join(' | ')}
                   </div>
                 ) : null}
               </div>
@@ -113,7 +113,7 @@ export function CreativeStudioOutputPanel({
             <div className="mt-5 space-y-3">
               {creativeSystem.storyboard.scenes.map((scene) => (
                 <article key={`${scene.order}-${scene.title}`} className="rounded-[22px] border border-slate-200/80 bg-slate-50/70 p-4">
-                  <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Scene {scene.order}{scene.duration ? ` • ${scene.duration}` : ''}</div>
+                  <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Scene {scene.order}{scene.duration ? ` | ${scene.duration}` : ''}</div>
                   <h4 className="mt-2 text-lg font-semibold text-slate-900">{scene.title}</h4>
                   <div className="mt-2 text-sm leading-7 text-slate-700"><strong>Purpose:</strong> {scene.purpose}</div>
                   <div className="mt-2 text-sm leading-7 text-slate-700"><strong>Visual:</strong> {scene.visual}</div>
@@ -129,7 +129,7 @@ export function CreativeStudioOutputPanel({
             <div className="mt-4 space-y-4">
               {creativeSystem.channelAdaptations.map((adaptation) => (
                 <article key={`${adaptation.channel}-${adaptation.format}`} className="rounded-[22px] border border-slate-200/80 bg-slate-50/70 p-4">
-                  <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">{formatChannelLabel(adaptation.channel)} • {adaptation.format}</div>
+                  <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">{formatChannelLabel(adaptation.channel)} | {adaptation.format}</div>
                   <div className="mt-2 text-sm leading-7 text-slate-700"><strong>Headline / hook:</strong> {adaptation.headlineOrHook}</div>
                   <div className="mt-2 text-sm leading-7 text-slate-700"><strong>Primary copy:</strong> {adaptation.primaryCopy}</div>
                   <div className="mt-2 text-sm leading-7 text-slate-700"><strong>CTA:</strong> {adaptation.cta}</div>
@@ -137,7 +137,7 @@ export function CreativeStudioOutputPanel({
                   {adaptation.voiceoverOrAudio ? <div className="mt-2 text-sm leading-7 text-slate-700"><strong>Voiceover / audio:</strong> {adaptation.voiceoverOrAudio}</div> : null}
                   {adaptation.recommendedDirection ? <div className="mt-2 text-sm leading-7 text-slate-700"><strong>Recommended direction:</strong> {adaptation.recommendedDirection}</div> : null}
                   {adaptation.productionAssets.length ? (
-                    <div className="mt-2 text-sm leading-7 text-slate-700"><strong>Production assets:</strong> {adaptation.productionAssets.join(' • ')}</div>
+                    <div className="mt-2 text-sm leading-7 text-slate-700"><strong>Production assets:</strong> {adaptation.productionAssets.join(' | ')}</div>
                   ) : null}
                   {adaptation.sections.length ? (
                     <div className="mt-4 space-y-2">
@@ -152,7 +152,7 @@ export function CreativeStudioOutputPanel({
                     <div className="mt-4 grid gap-3 lg:grid-cols-3">
                       {adaptation.versions.map((version) => (
                         <div key={`${adaptation.channel}-${version.label}`} className="rounded-2xl border border-slate-200/70 bg-white/80 p-3 text-sm leading-7 text-slate-700">
-                          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{version.label} • {version.intent}</div>
+                          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{version.label} | {version.intent}</div>
                           <div className="mt-2"><strong>Hook:</strong> {version.headlineOrHook}</div>
                           <div className="mt-2"><strong>Copy:</strong> {version.primaryCopy}</div>
                           <div className="mt-2"><strong>CTA:</strong> {version.cta}</div>

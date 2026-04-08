@@ -39,23 +39,25 @@ jobs:
             set -euo pipefail
             APP_DIR="${DEV_APP_DIR:-$HOME/apps/advertified-v4-dev}"
             COMPOSE_FILE="${DEV_COMPOSE_FILE:-compose.v4-dev.yml}"
-            ENV_FILE="${DEV_ENV_FILE:-v4-dev.env}"
+            ENV_FILE="${DEV_ENV_FILE:-.deploy-v4-dev/v4-dev.env}"
 
             cd "$APP_DIR"
             git fetch origin
             git checkout main
             git pull --ff-only origin main
 
-            if [ -f "$ENV_FILE" ]; then
-              if grep -q "^VITE_ENABLE_PUBLIC_AI_STUDIO=" "$ENV_FILE"; then
-                sed -i 's/^VITE_ENABLE_PUBLIC_AI_STUDIO=.*/VITE_ENABLE_PUBLIC_AI_STUDIO=true/' "$ENV_FILE"
-              else
-                echo "VITE_ENABLE_PUBLIC_AI_STUDIO=true" >> "$ENV_FILE"
-              fi
-            else
-              echo "VITE_ENABLE_PUBLIC_AI_STUDIO=true" > "$ENV_FILE"
+            if [ ! -f "$ENV_FILE" ]; then
+              echo "Expected env file '$ENV_FILE' was not found. Aborting deploy."
+              exit 1
             fi
 
+            if grep -q "^VITE_ENABLE_PUBLIC_AI_STUDIO=" "$ENV_FILE"; then
+              sed -i 's/^VITE_ENABLE_PUBLIC_AI_STUDIO=.*/VITE_ENABLE_PUBLIC_AI_STUDIO=true/' "$ENV_FILE"
+            else
+              echo "VITE_ENABLE_PUBLIC_AI_STUDIO=true" >> "$ENV_FILE"
+            fi
+
+            export APP_ENV_FILE="$ENV_FILE"
             docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" build api web
             docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d api web
 

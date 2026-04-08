@@ -13,6 +13,8 @@ public partial class Campaign
     public virtual ICollection<CampaignSupplierBooking> CampaignSupplierBookings { get; set; } = new List<CampaignSupplierBooking>();
 
     public virtual ICollection<CampaignDeliveryReport> CampaignDeliveryReports { get; set; } = new List<CampaignDeliveryReport>();
+    public virtual ICollection<CampaignChannelMetric> CampaignChannelMetrics { get; set; } = new List<CampaignChannelMetric>();
+    public virtual ICollection<CampaignExecutionTask> CampaignExecutionTasks { get; set; } = new List<CampaignExecutionTask>();
 
     public virtual ICollection<CampaignPauseWindow> CampaignPauseWindows { get; set; } = new List<CampaignPauseWindow>();
 }

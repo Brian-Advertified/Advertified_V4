@@ -357,6 +357,7 @@ public sealed class AdminCampaignOperationsController : ControllerBase
         var campaign = await _db.Campaigns
             .AsNoTracking()
             .AsSplitQuery()
+            .Include(x => x.CampaignChannelMetrics)
             .Include(x => x.CampaignSupplierBookings)
             .Include(x => x.CampaignDeliveryReports)
             .FirstOrDefaultAsync(x => x.Id == campaignId, cancellationToken);

@@ -22,10 +22,12 @@ public sealed class CampaignPerformanceProjectionService : ICampaignPerformanceP
         ExternalAdMetrics metrics,
         DateTime recordedAtUtc,
         string? supplierLabel,
+        decimal? attributedRevenueZar,
         CancellationToken cancellationToken)
     {
         var normalizedRecordedAt = NormalizeRecordedAtUtc(recordedAtUtc);
         var normalizedMetrics = NormalizeMetrics(metrics);
+        var normalizedRevenue = Math.Max(0m, attributedRevenueZar.GetValueOrDefault());
         var platformLabel = ResolvePlatformLabel(platform, supplierLabel);
         var booking = await _db.CampaignSupplierBookings
             .FirstOrDefaultAsync(
@@ -88,6 +90,14 @@ public sealed class CampaignPerformanceProjectionService : ICampaignPerformanceP
                 CreatedAt = normalizedRecordedAt
             };
             _db.CampaignDeliveryReports.Add(report);
+            await UpsertChannelMetricAsync(
+                campaignId,
+                channel: "digital",
+                provider: platformLabel,
+                normalizedRecordedAt,
+                normalizedMetrics,
+                normalizedRevenue,
+                cancellationToken);
             return;
         }
 
@@ -97,6 +107,76 @@ public sealed class CampaignPerformanceProjectionService : ICampaignPerformanceP
         report.Impressions = normalizedMetrics.Impressions;
         report.PlaysOrSpots = normalizedMetrics.Clicks;
         report.SpendDelivered = normalizedMetrics.CostZar;
+
+        await UpsertChannelMetricAsync(
+            campaignId,
+            channel: "digital",
+            provider: platformLabel,
+            normalizedRecordedAt,
+            normalizedMetrics,
+            normalizedRevenue,
+            cancellationToken);
+    }
+
+    private async Task UpsertChannelMetricAsync(
+        Guid campaignId,
+        string channel,
+        string provider,
+        DateTime recordedAtUtc,
+        ExternalAdMetrics metrics,
+        decimal attributedRevenueZar,
+        CancellationToken cancellationToken)
+    {
+        var metricDate = DateOnly.FromDateTime(recordedAtUtc);
+        var normalizedChannel = string.IsNullOrWhiteSpace(channel) ? "digital" : channel.Trim().ToLowerInvariant();
+        var normalizedProvider = string.IsNullOrWhiteSpace(provider) ? "ad platform" : provider.Trim();
+        var cpl = metrics.Conversions > 0
+            ? decimal.Round(metrics.CostZar / metrics.Conversions, 2, MidpointRounding.AwayFromZero)
+            : (decimal?)null;
+        var roas = metrics.CostZar > 0m && attributedRevenueZar > 0m
+            ? decimal.Round(attributedRevenueZar / metrics.CostZar, 4, MidpointRounding.AwayFromZero)
+            : (decimal?)null;
+
+        var row = await _db.CampaignChannelMetrics
+            .FirstOrDefaultAsync(item =>
+                    item.CampaignId == campaignId
+                    && item.Channel == normalizedChannel
+                    && item.Provider == normalizedProvider
+                    && item.MetricDate == metricDate,
+                cancellationToken);
+
+        if (row is null)
+        {
+            row = new CampaignChannelMetric
+            {
+                Id = Guid.NewGuid(),
+                CampaignId = campaignId,
+                Channel = normalizedChannel,
+                Provider = normalizedProvider,
+                MetricDate = metricDate,
+                SpendZar = metrics.CostZar,
+                Impressions = metrics.Impressions,
+                Clicks = metrics.Clicks,
+                Leads = metrics.Conversions,
+                AttributedRevenueZar = attributedRevenueZar,
+                CplZar = cpl,
+                Roas = roas,
+                SourceType = "ad_platform_sync",
+                CreatedAt = recordedAtUtc,
+                UpdatedAt = recordedAtUtc
+            };
+            _db.CampaignChannelMetrics.Add(row);
+            return;
+        }
+
+        row.SpendZar = metrics.CostZar;
+        row.Impressions = metrics.Impressions;
+        row.Clicks = metrics.Clicks;
+        row.Leads = metrics.Conversions;
+        row.AttributedRevenueZar = attributedRevenueZar;
+        row.CplZar = cpl;
+        row.Roas = roas;
+        row.UpdatedAt = recordedAtUtc;
     }
 
     private static string ResolvePlatformLabel(string platform, string? supplierLabel)

@@ -177,6 +177,15 @@ public sealed class AdminMutationService : IAdminMutationService
         var code = NormalizeToken(request.Code);
         var name = request.Name.Trim();
         ValidateOutletRequest(code, name);
+        var normalizedSelection = await BuildNormalizedOutletSelectionAsync(
+            request.MediaType,
+            request.CoverageType,
+            request.CatalogHealth,
+            request.PrimaryLanguages,
+            request.ProvinceCodes,
+            request.CityLabels,
+            request.AudienceKeywords,
+            cancellationToken);
 
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
@@ -193,7 +202,27 @@ public sealed class AdminMutationService : IAdminMutationService
         }
 
         var outletId = Guid.NewGuid();
-        await UpsertOutletAsync(connection, transaction, outletId, code, request.Name, request.MediaType, request.CoverageType, request.CatalogHealth, request.OperatorName, request.IsNational, request.HasPricing, request.LanguageNotes, request.TargetAudience, request.BroadcastFrequency, request.PrimaryLanguages, request.ProvinceCodes, request.CityLabels, request.AudienceKeywords, cancellationToken, isUpdate: false);
+        await UpsertOutletAsync(
+            connection,
+            transaction,
+            outletId,
+            code,
+            request.Name,
+            request.MediaType,
+            normalizedSelection.CoverageType,
+            normalizedSelection.CatalogHealth,
+            request.OperatorName,
+            request.IsNational,
+            request.HasPricing,
+            request.LanguageNotes,
+            request.TargetAudience,
+            request.BroadcastFrequency,
+            normalizedSelection.PrimaryLanguages,
+            normalizedSelection.ProvinceCodes,
+            normalizedSelection.CityLabels,
+            normalizedSelection.AudienceKeywords,
+            cancellationToken,
+            isUpdate: false);
         await transaction.CommitAsync(cancellationToken);
         await _broadcastInventoryCatalog.RefreshAsync(cancellationToken);
 
@@ -206,6 +235,15 @@ public sealed class AdminMutationService : IAdminMutationService
         var nextCode = NormalizeToken(request.Code);
         var nextName = request.Name.Trim();
         ValidateOutletRequest(nextCode, nextName);
+        var normalizedSelection = await BuildNormalizedOutletSelectionAsync(
+            request.MediaType,
+            request.CoverageType,
+            request.CatalogHealth,
+            request.PrimaryLanguages,
+            request.ProvinceCodes,
+            request.CityLabels,
+            request.AudienceKeywords,
+            cancellationToken);
 
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
@@ -235,7 +273,27 @@ public sealed class AdminMutationService : IAdminMutationService
             }
         }
 
-        await UpsertOutletAsync(connection, transaction, outletId.Value, nextCode, request.Name, request.MediaType, request.CoverageType, request.CatalogHealth, request.OperatorName, request.IsNational, request.HasPricing, request.LanguageNotes, request.TargetAudience, request.BroadcastFrequency, request.PrimaryLanguages, request.ProvinceCodes, request.CityLabels, request.AudienceKeywords, cancellationToken, isUpdate: true);
+        await UpsertOutletAsync(
+            connection,
+            transaction,
+            outletId.Value,
+            nextCode,
+            request.Name,
+            request.MediaType,
+            normalizedSelection.CoverageType,
+            normalizedSelection.CatalogHealth,
+            request.OperatorName,
+            request.IsNational,
+            request.HasPricing,
+            request.LanguageNotes,
+            request.TargetAudience,
+            request.BroadcastFrequency,
+            normalizedSelection.PrimaryLanguages,
+            normalizedSelection.ProvinceCodes,
+            normalizedSelection.CityLabels,
+            normalizedSelection.AudienceKeywords,
+            cancellationToken,
+            isUpdate: true);
         await transaction.CommitAsync(cancellationToken);
         await _broadcastInventoryCatalog.RefreshAsync(cancellationToken);
 
@@ -1357,8 +1415,8 @@ public sealed class AdminMutationService : IAdminMutationService
                     Code = code,
                     Name = name.Trim(),
                     MediaType = NormalizeToken(mediaType),
-                    CoverageType = _broadcastMasterDataService.NormalizeCoverageType(coverageType),
-                    CatalogHealth = _broadcastMasterDataService.NormalizeCatalogHealth(catalogHealth),
+                    CoverageType = coverageType,
+                    CatalogHealth = catalogHealth,
                     OperatorName = TrimToNull(operatorName),
                     IsNational = isNational,
                     HasPricing = hasPricing,
@@ -1393,8 +1451,8 @@ public sealed class AdminMutationService : IAdminMutationService
                     Code = code,
                     Name = name.Trim(),
                     MediaType = NormalizeToken(mediaType),
-                    CoverageType = _broadcastMasterDataService.NormalizeCoverageType(coverageType),
-                    CatalogHealth = _broadcastMasterDataService.NormalizeCatalogHealth(catalogHealth),
+                    CoverageType = coverageType,
+                    CatalogHealth = catalogHealth,
                     OperatorName = TrimToNull(operatorName),
                     IsNational = isNational,
                     HasPricing = hasPricing,
@@ -1468,6 +1526,151 @@ public sealed class AdminMutationService : IAdminMutationService
         }
 
         return _broadcastMasterDataService.NormalizeProvinceCode(trimmed);
+    }
+
+    private async Task<NormalizedOutletSelection> BuildNormalizedOutletSelectionAsync(
+        string mediaType,
+        string coverageType,
+        string catalogHealth,
+        IReadOnlyList<string> primaryLanguages,
+        IReadOnlyList<string> provinceCodes,
+        IReadOnlyList<string> cityLabels,
+        IReadOnlyList<string> audienceKeywords,
+        CancellationToken cancellationToken)
+    {
+        var masterData = await _broadcastMasterDataService.GetOutletMasterDataAsync(cancellationToken);
+
+        var allowedLanguages = masterData.Languages
+            .Select(option => option.Value.Trim().ToLowerInvariant())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var allowedProvinces = masterData.Provinces
+            .Select(option => option.Value.Trim().ToLowerInvariant())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var allowedCoverageTypes = masterData.CoverageTypes
+            .Select(option => option.Value.Trim().ToLowerInvariant())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var allowedCatalogHealthStates = masterData.CatalogHealthStates
+            .Select(option => option.Value.Trim().ToLowerInvariant())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var cityLookup = BuildLabelLookup(masterData.Cities);
+        var keywordLookup = BuildLabelLookup(masterData.AudienceKeywords);
+        var normalizedMediaType = NormalizeToken(mediaType);
+        var isBroadcastOutlet = normalizedMediaType is "radio" or "tv";
+
+        var normalizedCoverageType = _broadcastMasterDataService.NormalizeCoverageType(coverageType);
+        if (isBroadcastOutlet && !allowedCoverageTypes.Contains(normalizedCoverageType))
+        {
+            throw new InvalidOperationException($"Invalid coverage type '{coverageType}'. Choose a canonical coverage option.");
+        }
+
+        var normalizedCatalogHealth = _broadcastMasterDataService.NormalizeCatalogHealth(catalogHealth);
+        if (isBroadcastOutlet && !allowedCatalogHealthStates.Contains(normalizedCatalogHealth))
+        {
+            throw new InvalidOperationException($"Invalid catalog health '{catalogHealth}'. Choose a canonical health state.");
+        }
+
+        var normalizedPrimaryLanguages = primaryLanguages
+            .Select(_broadcastMasterDataService.NormalizeLanguageCode)
+            .Where(static value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (isBroadcastOutlet)
+        {
+            var invalidLanguages = normalizedPrimaryLanguages
+                .Where(value => !allowedLanguages.Contains(value))
+                .ToArray();
+            if (invalidLanguages.Length > 0)
+            {
+                throw new InvalidOperationException(
+                    $"Invalid language selection: {string.Join(", ", invalidLanguages.Take(3))}. Use master-data language options only.");
+            }
+        }
+
+        var normalizedProvinceCodes = provinceCodes
+            .Select(_broadcastMasterDataService.NormalizeProvinceCode)
+            .Where(static value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (isBroadcastOutlet)
+        {
+            var invalidProvinces = normalizedProvinceCodes
+                .Where(value => !allowedProvinces.Contains(value))
+                .ToArray();
+            if (invalidProvinces.Length > 0)
+            {
+                throw new InvalidOperationException(
+                    $"Invalid province selection: {string.Join(", ", invalidProvinces.Take(3))}. Use master-data province options only.");
+            }
+        }
+
+        var normalizedCities = cityLabels
+            .Select(TrimToNull)
+            .Where(static value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => cityLookup.TryGetValue(value!, out var canonical) ? canonical : value!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (isBroadcastOutlet)
+        {
+            var invalidCities = normalizedCities
+                .Where(city => !cityLookup.ContainsKey(city))
+                .ToArray();
+            if (invalidCities.Length > 0)
+            {
+                throw new InvalidOperationException(
+                    $"Invalid city selection: {string.Join(", ", invalidCities.Take(3))}. Use canonical city options only.");
+            }
+        }
+
+        var normalizedAudienceKeywords = audienceKeywords
+            .Select(TrimToNull)
+            .Where(static value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => keywordLookup.TryGetValue(value!, out var canonical) ? canonical : value!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (isBroadcastOutlet)
+        {
+            var invalidKeywords = normalizedAudienceKeywords
+                .Where(keyword => !keywordLookup.ContainsKey(keyword))
+                .ToArray();
+            if (invalidKeywords.Length > 0)
+            {
+                throw new InvalidOperationException(
+                    $"Invalid audience keyword selection: {string.Join(", ", invalidKeywords.Take(3))}. Use canonical audience keyword options only.");
+            }
+        }
+
+        return new NormalizedOutletSelection(
+            normalizedCoverageType,
+            normalizedCatalogHealth,
+            normalizedPrimaryLanguages,
+            normalizedProvinceCodes,
+            normalizedCities,
+            normalizedAudienceKeywords);
+    }
+
+    private static Dictionary<string, string> BuildLabelLookup(IReadOnlyList<AdminLookupOptionResponse> options)
+    {
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var option in options)
+        {
+            if (string.IsNullOrWhiteSpace(option.Label))
+            {
+                continue;
+            }
+
+            var canonical = option.Label.Trim();
+            map[canonical] = canonical;
+            map[canonical.ToLowerInvariant()] = canonical;
+            map[canonical.Replace("-", " ", StringComparison.Ordinal).ToLowerInvariant()] = canonical;
+            map[canonical.Replace(" ", string.Empty, StringComparison.Ordinal).ToLowerInvariant()] = canonical;
+            if (!string.IsNullOrWhiteSpace(option.Value))
+            {
+                map[option.Value.Trim()] = canonical;
+            }
+        }
+
+        return map;
     }
 
     private static string SerializeJsonArray(IEnumerable<string> values)
@@ -1637,4 +1840,12 @@ public sealed class AdminMutationService : IAdminMutationService
         public Guid Id { get; set; }
         public string Code { get; set; } = string.Empty;
     }
+
+    private sealed record NormalizedOutletSelection(
+        string CoverageType,
+        string CatalogHealth,
+        IReadOnlyList<string> PrimaryLanguages,
+        IReadOnlyList<string> ProvinceCodes,
+        IReadOnlyList<string> CityLabels,
+        IReadOnlyList<string> AudienceKeywords);
 }

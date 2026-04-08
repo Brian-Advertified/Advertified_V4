@@ -125,7 +125,41 @@ public sealed class DbAdVariantService : IAdVariantService
             .OrderByDescending(item => item.CreatedAt)
             .ToArrayAsync(cancellationToken);
 
-        return rows.Select(MapVariant).ToArray();
+        var metricsByVariant = await _db.AiAdMetrics
+            .AsNoTracking()
+            .Where(item => item.CampaignId == campaignId)
+            .GroupBy(item => item.AdVariantId)
+            .Select(group => new
+            {
+                VariantId = group.Key,
+                Impressions = group.Sum(item => item.Impressions),
+                Clicks = group.Sum(item => item.Clicks),
+                Conversions = group.Sum(item => item.Conversions),
+                CostZar = group.Sum(item => item.CostZar)
+            })
+            .ToDictionaryAsync(
+                item => item.VariantId,
+                item => new
+                {
+                    item.Impressions,
+                    item.Clicks,
+                    item.Conversions,
+                    item.CostZar
+                },
+                cancellationToken);
+
+        return rows.Select(row =>
+        {
+            var metrics = metricsByVariant.GetValueOrDefault(row.Id);
+            var impressions = metrics?.Impressions ?? 0;
+            var clicks = metrics?.Clicks ?? 0;
+            var conversions = metrics?.Conversions ?? 0;
+            var costZar = metrics?.CostZar ?? 0m;
+            var ctr = impressions > 0 ? decimal.Round((decimal)clicks / impressions, 4) : 0m;
+            var conversionRate = clicks > 0 ? decimal.Round((decimal)conversions / clicks, 4) : 0m;
+            decimal? cplZar = conversions > 0 ? decimal.Round(costZar / conversions, 2) : null;
+            return MapVariant(row, impressions, clicks, conversions, costZar, ctr, conversionRate, cplZar, roas: null);
+        }).ToArray();
     }
 
     public async Task<PublishAdVariantResult> PublishVariantAsync(Guid variantId, CancellationToken cancellationToken)
@@ -267,8 +301,23 @@ public sealed class DbAdVariantService : IAdVariantService
         var clicks = metricRows.Sum(item => item.Clicks);
         var conversions = metricRows.Sum(item => item.Conversions);
         var cost = metricRows.Sum(item => item.CostZar);
+        var channelMetricTotals = await _db.CampaignChannelMetrics
+            .AsNoTracking()
+            .Where(item => item.CampaignId == campaignId && item.Channel == "digital")
+            .GroupBy(_ => 1)
+            .Select(group => new
+            {
+                AttributedRevenue = group.Sum(item => item.AttributedRevenueZar),
+                Spend = group.Sum(item => item.SpendZar)
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
         var ctr = impressions > 0 ? decimal.Round((decimal)clicks / impressions, 4) : 0m;
         var conversionRate = clicks > 0 ? decimal.Round((decimal)conversions / clicks, 4) : 0m;
+        var cplZar = conversions > 0 ? decimal.Round(cost / conversions, 2, MidpointRounding.AwayFromZero) : (decimal?)null;
+        var roas = channelMetricTotals is not null && channelMetricTotals.Spend > 0m && channelMetricTotals.AttributedRevenue > 0m
+            ? decimal.Round(channelMetricTotals.AttributedRevenue / channelMetricTotals.Spend, 4, MidpointRounding.AwayFromZero)
+            : (decimal?)null;
         var lastRecordedAt = metricRows.Length > 0
             ? new DateTimeOffset(metricRows.Max(item => item.RecordedAt), TimeSpan.Zero)
             : (DateTimeOffset?)null;
@@ -295,6 +344,8 @@ public sealed class DbAdVariantService : IAdVariantService
             cost,
             ctr,
             conversionRate,
+            cplZar,
+            roas,
             byVariant?.VariantId,
             byVariant?.ConversionRate,
             lastRecordedAt);
@@ -396,6 +447,7 @@ public sealed class DbAdVariantService : IAdVariantService
                         metrics,
                         now,
                         accountNameByPlatform.GetValueOrDefault(platform),
+                        attributedRevenueZar: null,
                         cancellationToken);
                 }
 
@@ -549,7 +601,16 @@ public sealed class DbAdVariantService : IAdVariantService
             new DateTimeOffset(now, TimeSpan.Zero));
     }
 
-    private static AdVariantSummary MapVariant(AiAdVariant row)
+    private static AdVariantSummary MapVariant(
+        AiAdVariant row,
+        int impressions = 0,
+        int clicks = 0,
+        int conversions = 0,
+        decimal costZar = 0m,
+        decimal ctr = 0m,
+        decimal conversionRate = 0m,
+        decimal? cplZar = null,
+        decimal? roas = null)
     {
         return new AdVariantSummary(
             row.Id,
@@ -567,7 +628,15 @@ public sealed class DbAdVariantService : IAdVariantService
             row.Status,
             new DateTimeOffset(row.CreatedAt, TimeSpan.Zero),
             new DateTimeOffset(row.UpdatedAt, TimeSpan.Zero),
-            row.PublishedAt.HasValue ? new DateTimeOffset(row.PublishedAt.Value, TimeSpan.Zero) : null);
+            row.PublishedAt.HasValue ? new DateTimeOffset(row.PublishedAt.Value, TimeSpan.Zero) : null,
+            impressions,
+            clicks,
+            conversions,
+            costZar,
+            ctr,
+            conversionRate,
+            cplZar,
+            roas);
     }
 
     private static string NormalizePlatform(string? value)

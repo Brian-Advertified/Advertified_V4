@@ -26,7 +26,7 @@ Optional **Repository Variables** (if your paths differ):
 
 - `DEV_APP_DIR` (default: `$HOME/apps/advertified-v4-dev`)
 - `DEV_COMPOSE_FILE` (default: `compose.v4-dev.yml`)
-- `DEV_ENV_FILE` (default: `v4-dev.env`)
+- `DEV_ENV_FILE` (default: `.deploy-v4-dev/v4-dev.env`)
 
 ## How to deploy
 

@@ -14,17 +14,20 @@ public sealed class AdPlatformAccessTokenService : IAdPlatformAccessTokenService
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly AdPlatformOptions _options;
     private readonly AppDbContext _db;
+    private readonly IAdPlatformTokenCipher _tokenCipher;
     private readonly ILogger<AdPlatformAccessTokenService> _logger;
 
     public AdPlatformAccessTokenService(
         IHttpClientFactory httpClientFactory,
         IOptions<AdPlatformOptions> options,
         AppDbContext db,
+        IAdPlatformTokenCipher tokenCipher,
         ILogger<AdPlatformAccessTokenService> logger)
     {
         _httpClientFactory = httpClientFactory;
         _options = options.Value;
         _db = db;
+        _tokenCipher = tokenCipher;
         _logger = logger;
     }
 
@@ -39,7 +42,12 @@ public sealed class AdPlatformAccessTokenService : IAdPlatformAccessTokenService
             return null;
         }
 
-        var currentToken = connection.AccessToken.Trim();
+        var currentToken = _tokenCipher.Unprotect(connection.AccessToken);
+        if (string.IsNullOrWhiteSpace(currentToken))
+        {
+            return null;
+        }
+
         var now = DateTime.UtcNow;
         if (!connection.TokenExpiresAt.HasValue || connection.TokenExpiresAt.Value > now.Add(ExpirySafetyWindow))
         {
@@ -65,7 +73,13 @@ public sealed class AdPlatformAccessTokenService : IAdPlatformAccessTokenService
             return currentToken;
         }
 
-        var refreshed = await RefreshTokenAsync(providerOptions, connection.RefreshToken.Trim(), cancellationToken);
+        var refreshToken = _tokenCipher.Unprotect(connection.RefreshToken);
+        if (string.IsNullOrWhiteSpace(refreshToken))
+        {
+            return currentToken;
+        }
+
+        var refreshed = await RefreshTokenAsync(providerOptions, refreshToken, cancellationToken);
         if (refreshed is null || string.IsNullOrWhiteSpace(refreshed.AccessToken))
         {
             _logger.LogWarning(
@@ -74,16 +88,16 @@ public sealed class AdPlatformAccessTokenService : IAdPlatformAccessTokenService
             return currentToken;
         }
 
-        connection.AccessToken = refreshed.AccessToken.Trim();
+        connection.AccessToken = _tokenCipher.Protect(refreshed.AccessToken.Trim());
         if (!string.IsNullOrWhiteSpace(refreshed.RefreshToken))
         {
-            connection.RefreshToken = refreshed.RefreshToken.Trim();
+            connection.RefreshToken = _tokenCipher.Protect(refreshed.RefreshToken.Trim());
         }
 
         connection.TokenExpiresAt = refreshed.ExpiresAtUtc;
         connection.UpdatedAt = now;
         await _db.SaveChangesAsync(cancellationToken);
-        return connection.AccessToken;
+        return refreshed.AccessToken.Trim();
     }
 
     private AdPlatformProviderOptions? ResolveProviderOptions(string platform)
@@ -93,6 +107,8 @@ public sealed class AdPlatformAccessTokenService : IAdPlatformAccessTokenService
         {
             "meta" => _options.Meta,
             "googleads" => _options.GoogleAds,
+            "linkedin" => _options.LinkedIn,
+            "tiktok" => _options.TikTok,
             _ => null
         };
     }

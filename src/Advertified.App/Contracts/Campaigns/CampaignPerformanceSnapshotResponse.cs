@@ -7,6 +7,9 @@ public sealed class CampaignPerformanceSnapshotResponse
     public decimal TotalDeliveredSpend { get; set; }
     public long TotalImpressions { get; set; }
     public int TotalPlaysOrSpots { get; set; }
+    public int TotalLeads { get; set; }
+    public decimal? AverageCplZar { get; set; }
+    public decimal? AverageRoas { get; set; }
     public int TotalSyncedClicks { get; set; }
     public int BookingCount { get; set; }
     public int ReportCount { get; set; }

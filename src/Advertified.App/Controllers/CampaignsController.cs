@@ -28,6 +28,7 @@ public sealed class CampaignsController : ControllerBase
     private readonly ICampaignRecommendationService _campaignRecommendationService;
     private readonly IRecommendationDocumentService _recommendationDocumentService;
     private readonly IRecommendationApprovalWorkflowService _recommendationApprovalWorkflowService;
+    private readonly ICampaignExecutionTaskService _campaignExecutionTaskService;
     private readonly IPackagePurchaseService _packagePurchaseService;
     private readonly CampaignPlanningRequestValidator _campaignPlanningRequestValidator;
     private readonly ITemplatedEmailService _emailService;
@@ -42,6 +43,7 @@ public sealed class CampaignsController : ControllerBase
         ICampaignRecommendationService campaignRecommendationService,
         IRecommendationDocumentService recommendationDocumentService,
         IRecommendationApprovalWorkflowService recommendationApprovalWorkflowService,
+        ICampaignExecutionTaskService campaignExecutionTaskService,
         IPackagePurchaseService packagePurchaseService,
         CampaignPlanningRequestValidator campaignPlanningRequestValidator,
         ITemplatedEmailService emailService,
@@ -55,6 +57,7 @@ public sealed class CampaignsController : ControllerBase
         _campaignRecommendationService = campaignRecommendationService;
         _recommendationDocumentService = recommendationDocumentService;
         _recommendationApprovalWorkflowService = recommendationApprovalWorkflowService;
+        _campaignExecutionTaskService = campaignExecutionTaskService;
         _packagePurchaseService = packagePurchaseService;
         _campaignPlanningRequestValidator = campaignPlanningRequestValidator;
         _emailService = emailService;
@@ -91,6 +94,7 @@ public sealed class CampaignsController : ControllerBase
             .Include(x => x.CampaignBrief)
             .Include(x => x.CampaignCreativeSystems)
             .Include(x => x.CampaignAssets)
+            .Include(x => x.CampaignExecutionTasks)
             .Include(x => x.CampaignSupplierBookings)
                 .ThenInclude(x => x.ProofAsset)
             .Include(x => x.CampaignDeliveryReports)
@@ -121,6 +125,7 @@ public sealed class CampaignsController : ControllerBase
         var campaign = await _db.Campaigns
             .AsNoTracking()
             .AsSplitQuery()
+            .Include(x => x.CampaignChannelMetrics)
             .Include(x => x.CampaignSupplierBookings)
             .Include(x => x.CampaignDeliveryReports)
             .FirstOrDefaultAsync(x => x.Id == id && x.UserId == userId, cancellationToken);
@@ -349,6 +354,8 @@ public sealed class CampaignsController : ControllerBase
         CampaignStatusTransitionPolicy.TryAdvanceToBookingInProgress(campaign);
         campaign.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
+        await _campaignExecutionTaskService.MarkTaskCompletedAsync(campaign.Id, "creative_handoff", cancellationToken);
+        await _campaignExecutionTaskService.MarkTaskOpenAsync(campaign.Id, "booking_confirmation", cancellationToken);
         await SendInternalCreativeQueueUpdateAsync(
             campaign,
             eventTitle: "Client approved final creative",

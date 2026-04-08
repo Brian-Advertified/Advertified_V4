@@ -35,6 +35,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
     private readonly IChangeAuditService _changeAuditService;
     private readonly IRecommendationDocumentService _recommendationDocumentService;
     private readonly IProposalAccessTokenService _proposalAccessTokenService;
+    private readonly ICampaignExecutionTaskService _campaignExecutionTaskService;
     private readonly FrontendOptions _frontendOptions;
     private readonly ILogger<AgentCampaignWorkflowController> _logger;
 
@@ -47,6 +48,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
         IChangeAuditService changeAuditService,
         IRecommendationDocumentService recommendationDocumentService,
         IProposalAccessTokenService proposalAccessTokenService,
+        ICampaignExecutionTaskService campaignExecutionTaskService,
         IOptions<FrontendOptions> frontendOptions,
         ILogger<AgentCampaignWorkflowController> logger)
     {
@@ -58,6 +60,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
         _changeAuditService = changeAuditService;
         _recommendationDocumentService = recommendationDocumentService;
         _proposalAccessTokenService = proposalAccessTokenService;
+        _campaignExecutionTaskService = campaignExecutionTaskService;
         _frontendOptions = frontendOptions.Value;
         _logger = logger;
     }
@@ -128,6 +131,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
             .Include(x => x.CampaignBrief)
             .Include(x => x.CampaignCreativeSystems)
             .Include(x => x.CampaignAssets)
+            .Include(x => x.CampaignExecutionTasks)
             .Include(x => x.CampaignSupplierBookings)
                 .ThenInclude(x => x.ProofAsset)
             .Include(x => x.CampaignDeliveryReports)
@@ -169,6 +173,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
             .Include(x => x.CampaignBrief)
             .Include(x => x.CampaignCreativeSystems)
             .Include(x => x.CampaignAssets)
+            .Include(x => x.CampaignExecutionTasks)
             .Include(x => x.CampaignSupplierBookings)
                 .ThenInclude(x => x.ProofAsset)
             .Include(x => x.CampaignDeliveryReports)
@@ -241,6 +246,9 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
         campaign.Status = CampaignStatuses.Launched;
         campaign.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
+        await _campaignExecutionTaskService.MarkTaskCompletedAsync(campaign.Id, "booking_confirmation", cancellationToken);
+        await _campaignExecutionTaskService.MarkTaskCompletedAsync(campaign.Id, "tracking_links", cancellationToken);
+        await _campaignExecutionTaskService.MarkTaskOpenAsync(campaign.Id, "first_report_snapshot", cancellationToken);
         await WriteChangeAuditAsync(
             "mark_launched",
             "campaign",

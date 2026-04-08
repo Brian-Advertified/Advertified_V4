@@ -289,6 +289,14 @@ public sealed class AiAdOperationsController : ControllerBase
             AudioAssetUrl = item.AudioAssetUrl,
             PlatformAdId = item.PlatformAdId,
             Status = item.Status,
+            Impressions = item.Impressions,
+            Clicks = item.Clicks,
+            Conversions = item.Conversions,
+            CostZar = item.CostZar,
+            Ctr = item.Ctr,
+            ConversionRate = item.ConversionRate,
+            CplZar = item.CplZar,
+            Roas = item.Roas,
             CreatedAt = item.CreatedAt,
             UpdatedAt = item.UpdatedAt,
             PublishedAt = item.PublishedAt
@@ -308,6 +316,8 @@ public sealed class AiAdOperationsController : ControllerBase
             CostZar = summary.CostZar,
             Ctr = summary.Ctr,
             ConversionRate = summary.ConversionRate,
+            CplZar = summary.CplZar,
+            Roas = summary.Roas,
             TopVariantId = summary.TopVariantId,
             TopVariantConversionRate = summary.TopVariantConversionRate,
             LastRecordedAt = summary.LastRecordedAt

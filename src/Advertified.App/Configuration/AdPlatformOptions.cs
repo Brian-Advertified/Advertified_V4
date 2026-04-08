@@ -8,6 +8,8 @@ public sealed class AdPlatformOptions
     public int MetricsSyncIntervalMinutes { get; set; } = 10;
     public AdPlatformProviderOptions Meta { get; set; } = new();
     public AdPlatformProviderOptions GoogleAds { get; set; } = new();
+    public AdPlatformProviderOptions LinkedIn { get; set; } = new();
+    public AdPlatformProviderOptions TikTok { get; set; } = new();
 }
 
 public sealed class AdPlatformProviderOptions

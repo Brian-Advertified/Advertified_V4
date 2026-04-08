@@ -115,6 +115,14 @@ type AiAdVariantResponse = {
   audioAssetUrl?: string | null;
   platformAdId?: string | null;
   status: string;
+  impressions?: number;
+  clicks?: number;
+  conversions?: number;
+  costZar?: number;
+  ctr?: number;
+  conversionRate?: number;
+  cplZar?: number | null;
+  roas?: number | null;
   createdAt: string;
   updatedAt: string;
   publishedAt?: string | null;
@@ -130,6 +138,8 @@ type AiCampaignAdMetricsSummaryResponse = {
   costZar: number;
   ctr: number;
   conversionRate: number;
+  cplZar?: number | null;
+  roas?: number | null;
   topVariantId?: string | null;
   topVariantConversionRate?: number | null;
   lastRecordedAt?: string | null;

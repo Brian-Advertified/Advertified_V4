@@ -208,6 +208,99 @@ public partial class AppDbContext
                 .HasConstraintName("campaign_ad_platform_links_connection_id_fkey");
         });
 
+        modelBuilder.Entity<CampaignChannelMetric>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("campaign_channel_metrics_pkey");
+
+            entity.ToTable("campaign_channel_metrics");
+
+            entity.HasIndex(e => e.CampaignId, "ix_campaign_channel_metrics_campaign_id");
+            entity.HasIndex(e => e.MetricDate, "ix_campaign_channel_metrics_metric_date");
+            entity.HasIndex(e => new { e.CampaignId, e.Channel, e.Provider, e.MetricDate }, "ux_campaign_channel_metrics_campaign_channel_provider_date")
+                .IsUnique();
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.CampaignId).HasColumnName("campaign_id");
+            entity.Property(e => e.Channel)
+                .HasMaxLength(60)
+                .HasColumnName("channel");
+            entity.Property(e => e.Provider)
+                .HasMaxLength(80)
+                .HasColumnName("provider");
+            entity.Property(e => e.MetricDate).HasColumnName("metric_date");
+            entity.Property(e => e.SpendZar)
+                .HasPrecision(12, 2)
+                .HasColumnName("spend_zar");
+            entity.Property(e => e.Impressions).HasColumnName("impressions");
+            entity.Property(e => e.Clicks).HasColumnName("clicks");
+            entity.Property(e => e.Leads).HasColumnName("leads");
+            entity.Property(e => e.AttributedRevenueZar)
+                .HasPrecision(12, 2)
+                .HasColumnName("attributed_revenue_zar");
+            entity.Property(e => e.CplZar)
+                .HasPrecision(12, 2)
+                .HasColumnName("cpl_zar");
+            entity.Property(e => e.Roas)
+                .HasPrecision(12, 4)
+                .HasColumnName("roas");
+            entity.Property(e => e.SourceType)
+                .HasMaxLength(50)
+                .HasColumnName("source_type");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+
+            entity.HasOne(e => e.Campaign)
+                .WithMany(e => e.CampaignChannelMetrics)
+                .HasForeignKey(e => e.CampaignId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("campaign_channel_metrics_campaign_id_fkey");
+        });
+
+        modelBuilder.Entity<CampaignExecutionTask>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("campaign_execution_tasks_pkey");
+
+            entity.ToTable("campaign_execution_tasks");
+
+            entity.HasIndex(e => new { e.CampaignId, e.Status }, "ix_campaign_execution_tasks_campaign_status");
+            entity.HasIndex(e => new { e.CampaignId, e.TaskKey }, "ux_campaign_execution_tasks_campaign_task_key")
+                .IsUnique();
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.CampaignId).HasColumnName("campaign_id");
+            entity.Property(e => e.TaskKey)
+                .HasMaxLength(80)
+                .HasColumnName("task_key");
+            entity.Property(e => e.Title).HasColumnName("title");
+            entity.Property(e => e.Details).HasColumnName("details");
+            entity.Property(e => e.Status)
+                .HasMaxLength(30)
+                .HasColumnName("status");
+            entity.Property(e => e.SortOrder).HasColumnName("sort_order");
+            entity.Property(e => e.DueAt).HasColumnName("due_at");
+            entity.Property(e => e.CompletedAt).HasColumnName("completed_at");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+
+            entity.HasOne(e => e.Campaign)
+                .WithMany(e => e.CampaignExecutionTasks)
+                .HasForeignKey(e => e.CampaignId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("campaign_execution_tasks_campaign_id_fkey");
+        });
+
         modelBuilder.Entity<AgentAreaAssignment>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("agent_area_assignments_pkey");

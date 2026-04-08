@@ -21,6 +21,9 @@ export interface CampaignPerformanceChannelSnapshot {
   deliveredSpend: number;
   impressions: number;
   playsOrSpots: number;
+  leads: number;
+  cplZar?: number;
+  roas?: number;
   activityLabel: string;
   reportCount: number;
   status: 'on_track' | 'live' | 'booked' | 'no_data';
@@ -31,6 +34,9 @@ export interface CampaignPerformanceSnapshot {
   totalDeliveredSpend: number;
   totalImpressions: number;
   totalPlaysOrSpots: number;
+  totalLeads: number;
+  averageCplZar?: number;
+  averageRoas?: number;
   totalSyncedClicks: number;
   reportCount: number;
   bookingCount: number;
@@ -87,6 +93,7 @@ function createEmptyChannel(channel: string): CampaignPerformanceChannelSnapshot
     deliveredSpend: 0,
     impressions: 0,
     playsOrSpots: 0,
+    leads: 0,
     activityLabel: 'Plays / spots',
     reportCount: 0,
     status: 'no_data',
@@ -189,6 +196,7 @@ export function buildCampaignPerformanceSnapshot(campaign: Campaign): CampaignPe
   let totalDeliveredSpend = 0;
   let totalImpressions = 0;
   let totalPlaysOrSpots = 0;
+  let totalLeads = 0;
   let totalSyncedClicks = 0;
 
   for (const report of campaign.deliveryReports) {
@@ -258,7 +266,10 @@ export function buildCampaignPerformanceSnapshot(campaign: Campaign): CampaignPe
     totalDeliveredSpend,
     totalImpressions,
     totalPlaysOrSpots,
+    totalLeads,
     totalSyncedClicks,
+    averageCplZar: undefined,
+    averageRoas: undefined,
     reportCount: campaign.deliveryReports.length,
     bookingCount: campaign.supplierBookings.length,
     spendDeliveryPercent: clampPercent(totalBookedSpend > 0 ? (totalDeliveredSpend / totalBookedSpend) * 100 : 0),
@@ -309,6 +320,9 @@ export function buildCampaignPerformanceSnapshotFromProjection(
         deliveredSpend: channel.deliveredSpend,
         impressions: channel.impressions,
         playsOrSpots: channel.playsOrSpots,
+        leads: channel.leads,
+        cplZar: channel.cplZar ?? undefined,
+        roas: channel.roas ?? undefined,
         activityLabel: channel.syncedClicks > 0 ? 'Clicks' : 'Plays / spots',
         reportCount: channel.reportCount,
         status,
@@ -325,6 +339,9 @@ export function buildCampaignPerformanceSnapshotFromProjection(
     totalDeliveredSpend: snapshot.totalDeliveredSpend,
     totalImpressions: snapshot.totalImpressions,
     totalPlaysOrSpots: snapshot.totalPlaysOrSpots,
+    totalLeads: snapshot.totalLeads,
+    averageCplZar: snapshot.averageCplZar,
+    averageRoas: snapshot.averageRoas,
     totalSyncedClicks: snapshot.totalSyncedClicks,
     reportCount: snapshot.reportCount,
     bookingCount: snapshot.bookingCount,

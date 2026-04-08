@@ -15,17 +15,20 @@ public sealed class RecommendationApprovalWorkflowService : IRecommendationAppro
 {
     private readonly AppDbContext _db;
     private readonly ITemplatedEmailService _emailService;
+    private readonly ICampaignExecutionTaskService _campaignExecutionTaskService;
     private readonly FrontendOptions _frontendOptions;
     private readonly ILogger<RecommendationApprovalWorkflowService> _logger;
 
     public RecommendationApprovalWorkflowService(
         AppDbContext db,
         ITemplatedEmailService emailService,
+        ICampaignExecutionTaskService campaignExecutionTaskService,
         IOptions<FrontendOptions> frontendOptions,
         ILogger<RecommendationApprovalWorkflowService> logger)
     {
         _db = db;
         _emailService = emailService;
+        _campaignExecutionTaskService = campaignExecutionTaskService;
         _frontendOptions = frontendOptions.Value;
         _logger = logger;
     }
@@ -67,6 +70,7 @@ public sealed class RecommendationApprovalWorkflowService : IRecommendationAppro
             now);
 
         await _db.SaveChangesAsync(cancellationToken);
+        await _campaignExecutionTaskService.EnsureApprovalTasksAsync(campaign.Id, cancellationToken);
         await SendAssignedAgentClientResponseEmailAsync(campaign, responseMessage.Body, cancellationToken);
         await SendRecommendationApprovedEmailAsync(campaign, cancellationToken);
         await SendInternalCreativeQueueUpdateAsync(

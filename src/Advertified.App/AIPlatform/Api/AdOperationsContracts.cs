@@ -29,6 +29,14 @@ public sealed class AdVariantResponse
     public string? AudioAssetUrl { get; set; }
     public string? PlatformAdId { get; set; }
     public string Status { get; set; } = string.Empty;
+    public int Impressions { get; set; }
+    public int Clicks { get; set; }
+    public int Conversions { get; set; }
+    public decimal CostZar { get; set; }
+    public decimal Ctr { get; set; }
+    public decimal ConversionRate { get; set; }
+    public decimal? CplZar { get; set; }
+    public decimal? Roas { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
     public DateTimeOffset? PublishedAt { get; set; }
@@ -60,6 +68,8 @@ public sealed class CampaignAdMetricsSummaryResponse
     public decimal CostZar { get; set; }
     public decimal Ctr { get; set; }
     public decimal ConversionRate { get; set; }
+    public decimal? CplZar { get; set; }
+    public decimal? Roas { get; set; }
     public Guid? TopVariantId { get; set; }
     public decimal? TopVariantConversionRate { get; set; }
     public DateTimeOffset? LastRecordedAt { get; set; }

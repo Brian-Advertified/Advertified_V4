@@ -22,6 +22,14 @@ function formatMetricValue(metric: CampaignPerformanceMetricKey, value: number) 
   return value.toLocaleString('en-ZA');
 }
 
+function formatRatio(value: number | undefined) {
+  if (!Number.isFinite(value)) {
+    return '--';
+  }
+
+  return `${(value ?? 0).toFixed(2)}x`;
+}
+
 function getChannelStatusTone(status: string) {
   if (status === 'on_track') {
     return 'border-emerald-200 bg-emerald-50 text-emerald-700';
@@ -93,6 +101,20 @@ export function CampaignPerformancePanel({
               </div>
             ) : null}
             <div className="rounded-[18px] border border-line bg-slate-50/80 px-4 py-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Leads</p>
+              <p className="mt-2 text-2xl font-semibold text-ink">{formatCompactBudget(view.totalLeads)}</p>
+            </div>
+            <div className="rounded-[18px] border border-line bg-slate-50/80 px-4 py-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">CPL</p>
+              <p className="mt-2 text-2xl font-semibold text-ink">
+                {view.averageCplZar != null ? formatCurrency(view.averageCplZar) : '--'}
+              </p>
+            </div>
+            <div className="rounded-[18px] border border-line bg-slate-50/80 px-4 py-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">ROAS</p>
+              <p className="mt-2 text-2xl font-semibold text-ink">{formatRatio(view.averageRoas)}</p>
+            </div>
+            <div className="rounded-[18px] border border-line bg-slate-50/80 px-4 py-4">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Delivery</p>
               <p className="mt-2 text-2xl font-semibold text-ink">{view.spendDeliveryPercent}%</p>
             </div>
@@ -157,6 +179,13 @@ export function CampaignPerformancePanel({
                         {channel.impressions > 0
                           ? `${channel.impressions.toLocaleString('en-ZA')} impressions`
                           : `${channel.playsOrSpots.toLocaleString('en-ZA')} ${channel.activityLabel.toLowerCase()}`}
+                      </div>
+                      <div className="mt-1 text-xs text-ink-soft">
+                        Leads {channel.leads.toLocaleString('en-ZA')}
+                        {' | '}
+                        CPL {channel.cplZar != null ? formatCurrency(channel.cplZar) : '--'}
+                        {' | '}
+                        ROAS {formatRatio(channel.roas)}
                       </div>
                     </div>
                     <span className={`rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${getChannelStatusTone(channel.status)}`}>

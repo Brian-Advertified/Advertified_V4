@@ -8,6 +8,9 @@ public sealed class CampaignPerformanceChannelResponse
     public decimal DeliveredSpend { get; set; }
     public long Impressions { get; set; }
     public int PlaysOrSpots { get; set; }
+    public int Leads { get; set; }
+    public decimal? CplZar { get; set; }
+    public decimal? Roas { get; set; }
     public int SyncedClicks { get; set; }
     public int BookingCount { get; set; }
     public int ReportCount { get; set; }
