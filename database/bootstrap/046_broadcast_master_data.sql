@@ -84,6 +84,42 @@ on conflict (code) do update
 set label = excluded.label,
     sort_order = excluded.sort_order;
 
+update media_outlet_language
+set language_code = lower(trim(language_code))
+where language_code is not null
+  and language_code <> lower(trim(language_code));
+
+update media_outlet_language
+set language_code = 'unknown'
+where language_code is not null
+  and btrim(language_code) = '';
+
+update media_outlet_geography
+set province_code = null
+where province_code is not null
+  and btrim(province_code) = '';
+
+update media_outlet_geography
+set province_code = lower(replace(replace(trim(province_code), '-', '_'), ' ', '_'))
+where province_code is not null
+  and province_code <> lower(replace(replace(trim(province_code), '-', '_'), ' ', '_'));
+
+update media_outlet
+set coverage_type = lower(replace(replace(trim(coverage_type), '-', '_'), ' ', '_'))
+where coverage_type is not null
+  and coverage_type <> lower(replace(replace(trim(coverage_type), '-', '_'), ' ', '_'));
+
+update media_outlet
+set catalog_health = case
+    when lower(trim(catalog_health)) = 'healthy' then 'strong'
+    else lower(replace(replace(trim(catalog_health), '-', '_'), ' ', '_'))
+end
+where catalog_health is not null
+  and catalog_health <> case
+      when lower(trim(catalog_health)) = 'healthy' then 'strong'
+      else lower(replace(replace(trim(catalog_health), '-', '_'), ' ', '_'))
+  end;
+
 do $$
 begin
     if not exists (
