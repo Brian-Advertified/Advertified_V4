@@ -33,6 +33,7 @@ export function AdminPricingPage() {
     oohMarkupPercent: 0.05,
     radioMarkupPercent: 0.1,
     tvMarkupPercent: 0.1,
+    digitalMarkupPercent: 0.1,
   });
   const [packageSettingForm, setPackageSettingForm] = useState<AdminUpsertPackageSettingInput>({
     code: '',
@@ -224,15 +225,23 @@ export function AdminPricingPage() {
           || pricingSettingsForm.oohMarkupPercent !== dashboard.pricingSettings.oohMarkupPercent
           || pricingSettingsForm.radioMarkupPercent !== dashboard.pricingSettings.radioMarkupPercent
           || pricingSettingsForm.tvMarkupPercent !== dashboard.pricingSettings.tvMarkupPercent
+          || pricingSettingsForm.digitalMarkupPercent !== dashboard.pricingSettings.digitalMarkupPercent
         ) {
           setPricingSettingsForm(dashboard.pricingSettings);
         }
 
         const outletOptions = [...dashboard.outlets].sort((left, right) => Number(left.hasPricing) - Number(right.hasPricing) || left.name.localeCompare(right.name));
+        const socialOutletOptions = outletOptions
+          .filter((outlet) => outlet.mediaType === 'digital')
+          .sort((left, right) => left.name.localeCompare(right.name));
         const selectedPricing = outletPricingQuery.data;
         const selectedPackageSetting = packageSettingDialog?.id
           ? dashboard.packageSettings.find((entry) => entry.id === packageSettingDialog.id) ?? null
           : null;
+        const selectOutlet = (nextOutletCode: string) => {
+          setSelectedOutletCodeState(nextOutletCode);
+          setSearchParams(nextOutletCode ? { outlet: nextOutletCode } : {});
+        };
 
         const hydratePackageSettingForm = (item: (typeof dashboard.packageSettings)[number]) => {
           setPackageSettingForm({
@@ -384,9 +393,7 @@ export function AdminPricingPage() {
                     className="input-base min-w-[280px]"
                     value={selectedOutletCode}
                     onChange={(event) => {
-                      const next = event.target.value;
-                      setSelectedOutletCodeState(next);
-                      setSearchParams(next ? { outlet: next } : {});
+                      selectOutlet(event.target.value);
                     }}
                   >
                     {outletOptions.map((outlet) => (
@@ -398,6 +405,57 @@ export function AdminPricingPage() {
                 </div>
               </div>
 
+              {socialOutletOptions.length > 0 ? (
+                <div className="panel p-6">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-ink">Social package catalog</h3>
+                      <p className="mt-2 text-sm text-ink-soft">Jump directly into Meta, TikTok, YouTube, and LinkedIn pricing rows without hunting through the full outlet list.</p>
+                    </div>
+                    <p className="text-sm text-ink-soft">{socialOutletOptions.length} digital outlet{socialOutletOptions.length === 1 ? '' : 's'} available</p>
+                  </div>
+                  <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                    {socialOutletOptions.map((outlet) => {
+                      const isSelected = outlet.code === selectedOutletCode;
+                      return (
+                        <button
+                          key={outlet.code}
+                          type="button"
+                          className={`rounded-[24px] border px-5 py-5 text-left transition ${
+                            isSelected
+                              ? 'border-brand bg-brand-soft shadow-[0_16px_40px_rgba(15,23,42,0.08)]'
+                              : 'border-line bg-white hover:border-brand/40 hover:bg-brand-soft/40'
+                          }`}
+                          onClick={() => selectOutlet(outlet.code)}
+                        >
+                          <div className="flex items-start justify-between gap-4">
+                            <div>
+                              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Social outlet</p>
+                              <p className="mt-3 text-xl font-semibold text-ink">{outlet.name}</p>
+                              <p className="mt-2 text-sm text-ink-soft">{titleize(outlet.coverageType)} coverage</p>
+                            </div>
+                            <span className={`rounded-full px-3 py-1 text-xs font-semibold ${outlet.hasPricing ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                              {outlet.hasPricing ? 'Priced' : 'Needs pricing'}
+                            </span>
+                          </div>
+                          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                            <div>
+                              <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">Packages</p>
+                              <p className="mt-1 text-lg font-semibold text-ink">{outlet.packageCount}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">Starting price</p>
+                              <p className="mt-1 text-lg font-semibold text-ink">{fmtCurrency(outlet.minPackagePrice)}</p>
+                            </div>
+                          </div>
+                          <p className="mt-4 text-sm text-ink-soft">{isSelected ? 'Currently selected below for package editing.' : 'Open this outlet to manage its package rows.'}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+
               {selectedPricing ? (
                 <>
                   <div className="grid gap-4 md:grid-cols-3">
@@ -408,10 +466,10 @@ export function AdminPricingPage() {
 
                   <div className="panel p-6">
                     <div className="flex items-center justify-between gap-4">
-                      <div><h3 className="text-lg font-semibold text-ink">Pricing packages</h3><p className="mt-2 text-sm text-ink-soft">Package-level pricing rows for the selected outlet.</p></div>
+                      <div><h3 className="text-lg font-semibold text-ink">Pricing packages</h3><p className="mt-2 text-sm text-ink-soft">{selectedPricing.mediaType === 'digital' ? 'Social benchmark packages for the selected platform. Keep benchmark rows current so recommendations and quoting stay trustworthy.' : 'Package-level pricing rows for the selected outlet.'}</p></div>
                       <button type="button" className="button-primary inline-flex items-center gap-2 px-4 py-3" onClick={() => openPackageDialog('create')}>
                         <PlusCircle className="size-4" />
-                        Add package
+                        {selectedPricing.mediaType === 'digital' ? 'Add social package' : 'Add package'}
                       </button>
                     </div>
                     {selectedPricing.packages.length > 0 ? (
@@ -454,7 +512,7 @@ export function AdminPricingPage() {
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <h3 className="text-lg font-semibold text-ink">Platform markups and reserve</h3>
-                    <p className="mt-2 text-sm text-ink-soft">Control the hidden AI Studio reserve collected at checkout and the markup percentages applied to Billboards and Digital Screens, radio, and TV planning costs.</p>
+                    <p className="mt-2 text-sm text-ink-soft">Control the hidden AI Studio reserve collected at checkout and the markup percentages applied to Billboards and Digital Screens, radio, TV, and social/digital planning costs.</p>
                   </div>
                   <button
                     type="button"
@@ -466,7 +524,7 @@ export function AdminPricingPage() {
                     Save pricing settings
                   </button>
                 </div>
-                <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
                   <label className="space-y-2">
                     <span className="text-sm font-medium text-ink">AI Studio reserve %</span>
                     <input className="input-base" type="number" min="0" max="100" step="0.1" value={pricingSettingsForm.aiStudioReservePercent * 100} onChange={(event) => setPricingSettingsForm((current) => ({ ...current, aiStudioReservePercent: Number(event.target.value) / 100 }))} />
@@ -483,8 +541,12 @@ export function AdminPricingPage() {
                     <span className="text-sm font-medium text-ink">TV markup %</span>
                     <input className="input-base" type="number" min="0" max="100" step="0.1" value={pricingSettingsForm.tvMarkupPercent * 100} onChange={(event) => setPricingSettingsForm((current) => ({ ...current, tvMarkupPercent: Number(event.target.value) / 100 }))} />
                   </label>
+                  <label className="space-y-2">
+                    <span className="text-sm font-medium text-ink">Digital markup %</span>
+                    <input className="input-base" type="number" min="0" max="100" step="0.1" value={pricingSettingsForm.digitalMarkupPercent * 100} onChange={(event) => setPricingSettingsForm((current) => ({ ...current, digitalMarkupPercent: Number(event.target.value) / 100 }))} />
+                  </label>
                 </div>
-                <div className="mt-4 grid gap-4 md:grid-cols-4">
+                <div className="mt-4 grid gap-4 md:grid-cols-5">
                   <div className="rounded-[20px] border border-line bg-brand-soft px-4 py-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">AI Studio</p>
                     <p className="mt-2 text-2xl font-semibold text-ink">{(pricingSettingsForm.aiStudioReservePercent * 100).toFixed(1)}%</p>
@@ -500,6 +562,10 @@ export function AdminPricingPage() {
                   <div className="rounded-[20px] border border-line bg-white px-4 py-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">TV</p>
                     <p className="mt-2 text-2xl font-semibold text-ink">{(pricingSettingsForm.tvMarkupPercent * 100).toFixed(1)}%</p>
+                  </div>
+                  <div className="rounded-[20px] border border-line bg-white px-4 py-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Digital</p>
+                    <p className="mt-2 text-2xl font-semibold text-ink">{(pricingSettingsForm.digitalMarkupPercent * 100).toFixed(1)}%</p>
                   </div>
                 </div>
               </div>

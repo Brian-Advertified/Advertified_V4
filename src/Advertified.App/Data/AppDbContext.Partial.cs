@@ -18,6 +18,9 @@ public partial class AppDbContext
             entity.Property(e => e.InventorySnapshotJson)
                 .HasColumnType("jsonb")
                 .HasColumnName("inventory_snapshot_json");
+            entity.Property(e => e.InventoryBatchRefsJson)
+                .HasColumnType("jsonb")
+                .HasColumnName("inventory_batch_refs_json");
         });
 
         modelBuilder.Entity<RecommendationRunAudit>(entity =>
@@ -48,6 +51,9 @@ public partial class AppDbContext
             entity.Property(e => e.InventorySnapshotJson)
                 .HasColumnType("jsonb")
                 .HasColumnName("inventory_snapshot_json");
+            entity.Property(e => e.InventoryBatchRefsJson)
+                .HasColumnType("jsonb")
+                .HasColumnName("inventory_batch_refs_json");
             entity.Property(e => e.CandidateCountsJson)
                 .HasColumnType("jsonb")
                 .HasColumnName("candidate_counts_json");
@@ -118,6 +124,88 @@ public partial class AppDbContext
                 .HasDefaultValueSql("now()")
                 .HasColumnName("created_at");
             entity.Property(e => e.ActivatedAt).HasColumnName("activated_at");
+        });
+
+        modelBuilder.Entity<AdPlatformConnection>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("ad_platform_connections_pkey");
+
+            entity.ToTable("ad_platform_connections");
+
+            entity.HasIndex(e => e.OwnerUserId, "ix_ad_platform_connections_owner_user_id");
+            entity.HasIndex(e => new { e.Provider, e.ExternalAccountId }, "uq_ad_platform_connections_provider_external_account").IsUnique();
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.OwnerUserId).HasColumnName("owner_user_id");
+            entity.Property(e => e.Provider)
+                .HasMaxLength(40)
+                .HasColumnName("provider");
+            entity.Property(e => e.ExternalAccountId)
+                .HasMaxLength(160)
+                .HasColumnName("external_account_id");
+            entity.Property(e => e.AccountName)
+                .HasMaxLength(200)
+                .HasColumnName("account_name");
+            entity.Property(e => e.Status)
+                .HasMaxLength(30)
+                .HasColumnName("status");
+            entity.Property(e => e.AccessToken).HasColumnName("access_token");
+            entity.Property(e => e.RefreshToken).HasColumnName("refresh_token");
+            entity.Property(e => e.TokenExpiresAt).HasColumnName("token_expires_at");
+            entity.Property(e => e.MetadataJson)
+                .HasColumnType("jsonb")
+                .HasColumnName("metadata_json");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+            entity.Property(e => e.LastSyncedAt).HasColumnName("last_synced_at");
+        });
+
+        modelBuilder.Entity<CampaignAdPlatformLink>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("campaign_ad_platform_links_pkey");
+
+            entity.ToTable("campaign_ad_platform_links");
+
+            entity.HasIndex(e => e.CampaignId, "ix_campaign_ad_platform_links_campaign_id");
+            entity.HasIndex(e => e.AdPlatformConnectionId, "ix_campaign_ad_platform_links_connection_id");
+            entity.HasIndex(e => new { e.CampaignId, e.AdPlatformConnectionId }, "uq_campaign_ad_platform_links_campaign_connection").IsUnique();
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.CampaignId).HasColumnName("campaign_id");
+            entity.Property(e => e.AdPlatformConnectionId).HasColumnName("ad_platform_connection_id");
+            entity.Property(e => e.ExternalCampaignId)
+                .HasMaxLength(160)
+                .HasColumnName("external_campaign_id");
+            entity.Property(e => e.IsPrimary).HasColumnName("is_primary");
+            entity.Property(e => e.Status)
+                .HasMaxLength(30)
+                .HasColumnName("status");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+
+            entity.HasOne(e => e.Campaign)
+                .WithMany()
+                .HasForeignKey(e => e.CampaignId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("campaign_ad_platform_links_campaign_id_fkey");
+
+            entity.HasOne(e => e.AdPlatformConnection)
+                .WithMany()
+                .HasForeignKey(e => e.AdPlatformConnectionId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("campaign_ad_platform_links_connection_id_fkey");
         });
 
         modelBuilder.Entity<AgentAreaAssignment>(entity =>

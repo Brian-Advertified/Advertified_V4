@@ -79,3 +79,30 @@ public sealed class OptimizeCampaignResponse
     public string Message { get; set; } = string.Empty;
     public DateTimeOffset OptimizedAt { get; set; }
 }
+
+public sealed class UpsertCampaignAdPlatformConnectionRequest
+{
+    public string Provider { get; set; } = "Meta";
+    public string ExternalAccountId { get; set; } = string.Empty;
+    public string AccountName { get; set; } = string.Empty;
+    public string? ExternalCampaignId { get; set; }
+    public bool IsPrimary { get; set; }
+    public string Status { get; set; } = "active";
+    public string? AccessToken { get; set; }
+    public string? RefreshToken { get; set; }
+    public DateTimeOffset? TokenExpiresAt { get; set; }
+}
+
+public sealed class CampaignAdPlatformConnectionResponse
+{
+    public Guid LinkId { get; set; }
+    public Guid ConnectionId { get; set; }
+    public Guid CampaignId { get; set; }
+    public string Provider { get; set; } = string.Empty;
+    public string ExternalAccountId { get; set; } = string.Empty;
+    public string AccountName { get; set; } = string.Empty;
+    public string? ExternalCampaignId { get; set; }
+    public bool IsPrimary { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public DateTimeOffset UpdatedAt { get; set; }
+}

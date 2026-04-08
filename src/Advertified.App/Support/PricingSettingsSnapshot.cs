@@ -4,4 +4,5 @@ public sealed record PricingSettingsSnapshot(
     decimal AiStudioReservePercent,
     decimal OohMarkupPercent,
     decimal RadioMarkupPercent,
-    decimal TvMarkupPercent);
+    decimal TvMarkupPercent,
+    decimal DigitalMarkupPercent);

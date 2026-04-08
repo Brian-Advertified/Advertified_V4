@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCampaignPerformanceSnapshot } from '../src/features/campaigns/components/campaignPerformance';
+import { buildCampaignPerformanceSnapshot, hasCampaignPerformanceData } from '../src/features/campaigns/components/campaignPerformance';
 import type { Campaign } from '../src/types/domain';
 
 function buildCampaign(): Campaign {
@@ -61,6 +61,34 @@ function buildCampaign(): Campaign {
   };
 }
 
+function buildDigitalCampaign(): Campaign {
+  return {
+    ...buildCampaign(),
+    supplierBookings: [
+      {
+        id: 'booking-digital',
+        supplierOrStation: 'Meta Ads',
+        channel: 'digital',
+        bookingStatus: 'live',
+        committedAmount: 0,
+        notes: 'System-managed ad platform performance sync.',
+      },
+    ],
+    deliveryReports: [
+      {
+        id: 'report-digital',
+        supplierBookingId: 'booking-digital',
+        reportType: 'ad_platform_sync',
+        headline: 'Meta Ads performance',
+        reportedAt: '2026-04-07T00:00:00Z',
+        impressions: 1200,
+        playsOrSpots: 38,
+        spendDelivered: 84,
+      },
+    ],
+  };
+}
+
 describe('campaign performance snapshot', () => {
   it('summarizes booked and delivered performance by channel', () => {
     const snapshot = buildCampaignPerformanceSnapshot(buildCampaign());
@@ -73,5 +101,29 @@ describe('campaign performance snapshot', () => {
     expect(snapshot.channels[0]?.label).toBe('Billboards and Digital Screens');
     expect(snapshot.channels[0]?.deliveredSpend).toBe(45000);
     expect(snapshot.channels[1]?.playsOrSpots).toBe(42);
+    expect(snapshot.topChannel?.channel).toBe('OOH');
+    expect(snapshot.latestReportDate).toBe('2026-04-06T00:00:00Z');
+  });
+
+  it('detects when a campaign has performance-facing data', () => {
+    expect(hasCampaignPerformanceData(buildCampaign())).toBe(true);
+
+    expect(hasCampaignPerformanceData({
+      ...buildCampaign(),
+      supplierBookings: [],
+      deliveryReports: [],
+      assets: [],
+      daysLeft: undefined,
+    })).toBe(false);
+  });
+
+  it('labels synced ad-platform activity as clicks', () => {
+    const snapshot = buildCampaignPerformanceSnapshot(buildDigitalCampaign());
+
+    expect(snapshot.channels).toHaveLength(1);
+    expect(snapshot.channels[0]?.channel).toBe('DIGITAL');
+    expect(snapshot.channels[0]?.activityLabel).toBe('Clicks');
+    expect(snapshot.channels[0]?.playsOrSpots).toBe(38);
+    expect(snapshot.totalSyncedClicks).toBe(38);
   });
 });

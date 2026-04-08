@@ -179,7 +179,6 @@ public sealed class AdminMutationService : IAdminMutationService
         ValidateOutletRequest(code, name);
 
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
-        await connection.OpenAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
         var exists = await connection.ExecuteScalarAsync<int>(new CommandDefinition(
@@ -209,7 +208,6 @@ public sealed class AdminMutationService : IAdminMutationService
         ValidateOutletRequest(nextCode, nextName);
 
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
-        await connection.OpenAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
         var outletId = await connection.ExecuteScalarAsync<Guid?>(new CommandDefinition(
@@ -253,7 +251,6 @@ public sealed class AdminMutationService : IAdminMutationService
         }
 
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
-        await connection.OpenAsync(cancellationToken);
 
         var deleted = await connection.ExecuteAsync(new CommandDefinition(
             "delete from media_outlet where code = @Code;",
@@ -274,7 +271,6 @@ public sealed class AdminMutationService : IAdminMutationService
         var packageId = Guid.NewGuid();
 
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
-        await connection.OpenAsync(cancellationToken);
         await connection.ExecuteAsync(new CommandDefinition(
             @"
             insert into media_outlet_pricing_package (
@@ -318,7 +314,6 @@ public sealed class AdminMutationService : IAdminMutationService
         var outletId = await GetOutletIdAsync(code, cancellationToken);
 
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
-        await connection.OpenAsync(cancellationToken);
         var updated = await connection.ExecuteAsync(new CommandDefinition(
             @"
             update media_outlet_pricing_package
@@ -375,7 +370,6 @@ public sealed class AdminMutationService : IAdminMutationService
     {
         var outletId = await GetOutletIdAsync(code, cancellationToken);
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
-        await connection.OpenAsync(cancellationToken);
         var deleted = await connection.ExecuteAsync(new CommandDefinition(
             "delete from media_outlet_pricing_package where id = @Id and media_outlet_id = @MediaOutletId;",
             new { Id = packageId, MediaOutletId = outletId },
@@ -395,7 +389,6 @@ public sealed class AdminMutationService : IAdminMutationService
         var outletId = await GetOutletIdAsync(code, cancellationToken);
         var slotRateId = Guid.NewGuid();
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
-        await connection.OpenAsync(cancellationToken);
         await connection.ExecuteAsync(new CommandDefinition(
             @"
             insert into media_outlet_slot_rate (
@@ -430,7 +423,6 @@ public sealed class AdminMutationService : IAdminMutationService
     {
         var outletId = await GetOutletIdAsync(code, cancellationToken);
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
-        await connection.OpenAsync(cancellationToken);
         var updated = await connection.ExecuteAsync(new CommandDefinition(
             @"
             update media_outlet_slot_rate
@@ -475,7 +467,6 @@ public sealed class AdminMutationService : IAdminMutationService
     {
         var outletId = await GetOutletIdAsync(code, cancellationToken);
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
-        await connection.OpenAsync(cancellationToken);
         var deleted = await connection.ExecuteAsync(new CommandDefinition(
             "delete from media_outlet_slot_rate where id = @Id and media_outlet_id = @MediaOutletId;",
             new { Id = slotRateId, MediaOutletId = outletId },
@@ -499,7 +490,6 @@ public sealed class AdminMutationService : IAdminMutationService
         }
 
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
-        await connection.OpenAsync(cancellationToken);
 
         var area = await connection.QuerySingleOrDefaultAsync<AdminGeographyRecord>(new CommandDefinition(
             @"
@@ -561,7 +551,6 @@ public sealed class AdminMutationService : IAdminMutationService
         }
 
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
-        await connection.OpenAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
         var clusterExists = await connection.ExecuteScalarAsync<int>(new CommandDefinition(
@@ -622,7 +611,6 @@ public sealed class AdminMutationService : IAdminMutationService
         }
 
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
-        await connection.OpenAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
         var cluster = await connection.QuerySingleOrDefaultAsync<RegionClusterLookupRecord>(new CommandDefinition(
@@ -707,7 +695,6 @@ public sealed class AdminMutationService : IAdminMutationService
         }
 
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
-        await connection.OpenAsync(cancellationToken);
 
         var deleted = await connection.ExecuteAsync(new CommandDefinition(
             "delete from region_clusters where code = @Code;",
@@ -727,7 +714,6 @@ public sealed class AdminMutationService : IAdminMutationService
         var mappingId = Guid.NewGuid();
 
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
-        await connection.OpenAsync(cancellationToken);
         await connection.ExecuteAsync(new CommandDefinition(
             @"
             insert into region_cluster_mappings (id, cluster_id, province, city, station_or_channel_name)
@@ -751,7 +737,6 @@ public sealed class AdminMutationService : IAdminMutationService
         ValidateGeographyMappingRequest(request);
 
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
-        await connection.OpenAsync(cancellationToken);
         var updated = await connection.ExecuteAsync(new CommandDefinition(
             @"
             update region_cluster_mappings
@@ -781,7 +766,6 @@ public sealed class AdminMutationService : IAdminMutationService
     {
         var clusterId = await GetRegionClusterIdAsync(code, cancellationToken);
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
-        await connection.OpenAsync(cancellationToken);
         var deleted = await connection.ExecuteAsync(new CommandDefinition(
             "delete from region_cluster_mappings where id = @Id and cluster_id = @ClusterId;",
             new { Id = mappingId, ClusterId = clusterId },
@@ -820,7 +804,6 @@ public sealed class AdminMutationService : IAdminMutationService
 
         var importedAt = DateTime.UtcNow;
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
-        await connection.OpenAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
         await connection.ExecuteAsync(new CommandDefinition(
@@ -877,7 +860,6 @@ public sealed class AdminMutationService : IAdminMutationService
         }
 
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
-        await connection.OpenAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
         var importUpdated = await connection.ExecuteAsync(new CommandDefinition(
@@ -949,7 +931,6 @@ public sealed class AdminMutationService : IAdminMutationService
         }
 
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
-        await connection.OpenAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
         await connection.ExecuteAsync(new CommandDefinition(
@@ -988,7 +969,6 @@ public sealed class AdminMutationService : IAdminMutationService
         var benefitsJson = SerializeJsonArray(request.Benefits);
 
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
-        await connection.OpenAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
         var existing = await connection.ExecuteScalarAsync<Guid?>(new CommandDefinition(
@@ -1033,7 +1013,6 @@ public sealed class AdminMutationService : IAdminMutationService
         var benefitsJson = SerializeJsonArray(request.Benefits);
 
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
-        await connection.OpenAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
         var existing = await connection.ExecuteScalarAsync<Guid?>(new CommandDefinition(
@@ -1090,7 +1069,6 @@ public sealed class AdminMutationService : IAdminMutationService
     public async Task DeletePackageSettingAsync(Guid packageSettingId, CancellationToken cancellationToken)
     {
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
-        await connection.OpenAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
         var exists = await connection.ExecuteScalarAsync<bool>(new CommandDefinition(
@@ -1135,7 +1113,6 @@ public sealed class AdminMutationService : IAdminMutationService
         }
 
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
-        await connection.OpenAsync(cancellationToken);
         await connection.ExecuteAsync(new CommandDefinition(
             @"
             insert into admin_engine_policy_overrides (
@@ -1192,7 +1169,6 @@ public sealed class AdminMutationService : IAdminMutationService
             request.IndicativeMix.Select(TrimToNull).Where(static x => !string.IsNullOrWhiteSpace(x)).ToArray());
 
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
-        await connection.OpenAsync(cancellationToken);
 
         var updated = await connection.ExecuteAsync(new CommandDefinition(
             @"
@@ -1228,9 +1204,9 @@ public sealed class AdminMutationService : IAdminMutationService
         ValidatePercentage(request.OohMarkupPercent, nameof(request.OohMarkupPercent));
         ValidatePercentage(request.RadioMarkupPercent, nameof(request.RadioMarkupPercent));
         ValidatePercentage(request.TvMarkupPercent, nameof(request.TvMarkupPercent));
+        ValidatePercentage(request.DigitalMarkupPercent, nameof(request.DigitalMarkupPercent));
 
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
-        await connection.OpenAsync(cancellationToken);
         await connection.ExecuteAsync(new CommandDefinition(
             @"
             insert into pricing_settings (
@@ -1238,13 +1214,15 @@ public sealed class AdminMutationService : IAdminMutationService
                 ai_studio_reserve_percent,
                 ooh_markup_percent,
                 radio_markup_percent,
-                tv_markup_percent
+                tv_markup_percent,
+                digital_markup_percent
             ) values (
                 'default',
                 @AiStudioReservePercent,
                 @OohMarkupPercent,
                 @RadioMarkupPercent,
-                @TvMarkupPercent
+                @TvMarkupPercent,
+                @DigitalMarkupPercent
             )
             on conflict (pricing_key) do update
             set
@@ -1252,13 +1230,15 @@ public sealed class AdminMutationService : IAdminMutationService
                 ooh_markup_percent = excluded.ooh_markup_percent,
                 radio_markup_percent = excluded.radio_markup_percent,
                 tv_markup_percent = excluded.tv_markup_percent,
+                digital_markup_percent = excluded.digital_markup_percent,
                 updated_at = now();",
             new
             {
                 request.AiStudioReservePercent,
                 request.OohMarkupPercent,
                 request.RadioMarkupPercent,
-                request.TvMarkupPercent
+                request.TvMarkupPercent,
+                request.DigitalMarkupPercent
             },
             cancellationToken: cancellationToken));
     }
@@ -1278,7 +1258,6 @@ public sealed class AdminMutationService : IAdminMutationService
     {
         var normalizedCode = NormalizeToken(code);
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
-        await connection.OpenAsync(cancellationToken);
         var outletId = await connection.ExecuteScalarAsync<Guid?>(new CommandDefinition(
             "select id from media_outlet where code = @Code;",
             new { Code = normalizedCode },
@@ -1296,7 +1275,6 @@ public sealed class AdminMutationService : IAdminMutationService
     {
         var normalizedCode = NormalizeToken(code);
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
-        await connection.OpenAsync(cancellationToken);
         var clusterId = await connection.ExecuteScalarAsync<Guid?>(new CommandDefinition(
             "select id from region_clusters where code = @Code;",
             new { Code = normalizedCode },

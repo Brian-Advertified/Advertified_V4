@@ -27,17 +27,20 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
     private readonly IMediaPlanningEngine _planningEngine;
     private readonly ICampaignReasoningService _campaignReasoningService;
     private readonly PlanningPolicySnapshotProvider _policySnapshotProvider;
+    private readonly IPlanningPolicyService _policyService;
 
     public CampaignRecommendationService(
         AppDbContext db,
         IMediaPlanningEngine planningEngine,
         ICampaignReasoningService campaignReasoningService,
-        PlanningPolicySnapshotProvider policySnapshotProvider)
+        PlanningPolicySnapshotProvider policySnapshotProvider,
+        IPlanningPolicyService policyService)
     {
         _db = db;
         _planningEngine = planningEngine;
         _campaignReasoningService = campaignReasoningService;
         _policySnapshotProvider = policySnapshotProvider;
+        _policyService = policyService;
     }
 
     public CampaignRecommendationService(
@@ -48,7 +51,8 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             db,
             planningEngine,
             campaignReasoningService,
-            new PlanningPolicySnapshotProvider(new PlanningPolicyOptions()))
+            new PlanningPolicySnapshotProvider(new PlanningPolicyOptions()),
+            new PlanningPolicyService(new PlanningPolicySnapshotProvider(new PlanningPolicyOptions())))
     {
     }
 
@@ -79,6 +83,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         for (var index = 0; index < proposalVariants.Count; index++)
         {
             var variant = proposalVariants[index];
+            var policyContext = _policyService.BuildPolicyContext(variant.Request);
             var recommendationResult = await _planningEngine.GenerateAsync(variant.Request, cancellationToken);
             EnsureRecommendationFallsWithinTier(variant, recommendationResult);
 
@@ -94,6 +99,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
                 proposalTimestamp,
                 revisionNumber,
                 policySnapshot,
+                policyContext,
                 inventorySnapshot);
 
             foreach (var item in recommendationResult.RecommendedPlan)
@@ -111,6 +117,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
                 recommendation,
                 recommendationResult,
                 variant.Request,
+                inventorySnapshot.BatchReferences,
                 proposalTimestamp));
             primaryRecommendationId ??= recommendation.Id;
             _db.CampaignRecommendations.Add(recommendation);
@@ -243,7 +250,8 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         DateTime now,
         int revisionNumber,
         PlanningPolicyOptions policySnapshot,
-        object inventorySnapshot)
+        PlanningPolicyContext policyContext,
+        InventorySnapshot inventorySnapshot)
     {
         return new CampaignRecommendation
         {
@@ -256,8 +264,13 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             Summary = aiReasoning?.Summary ?? BuildSummary(recommendationResult, planningRequest),
             Rationale = BuildStoredRationale(recommendationResult, aiReasoning?.Rationale),
             RequestSnapshotJson = SerializeAuditJson(recommendationResult.RunTrace?.RequestSnapshot ?? BuildRequestSnapshot(planningRequest)),
-            PolicySnapshotJson = SerializeAuditJson(policySnapshot),
+            PolicySnapshotJson = SerializeAuditJson(new
+            {
+                options = policySnapshot,
+                context = policyContext
+            }),
             InventorySnapshotJson = SerializeAuditJson(inventorySnapshot),
+            InventoryBatchRefsJson = SerializeAuditJson(inventorySnapshot.BatchReferences),
             RevisionNumber = revisionNumber,
             CreatedAt = now,
             UpdatedAt = now
@@ -269,6 +282,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         CampaignRecommendation recommendation,
         RecommendationResult recommendationResult,
         CampaignPlanningRequest planningRequest,
+        IReadOnlyList<InventoryBatchReferenceSnapshot> inventoryBatchReferences,
         DateTime createdAt)
     {
         var selectedChannels = recommendationResult.RecommendedPlan
@@ -290,6 +304,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             RequestSnapshotJson = recommendation.RequestSnapshotJson,
             PolicySnapshotJson = recommendation.PolicySnapshotJson,
             InventorySnapshotJson = recommendation.InventorySnapshotJson,
+            InventoryBatchRefsJson = SerializeAuditJson(inventoryBatchReferences),
             CandidateCountsJson = SerializeAuditJson(recommendationResult.RunTrace is null ? Array.Empty<RecommendationTraceCount>() : recommendationResult.RunTrace.CandidateCounts),
             RejectedCandidatesJson = SerializeAuditJson(recommendationResult.RunTrace is null ? Array.Empty<RecommendationRejectedCandidateTrace>() : recommendationResult.RunTrace.RejectedCandidates),
             SelectedItemsJson = SerializeAuditJson(recommendationResult.RunTrace is null ? Array.Empty<RecommendationSelectedItemTrace>() : recommendationResult.RunTrace.SelectedItems),
@@ -785,14 +800,13 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         return $"R {amount.ToString("N2", CultureInfo.GetCultureInfo("en-ZA"))}";
     }
 
-    private async Task<object> BuildInventorySnapshotAsync(CancellationToken cancellationToken)
+    private async Task<InventorySnapshot> BuildInventorySnapshotAsync(CancellationToken cancellationToken)
     {
         var activeBatches = await _db.InventoryImportBatches
             .AsNoTracking()
             .Where(batch => batch.IsActive)
             .OrderBy(batch => batch.ChannelFamily)
-            .Select(batch => new
-            {
+            .Select(batch => new InventoryBatchSnapshot(
                 batch.Id,
                 batch.ChannelFamily,
                 batch.SourceType,
@@ -801,15 +815,42 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
                 batch.RecordCount,
                 batch.Status,
                 batch.CreatedAt,
-                batch.ActivatedAt
-            })
+                batch.ActivatedAt))
             .ToListAsync(cancellationToken);
 
-        return new
-        {
-            activeBatches
-        };
+        var batchReferences = activeBatches
+            .Select(batch => new InventoryBatchReferenceSnapshot(
+                batch.ChannelFamily,
+                batch.Id,
+                batch.SourceIdentifier,
+                batch.ActivatedAt ?? batch.CreatedAt))
+            .ToArray();
+
+        return new InventorySnapshot(
+            activeBatches,
+            batchReferences);
     }
+
+    private sealed record InventorySnapshot(
+        IReadOnlyList<InventoryBatchSnapshot> ActiveBatches,
+        IReadOnlyList<InventoryBatchReferenceSnapshot> BatchReferences);
+
+    private sealed record InventoryBatchSnapshot(
+        Guid Id,
+        string ChannelFamily,
+        string SourceType,
+        string SourceIdentifier,
+        string? SourceChecksum,
+        int RecordCount,
+        string Status,
+        DateTime CreatedAt,
+        DateTime? ActivatedAt);
+
+    private sealed record InventoryBatchReferenceSnapshot(
+        string ChannelFamily,
+        Guid BatchId,
+        string SourceIdentifier,
+        DateTime ActiveAt);
 
     private static CampaignPlanningRequestSnapshot BuildRequestSnapshot(CampaignPlanningRequest request)
     {

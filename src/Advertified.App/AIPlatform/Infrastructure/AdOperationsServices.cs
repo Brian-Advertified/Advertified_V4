@@ -3,6 +3,7 @@ using Advertified.App.AIPlatform.Domain;
 using Advertified.App.Configuration;
 using Advertified.App.Data;
 using Advertified.App.Data.Entities;
+using Advertified.App.Services.Abstractions;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
@@ -20,6 +21,7 @@ public sealed class DbAdVariantService : IAdVariantService
     private readonly IAdPlatformPublisherFactory _publisherFactory;
     private readonly IAiCostEstimator _costEstimator;
     private readonly IAiCostControlService _costControlService;
+    private readonly ICampaignPerformanceProjectionService _campaignPerformanceProjectionService;
     private readonly ILogger<DbAdVariantService> _logger;
 
     public DbAdVariantService(
@@ -27,12 +29,14 @@ public sealed class DbAdVariantService : IAdVariantService
         IAdPlatformPublisherFactory publisherFactory,
         IAiCostEstimator costEstimator,
         IAiCostControlService costControlService,
+        ICampaignPerformanceProjectionService campaignPerformanceProjectionService,
         ILogger<DbAdVariantService> logger)
     {
         _db = db;
         _publisherFactory = publisherFactory;
         _costEstimator = costEstimator;
         _costControlService = costControlService;
+        _campaignPerformanceProjectionService = campaignPerformanceProjectionService;
         _logger = logger;
     }
 
@@ -314,12 +318,14 @@ public sealed class DbAdVariantService : IAdVariantService
             cancellationToken);
 
         var now = DateTime.UtcNow;
+        var metricsByPlatform = new Dictionary<string, ExternalAdMetrics>(StringComparer.OrdinalIgnoreCase);
         foreach (var row in publishedRows)
         {
             var publisher = _publisherFactory.GetRequired(row.Platform);
             var external = await publisher.GetMetricsAsync(row.PlatformAdId!, cancellationToken);
             var ctr = external.Impressions > 0 ? decimal.Round((decimal)external.Clicks / external.Impressions, 4) : 0m;
             var conversionRate = external.Clicks > 0 ? decimal.Round((decimal)external.Conversions / external.Clicks, 4) : 0m;
+            metricsByPlatform[row.Platform] = MergeMetrics(metricsByPlatform.GetValueOrDefault(row.Platform), external);
 
             _db.AiAdMetrics.Add(new AiAdMetric
             {
@@ -343,6 +349,18 @@ public sealed class DbAdVariantService : IAdVariantService
         {
             if (publishedRows.Length > 0)
             {
+                await _db.SaveChangesAsync(cancellationToken);
+
+                foreach (var (platform, metrics) in metricsByPlatform)
+                {
+                    await _campaignPerformanceProjectionService.UpsertAdPlatformMetricsAsync(
+                        campaignId,
+                        platform,
+                        metrics,
+                        now,
+                        cancellationToken);
+                }
+
                 await _db.SaveChangesAsync(cancellationToken);
             }
         }
@@ -372,6 +390,20 @@ public sealed class DbAdVariantService : IAdVariantService
             campaignId,
             publishedRows.Length);
         return new SyncCampaignMetricsResult(campaignId, publishedRows.Length, summary);
+    }
+
+    private static ExternalAdMetrics MergeMetrics(ExternalAdMetrics? existing, ExternalAdMetrics current)
+    {
+        if (existing is null)
+        {
+            return current;
+        }
+
+        return new ExternalAdMetrics(
+            existing.Impressions + current.Impressions,
+            existing.Clicks + current.Clicks,
+            existing.Conversions + current.Conversions,
+            existing.CostZar + current.CostZar);
     }
 
     public async Task<int> SyncAllPublishedCampaignsAsync(CancellationToken cancellationToken)

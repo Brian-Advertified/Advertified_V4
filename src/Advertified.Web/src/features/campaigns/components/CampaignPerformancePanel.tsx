@@ -46,7 +46,15 @@ function getBarWidth(value: number, maxValue: number) {
   return Math.max(8, Math.round((value / maxValue) * 100));
 }
 
-export function CampaignPerformancePanel({ campaign }: { campaign: Campaign }) {
+export function CampaignPerformancePanel({
+  campaign,
+  title = 'Performance',
+  subtitle = 'Live campaign delivery across channels.',
+}: {
+  campaign: Campaign;
+  title?: string;
+  subtitle?: string;
+}) {
   const snapshot = buildCampaignPerformanceSnapshot(campaign);
 
   if (snapshot.bookingCount === 0 && snapshot.reportCount === 0) {
@@ -61,7 +69,8 @@ export function CampaignPerformancePanel({ campaign }: { campaign: Campaign }) {
     <section className="rounded-[30px] border border-line bg-white p-7 shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h3 className="text-xl font-semibold text-ink">Performance</h3>
+          <h3 className="text-xl font-semibold text-ink">{title}</h3>
+          <p className="mt-2 text-sm text-ink-soft">{subtitle}</p>
           <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <div className="rounded-[18px] border border-line bg-slate-50/80 px-4 py-4">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Booked</p>
@@ -75,6 +84,12 @@ export function CampaignPerformancePanel({ campaign }: { campaign: Campaign }) {
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Impressions</p>
               <p className="mt-2 text-2xl font-semibold text-ink">{formatCompactBudget(snapshot.totalImpressions)}</p>
             </div>
+            {snapshot.totalSyncedClicks > 0 ? (
+              <div className="rounded-[18px] border border-line bg-slate-50/80 px-4 py-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Clicks</p>
+                <p className="mt-2 text-2xl font-semibold text-ink">{formatCompactBudget(snapshot.totalSyncedClicks)}</p>
+              </div>
+            ) : null}
             <div className="rounded-[18px] border border-line bg-slate-50/80 px-4 py-4">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Delivery</p>
               <p className="mt-2 text-2xl font-semibold text-ink">{snapshot.spendDeliveryPercent}%</p>
@@ -137,7 +152,9 @@ export function CampaignPerformancePanel({ campaign }: { campaign: Campaign }) {
                     <div>
                       <div className="text-sm font-semibold text-ink">{channel.label}</div>
                       <div className="mt-1 text-xs text-ink-soft">
-                        {channel.impressions > 0 ? `${channel.impressions.toLocaleString('en-ZA')} impressions` : `${channel.playsOrSpots.toLocaleString('en-ZA')} plays / spots`}
+                        {channel.impressions > 0
+                          ? `${channel.impressions.toLocaleString('en-ZA')} impressions`
+                          : `${channel.playsOrSpots.toLocaleString('en-ZA')} ${channel.activityLabel.toLowerCase()}`}
                       </div>
                     </div>
                     <span className={`rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${getChannelStatusTone(channel.status)}`}>

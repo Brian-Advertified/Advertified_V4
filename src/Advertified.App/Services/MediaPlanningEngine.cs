@@ -11,17 +11,20 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
     private readonly IPlanningEligibilityService _eligibilityService;
     private readonly IRecommendationPlanBuilder _planBuilder;
     private readonly IRecommendationExplainabilityService _explainabilityService;
+    private readonly IPlanningPolicyService _policyService;
 
     public MediaPlanningEngine(
         IPlanningCandidateLoader candidateLoader,
         IPlanningEligibilityService eligibilityService,
         IRecommendationPlanBuilder planBuilder,
-        IRecommendationExplainabilityService explainabilityService)
+        IRecommendationExplainabilityService explainabilityService,
+        IPlanningPolicyService policyService)
     {
         _candidateLoader = candidateLoader;
         _eligibilityService = eligibilityService;
         _planBuilder = planBuilder;
         _explainabilityService = explainabilityService;
+        _policyService = policyService;
     }
 
     public async Task<RecommendationResult> GenerateAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
@@ -124,7 +127,7 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
 
         var basePlan = _planBuilder.BuildPlan(scored, request, diversify: true);
         var recommendedPlan = _planBuilder.BuildPlan(scored, request, diversify: false);
-        EnsureRequiredChannelCoverage(recommendedPlan, scored, request, GetRequiredEngineChannels(request));
+        EnsureRequiredChannelCoverage(recommendedPlan, scored, request, _policyService.GetRequiredChannels(request));
 
         var upsellBudget = request.OpenToUpsell
             ? request.SelectedBudget + (request.AdditionalBudget ?? 0m)
@@ -159,26 +162,6 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
             Rationale = _explainabilityService.BuildRationale(basePlan, recommendedPlan, request),
             RunTrace = BuildRunTrace(request, allCandidates, eligibleCandidates, policyOutcome.Rejections, recommendedPlan, upsells)
         };
-    }
-
-    private static IReadOnlyList<string> GetRequiredEngineChannels(CampaignPlanningRequest request)
-    {
-        var requiredChannels = new List<string>();
-
-        AddRequiredChannel(requiredChannels, "radio", request.TargetRadioShare);
-        AddRequiredChannel(requiredChannels, "ooh", request.TargetOohShare);
-        AddRequiredChannel(requiredChannels, "tv", request.TargetTvShare);
-        AddRequiredChannel(requiredChannels, "digital", request.TargetDigitalShare);
-
-        return requiredChannels;
-    }
-
-    private static void AddRequiredChannel(List<string> channels, string channel, int? share)
-    {
-        if (share.GetValueOrDefault() > 0)
-        {
-            channels.Add(channel);
-        }
     }
 
     private static IReadOnlyList<PlanningPass> BuildPlanningPasses(CampaignPlanningRequest request)

@@ -675,33 +675,36 @@ public class CampaignRecommendationServiceAuditTests
 
         await db.SaveChangesAsync();
 
+        var policyOptions = new PlanningPolicyOptions
+        {
+            Scale = new PackagePlanningPolicy
+            {
+                BudgetFloor = 25_000m,
+                MinimumNationalRadioCandidates = 1,
+                RequireNationalCapableRadio = true,
+                RequirePremiumNationalRadio = false,
+                NationalRadioBonus = 10,
+                NonNationalRadioPenalty = 8,
+                RegionalRadioPenalty = 6
+            },
+            Dominance = new PackagePlanningPolicy
+            {
+                BudgetFloor = 100_000m,
+                MinimumNationalRadioCandidates = 2,
+                RequireNationalCapableRadio = true,
+                RequirePremiumNationalRadio = true,
+                NationalRadioBonus = 12,
+                NonNationalRadioPenalty = 10,
+                RegionalRadioPenalty = 8
+            }
+        };
+        var policySnapshotProvider = new PlanningPolicySnapshotProvider(policyOptions);
         var service = new CampaignRecommendationService(
             db,
             new StubRecommendationAuditMediaPlanningEngine(),
             new StubRecommendationAuditCampaignReasoningService(),
-            new PlanningPolicySnapshotProvider(new PlanningPolicyOptions
-            {
-                Scale = new PackagePlanningPolicy
-                {
-                    BudgetFloor = 25_000m,
-                    MinimumNationalRadioCandidates = 1,
-                    RequireNationalCapableRadio = true,
-                    RequirePremiumNationalRadio = false,
-                    NationalRadioBonus = 10,
-                    NonNationalRadioPenalty = 8,
-                    RegionalRadioPenalty = 6
-                },
-                Dominance = new PackagePlanningPolicy
-                {
-                    BudgetFloor = 100_000m,
-                    MinimumNationalRadioCandidates = 2,
-                    RequireNationalCapableRadio = true,
-                    RequirePremiumNationalRadio = true,
-                    NationalRadioBonus = 12,
-                    NonNationalRadioPenalty = 10,
-                    RegionalRadioPenalty = 8
-                }
-            }));
+            policySnapshotProvider,
+            new PlanningPolicyService(policySnapshotProvider));
 
         var recommendationId = await service.GenerateAndSaveAsync(
             campaignId,
@@ -722,6 +725,7 @@ public class CampaignRecommendationServiceAuditTests
         audit.RequestSnapshotJson.Should().NotBeNullOrWhiteSpace();
         audit.PolicySnapshotJson.Should().NotBeNullOrWhiteSpace();
         audit.InventorySnapshotJson.Should().NotBeNullOrWhiteSpace();
+        audit.InventoryBatchRefsJson.Should().NotBeNullOrWhiteSpace();
         audit.CandidateCountsJson.Should().NotBeNullOrWhiteSpace();
         audit.RejectedCandidatesJson.Should().NotBeNullOrWhiteSpace();
         audit.SelectedItemsJson.Should().NotBeNullOrWhiteSpace();
@@ -729,6 +733,7 @@ public class CampaignRecommendationServiceAuditTests
         recommendation.RequestSnapshotJson.Should().NotBeNullOrWhiteSpace();
         recommendation.PolicySnapshotJson.Should().NotBeNullOrWhiteSpace();
         recommendation.InventorySnapshotJson.Should().NotBeNullOrWhiteSpace();
+        recommendation.InventoryBatchRefsJson.Should().NotBeNullOrWhiteSpace();
 
         using var requestSnapshot = JsonDocument.Parse(audit.RequestSnapshotJson!);
         requestSnapshot.RootElement.GetProperty("selectedBudget").GetDecimal().Should().Be(30_000m);
@@ -752,6 +757,60 @@ public class CampaignRecommendationServiceAuditTests
             .Any(item => item.GetProperty("displayName").GetString() == "Johannesburg North Mega Board")
             .Should()
             .BeTrue();
+
+        using var batchRefs = JsonDocument.Parse(audit.InventoryBatchRefsJson!);
+        batchRefs.RootElement.EnumerateArray()
+            .Any(item => item.GetProperty("channelFamily").GetString() == "broadcast"
+                && item.GetProperty("sourceIdentifier").GetString() == "seed.json")
+            .Should()
+            .BeTrue();
+    }
+}
+
+public class PlanningPolicyServiceTests
+{
+    [Fact]
+    public void BuildPolicyContext_CentralizesRequestedMixAndRequiredChannels()
+    {
+        var snapshotProvider = new PlanningPolicySnapshotProvider(new PlanningPolicyOptions
+        {
+            Scale = new PackagePlanningPolicy
+            {
+                BudgetFloor = 25_000m,
+                MinimumNationalRadioCandidates = 1,
+                RequireNationalCapableRadio = true,
+                RequirePremiumNationalRadio = false,
+                NationalRadioBonus = 10,
+                NonNationalRadioPenalty = 8,
+                RegionalRadioPenalty = 6
+            },
+            Dominance = new PackagePlanningPolicy
+            {
+                BudgetFloor = 100_000m,
+                MinimumNationalRadioCandidates = 2,
+                RequireNationalCapableRadio = true,
+                RequirePremiumNationalRadio = true,
+                NationalRadioBonus = 12,
+                NonNationalRadioPenalty = 10,
+                RegionalRadioPenalty = 8
+            }
+        });
+        var service = new PlanningPolicyService(snapshotProvider);
+
+        var context = service.BuildPolicyContext(new CampaignPlanningRequest
+        {
+            CampaignId = Guid.NewGuid(),
+            SelectedBudget = 150_000m,
+            PreferredMediaTypes = new List<string> { "radio", "tv" },
+            TargetRadioShare = 40,
+            TargetOohShare = 30,
+            TargetDigitalShare = 20
+        });
+
+        context.PackagePolicyCode.Should().Be("dominance");
+        context.RequestedMixLabel.Should().Be("Radio 40% | Billboards and Digital Screens 30% | Digital 20%");
+        context.RequestedChannelShares.Should().ContainSingle(x => x.Channel == "tv" && x.Share == 10);
+        context.RequiredChannels.Should().Contain(new[] { "radio", "ooh", "digital", "tv" });
     }
 }
 

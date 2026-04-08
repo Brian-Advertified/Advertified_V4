@@ -178,7 +178,7 @@ export function ClientCampaignShell({
   title: string;
   description: string;
   actions?: ReactNode;
-  activeView?: 'overview' | 'approvals' | 'messages';
+  activeView?: 'overview' | 'performance' | 'approvals' | 'messages';
 }>) {
   const workspaceBasePath = `/campaigns/${campaign.id}`;
 
@@ -189,6 +189,7 @@ export function ClientCampaignShell({
           <div className="user-nav-group">
             <div className="user-nav-title">Workspace</div>
             <Link to={`${workspaceBasePath}/overview`} className={cn('user-nav-item', activeView === 'overview' && 'active')}>Overview</Link>
+            <Link to={`${workspaceBasePath}/performance`} className={cn('user-nav-item', activeView === 'performance' && 'active')}>Performance</Link>
             <Link to={`${workspaceBasePath}/approvals`} className={cn('user-nav-item', activeView === 'approvals' && 'active')}>Approvals</Link>
             <Link to={`${workspaceBasePath}/messages`} className={cn('user-nav-item', activeView === 'messages' && 'active')}>Messages</Link>
           </div>

@@ -38,6 +38,19 @@ type MetricsSummary = {
   lastRecordedAt?: string | null;
 };
 
+type PlatformConnection = {
+  linkId: string;
+  connectionId: string;
+  campaignId: string;
+  provider: string;
+  externalAccountId: string;
+  accountName: string;
+  externalCampaignId?: string | null;
+  isPrimary: boolean;
+  status: string;
+  updatedAt: string;
+};
+
 export function AdminAiAdOpsPage() {
   const dashboardQuery = useAdminDashboardQuery();
   const queryClient = useQueryClient();
@@ -49,6 +62,10 @@ export function AdminAiAdOpsPage() {
   const [voicePackName, setVoicePackName] = useState('');
   const [script, setScript] = useState('');
   const [audioAssetUrl, setAudioAssetUrl] = useState('');
+  const [connectionAccountId, setConnectionAccountId] = useState('');
+  const [connectionAccountName, setConnectionAccountName] = useState('');
+  const [connectionCampaignId, setConnectionCampaignId] = useState('');
+  const [connectionPrimary, setConnectionPrimary] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
 
   const variantsQuery = useQuery({
@@ -61,6 +78,12 @@ export function AdminAiAdOpsPage() {
     queryKey: ['admin-ai-ad-ops-summary', campaignId],
     enabled: campaignId.trim().length > 0,
     queryFn: () => advertifiedApi.getAiCampaignAdMetricsSummary(campaignId.trim()),
+  });
+
+  const connectionsQuery = useQuery({
+    queryKey: ['admin-ai-ad-ops-connections', campaignId],
+    enabled: campaignId.trim().length > 0,
+    queryFn: () => advertifiedApi.getAiCampaignPlatformConnections(campaignId.trim()),
   });
 
   const createVariantMutation = useMutation({
@@ -117,9 +140,32 @@ export function AdminAiAdOpsPage() {
     },
   });
 
+  const upsertConnectionMutation = useMutation({
+    mutationFn: () => advertifiedApi.upsertAiCampaignPlatformConnection(campaignId.trim(), {
+      provider: platform,
+      externalAccountId: connectionAccountId.trim(),
+      accountName: connectionAccountName.trim(),
+      externalCampaignId: connectionCampaignId.trim() || undefined,
+      isPrimary: connectionPrimary,
+      status: 'active',
+    }),
+    onSuccess: () => {
+      setMessage('Campaign platform connection saved.');
+      queryClient.invalidateQueries({ queryKey: ['admin-ai-ad-ops-connections', campaignId] });
+    },
+  });
+
   const canCreate = useMemo(
     () => campaignId.trim().length > 0 && script.trim().length > 0 && !createVariantMutation.isPending,
     [campaignId, script, createVariantMutation.isPending],
+  );
+  const canSaveConnection = useMemo(
+    () =>
+      campaignId.trim().length > 0
+      && connectionAccountId.trim().length > 0
+      && connectionAccountName.trim().length > 0
+      && !upsertConnectionMutation.isPending,
+    [campaignId, connectionAccountId, connectionAccountName, upsertConnectionMutation.isPending],
   );
 
   return (
@@ -177,6 +223,60 @@ export function AdminAiAdOpsPage() {
                 Audio asset URL (optional)
                 <input className="input-base" value={audioAssetUrl} onChange={(event) => setAudioAssetUrl(event.target.value)} placeholder="https://..." />
               </label>
+            </div>
+
+            <div className="mt-6 rounded-2xl border border-line bg-slate-50/70 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Platform connection</p>
+              <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <label className="space-y-1 text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">
+                  Account ID
+                  <input
+                    className="input-base"
+                    value={connectionAccountId}
+                    onChange={(event) => setConnectionAccountId(event.target.value)}
+                    placeholder="act_123..."
+                  />
+                </label>
+                <label className="space-y-1 text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">
+                  Account name
+                  <input
+                    className="input-base"
+                    value={connectionAccountName}
+                    onChange={(event) => setConnectionAccountName(event.target.value)}
+                    placeholder="Meta Business Account"
+                  />
+                </label>
+                <label className="space-y-1 text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">
+                  External campaign ID
+                  <input
+                    className="input-base"
+                    value={connectionCampaignId}
+                    onChange={(event) => setConnectionCampaignId(event.target.value)}
+                    placeholder="optional"
+                  />
+                </label>
+                <label className="flex items-center gap-2 pt-6 text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">
+                  <input
+                    type="checkbox"
+                    checked={connectionPrimary}
+                    onChange={(event) => setConnectionPrimary(event.target.checked)}
+                  />
+                  Primary link
+                </label>
+              </div>
+              <div className="mt-3">
+                <button
+                  type="button"
+                  onClick={() => upsertConnectionMutation.mutate()}
+                  disabled={!canSaveConnection}
+                  className="button-secondary px-4 py-2 text-sm font-semibold disabled:opacity-50"
+                >
+                  Save platform connection
+                </button>
+              </div>
+              {upsertConnectionMutation.error instanceof Error ? (
+                <p className="mt-2 text-sm text-rose-600">{upsertConnectionMutation.error.message}</p>
+              ) : null}
             </div>
 
             <div className="mt-4 flex flex-wrap gap-2">
@@ -260,6 +360,46 @@ export function AdminAiAdOpsPage() {
             </div>
             {publishVariantMutation.error instanceof Error ? <p className="px-6 py-3 text-sm text-rose-600">{publishVariantMutation.error.message}</p> : null}
             {trackConversionMutation.error instanceof Error ? <p className="px-6 pb-4 text-sm text-rose-600">{trackConversionMutation.error.message}</p> : null}
+          </div>
+
+          <div className="panel overflow-hidden p-0">
+            <div className="border-b border-line px-6 py-4">
+              <h3 className="text-lg font-semibold text-ink">Campaign platform links</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead className="bg-slate-50 text-xs uppercase tracking-[0.14em] text-ink-soft">
+                  <tr>
+                    <th className="px-4 py-3">Provider</th>
+                    <th className="px-4 py-3">Account</th>
+                    <th className="px-4 py-3">External Campaign</th>
+                    <th className="px-4 py-3">Primary</th>
+                    <th className="px-4 py-3">Updated</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {((connectionsQuery.data ?? []) as PlatformConnection[]).map((item) => (
+                    <tr key={item.linkId} className="border-t border-line">
+                      <td className="px-4 py-3 text-ink">{item.provider}</td>
+                      <td className="px-4 py-3">
+                        <div className="text-ink">{item.accountName}</div>
+                        <div className="font-mono text-xs text-ink-soft">{item.externalAccountId}</div>
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs text-ink-soft">{item.externalCampaignId ?? 'Not linked'}</td>
+                      <td className="px-4 py-3 text-ink-soft">{item.isPrimary ? 'Yes' : 'No'}</td>
+                      <td className="px-4 py-3 text-ink-soft">{fmtDate(item.updatedAt)}</td>
+                    </tr>
+                  ))}
+                  {!connectionsQuery.isLoading && (connectionsQuery.data ?? []).length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-6 text-center text-sm text-ink-soft">
+                        No platform links for this campaign yet.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
           </div>
         </AdminPageShell>
       )}

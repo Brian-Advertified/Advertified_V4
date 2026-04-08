@@ -72,7 +72,9 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
         var result = new List<PlannedItem>();
         var usedSourceIds = new HashSet<Guid>();
         var spentTotal = 0m;
-        var requestedShares = GetRequestedShares(request);
+        var requestedShares = _policyService.GetRequestedChannelShares(request)
+            .Select(share => (share.Channel, share.Share))
+            .ToList();
 
         // First ensure at least one item for each requested channel when inventory allows.
         foreach (var shareTarget in requestedShares.OrderByDescending(entry => entry.Share))
@@ -365,48 +367,6 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
             || request.TargetOohShare.GetValueOrDefault() > 0
             || request.TargetTvShare.GetValueOrDefault() > 0
             || request.TargetDigitalShare.GetValueOrDefault() > 0;
-    }
-
-    private List<(string Channel, int Share)> GetRequestedShares(CampaignPlanningRequest request)
-    {
-        var shares = new List<(string Channel, int Share)>();
-
-        var radio = _policyService.GetTargetShare("radio", request);
-        if (radio.HasValue && radio.Value > 0)
-        {
-            shares.Add(("radio", radio.Value));
-        }
-
-        var ooh = _policyService.GetTargetShare("ooh", request);
-        if (ooh.HasValue && ooh.Value > 0)
-        {
-            shares.Add(("ooh", ooh.Value));
-        }
-
-        var digital = _policyService.GetTargetShare("digital", request);
-        if (digital.HasValue && digital.Value > 0)
-        {
-            shares.Add(("digital", digital.Value));
-        }
-
-        var tv = _policyService.GetTargetShare("tv", request);
-        if (tv.HasValue && tv.Value > 0)
-        {
-            shares.Add(("tv", tv.Value));
-        }
-
-        var explicitTotal = shares.Sum(entry => entry.Share);
-        var hasExplicitTvShare = tv.HasValue && tv.Value > 0;
-        var includeTv = request.PreferredMediaTypes
-            .Any(media => string.Equals(media?.Trim(), "tv", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(media?.Trim(), "television", StringComparison.OrdinalIgnoreCase));
-        var tvShare = Math.Max(0, 100 - explicitTotal);
-        if (!hasExplicitTvShare && includeTv && tvShare > 0)
-        {
-            shares.Add(("tv", tvShare));
-        }
-
-        return shares;
     }
 
     private static bool MatchesChannel(string? mediaType, string requestedChannel)

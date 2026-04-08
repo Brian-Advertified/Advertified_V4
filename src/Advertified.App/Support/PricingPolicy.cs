@@ -84,6 +84,11 @@ public static class PricingPolicy
             return Math.Max(0m, settings.TvMarkupPercent);
         }
 
+        if (normalizedMediaType == "digital")
+        {
+            return Math.Max(0m, settings.DigitalMarkupPercent);
+        }
+
         return 0m;
     }
 

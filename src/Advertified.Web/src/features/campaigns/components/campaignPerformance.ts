@@ -15,6 +15,7 @@ export interface CampaignPerformanceChannelSnapshot {
   deliveredSpend: number;
   impressions: number;
   playsOrSpots: number;
+  activityLabel: string;
   reportCount: number;
   status: 'on_track' | 'live' | 'booked' | 'no_data';
 }
@@ -24,12 +25,22 @@ export interface CampaignPerformanceSnapshot {
   totalDeliveredSpend: number;
   totalImpressions: number;
   totalPlaysOrSpots: number;
+  totalSyncedClicks: number;
   reportCount: number;
   bookingCount: number;
   spendDeliveryPercent: number;
   primaryMetric: CampaignPerformanceMetricKey;
   timeline: CampaignPerformanceTimelinePoint[];
   channels: CampaignPerformanceChannelSnapshot[];
+  latestReportDate?: string;
+  topChannel?: CampaignPerformanceChannelSnapshot;
+}
+
+export function hasCampaignPerformanceData(campaign: Campaign) {
+  return campaign.supplierBookings.length > 0
+    || campaign.deliveryReports.length > 0
+    || campaign.assets.length > 0
+    || campaign.daysLeft != null;
 }
 
 function clampPercent(value: number) {
@@ -52,6 +63,7 @@ function createEmptyChannel(channel: string): CampaignPerformanceChannelSnapshot
     deliveredSpend: 0,
     impressions: 0,
     playsOrSpots: 0,
+    activityLabel: 'Plays / spots',
     reportCount: 0,
     status: 'no_data',
   };
@@ -75,6 +87,23 @@ function resolveChannelFromReport(report: CampaignDeliveryReport, bookingById: M
   }
 
   return '';
+}
+
+function resolveActivityLabel(
+  channel: string,
+  report: CampaignDeliveryReport | undefined,
+  booking: CampaignSupplierBooking | undefined)
+{
+  if (report?.reportType === 'ad_platform_sync') {
+    return 'Clicks';
+  }
+
+  const supplier = (booking?.supplierOrStation ?? '').toLowerCase();
+  if (channel === 'DIGITAL' && (supplier.includes('meta ads') || supplier.includes('google ads') || supplier.includes('linkedin ads') || supplier.includes('tiktok ads'))) {
+    return 'Clicks';
+  }
+
+  return 'Plays / spots';
 }
 
 function resolvePrimaryMetric(totalImpressions: number, totalPlaysOrSpots: number): CampaignPerformanceMetricKey {
@@ -128,6 +157,7 @@ export function buildCampaignPerformanceSnapshot(campaign: Campaign): CampaignPe
     }
 
     const current = channels.get(channel) ?? createEmptyChannel(channel);
+    current.activityLabel = resolveActivityLabel(channel, undefined, booking);
     current.bookedSpend += booking.committedAmount ?? 0;
     channels.set(channel, current);
   }
@@ -135,11 +165,15 @@ export function buildCampaignPerformanceSnapshot(campaign: Campaign): CampaignPe
   let totalDeliveredSpend = 0;
   let totalImpressions = 0;
   let totalPlaysOrSpots = 0;
+  let totalSyncedClicks = 0;
 
   for (const report of campaign.deliveryReports) {
     totalDeliveredSpend += report.spendDelivered ?? 0;
     totalImpressions += report.impressions ?? 0;
     totalPlaysOrSpots += report.playsOrSpots ?? 0;
+    if (report.reportType === 'ad_platform_sync') {
+      totalSyncedClicks += report.playsOrSpots ?? 0;
+    }
 
     const channel = resolveChannelFromReport(report, bookingById);
     if (!channel) {
@@ -150,6 +184,7 @@ export function buildCampaignPerformanceSnapshot(campaign: Campaign): CampaignPe
     current.deliveredSpend += report.spendDelivered ?? 0;
     current.impressions += report.impressions ?? 0;
     current.playsOrSpots += report.playsOrSpots ?? 0;
+    current.activityLabel = resolveActivityLabel(channel, report, bookingById.get(report.supplierBookingId ?? ''));
     current.reportCount += 1;
     channels.set(channel, current);
   }
@@ -185,11 +220,18 @@ export function buildCampaignPerformanceSnapshot(campaign: Campaign): CampaignPe
     totalDeliveredSpend,
     totalImpressions,
     totalPlaysOrSpots,
+    totalSyncedClicks,
     reportCount: campaign.deliveryReports.length,
     bookingCount: campaign.supplierBookings.length,
     spendDeliveryPercent: clampPercent(totalBookedSpend > 0 ? (totalDeliveredSpend / totalBookedSpend) * 100 : 0),
     primaryMetric,
     timeline,
     channels: channelSnapshots,
+    latestReportDate: [...campaign.deliveryReports]
+      .map((report) => report.reportedAt)
+      .filter((value): value is string => Boolean(value))
+      .sort()
+      .at(-1),
+    topChannel: channelSnapshots[0],
   };
 }

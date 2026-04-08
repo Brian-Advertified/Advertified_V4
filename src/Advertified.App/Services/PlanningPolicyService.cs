@@ -13,6 +13,25 @@ public sealed class PlanningPolicyService : IPlanningPolicyService
         _policyOptions = snapshotProvider.GetCurrent();
     }
 
+    public PlanningPolicyContext BuildPolicyContext(CampaignPlanningRequest request)
+    {
+        var applicablePolicy = GetApplicablePackagePolicy(request);
+        return new PlanningPolicyContext
+        {
+            PackagePolicyCode = request.SelectedBudget >= _policyOptions.Dominance.BudgetFloor ? "dominance" : "scale",
+            BudgetFloor = applicablePolicy.BudgetFloor,
+            MinimumNationalRadioCandidates = applicablePolicy.MinimumNationalRadioCandidates,
+            RequireNationalCapableRadio = applicablePolicy.RequireNationalCapableRadio,
+            RequirePremiumNationalRadio = applicablePolicy.RequirePremiumNationalRadio,
+            NationalRadioBonus = applicablePolicy.NationalRadioBonus,
+            NonNationalRadioPenalty = applicablePolicy.NonNationalRadioPenalty,
+            RegionalRadioPenalty = applicablePolicy.RegionalRadioPenalty,
+            RequestedMixLabel = BuildRequestedMixLabel(request),
+            RequestedChannelShares = GetRequestedChannelShares(request),
+            RequiredChannels = GetRequiredChannels(request)
+        };
+    }
+
     public PlanningPolicyOutcome ApplyHigherBandRadioEligibility(List<InventoryCandidate> candidates, CampaignPlanningRequest request)
     {
         if (request.SelectedBudget < _policyOptions.Scale.BudgetFloor)
@@ -32,9 +51,7 @@ public sealed class PlanningPolicyService : IPlanningPolicyService
             .Where(candidate => IsNationalCapableRadioCandidate(candidate, request))
             .ToList();
 
-        var applicablePolicy = request.SelectedBudget >= _policyOptions.Dominance.BudgetFloor
-            ? _policyOptions.Dominance
-            : _policyOptions.Scale;
+        var applicablePolicy = GetApplicablePackagePolicy(request);
         if (nationalRadioCandidates.Count < applicablePolicy.MinimumNationalRadioCandidates)
         {
             return new PlanningPolicyOutcome(candidates, new[] { "national_radio_inventory_insufficient", "policy_relaxed" }, Array.Empty<PlanningCandidateRejection>());
@@ -67,9 +84,7 @@ public sealed class PlanningPolicyService : IPlanningPolicyService
 
         var isNational = IsNationalCapableRadioCandidate(candidate, request);
         var isRegionalOnly = IsRegionalOrProvincialRadioCandidate(candidate);
-        var applicablePolicy = request.SelectedBudget >= _policyOptions.Dominance.BudgetFloor
-            ? _policyOptions.Dominance
-            : _policyOptions.Scale;
+        var applicablePolicy = GetApplicablePackagePolicy(request);
 
         if (isNational)
         {
@@ -131,6 +146,40 @@ public sealed class PlanningPolicyService : IPlanningPolicyService
         return !IsPackageTotalCandidate(candidate) && !IsFixedPlacementCandidate(candidate);
     }
 
+    public IReadOnlyList<string> GetRequiredChannels(CampaignPlanningRequest request)
+    {
+        return GetRequestedChannelShares(request)
+            .Select(share => share.Channel)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    public IReadOnlyList<RequestedChannelShare> GetRequestedChannelShares(CampaignPlanningRequest request)
+    {
+        var shares = new List<RequestedChannelShare>();
+        AddRequestedShare(shares, "radio", request.TargetRadioShare);
+        AddRequestedShare(shares, "ooh", request.TargetOohShare);
+        AddRequestedShare(shares, "digital", request.TargetDigitalShare);
+        AddRequestedShare(shares, "tv", request.TargetTvShare);
+
+        var explicitTotal = shares.Sum(entry => entry.Share);
+        var hasExplicitTvShare = request.TargetTvShare.GetValueOrDefault() > 0;
+        var includeTv = request.PreferredMediaTypes
+            .Any(media => string.Equals(media?.Trim(), "tv", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(media?.Trim(), "television", StringComparison.OrdinalIgnoreCase));
+        var tvShare = Math.Max(0, 100 - explicitTotal);
+        if (!hasExplicitTvShare && includeTv && tvShare > 0)
+        {
+            shares.Add(new RequestedChannelShare
+            {
+                Channel = "tv",
+                Share = tvShare
+            });
+        }
+
+        return shares;
+    }
+
     public int? GetTargetShare(string? mediaType, CampaignPlanningRequest request)
     {
         var normalized = mediaType?.Trim().ToLowerInvariant();
@@ -152,6 +201,25 @@ public sealed class PlanningPolicyService : IPlanningPolicyService
         if (request.TargetTvShare.HasValue) parts.Add($"TV {request.TargetTvShare.Value}%");
         if (request.TargetDigitalShare.HasValue) parts.Add($"Digital {request.TargetDigitalShare.Value}%");
         return parts.Count > 0 ? string.Join(" | ", parts) : null;
+    }
+
+    private PackagePlanningPolicy GetApplicablePackagePolicy(CampaignPlanningRequest request)
+    {
+        return request.SelectedBudget >= _policyOptions.Dominance.BudgetFloor
+            ? _policyOptions.Dominance
+            : _policyOptions.Scale;
+    }
+
+    private static void AddRequestedShare(List<RequestedChannelShare> shares, string channel, int? share)
+    {
+        if (share.GetValueOrDefault() > 0)
+        {
+            shares.Add(new RequestedChannelShare
+            {
+                Channel = channel,
+                Share = share!.Value
+            });
+        }
     }
 
     private static bool IsRegionalOrProvincialRadioCandidate(InventoryCandidate candidate)

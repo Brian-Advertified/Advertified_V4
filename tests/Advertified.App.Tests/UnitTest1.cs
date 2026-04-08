@@ -1078,7 +1078,7 @@ public class MediaPlanningEngineTests
         var planBuilder = new RecommendationPlanBuilder(policyService);
         var scoreService = new PlanningScoreService(policyService, new TestBroadcastMasterDataService());
         var explainabilityService = new RecommendationExplainabilityService(scoreService, policyService);
-        return new MediaPlanningEngine(candidateLoader, eligibilityService, planBuilder, explainabilityService);
+        return new MediaPlanningEngine(candidateLoader, eligibilityService, planBuilder, explainabilityService, policyService);
     }
 
     private sealed class StubPlanningInventoryRepository : IPlanningInventoryRepository
@@ -1338,11 +1338,12 @@ public class PricingPolicyTests
     [Fact]
     public void ApplyMarkup_UsesConfiguredChannelPercentages()
     {
-        var settings = new Advertified.App.Support.PricingSettingsSnapshot(0.10m, 0.05m, 0.10m, 0.10m);
+        var settings = new Advertified.App.Support.PricingSettingsSnapshot(0.10m, 0.05m, 0.10m, 0.10m, 0.15m);
 
         Advertified.App.Support.PricingPolicy.ApplyMarkup(1000m, "OOH", "billboard", settings).Should().Be(1050m);
         Advertified.App.Support.PricingPolicy.ApplyMarkup(1000m, "radio", null, settings).Should().Be(1100m);
         Advertified.App.Support.PricingPolicy.ApplyMarkup(1000m, "tv", null, settings).Should().Be(1100m);
+        Advertified.App.Support.PricingPolicy.ApplyMarkup(1000m, "digital", null, settings).Should().Be(1150m);
     }
 }
 

@@ -20,6 +20,8 @@ public partial class RecommendationRunAudit
 
     public string? InventorySnapshotJson { get; set; }
 
+    public string? InventoryBatchRefsJson { get; set; }
+
     public string? CandidateCountsJson { get; set; }
 
     public string? RejectedCandidatesJson { get; set; }

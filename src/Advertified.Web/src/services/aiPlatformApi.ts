@@ -148,6 +148,19 @@ type AiOptimizeCampaignResponse = {
   optimizedAt: string;
 };
 
+type AiCampaignAdPlatformConnectionResponse = {
+  linkId: string;
+  connectionId: string;
+  campaignId: string;
+  provider: string;
+  externalAccountId: string;
+  accountName: string;
+  externalCampaignId?: string | null;
+  isPrimary: boolean;
+  status: string;
+  updatedAt: string;
+};
+
 type AiVoicePackResponse = {
   id: string;
   provider: string;
@@ -468,6 +481,32 @@ export const aiPlatformApi = {
       {
         method: 'POST',
         body: JSON.stringify({}),
+      },
+    );
+  },
+
+  async getAiCampaignPlatformConnections(campaignId: string) {
+    return apiRequest<AiCampaignAdPlatformConnectionResponse[]>(
+      `/api/v2/ai-platform/ad-ops/campaigns/${encodeURIComponent(campaignId)}/platform-connections`,
+    );
+  },
+
+  async upsertAiCampaignPlatformConnection(campaignId: string, payload: {
+    provider: string;
+    externalAccountId: string;
+    accountName: string;
+    externalCampaignId?: string;
+    isPrimary?: boolean;
+    status?: string;
+    accessToken?: string;
+    refreshToken?: string;
+    tokenExpiresAt?: string;
+  }) {
+    return apiRequest<AiCampaignAdPlatformConnectionResponse>(
+      `/api/v2/ai-platform/ad-ops/campaigns/${encodeURIComponent(campaignId)}/platform-connections`,
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
       },
     );
   },

@@ -114,7 +114,8 @@ public sealed class AdminPackageConfigurationController : BaseAdminController
                     request.AiStudioReservePercent,
                     request.OohMarkupPercent,
                     request.RadioMarkupPercent,
-                    request.TvMarkupPercent
+                    request.TvMarkupPercent,
+                    request.DigitalMarkupPercent
                 },
                 cancellationToken);
             return NoContent();

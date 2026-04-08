@@ -15,15 +15,18 @@ namespace Advertified.App.Controllers;
 public sealed class AiAdOperationsController : ControllerBase
 {
     private readonly IAdVariantService _adVariantService;
+    private readonly IAdPlatformConnectionService _adPlatformConnectionService;
     private readonly AppDbContext _db;
     private readonly ICurrentUserAccessor _currentUserAccessor;
 
     public AiAdOperationsController(
         IAdVariantService adVariantService,
+        IAdPlatformConnectionService adPlatformConnectionService,
         AppDbContext db,
         ICurrentUserAccessor currentUserAccessor)
     {
         _adVariantService = adVariantService;
+        _adPlatformConnectionService = adPlatformConnectionService;
         _db = db;
         _currentUserAccessor = currentUserAccessor;
     }
@@ -224,6 +227,49 @@ public sealed class AiAdOperationsController : ControllerBase
             Message = result.Message,
             OptimizedAt = result.OptimizedAt
         });
+    }
+
+    [HttpGet("campaigns/{campaignId:guid}/platform-connections")]
+    public async Task<ActionResult<IReadOnlyList<CampaignAdPlatformConnectionResponse>>> GetCampaignPlatformConnections(
+        Guid campaignId,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = await GetCurrentUserAsync(cancellationToken);
+        if (currentUser is null)
+        {
+            return Unauthorized();
+        }
+
+        var accessResult = await EnsureCampaignAccessAsync(currentUser, campaignId, allowClientPublishActions: true, cancellationToken: cancellationToken);
+        if (accessResult is not null)
+        {
+            return accessResult;
+        }
+
+        var rows = await _adPlatformConnectionService.GetCampaignConnectionsAsync(campaignId, cancellationToken);
+        return Ok(rows);
+    }
+
+    [HttpPost("campaigns/{campaignId:guid}/platform-connections")]
+    public async Task<ActionResult<CampaignAdPlatformConnectionResponse>> UpsertCampaignPlatformConnection(
+        Guid campaignId,
+        [FromBody] UpsertCampaignAdPlatformConnectionRequest request,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = await GetCurrentUserAsync(cancellationToken);
+        if (currentUser is null)
+        {
+            return Unauthorized();
+        }
+
+        var accessResult = await EnsureCampaignAccessAsync(currentUser, campaignId, allowClientPublishActions: true, cancellationToken: cancellationToken);
+        if (accessResult is not null)
+        {
+            return accessResult;
+        }
+
+        var row = await _adPlatformConnectionService.UpsertCampaignConnectionAsync(campaignId, currentUser.Id, request, cancellationToken);
+        return Ok(row);
     }
 
     private static AdVariantResponse MapVariant(AdVariantSummary item)

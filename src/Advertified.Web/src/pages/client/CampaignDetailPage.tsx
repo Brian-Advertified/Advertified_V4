@@ -8,6 +8,7 @@ import { useToast } from '../../components/ui/toast';
 import { useAuth } from '../../features/auth/auth-context';
 import { canAccessAiStudioForStatus } from '../../features/campaigns/aiStudioAccess';
 import { CampaignPerformancePanel } from '../../features/campaigns/components/CampaignPerformancePanel';
+import { buildCampaignPerformanceSnapshot, hasCampaignPerformanceData } from '../../features/campaigns/components/campaignPerformance';
 import { RecommendationViewer } from '../../features/campaigns/components/RecommendationViewer';
 import { parseCampaignOpportunityContext } from '../../features/campaigns/briefModel';
 import { formatChannelLabel } from '../../features/channels/channelUtils';
@@ -233,10 +234,14 @@ export function CampaignDetailPage() {
   const latestAgentMessage = [...thread.messages].reverse().find((message) => message.senderRole === 'agent');
   const activeView = location.pathname.endsWith('/approvals')
     ? 'approvals'
+    : location.pathname.endsWith('/performance')
+      ? 'performance'
     : location.pathname.endsWith('/messages')
       ? 'messages'
       : 'overview';
   const campaignBasePath = `/campaigns/${campaign.id}`;
+  const hasPerformanceView = hasCampaignPerformanceData(campaign);
+  const performanceSnapshot = buildCampaignPerformanceSnapshot(campaign);
 
   function buildSelectedProposalFeedback(noteBody: string) {
     const selectedLabel = recommendation?.proposalLabel ?? recommendation?.id ?? 'Selected proposal';
@@ -341,12 +346,84 @@ export function CampaignDetailPage() {
             </div>
             </section>
 
-            {campaign.deliveryReports.length > 0 || campaign.supplierBookings.length > 0 || campaign.assets.length > 0 || campaign.daysLeft != null ? (
+            <section className="rounded-[30px] border border-line bg-white p-7 shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <h3 className="text-xl font-semibold text-ink">Performance at a glance</h3>
+                  <p className="mt-2 text-sm text-ink-soft">Open the dashboard for charts, channel delivery, and live pacing.</p>
+                </div>
+                <Link to={`${campaignBasePath}/performance`} className="user-btn-primary w-full text-center sm:w-auto sm:inline-flex sm:justify-center">
+                  Open performance dashboard
+                </Link>
+              </div>
+              {hasPerformanceView ? (
+                <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className="rounded-[18px] border border-line bg-slate-50/80 px-4 py-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Booked</p>
+                    <p className="mt-2 text-2xl font-semibold text-ink">{formatCurrency(performanceSnapshot.totalBookedSpend)}</p>
+                  </div>
+                  <div className="rounded-[18px] border border-line bg-slate-50/80 px-4 py-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Delivered</p>
+                    <p className="mt-2 text-2xl font-semibold text-ink">{formatCurrency(performanceSnapshot.totalDeliveredSpend)}</p>
+                  </div>
+                  <div className="rounded-[18px] border border-line bg-slate-50/80 px-4 py-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Delivery</p>
+                    <p className="mt-2 text-2xl font-semibold text-ink">{performanceSnapshot.spendDeliveryPercent}%</p>
+                  </div>
+                  {performanceSnapshot.totalSyncedClicks > 0 ? (
+                    <div className="rounded-[18px] border border-line bg-slate-50/80 px-4 py-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Clicks</p>
+                      <p className="mt-2 text-2xl font-semibold text-ink">{performanceSnapshot.totalSyncedClicks.toLocaleString('en-ZA')}</p>
+                      <p className="mt-1 text-xs text-ink-soft">
+                        {performanceSnapshot.latestReportDate ? `Last update ${formatDate(performanceSnapshot.latestReportDate)}` : 'No report date yet'}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="rounded-[18px] border border-line bg-slate-50/80 px-4 py-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Top channel</p>
+                      <p className="mt-2 text-2xl font-semibold text-ink">{performanceSnapshot.topChannel?.label ?? 'Pending'}</p>
+                      <p className="mt-1 text-xs text-ink-soft">
+                        {performanceSnapshot.latestReportDate ? `Last update ${formatDate(performanceSnapshot.latestReportDate)}` : 'No report date yet'}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="mt-5 rounded-[18px] border border-dashed border-line bg-slate-50/70 p-5 text-sm leading-7 text-ink-soft">
+                  Performance charts will appear here once bookings, delivery reports, or live campaign files start coming through.
+                </div>
+              )}
+            </section>
+          </>
+        ) : null}
+
+        {activeView === 'performance' ? (
+          <>
+            <section className="rounded-[30px] border border-line bg-white p-7 shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <h3 className="text-xl font-semibold text-ink">Performance dashboard</h3>
+                  <p className="mt-2 text-sm leading-7 text-ink-soft">
+                    Track booked spend, delivered value, channel activity, and campaign pacing in one place.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Link to={`${campaignBasePath}/overview`} className="user-btn-secondary">Back to overview</Link>
+                  <Link to={`${campaignBasePath}/messages`} className="user-btn-secondary">Ask question</Link>
+                </div>
+              </div>
+            </section>
+
+            {hasPerformanceView ? (
               <>
-                <CampaignPerformancePanel campaign={campaign} />
+                <CampaignPerformancePanel
+                  campaign={campaign}
+                  title="Campaign performance"
+                  subtitle="Metrics, trend movement, and channel delivery."
+                />
                 <section className="rounded-[30px] border border-line bg-white p-7 shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
                   <div className="mb-5">
-                    <h3 className="text-xl font-semibold text-ink">Live details</h3>
+                    <h3 className="text-xl font-semibold text-ink">Live campaign details</h3>
                   </div>
 
                   <div className="grid gap-5 grid-cols-1 lg:grid-cols-[0.9fr_1.1fr]">
@@ -365,7 +442,7 @@ export function CampaignDetailPage() {
                         <div className="mb-2 text-sm font-semibold text-ink">Supplier bookings</div>
                         {campaign.supplierBookings.length > 0 ? (
                           <div className="space-y-3">
-                            {campaign.supplierBookings.slice(0, 3).map((booking) => (
+                            {campaign.supplierBookings.slice(0, 6).map((booking) => (
                               <div key={booking.id} className="user-wire">
                                 <strong>{booking.supplierOrStation}</strong>
                                 <div>{formatChannelLabel(booking.channel)} | {titleCase(booking.bookingStatus)}</div>
@@ -384,7 +461,7 @@ export function CampaignDetailPage() {
                         <div className="mb-2 text-sm font-semibold text-ink">Campaign files</div>
                         {campaign.assets.length > 0 ? (
                           <div className="space-y-3">
-                            {campaign.assets.slice(0, 4).map((asset) => (
+                            {campaign.assets.slice(0, 6).map((asset) => (
                               <div key={asset.id} className="flex items-center justify-between gap-3 rounded-[14px] border border-line bg-white px-4 py-3">
                                 <div>
                                   <div className="text-sm font-semibold text-ink">{asset.displayName}</div>
@@ -402,7 +479,13 @@ export function CampaignDetailPage() {
                   </div>
                 </section>
               </>
-            ) : null}
+            ) : (
+              <section className="rounded-[30px] border border-line bg-white p-7 shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
+                <div className="rounded-[18px] border border-dashed border-line bg-slate-50/70 p-6 text-sm leading-7 text-ink-soft">
+                  Campaign performance will appear here once the team adds bookings, delivery reports, or live campaign files.
+                </div>
+              </section>
+            )}
           </>
         ) : null}
 

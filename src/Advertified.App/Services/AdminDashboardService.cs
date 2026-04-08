@@ -269,7 +269,8 @@ public sealed class AdminDashboardService : IAdminDashboardService
                 AiStudioReservePercent = 0.10m,
                 OohMarkupPercent = 0.05m,
                 RadioMarkupPercent = 0.10m,
-                TvMarkupPercent = 0.10m
+                TvMarkupPercent = 0.10m,
+                DigitalMarkupPercent = 0.10m
             };
         }
 
@@ -278,7 +279,8 @@ public sealed class AdminDashboardService : IAdminDashboardService
             AiStudioReservePercent = row.AiStudioReservePercent,
             OohMarkupPercent = row.OohMarkupPercent,
             RadioMarkupPercent = row.RadioMarkupPercent,
-            TvMarkupPercent = row.TvMarkupPercent
+            TvMarkupPercent = row.TvMarkupPercent,
+            DigitalMarkupPercent = row.DigitalMarkupPercent
         };
     }
 

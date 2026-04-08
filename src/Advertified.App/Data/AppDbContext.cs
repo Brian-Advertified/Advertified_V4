@@ -1018,6 +1018,9 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.TvMarkupPercent)
                 .HasPrecision(8, 4)
                 .HasColumnName("tv_markup_percent");
+            entity.Property(e => e.DigitalMarkupPercent)
+                .HasPrecision(8, 4)
+                .HasColumnName("digital_markup_percent");
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("created_at");

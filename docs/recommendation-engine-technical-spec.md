@@ -737,6 +737,12 @@ To satisfy this, the system must persist:
 - the inventory version or import batch used during the run
 - enough immutable recommendation item metadata to rebuild the proposal without rereading changed source rows
 
+Current implementation progress:
+
+- recommendation runs now persist request snapshot JSON
+- recommendation runs now persist policy options plus resolved policy context
+- recommendation runs now persist inventory snapshot JSON and explicit inventory batch references
+
 Current answer:
 
 - not reliably enough
@@ -844,6 +850,11 @@ Recommended target:
 - all scoring weight rules in one layer
 - all plan-construction heuristics in one layer
 - package and budget policy data stored/configured centrally
+
+Current implementation progress:
+
+- requested channel shares and required channels are now resolved through `PlanningPolicyService`
+- recommendation persistence now stores the resolved policy context used for each run
 
 ### 5. One Explicit Customer State Model
 

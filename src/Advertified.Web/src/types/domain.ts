@@ -965,6 +965,7 @@ export interface AdminPricingSettings {
   oohMarkupPercent: number;
   radioMarkupPercent: number;
   tvMarkupPercent: number;
+  digitalMarkupPercent: number;
 }
 
 export interface AdminEnginePolicy {
@@ -1095,6 +1096,7 @@ export interface AdminUpdatePricingSettingsInput {
   oohMarkupPercent: number;
   radioMarkupPercent: number;
   tvMarkupPercent: number;
+  digitalMarkupPercent: number;
 }
 
 export interface AdminCreateOutletInput {

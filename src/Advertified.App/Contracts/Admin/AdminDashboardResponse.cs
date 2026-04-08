@@ -116,6 +116,7 @@ public sealed class AdminPricingSettingsResponse
     public decimal OohMarkupPercent { get; set; }
     public decimal RadioMarkupPercent { get; set; }
     public decimal TvMarkupPercent { get; set; }
+    public decimal DigitalMarkupPercent { get; set; }
 }
 
 public sealed class AdminEnginePolicyResponse

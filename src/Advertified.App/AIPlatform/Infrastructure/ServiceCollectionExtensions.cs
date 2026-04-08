@@ -1,4 +1,6 @@
 using Advertified.App.AIPlatform.Application;
+using Advertified.App.Services;
+using Advertified.App.Services.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Advertified.App.AIPlatform.Infrastructure;
@@ -37,6 +39,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IVoicePackPolicyService, VoicePackPolicyService>();
         services.AddScoped<IVoiceTemplateSelectionService, VoiceTemplateSelectionService>();
         services.AddScoped<IAdVariantService, DbAdVariantService>();
+        services.AddScoped<ICampaignPerformanceProjectionService, CampaignPerformanceProjectionService>();
         services.AddScoped<IAdPlatformPublisherFactory, AdPlatformPublisherFactory>();
         services.AddScoped<IAdPlatformPublisher, MetaAdPlatformPublisher>();
         services.AddScoped<IAdPlatformPublisher, GoogleAdsPlatformPublisher>();

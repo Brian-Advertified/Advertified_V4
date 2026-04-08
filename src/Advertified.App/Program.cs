@@ -179,6 +179,7 @@ builder.Services.AddHttpClient(nameof(ElevenLabsProviderStrategy), (serviceProvi
 }).AddHttpMessageHandler<TransientHttpRetryHandler>();
 builder.Services.AddScoped<IEmailVerificationService, EmailVerificationService>();
 builder.Services.AddScoped<IInvoiceService, InvoiceService>();
+builder.Services.AddScoped<IAdPlatformConnectionService, AdPlatformConnectionService>();
 builder.Services.AddScoped<ILeadIntelligenceOrchestrator, LeadIntelligenceOrchestrator>();
 builder.Services.AddScoped<ILeadActionRecommendationService, LeadActionRecommendationService>();
 builder.Services.AddScoped<ILeadSourceAutomationStatusService, LeadSourceAutomationStatusService>();
@@ -234,7 +235,8 @@ builder.Services.AddScoped<IMediaPlanningEngine>(_ => new MediaPlanningEngine(
     _.GetRequiredService<IPlanningCandidateLoader>(),
     _.GetRequiredService<IPlanningEligibilityService>(),
     _.GetRequiredService<IRecommendationPlanBuilder>(),
-    _.GetRequiredService<IRecommendationExplainabilityService>()));
+    _.GetRequiredService<IRecommendationExplainabilityService>(),
+    _.GetRequiredService<IPlanningPolicyService>()));
 builder.Services.AddScoped<IPaymentAuditService, PaymentAuditService>();
 builder.Services.AddScoped<IChangeAuditService, ChangeAuditService>();
 builder.Services.AddScoped<IPackageAreaService, PackageAreaService>();

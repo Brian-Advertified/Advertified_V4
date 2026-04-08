@@ -10,6 +10,7 @@ export const clientRoutes: AppRoute[] = [
   { path: '/orders', element: <ProtectedRoute><OrdersPage /></ProtectedRoute> },
   { path: '/campaigns/:id', element: <ProtectedRoute><CampaignDetailPage /></ProtectedRoute> },
   { path: '/campaigns/:id/overview', element: <ProtectedRoute><CampaignDetailPage /></ProtectedRoute> },
+  { path: '/campaigns/:id/performance', element: <ProtectedRoute><CampaignDetailPage /></ProtectedRoute> },
   { path: '/campaigns/:id/approvals', element: <ProtectedRoute><CampaignDetailPage /></ProtectedRoute> },
   { path: '/campaigns/:id/messages', element: <ProtectedRoute><CampaignDetailPage /></ProtectedRoute> },
   { path: '/campaigns/:id/studio-preview', element: <ProtectedRoute><CreativeStudioPreviewPage /></ProtectedRoute> },

@@ -29,6 +29,8 @@ public partial class CampaignRecommendation
 
     public string? InventorySnapshotJson { get; set; }
 
+    public string? InventoryBatchRefsJson { get; set; }
+
     public int RevisionNumber { get; set; }
 
     public DateTime? SentToClientAt { get; set; }

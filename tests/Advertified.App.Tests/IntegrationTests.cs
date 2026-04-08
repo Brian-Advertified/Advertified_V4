@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using Advertified.App.AIPlatform.Application;
 using Advertified.App.AIPlatform.Domain;
 using Advertified.App.AIPlatform.Infrastructure;
+using Advertified.App.Authentication;
 using Advertified.App.Configuration;
 using Advertified.App.Contracts.Auth;
 using Advertified.App.Contracts.Admin;
@@ -15,6 +16,8 @@ using Advertified.App.Services;
 using Advertified.App.Services.Abstractions;
 using Advertified.App.Validation;
 using FluentAssertions;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Hosting;
@@ -551,6 +554,52 @@ public class HttpWorkflowIntegrationTests
             new { conversions = 1 });
         conversionResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
         stub.ConversionCallCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task AdminPricingSettingsUpdate_WritesDigitalMarkupToChangeAuditOverHttp()
+    {
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var adminUser = TestSeed.CreateAdmin();
+                db.UserAccounts.Add(adminUser);
+                db.SaveChanges();
+            });
+
+        var adminUserId = await harness.ExecuteDbAsync(db =>
+            db.UserAccounts
+                .Where(x => x.Role == UserRole.Admin)
+                .Select(x => x.Id)
+                .SingleAsync());
+
+        harness.Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await harness.CreateSessionTokenAsync(adminUserId));
+
+        var response = await harness.Client.PutAsJsonAsync("/admin/pricing-settings", new UpdateAdminPricingSettingsRequest
+        {
+            AiStudioReservePercent = 0.10m,
+            OohMarkupPercent = 0.05m,
+            RadioMarkupPercent = 0.10m,
+            TvMarkupPercent = 0.10m,
+            DigitalMarkupPercent = 0.115m
+        });
+
+        var content = await response.Content.ReadAsStringAsync();
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent, content);
+
+        var audit = await harness.ExecuteDbAsync(db => db.ChangeAuditLogs.SingleAsync());
+        audit.EntityType.Should().Be("pricing_settings");
+        audit.Action.Should().Be("update");
+        audit.EntityId.Should().Be("default");
+        audit.Summary.Should().Be("Updated platform pricing settings.");
+        audit.MetadataJson.Should().NotBeNullOrWhiteSpace();
+
+        using var metadata = System.Text.Json.JsonDocument.Parse(audit.MetadataJson!);
+        metadata.RootElement.GetProperty("AiStudioReservePercent").GetDecimal().Should().Be(0.10m);
+        metadata.RootElement.GetProperty("OohMarkupPercent").GetDecimal().Should().Be(0.05m);
+        metadata.RootElement.GetProperty("RadioMarkupPercent").GetDecimal().Should().Be(0.10m);
+        metadata.RootElement.GetProperty("TvMarkupPercent").GetDecimal().Should().Be(0.10m);
+        metadata.RootElement.GetProperty("DigitalMarkupPercent").GetDecimal().Should().Be(0.115m);
     }
 
     [Fact]
@@ -1588,7 +1637,7 @@ internal sealed class StubAdminMutationService : IAdminMutationService
     public Task<Guid> CreatePackageSettingAsync(CreateAdminPackageSettingRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
     public Task UpdatePackageSettingAsync(Guid packageSettingId, UpdateAdminPackageSettingRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
     public Task DeletePackageSettingAsync(Guid packageSettingId, CancellationToken cancellationToken) => throw new NotSupportedException();
-    public Task UpdatePricingSettingsAsync(UpdateAdminPricingSettingsRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task UpdatePricingSettingsAsync(UpdateAdminPricingSettingsRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
     public Task UpdateEnginePolicyAsync(string packageCode, UpdateAdminEnginePolicyRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
     public Task UpdatePreviewRuleAsync(string packageCode, string tierCode, UpdateAdminPreviewRuleRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
 }
@@ -1743,6 +1792,7 @@ internal sealed class TestApiHarness : IAsyncDisposable
         builder.WebHost.UseTestServer();
         builder.Services.AddDataProtection();
         builder.Services.AddHttpContextAccessor();
+        builder.Services.AddMemoryCache();
         builder.Services.AddControllers().AddApplicationPart(typeof(Advertified.App.Controllers.CampaignsController).Assembly);
         builder.Services.Configure<FrontendOptions>(options => options.BaseUrl = "http://localhost:5173");
         builder.Services.AddDbContext<AppDbContext>(options => options.UseInMemoryDatabase(databaseName));
@@ -1751,10 +1801,23 @@ internal sealed class TestApiHarness : IAsyncDisposable
         builder.Services.AddScoped<IProposalAccessTokenService, ProposalAccessTokenService>();
         builder.Services.AddScoped<IPasswordHashingService, PasswordHashingService>();
         builder.Services.AddScoped<IChangeAuditService, ChangeAuditService>();
+        builder.Services.AddAuthentication(options =>
+        {
+            options.DefaultAuthenticateScheme = "AdvertifiedSession";
+            options.DefaultChallengeScheme = "AdvertifiedSession";
+        })
+        .AddScheme<AuthenticationSchemeOptions, SessionTokenAuthenticationHandler>("AdvertifiedSession", options => { });
+        builder.Services.AddAuthorization(options =>
+        {
+            options.FallbackPolicy = new AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser()
+                .Build();
+        });
         builder.Services.AddScoped<IAdminDashboardService, StubAdminDashboardService>();
         builder.Services.AddScoped<IAdminMutationService, StubAdminMutationService>();
         builder.Services.AddScoped<ICampaignAccessService, CampaignAccessService>();
         builder.Services.AddScoped<IAgentAreaRoutingService, StubAgentAreaRoutingService>();
+        builder.Services.AddScoped<FormOptionsService>();
         builder.Services.AddScoped<ICampaignBriefService, CampaignBriefService>();
         builder.Services.AddScoped<CampaignPlanningRequestValidator>();
         builder.Services.AddScoped<RegisterRequestValidator>();
@@ -1762,6 +1825,7 @@ internal sealed class TestApiHarness : IAsyncDisposable
         builder.Services.AddScoped<IEmailVerificationService, StubEmailVerificationService>();
         builder.Services.AddScoped<IInvoiceService, StubInvoiceService>();
         builder.Services.AddScoped<IPackagePurchaseService, StubPackagePurchaseService>();
+        builder.Services.AddScoped<IProspectLeadLinkingService, ProspectLeadLinkingService>();
         builder.Services.AddScoped<IRegistrationService, RegistrationService>();
         builder.Services.AddScoped<IPrivateDocumentStorage, StubPrivateDocumentStorage>();
         builder.Services.AddScoped<IRecommendationDocumentService, StubRecommendationDocumentService>();
@@ -1778,6 +1842,8 @@ internal sealed class TestApiHarness : IAsyncDisposable
         configureServices?.Invoke(builder.Services);
 
         var app = builder.Build();
+        app.UseAuthentication();
+        app.UseAuthorization();
         app.MapControllers();
 
         await app.StartAsync();
