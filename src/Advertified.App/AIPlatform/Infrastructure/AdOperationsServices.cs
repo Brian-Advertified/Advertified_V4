@@ -21,6 +21,7 @@ public sealed class DbAdVariantService : IAdVariantService
     private readonly IAdPlatformPublisherFactory _publisherFactory;
     private readonly IAiCostEstimator _costEstimator;
     private readonly IAiCostControlService _costControlService;
+    private readonly IAdPlatformAccessTokenService _accessTokenService;
     private readonly ICampaignPerformanceProjectionService _campaignPerformanceProjectionService;
     private readonly ILogger<DbAdVariantService> _logger;
 
@@ -29,6 +30,7 @@ public sealed class DbAdVariantService : IAdVariantService
         IAdPlatformPublisherFactory publisherFactory,
         IAiCostEstimator costEstimator,
         IAiCostControlService costControlService,
+        IAdPlatformAccessTokenService accessTokenService,
         ICampaignPerformanceProjectionService campaignPerformanceProjectionService,
         ILogger<DbAdVariantService> logger)
     {
@@ -36,6 +38,7 @@ public sealed class DbAdVariantService : IAdVariantService
         _publisherFactory = publisherFactory;
         _costEstimator = costEstimator;
         _costControlService = costControlService;
+        _accessTokenService = accessTokenService;
         _campaignPerformanceProjectionService = campaignPerformanceProjectionService;
         _logger = logger;
     }
@@ -154,11 +157,12 @@ public sealed class DbAdVariantService : IAdVariantService
 
         var publisher = _publisherFactory.GetRequired(row.Platform);
         var linkedPublishConnection = await GetActiveConnectionForCampaignProviderAsync(row.CampaignId, row.Platform, cancellationToken);
+        var publishToken = await _accessTokenService.ResolveAccessTokenAsync(linkedPublishConnection, row.Platform, cancellationToken);
         var summary = MapVariant(row);
         string platformAdId;
         try
         {
-            platformAdId = await publisher.PublishAsync(summary, cancellationToken, linkedPublishConnection?.AdPlatformConnection.AccessToken);
+            platformAdId = await publisher.PublishAsync(summary, cancellationToken, publishToken);
         }
         catch (Exception ex)
         {
@@ -344,7 +348,8 @@ public sealed class DbAdVariantService : IAdVariantService
             var publisher = _publisherFactory.GetRequired(row.Platform);
             var providerKey = NormalizeProviderKey(row.Platform);
             linkedByProvider.TryGetValue(providerKey, out var linkedConnection);
-            var external = await publisher.GetMetricsAsync(row.PlatformAdId!, cancellationToken, linkedConnection?.AdPlatformConnection.AccessToken);
+            var syncedToken = await _accessTokenService.ResolveAccessTokenAsync(linkedConnection, row.Platform, cancellationToken);
+            var external = await publisher.GetMetricsAsync(row.PlatformAdId!, cancellationToken, syncedToken);
             var ctr = external.Impressions > 0 ? decimal.Round((decimal)external.Clicks / external.Impressions, 4) : 0m;
             var conversionRate = external.Clicks > 0 ? decimal.Round((decimal)external.Conversions / external.Clicks, 4) : 0m;
             metricsByPlatform[providerKey] = MergeMetrics(metricsByPlatform.GetValueOrDefault(providerKey), external);

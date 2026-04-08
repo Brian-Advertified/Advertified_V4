@@ -420,6 +420,11 @@ public class AdMetricsProjectionTests
             publisherFactory,
             new StubAiCostEstimator(),
             new StubAiCostControlService(),
+            new AdPlatformAccessTokenService(
+                new StubHttpClientFactory(),
+                Options.Create(new AdPlatformOptions { DryRunMode = true }),
+                db,
+                NullLogger<AdPlatformAccessTokenService>.Instance),
             projectionService,
             NullLogger<DbAdVariantService>.Instance);
 
@@ -527,6 +532,11 @@ public class AdMetricsProjectionTests
             publisherFactory,
             new StubAiCostEstimator(),
             new StubAiCostControlService(),
+            new AdPlatformAccessTokenService(
+                new StubHttpClientFactory(),
+                Options.Create(new AdPlatformOptions { DryRunMode = true }),
+                db,
+                NullLogger<AdPlatformAccessTokenService>.Instance),
             new CampaignPerformanceProjectionService(db),
             NullLogger<DbAdVariantService>.Instance);
 
