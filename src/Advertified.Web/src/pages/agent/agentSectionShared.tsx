@@ -27,6 +27,69 @@ export function ActionIconButton({
   );
 }
 
+export function AgentSummaryCard({
+  label,
+  value,
+  helper,
+}: {
+  label: string;
+  value: string | number;
+  helper?: string;
+}) {
+  return (
+    <div className="rounded-[22px] border border-line bg-white px-5 py-4">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-soft">{label}</p>
+      <p className="mt-3 text-3xl font-semibold text-ink">{value}</p>
+      {helper ? <p className="mt-2 text-sm text-ink-soft">{helper}</p> : null}
+    </div>
+  );
+}
+
+export function AgentSectionIntro({
+  title,
+  description,
+  action,
+}: {
+  title: string;
+  description: string;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div>
+        <h3 className="text-xl font-semibold text-ink">{title}</h3>
+        <p className="mt-1 text-sm text-ink-soft">{description}</p>
+      </div>
+      {action ? <div className="shrink-0">{action}</div> : null}
+    </div>
+  );
+}
+
+export function AgentPageLead({
+  eyebrow,
+  title,
+  description,
+  aside,
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+  aside?: ReactNode;
+}) {
+  return (
+    <div className="rounded-[28px] border border-line bg-[linear-gradient(180deg,#ffffff_0%,#f6faf8_100%)] p-6">
+      <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+        <div className="max-w-3xl">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-brand">{eyebrow}</p>
+          <h3 className="mt-3 text-2xl font-semibold text-ink">{title}</h3>
+          <p className="mt-2 text-sm leading-6 text-ink-soft">{description}</p>
+        </div>
+        {aside ? <div className="xl:min-w-[280px]">{aside}</div> : null}
+      </div>
+    </div>
+  );
+}
+
 export function buildClientRows(campaigns: Awaited<ReturnType<typeof useAgentCampaignsQuery>['data']>, search: string) {
   const grouped = new Map<string, {
     userId: string;

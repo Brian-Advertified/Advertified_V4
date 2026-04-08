@@ -58,6 +58,7 @@ internal static class DatabaseSchemaInitializer
                      Path.Combine("database", "bootstrap", "036_inventory_strategy_intelligence.sql"),
                      Path.Combine("database", "bootstrap", "037_prospect_leads.sql"),
                       Path.Combine("database", "bootstrap", "038_social_inventory_seed.sql"),
+                      Path.Combine("database", "bootstrap", "039_recommendation_audit_and_inventory_batches.sql"),
                       Path.Combine("database", "bootstrap", "039_leads_and_signals.sql"),
                       Path.Combine("database", "bootstrap", "040_lead_insight_history.sql"),
                       Path.Combine("database", "bootstrap", "041_lead_source_ingestion.sql"),

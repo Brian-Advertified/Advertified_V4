@@ -2,10 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Eye, Pencil, PlusCircle, Save, Trash2, X } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { QueryStateBoundary } from '../../components/ui/QueryStateBoundary';
 import { useToast } from '../../components/ui/toast';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import type { AdminCreateOutletInput, AdminUpdateOutletInput } from '../../types/domain';
-import { AdminPageShell, AdminQueryBoundary, splitList, titleize, tone, useAdminDashboardQuery } from './adminWorkspace';
+import { AdminPageShell, splitList, titleize, tone } from './adminWorkspace';
 import { ActionButton, hasText } from './adminSectionShared';
 
 const LANGUAGE_OPTIONS = ['English', 'Xitsonga', 'isiZulu', 'isiXhosa', 'Sesotho', 'Setswana', 'Afrikaans', 'Sepedi', 'Tshivenda'];
@@ -18,12 +19,13 @@ const TARGET_AUDIENCE_OPTIONS = ['General audience', 'Youth audience', 'Working 
 export function AdminStationsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const query = useAdminDashboardQuery();
   const queryClient = useQueryClient();
   const { pushToast } = useToast();
   const handledSearchRef = useRef<string | null>(null);
   const [sortBy, setSortBy] = useState<'priority' | 'name' | 'coverage'>('priority');
+  const [page, setPage] = useState(1);
   const [showAllOutlets, setShowAllOutlets] = useState(false);
+  const pageSize = 25;
   const [dialogMode, setDialogMode] = useState<'create' | 'view' | 'edit' | null>(null);
   const [selectedOutletCode, setSelectedOutletCode] = useState<string | null>(null);
   const [outletForm, setOutletForm] = useState({
@@ -42,6 +44,11 @@ export function AdminStationsPage() {
     provinceCodes: '',
     cityLabels: '',
     audienceKeywords: '',
+  });
+
+  const outletsPageQuery = useQuery({
+    queryKey: ['admin-outlets-page', page, pageSize, showAllOutlets, sortBy],
+    queryFn: () => advertifiedApi.getAdminOutletsPage(page, pageSize, !showAllOutlets, sortBy),
   });
 
   const selectedOutletQuery = useQuery({
@@ -151,7 +158,10 @@ export function AdminStationsPage() {
   const createOutletMutation = useMutation({
     mutationFn: () => advertifiedApi.createAdminOutlet(buildOutletPayload()),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-outlets-page'] }),
+      ]);
       closeDialog();
       pushToast({ title: 'Outlet added.', description: 'The new outlet is now part of the live broadcast catalog.' });
     },
@@ -161,7 +171,10 @@ export function AdminStationsPage() {
   const updateOutletMutation = useMutation({
     mutationFn: () => advertifiedApi.updateAdminOutlet(selectedOutletCode ?? outletForm.code, buildOutletPayload()),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-outlets-page'] }),
+      ]);
       if (selectedOutletCode) {
         await queryClient.invalidateQueries({ queryKey: ['admin-outlet', selectedOutletCode] });
       }
@@ -174,7 +187,10 @@ export function AdminStationsPage() {
   const deleteOutletMutation = useMutation({
     mutationFn: (code: string) => advertifiedApi.deleteAdminOutlet(code),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-outlets-page'] }),
+      ]);
       closeDialog();
       pushToast({ title: 'Outlet deleted.', description: 'The outlet and its linked broadcast records were removed.' });
     },
@@ -199,38 +215,23 @@ export function AdminStationsPage() {
     };
   }, [modeFromSearch, openExistingDialog, outletFromSearch, searchDialogKey]);
 
+  useEffect(() => {
+    setPage(1);
+  }, [showAllOutlets, sortBy]);
+
   return (
-    <AdminQueryBoundary query={query}>
-      {(dashboard) => {
-        const priorityScore = (item: (typeof dashboard.outlets)[number]) => {
-          let score = 0;
-          if (item.catalogHealth === 'weak_no_inventory') score += 100;
-          else if (item.catalogHealth === 'weak_unpriced') score += 85;
-          else if (item.catalogHealth === 'mixed_not_fully_healthy') score += 60;
-          else score += 20;
-          if (!item.hasPricing) score += 25;
-          if (item.packageCount === 0 && item.slotRateCount === 0) score += 20;
-          if (!item.languageDisplay) score += 8;
-          return score;
-        };
-
-        const hasIssue = (item: (typeof dashboard.outlets)[number]) =>
-          item.catalogHealth !== 'strong' ||
-          !item.hasPricing ||
-          (item.packageCount === 0 && item.slotRateCount === 0) ||
-          !item.languageDisplay;
-
-        const visibleOutlets = showAllOutlets
-          ? dashboard.outlets
-          : dashboard.outlets.filter(hasIssue);
-
-        const sortedOutlets = [...visibleOutlets].sort((left, right) => {
-          if (sortBy === 'name') return left.name.localeCompare(right.name);
-          if (sortBy === 'coverage') return left.coverageType.localeCompare(right.coverageType) || left.name.localeCompare(right.name);
-          return priorityScore(right) - priorityScore(left) || left.name.localeCompare(right.name);
-        });
-        const issueCount = dashboard.outlets.filter(hasIssue).length;
-        const strongCount = dashboard.outlets.filter((item) => item.catalogHealth === 'strong').length;
+    <QueryStateBoundary
+      query={outletsPageQuery}
+      loadingLabel="Loading outlet page..."
+      errorTitle="Outlet list unavailable"
+      errorDescription="The outlet management page could not be loaded."
+      emptyTitle="No outlets found."
+      emptyDescription="There are no outlets matching the current view."
+    >
+      {(outletPage) => {
+        const sortedOutlets = outletPage.items;
+        const issueCount = outletPage.issueCount;
+        const strongCount = outletPage.strongCount;
         const isReadOnly = dialogMode === 'view';
         const activeDetail = dialogMode === 'create' ? null : selectedOutletQuery.data;
         const effectiveCatalogHealth = deriveCatalogHealthForSave(
@@ -282,7 +283,7 @@ export function AdminStationsPage() {
                 </span>
                 <span className="text-ink-soft">
                   {showAllOutlets
-                    ? `${dashboard.outlets.length} total outlets, including ${strongCount} strong and ${issueCount} needing attention.`
+                    ? `${outletPage.totalCount} outlets in this result set, with ${strongCount} strong and ${issueCount} needing attention across the full catalog.`
                     : `${issueCount} outlets need attention. Strong outlets are hidden until you switch to Show all outlets.`}
                 </span>
               </div>
@@ -294,6 +295,29 @@ export function AdminStationsPage() {
                   {sortedOutlets.map((item, index) => <tr key={item.code} className="border-t border-line"><td className="px-4 py-4"><div className="flex items-center gap-3"><div><p className="font-semibold text-ink">{item.name}</p><p className="text-xs text-ink-soft">{item.languageDisplay ?? 'Language not specified'}</p></div>{sortBy === 'priority' && index < 3 ? <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-700">Needs attention</span> : null}</div></td><td className="px-4 py-4 text-ink-soft">{titleize(item.mediaType)}</td><td className="px-4 py-4 text-ink-soft">{titleize(item.coverageType)}</td><td className="px-4 py-4 text-ink-soft">{item.geographyLabel}</td><td className="px-4 py-4 text-ink-soft"><div>{item.hasPricing ? 'Available' : 'Missing'}</div><div className="text-xs">{item.packageCount} packages | {item.slotRateCount} slot rows</div></td><td className="px-4 py-4"><span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${tone(item.catalogHealth)}`}>{titleize(item.catalogHealth)}</span></td><td className="px-4 py-4"><div className="flex justify-end gap-2"><ActionButton label={`View ${item.name}`} icon={Eye} onClick={() => openExistingDialog(item.code, 'view')} /><ActionButton label={`Edit ${item.name}`} icon={Pencil} onClick={() => openExistingDialog(item.code, 'edit')} /><ActionButton label={`Delete ${item.name}`} icon={Trash2} variant="danger" disabled={deleteOutletMutation.isPending} onClick={() => { if (window.confirm(`Delete ${item.name}? This will remove the outlet and linked broadcast pricing records.`)) { deleteOutletMutation.mutate(item.code); } }} /></div></td></tr>)}
                 </tbody>
               </table>
+            </div>
+            <div className="panel flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-ink-soft">
+                Page {outletPage.page} of {outletPage.totalPages} · {outletPage.totalCount} outlet{outletPage.totalCount === 1 ? '' : 's'} in this result set
+              </p>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  className="button-secondary px-4 py-2"
+                  disabled={outletPage.page <= 1}
+                  onClick={() => setPage((current) => Math.max(1, current - 1))}
+                >
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  className="button-secondary px-4 py-2"
+                  disabled={outletPage.page >= outletPage.totalPages}
+                  onClick={() => setPage((current) => Math.min(outletPage.totalPages, current + 1))}
+                >
+                  Next
+                </button>
+              </div>
             </div>
 
             {dialogMode ? (
@@ -429,7 +453,7 @@ export function AdminStationsPage() {
           </section>
         </AdminPageShell>
       )}}
-    </AdminQueryBoundary>
+    </QueryStateBoundary>
   );
 }
 

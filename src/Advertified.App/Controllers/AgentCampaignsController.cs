@@ -272,6 +272,8 @@ public sealed class AgentCampaignsController : ControllerBase
             .Include(x => x.CampaignPauseWindows)
             .Include(x => x.CampaignRecommendations)
                 .ThenInclude(x => x.RecommendationItems)
+            .Include(x => x.CampaignRecommendations)
+                .ThenInclude(x => x.RecommendationRunAudits)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw new NotFoundException("Campaign not found.");
 

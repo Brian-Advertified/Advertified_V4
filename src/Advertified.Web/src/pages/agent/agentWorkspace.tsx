@@ -127,7 +127,7 @@ export function AgentPageShell({ title, description, children }: AgentPageShellP
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-ink-soft">Workspace</p>
               <h2 className="mt-4 text-2xl font-semibold text-ink">Agent workspace</h2>
-              <p className="mt-2 text-sm leading-6 text-ink-soft">Manage clients, keep campaigns moving, and respond quickly when something needs action.</p>
+              <p className="mt-2 text-sm leading-6 text-ink-soft">One place to check the queue, open a campaign, and move the next task forward.</p>
             </div>
             <div className="space-y-5">
               {agentNavSections.map((section) => (
@@ -152,9 +152,9 @@ export function AgentPageShell({ title, description, children }: AgentPageShellP
                 </div>
               ))}
             </div>
-            <div className="rounded-3xl bg-brand-soft p-4 text-sm text-brand">
-              <p className="font-semibold">Live campaign data</p>
-              <p className="mt-2 text-ink-soft">Counts and actions on these pages update from the live campaign queue, recommendation status, and client activity.</p>
+            <div className="rounded-3xl border border-line bg-slate-50 p-4 text-sm">
+              <p className="font-semibold text-ink">How to use this</p>
+              <p className="mt-2 text-ink-soft">Start with the queue, open the campaign that needs action, then come back here when you need the next item.</p>
             </div>
           </div>
         </aside>

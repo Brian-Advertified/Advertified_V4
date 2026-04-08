@@ -156,7 +156,8 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
             Upsells = upsells,
             FallbackFlags = fallbackFlags.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
             ManualReviewRequired = fallbackFlags.Count > 0,
-            Rationale = _explainabilityService.BuildRationale(basePlan, recommendedPlan, request)
+            Rationale = _explainabilityService.BuildRationale(basePlan, recommendedPlan, request),
+            RunTrace = BuildRunTrace(request, allCandidates, eligibleCandidates, policyOutcome.Rejections, recommendedPlan, upsells)
         };
     }
 
@@ -442,6 +443,157 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
             "television" => "tv",
             _ => normalized
         };
+    }
+
+    private static RecommendationRunTrace BuildRunTrace(
+        CampaignPlanningRequest request,
+        IReadOnlyList<InventoryCandidate> allCandidates,
+        IReadOnlyList<InventoryCandidate> eligibleCandidates,
+        IReadOnlyList<PlanningCandidateRejection> rejections,
+        IReadOnlyList<PlannedItem> recommendedPlan,
+        IReadOnlyList<PlannedItem> upsells)
+    {
+        return new RecommendationRunTrace
+        {
+            RequestSnapshot = BuildRequestSnapshot(request),
+            CandidateCounts = BuildCandidateCounts(allCandidates, eligibleCandidates, recommendedPlan, upsells),
+            RejectedCandidates = rejections
+                .Select(rejection => new RecommendationRejectedCandidateTrace
+                {
+                    Stage = rejection.Stage,
+                    Reason = rejection.Reason,
+                    SourceId = rejection.SourceId,
+                    DisplayName = rejection.DisplayName,
+                    MediaType = rejection.MediaType
+                })
+                .ToList(),
+            SelectedItems = recommendedPlan
+                .Select(item => BuildSelectedItemTrace(item, isUpsell: false))
+                .Concat(upsells.Select(item => BuildSelectedItemTrace(item, isUpsell: true)))
+                .ToList()
+        };
+    }
+
+    private static CampaignPlanningRequestSnapshot BuildRequestSnapshot(CampaignPlanningRequest request)
+    {
+        return new CampaignPlanningRequestSnapshot
+        {
+            CampaignId = request.CampaignId,
+            SelectedBudget = request.SelectedBudget,
+            Objective = request.Objective,
+            BusinessStage = request.BusinessStage,
+            MonthlyRevenueBand = request.MonthlyRevenueBand,
+            SalesModel = request.SalesModel,
+            GeographyScope = request.GeographyScope,
+            Provinces = request.Provinces.ToList(),
+            Cities = request.Cities.ToList(),
+            Suburbs = request.Suburbs.ToList(),
+            Areas = request.Areas.ToList(),
+            PreferredMediaTypes = request.PreferredMediaTypes.ToList(),
+            ExcludedMediaTypes = request.ExcludedMediaTypes.ToList(),
+            TargetLanguages = request.TargetLanguages.ToList(),
+            TargetAgeMin = request.TargetAgeMin,
+            TargetAgeMax = request.TargetAgeMax,
+            TargetGender = request.TargetGender,
+            TargetInterests = request.TargetInterests.ToList(),
+            TargetAudienceNotes = request.TargetAudienceNotes,
+            CustomerType = request.CustomerType,
+            BuyingBehaviour = request.BuyingBehaviour,
+            DecisionCycle = request.DecisionCycle,
+            PricePositioning = request.PricePositioning,
+            AverageCustomerSpendBand = request.AverageCustomerSpendBand,
+            GrowthTarget = request.GrowthTarget,
+            UrgencyLevel = request.UrgencyLevel,
+            AudienceClarity = request.AudienceClarity,
+            ValuePropositionFocus = request.ValuePropositionFocus,
+            TargetLsmMin = request.TargetLsmMin,
+            TargetLsmMax = request.TargetLsmMax,
+            OpenToUpsell = request.OpenToUpsell,
+            AdditionalBudget = request.AdditionalBudget,
+            MaxMediaItems = request.MaxMediaItems,
+            TargetRadioShare = request.TargetRadioShare,
+            TargetOohShare = request.TargetOohShare,
+            TargetTvShare = request.TargetTvShare,
+            TargetDigitalShare = request.TargetDigitalShare
+        };
+    }
+
+    private static List<RecommendationTraceCount> BuildCandidateCounts(
+        IReadOnlyList<InventoryCandidate> allCandidates,
+        IReadOnlyList<InventoryCandidate> eligibleCandidates,
+        IReadOnlyList<PlannedItem> recommendedPlan,
+        IReadOnlyList<PlannedItem> upsells)
+    {
+        var counts = new List<RecommendationTraceCount>();
+        counts.AddRange(BuildStageCounts(
+            "loaded",
+            allCandidates.Select(candidate => NormalizeChannel(candidate.MediaType))));
+        counts.AddRange(BuildStageCounts(
+            "eligible",
+            eligibleCandidates.Select(candidate => NormalizeChannel(candidate.MediaType))));
+        counts.AddRange(BuildStageCounts(
+            "selected",
+            recommendedPlan.Select(item => NormalizeChannel(item.MediaType))));
+        counts.AddRange(BuildStageCounts(
+            "upsell",
+            upsells.Select(item => NormalizeChannel(item.MediaType))));
+        return counts;
+    }
+
+    private static IEnumerable<RecommendationTraceCount> BuildStageCounts(string stage, IEnumerable<string> mediaTypes)
+    {
+        return mediaTypes
+            .Where(mediaType => !string.IsNullOrWhiteSpace(mediaType))
+            .GroupBy(mediaType => mediaType, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(group => new RecommendationTraceCount
+            {
+                Stage = stage,
+                MediaType = group.Key,
+                Count = group.Count()
+            });
+    }
+
+    private static RecommendationSelectedItemTrace BuildSelectedItemTrace(PlannedItem item, bool isUpsell)
+    {
+        return new RecommendationSelectedItemTrace
+        {
+            SourceId = item.SourceId,
+            DisplayName = item.DisplayName,
+            MediaType = NormalizeChannel(item.MediaType),
+            Score = item.Score,
+            TotalCost = item.TotalCost,
+            IsUpsell = isUpsell,
+            SelectionReasons = GetMetadataArray(item.Metadata, "selectionReasons"),
+            PolicyFlags = GetMetadataArray(item.Metadata, "policyFlags"),
+            ConfidenceScore = GetMetadataValue(item.Metadata, "confidenceScore")
+        };
+    }
+
+    private static IReadOnlyList<string> GetMetadataArray(IReadOnlyDictionary<string, object?> metadata, string key)
+    {
+        if (!metadata.TryGetValue(key, out var value) || value is null)
+        {
+            return Array.Empty<string>();
+        }
+
+        return value switch
+        {
+            IEnumerable<string> strings => strings.Where(static item => !string.IsNullOrWhiteSpace(item)).ToArray(),
+            string text when !string.IsNullOrWhiteSpace(text) => new[] { text },
+            _ => new[] { value.ToString()! }.Where(static item => !string.IsNullOrWhiteSpace(item)).ToArray()
+        };
+    }
+
+    private static string? GetMetadataValue(IReadOnlyDictionary<string, object?> metadata, string key)
+    {
+        if (!metadata.TryGetValue(key, out var value) || value is null)
+        {
+            return null;
+        }
+
+        var text = value.ToString();
+        return string.IsNullOrWhiteSpace(text) ? null : text;
     }
 
     private sealed record PlanningPass(CampaignPlanningRequest Request, IReadOnlyCollection<string> FallbackFlags);

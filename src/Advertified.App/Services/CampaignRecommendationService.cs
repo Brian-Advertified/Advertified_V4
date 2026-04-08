@@ -4,6 +4,7 @@ using Advertified.App.Campaigns;
 using Advertified.App.Contracts.Campaigns;
 using Advertified.App.Data;
 using Advertified.App.Data.Entities;
+using Advertified.App.Configuration;
 using Advertified.App.Domain.Campaigns;
 using Advertified.App.Services.Abstractions;
 using Advertified.App.Support;
@@ -21,18 +22,34 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
     private const decimal ProposalTierMaxBudgetToleranceRatio = 0.02m;
     private const decimal ProposalTierSpanToleranceRatio = 0.15m;
     private const decimal ProposalTierRoundingSlack = 1000m;
+    private static readonly JsonSerializerOptions AuditJsonOptions = new(JsonSerializerDefaults.Web);
     private readonly AppDbContext _db;
     private readonly IMediaPlanningEngine _planningEngine;
     private readonly ICampaignReasoningService _campaignReasoningService;
+    private readonly PlanningPolicySnapshotProvider _policySnapshotProvider;
+
+    public CampaignRecommendationService(
+        AppDbContext db,
+        IMediaPlanningEngine planningEngine,
+        ICampaignReasoningService campaignReasoningService,
+        PlanningPolicySnapshotProvider policySnapshotProvider)
+    {
+        _db = db;
+        _planningEngine = planningEngine;
+        _campaignReasoningService = campaignReasoningService;
+        _policySnapshotProvider = policySnapshotProvider;
+    }
 
     public CampaignRecommendationService(
         AppDbContext db,
         IMediaPlanningEngine planningEngine,
         ICampaignReasoningService campaignReasoningService)
+        : this(
+            db,
+            planningEngine,
+            campaignReasoningService,
+            new PlanningPolicySnapshotProvider(new PlanningPolicyOptions()))
     {
-        _db = db;
-        _planningEngine = planningEngine;
-        _campaignReasoningService = campaignReasoningService;
     }
 
     public async Task<Guid> GenerateAndSaveAsync(Guid campaignId, GenerateRecommendationRequest? request, CancellationToken cancellationToken)
@@ -54,6 +71,8 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         var now = DateTime.UtcNow;
         var planningRequest = BuildRequest(campaign, brief, request, packageProfile);
         var proposalVariants = BuildProposalVariants(planningRequest, campaign.PackageBand);
+        var policySnapshot = _policySnapshotProvider.GetCurrent();
+        var inventorySnapshot = await BuildInventorySnapshotAsync(cancellationToken);
         Guid? primaryRecommendationId = null;
         var revisionNumber = RecommendationRevisionSupport.GetNextRevisionNumber(campaign.CampaignRecommendations);
 
@@ -65,7 +84,17 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
 
             var aiReasoning = await _campaignReasoningService.GenerateAsync(campaign, brief, variant.Request, recommendationResult, cancellationToken);
             var proposalTimestamp = now.AddMilliseconds(index);
-            var recommendation = CreateRecommendationEntity(campaignId, campaign.PlanningMode, variant.Key, recommendationResult, variant.Request, aiReasoning, proposalTimestamp, revisionNumber);
+            var recommendation = CreateRecommendationEntity(
+                campaignId,
+                campaign.PlanningMode,
+                variant.Key,
+                recommendationResult,
+                variant.Request,
+                aiReasoning,
+                proposalTimestamp,
+                revisionNumber,
+                policySnapshot,
+                inventorySnapshot);
 
             foreach (var item in recommendationResult.RecommendedPlan)
             {
@@ -77,6 +106,12 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
                 recommendation.RecommendationItems.Add(ToRecommendationItem(item, recommendation.Id, proposalTimestamp, isUpsell: true));
             }
 
+            _db.RecommendationRunAudits.Add(CreateRecommendationRunAudit(
+                campaignId,
+                recommendation,
+                recommendationResult,
+                variant.Request,
+                proposalTimestamp));
             primaryRecommendationId ??= recommendation.Id;
             _db.CampaignRecommendations.Add(recommendation);
         }
@@ -206,7 +241,9 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         CampaignPlanningRequest planningRequest,
         CampaignReasoningResult? aiReasoning,
         DateTime now,
-        int revisionNumber)
+        int revisionNumber,
+        PlanningPolicyOptions policySnapshot,
+        object inventorySnapshot)
     {
         return new CampaignRecommendation
         {
@@ -218,9 +255,53 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             TotalCost = recommendationResult.RecommendedPlanTotal,
             Summary = aiReasoning?.Summary ?? BuildSummary(recommendationResult, planningRequest),
             Rationale = BuildStoredRationale(recommendationResult, aiReasoning?.Rationale),
+            RequestSnapshotJson = SerializeAuditJson(recommendationResult.RunTrace?.RequestSnapshot ?? BuildRequestSnapshot(planningRequest)),
+            PolicySnapshotJson = SerializeAuditJson(policySnapshot),
+            InventorySnapshotJson = SerializeAuditJson(inventorySnapshot),
             RevisionNumber = revisionNumber,
             CreatedAt = now,
             UpdatedAt = now
+        };
+    }
+
+    private static RecommendationRunAudit CreateRecommendationRunAudit(
+        Guid campaignId,
+        CampaignRecommendation recommendation,
+        RecommendationResult recommendationResult,
+        CampaignPlanningRequest planningRequest,
+        DateTime createdAt)
+    {
+        var selectedChannels = recommendationResult.RecommendedPlan
+            .Select(item => item.MediaType)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(channel => channel, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var budgetUtilizationRatio = planningRequest.SelectedBudget <= 0m
+            ? 0m
+            : Math.Round(recommendationResult.RecommendedPlanTotal / planningRequest.SelectedBudget, 4, MidpointRounding.AwayFromZero);
+
+        return new RecommendationRunAudit
+        {
+            Id = Guid.NewGuid(),
+            CampaignId = campaignId,
+            RecommendationId = recommendation.Id,
+            RecommendationType = recommendation.RecommendationType,
+            RevisionNumber = recommendation.RevisionNumber,
+            RequestSnapshotJson = recommendation.RequestSnapshotJson,
+            PolicySnapshotJson = recommendation.PolicySnapshotJson,
+            InventorySnapshotJson = recommendation.InventorySnapshotJson,
+            CandidateCountsJson = SerializeAuditJson(recommendationResult.RunTrace is null ? Array.Empty<RecommendationTraceCount>() : recommendationResult.RunTrace.CandidateCounts),
+            RejectedCandidatesJson = SerializeAuditJson(recommendationResult.RunTrace is null ? Array.Empty<RecommendationRejectedCandidateTrace>() : recommendationResult.RunTrace.RejectedCandidates),
+            SelectedItemsJson = SerializeAuditJson(recommendationResult.RunTrace is null ? Array.Empty<RecommendationSelectedItemTrace>() : recommendationResult.RunTrace.SelectedItems),
+            FallbackFlagsJson = SerializeAuditJson(new
+            {
+                recommendationResult.FallbackFlags,
+                selectedChannels
+            }),
+            BudgetUtilizationRatio = budgetUtilizationRatio,
+            ManualReviewRequired = recommendationResult.ManualReviewRequired,
+            FinalRationale = recommendation.Rationale,
+            CreatedAt = createdAt
         };
     }
 
@@ -702,6 +783,81 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
     private static string FormatCurrency(decimal amount)
     {
         return $"R {amount.ToString("N2", CultureInfo.GetCultureInfo("en-ZA"))}";
+    }
+
+    private async Task<object> BuildInventorySnapshotAsync(CancellationToken cancellationToken)
+    {
+        var activeBatches = await _db.InventoryImportBatches
+            .AsNoTracking()
+            .Where(batch => batch.IsActive)
+            .OrderBy(batch => batch.ChannelFamily)
+            .Select(batch => new
+            {
+                batch.Id,
+                batch.ChannelFamily,
+                batch.SourceType,
+                batch.SourceIdentifier,
+                batch.SourceChecksum,
+                batch.RecordCount,
+                batch.Status,
+                batch.CreatedAt,
+                batch.ActivatedAt
+            })
+            .ToListAsync(cancellationToken);
+
+        return new
+        {
+            activeBatches
+        };
+    }
+
+    private static CampaignPlanningRequestSnapshot BuildRequestSnapshot(CampaignPlanningRequest request)
+    {
+        return new CampaignPlanningRequestSnapshot
+        {
+            CampaignId = request.CampaignId,
+            SelectedBudget = request.SelectedBudget,
+            Objective = request.Objective,
+            BusinessStage = request.BusinessStage,
+            MonthlyRevenueBand = request.MonthlyRevenueBand,
+            SalesModel = request.SalesModel,
+            GeographyScope = request.GeographyScope,
+            Provinces = request.Provinces.ToList(),
+            Cities = request.Cities.ToList(),
+            Suburbs = request.Suburbs.ToList(),
+            Areas = request.Areas.ToList(),
+            PreferredMediaTypes = request.PreferredMediaTypes.ToList(),
+            ExcludedMediaTypes = request.ExcludedMediaTypes.ToList(),
+            TargetLanguages = request.TargetLanguages.ToList(),
+            TargetAgeMin = request.TargetAgeMin,
+            TargetAgeMax = request.TargetAgeMax,
+            TargetGender = request.TargetGender,
+            TargetInterests = request.TargetInterests.ToList(),
+            TargetAudienceNotes = request.TargetAudienceNotes,
+            CustomerType = request.CustomerType,
+            BuyingBehaviour = request.BuyingBehaviour,
+            DecisionCycle = request.DecisionCycle,
+            PricePositioning = request.PricePositioning,
+            AverageCustomerSpendBand = request.AverageCustomerSpendBand,
+            GrowthTarget = request.GrowthTarget,
+            UrgencyLevel = request.UrgencyLevel,
+            AudienceClarity = request.AudienceClarity,
+            ValuePropositionFocus = request.ValuePropositionFocus,
+            TargetLsmMin = request.TargetLsmMin,
+            TargetLsmMax = request.TargetLsmMax,
+            OpenToUpsell = request.OpenToUpsell,
+            AdditionalBudget = request.AdditionalBudget,
+            MaxMediaItems = request.MaxMediaItems,
+            TargetRadioShare = request.TargetRadioShare,
+            TargetOohShare = request.TargetOohShare,
+            TargetTvShare = request.TargetTvShare,
+            TargetDigitalShare = request.TargetDigitalShare
+        };
+    }
+
+    private static string SerializeAuditJson(object value)
+    {
+        return JsonSerializer.Serialize(value, AuditJsonOptions);
     }
 
     private sealed record ProposalVariant(string Key, CampaignPlanningRequest Request, ProposalBudgetBand? BudgetBand);

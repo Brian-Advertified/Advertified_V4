@@ -7,6 +7,7 @@ import type {
   AdminDashboard,
   AdminGeographyDetail,
   AdminIntegrationStatus,
+  AdminOutletPage,
   AdminOutletDetail,
   AdminOutletPricing,
   AdminPackageOrder,
@@ -236,6 +237,16 @@ export function createAdminApi({ mapAdminPackageOrder }: AdminApiDependencies) {
         method: 'POST',
         body: JSON.stringify(input),
       });
+    },
+
+    async getAdminOutletsPage(page = 1, pageSize = 25, issuesOnly = true, sortBy = 'priority') {
+      const params = new URLSearchParams({
+        page: String(page),
+        pageSize: String(pageSize),
+        issuesOnly: String(issuesOnly),
+        sortBy,
+      });
+      return apiRequest<AdminOutletPage>(`/admin/outlets?${params.toString()}`);
     },
 
     async getAdminOutlet(code: string) {

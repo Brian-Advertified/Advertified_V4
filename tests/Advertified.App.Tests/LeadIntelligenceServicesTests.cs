@@ -1,9 +1,12 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Text.Json;
 using Advertified.App.Configuration;
 using Advertified.App.Contracts.Leads;
+using Advertified.App.Contracts.Campaigns;
 using Advertified.App.Data;
 using Advertified.App.Data.Entities;
+using Advertified.App.Domain.Campaigns;
 using Advertified.App.Services;
 using Advertified.App.Services.Abstractions;
 using FluentAssertions;
@@ -556,6 +559,200 @@ public class LeadActionRecommendationServiceTests
     }
 }
 
+public class RecommendationOpportunityContextParserTests
+{
+    [Fact]
+    public void Parse_ExtractsOpportunityContextAndLeavesCampaignNotes()
+    {
+        var rawNotes = @"Why you are receiving this:
+- You are missing high-intent search traffic.
+- You have limited awareness coverage across broad-reach channels.
+
+Lead intelligence summary:
+This business appears active on social but weak in broader awareness channels.
+
+Expected impact: more inbound leads, stronger high-intent capture, and clearer demand conversion paths.
+
+Keep the campaign family-safe and visible near commuter routes.";
+
+        var result = RecommendationOpportunityContextParser.Parse(rawNotes);
+
+        result.Context.Should().NotBeNull();
+        result.Context!.DetectedGaps.Should().ContainInOrder(
+            "You are missing high-intent search traffic.",
+            "You have limited awareness coverage across broad-reach channels.");
+        result.Context.LeadInsightSummary.Should().Be("This business appears active on social but weak in broader awareness channels.");
+        result.Context.ExpectedOutcome.Should().Be("Expected impact: more inbound leads, stronger high-intent capture, and clearer demand conversion paths.");
+        result.CampaignNotes.Should().Be("Keep the campaign family-safe and visible near commuter routes.");
+    }
+
+    [Fact]
+    public void Parse_ReturnsCampaignNotesWhenNoOpportunitySectionsExist()
+    {
+        var rawNotes = "Keep the campaign family-safe and visible near commuter routes.";
+
+        var result = RecommendationOpportunityContextParser.Parse(rawNotes);
+
+        result.Context.Should().BeNull();
+        result.CampaignNotes.Should().Be(rawNotes);
+    }
+}
+
+public class CampaignRecommendationServiceAuditTests
+{
+    [Fact]
+    public async Task GenerateAndSaveAsync_PersistsRecommendationRunAudit()
+    {
+        await using var db = LeadIntelligenceTestHelpers.CreateDbContext();
+        var packageBandId = Guid.NewGuid();
+        var packageOrderId = Guid.NewGuid();
+        var campaignId = Guid.NewGuid();
+
+        db.PackageBands.Add(new Advertified.App.Data.Entities.PackageBand
+        {
+            Id = packageBandId,
+            Code = "scale",
+            Name = "Scale",
+            MinBudget = 10_000m,
+            MaxBudget = 60_000m,
+            SortOrder = 1,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow
+        });
+
+        db.PackageOrders.Add(new Advertified.App.Data.Entities.PackageOrder
+        {
+            Id = packageOrderId,
+            PackageBandId = packageBandId,
+            Amount = 30_000m,
+            SelectedBudget = 30_000m,
+            Currency = "ZAR",
+            PaymentStatus = "paid",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+
+        db.Campaigns.Add(new Advertified.App.Data.Entities.Campaign
+        {
+            Id = campaignId,
+            PackageBandId = packageBandId,
+            PackageOrderId = packageOrderId,
+            Status = "paid",
+            PlanningMode = "ai_assisted",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+
+        db.CampaignBriefs.Add(new Advertified.App.Data.Entities.CampaignBrief
+        {
+            Id = Guid.NewGuid(),
+            CampaignId = campaignId,
+            Objective = "Awareness",
+            GeographyScope = "local",
+            CitiesJson = JsonSerializer.Serialize(new[] { "Johannesburg" }),
+            PreferredMediaTypesJson = JsonSerializer.Serialize(new[] { "ooh" }),
+            TargetLanguagesJson = JsonSerializer.Serialize(new[] { "English" }),
+            OpenToUpsell = false,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+
+        db.InventoryImportBatches.Add(new InventoryImportBatch
+        {
+            Id = Guid.NewGuid(),
+            ChannelFamily = "broadcast",
+            SourceType = "json",
+            SourceIdentifier = "seed.json",
+            SourceChecksum = "abc123",
+            RecordCount = 27,
+            Status = "active",
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow,
+            ActivatedAt = DateTime.UtcNow
+        });
+
+        await db.SaveChangesAsync();
+
+        var service = new CampaignRecommendationService(
+            db,
+            new StubRecommendationAuditMediaPlanningEngine(),
+            new StubRecommendationAuditCampaignReasoningService(),
+            new PlanningPolicySnapshotProvider(new PlanningPolicyOptions
+            {
+                Scale = new PackagePlanningPolicy
+                {
+                    BudgetFloor = 25_000m,
+                    MinimumNationalRadioCandidates = 1,
+                    RequireNationalCapableRadio = true,
+                    RequirePremiumNationalRadio = false,
+                    NationalRadioBonus = 10,
+                    NonNationalRadioPenalty = 8,
+                    RegionalRadioPenalty = 6
+                },
+                Dominance = new PackagePlanningPolicy
+                {
+                    BudgetFloor = 100_000m,
+                    MinimumNationalRadioCandidates = 2,
+                    RequireNationalCapableRadio = true,
+                    RequirePremiumNationalRadio = true,
+                    NationalRadioBonus = 12,
+                    NonNationalRadioPenalty = 10,
+                    RegionalRadioPenalty = 8
+                }
+            }));
+
+        var recommendationId = await service.GenerateAndSaveAsync(
+            campaignId,
+            new GenerateRecommendationRequest { TargetOohShare = 100 },
+            CancellationToken.None);
+
+        recommendationId.Should().NotBe(Guid.Empty);
+        db.CampaignRecommendations.Should().ContainSingle();
+        db.RecommendationRunAudits.Should().ContainSingle();
+
+        var recommendation = await db.CampaignRecommendations.SingleAsync();
+        var audit = await db.RecommendationRunAudits.SingleAsync();
+
+        audit.RecommendationId.Should().Be(recommendation.Id);
+        audit.CampaignId.Should().Be(campaignId);
+        audit.ManualReviewRequired.Should().BeTrue();
+        audit.BudgetUtilizationRatio.Should().Be(0.4m);
+        audit.RequestSnapshotJson.Should().NotBeNullOrWhiteSpace();
+        audit.PolicySnapshotJson.Should().NotBeNullOrWhiteSpace();
+        audit.InventorySnapshotJson.Should().NotBeNullOrWhiteSpace();
+        audit.CandidateCountsJson.Should().NotBeNullOrWhiteSpace();
+        audit.RejectedCandidatesJson.Should().NotBeNullOrWhiteSpace();
+        audit.SelectedItemsJson.Should().NotBeNullOrWhiteSpace();
+        audit.FallbackFlagsJson.Should().NotBeNullOrWhiteSpace();
+        recommendation.RequestSnapshotJson.Should().NotBeNullOrWhiteSpace();
+        recommendation.PolicySnapshotJson.Should().NotBeNullOrWhiteSpace();
+        recommendation.InventorySnapshotJson.Should().NotBeNullOrWhiteSpace();
+
+        using var requestSnapshot = JsonDocument.Parse(audit.RequestSnapshotJson!);
+        requestSnapshot.RootElement.GetProperty("selectedBudget").GetDecimal().Should().Be(30_000m);
+
+        using var candidateCounts = JsonDocument.Parse(audit.CandidateCountsJson!);
+        candidateCounts.RootElement.EnumerateArray()
+            .Any(item => item.GetProperty("stage").GetString() == "loaded"
+                && item.GetProperty("mediaType").GetString() == "ooh"
+                && item.GetProperty("count").GetInt32() == 12)
+            .Should()
+            .BeTrue();
+
+        using var rejectedCandidates = JsonDocument.Parse(audit.RejectedCandidatesJson!);
+        rejectedCandidates.RootElement.EnumerateArray()
+            .Any(item => item.GetProperty("reason").GetString() == "geography_mismatch")
+            .Should()
+            .BeTrue();
+
+        using var selectedItems = JsonDocument.Parse(audit.SelectedItemsJson!);
+        selectedItems.RootElement.EnumerateArray()
+            .Any(item => item.GetProperty("displayName").GetString() == "Johannesburg North Mega Board")
+            .Should()
+            .BeTrue();
+    }
+}
+
 sealed class StubHttpMessageHandler : HttpMessageHandler
 {
     private readonly Func<HttpRequestMessage, HttpResponseMessage> _handler;
@@ -640,4 +837,100 @@ sealed class LeadIntelligenceStubWebHostEnvironment : IWebHostEnvironment
     public string EnvironmentName { get; set; } = "Development";
     public string ContentRootPath { get; set; }
     public IFileProvider ContentRootFileProvider { get; set; }
+}
+
+sealed class StubRecommendationAuditMediaPlanningEngine : IMediaPlanningEngine
+{
+    public Task<RecommendationResult> GenerateAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
+    {
+        return Task.FromResult(new RecommendationResult
+        {
+            RecommendedPlan = new List<PlannedItem>
+            {
+                new PlannedItem
+                {
+                    SourceId = Guid.Parse("11111111-1111-1111-1111-111111111111"),
+                    SourceType = "ooh",
+                    DisplayName = "Johannesburg North Mega Board",
+                    MediaType = "ooh",
+                    UnitCost = 12_000m,
+                    Quantity = 1,
+                    Score = 87m,
+                    Metadata = new Dictionary<string, object?>
+                    {
+                        ["selectionReasons"] = new[] { "Strong local reach", "Fits the requested OOH mix" },
+                        ["policyFlags"] = new[] { "mix_target_matched" },
+                        ["confidenceScore"] = "high"
+                    }
+                }
+            },
+            FallbackFlags = new List<string> { "inventory_insufficient" },
+            ManualReviewRequired = true,
+            Rationale = "Selected for strong geography and audience fit.",
+            RunTrace = new RecommendationRunTrace
+            {
+                RequestSnapshot = new CampaignPlanningRequestSnapshot
+                {
+                    CampaignId = request.CampaignId,
+                    SelectedBudget = request.SelectedBudget,
+                    Objective = request.Objective,
+                    GeographyScope = request.GeographyScope,
+                    Cities = request.Cities.ToList(),
+                    PreferredMediaTypes = request.PreferredMediaTypes.ToList(),
+                    TargetLanguages = request.TargetLanguages.ToList(),
+                    TargetOohShare = request.TargetOohShare
+                },
+                CandidateCounts = new List<RecommendationTraceCount>
+                {
+                    new() { Stage = "loaded", MediaType = "ooh", Count = 12 },
+                    new() { Stage = "loaded", MediaType = "radio", Count = 4 },
+                    new() { Stage = "eligible", MediaType = "ooh", Count = 5 },
+                    new() { Stage = "eligible", MediaType = "radio", Count = 2 },
+                    new() { Stage = "selected", MediaType = "ooh", Count = 1 }
+                },
+                RejectedCandidates = new List<RecommendationRejectedCandidateTrace>
+                {
+                    new()
+                    {
+                        Stage = "eligibility",
+                        Reason = "geography_mismatch",
+                        SourceId = Guid.Parse("22222222-2222-2222-2222-222222222222"),
+                        DisplayName = "Cape Town Transit Screen",
+                        MediaType = "ooh"
+                    }
+                },
+                SelectedItems = new List<RecommendationSelectedItemTrace>
+                {
+                    new()
+                    {
+                        SourceId = Guid.Parse("11111111-1111-1111-1111-111111111111"),
+                        DisplayName = "Johannesburg North Mega Board",
+                        MediaType = "ooh",
+                        Score = 87m,
+                        TotalCost = 12_000m,
+                        SelectionReasons = new[] { "Strong local reach", "Fits the requested OOH mix" },
+                        PolicyFlags = new[] { "mix_target_matched" },
+                        ConfidenceScore = "high"
+                    }
+                }
+            }
+        });
+    }
+}
+
+sealed class StubRecommendationAuditCampaignReasoningService : ICampaignReasoningService
+{
+    public Task<CampaignReasoningResult?> GenerateAsync(
+        Advertified.App.Data.Entities.Campaign campaign,
+        Advertified.App.Data.Entities.CampaignBrief brief,
+        CampaignPlanningRequest planningRequest,
+        RecommendationResult recommendationResult,
+        CancellationToken cancellationToken)
+    {
+        return Task.FromResult<CampaignReasoningResult?>(new CampaignReasoningResult
+        {
+            Summary = "OOH-focused recommendation for local awareness.",
+            Rationale = "The selected board aligns strongly with the requested local reach strategy."
+        });
+    }
 }

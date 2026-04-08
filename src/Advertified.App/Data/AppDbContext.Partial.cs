@@ -7,6 +7,119 @@ public partial class AppDbContext
 {
     partial void OnModelCreatingPartial(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<CampaignRecommendation>(entity =>
+        {
+            entity.Property(e => e.RequestSnapshotJson)
+                .HasColumnType("jsonb")
+                .HasColumnName("request_snapshot_json");
+            entity.Property(e => e.PolicySnapshotJson)
+                .HasColumnType("jsonb")
+                .HasColumnName("policy_snapshot_json");
+            entity.Property(e => e.InventorySnapshotJson)
+                .HasColumnType("jsonb")
+                .HasColumnName("inventory_snapshot_json");
+        });
+
+        modelBuilder.Entity<RecommendationRunAudit>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("recommendation_run_audits_pkey");
+
+            entity.ToTable("recommendation_run_audits");
+
+            entity.HasIndex(e => e.CampaignId, "ix_recommendation_run_audits_campaign_id");
+            entity.HasIndex(e => e.RecommendationId, "ix_recommendation_run_audits_recommendation_id");
+            entity.HasIndex(e => e.CreatedAt, "ix_recommendation_run_audits_created_at");
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.CampaignId).HasColumnName("campaign_id");
+            entity.Property(e => e.RecommendationId).HasColumnName("recommendation_id");
+            entity.Property(e => e.RecommendationType)
+                .HasMaxLength(100)
+                .HasColumnName("recommendation_type");
+            entity.Property(e => e.RevisionNumber).HasColumnName("revision_number");
+            entity.Property(e => e.RequestSnapshotJson)
+                .HasColumnType("jsonb")
+                .HasColumnName("request_snapshot_json");
+            entity.Property(e => e.PolicySnapshotJson)
+                .HasColumnType("jsonb")
+                .HasColumnName("policy_snapshot_json");
+            entity.Property(e => e.InventorySnapshotJson)
+                .HasColumnType("jsonb")
+                .HasColumnName("inventory_snapshot_json");
+            entity.Property(e => e.CandidateCountsJson)
+                .HasColumnType("jsonb")
+                .HasColumnName("candidate_counts_json");
+            entity.Property(e => e.RejectedCandidatesJson)
+                .HasColumnType("jsonb")
+                .HasColumnName("rejected_candidates_json");
+            entity.Property(e => e.SelectedItemsJson)
+                .HasColumnType("jsonb")
+                .HasColumnName("selected_items_json");
+            entity.Property(e => e.FallbackFlagsJson)
+                .HasColumnType("jsonb")
+                .HasColumnName("fallback_flags_json");
+            entity.Property(e => e.BudgetUtilizationRatio)
+                .HasPrecision(8, 4)
+                .HasColumnName("budget_utilization_ratio");
+            entity.Property(e => e.ManualReviewRequired).HasColumnName("manual_review_required");
+            entity.Property(e => e.FinalRationale).HasColumnName("final_rationale");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+
+            entity.HasOne(e => e.Campaign)
+                .WithMany(e => e.RecommendationRunAudits)
+                .HasForeignKey(e => e.CampaignId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("recommendation_run_audits_campaign_id_fkey");
+
+            entity.HasOne(e => e.Recommendation)
+                .WithMany(e => e.RecommendationRunAudits)
+                .HasForeignKey(e => e.RecommendationId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("recommendation_run_audits_recommendation_id_fkey");
+        });
+
+        modelBuilder.Entity<InventoryImportBatch>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("inventory_import_batches_pkey");
+
+            entity.ToTable("inventory_import_batches");
+
+            entity.HasIndex(e => new { e.ChannelFamily, e.CreatedAt }, "ix_inventory_import_batches_channel_created");
+            entity.HasIndex(e => new { e.ChannelFamily, e.IsActive }, "ix_inventory_import_batches_channel_active");
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.ChannelFamily)
+                .HasMaxLength(50)
+                .HasColumnName("channel_family");
+            entity.Property(e => e.SourceType)
+                .HasMaxLength(50)
+                .HasColumnName("source_type");
+            entity.Property(e => e.SourceIdentifier)
+                .HasMaxLength(500)
+                .HasColumnName("source_identifier");
+            entity.Property(e => e.SourceChecksum)
+                .HasMaxLength(128)
+                .HasColumnName("source_checksum");
+            entity.Property(e => e.RecordCount).HasColumnName("record_count");
+            entity.Property(e => e.Status)
+                .HasMaxLength(30)
+                .HasColumnName("status");
+            entity.Property(e => e.IsActive).HasColumnName("is_active");
+            entity.Property(e => e.MetadataJson)
+                .HasColumnType("jsonb")
+                .HasColumnName("metadata_json");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.ActivatedAt).HasColumnName("activated_at");
+        });
+
         modelBuilder.Entity<AgentAreaAssignment>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("agent_area_assignments_pkey");

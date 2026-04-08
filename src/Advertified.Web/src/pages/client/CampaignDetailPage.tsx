@@ -7,7 +7,10 @@ import { LoadingState } from '../../components/ui/LoadingState';
 import { useToast } from '../../components/ui/toast';
 import { useAuth } from '../../features/auth/auth-context';
 import { canAccessAiStudioForStatus } from '../../features/campaigns/aiStudioAccess';
+import { CampaignPerformancePanel } from '../../features/campaigns/components/CampaignPerformancePanel';
 import { RecommendationViewer } from '../../features/campaigns/components/RecommendationViewer';
+import { parseCampaignOpportunityContext } from '../../features/campaigns/briefModel';
+import { formatChannelLabel } from '../../features/channels/channelUtils';
 import { buildApprovalDetails, getApprovalContent, getHeroContent } from '../../features/campaigns/clientCampaignDetailContent';
 import { getCampaignRecommendations, resolveRecommendationId } from '../../features/campaigns/recommendationSelection';
 import { CampaignStepper } from '../../components/campaign/CampaignStepper';
@@ -17,10 +20,6 @@ import { invalidateClientCampaignQueries, queryKeys } from '../../lib/queryKeys'
 import { formatCurrency, formatDate, titleCase } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import { ClientCampaignShell, getCampaignProgressPercent } from './clientWorkspace';
-
-function formatChannelLabel(value: string) {
-  return value.replace(/\booh\b/gi, 'Billboards and Digital Screens');
-}
 
 export function CampaignDetailPage() {
   const { id = '' } = useParams();
@@ -204,6 +203,7 @@ export function CampaignDetailPage() {
   const campaign = campaignQuery.data;
   const thread = threadQuery.data;
   const recommendation = recommendations.find((item) => item.id === resolvedRecommendationId) ?? primaryRecommendation ?? recommendations[0];
+  const opportunityContext = parseCampaignOpportunityContext(campaign.brief);
   const progress = getCampaignProgressPercent(campaign);
   const campaignReadiness = campaign.status === 'launched'
     ? 100
@@ -342,83 +342,66 @@ export function CampaignDetailPage() {
             </section>
 
             {campaign.deliveryReports.length > 0 || campaign.supplierBookings.length > 0 || campaign.assets.length > 0 || campaign.daysLeft != null ? (
-              <section className="rounded-[30px] border border-line bg-white p-7 shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
-            <div className="mb-5">
-              <h3 className="text-xl font-semibold text-ink">Delivery updates</h3>
-              <p className="mt-2 text-sm leading-7 text-ink-soft">
-                Live execution, supplier confirmations, and campaign files appear here as the team moves the campaign through delivery.
-              </p>
-            </div>
-
-            <div className="grid gap-5 grid-cols-1 lg:grid-cols-[0.9fr_1.1fr]">
-              <div className="space-y-4">
-                {campaign.daysLeft != null ? (
-                  <div className="rounded-[18px] border border-line bg-slate-50/70 p-5">
-                    <div className="mb-2 text-sm font-semibold text-ink">Days left</div>
-                    <p className="text-3xl font-semibold text-ink">{campaign.daysLeft}</p>
-                    <p className="mt-2 text-sm leading-6 text-ink-soft">
-                      Effective end date {campaign.effectiveEndDate ? formatDate(`${campaign.effectiveEndDate}T00:00:00`) : 'will appear here once the schedule is fully set.'}
-                    </p>
+              <>
+                <CampaignPerformancePanel campaign={campaign} />
+                <section className="rounded-[30px] border border-line bg-white p-7 shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
+                  <div className="mb-5">
+                    <h3 className="text-xl font-semibold text-ink">Live details</h3>
                   </div>
-                ) : null}
 
-                <div className="rounded-[18px] border border-line bg-slate-50/70 p-5">
-                  <div className="mb-2 text-sm font-semibold text-ink">Supplier bookings</div>
-                  {campaign.supplierBookings.length > 0 ? (
-                    <div className="space-y-3">
-                      {campaign.supplierBookings.slice(0, 3).map((booking) => (
-                        <div key={booking.id} className="user-wire">
-                          <strong>{booking.supplierOrStation}</strong>
-                          <div>{formatChannelLabel(booking.channel)} | {titleCase(booking.bookingStatus)}</div>
-                          <div>{booking.liveFrom || booking.liveTo ? `${booking.liveFrom ?? 'Start TBC'} to ${booking.liveTo ?? 'End TBC'}` : 'Dates still being confirmed'}</div>
+                  <div className="grid gap-5 grid-cols-1 lg:grid-cols-[0.9fr_1.1fr]">
+                    <div className="space-y-4">
+                      {campaign.daysLeft != null ? (
+                        <div className="rounded-[18px] border border-line bg-slate-50/70 p-5">
+                          <div className="mb-2 text-sm font-semibold text-ink">Days left</div>
+                          <p className="text-3xl font-semibold text-ink">{campaign.daysLeft}</p>
+                          <p className="mt-2 text-sm leading-6 text-ink-soft">
+                            Effective end date {campaign.effectiveEndDate ? formatDate(`${campaign.effectiveEndDate}T00:00:00`) : 'Pending'}
+                          </p>
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm leading-6 text-ink-soft">Supplier confirmations will appear here once bookings start being logged.</p>
-                  )}
-                </div>
-              </div>
+                      ) : null}
 
-              <div className="space-y-4">
-                <div className="rounded-[18px] border border-line bg-slate-50/70 p-5">
-                  <div className="mb-2 text-sm font-semibold text-ink">Latest reports</div>
-                  {campaign.deliveryReports.length > 0 ? (
-                    <div className="space-y-3">
-                      {campaign.deliveryReports.slice(0, 3).map((report) => (
-                        <div key={report.id} className="user-wire">
-                          <strong>{report.headline}</strong>
-                          <div>{titleCase(report.reportType)} | {report.reportedAt ? formatDate(report.reportedAt) : 'Reported now'}</div>
-                          <div>{report.summary ?? 'No summary provided yet.'}</div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm leading-6 text-ink-soft">Performance and proof-of-delivery updates will land here after launch starts.</p>
-                  )}
-                </div>
-
-                <div className="rounded-[18px] border border-line bg-slate-50/70 p-5">
-                  <div className="mb-2 text-sm font-semibold text-ink">Campaign files</div>
-                  {campaign.assets.length > 0 ? (
-                    <div className="space-y-3">
-                      {campaign.assets.slice(0, 4).map((asset) => (
-                        <div key={asset.id} className="flex items-center justify-between gap-3 rounded-[14px] border border-line bg-white px-4 py-3">
-                          <div>
-                            <div className="text-sm font-semibold text-ink">{asset.displayName}</div>
-                            <div className="text-xs text-ink-soft">{asset.assetType.replace(/_/g, ' ')}</div>
+                      <div className="rounded-[18px] border border-line bg-slate-50/70 p-5">
+                        <div className="mb-2 text-sm font-semibold text-ink">Supplier bookings</div>
+                        {campaign.supplierBookings.length > 0 ? (
+                          <div className="space-y-3">
+                            {campaign.supplierBookings.slice(0, 3).map((booking) => (
+                              <div key={booking.id} className="user-wire">
+                                <strong>{booking.supplierOrStation}</strong>
+                                <div>{formatChannelLabel(booking.channel)} | {titleCase(booking.bookingStatus)}</div>
+                                <div>{booking.liveFrom || booking.liveTo ? `${booking.liveFrom ?? 'Start TBC'} to ${booking.liveTo ?? 'End TBC'}` : 'Dates still being confirmed'}</div>
+                              </div>
+                            ))}
                           </div>
-                          {asset.publicUrl ? <a href={asset.publicUrl} target="_blank" rel="noreferrer" className="user-btn-secondary">Open</a> : null}
-                        </div>
-                      ))}
+                        ) : (
+                          <p className="text-sm leading-6 text-ink-soft">Bookings will appear here once media is confirmed.</p>
+                        )}
+                      </div>
                     </div>
-                  ) : (
-                    <p className="text-sm leading-6 text-ink-soft">Creative packs, proofs, and related files will appear here once the team uploads them.</p>
-                  )}
-                </div>
-              </div>
-            </div>
-              </section>
+
+                    <div className="space-y-4">
+                      <div className="rounded-[18px] border border-line bg-slate-50/70 p-5">
+                        <div className="mb-2 text-sm font-semibold text-ink">Campaign files</div>
+                        {campaign.assets.length > 0 ? (
+                          <div className="space-y-3">
+                            {campaign.assets.slice(0, 4).map((asset) => (
+                              <div key={asset.id} className="flex items-center justify-between gap-3 rounded-[14px] border border-line bg-white px-4 py-3">
+                                <div>
+                                  <div className="text-sm font-semibold text-ink">{asset.displayName}</div>
+                                  <div className="text-xs text-ink-soft">{asset.assetType.replace(/_/g, ' ')}</div>
+                                </div>
+                                {asset.publicUrl ? <a href={asset.publicUrl} target="_blank" rel="noreferrer" className="user-btn-secondary">Open</a> : null}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm leading-6 text-ink-soft">Files will appear here when the team uploads them.</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </>
             ) : null}
           </>
         ) : null}
@@ -547,6 +530,7 @@ export function CampaignDetailPage() {
                       recommendation={recommendation}
                       recommendationPdfUrl={campaign.recommendationPdfUrl}
                       onDownloadPdf={() => handleDownloadRecommendationPdf()}
+                      opportunityContext={opportunityContext}
                     />
                   </div>
                 </details>

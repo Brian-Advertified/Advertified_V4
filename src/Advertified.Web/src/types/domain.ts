@@ -257,10 +257,20 @@ export interface CampaignRecommendation {
   clientFeedbackNotes?: string;
   manualReviewRequired: boolean;
   fallbackFlags: string[];
+  audit?: CampaignRecommendationAudit;
   buildSourceLabel?: string;
   status: 'draft' | 'sent_to_client' | 'approved';
   totalCost: number;
   items: RecommendationItem[];
+}
+
+export interface CampaignRecommendationAudit {
+  requestSummary: string;
+  selectionSummary: string;
+  rejectionSummary: string;
+  policySummary: string;
+  budgetSummary: string;
+  fallbackSummary?: string;
 }
 
 export interface CampaignAsset {
@@ -831,6 +841,18 @@ export interface AdminOutlet {
   minSlotRate?: number;
   languageDisplay?: string;
   broadcastFrequency?: string;
+}
+
+export interface AdminOutletPage {
+  items: AdminOutlet[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
+  issueCount: number;
+  strongCount: number;
+  issuesOnly: boolean;
+  sortBy: string;
 }
 
 export interface AdminOutletDetail {

@@ -38,6 +38,8 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
     public async Task<byte[]> GetCampaignPdfBytesAsync(Guid campaignId, CancellationToken cancellationToken)
     {
         var campaign = await LoadCampaignForRecommendationsAsync(campaignId, cancellationToken);
+        var opportunityContext = RecommendationOpportunityContextParser.Parse(
+            campaign.CampaignBrief?.SpecialRequirements ?? campaign.CampaignBrief?.CreativeNotes);
 
         var currentRecommendations = RecommendationRevisionSupport.GetCurrentRecommendationSet(campaign.CampaignRecommendations);
 
@@ -68,10 +70,11 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
             BudgetDisplayText = ResolveBudgetDisplayText(campaign),
             GeneratedAtUtc = DateTime.UtcNow,
             CampaignObjective = campaign.CampaignBrief?.Objective,
-            SpecialRequirements = campaign.CampaignBrief?.SpecialRequirements ?? campaign.CampaignBrief?.CreativeNotes,
+            SpecialRequirements = opportunityContext.CampaignNotes,
             TargetAreas = BuildTargetAreas(campaign.CampaignBrief),
             TargetAudienceSummary = BuildTargetAudienceSummary(campaign.CampaignBrief),
             TargetLanguages = DeserializeList(campaign.CampaignBrief?.TargetLanguagesJson),
+            OpportunityContext = opportunityContext.Context,
             Proposals = currentRecommendations.Select((recommendation, index) => MapProposal(campaign.Id, recommendation, index)).ToArray()
         };
 
@@ -96,6 +99,8 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
     public async Task<byte[]> GetRecommendationPdfBytesAsync(Guid campaignId, Guid recommendationId, CancellationToken cancellationToken)
     {
         var campaign = await LoadCampaignForRecommendationsAsync(campaignId, cancellationToken);
+        var opportunityContext = RecommendationOpportunityContextParser.Parse(
+            campaign.CampaignBrief?.SpecialRequirements ?? campaign.CampaignBrief?.CreativeNotes);
 
         var currentRecommendations = RecommendationRevisionSupport.GetCurrentRecommendationSet(campaign.CampaignRecommendations);
         var recommendation = currentRecommendations.FirstOrDefault(x => x.Id == recommendationId)
@@ -122,10 +127,11 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
             BudgetDisplayText = ResolveBudgetDisplayText(campaign),
             GeneratedAtUtc = DateTime.UtcNow,
             CampaignObjective = campaign.CampaignBrief?.Objective,
-            SpecialRequirements = campaign.CampaignBrief?.SpecialRequirements ?? campaign.CampaignBrief?.CreativeNotes,
+            SpecialRequirements = opportunityContext.CampaignNotes,
             TargetAreas = BuildTargetAreas(campaign.CampaignBrief),
             TargetAudienceSummary = BuildTargetAudienceSummary(campaign.CampaignBrief),
             TargetLanguages = DeserializeList(campaign.CampaignBrief?.TargetLanguagesJson),
+            OpportunityContext = opportunityContext.Context,
             Proposals = new[] { MapProposal(campaign.Id, recommendation, 0) }
         };
 
@@ -572,3 +578,99 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
         return BuildFrontendUrl($"/proposal/{campaignId:D}{queryString}");
     }
 }
+
+internal static class RecommendationOpportunityContextParser
+{
+    public static RecommendationOpportunityContextParseResult Parse(string? rawNotes)
+    {
+        if (string.IsNullOrWhiteSpace(rawNotes))
+        {
+            return new RecommendationOpportunityContextParseResult(null, null);
+        }
+
+        var sections = rawNotes
+            .Split(new[] { "\r\n\r\n", "\n\n" }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(static section => !string.IsNullOrWhiteSpace(section))
+            .ToList();
+
+        var detectedGaps = new List<string>();
+        string? leadInsightSummary = null;
+        string? expectedOutcome = null;
+        var remainingSections = new List<string>();
+
+        foreach (var section in sections)
+        {
+            if (TryParseDetectedGaps(section, detectedGaps))
+            {
+                continue;
+            }
+
+            if (TryParsePrefixedSection(section, "Lead intelligence summary:", out var summary))
+            {
+                leadInsightSummary = summary;
+                continue;
+            }
+
+            if (section.StartsWith("Expected impact:", StringComparison.OrdinalIgnoreCase))
+            {
+                expectedOutcome = section.Trim();
+                continue;
+            }
+
+            remainingSections.Add(section.Trim());
+        }
+
+        var hasOpportunityContext = detectedGaps.Count > 0
+            || !string.IsNullOrWhiteSpace(leadInsightSummary)
+            || !string.IsNullOrWhiteSpace(expectedOutcome);
+
+        return new RecommendationOpportunityContextParseResult(
+            hasOpportunityContext
+                ? new RecommendationOpportunityContextModel
+                {
+                    DetectedGaps = detectedGaps,
+                    LeadInsightSummary = leadInsightSummary,
+                    ExpectedOutcome = expectedOutcome
+                }
+                : null,
+            remainingSections.Count > 0 ? string.Join(Environment.NewLine + Environment.NewLine, remainingSections) : null);
+    }
+
+    private static bool TryParseDetectedGaps(string section, List<string> detectedGaps)
+    {
+        if (!TryParsePrefixedSection(section, "Why you are receiving this:", out var body))
+        {
+            return false;
+        }
+
+        foreach (var line in body
+            .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(static line => line.Trim())
+            .Where(static line => line.StartsWith("-", StringComparison.Ordinal)))
+        {
+            var normalized = line[1..].Trim();
+            if (!string.IsNullOrWhiteSpace(normalized))
+            {
+                detectedGaps.Add(normalized);
+            }
+        }
+
+        return true;
+    }
+
+    private static bool TryParsePrefixedSection(string section, string prefix, out string value)
+    {
+        if (!section.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            value = string.Empty;
+            return false;
+        }
+
+        value = section[prefix.Length..].Trim();
+        return true;
+    }
+}
+
+internal sealed record RecommendationOpportunityContextParseResult(
+    RecommendationOpportunityContextModel? Context,
+    string? CampaignNotes);

@@ -98,6 +98,8 @@ public sealed class CampaignsController : ControllerBase
             .Include(x => x.CampaignPauseWindows)
             .Include(x => x.CampaignRecommendations)
                 .ThenInclude(x => x.RecommendationItems)
+            .Include(x => x.CampaignRecommendations)
+                .ThenInclude(x => x.RecommendationRunAudits)
             .FirstOrDefaultAsync(x => x.Id == id && x.UserId == userId, cancellationToken);
 
         if (campaign is null)

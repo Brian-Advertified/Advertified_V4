@@ -11,6 +11,7 @@ public sealed class CampaignRecommendationResponse
     public string? ClientFeedbackNotes { get; set; }
     public bool ManualReviewRequired { get; set; }
     public IReadOnlyList<string> FallbackFlags { get; set; } = Array.Empty<string>();
+    public CampaignRecommendationAuditResponse? Audit { get; set; }
     public string Status { get; set; } = string.Empty;
     public decimal TotalCost { get; set; }
     public IReadOnlyList<RecommendationItemResponse> Items { get; set; } = Array.Empty<RecommendationItemResponse>();

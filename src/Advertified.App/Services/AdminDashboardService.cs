@@ -117,6 +117,41 @@ public sealed class AdminDashboardService : IAdminDashboardService
         };
     }
 
+    public async Task<AdminOutletPageResponse> GetOutletPageAsync(int page, int pageSize, bool issuesOnly, string sortBy, CancellationToken cancellationToken)
+    {
+        var normalizedPage = Math.Max(1, page);
+        var normalizedPageSize = Math.Clamp(pageSize, 10, 100);
+        var normalizedSort = NormalizeOutletSort(sortBy);
+        var outletRecords = await _broadcastInventoryCatalog.GetRecordsAsync(cancellationToken);
+        var mappedOutlets = outletRecords.Select(MapOutlet).ToArray();
+        var issueCount = mappedOutlets.Count(HasOutletIssue);
+        var strongCount = mappedOutlets.Count(static item => item.CatalogHealth == "strong");
+        var visibleOutlets = issuesOnly
+            ? mappedOutlets.Where(HasOutletIssue)
+            : mappedOutlets.AsEnumerable();
+        var sortedOutlets = SortOutlets(visibleOutlets, normalizedSort).ToArray();
+        var totalCount = sortedOutlets.Length;
+        var totalPages = totalCount == 0 ? 1 : (int)Math.Ceiling(totalCount / (double)normalizedPageSize);
+        var effectivePage = Math.Min(normalizedPage, totalPages);
+        var items = sortedOutlets
+            .Skip((effectivePage - 1) * normalizedPageSize)
+            .Take(normalizedPageSize)
+            .ToArray();
+
+        return new AdminOutletPageResponse
+        {
+            Items = items,
+            Page = effectivePage,
+            PageSize = normalizedPageSize,
+            TotalCount = totalCount,
+            TotalPages = totalPages,
+            IssueCount = issueCount,
+            StrongCount = strongCount,
+            IssuesOnly = issuesOnly,
+            SortBy = normalizedSort
+        };
+    }
+
     private async Task<int> GetSourceDocumentCountAsync(CancellationToken cancellationToken)
     {
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
@@ -682,6 +717,62 @@ public sealed class AdminDashboardService : IAdminDashboardService
         }
 
         return "mixed_not_fully_healthy";
+    }
+
+    private static bool HasOutletIssue(AdminOutletResponse outlet)
+    {
+        return outlet.CatalogHealth != "strong"
+            || !outlet.HasPricing
+            || (outlet.PackageCount == 0 && outlet.SlotRateCount == 0)
+            || string.IsNullOrWhiteSpace(outlet.LanguageDisplay);
+    }
+
+    private static IEnumerable<AdminOutletResponse> SortOutlets(IEnumerable<AdminOutletResponse> outlets, string sortBy)
+    {
+        return sortBy switch
+        {
+            "name" => outlets.OrderBy(static item => item.Name),
+            "coverage" => outlets.OrderBy(static item => item.CoverageType).ThenBy(static item => item.Name),
+            _ => outlets.OrderByDescending(PriorityScore).ThenBy(static item => item.Name)
+        };
+    }
+
+    private static int PriorityScore(AdminOutletResponse item)
+    {
+        var score = item.CatalogHealth switch
+        {
+            "weak_no_inventory" => 100,
+            "weak_unpriced" => 85,
+            "mixed_not_fully_healthy" => 60,
+            _ => 20
+        };
+
+        if (!item.HasPricing)
+        {
+            score += 25;
+        }
+
+        if (item.PackageCount == 0 && item.SlotRateCount == 0)
+        {
+            score += 20;
+        }
+
+        if (string.IsNullOrWhiteSpace(item.LanguageDisplay))
+        {
+            score += 8;
+        }
+
+        return score;
+    }
+
+    private static string NormalizeOutletSort(string? sortBy)
+    {
+        return (sortBy ?? string.Empty).Trim().ToLowerInvariant() switch
+        {
+            "name" => "name",
+            "coverage" => "coverage",
+            _ => "priority"
+        };
     }
 
     private static string BuildGeographyLabel(BroadcastInventoryRecord record)

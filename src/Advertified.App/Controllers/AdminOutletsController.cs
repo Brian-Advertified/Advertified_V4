@@ -10,15 +10,35 @@ namespace Advertified.App.Controllers;
 public sealed class AdminOutletsController : BaseAdminController
 {
     private readonly IAdminMutationService _adminMutationService;
+    private readonly IAdminDashboardService _adminDashboardService;
 
     public AdminOutletsController(
         AppDbContext db,
         ICurrentUserAccessor currentUserAccessor,
         IChangeAuditService changeAuditService,
+        IAdminDashboardService adminDashboardService,
         IAdminMutationService adminMutationService)
         : base(db, currentUserAccessor, changeAuditService)
     {
+        _adminDashboardService = adminDashboardService;
         _adminMutationService = adminMutationService;
+    }
+
+    [HttpGet("")]
+    public async Task<ActionResult<AdminOutletPageResponse>> GetOutlets(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25,
+        [FromQuery] bool issuesOnly = true,
+        [FromQuery] string sortBy = "priority",
+        CancellationToken cancellationToken = default)
+    {
+        var gateResult = await EnsureAdminAsync(cancellationToken);
+        if (gateResult is not null)
+        {
+            return gateResult;
+        }
+
+        return Ok(await _adminDashboardService.GetOutletPageAsync(page, pageSize, issuesOnly, sortBy, cancellationToken));
     }
 
     [HttpPost("")]

@@ -7,11 +7,14 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Globalization;
+using Advertified.App.Data.Entities;
 
 namespace Advertified.App.Services;
 
 public sealed class BroadcastInventoryImportService : IBroadcastInventoryImportService
 {
+    private const string BroadcastChannelFamily = "broadcast";
+
     private readonly Npgsql.NpgsqlDataSource _dataSource;
     private readonly BroadcastInventoryOptions _options;
     private readonly IWebHostEnvironment _environment;
@@ -37,7 +40,9 @@ public sealed class BroadcastInventoryImportService : IBroadcastInventoryImportS
             return;
         }
 
-        await using var stream = File.OpenRead(path);
+        var fileBytes = await File.ReadAllBytesAsync(path, cancellationToken);
+        var checksum = Convert.ToHexString(SHA256.HashData(fileBytes)).ToLowerInvariant();
+        await using var stream = new MemoryStream(fileBytes);
         var document = await JsonSerializer.DeserializeAsync<BroadcastInventoryDocument>(
             stream,
             new JsonSerializerOptions { PropertyNameCaseInsensitive = true },
@@ -49,274 +54,425 @@ public sealed class BroadcastInventoryImportService : IBroadcastInventoryImportS
         }
 
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        if (await HasActiveBatchWithChecksumAsync(connection, checksum, cancellationToken))
+        {
+            return;
+        }
+
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        var batchId = Guid.NewGuid();
 
         await connection.ExecuteAsync(new CommandDefinition(
             @"
-            delete from media_outlet
-            where lower(media_type) in ('radio', 'tv');
+            insert into inventory_import_batches (
+                id,
+                channel_family,
+                source_type,
+                source_identifier,
+                source_checksum,
+                record_count,
+                status,
+                is_active,
+                metadata_json,
+                activated_at
+            )
+            values (
+                @Id,
+                @ChannelFamily,
+                'json',
+                @SourceIdentifier,
+                @SourceChecksum,
+                @RecordCount,
+                'loading',
+                false,
+                cast(@MetadataJson as jsonb),
+                null
+            );
             ",
+            new
+            {
+                Id = batchId,
+                ChannelFamily = BroadcastChannelFamily,
+                SourceIdentifier = path,
+                SourceChecksum = checksum,
+                RecordCount = document.Records.Count,
+                MetadataJson = JsonSerializer.Serialize(new
+                {
+                    sourceFileName = Path.GetFileName(path)
+                })
+            },
             transaction: transaction,
             cancellationToken: cancellationToken));
 
         foreach (var record in document.Records)
         {
-            var outletId = CreateDeterministicGuid(record.Id);
+            var outletId = await UpsertOutletAsync(connection, transaction, record, batchId, cancellationToken);
+            await ReplaceOutletChildrenAsync(connection, transaction, record, outletId, cancellationToken);
+        }
+
+        await ActivateBatchAsync(connection, transaction, batchId, cancellationToken);
+
+        await transaction.CommitAsync(cancellationToken);
+        await _broadcastInventoryCatalog.RefreshAsync(cancellationToken);
+    }
+
+    private static async Task<bool> HasActiveBatchWithChecksumAsync(
+        NpgsqlConnection connection,
+        string checksum,
+        CancellationToken cancellationToken)
+    {
+        var activeChecksum = await connection.QuerySingleOrDefaultAsync<string?>(new CommandDefinition(
+            @"
+            select source_checksum
+            from inventory_import_batches
+            where channel_family = @ChannelFamily
+              and is_active = true
+            order by activated_at desc nulls last, created_at desc
+            limit 1;
+            ",
+            new { ChannelFamily = BroadcastChannelFamily },
+            cancellationToken: cancellationToken));
+
+        return string.Equals(activeChecksum, checksum, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static async Task<Guid> UpsertOutletAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        BroadcastInventoryRecord record,
+        Guid batchId,
+        CancellationToken cancellationToken)
+    {
+        var outletId = CreateDeterministicGuid(record.Id);
+        return await connection.ExecuteScalarAsync<Guid>(new CommandDefinition(
+            @"
+            insert into media_outlet (
+                id,
+                code,
+                name,
+                media_type,
+                coverage_type,
+                catalog_health,
+                operator_name,
+                is_national,
+                has_pricing,
+                language_notes,
+                audience_age_skew,
+                audience_gender_skew,
+                audience_lsm_range,
+                audience_racial_skew,
+                audience_urban_rural,
+                broadcast_frequency,
+                listenership_daily,
+                listenership_weekly,
+                listenership_period,
+                target_audience,
+                data_source_enrichment,
+                import_batch_id
+            )
+            values (
+                @Id,
+                @Code,
+                @Name,
+                @MediaType,
+                @CoverageType,
+                @CatalogHealth,
+                @OperatorName,
+                @IsNational,
+                @HasPricing,
+                @LanguageNotes,
+                @AudienceAgeSkew,
+                @AudienceGenderSkew,
+                @AudienceLsmRange,
+                @AudienceRacialSkew,
+                @AudienceUrbanRural,
+                @BroadcastFrequency,
+                @ListenershipDaily,
+                @ListenershipWeekly,
+                @ListenershipPeriod,
+                @TargetAudience,
+                @DataSourceEnrichment,
+                @ImportBatchId
+            )
+            on conflict (code) do update
+            set
+                name = excluded.name,
+                media_type = excluded.media_type,
+                coverage_type = excluded.coverage_type,
+                catalog_health = excluded.catalog_health,
+                operator_name = excluded.operator_name,
+                is_national = excluded.is_national,
+                has_pricing = excluded.has_pricing,
+                language_notes = excluded.language_notes,
+                audience_age_skew = excluded.audience_age_skew,
+                audience_gender_skew = excluded.audience_gender_skew,
+                audience_lsm_range = excluded.audience_lsm_range,
+                audience_racial_skew = excluded.audience_racial_skew,
+                audience_urban_rural = excluded.audience_urban_rural,
+                broadcast_frequency = excluded.broadcast_frequency,
+                listenership_daily = excluded.listenership_daily,
+                listenership_weekly = excluded.listenership_weekly,
+                listenership_period = excluded.listenership_period,
+                target_audience = excluded.target_audience,
+                data_source_enrichment = excluded.data_source_enrichment,
+                import_batch_id = excluded.import_batch_id,
+                updated_at = now()
+            returning id;
+            ",
+            new
+            {
+                Id = outletId,
+                Code = record.Id,
+                Name = record.Station,
+                MediaType = record.MediaType,
+                CoverageType = record.CoverageType,
+                CatalogHealth = record.CatalogHealth,
+                OperatorName = (string?)null,
+                IsNational = record.IsNational,
+                HasPricing = record.HasPricing,
+                record.LanguageNotes,
+                record.AudienceAgeSkew,
+                record.AudienceGenderSkew,
+                record.AudienceLsmRange,
+                record.AudienceRacialSkew,
+                AudienceUrbanRural = record.UrbanRuralMix,
+                record.BroadcastFrequency,
+                record.ListenershipDaily,
+                record.ListenershipWeekly,
+                record.ListenershipPeriod,
+                record.TargetAudience,
+                ImportBatchId = batchId,
+                DataSourceEnrichment = record.DataSourceEnrichment.ValueKind == JsonValueKind.Undefined
+                    ? null
+                    : record.DataSourceEnrichment.GetRawText()
+            },
+            transaction: transaction,
+            cancellationToken: cancellationToken));
+    }
+
+    private static async Task ReplaceOutletChildrenAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        BroadcastInventoryRecord record,
+        Guid outletId,
+        CancellationToken cancellationToken)
+    {
+        await connection.ExecuteAsync(new CommandDefinition(
+            @"
+            delete from media_outlet_keyword where media_outlet_id = @MediaOutletId;
+            delete from media_outlet_language where media_outlet_id = @MediaOutletId;
+            delete from media_outlet_geography where media_outlet_id = @MediaOutletId;
+            delete from media_outlet_pricing_package where media_outlet_id = @MediaOutletId;
+            delete from media_outlet_slot_rate where media_outlet_id = @MediaOutletId;
+            ",
+            new { MediaOutletId = outletId },
+            transaction: transaction,
+            cancellationToken: cancellationToken));
+
+        for (var index = 0; index < record.AudienceKeywords.Count; index++)
+        {
+            var keyword = record.AudienceKeywords[index]?.Trim();
+            if (string.IsNullOrWhiteSpace(keyword))
+            {
+                continue;
+            }
+
+            await connection.ExecuteAsync(new CommandDefinition(
+                "insert into media_outlet_keyword (id, media_outlet_id, keyword) values (@Id, @MediaOutletId, @Keyword);",
+                new
+                {
+                    Id = CreateDeterministicGuid($"{record.Id}:keyword:{keyword}"),
+                    MediaOutletId = outletId,
+                    Keyword = keyword
+                },
+                transaction: transaction,
+                cancellationToken: cancellationToken));
+        }
+
+        for (var index = 0; index < record.PrimaryLanguages.Count; index++)
+        {
+            var language = record.PrimaryLanguages[index]?.Trim().ToLowerInvariant();
+            if (string.IsNullOrWhiteSpace(language))
+            {
+                continue;
+            }
+
+            await connection.ExecuteAsync(new CommandDefinition(
+                "insert into media_outlet_language (id, media_outlet_id, language_code, is_primary) values (@Id, @MediaOutletId, @LanguageCode, @IsPrimary);",
+                new
+                {
+                    Id = CreateDeterministicGuid($"{record.Id}:language:{language}"),
+                    MediaOutletId = outletId,
+                    LanguageCode = language,
+                    IsPrimary = index == 0
+                },
+                transaction: transaction,
+                cancellationToken: cancellationToken));
+        }
+
+        foreach (var province in record.ProvinceCodes.Where(static value => !string.IsNullOrWhiteSpace(value)).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
             await connection.ExecuteAsync(new CommandDefinition(
                 @"
-                insert into media_outlet (
+                insert into media_outlet_geography (id, media_outlet_id, province_code, city_name, geography_type)
+                values (@Id, @MediaOutletId, @ProvinceCode, null, 'province');
+                ",
+                new
+                {
+                    Id = CreateDeterministicGuid($"{record.Id}:province:{province}"),
+                    MediaOutletId = outletId,
+                    ProvinceCode = province.Trim().ToLowerInvariant()
+                },
+                transaction: transaction,
+                cancellationToken: cancellationToken));
+        }
+
+        foreach (var city in record.CityLabels.Where(static value => !string.IsNullOrWhiteSpace(value)).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            await connection.ExecuteAsync(new CommandDefinition(
+                @"
+                insert into media_outlet_geography (id, media_outlet_id, province_code, city_name, geography_type)
+                values (@Id, @MediaOutletId, null, @CityName, 'city');
+                ",
+                new
+                {
+                    Id = CreateDeterministicGuid($"{record.Id}:city:{city}"),
+                    MediaOutletId = outletId,
+                    CityName = city.Trim()
+                },
+                transaction: transaction,
+                cancellationToken: cancellationToken));
+        }
+
+        foreach (var package in EnumeratePackages(record))
+        {
+            await connection.ExecuteAsync(new CommandDefinition(
+                @"
+                insert into media_outlet_pricing_package (
                     id,
-                    code,
-                    name,
-                    media_type,
-                    coverage_type,
-                    catalog_health,
-                    operator_name,
-                    is_national,
-                    has_pricing,
-                    language_notes,
-                    audience_age_skew,
-                    audience_gender_skew,
-                    audience_lsm_range,
-                    audience_racial_skew,
-                    audience_urban_rural,
-                    broadcast_frequency,
-                    listenership_daily,
-                    listenership_weekly,
-                    listenership_period,
-                    target_audience,
-                    data_source_enrichment
+                    media_outlet_id,
+                    package_name,
+                    package_type,
+                    exposure_count,
+                    monthly_exposure_count,
+                    value_zar,
+                    discount_zar,
+                    saving_zar,
+                    investment_zar,
+                    cost_per_month_zar,
+                    duration_months,
+                    duration_weeks,
+                    notes
                 )
                 values (
                     @Id,
-                    @Code,
-                    @Name,
-                    @MediaType,
-                    @CoverageType,
-                    @CatalogHealth,
-                    @OperatorName,
-                    @IsNational,
-                    @HasPricing,
-                    @LanguageNotes,
-                    @AudienceAgeSkew,
-                    @AudienceGenderSkew,
-                    @AudienceLsmRange,
-                    @AudienceRacialSkew,
-                    @AudienceUrbanRural,
-                    @BroadcastFrequency,
-                    @ListenershipDaily,
-                    @ListenershipWeekly,
-                    @ListenershipPeriod,
-                    @TargetAudience,
-                    @DataSourceEnrichment
+                    @MediaOutletId,
+                    @PackageName,
+                    @PackageType,
+                    @ExposureCount,
+                    @MonthlyExposureCount,
+                    @ValueZar,
+                    @DiscountZar,
+                    @SavingZar,
+                    @InvestmentZar,
+                    @CostPerMonthZar,
+                    @DurationMonths,
+                    @DurationWeeks,
+                    @Notes
                 );
                 ",
                 new
                 {
-                    Id = outletId,
-                    Code = record.Id,
-                    Name = record.Station,
-                    MediaType = record.MediaType,
-                    CoverageType = record.CoverageType,
-                    CatalogHealth = record.CatalogHealth,
-                    OperatorName = (string?)null,
-                    IsNational = record.IsNational,
-                    HasPricing = record.HasPricing,
-                    record.LanguageNotes,
-                    record.AudienceAgeSkew,
-                    record.AudienceGenderSkew,
-                    record.AudienceLsmRange,
-                    record.AudienceRacialSkew,
-                    AudienceUrbanRural = record.UrbanRuralMix,
-                    record.BroadcastFrequency,
-                    record.ListenershipDaily,
-                    record.ListenershipWeekly,
-                    record.ListenershipPeriod,
-                    record.TargetAudience,
-                    DataSourceEnrichment = record.DataSourceEnrichment.ValueKind == JsonValueKind.Undefined
-                        ? null
-                        : record.DataSourceEnrichment.GetRawText()
+                    Id = CreateDeterministicGuid($"{record.Id}:package:{package.PackageName}"),
+                    MediaOutletId = outletId,
+                    package.PackageName,
+                    package.PackageType,
+                    package.ExposureCount,
+                    package.MonthlyExposureCount,
+                    package.ValueZar,
+                    package.DiscountZar,
+                    package.SavingZar,
+                    package.InvestmentZar,
+                    package.CostPerMonthZar,
+                    package.DurationMonths,
+                    package.DurationWeeks,
+                    package.Notes
                 },
                 transaction: transaction,
                 cancellationToken: cancellationToken));
-
-            for (var index = 0; index < record.AudienceKeywords.Count; index++)
-            {
-                var keyword = record.AudienceKeywords[index]?.Trim();
-                if (string.IsNullOrWhiteSpace(keyword))
-                {
-                    continue;
-                }
-
-                await connection.ExecuteAsync(new CommandDefinition(
-                    "insert into media_outlet_keyword (id, media_outlet_id, keyword) values (@Id, @MediaOutletId, @Keyword);",
-                    new
-                    {
-                        Id = CreateDeterministicGuid($"{record.Id}:keyword:{keyword}"),
-                        MediaOutletId = outletId,
-                        Keyword = keyword
-                    },
-                    transaction: transaction,
-                    cancellationToken: cancellationToken));
-            }
-
-            for (var index = 0; index < record.PrimaryLanguages.Count; index++)
-            {
-                var language = record.PrimaryLanguages[index]?.Trim().ToLowerInvariant();
-                if (string.IsNullOrWhiteSpace(language))
-                {
-                    continue;
-                }
-
-                await connection.ExecuteAsync(new CommandDefinition(
-                    "insert into media_outlet_language (id, media_outlet_id, language_code, is_primary) values (@Id, @MediaOutletId, @LanguageCode, @IsPrimary);",
-                    new
-                    {
-                        Id = CreateDeterministicGuid($"{record.Id}:language:{language}"),
-                        MediaOutletId = outletId,
-                        LanguageCode = language,
-                        IsPrimary = index == 0
-                    },
-                    transaction: transaction,
-                    cancellationToken: cancellationToken));
-            }
-
-            foreach (var province in record.ProvinceCodes.Where(static value => !string.IsNullOrWhiteSpace(value)).Distinct(StringComparer.OrdinalIgnoreCase))
-            {
-                await connection.ExecuteAsync(new CommandDefinition(
-                    @"
-                    insert into media_outlet_geography (id, media_outlet_id, province_code, city_name, geography_type)
-                    values (@Id, @MediaOutletId, @ProvinceCode, null, 'province');
-                    ",
-                    new
-                    {
-                        Id = CreateDeterministicGuid($"{record.Id}:province:{province}"),
-                        MediaOutletId = outletId,
-                        ProvinceCode = province.Trim().ToLowerInvariant()
-                    },
-                    transaction: transaction,
-                    cancellationToken: cancellationToken));
-            }
-
-            foreach (var city in record.CityLabels.Where(static value => !string.IsNullOrWhiteSpace(value)).Distinct(StringComparer.OrdinalIgnoreCase))
-            {
-                await connection.ExecuteAsync(new CommandDefinition(
-                    @"
-                    insert into media_outlet_geography (id, media_outlet_id, province_code, city_name, geography_type)
-                    values (@Id, @MediaOutletId, null, @CityName, 'city');
-                    ",
-                    new
-                    {
-                        Id = CreateDeterministicGuid($"{record.Id}:city:{city}"),
-                        MediaOutletId = outletId,
-                        CityName = city.Trim()
-                    },
-                    transaction: transaction,
-                    cancellationToken: cancellationToken));
-            }
-
-            foreach (var package in EnumeratePackages(record))
-            {
-                await connection.ExecuteAsync(new CommandDefinition(
-                    @"
-                    insert into media_outlet_pricing_package (
-                        id,
-                        media_outlet_id,
-                        package_name,
-                        package_type,
-                        exposure_count,
-                        monthly_exposure_count,
-                        value_zar,
-                        discount_zar,
-                        saving_zar,
-                        investment_zar,
-                        cost_per_month_zar,
-                        duration_months,
-                        duration_weeks,
-                        notes
-                    )
-                    values (
-                        @Id,
-                        @MediaOutletId,
-                        @PackageName,
-                        @PackageType,
-                        @ExposureCount,
-                        @MonthlyExposureCount,
-                        @ValueZar,
-                        @DiscountZar,
-                        @SavingZar,
-                        @InvestmentZar,
-                        @CostPerMonthZar,
-                        @DurationMonths,
-                        @DurationWeeks,
-                        @Notes
-                    );
-                    ",
-                    new
-                    {
-                        Id = CreateDeterministicGuid($"{record.Id}:package:{package.PackageName}"),
-                        MediaOutletId = outletId,
-                        package.PackageName,
-                        package.PackageType,
-                        package.ExposureCount,
-                        package.MonthlyExposureCount,
-                        package.ValueZar,
-                        package.DiscountZar,
-                        package.SavingZar,
-                        package.InvestmentZar,
-                        package.CostPerMonthZar,
-                        package.DurationMonths,
-                        package.DurationWeeks,
-                        package.Notes
-                    },
-                    transaction: transaction,
-                    cancellationToken: cancellationToken));
-            }
-
-            foreach (var rate in EnumerateRates(record))
-            {
-                await connection.ExecuteAsync(new CommandDefinition(
-                    @"
-                    insert into media_outlet_slot_rate (
-                        id,
-                        media_outlet_id,
-                        day_group,
-                        start_time,
-                        end_time,
-                        ad_duration_seconds,
-                        rate_zar,
-                        rate_type
-                    )
-                    values (
-                        @Id,
-                        @MediaOutletId,
-                        @DayGroup,
-                        @StartTime,
-                        @EndTime,
-                        @AdDurationSeconds,
-                        @RateZar,
-                        @RateType
-                    );
-                    ",
-                    new
-                    {
-                        Id = CreateDeterministicGuid($"{record.Id}:rate:{rate.DayGroup}:{rate.StartTime}:{rate.EndTime}:{rate.RateType}"),
-                        MediaOutletId = outletId,
-                        rate.DayGroup,
-                        rate.StartTime,
-                        rate.EndTime,
-                        rate.AdDurationSeconds,
-                        rate.RateZar,
-                        rate.RateType
-                    },
-                    transaction: transaction,
-                    cancellationToken: cancellationToken));
-            }
-
         }
 
-        await transaction.CommitAsync(cancellationToken);
-        await _broadcastInventoryCatalog.RefreshAsync(cancellationToken);
+        foreach (var rate in EnumerateRates(record))
+        {
+            await connection.ExecuteAsync(new CommandDefinition(
+                @"
+                insert into media_outlet_slot_rate (
+                    id,
+                    media_outlet_id,
+                    day_group,
+                    start_time,
+                    end_time,
+                    ad_duration_seconds,
+                    rate_zar,
+                    rate_type
+                )
+                values (
+                    @Id,
+                    @MediaOutletId,
+                    @DayGroup,
+                    @StartTime,
+                    @EndTime,
+                    @AdDurationSeconds,
+                    @RateZar,
+                    @RateType
+                );
+                ",
+                new
+                {
+                    Id = CreateDeterministicGuid($"{record.Id}:rate:{rate.DayGroup}:{rate.StartTime}:{rate.EndTime}:{rate.RateType}"),
+                    MediaOutletId = outletId,
+                    rate.DayGroup,
+                    rate.StartTime,
+                    rate.EndTime,
+                    rate.AdDurationSeconds,
+                    rate.RateZar,
+                    rate.RateType
+                },
+                transaction: transaction,
+                cancellationToken: cancellationToken));
+        }
+    }
+
+    private static async Task ActivateBatchAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        Guid batchId,
+        CancellationToken cancellationToken)
+    {
+        await connection.ExecuteAsync(new CommandDefinition(
+            @"
+            update inventory_import_batches
+            set
+                is_active = false,
+                status = case when status = 'active' then 'superseded' else status end
+            where channel_family = @ChannelFamily
+              and id <> @BatchId
+              and is_active = true;
+
+            update inventory_import_batches
+            set
+                status = 'active',
+                is_active = true,
+                activated_at = now()
+            where id = @BatchId;
+            ",
+            new
+            {
+                ChannelFamily = BroadcastChannelFamily,
+                BatchId = batchId
+            },
+            transaction: transaction,
+            cancellationToken: cancellationToken));
     }
 
     private string? ResolveInventoryPath()

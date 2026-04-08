@@ -16,31 +16,53 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
 
     public PlanningPolicyOutcome FilterEligibleCandidates(List<InventoryCandidate> candidates, CampaignPlanningRequest request)
     {
-        var eligible = candidates
-            .Where(candidate => IsEligibleCandidate(candidate, request))
-            .ToList();
+        var eligible = new List<InventoryCandidate>(candidates.Count);
+        var rejections = new List<PlanningCandidateRejection>();
 
-        return _policyService.ApplyHigherBandRadioEligibility(eligible, request);
+        foreach (var candidate in candidates)
+        {
+            var rejectionReason = GetEligibilityRejectionReason(candidate, request);
+            if (rejectionReason is null)
+            {
+                eligible.Add(candidate);
+                continue;
+            }
+
+            rejections.Add(new PlanningCandidateRejection(
+                "eligibility",
+                rejectionReason,
+                candidate.SourceId,
+                candidate.DisplayName,
+                NormalizeMediaType(candidate.MediaType)));
+        }
+
+        var policyOutcome = _policyService.ApplyHigherBandRadioEligibility(eligible, request);
+        return new PlanningPolicyOutcome(
+            policyOutcome.Candidates,
+            policyOutcome.FallbackFlags,
+            rejections.Concat(policyOutcome.Rejections).ToList());
     }
 
-    private static bool IsEligibleCandidate(InventoryCandidate candidate, CampaignPlanningRequest request)
+    private static string? GetEligibilityRejectionReason(InventoryCandidate candidate, CampaignPlanningRequest request)
     {
         if (!candidate.IsAvailable)
         {
-            return false;
+            return "candidate_unavailable";
         }
 
         if (candidate.Cost <= 0 || candidate.Cost > request.SelectedBudget)
         {
-            return false;
+            return "cost_out_of_budget";
         }
 
         if (request.ExcludedMediaTypes.Contains(candidate.MediaType, StringComparer.OrdinalIgnoreCase))
         {
-            return false;
+            return "media_type_excluded";
         }
 
-        return MatchesRequestedGeography(candidate, request);
+        return MatchesRequestedGeography(candidate, request)
+            ? null
+            : "geography_mismatch";
     }
 
     private static bool MatchesRequestedGeography(InventoryCandidate candidate, CampaignPlanningRequest request)
@@ -242,5 +264,12 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
             "zawc" or "wc" => "westerncape",
             _ => normalized
         };
+    }
+
+    private static string NormalizeMediaType(string? mediaType)
+    {
+        return string.IsNullOrWhiteSpace(mediaType)
+            ? "unknown"
+            : mediaType.Trim().ToLowerInvariant();
     }
 }

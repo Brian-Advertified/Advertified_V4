@@ -66,6 +66,22 @@ export function AgentRecommendationPanel({
 }) {
   return (
     <>
+      {activeRecommendation?.audit ? (
+        <div className="panel border-brand/15 bg-white px-6 py-5">
+          <p className="text-sm font-semibold text-ink">Engine audit</p>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <AuditLine label="Request" value={activeRecommendation.audit.requestSummary} />
+            <AuditLine label="Selected" value={activeRecommendation.audit.selectionSummary} />
+            <AuditLine label="Rejected" value={activeRecommendation.audit.rejectionSummary} />
+            <AuditLine label="Policy" value={activeRecommendation.audit.policySummary} />
+            <AuditLine label="Budget" value={activeRecommendation.audit.budgetSummary} />
+            {activeRecommendation.audit.fallbackSummary ? (
+              <AuditLine label="Fallback" value={activeRecommendation.audit.fallbackSummary} />
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
       {activeRecommendation?.clientFeedbackNotes ? (
         <div className="panel border-amber-200 bg-amber-50/80 px-6 py-5">
           <p className="text-sm font-semibold text-amber-800">Client feedback</p>
@@ -280,5 +296,14 @@ export function AgentRecommendationPanel({
         </button>
       ) : null}
     </>
+  );
+}
+
+function AuditLine({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[14px] border border-line bg-slate-50 px-4 py-3">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-soft">{label}</p>
+      <p className="mt-2 text-sm leading-6 text-ink">{value}</p>
+    </div>
   );
 }

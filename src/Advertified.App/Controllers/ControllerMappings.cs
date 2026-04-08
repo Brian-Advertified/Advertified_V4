@@ -3,8 +3,12 @@ using Advertified.App.Contracts.Campaigns;
 using Advertified.App.Contracts.Creative;
 using Advertified.App.Contracts.Packages;
 using Advertified.App.Campaigns;
+using Advertified.App.Configuration;
 using Advertified.App.Data.Entities;
 using Advertified.App.Support;
+using CampaignPlanningRequestSnapshot = Advertified.App.Domain.Campaigns.CampaignPlanningRequestSnapshot;
+using RecommendationRejectedCandidateTrace = Advertified.App.Domain.Campaigns.RecommendationRejectedCandidateTrace;
+using RecommendationSelectedItemTrace = Advertified.App.Domain.Campaigns.RecommendationSelectedItemTrace;
 
 namespace Advertified.App.Controllers;
 
@@ -205,6 +209,7 @@ internal static class ControllerMappings
             ClientFeedbackNotes = extractedFeedback,
             ManualReviewRequired = manualReviewRequired,
             FallbackFlags = fallbackFlags,
+            Audit = BuildAuditResponse(recommendation),
             Status = recommendation.Status,
             TotalCost = recommendation.TotalCost,
             Items = recommendation.RecommendationItems
@@ -212,6 +217,32 @@ internal static class ControllerMappings
                 .ThenBy(item => item.DisplayName)
                 .Select(item => ToResponse(item, includeLinePricing))
                 .ToArray()
+        };
+    }
+
+    private static CampaignRecommendationAuditResponse? BuildAuditResponse(CampaignRecommendation recommendation)
+    {
+        var audit = recommendation.RecommendationRunAudits
+            .OrderByDescending(entry => entry.CreatedAt)
+            .FirstOrDefault();
+        if (audit is null)
+        {
+            return null;
+        }
+
+        var request = DeserializeAuditJson<CampaignPlanningRequestSnapshot>(audit.RequestSnapshotJson) ?? new CampaignPlanningRequestSnapshot();
+        var selectedItems = DeserializeAuditJson<List<RecommendationSelectedItemTrace>>(audit.SelectedItemsJson) ?? new List<RecommendationSelectedItemTrace>();
+        var rejectedItems = DeserializeAuditJson<List<RecommendationRejectedCandidateTrace>>(audit.RejectedCandidatesJson) ?? new List<RecommendationRejectedCandidateTrace>();
+        var fallback = DeserializeAuditJson<RecommendationFallbackAuditSnapshot>(audit.FallbackFlagsJson) ?? new RecommendationFallbackAuditSnapshot();
+
+        return new CampaignRecommendationAuditResponse
+        {
+            RequestSummary = BuildRequestSummary(request),
+            SelectionSummary = BuildSelectionSummary(selectedItems),
+            RejectionSummary = BuildRejectionSummary(rejectedItems),
+            PolicySummary = BuildPolicySummary(rejectedItems, DeserializeAuditJson<PlanningPolicyOptions>(audit.PolicySnapshotJson)),
+            BudgetSummary = BuildBudgetSummary(request.SelectedBudget, recommendation.TotalCost, audit.BudgetUtilizationRatio),
+            FallbackSummary = BuildFallbackSummary(fallback.FallbackFlags)
         };
     }
 
@@ -902,6 +933,179 @@ internal static class ControllerMappings
         return string.IsNullOrWhiteSpace(notes) ? null : notes;
     }
 
+    private static T? DeserializeAuditJson<T>(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return default;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<T>(json);
+        }
+        catch (JsonException)
+        {
+            return default;
+        }
+    }
+
+    private static string BuildRequestSummary(CampaignPlanningRequestSnapshot request)
+    {
+        var objective = string.IsNullOrWhiteSpace(request.Objective) ? "Not specified" : request.Objective.Trim();
+        return $"Request: {objective}, {BuildAuditGeographyLabel(request)}, target mix {BuildAuditMixLabel(request)}.";
+    }
+
+    private static string BuildSelectionSummary(IReadOnlyList<RecommendationSelectedItemTrace> selectedItems)
+    {
+        if (selectedItems.Count == 0)
+        {
+            return "Selected: no lines were recorded.";
+        }
+
+        var groupedChannels = selectedItems
+            .GroupBy(item => FormatAuditChannelLabel(item.MediaType), StringComparer.OrdinalIgnoreCase)
+            .Select(group => $"{group.Count()} {group.Key}")
+            .ToArray();
+        var topItem = selectedItems[0];
+        var topReasons = topItem.SelectionReasons
+            .Where(reason => !string.IsNullOrWhiteSpace(reason))
+            .Take(2)
+            .ToArray();
+
+        var summary = $"Selected: {string.Join(", ", groupedChannels)}. Top line {topItem.DisplayName}.";
+        if (topReasons.Length > 0)
+        {
+            summary += $" Reasons: {string.Join("; ", topReasons)}.";
+        }
+
+        return summary;
+    }
+
+    private static string BuildRejectionSummary(IReadOnlyList<RecommendationRejectedCandidateTrace> rejectedItems)
+    {
+        if (rejectedItems.Count == 0)
+        {
+            return "Rejected: none recorded.";
+        }
+
+        var grouped = rejectedItems
+            .GroupBy(item => item.Reason, StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(group => group.Count())
+            .ThenBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
+            .Take(3)
+            .Select(group => $"{FormatAuditReason(group.Key)} {group.Count()}")
+            .ToArray();
+
+        return $"Rejected: {string.Join(", ", grouped)}.";
+    }
+
+    private static string BuildPolicySummary(IReadOnlyList<RecommendationRejectedCandidateTrace> rejectedItems, PlanningPolicyOptions? snapshot)
+    {
+        var policyRejections = rejectedItems
+            .Where(item => string.Equals(item.Stage, "policy", StringComparison.OrdinalIgnoreCase))
+            .GroupBy(item => item.Reason, StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(group => group.Count())
+            .Select(group => $"{FormatAuditReason(group.Key)} {group.Count()}")
+            .ToArray();
+
+        if (policyRejections.Length > 0)
+        {
+            return $"Policy: {string.Join(", ", policyRejections)}.";
+        }
+
+        if (snapshot is null)
+        {
+            return "Policy: no policy rejections recorded.";
+        }
+
+        return $"Policy: scale floor {FormatCurrency(snapshot.Scale.BudgetFloor)}, dominance floor {FormatCurrency(snapshot.Dominance.BudgetFloor)}.";
+    }
+
+    private static string BuildBudgetSummary(decimal selectedBudget, decimal totalCost, decimal utilizationRatio)
+    {
+        var ratio = utilizationRatio > 0m && utilizationRatio <= 1m
+            ? utilizationRatio
+            : (selectedBudget <= 0m ? 0m : totalCost / selectedBudget);
+        var percentage = Math.Round(ratio * 100m, 0, MidpointRounding.AwayFromZero);
+        return $"Budget: {FormatCurrency(totalCost)} of {FormatCurrency(selectedBudget)} used ({percentage:0}%).";
+    }
+
+    private static string? BuildFallbackSummary(IReadOnlyList<string> flags)
+    {
+        var meaningfulFlags = flags
+            .Where(flag => !string.IsNullOrWhiteSpace(flag))
+            .ToArray();
+        if (meaningfulFlags.Length == 0)
+        {
+            return null;
+        }
+
+        return $"Fallback: {string.Join(", ", meaningfulFlags.Select(FormatAuditReason))}.";
+    }
+
+    private static string BuildAuditGeographyLabel(CampaignPlanningRequestSnapshot request)
+    {
+        var scope = string.IsNullOrWhiteSpace(request.GeographyScope) ? "unknown geography" : request.GeographyScope.Trim().ToLowerInvariant();
+        var place = request.Cities.FirstOrDefault()
+            ?? request.Areas.FirstOrDefault()
+            ?? request.Provinces.FirstOrDefault()
+            ?? request.Suburbs.FirstOrDefault();
+
+        return string.IsNullOrWhiteSpace(place)
+            ? scope
+            : $"{scope} {place.Trim()}";
+    }
+
+    private static string BuildAuditMixLabel(CampaignPlanningRequestSnapshot request)
+    {
+        var parts = new List<string>();
+        if (request.TargetOohShare.GetValueOrDefault() > 0) parts.Add($"Billboards and Digital Screens {request.TargetOohShare.GetValueOrDefault()}%");
+        if (request.TargetRadioShare.GetValueOrDefault() > 0) parts.Add($"Radio {request.TargetRadioShare.GetValueOrDefault()}%");
+        if (request.TargetTvShare.GetValueOrDefault() > 0) parts.Add($"TV {request.TargetTvShare.GetValueOrDefault()}%");
+        if (request.TargetDigitalShare.GetValueOrDefault() > 0) parts.Add($"Digital {request.TargetDigitalShare.GetValueOrDefault()}%");
+        return parts.Count > 0 ? string.Join(" | ", parts) : "not specified";
+    }
+
+    private static string FormatAuditChannelLabel(string? mediaType)
+    {
+        return (mediaType ?? string.Empty).Trim().ToLowerInvariant() switch
+        {
+            "ooh" => "Billboards and Digital Screens",
+            "tv" => "TV",
+            "radio" => "Radio",
+            "digital" => "Digital",
+            _ => string.IsNullOrWhiteSpace(mediaType) ? "Unknown" : mediaType.Trim()
+        };
+    }
+
+    private static string FormatAuditReason(string reason)
+    {
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            return "unknown";
+        }
+
+        return reason.Trim().ToLowerInvariant() switch
+        {
+            "candidate_unavailable" => "candidate unavailable",
+            "cost_out_of_budget" => "cost out of budget",
+            "media_type_excluded" => "media type excluded",
+            "geography_mismatch" => "geography mismatch",
+            "radio_not_national_capable" => "radio not national capable",
+            "inventory_insufficient" => "inventory insufficient",
+            "no_recommendation_generated" => "no recommendation generated",
+            "policy_relaxed" => "policy relaxed",
+            "national_radio_inventory_insufficient" => "national radio inventory insufficient",
+            _ => reason.Replace('_', ' ')
+        };
+    }
+
+    private static string FormatCurrency(decimal value)
+    {
+        return $"R {value:N2}";
+    }
+
     private sealed record NormalizedRecommendationItemMetadata(
         string? SourceInventoryId,
         string? Region,
@@ -924,5 +1128,11 @@ internal static class ControllerMappings
         string? StartDate,
         string? EndDate,
         string Rationale);
+
+    private sealed class RecommendationFallbackAuditSnapshot
+    {
+        public List<string> FallbackFlags { get; set; } = new();
+        public List<string> SelectedChannels { get; set; } = new();
+    }
 }
 

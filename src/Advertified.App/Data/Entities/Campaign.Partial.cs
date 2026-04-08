@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace Advertified.App.Data.Entities;
 
 public partial class Campaign
@@ -13,4 +15,6 @@ public partial class Campaign
     public DateTime? RecommendationReadyEmailSentAt { get; set; }
 
     public virtual UserAccount? AssignedAgentUser { get; set; }
+
+    public virtual ICollection<RecommendationRunAudit> RecommendationRunAudits { get; set; } = new List<RecommendationRunAudit>();
 }

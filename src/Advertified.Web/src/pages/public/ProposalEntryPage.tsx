@@ -12,6 +12,7 @@ import { hasRecommendationApprovalCompleted } from '../../lib/campaignStatus';
 import { isPaymentAwaitingManualReview } from '../../lib/access';
 import { formatCurrency, titleCase } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
+import { parseCampaignOpportunityContext } from '../../features/campaigns/briefModel';
 
 function formatPaymentStatusLabel(status?: string) {
   if (!status) {
@@ -53,6 +54,7 @@ export function ProposalEntryPage() {
   });
 
   const recommendations = getCampaignRecommendations(publicProposalQuery.data);
+  const opportunityContext = parseCampaignOpportunityContext(publicProposalQuery.data?.brief);
   const showRejectAllFlow = action === 'reject_all';
   const recommendation = selectRecommendation(recommendations, {
     currentSelectionId: selectedRecommendationId,
@@ -381,6 +383,7 @@ export function ProposalEntryPage() {
                 recommendation={recommendation}
                 recommendationPdfUrl={`/public/proposals/${id}/recommendation-pdf?token=${encodeURIComponent(token)}`}
                 onDownloadPdf={() => handleDownloadRecommendationPdf()}
+                opportunityContext={opportunityContext}
               />
             </div>
           </details>

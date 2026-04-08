@@ -214,7 +214,7 @@ builder.Services.AddScoped<IBroadcastRecommendationRanker, BroadcastRecommendati
 builder.Services.AddScoped<IBroadcastMatchingEngine, BroadcastMatchingEngine>();
 builder.Services.AddScoped<IPlanningCandidateLoader, PlanningCandidateLoader>();
 builder.Services.AddScoped<IPlanningPolicyService, PlanningPolicyService>();
-builder.Services.AddScoped(_ => new PlanningPolicySnapshotProvider(
+builder.Services.AddScoped<PlanningPolicySnapshotProvider>(_ => new PlanningPolicySnapshotProvider(
     _.GetRequiredService<Npgsql.NpgsqlDataSource>(),
     _.GetRequiredService<Microsoft.Extensions.Options.IOptions<PlanningPolicyOptions>>().Value));
 builder.Services.AddScoped<IPlanningEligibilityService, PlanningEligibilityService>();

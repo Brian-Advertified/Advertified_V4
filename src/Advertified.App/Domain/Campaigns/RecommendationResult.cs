@@ -11,4 +11,5 @@ public sealed class RecommendationResult
     public decimal RecommendedPlanTotal => RecommendedPlan.Sum(x => x.TotalCost);
     public decimal UpsellTotal => Upsells.Sum(x => x.TotalCost);
     public string Rationale { get; set; } = string.Empty;
+    public RecommendationRunTrace? RunTrace { get; set; }
 }

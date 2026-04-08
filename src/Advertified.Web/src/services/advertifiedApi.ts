@@ -253,6 +253,14 @@ type CampaignRecommendationResponse = {
   clientFeedbackNotes?: string | null;
   manualReviewRequired: boolean;
   fallbackFlags: string[];
+  audit?: {
+    requestSummary: string;
+    selectionSummary: string;
+    rejectionSummary: string;
+    policySummary: string;
+    budgetSummary: string;
+    fallbackSummary?: string | null;
+  } | null;
   status: 'draft' | 'sent_to_client' | 'approved';
   totalCost: number;
   items: RecommendationItemResponse[];
@@ -951,6 +959,16 @@ function mapRecommendation(response?: CampaignRecommendationResponse | null): Ca
       clientFeedbackNotes: response.clientFeedbackNotes ?? undefined,
       manualReviewRequired: response.manualReviewRequired,
       fallbackFlags: response.fallbackFlags ?? [],
+      audit: response.audit
+        ? {
+            requestSummary: response.audit.requestSummary,
+            selectionSummary: response.audit.selectionSummary,
+            rejectionSummary: response.audit.rejectionSummary,
+            policySummary: response.audit.policySummary,
+            budgetSummary: response.audit.budgetSummary,
+            fallbackSummary: response.audit.fallbackSummary ?? undefined,
+          }
+        : undefined,
       status: response.status,
       totalCost: response.totalCost,
       items: (response.items ?? []).map((item) => ({

@@ -12,7 +12,15 @@ public readonly record struct PlanningCandidateAnalysis(
 
 public readonly record struct PlanningPolicyOutcome(
     List<InventoryCandidate> Candidates,
-    IReadOnlyList<string> FallbackFlags);
+    IReadOnlyList<string> FallbackFlags,
+    IReadOnlyList<PlanningCandidateRejection> Rejections);
+
+public readonly record struct PlanningCandidateRejection(
+    string Stage,
+    string Reason,
+    Guid SourceId,
+    string DisplayName,
+    string MediaType);
 
 public sealed class OohPlanningInventoryRow
 {

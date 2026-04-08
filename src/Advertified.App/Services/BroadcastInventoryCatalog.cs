@@ -35,6 +35,14 @@ public sealed class BroadcastInventoryCatalog : IBroadcastInventoryCatalog
             var outlets = (await connection.QueryAsync<MediaOutletRow>(
                 new CommandDefinition(
                     @"
+                    with active_broadcast_batch as (
+                        select id
+                        from inventory_import_batches
+                        where channel_family = 'broadcast'
+                          and is_active = true
+                        order by activated_at desc nulls last, created_at desc
+                        limit 1
+                    )
                     select
                         id,
                         code,
@@ -58,6 +66,9 @@ public sealed class BroadcastInventoryCatalog : IBroadcastInventoryCatalog
                         data_source_enrichment as DataSourceEnrichment,
                         strategy_fit_json as StrategyFitJson
                     from media_outlet
+                    where lower(media_type) not in ('radio', 'tv')
+                       or not exists (select 1 from active_broadcast_batch)
+                       or import_batch_id in (select id from active_broadcast_batch)
                     order by media_type, name;
                     ",
                     cancellationToken: cancellationToken)))

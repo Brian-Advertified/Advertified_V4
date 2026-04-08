@@ -36,7 +36,11 @@ internal static class RecommendationPdfGenerator
                             col.Item().Text("Advertified").SemiBold().FontSize(18);
                         }
 
-                        col.Item().PaddingTop(6).Text("Recommendation Pack").SemiBold().FontSize(20);
+                        col.Item()
+                            .PaddingTop(6)
+                            .Text(model.OpportunityContext is null ? "Recommendation Pack" : "Growth Opportunity Recommendation Pack")
+                            .SemiBold()
+                            .FontSize(20);
                         col.Item().Text(model.CampaignName).FontColor("#4B5563");
                     });
 
@@ -52,6 +56,36 @@ internal static class RecommendationPdfGenerator
                 page.Content().Column(column =>
                 {
                     column.Spacing(12);
+
+                    if (model.OpportunityContext is not null)
+                    {
+                        column.Item().Border(1).BorderColor("#C7E0D6").Background("#F3FBF7").Padding(12).Column(opportunity =>
+                        {
+                            opportunity.Spacing(6);
+                            opportunity.Item().Text("Why you are receiving this").SemiBold().FontSize(12);
+                            opportunity.Item().Text(
+                                $"We found where {ResolveBusinessReference(model)} is losing customers, and built the campaign to fix it.");
+
+                            foreach (var gap in model.OpportunityContext.DetectedGaps)
+                            {
+                                opportunity.Item().Text($"- {ToClientCopy(gap)}").FontColor("#4B5563");
+                            }
+
+                            if (!string.IsNullOrWhiteSpace(model.OpportunityContext.LeadInsightSummary))
+                            {
+                                opportunity.Item()
+                                    .Text($"Lead intelligence summary: {ToClientCopy(model.OpportunityContext.LeadInsightSummary)}")
+                                    .FontColor("#4B5563");
+                            }
+
+                            if (!string.IsNullOrWhiteSpace(model.OpportunityContext.ExpectedOutcome))
+                            {
+                                opportunity.Item()
+                                    .Text(ToClientCopy(model.OpportunityContext.ExpectedOutcome))
+                                    .SemiBold();
+                            }
+                        });
+                    }
 
                     column.Item().Border(1).BorderColor("#D1D5DB").Padding(12).Column(summary =>
                     {
@@ -295,6 +329,13 @@ internal static class RecommendationPdfGenerator
     private static string FormatCurrency(decimal amount)
     {
         return $"R {amount.ToString("N2", CultureInfo.GetCultureInfo("en-ZA"))}";
+    }
+
+    private static string ResolveBusinessReference(RecommendationDocumentModel model)
+    {
+        return !string.IsNullOrWhiteSpace(model.BusinessName)
+            ? model.BusinessName.Trim()
+            : (!string.IsNullOrWhiteSpace(model.ClientName) ? model.ClientName.Trim() : "this business");
     }
 
     private static string FormatChannelLabel(string? channel)
@@ -615,7 +656,15 @@ internal sealed class RecommendationDocumentModel
     public IReadOnlyList<string> TargetAreas { get; init; } = Array.Empty<string>();
     public string? TargetAudienceSummary { get; init; }
     public IReadOnlyList<string> TargetLanguages { get; init; } = Array.Empty<string>();
+    public RecommendationOpportunityContextModel? OpportunityContext { get; init; }
     public IReadOnlyList<RecommendationProposalDocumentModel> Proposals { get; init; } = Array.Empty<RecommendationProposalDocumentModel>();
+}
+
+internal sealed class RecommendationOpportunityContextModel
+{
+    public IReadOnlyList<string> DetectedGaps { get; init; } = Array.Empty<string>();
+    public string? LeadInsightSummary { get; init; }
+    public string? ExpectedOutcome { get; init; }
 }
 
 internal sealed class RecommendationProposalDocumentModel

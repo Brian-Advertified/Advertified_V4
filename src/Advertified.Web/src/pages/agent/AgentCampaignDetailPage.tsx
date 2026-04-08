@@ -38,7 +38,8 @@ import { AgentDeliveryReportPanel } from '../../features/agent/components/AgentD
 import { AgentInventorySelectionModal } from '../../features/agent/components/AgentInventorySelectionModal';
 import { AgentOpsAssetsPanel } from '../../features/agent/components/AgentOpsAssetsPanel';
 import { AgentRecommendationPanel } from '../../features/agent/components/AgentRecommendationPanel';
-import { buildBriefClientNotes } from '../../features/campaigns/briefModel';
+import { buildBriefClientNotes, parseCampaignOpportunityContext } from '../../features/campaigns/briefModel';
+import { CampaignPerformancePanel } from '../../features/campaigns/components/CampaignPerformancePanel';
 import { formatChannelLabel } from '../../features/channels/channelUtils';
 import { catalogQueryOptions } from '../../lib/catalogQueryOptions';
 import { invalidateAgentCampaignQueries, queryKeys } from '../../lib/queryKeys';
@@ -399,7 +400,11 @@ export function AgentCampaignDetailPage() {
     : false;
   const isOverBudget = hasSelectedPackageBand ? isOutsideProspectBand : budgetDelta < 0;
   const activeProposalLabel = activeRecommendation?.proposalLabel ?? 'Current proposal';
-  const showExecutionOperations = false;
+  const hasExecutionData = campaign.supplierBookings.length > 0 || campaign.deliveryReports.length > 0 || campaign.assets.length > 0;
+  const showExecutionOperations = hasExecutionData
+    || campaign.status === 'creative_approved'
+    || campaign.status === 'booking_in_progress'
+    || campaign.status === 'launched';
   const radioShare = groupedTotals.reduce((sum, entry) => entry.channel === 'RADIO' ? sum + entry.total : sum, 0);
   const oohShare = groupedTotals.reduce((sum, entry) => entry.channel === 'OOH' ? sum + entry.total : sum, 0);
   const digitalShare = groupedTotals.reduce((sum, entry) => entry.channel === 'DIGITAL' ? sum + entry.total : sum, 0);
@@ -415,6 +420,7 @@ export function AgentCampaignDetailPage() {
   const geoSummary = buildGeoSummary(campaign.brief);
   const channelSummary = buildChannelSummary(campaign.brief, selectedPlanItems);
   const toneSummary = buildToneSummary(campaign.brief);
+  const opportunityContext = parseCampaignOpportunityContext(campaign.brief);
   const originalPrompt = buildOriginalPrompt(campaign.brief);
   const clientNotes = buildBriefClientNotes(campaign.brief);
   const statusLabel = campaign.status === 'creative_approved' || campaign.status === 'booking_in_progress' || campaign.status === 'launched'
@@ -423,7 +429,7 @@ export function AgentCampaignDetailPage() {
       ? titleCase(activeRecommendation.status)
       : titleCase(campaign.status);
   const recommendationTitle = activeRecommendation?.summary || 'Draft recommendation';
-  const canMarkLive = false;
+  const canMarkLive = campaign.status === 'booking_in_progress' && campaign.supplierBookings.length > 0;
   const recommendationStatus = activeRecommendation?.status?.toLowerCase() ?? '';
   const awaitingClientReview = campaign.status === 'review_ready' || recommendationStatus === 'sent_to_client';
   const recommendationWorkflowLocked = showExecutionOperations || recommendationStatus === 'approved' || awaitingClientReview;
@@ -866,6 +872,25 @@ export function AgentCampaignDetailPage() {
             formatConfidenceLabel={formatConfidenceLabel}
             formatFallbackFlag={formatFallbackFlag}
           />
+
+          {opportunityContext ? (
+            <div className="panel border-brand/15 bg-brand-soft/25 px-6 py-6">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Why this proposal exists</p>
+              <div className="mt-3 space-y-2 text-sm leading-7 text-ink-soft">
+                {opportunityContext.detectedGaps.map((gap) => (
+                  <p key={gap}>- {gap}</p>
+                ))}
+              </div>
+              {opportunityContext.insightSummary ? (
+                <p className="mt-3 text-sm leading-7 text-ink-soft">{opportunityContext.insightSummary}</p>
+              ) : null}
+              {opportunityContext.expectedOutcome ? (
+                <p className="mt-3 text-sm font-semibold text-ink">{opportunityContext.expectedOutcome}</p>
+              ) : null}
+            </div>
+          ) : null}
+
+          <CampaignPerformancePanel campaign={campaign} />
 
           {showExecutionOperations ? (
             <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">

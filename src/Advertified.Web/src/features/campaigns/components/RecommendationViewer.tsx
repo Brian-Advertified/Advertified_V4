@@ -2,15 +2,18 @@ import { Download } from 'lucide-react';
 import { titleCase, formatCurrency } from '../../../lib/utils';
 import type { CampaignRecommendation } from '../../../types/domain';
 import { StatusBadge } from '../../../components/ui/StatusBadge';
+import type { CampaignOpportunityContext } from '../briefModel';
 
 export function RecommendationViewer({
   recommendation,
   recommendationPdfUrl,
   onDownloadPdf,
+  opportunityContext,
 }: {
   recommendation: CampaignRecommendation;
   recommendationPdfUrl?: string;
   onDownloadPdf?: () => void | Promise<void>;
+  opportunityContext?: CampaignOpportunityContext;
 }) {
   const baseItems = recommendation.items.filter((item) => item.type === 'base');
   const groupedChannels = Array.from(new Set(baseItems.map((item) => formatClientChannelLabel(item.channel))));
@@ -62,6 +65,24 @@ export function RecommendationViewer({
         </div>
       </div>
       <div className="grid gap-4 lg:grid-cols-3">
+        {opportunityContext ? (
+          <div className="rounded-[24px] border border-brand/15 bg-brand-soft/30 px-5 py-5 lg:col-span-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Why you are receiving this</p>
+            {opportunityContext.detectedGaps.length > 0 ? (
+              <div className="mt-3 space-y-2 text-sm leading-7 text-ink-soft">
+                {opportunityContext.detectedGaps.map((gap) => (
+                  <p key={gap}>- {gap}</p>
+                ))}
+              </div>
+            ) : null}
+            {opportunityContext.insightSummary ? (
+              <p className="mt-3 text-sm leading-7 text-ink-soft">{opportunityContext.insightSummary}</p>
+            ) : null}
+            {opportunityContext.expectedOutcome ? (
+              <p className="mt-3 text-sm font-semibold text-ink">{opportunityContext.expectedOutcome}</p>
+            ) : null}
+          </div>
+        ) : null}
         <div className="rounded-[24px] border border-line bg-slate-50 px-5 py-5">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Recommended mix</p>
           <p className="mt-3 text-lg font-semibold text-ink">{groupedChannels.join(' + ') || 'Not set'}</p>

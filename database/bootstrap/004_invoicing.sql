@@ -85,10 +85,10 @@ create index if not exists ix_invoice_line_items_invoice_id on invoice_line_item
 
 update invoice_issuer_profiles
 set
-    legal_name = 'Advertified (Pty) Ltd',
+    legal_name = 'Advertified (PTY) Ltd',
     registration_number = '2024/104944/07',
     vat_number = '4210266484',
-    address = E'08 Kikuyu Road\nSunninghill\nGauteng\n2191',
+    address = E'Office 301, 3rd Floor\n43 Andringa Street\nStellenbosch\n7559',
     contact_email = 'ad@advertified.co.za',
     contact_phone = '0812549067',
     is_active = true,
@@ -111,7 +111,7 @@ select
     'Advertified (Pty) Ltd',
     '2024/104944/07',
     '4210266484',
-    E'08 Kikuyu Road\nSunninghill\nGauteng\n2191',
+    E'Office 301, 3rd Floor\n43 Andringa Street\nStellenbosch\n7559',
     'ad@advertified.co.za',
     '0812549067',
     true

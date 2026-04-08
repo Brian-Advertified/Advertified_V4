@@ -23,6 +23,12 @@ public partial class CampaignRecommendation
 
     public Guid? CreatedByUserId { get; set; }
 
+    public string? RequestSnapshotJson { get; set; }
+
+    public string? PolicySnapshotJson { get; set; }
+
+    public string? InventorySnapshotJson { get; set; }
+
     public int RevisionNumber { get; set; }
 
     public DateTime? SentToClientAt { get; set; }
@@ -42,4 +48,6 @@ public partial class CampaignRecommendation
     public virtual UserAccount? CreatedByUser { get; set; }
 
     public virtual ICollection<RecommendationItem> RecommendationItems { get; set; } = new List<RecommendationItem>();
+
+    public virtual ICollection<RecommendationRunAudit> RecommendationRunAudits { get; set; } = new List<RecommendationRunAudit>();
 }

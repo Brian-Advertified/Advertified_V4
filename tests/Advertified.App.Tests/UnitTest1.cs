@@ -262,6 +262,10 @@ public class MediaPlanningEngineTests
         result.RecommendedPlan.Should().NotBeEmpty();
         result.RecommendedPlan.Should().OnlyContain(x => x.MediaType == "OOH");
         result.RecommendedPlanTotal.Should().BeLessThanOrEqualTo(request.SelectedBudget);
+        result.RunTrace.Should().NotBeNull();
+        result.RunTrace!.CandidateCounts.Should().Contain(x => x.Stage == "loaded" && x.MediaType == "radio" && x.Count == 1);
+        result.RunTrace.CandidateCounts.Should().Contain(x => x.Stage == "eligible" && x.MediaType == "ooh" && x.Count == 1);
+        result.RunTrace.RejectedCandidates.Should().ContainSingle(x => x.Reason == "media_type_excluded" && x.MediaType == "radio");
     }
 
     [Fact]

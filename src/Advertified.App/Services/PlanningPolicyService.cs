@@ -17,7 +17,7 @@ public sealed class PlanningPolicyService : IPlanningPolicyService
     {
         if (request.SelectedBudget < _policyOptions.Scale.BudgetFloor)
         {
-            return new PlanningPolicyOutcome(candidates, Array.Empty<string>());
+            return new PlanningPolicyOutcome(candidates, Array.Empty<string>(), Array.Empty<PlanningCandidateRejection>());
         }
 
         var radioCandidates = candidates
@@ -25,7 +25,7 @@ public sealed class PlanningPolicyService : IPlanningPolicyService
             .ToList();
         if (radioCandidates.Count == 0)
         {
-            return new PlanningPolicyOutcome(candidates, new[] { "radio_inventory_unavailable" });
+            return new PlanningPolicyOutcome(candidates, new[] { "radio_inventory_unavailable" }, Array.Empty<PlanningCandidateRejection>());
         }
 
         var nationalRadioCandidates = radioCandidates
@@ -37,14 +37,25 @@ public sealed class PlanningPolicyService : IPlanningPolicyService
             : _policyOptions.Scale;
         if (nationalRadioCandidates.Count < applicablePolicy.MinimumNationalRadioCandidates)
         {
-            return new PlanningPolicyOutcome(candidates, new[] { "national_radio_inventory_insufficient", "policy_relaxed" });
+            return new PlanningPolicyOutcome(candidates, new[] { "national_radio_inventory_insufficient", "policy_relaxed" }, Array.Empty<PlanningCandidateRejection>());
         }
+
+        var removedRadioCandidates = radioCandidates
+            .Where(candidate => !IsNationalCapableRadioCandidate(candidate, request))
+            .Select(candidate => new PlanningCandidateRejection(
+                "policy",
+                "radio_not_national_capable",
+                candidate.SourceId,
+                candidate.DisplayName,
+                candidate.MediaType.Trim().ToLowerInvariant()))
+            .ToList();
 
         return new PlanningPolicyOutcome(
             candidates
                 .Where(candidate => !candidate.MediaType.Equals("Radio", StringComparison.OrdinalIgnoreCase) || IsNationalCapableRadioCandidate(candidate, request))
                 .ToList(),
-            Array.Empty<string>());
+            Array.Empty<string>(),
+            removedRadioCandidates);
     }
 
     public decimal GetHigherBandRadioBonus(InventoryCandidate candidate, CampaignPlanningRequest request)

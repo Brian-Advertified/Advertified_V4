@@ -51,6 +51,13 @@ export type RecommendationDraftFormState = {
   channels: RecommendationDraftChannel[];
 };
 
+export type CampaignOpportunityContext = {
+  detectedGaps: string[];
+  insightSummary?: string;
+  expectedOutcome?: string;
+  campaignNotes?: string;
+};
+
 export function createDefaultCampaignBrief(overrides?: Partial<CampaignBrief>): CampaignBrief {
   return {
     objective: '',
@@ -233,6 +240,8 @@ export function buildBriefQuestionnaireSummary(
     return [];
   }
 
+  const opportunityContext = parseCampaignOpportunityContext(brief);
+
   return [
     { label: 'Business', value: campaignContext?.businessName },
     { label: 'Industry', value: campaignContext?.industry },
@@ -256,7 +265,7 @@ export function buildBriefQuestionnaireSummary(
     { label: 'Preferred channels', value: brief.preferredMediaTypes?.join(', ') },
     { label: 'Interests', value: brief.targetInterests?.join(', ') },
     { label: 'Audience notes', value: brief.targetAudienceNotes },
-    { label: 'Special requirements', value: brief.specialRequirements },
+    { label: 'Special requirements', value: opportunityContext?.campaignNotes ?? brief.specialRequirements },
   ].filter((item): item is { label: string; value: string } => Boolean(item.value && item.value.trim()));
 }
 
@@ -299,7 +308,10 @@ export function buildBriefProductionNotes(
   brief?: CampaignBrief,
   fallback = 'No production notes yet. Build from the approved recommendation and package rules.',
 ): string {
-  return brief?.specialRequirements?.trim()
+  const opportunityContext = parseCampaignOpportunityContext(brief);
+
+  return opportunityContext?.campaignNotes?.trim()
+    || brief?.specialRequirements?.trim()
     || brief?.creativeNotes?.trim()
     || fallback;
 }
@@ -308,7 +320,10 @@ export function buildBriefClientNotes(
   brief?: CampaignBrief,
   fallback = 'No client notes captured yet.',
 ): string {
-  return brief?.specialRequirements?.trim()
+  const opportunityContext = parseCampaignOpportunityContext(brief);
+
+  return opportunityContext?.campaignNotes?.trim()
+    || brief?.specialRequirements?.trim()
     || brief?.creativeNotes?.trim()
     || brief?.targetAudienceNotes?.trim()
     || fallback;
@@ -318,10 +333,70 @@ export function buildBriefOriginalPrompt(
   brief?: CampaignBrief,
   fallback = 'No original prompt has been captured yet.',
 ): string {
-  return brief?.specialRequirements?.trim()
+  const opportunityContext = parseCampaignOpportunityContext(brief);
+
+  return opportunityContext?.campaignNotes?.trim()
+    || brief?.specialRequirements?.trim()
     || brief?.creativeNotes?.trim()
     || brief?.targetAudienceNotes?.trim()
     || fallback;
+}
+
+export function parseCampaignOpportunityContext(brief?: CampaignBrief): CampaignOpportunityContext | undefined {
+  const rawNotes = brief?.specialRequirements?.trim() || brief?.creativeNotes?.trim();
+  if (!rawNotes) {
+    return undefined;
+  }
+
+  const sections = rawNotes
+    .split(/\r?\n\r?\n/)
+    .map((section) => section.trim())
+    .filter(Boolean);
+
+  const detectedGaps: string[] = [];
+  let insightSummary: string | undefined;
+  let expectedOutcome: string | undefined;
+  const remainingSections: string[] = [];
+
+  for (const section of sections) {
+    if (section.toLowerCase().startsWith('why you are receiving this:')) {
+      const body = section.slice('Why you are receiving this:'.length).trim();
+      body
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line.startsWith('-'))
+        .forEach((line) => {
+          const normalized = line.slice(1).trim();
+          if (normalized) {
+            detectedGaps.push(normalized);
+          }
+        });
+      continue;
+    }
+
+    if (section.toLowerCase().startsWith('lead intelligence summary:')) {
+      insightSummary = section.slice('Lead intelligence summary:'.length).trim() || undefined;
+      continue;
+    }
+
+    if (section.toLowerCase().startsWith('expected impact:')) {
+      expectedOutcome = section;
+      continue;
+    }
+
+    remainingSections.push(section);
+  }
+
+  if (detectedGaps.length === 0 && !insightSummary && !expectedOutcome) {
+    return undefined;
+  }
+
+  return {
+    detectedGaps,
+    insightSummary,
+    expectedOutcome,
+    campaignNotes: remainingSections.join('\n\n') || undefined,
+  };
 }
 
 export function buildRecommendationDraftBrief(
