@@ -309,6 +309,13 @@ export interface CampaignDeliveryReport {
   evidenceAsset?: CampaignAsset;
 }
 
+export interface CampaignPerformanceTimelinePoint {
+  date: string;
+  impressions: number;
+  playsOrSpots: number;
+  spendDelivered: number;
+}
+
 export interface CampaignTimelineStep {
   key: string;
   label: string;
@@ -350,6 +357,7 @@ export interface Campaign {
   assets: CampaignAsset[];
   supplierBookings: CampaignSupplierBooking[];
   deliveryReports: CampaignDeliveryReport[];
+  performanceTimeline?: CampaignPerformanceTimelinePoint[];
   effectiveEndDate?: string;
   daysLeft?: number;
   createdAt: string;

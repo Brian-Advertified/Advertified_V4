@@ -10,6 +10,7 @@ import type {
   LegalDocument,
   NotificationSummary,
   CampaignDeliveryReport,
+  CampaignPerformanceTimelinePoint,
   CampaignCreativeSystemRecord,
   CampaignRecommendation,
   CampaignSupplierBooking,
@@ -362,6 +363,12 @@ type CampaignResponse = {
       sizeBytes: number;
       createdAt: string;
     } | null;
+  }> | null;
+  performanceTimeline?: Array<{
+    date: string;
+    impressions: number;
+    playsOrSpots: number;
+    spendDelivered: number;
   }> | null;
   effectiveEndDate?: string | null;
   daysLeft?: number | null;
@@ -1048,6 +1055,17 @@ function mapDeliveryReport(response: NonNullable<CampaignResponse['deliveryRepor
   };
 }
 
+function mapPerformanceTimelinePoint(
+  response: NonNullable<CampaignResponse['performanceTimeline']>[number]): CampaignPerformanceTimelinePoint
+{
+  return {
+    date: response.date,
+    impressions: response.impressions,
+    playsOrSpots: response.playsOrSpots,
+    spendDelivered: response.spendDelivered,
+  };
+}
+
 function normalizeCreativeSystem(response: CreativeSystem): CreativeSystem {
   return {
     ...response,
@@ -1151,6 +1169,7 @@ function mapCampaign(response: CampaignResponse): Campaign {
     assets: (response.assets ?? []).map(mapCampaignAsset),
     supplierBookings: (response.supplierBookings ?? []).map(mapSupplierBooking),
     deliveryReports: (response.deliveryReports ?? []).map(mapDeliveryReport),
+    performanceTimeline: (response.performanceTimeline ?? []).map(mapPerformanceTimelinePoint),
     effectiveEndDate: response.effectiveEndDate ?? undefined,
     daysLeft: response.daysLeft ?? undefined,
     createdAt: response.createdAt,

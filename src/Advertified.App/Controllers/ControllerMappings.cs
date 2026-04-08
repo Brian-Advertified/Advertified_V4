@@ -106,6 +106,7 @@ internal static class ControllerMappings
                 .OrderByDescending(x => x.ReportedAt ?? x.CreatedAt)
                 .Select(ToResponse)
                 .ToArray(),
+            PerformanceTimeline = BuildPerformanceTimeline(campaign.CampaignDeliveryReports),
             EffectiveEndDate = schedule.EffectiveEndDate,
             DaysLeft = schedule.DaysLeft
         };
@@ -258,6 +259,23 @@ internal static class ControllerMappings
             SizeBytes = asset.SizeBytes,
             CreatedAt = new DateTimeOffset(asset.CreatedAt, TimeSpan.Zero)
         };
+    }
+
+    private static IReadOnlyList<CampaignPerformanceTimelinePointResponse> BuildPerformanceTimeline(
+        IEnumerable<CampaignDeliveryReport> reports)
+    {
+        return reports
+            .Where(report => report.ReportedAt.HasValue)
+            .GroupBy(report => DateOnly.FromDateTime(report.ReportedAt!.Value))
+            .Select(group => new CampaignPerformanceTimelinePointResponse
+            {
+                Date = group.Key,
+                Impressions = group.Sum(item => item.Impressions ?? 0),
+                PlaysOrSpots = group.Sum(item => item.PlaysOrSpots ?? 0),
+                SpendDelivered = group.Sum(item => item.SpendDelivered ?? 0m)
+            })
+            .OrderBy(item => item.Date)
+            .ToArray();
     }
 
     private static CampaignCreativeSystemResponse ToResponse(CampaignCreativeSystem creativeSystem)

@@ -192,17 +192,31 @@ export function buildCampaignPerformanceSnapshot(campaign: Campaign): CampaignPe
   const totalBookedSpend = campaign.supplierBookings.reduce((sum, booking) => sum + (booking.committedAmount ?? 0), 0);
   const primaryMetric = resolvePrimaryMetric(totalImpressions, totalPlaysOrSpots);
 
-  const timeline = [...campaign.deliveryReports]
-    .sort((left, right) => {
-      const leftDate = Date.parse(left.reportedAt ?? '');
-      const rightDate = Date.parse(right.reportedAt ?? '');
-      return leftDate - rightDate;
-    })
-    .slice(-6)
-    .map((report) => ({
-      date: report.reportedAt ?? '',
-      value: toTimelineValue(report, primaryMetric),
-    }));
+  const performanceTimeline = campaign.performanceTimeline ?? [];
+
+  const timeline = performanceTimeline.length > 0
+    ? [...performanceTimeline]
+      .sort((left, right) => Date.parse(left.date) - Date.parse(right.date))
+      .slice(-8)
+      .map((point) => ({
+        date: point.date,
+        value: primaryMetric === 'impressions'
+          ? point.impressions
+          : primaryMetric === 'playsOrSpots'
+            ? point.playsOrSpots
+            : point.spendDelivered,
+      }))
+    : [...campaign.deliveryReports]
+      .sort((left, right) => {
+        const leftDate = Date.parse(left.reportedAt ?? '');
+        const rightDate = Date.parse(right.reportedAt ?? '');
+        return leftDate - rightDate;
+      })
+      .slice(-6)
+      .map((report) => ({
+        date: report.reportedAt ?? '',
+        value: toTimelineValue(report, primaryMetric),
+      }));
 
   const channelSnapshots = [...channels.values()]
     .map((channel) => ({

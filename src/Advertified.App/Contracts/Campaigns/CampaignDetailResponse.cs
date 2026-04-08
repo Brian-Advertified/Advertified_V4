@@ -36,6 +36,7 @@ public sealed class CampaignDetailResponse
     public IReadOnlyList<CampaignAssetResponse> Assets { get; set; } = Array.Empty<CampaignAssetResponse>();
     public IReadOnlyList<CampaignSupplierBookingResponse> SupplierBookings { get; set; } = Array.Empty<CampaignSupplierBookingResponse>();
     public IReadOnlyList<CampaignDeliveryReportResponse> DeliveryReports { get; set; } = Array.Empty<CampaignDeliveryReportResponse>();
+    public IReadOnlyList<CampaignPerformanceTimelinePointResponse> PerformanceTimeline { get; set; } = Array.Empty<CampaignPerformanceTimelinePointResponse>();
     public DateOnly? EffectiveEndDate { get; set; }
     public int? DaysLeft { get; set; }
 }
