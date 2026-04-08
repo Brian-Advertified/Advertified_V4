@@ -280,8 +280,8 @@ public interface IAdVariantService
 public interface IAdPlatformPublisher
 {
     string Platform { get; }
-    Task<string> PublishAsync(AdVariantSummary variant, CancellationToken cancellationToken);
-    Task<ExternalAdMetrics> GetMetricsAsync(string platformAdId, CancellationToken cancellationToken);
+    Task<string> PublishAsync(AdVariantSummary variant, CancellationToken cancellationToken, string? accessToken = null);
+    Task<ExternalAdMetrics> GetMetricsAsync(string platformAdId, CancellationToken cancellationToken, string? accessToken = null);
 }
 
 public interface IAdPlatformPublisherFactory

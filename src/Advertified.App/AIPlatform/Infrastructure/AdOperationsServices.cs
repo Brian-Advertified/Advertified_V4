@@ -153,11 +153,12 @@ public sealed class DbAdVariantService : IAdVariantService
             cancellationToken);
 
         var publisher = _publisherFactory.GetRequired(row.Platform);
+        var linkedPublishConnection = await GetActiveConnectionForCampaignProviderAsync(row.CampaignId, row.Platform, cancellationToken);
         var summary = MapVariant(row);
         string platformAdId;
         try
         {
-            platformAdId = await publisher.PublishAsync(summary, cancellationToken);
+            platformAdId = await publisher.PublishAsync(summary, cancellationToken, linkedPublishConnection?.AdPlatformConnection.AccessToken);
         }
         catch (Exception ex)
         {
@@ -341,12 +342,13 @@ public sealed class DbAdVariantService : IAdVariantService
         foreach (var row in publishedRows)
         {
             var publisher = _publisherFactory.GetRequired(row.Platform);
-            var external = await publisher.GetMetricsAsync(row.PlatformAdId!, cancellationToken);
+            var providerKey = NormalizeProviderKey(row.Platform);
+            linkedByProvider.TryGetValue(providerKey, out var linkedConnection);
+            var external = await publisher.GetMetricsAsync(row.PlatformAdId!, cancellationToken, linkedConnection?.AdPlatformConnection.AccessToken);
             var ctr = external.Impressions > 0 ? decimal.Round((decimal)external.Clicks / external.Impressions, 4) : 0m;
             var conversionRate = external.Clicks > 0 ? decimal.Round((decimal)external.Conversions / external.Clicks, 4) : 0m;
-            var providerKey = NormalizeProviderKey(row.Platform);
             metricsByPlatform[providerKey] = MergeMetrics(metricsByPlatform.GetValueOrDefault(providerKey), external);
-            if (linkedByProvider.TryGetValue(providerKey, out var linkedConnection))
+            if (linkedConnection is not null)
             {
                 if (!string.IsNullOrWhiteSpace(linkedConnection.AdPlatformConnection.AccountName))
                 {
@@ -635,6 +637,24 @@ public sealed class DbAdVariantService : IAdVariantService
             allowedVoicePackTiers);
     }
 
+    private async Task<CampaignAdPlatformLink?> GetActiveConnectionForCampaignProviderAsync(
+        Guid campaignId,
+        string platform,
+        CancellationToken cancellationToken)
+    {
+        var providerKey = NormalizeProviderKey(platform);
+        var rows = await _db.CampaignAdPlatformLinks
+            .Where(item =>
+                item.CampaignId == campaignId
+                && item.Status == "active"
+                && item.AdPlatformConnection.Status == "active")
+            .Include(item => item.AdPlatformConnection)
+            .OrderByDescending(item => item.IsPrimary)
+            .ThenByDescending(item => item.UpdatedAt)
+            .ToArrayAsync(cancellationToken);
+        return rows.FirstOrDefault(item => NormalizeProviderKey(item.AdPlatformConnection.Provider) == providerKey);
+    }
+
     private static IReadOnlyList<string> ParseJsonArray(string? source)
     {
         if (string.IsNullOrWhiteSpace(source))
@@ -775,7 +795,7 @@ public sealed class MetaAdPlatformPublisher : IAdPlatformPublisher
 
     public string Platform => "Meta";
 
-    public async Task<string> PublishAsync(AdVariantSummary variant, CancellationToken cancellationToken)
+    public async Task<string> PublishAsync(AdVariantSummary variant, CancellationToken cancellationToken, string? accessToken = null)
     {
         if (!_options.DryRunMode && !_options.Meta.Enabled)
         {
@@ -787,7 +807,7 @@ public sealed class MetaAdPlatformPublisher : IAdPlatformPublisher
             return AdPlatformPublisherHelpers.BuildDeterministicPlatformAdId("meta", variant.Id);
         }
 
-        AdPlatformPublisherHelpers.EnsureProviderConfig(_options.Meta, "Meta");
+        AdPlatformPublisherHelpers.EnsureProviderConfig(_options.Meta, "Meta", hasAccessTokenOverride: !string.IsNullOrWhiteSpace(accessToken));
         var endpoint = AdPlatformPublisherHelpers.BuildEndpoint(_options.Meta, _options.Meta.PublishPath, variant.PlatformAdId, variant.Id.ToString("D"));
         var body = JsonSerializer.Serialize(new
         {
@@ -804,7 +824,7 @@ public sealed class MetaAdPlatformPublisher : IAdPlatformPublisher
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json")
         };
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _options.Meta.ApiKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", string.IsNullOrWhiteSpace(accessToken) ? _options.Meta.ApiKey : accessToken.Trim());
 
         var response = await SendAsync("Meta publish", request, cancellationToken);
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
@@ -820,17 +840,17 @@ public sealed class MetaAdPlatformPublisher : IAdPlatformPublisher
         return platformAdId.Trim();
     }
 
-    public async Task<ExternalAdMetrics> GetMetricsAsync(string platformAdId, CancellationToken cancellationToken)
+    public async Task<ExternalAdMetrics> GetMetricsAsync(string platformAdId, CancellationToken cancellationToken, string? accessToken = null)
     {
         if (_options.DryRunMode)
         {
             return AdPlatformPublisherHelpers.BuildDeterministicMetrics(platformAdId, 1200, 38, 6, 84m);
         }
 
-        AdPlatformPublisherHelpers.EnsureProviderConfig(_options.Meta, "Meta");
+        AdPlatformPublisherHelpers.EnsureProviderConfig(_options.Meta, "Meta", hasAccessTokenOverride: !string.IsNullOrWhiteSpace(accessToken));
         var endpoint = AdPlatformPublisherHelpers.BuildEndpoint(_options.Meta, _options.Meta.MetricsPath, platformAdId, platformAdId);
         using var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _options.Meta.ApiKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", string.IsNullOrWhiteSpace(accessToken) ? _options.Meta.ApiKey : accessToken.Trim());
         request.Headers.Accept.ParseAdd("application/json");
 
         var response = await SendAsync("Meta metrics", request, cancellationToken);
@@ -884,7 +904,7 @@ public sealed class GoogleAdsPlatformPublisher : IAdPlatformPublisher
 
     public string Platform => "GoogleAds";
 
-    public async Task<string> PublishAsync(AdVariantSummary variant, CancellationToken cancellationToken)
+    public async Task<string> PublishAsync(AdVariantSummary variant, CancellationToken cancellationToken, string? accessToken = null)
     {
         if (!_options.DryRunMode && !_options.GoogleAds.Enabled)
         {
@@ -896,7 +916,7 @@ public sealed class GoogleAdsPlatformPublisher : IAdPlatformPublisher
             return AdPlatformPublisherHelpers.BuildDeterministicPlatformAdId("gads", variant.Id);
         }
 
-        AdPlatformPublisherHelpers.EnsureProviderConfig(_options.GoogleAds, "GoogleAds");
+        AdPlatformPublisherHelpers.EnsureProviderConfig(_options.GoogleAds, "GoogleAds", hasAccessTokenOverride: !string.IsNullOrWhiteSpace(accessToken));
         var endpoint = AdPlatformPublisherHelpers.BuildEndpoint(_options.GoogleAds, _options.GoogleAds.PublishPath, variant.PlatformAdId, variant.Id.ToString("D"));
         var body = JsonSerializer.Serialize(new
         {
@@ -913,7 +933,7 @@ public sealed class GoogleAdsPlatformPublisher : IAdPlatformPublisher
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json")
         };
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _options.GoogleAds.ApiKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", string.IsNullOrWhiteSpace(accessToken) ? _options.GoogleAds.ApiKey : accessToken.Trim());
 
         var response = await SendAsync("Google Ads publish", request, cancellationToken);
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
@@ -930,14 +950,14 @@ public sealed class GoogleAdsPlatformPublisher : IAdPlatformPublisher
         return platformAdId.Trim();
     }
 
-    public async Task<ExternalAdMetrics> GetMetricsAsync(string platformAdId, CancellationToken cancellationToken)
+    public async Task<ExternalAdMetrics> GetMetricsAsync(string platformAdId, CancellationToken cancellationToken, string? accessToken = null)
     {
         if (_options.DryRunMode)
         {
             return AdPlatformPublisherHelpers.BuildDeterministicMetrics(platformAdId, 950, 26, 5, 63m);
         }
 
-        AdPlatformPublisherHelpers.EnsureProviderConfig(_options.GoogleAds, "GoogleAds");
+        AdPlatformPublisherHelpers.EnsureProviderConfig(_options.GoogleAds, "GoogleAds", hasAccessTokenOverride: !string.IsNullOrWhiteSpace(accessToken));
         var endpoint = AdPlatformPublisherHelpers.BuildEndpoint(_options.GoogleAds, _options.GoogleAds.MetricsPath, platformAdId, platformAdId);
         var query = "SELECT metrics.impressions, metrics.clicks, metrics.conversions, metrics.cost_micros FROM ad_group_ad WHERE ad_group_ad.ad.id = @adId";
         var body = JsonSerializer.Serialize(new
@@ -951,7 +971,7 @@ public sealed class GoogleAdsPlatformPublisher : IAdPlatformPublisher
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json")
         };
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _options.GoogleAds.ApiKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", string.IsNullOrWhiteSpace(accessToken) ? _options.GoogleAds.ApiKey : accessToken.Trim());
 
         var response = await SendAsync("Google Ads metrics", request, cancellationToken);
         var content = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -1000,14 +1020,14 @@ internal static class AdPlatformPublisherHelpers
         return new ExternalAdMetrics(impressions, clicks, conversions, cost);
     }
 
-    public static void EnsureProviderConfig(AdPlatformProviderOptions provider, string label)
+    public static void EnsureProviderConfig(AdPlatformProviderOptions provider, string label, bool hasAccessTokenOverride = false)
     {
         if (!provider.Enabled)
         {
             throw new InvalidOperationException($"{label} provider is disabled.");
         }
 
-        if (string.IsNullOrWhiteSpace(provider.ApiKey))
+        if (!hasAccessTokenOverride && string.IsNullOrWhiteSpace(provider.ApiKey))
         {
             throw new InvalidOperationException($"{label} api key is required.");
         }
