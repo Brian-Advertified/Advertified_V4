@@ -79,85 +79,180 @@ function getChannelScore(lead: LeadIntelligence, channel: string) {
   return lead.channelDetections.find((item) => item.channel === channel)?.score ?? 0;
 }
 
-function inferSuggestedCampaignType(lead: LeadIntelligence): string {
-  if (lead.latestSignal?.hasPromo) {
-    return 'promotion';
-  }
+type LeadArchetypeKey =
+  | 'active_scaler'
+  | 'promo_dependent_retailer'
+  | 'invisible_local_business'
+  | 'digital_only_player'
+  | 'passive_untapped_business';
 
-  if (getChannelScore(lead, 'search') < 40) {
-    return 'leads';
-  }
+type LeadArchetypeProfile = {
+  key: LeadArchetypeKey;
+  name: string;
+  suggestedCampaignType: string;
+  detectedGaps: string[];
+  expectedOutcome: string;
+  recommendedChannels: string[];
+};
+
+const STRONG_CHANNEL_MIN = 60;
+const WEAK_CHANNEL_MAX = 39;
+
+function inferLeadArchetype(lead: LeadIntelligence): LeadArchetypeProfile {
+  const social = getChannelScore(lead, 'social');
+  const search = getChannelScore(lead, 'search');
+  const ooh = getChannelScore(lead, 'billboards_ooh');
+  const radio = getChannelScore(lead, 'radio');
+  const hasPromo = lead.latestSignal?.hasPromo ?? false;
+  const websiteActive = lead.latestSignal?.websiteUpdatedRecently ?? false;
+  const hasWebsite = Boolean(lead.lead.website?.trim());
+  const digitalStrong = social >= STRONG_CHANNEL_MIN || search >= STRONG_CHANNEL_MIN;
+  const discountHeavyCategory = /retail|grocery|supermarket|discount/i.test(lead.lead.category);
+  const locallyScoped = !/national/i.test(lead.lead.location);
 
   if (
-    getChannelScore(lead, 'billboards_ooh') < 40
-    && getChannelScore(lead, 'radio') < 40
-    && getChannelScore(lead, 'tv') < 40
+    social >= STRONG_CHANNEL_MIN
+    && hasPromo
+    && (websiteActive || hasWebsite)
+    && (search <= WEAK_CHANNEL_MAX || ooh <= WEAK_CHANNEL_MAX)
   ) {
-    return 'awareness';
+    return {
+      key: 'active_scaler',
+      name: 'Active Scaler',
+      suggestedCampaignType: 'brand_presence',
+      detectedGaps: [
+        'You already show strong campaign momentum in digital channels.',
+        search <= WEAK_CHANNEL_MAX
+          ? 'Limited evidence of structured high-intent search capture.'
+          : 'Search capture exists, but there is room to improve conversion-focused demand capture.',
+        ooh <= WEAK_CHANNEL_MAX
+          ? 'No strong evidence of Billboards and Digital Screens activity was found.'
+          : 'Offline visibility can still be expanded to reinforce existing momentum.',
+      ],
+      expectedOutcome:
+        'Expected impact: stronger full-funnel coverage, better local visibility, and improved conversion of demand your digital activity is already generating.',
+      recommendedChannels: ['OOH', 'Radio', 'Digital'],
+    };
   }
 
-  return 'brand_presence';
+  if (hasPromo && social < STRONG_CHANNEL_MIN && search <= WEAK_CHANNEL_MAX && discountHeavyCategory) {
+    return {
+      key: 'promo_dependent_retailer',
+      name: 'Promo-Dependent Retailer',
+      suggestedCampaignType: 'promotion',
+      detectedGaps: [
+        'Promotional activity is visible, but channel strength remains uneven.',
+        'Limited evidence of always-on search capture for high-intent demand.',
+        'Limited evidence of sustained awareness coverage beyond promotion cycles.',
+      ],
+      expectedOutcome:
+        'Expected impact: more consistent customer flow, stronger baseline demand between promotions, and improved campaign stability.',
+      recommendedChannels: ['Radio', 'OOH', 'Digital'],
+    };
+  }
+
+  if (locallyScoped && (!hasWebsite || !websiteActive) && search <= WEAK_CHANNEL_MAX && social <= WEAK_CHANNEL_MAX) {
+    return {
+      key: 'invisible_local_business',
+      name: 'Invisible Local Business',
+      suggestedCampaignType: 'leads',
+      detectedGaps: [
+        'There appears to be limited visibility when customers search in your local area.',
+        'Digital demand capture signals are currently weak.',
+        'Local awareness channels are underutilized relative to potential foot traffic.',
+      ],
+      expectedOutcome:
+        'Expected impact: stronger local discoverability, more inbound enquiries, and improved walk-in conversion potential.',
+      recommendedChannels: ['Digital', 'OOH'],
+    };
+  }
+
+  if (digitalStrong && search >= 40 && ooh <= WEAK_CHANNEL_MAX && radio <= WEAK_CHANNEL_MAX) {
+    return {
+      key: 'digital_only_player',
+      name: 'Digital-Only Player',
+      suggestedCampaignType: 'awareness',
+      detectedGaps: [
+        'Digital presence is established and generating momentum.',
+        'No strong evidence of offline visibility channels was found.',
+        'Growth may be constrained by over-reliance on digital-only reach.',
+      ],
+      expectedOutcome:
+        'Expected impact: expanded audience reach, improved brand recall, and reduced dependence on saturated digital inventory.',
+      recommendedChannels: ['OOH', 'Radio', 'Digital'],
+    };
+  }
+
+  return {
+    key: 'passive_untapped_business',
+    name: 'Passive / Untapped Business',
+    suggestedCampaignType: 'awareness',
+    detectedGaps: [
+      'There is limited current evidence of sustained campaign activity.',
+      'Demand capture and awareness signals are both low.',
+      'A stronger baseline marketing foundation is needed before optimization.',
+    ],
+    expectedOutcome:
+      'Expected impact: stronger baseline visibility, more consistent lead flow, and a practical foundation for staged growth.',
+    recommendedChannels: ['Digital', 'OOH'],
+  };
 }
 
-function buildDetectedGapLines(lead: LeadIntelligence): string[] {
-  const gaps: string[] = [];
+function buildResearchEvidenceLines(lead: LeadIntelligence): string[] {
+  const social = lead.channelDetections.find((item) => item.channel === 'social');
+  const search = lead.channelDetections.find((item) => item.channel === 'search');
+  const ooh = lead.channelDetections.find((item) => item.channel === 'billboards_ooh');
+  const observedAt = lead.latestSignal?.createdAt
+    ? new Date(lead.latestSignal.createdAt).toISOString().slice(0, 10)
+    : new Date().toISOString().slice(0, 10);
+  const confidenceLabel = (confidence?: string) => (confidence ? confidence.replaceAll('_', ' ') : 'not available');
 
-  if (getChannelScore(lead, 'search') < 40) {
-    gaps.push("You are missing high-intent search traffic.");
+  const lines: string[] = [];
+  lines.push(`Observed active promotions: ${lead.latestSignal?.hasPromo ? 'Yes' : 'No'} | Source: website signal scan | Confidence: medium | Observed: ${observedAt}`);
+  lines.push(`Observed Meta ad indicators: ${lead.latestSignal?.hasMetaAds ? 'Present' : 'Not found'} | Source: website stack markers | Confidence: ${lead.latestSignal?.hasMetaAds ? 'medium' : 'low'} | Observed: ${observedAt}`);
+
+  if (search) {
+    lines.push(`Search channel score: ${search.score}/100 | Source: channel scoring model | Confidence: ${confidenceLabel(search.confidence)} | Observed: ${observedAt}`);
   }
 
-  if (
-    getChannelScore(lead, 'billboards_ooh') < 40
-    && getChannelScore(lead, 'radio') < 40
-    && getChannelScore(lead, 'tv') < 40
-  ) {
-    gaps.push("You have limited awareness coverage across broad-reach channels.");
+  if (ooh) {
+    lines.push(`OOH channel score: ${ooh.score}/100 | Source: channel scoring model | Confidence: ${confidenceLabel(ooh.confidence)} | Observed: ${observedAt}`);
   }
 
-  if (getChannelScore(lead, 'billboards_ooh') < 40) {
-    gaps.push("You have no strong Billboards and Digital Screens presence detected.");
+  if (social) {
+    lines.push(`Social channel score: ${social.score}/100 | Source: channel scoring model | Confidence: ${confidenceLabel(social.confidence)} | Observed: ${observedAt}`);
   }
 
-  if (gaps.length === 0) {
-    gaps.push("Your channel mix looks patchy and likely leaves reachable customers uncaptured.");
-  }
-
-  return gaps.slice(0, 3);
+  return lines.slice(0, 5);
 }
 
-function buildExpectedOutcomeLine(suggestedCampaignType: string): string {
-  switch (suggestedCampaignType) {
-    case 'promotion':
-      return 'Expected impact: stronger promotional reach, faster response, and better conversion of active demand.';
-    case 'leads':
-      return 'Expected impact: more inbound leads, stronger high-intent capture, and clearer demand conversion paths.';
-    case 'awareness':
-      return 'Expected impact: broader local visibility, stronger brand recall, and better top-of-funnel coverage.';
+function buildSocialQualityNote(lead: LeadIntelligence): string {
+  const socialScore = getChannelScore(lead, 'social');
+
+  if (socialScore >= STRONG_CHANNEL_MIN) {
+    return 'Social activity appears strong based on public signals. Creative quality, posting frequency quality, spend efficiency, and conversion quality are not directly verified without platform-level account data.';
+  }
+
+  if (socialScore >= 40) {
+    return 'Some social activity signals are present, but campaign quality and consistency are unclear from public signals alone.';
+  }
+
+  return 'Limited social campaign evidence was found. Current assessment is based on public signals and should be validated with direct platform data.';
+}
+
+function buildWhyActNowLine(archetypeKey: LeadArchetypeKey): string {
+  switch (archetypeKey) {
+    case 'active_scaler':
+      return 'There is already active demand in your category. The immediate opportunity is to capture more of it before competitors extend into the same high-visibility channels.';
+    case 'promo_dependent_retailer':
+      return 'Promotion-driven demand is present, but without stronger baseline awareness, customer flow remains volatile between cycles.';
+    case 'invisible_local_business':
+      return 'Customers are already searching locally. Improving discoverability now can convert existing intent into measurable foot traffic.';
+    case 'digital_only_player':
+      return 'Digital momentum is visible, but audience growth can plateau without additional offline reach.';
     default:
-      return 'Expected impact: stronger visibility, better channel coverage, and a more complete growth campaign.';
+      return 'The earlier visibility is established, the faster demand signals can compound into consistent growth.';
   }
-}
-
-function inferRecommendedChannels(lead: LeadIntelligence): string[] {
-  const channels = new Set<string>(['OOH']);
-
-  if (getChannelScore(lead, 'search') < 40) {
-    channels.add('Digital');
-  }
-
-  if (
-    getChannelScore(lead, 'billboards_ooh') < 40
-    || getChannelScore(lead, 'radio') < 40
-    || getChannelScore(lead, 'tv') < 40
-  ) {
-    channels.add('Radio');
-  }
-
-  if (lead.score.intentLevel === 'High') {
-    channels.add('Digital');
-  }
-
-  return Array.from(channels);
 }
 
 function inferDefaultPackageBandId(packageBands: PackageBand[] | undefined, lead: LeadIntelligence | undefined): string {
@@ -374,10 +469,9 @@ export function AgentLeadIntelligencePage() {
         throw new Error('Select a lead before generating a proposal.');
       }
 
-      const suggestedCampaignType = inferSuggestedCampaignType(lead);
-      const detectedGaps = buildDetectedGapLines(lead);
-      const expectedOutcome = buildExpectedOutcomeLine(suggestedCampaignType);
-      const recommendedChannels = inferRecommendedChannels(lead);
+      const archetype = inferLeadArchetype(lead);
+      const evidenceLines = buildResearchEvidenceLines(lead);
+      const socialQualityNote = buildSocialQualityNote(lead);
 
       const campaign = await advertifiedApi.createAgentProspectCampaign({
         fullName: proposalForm.fullName.trim(),
@@ -397,11 +491,22 @@ export function AgentLeadIntelligencePage() {
           convertToCampaign: {
             businessName: lead.lead.name,
             location: lead.lead.location,
-            suggestedCampaignType,
-            detectedGaps,
+            archetypeName: archetype.name,
+            suggestedCampaignType: archetype.suggestedCampaignType,
+            detectedGaps: archetype.detectedGaps,
             insightSummary: lead.insight,
-            expectedOutcome,
-            recommendedChannels,
+            expectedOutcome: archetype.expectedOutcome,
+            recommendedChannels: archetype.recommendedChannels,
+            whoWeAre:
+              'Advertified is a South African advertising company focused on helping businesses capture more demand using real market signals and practical campaign execution. We identify missed opportunities, build clear campaign plans, and help launch quickly without unnecessary complexity.',
+            researchBasis: evidenceLines,
+            lastResearchedAtUtc: lead.latestSignal?.createdAt ?? new Date().toISOString(),
+            socialQualityNote,
+            flexibleRollout:
+              'Each option can be launched using our buy now, pay later model.',
+            whyActNow: buildWhyActNowLine(archetype.key),
+            nextStep:
+              'Reply with your preferred option and we will handle setup, creative coordination, and launch planning.',
             autoGenerateDraft: true,
           },
         },
@@ -418,6 +523,7 @@ export function AgentLeadIntelligencePage() {
     && proposalForm.packageBandId,
   );
   const selectedLeadData = selectedLead.data;
+  const selectedLeadArchetype = selectedLeadData ? inferLeadArchetype(selectedLeadData) : null;
   const priorityActions = (selectedLeadData?.recommendedActions ?? []).filter((action) => action.status === 'open').slice(0, 3);
   const visibleChannelCoverage = selectedLeadData
     ? [
@@ -811,6 +917,9 @@ export function AgentLeadIntelligencePage() {
                     <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">Business opportunity analysis</p>
                     <h3 className="mt-2 text-2xl font-semibold text-ink">{selectedLead.data.lead.name}</h3>
                     <p className="mt-1 text-sm text-ink-soft">{selectedLead.data.lead.location} | {selectedLead.data.lead.category}</p>
+                    {selectedLeadArchetype ? (
+                      <p className="mt-1 text-xs uppercase tracking-[0.16em] text-ink-soft">Growth pattern: {selectedLeadArchetype.name}</p>
+                    ) : null}
                     <div className="mt-5 flex flex-wrap items-center gap-3">
                       <p className="text-4xl font-semibold text-ink">Opportunity Score: {selectedLead.data.score.score}</p>
                       <p className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${intentTone(selectedLead.data.score.intentLevel)}`}>
@@ -819,13 +928,13 @@ export function AgentLeadIntelligencePage() {
                     </div>
                     <p className="mt-4 text-sm leading-7 text-ink">{selectedLead.data.insight || 'No insight yet. Run analysis first.'}</p>
                     <div className="mt-5 space-y-2">
-                      {buildDetectedGapLines(selectedLead.data).map((gap) => (
+                      {(selectedLeadArchetype?.detectedGaps ?? []).map((gap) => (
                         <div key={gap} className="rounded-2xl bg-white px-4 py-3 text-sm text-ink">
                           {gap}
                         </div>
                       ))}
                     </div>
-                    <p className="mt-4 text-sm text-ink-soft">{buildExpectedOutcomeLine(inferSuggestedCampaignType(selectedLead.data))}</p>
+                    <p className="mt-4 text-sm text-ink-soft">{selectedLeadArchetype?.expectedOutcome}</p>
                     <div className="mt-4 flex flex-wrap gap-3">
                       <button
                         type="button"

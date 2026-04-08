@@ -10,23 +10,24 @@ public sealed class LeadScoreService : ILeadScoreService
 {
     private readonly AppDbContext _db;
     private readonly LeadScoringOptions _options;
+    private readonly ILeadChannelDetectionService _leadChannelDetectionService;
 
-    public LeadScoreService(AppDbContext db, IOptions<LeadScoringOptions> options)
+    public LeadScoreService(
+        AppDbContext db,
+        IOptions<LeadScoringOptions> options,
+        ILeadChannelDetectionService leadChannelDetectionService)
     {
         _db = db;
         _options = options.Value;
+        _leadChannelDetectionService = leadChannelDetectionService;
     }
 
     public async Task<LeadScoreResult> ScoreAsync(int leadId, CancellationToken cancellationToken)
     {
-        var leadExists = await _db.Leads
+        var lead = await _db.Leads
             .AsNoTracking()
-            .AnyAsync(x => x.Id == leadId, cancellationToken);
-
-        if (!leadExists)
-        {
-            throw new InvalidOperationException("Lead not found.");
-        }
+            .FirstOrDefaultAsync(x => x.Id == leadId, cancellationToken)
+            ?? throw new InvalidOperationException("Lead not found.");
 
         var latestSignal = await _db.Signals
             .AsNoTracking()
@@ -35,24 +36,69 @@ public sealed class LeadScoreService : ILeadScoreService
             .ThenByDescending(x => x.Id)
             .FirstOrDefaultAsync(cancellationToken);
 
-        var score = _options.BaseScore;
+        var channelScores = _leadChannelDetectionService
+            .Detect(lead, latestSignal)
+            .ToDictionary(item => item.Channel, item => item.Score, StringComparer.OrdinalIgnoreCase);
+
+        var activityScore = 0;
         if (latestSignal is not null)
         {
             if (latestSignal.HasPromo)
             {
-                score += _options.Weights.HasPromo;
+                activityScore += _options.ActivityWeights.PromoActive;
             }
 
-            if (latestSignal.HasMetaAds)
+            if (channelScores.TryGetValue("social", out var socialScore)
+                && socialScore >= _options.SignalThresholds.StrongChannelMin)
             {
-                score += _options.Weights.HasMetaAds;
+                activityScore += _options.ActivityWeights.MetaStrong;
             }
 
             if (latestSignal.WebsiteUpdatedRecently)
             {
-                score += _options.Weights.WebsiteUpdatedRecently;
+                activityScore += _options.ActivityWeights.WebsiteActive;
+            }
+
+            var activeChannelCount = channelScores.Count(score => score.Value >= _options.SignalThresholds.ActiveChannelMin);
+            if (activeChannelCount >= 2)
+            {
+                activityScore += _options.ActivityWeights.MultiChannelPresence;
             }
         }
+
+        activityScore = Math.Clamp(activityScore, 0, 50);
+
+        var opportunityScore = 0;
+        var digitalStrong = IsChannelStrong(channelScores, "social") || IsChannelStrong(channelScores, "search");
+        var searchWeak = IsChannelWeak(channelScores, "search");
+        var oohWeak = IsChannelWeak(channelScores, "billboards_ooh");
+        var radioWeak = IsChannelWeak(channelScores, "radio");
+        var tvWeak = IsChannelWeak(channelScores, "tv");
+        var broadReachWeak = oohWeak && radioWeak && tvWeak;
+
+        if (digitalStrong && searchWeak)
+        {
+            opportunityScore += _options.OpportunityWeights.DigitalStrongButSearchWeak;
+        }
+
+        if (digitalStrong && oohWeak)
+        {
+            opportunityScore += _options.OpportunityWeights.DigitalStrongButOohWeak;
+        }
+
+        if (latestSignal?.HasPromo == true && broadReachWeak)
+        {
+            opportunityScore += _options.OpportunityWeights.PromoHeavyButBrandPresenceWeak;
+        }
+
+        var activeChannelCountForDependency = channelScores.Count(score => score.Value >= _options.SignalThresholds.ActiveChannelMin);
+        if (activeChannelCountForDependency == 1)
+        {
+            opportunityScore += _options.OpportunityWeights.SingleChannelDependency;
+        }
+
+        opportunityScore = Math.Clamp(opportunityScore, 0, 50);
+        var score = Math.Clamp(_options.BaseScore + activityScore + opportunityScore, 0, 100);
 
         return new LeadScoreResult
         {
@@ -60,6 +106,16 @@ public sealed class LeadScoreService : ILeadScoreService
             Score = score,
             IntentLevel = ResolveIntentLevel(score)
         };
+    }
+
+    private bool IsChannelStrong(IReadOnlyDictionary<string, int> channelScores, string channel)
+    {
+        return channelScores.TryGetValue(channel, out var score) && score >= _options.SignalThresholds.StrongChannelMin;
+    }
+
+    private bool IsChannelWeak(IReadOnlyDictionary<string, int> channelScores, string channel)
+    {
+        return !channelScores.TryGetValue(channel, out var score) || score <= _options.SignalThresholds.WeakChannelMax;
     }
 
     private string ResolveIntentLevel(int score)

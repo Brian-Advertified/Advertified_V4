@@ -155,7 +155,7 @@ public sealed class InsightService : IInsightService
 
         if (currentSignal.HasMetaAds)
         {
-            activity.Add("likely using Meta ads");
+            activity.Add("showing website patterns that can align with Meta advertising");
         }
 
         if (currentSignal.WebsiteUpdatedRecently)
@@ -175,8 +175,8 @@ public sealed class InsightService : IInsightService
         };
 
         var opportunity = currentSignal.HasMetaAds
-            ? "There may still be an opportunity to expand beyond social into stronger physical advertising visibility."
-            : "There may be an opportunity to strengthen paid social or broader campaign activity.";
+            ? "There appears to be an opportunity to strengthen search capture and broaden awareness channels."
+            : "There appears to be an opportunity to improve paid demand capture and broader campaign coverage.";
 
         var trendSentence = previousSignal is null
             ? "This is the first intelligence snapshot for the lead."

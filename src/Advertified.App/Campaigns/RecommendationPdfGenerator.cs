@@ -62,9 +62,42 @@ internal static class RecommendationPdfGenerator
                         column.Item().Border(1).BorderColor("#C7E0D6").Background("#F3FBF7").Padding(12).Column(opportunity =>
                         {
                             opportunity.Spacing(6);
-                            opportunity.Item().Text("Why you are receiving this").SemiBold().FontSize(12);
+                            opportunity.Item().Text("Growth Opportunity Snapshot").SemiBold().FontSize(12);
                             opportunity.Item().Text(
                                 $"We found where {ResolveBusinessReference(model)} is losing customers, and built the campaign to fix it.");
+
+                            if (!string.IsNullOrWhiteSpace(model.OpportunityContext.ArchetypeName))
+                            {
+                                opportunity.Item()
+                                    .Text($"Growth pattern: {ToClientCopy(model.OpportunityContext.ArchetypeName)}")
+                                    .FontColor("#4B5563");
+                            }
+
+                            if (!string.IsNullOrWhiteSpace(model.OpportunityContext.WhoWeAre))
+                            {
+                                opportunity.Item().Text("Who we are").SemiBold();
+                                opportunity.Item().Text(ToClientCopy(model.OpportunityContext.WhoWeAre)).FontColor("#4B5563");
+                            }
+
+                            if (model.OpportunityContext.ResearchBasis.Count > 0)
+                            {
+                                opportunity.Item().Text("Research basis").SemiBold();
+                                foreach (var evidence in model.OpportunityContext.ResearchBasis)
+                                {
+                                    opportunity.Item().Text($"- {ToClientCopy(evidence)}").FontColor("#4B5563");
+                                }
+                            }
+
+                            if (!string.IsNullOrWhiteSpace(model.OpportunityContext.LastResearchedAtUtc))
+                            {
+                                opportunity.Item().Text($"Last researched: {ToClientCopy(model.OpportunityContext.LastResearchedAtUtc)}").FontColor("#4B5563");
+                            }
+
+                            if (!string.IsNullOrWhiteSpace(model.OpportunityContext.SocialQualityNote))
+                            {
+                                opportunity.Item().Text("Social quality note").SemiBold();
+                                opportunity.Item().Text(ToClientCopy(model.OpportunityContext.SocialQualityNote)).FontColor("#4B5563");
+                            }
 
                             foreach (var gap in model.OpportunityContext.DetectedGaps)
                             {
@@ -83,6 +116,24 @@ internal static class RecommendationPdfGenerator
                                 opportunity.Item()
                                     .Text(ToClientCopy(model.OpportunityContext.ExpectedOutcome))
                                     .SemiBold();
+                            }
+
+                            if (!string.IsNullOrWhiteSpace(model.OpportunityContext.WhyActNow))
+                            {
+                                opportunity.Item().Text("Why timing matters").SemiBold();
+                                opportunity.Item().Text(ToClientCopy(model.OpportunityContext.WhyActNow)).FontColor("#4B5563");
+                            }
+
+                            if (!string.IsNullOrWhiteSpace(model.OpportunityContext.FlexibleRollout))
+                            {
+                                opportunity.Item().Text("Flexible rollout").SemiBold();
+                                opportunity.Item().Text(ToClientCopy(model.OpportunityContext.FlexibleRollout)).FontColor("#4B5563");
+                            }
+
+                            if (!string.IsNullOrWhiteSpace(model.OpportunityContext.NextStep))
+                            {
+                                opportunity.Item().Text("Next step").SemiBold();
+                                opportunity.Item().Text(ToClientCopy(model.OpportunityContext.NextStep)).FontColor("#4B5563");
                             }
                         });
                     }
@@ -127,7 +178,7 @@ internal static class RecommendationPdfGenerator
                         column.Item().Border(1).BorderColor("#D1D5DB").Padding(12).Column(proposalSummary =>
                         {
                             proposalSummary.Spacing(6);
-                            proposalSummary.Item().Text("Recommended options").SemiBold().FontSize(12);
+                            proposalSummary.Item().Text("Recommended Growth Paths").SemiBold().FontSize(12);
 
                             foreach (var proposal in model.Proposals)
                             {
@@ -662,9 +713,17 @@ internal sealed class RecommendationDocumentModel
 
 internal sealed class RecommendationOpportunityContextModel
 {
+    public string? ArchetypeName { get; init; }
+    public string? WhoWeAre { get; init; }
+    public IReadOnlyList<string> ResearchBasis { get; init; } = Array.Empty<string>();
+    public string? LastResearchedAtUtc { get; init; }
+    public string? SocialQualityNote { get; init; }
     public IReadOnlyList<string> DetectedGaps { get; init; } = Array.Empty<string>();
     public string? LeadInsightSummary { get; init; }
     public string? ExpectedOutcome { get; init; }
+    public string? WhyActNow { get; init; }
+    public string? FlexibleRollout { get; init; }
+    public string? NextStep { get; init; }
 }
 
 internal sealed class RecommendationProposalDocumentModel

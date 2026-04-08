@@ -39,7 +39,7 @@ public sealed class LeadChannelDetectionService : ILeadChannelDetectionService
             case "social":
                 if (signal?.HasMetaAds == true)
                 {
-                    evidence.Add(CreateEvidence("active_ads_found", "website_signal", 40, 1.0m, freshnessMultiplier, "Meta ad activity detected from the website stack."));
+                    evidence.Add(CreateEvidence("meta_ad_proxy_signal", "website_signal", 30, 0.75m, freshnessMultiplier, "Website markers suggest possible Meta advertising activity."));
                 }
                 if (signal?.HasPromo == true)
                 {
@@ -231,7 +231,7 @@ public sealed class LeadChannelDetectionService : ILeadChannelDetectionService
     {
         return signalType switch
         {
-            "active_ads_found" => true,
+            // Keep "direct evidence" strict. Website pattern signals are inference, not proof.
             "google_ads_evidence" => true,
             "display_creative_detected" => true,
             "tv_ad_found" => true,

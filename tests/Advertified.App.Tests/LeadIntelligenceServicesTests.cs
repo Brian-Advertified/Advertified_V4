@@ -148,26 +148,43 @@ public class LeadScoreServiceTests
             });
         await db.SaveChangesAsync();
 
-        var service = new LeadScoreService(db, Options.Create(new LeadScoringOptions
-        {
-            BaseScore = 10,
-            Weights = new LeadSignalScoringWeights
+        var service = new LeadScoreService(
+            db,
+            Options.Create(new LeadScoringOptions
             {
-                HasPromo = 30,
-                HasMetaAds = 40,
-                WebsiteUpdatedRecently = 20
-            },
-            Thresholds = new LeadIntentThresholds
-            {
-                LowMax = 40,
-                MediumMax = 70
-            }
-        }));
+                BaseScore = 0,
+                ActivityWeights = new LeadActivityScoringWeights
+                {
+                    PromoActive = 15,
+                    MetaStrong = 20,
+                    WebsiteActive = 10,
+                    MultiChannelPresence = 5
+                },
+                OpportunityWeights = new LeadOpportunityScoringWeights
+                {
+                    DigitalStrongButSearchWeak = 15,
+                    DigitalStrongButOohWeak = 15,
+                    PromoHeavyButBrandPresenceWeak = 10,
+                    SingleChannelDependency = 10
+                },
+                SignalThresholds = new LeadScoringSignalThresholds
+                {
+                    StrongChannelMin = 60,
+                    WeakChannelMax = 39,
+                    ActiveChannelMin = 40
+                },
+                Thresholds = new LeadIntentThresholds
+                {
+                    LowMax = 40,
+                    MediumMax = 70
+                }
+            }),
+            new LeadChannelDetectionService());
 
         var result = await service.ScoreAsync(7, CancellationToken.None);
 
-        result.Score.Should().Be(100);
-        result.IntentLevel.Should().Be("High");
+        result.Score.Should().Be(45);
+        result.IntentLevel.Should().Be("Medium");
     }
 }
 
