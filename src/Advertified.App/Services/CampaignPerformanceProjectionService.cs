@@ -22,9 +22,10 @@ public sealed class CampaignPerformanceProjectionService : ICampaignPerformanceP
         string platform,
         ExternalAdMetrics metrics,
         DateTime recordedAtUtc,
+        string? supplierLabel,
         CancellationToken cancellationToken)
     {
-        var platformLabel = ResolvePlatformLabel(platform);
+        var platformLabel = ResolvePlatformLabel(platform, supplierLabel);
         var booking = await _db.CampaignSupplierBookings
             .FirstOrDefaultAsync(
                 item => item.CampaignId == campaignId
@@ -93,8 +94,13 @@ public sealed class CampaignPerformanceProjectionService : ICampaignPerformanceP
         report.SpendDelivered = metrics.CostZar;
     }
 
-    private static string ResolvePlatformLabel(string platform)
+    private static string ResolvePlatformLabel(string platform, string? supplierLabel)
     {
+        if (!string.IsNullOrWhiteSpace(supplierLabel))
+        {
+            return supplierLabel.Trim();
+        }
+
         var normalized = (platform ?? string.Empty).Trim().ToLowerInvariant();
         return normalized switch
         {

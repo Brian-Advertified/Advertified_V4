@@ -317,15 +317,44 @@ public sealed class DbAdVariantService : IAdVariantService
             estimatedCostZar: _costEstimator.EstimateQaCost(Math.Max(1, publishedRows.Length)),
             cancellationToken);
 
+        var linkedConnections = await _db.CampaignAdPlatformLinks
+            .Where(item =>
+                item.CampaignId == campaignId
+                && item.Status == "active"
+                && item.AdPlatformConnection.Status == "active")
+            .Include(item => item.AdPlatformConnection)
+            .ToArrayAsync(cancellationToken);
+        var linkedByProvider = linkedConnections
+            .GroupBy(item => NormalizeProviderKey(item.AdPlatformConnection.Provider))
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    .OrderByDescending(item => item.IsPrimary)
+                    .ThenByDescending(item => item.UpdatedAt)
+                    .First(),
+                StringComparer.OrdinalIgnoreCase);
+
         var now = DateTime.UtcNow;
         var metricsByPlatform = new Dictionary<string, ExternalAdMetrics>(StringComparer.OrdinalIgnoreCase);
+        var accountNameByPlatform = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var usedConnectionIds = new HashSet<Guid>();
         foreach (var row in publishedRows)
         {
             var publisher = _publisherFactory.GetRequired(row.Platform);
             var external = await publisher.GetMetricsAsync(row.PlatformAdId!, cancellationToken);
             var ctr = external.Impressions > 0 ? decimal.Round((decimal)external.Clicks / external.Impressions, 4) : 0m;
             var conversionRate = external.Clicks > 0 ? decimal.Round((decimal)external.Conversions / external.Clicks, 4) : 0m;
-            metricsByPlatform[row.Platform] = MergeMetrics(metricsByPlatform.GetValueOrDefault(row.Platform), external);
+            var providerKey = NormalizeProviderKey(row.Platform);
+            metricsByPlatform[providerKey] = MergeMetrics(metricsByPlatform.GetValueOrDefault(providerKey), external);
+            if (linkedByProvider.TryGetValue(providerKey, out var linkedConnection))
+            {
+                if (!string.IsNullOrWhiteSpace(linkedConnection.AdPlatformConnection.AccountName))
+                {
+                    accountNameByPlatform[providerKey] = linkedConnection.AdPlatformConnection.AccountName;
+                }
+
+                usedConnectionIds.Add(linkedConnection.AdPlatformConnectionId);
+            }
 
             _db.AiAdMetrics.Add(new AiAdMetric
             {
@@ -358,7 +387,20 @@ public sealed class DbAdVariantService : IAdVariantService
                         platform,
                         metrics,
                         now,
+                        accountNameByPlatform.GetValueOrDefault(platform),
                         cancellationToken);
+                }
+
+                if (usedConnectionIds.Count > 0)
+                {
+                    var usedConnections = await _db.AdPlatformConnections
+                        .Where(item => usedConnectionIds.Contains(item.Id))
+                        .ToArrayAsync(cancellationToken);
+                    foreach (var connection in usedConnections)
+                    {
+                        connection.LastSyncedAt = now;
+                        connection.UpdatedAt = now;
+                    }
                 }
 
                 await _db.SaveChangesAsync(cancellationToken);
@@ -404,6 +446,19 @@ public sealed class DbAdVariantService : IAdVariantService
             existing.Clicks + current.Clicks,
             existing.Conversions + current.Conversions,
             existing.CostZar + current.CostZar);
+    }
+
+    private static string NormalizeProviderKey(string? value)
+    {
+        var normalized = (value ?? string.Empty).Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            "google" => "googleads",
+            "google_ads" => "googleads",
+            "meta" => "meta",
+            "facebook" => "meta",
+            _ => normalized
+        };
     }
 
     public async Task<int> SyncAllPublishedCampaignsAsync(CancellationToken cancellationToken)

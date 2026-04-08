@@ -449,6 +449,98 @@ public class AdMetricsProjectionTests
         report.Summary.Should().Contain("Spend");
     }
 
+    [Fact]
+    public async Task SyncCampaignMetricsAsync_UsesLinkedAccountNameAndUpdatesLastSyncedAt()
+    {
+        await using var db = BuildDbContext();
+        var clientUser = TestSeed.CreateUser();
+        var (band, order, campaign) = TestSeed.CreateCampaignGraph(clientUser, selectedBudget: 250000m, status: "launched");
+        var now = DateTime.UtcNow;
+
+        db.UserAccounts.Add(clientUser);
+        db.BusinessProfiles.Add(clientUser.BusinessProfile!);
+        db.PackageBands.Add(band);
+        db.PackageOrders.Add(order);
+        db.Campaigns.Add(campaign);
+        db.PackageBandAiEntitlements.Add(new PackageBandAiEntitlement
+        {
+            PackageBandId = band.Id,
+            MaxAdVariants = 3,
+            AllowedAdPlatformsJson = "[\"Meta\"]",
+            AllowAdMetricsSync = true,
+            AllowAdAutoOptimize = true,
+            AllowedVoicePackTiersJson = "[\"standard\"]",
+            MaxAdRegenerations = 1,
+            CreatedAt = now,
+            UpdatedAt = now
+        });
+
+        var connectionId = Guid.NewGuid();
+        db.AdPlatformConnections.Add(new AdPlatformConnection
+        {
+            Id = connectionId,
+            Provider = "meta",
+            ExternalAccountId = "act_777",
+            AccountName = "Advertified Meta Account",
+            Status = "active",
+            CreatedAt = now,
+            UpdatedAt = now
+        });
+        db.CampaignAdPlatformLinks.Add(new CampaignAdPlatformLink
+        {
+            Id = Guid.NewGuid(),
+            CampaignId = campaign.Id,
+            AdPlatformConnectionId = connectionId,
+            IsPrimary = true,
+            Status = "active",
+            CreatedAt = now,
+            UpdatedAt = now
+        });
+
+        var variantId = Guid.NewGuid();
+        db.AiAdVariants.Add(new AiAdVariant
+        {
+            Id = variantId,
+            CampaignId = campaign.Id,
+            Platform = "Meta",
+            Channel = "Digital",
+            Language = "English",
+            Script = "Advertified synced with linked account.",
+            PlatformAdId = $"meta-{variantId:D}",
+            Status = "published",
+            CreatedAt = now,
+            UpdatedAt = now,
+            PublishedAt = now
+        });
+
+        await db.SaveChangesAsync();
+
+        var publisherFactory = new AdPlatformPublisherFactory(new IAdPlatformPublisher[]
+        {
+            new MetaAdPlatformPublisher(
+                Options.Create(new AdPlatformOptions { DryRunMode = true }),
+                new StubHttpClientFactory(),
+                NullLogger<MetaAdPlatformPublisher>.Instance)
+        });
+        var service = new DbAdVariantService(
+            db,
+            publisherFactory,
+            new StubAiCostEstimator(),
+            new StubAiCostControlService(),
+            new CampaignPerformanceProjectionService(db),
+            NullLogger<DbAdVariantService>.Instance);
+
+        await service.SyncCampaignMetricsAsync(campaign.Id, CancellationToken.None);
+
+        var syncedBooking = await db.CampaignSupplierBookings.SingleAsync(item =>
+            item.CampaignId == campaign.Id
+            && item.Channel == "digital");
+        syncedBooking.SupplierOrStation.Should().Be("Advertified Meta Account");
+
+        var syncedConnection = await db.AdPlatformConnections.SingleAsync(item => item.Id == connectionId);
+        syncedConnection.LastSyncedAt.Should().NotBeNull();
+    }
+
     private static AppDbContext BuildDbContext()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()

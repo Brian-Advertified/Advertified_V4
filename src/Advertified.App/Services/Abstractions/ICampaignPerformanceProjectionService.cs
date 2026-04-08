@@ -9,5 +9,6 @@ public interface ICampaignPerformanceProjectionService
         string platform,
         ExternalAdMetrics metrics,
         DateTime recordedAtUtc,
+        string? supplierLabel,
         CancellationToken cancellationToken);
 }
