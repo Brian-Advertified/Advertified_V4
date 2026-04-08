@@ -658,18 +658,21 @@ internal static class RecommendationOpportunityContextParser
         string? whyActNow = null;
         string? flexibleRollout = null;
         string? nextStep = null;
+        var isLeadOutreach = false;
         var remainingSections = new List<string>();
 
         foreach (var section in sections)
         {
             if (TryParseDetectedGaps(section, detectedGaps))
             {
+                isLeadOutreach = true;
                 continue;
             }
 
             if (TryParsePrefixedSection(section, "Archetype:", out var archetype))
             {
                 archetypeName = archetype;
+                isLeadOutreach = true;
                 continue;
             }
 
@@ -726,6 +729,12 @@ internal static class RecommendationOpportunityContextParser
                 continue;
             }
 
+            if (TryParsePrefixedSection(section, "Outreach email draft:", out _))
+            {
+                // Outreach email body is CRM/operator content and should never appear inside proposal PDFs.
+                continue;
+            }
+
             remainingSections.Add(section.Trim());
         }
 
@@ -755,7 +764,8 @@ internal static class RecommendationOpportunityContextParser
                     ExpectedOutcome = expectedOutcome,
                     WhyActNow = whyActNow,
                     FlexibleRollout = flexibleRollout,
-                    NextStep = nextStep
+                    NextStep = nextStep,
+                    IsLeadOutreach = isLeadOutreach
                 }
                 : null,
             remainingSections.Count > 0 ? string.Join(Environment.NewLine + Environment.NewLine, remainingSections) : null);

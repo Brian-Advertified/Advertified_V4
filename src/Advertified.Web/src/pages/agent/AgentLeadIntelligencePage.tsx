@@ -275,6 +275,32 @@ function buildSocialQualityNote(lead: LeadIntelligence): string {
   return 'Limited social campaign evidence was found. Current assessment is based on public signals and should be validated with direct platform data.';
 }
 
+function buildWorkingSignals(lead: LeadIntelligence): string[] {
+  const signals: string[] = [];
+  const social = getChannelScore(lead, 'social');
+  const search = getChannelScore(lead, 'search');
+  const hasPromo = lead.latestSignal?.hasPromo ?? false;
+  const websiteActive = lead.latestSignal?.websiteUpdatedRecently ?? false;
+
+  if (hasPromo) {
+    signals.push('Active promotional movement was detected.');
+  }
+
+  if (websiteActive || lead.lead.website) {
+    signals.push('Digital presence is active with a usable website foundation.');
+  }
+
+  if (social >= STRONG_CHANNEL_MIN || search >= STRONG_CHANNEL_MIN) {
+    signals.push('At least one demand channel is already showing strong momentum.');
+  }
+
+  if (signals.length === 0) {
+    signals.push('Baseline market presence exists, with room to build consistent demand capture.');
+  }
+
+  return signals.slice(0, 3);
+}
+
 function buildOutreachEmailDraft(leadBusinessName: string, agentName?: string, agentPhone?: string, agentEmail?: string): string {
   const senderName = agentName?.trim() || '[Your Name]';
   const signaturePhone = agentPhone?.trim() || '[Phone]';
@@ -1120,7 +1146,7 @@ export function AgentLeadIntelligencePage() {
               <div className="mt-5 space-y-4">
                 <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
                   <div className="rounded-[24px] border border-brand/15 bg-brand-soft/30 px-5 py-5">
-                    <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">Business opportunity analysis</p>
+                    <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">Decision summary</p>
                     <h3 className="mt-2 text-2xl font-semibold text-ink">{selectedLead.data.lead.name}</h3>
                     <p className="mt-1 text-sm text-ink-soft">{selectedLead.data.lead.location} | {selectedLead.data.lead.category}</p>
                     {selectedLeadArchetype ? (
@@ -1133,14 +1159,6 @@ export function AgentLeadIntelligencePage() {
                       </p>
                     </div>
                     <p className="mt-4 text-sm leading-7 text-ink">{selectedLead.data.insight || 'No insight yet. Run analysis first.'}</p>
-                    <div className="mt-5 space-y-2">
-                      {(selectedLeadArchetype?.detectedGaps ?? []).map((gap) => (
-                        <div key={gap} className="rounded-2xl bg-white px-4 py-3 text-sm text-ink">
-                          {gap}
-                        </div>
-                      ))}
-                    </div>
-                    <p className="mt-4 text-sm text-ink-soft">{selectedLeadArchetype?.expectedOutcome}</p>
                     <div className="mt-4 flex flex-wrap gap-3">
                       <button
                         type="button"
@@ -1154,7 +1172,10 @@ export function AgentLeadIntelligencePage() {
 
                   <div className="space-y-4">
                     <div className="rounded-[24px] border border-line bg-white px-4 py-4">
-                      <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">Channel coverage</p>
+                      <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">KPI snapshot</p>
+                      <p className="mt-3 text-sm text-ink-soft">Estimated impact: <span className="font-semibold text-ink">{buildEstimatedImpactRange(selectedLead.data.score.score)}</span></p>
+                      <p className="mt-1 text-sm text-ink-soft">Last analysis: {selectedLead.data.latestSignal ? fmtDate(selectedLead.data.latestSignal.createdAt) : 'Not analyzed yet'}</p>
+                      <p className="mt-1 text-sm text-ink-soft">Promo signal: {selectedLead.data.latestSignal?.hasPromo ? 'Detected' : 'Not detected'}</p>
                       <div className="mt-4 space-y-3">
                         {visibleChannelCoverage.map((channel) => {
                           const status = formatCoverageStatus(channel.score);
@@ -1172,52 +1193,27 @@ export function AgentLeadIntelligencePage() {
                         })}
                       </div>
                     </div>
+                  </div>
+                </div>
 
-                    <div className="rounded-[24px] border border-line bg-white px-4 py-4">
-                      <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">Estimated impact</p>
-                      <p className="mt-3 text-3xl font-semibold text-ink">{buildEstimatedImpactRange(selectedLead.data.score.score)}</p>
-                      <p className="mt-2 text-sm text-ink-soft">Estimated opportunity range based on current signal strength and missing channel coverage.</p>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="rounded-[24px] border border-line bg-white px-4 py-4">
+                    <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">What is already working</p>
+                    <div className="mt-3 space-y-2">
+                      {buildWorkingSignals(selectedLead.data).map((line) => (
+                        <p key={line} className="rounded-[16px] border border-line bg-slate-50 px-3 py-2 text-sm text-ink">{line}</p>
+                      ))}
                     </div>
-
-                    <div className="rounded-[24px] border border-line bg-white px-4 py-4">
-                      <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">Last analysis</p>
-                      <p className="mt-3 text-sm text-ink-soft">{selectedLead.data.latestSignal ? fmtDate(selectedLead.data.latestSignal.createdAt) : 'Not analyzed yet'}</p>
-                      <p className="mt-2 text-sm text-ink-soft">Website updated recently: {selectedLead.data.latestSignal?.websiteUpdatedRecently ? 'Yes' : 'No'}</p>
+                  </div>
+                  <div className="rounded-[24px] border border-line bg-white px-4 py-4">
+                    <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">Where growth can be unlocked</p>
+                    <div className="mt-3 space-y-2">
+                      {(selectedLeadArchetype?.detectedGaps ?? []).slice(0, 3).map((gap) => (
+                        <p key={gap} className="rounded-[16px] border border-line bg-slate-50 px-3 py-2 text-sm text-ink">{gap}</p>
+                      ))}
                     </div>
+                    <p className="mt-3 text-sm text-ink-soft">{selectedLeadArchetype?.expectedOutcome}</p>
                   </div>
-                </div>
-
-                <div className="rounded-[24px] border border-line bg-slate-50 px-4 py-4">
-                  <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">Business</p>
-                  <h3 className="mt-2 text-xl font-semibold text-ink">{selectedLead.data.lead.name}</h3>
-                  <p className="mt-1 text-sm text-ink-soft">{selectedLead.data.lead.location} | {selectedLead.data.lead.category}</p>
-                  <p className="mt-1 text-sm text-ink-soft">{selectedLead.data.lead.website || 'No website provided'}</p>
-                  <p className="mt-1 text-xs uppercase tracking-[0.16em] text-ink-soft">
-                    Source: {selectedLead.data.lead.source}
-                    {selectedLead.data.lead.lastDiscoveredAt ? ` | Last discovered ${fmtDate(selectedLead.data.lead.lastDiscoveredAt)}` : ''}
-                  </p>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-3">
-                  <div className="rounded-[20px] border border-line bg-white px-4 py-4">
-                    <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">Score</p>
-                    <p className="mt-2 text-3xl font-semibold text-ink">{selectedLead.data.score.score}</p>
-                    <p className={`mt-2 inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${intentTone(selectedLead.data.score.intentLevel)}`}>{selectedLead.data.score.intentLevel}</p>
-                  </div>
-                  <div className="rounded-[20px] border border-line bg-white px-4 py-4">
-                    <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">Promo</p>
-                    <p className="mt-2 text-lg font-semibold text-ink">{selectedLead.data.latestSignal?.hasPromo ? 'Detected' : 'Not detected'}</p>
-                  </div>
-                  <div className="rounded-[20px] border border-line bg-white px-4 py-4">
-                    <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">Meta ads</p>
-                    <p className="mt-2 text-lg font-semibold text-ink">{selectedLead.data.latestSignal?.hasMetaAds ? 'Detected' : 'Not detected'}</p>
-                  </div>
-                </div>
-
-                <div className="rounded-[24px] border border-line bg-white px-4 py-4">
-                  <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">Insight</p>
-                  <p className="mt-3 text-sm leading-7 text-ink">{selectedLead.data.insight || 'No insight yet. Run analysis first.'}</p>
-                  <p className="mt-3 text-xs text-ink-soft">{selectedLead.data.trendSummary || 'No trend summary yet.'}</p>
                 </div>
 
                 <div className="rounded-[24px] border border-brand/20 bg-brand-soft/30 px-4 py-4">

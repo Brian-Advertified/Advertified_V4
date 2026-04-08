@@ -38,7 +38,7 @@ internal static class RecommendationPdfGenerator
 
                         col.Item()
                             .PaddingTop(6)
-                            .Text(model.OpportunityContext is null ? "Recommendation Pack" : "Growth Opportunity Recommendation Pack")
+                            .Text(model.OpportunityContext?.IsLeadOutreach == true ? "Growth Opportunity Recommendation Pack" : "Recommendation Pack")
                             .SemiBold()
                             .FontSize(20);
                         col.Item().Text(model.CampaignName).FontColor("#4B5563");
@@ -57,7 +57,7 @@ internal static class RecommendationPdfGenerator
                 {
                     column.Spacing(12);
 
-                    if (model.OpportunityContext is not null)
+                    if (model.OpportunityContext?.IsLeadOutreach == true)
                     {
                         column.Item().Border(1).BorderColor("#C7E0D6").Background("#F3FBF7").Padding(12).Column(opportunity =>
                         {
@@ -713,6 +713,7 @@ internal sealed class RecommendationDocumentModel
 
 internal sealed class RecommendationOpportunityContextModel
 {
+    public bool IsLeadOutreach { get; init; }
     public string? ArchetypeName { get; init; }
     public string? WhoWeAre { get; init; }
     public IReadOnlyList<string> ResearchBasis { get; init; } = Array.Empty<string>();

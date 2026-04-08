@@ -591,9 +591,6 @@ export function AgentCreateRecommendationPage() {
       routePrefill.nextStep?.trim()
         ? `Next step:\n${routePrefill.nextStep.trim()}`
         : '',
-      routePrefill.outreachEmailBody?.trim()
-        ? `Outreach email draft:\n${routePrefill.outreachEmailBody.trim()}`
-        : '',
       inferredForm.brief,
     ].filter((item) => item.trim().length > 0);
 
