@@ -490,6 +490,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
         var campaign = await _db.Campaigns
             .Include(x => x.User)
             .Include(x => x.ProspectLead)
+            .Include(x => x.CampaignBrief)
             .Include(x => x.AssignedAgentUser)
             .Include(x => x.PackageBand)
             .Include(x => x.PackageOrder)
@@ -638,7 +639,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
             return agentMessage.Trim();
         }
 
-        if (!IsProspectiveCampaign(campaign))
+        if (!ShouldUseLeadOutreachMessage(campaign))
         {
             return null;
         }
@@ -654,6 +655,29 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
             : campaign.ResolveClientName();
 
         return $"Good Day, I'm {senderName} from Advertified. We ran a public-signal review on {businessName} and identified opportunities to capture more local demand. We've attached proposal options with low-risk, balanced, and aggressive growth paths. If useful, we can walk you through this in 15 minutes, including how each option can be launched without full upfront budget.";
+    }
+
+    private static bool ShouldUseLeadOutreachMessage(Campaign campaign)
+    {
+        if (IsProspectiveCampaign(campaign))
+        {
+            return true;
+        }
+
+        if (campaign.ProspectLeadId.HasValue || campaign.PackageOrder?.ProspectLeadId.HasValue == true)
+        {
+            return true;
+        }
+
+        var notes = campaign.CampaignBrief?.SpecialRequirements ?? campaign.CampaignBrief?.CreativeNotes;
+        if (string.IsNullOrWhiteSpace(notes))
+        {
+            return false;
+        }
+
+        return notes.Contains("Why you are receiving this:", StringComparison.OrdinalIgnoreCase)
+            || notes.Contains("Archetype:", StringComparison.OrdinalIgnoreCase)
+            || notes.Contains("Lead intelligence summary:", StringComparison.OrdinalIgnoreCase);
     }
 
     private string BuildProposalAcceptButtonsBlock(Guid campaignId, IReadOnlyList<CampaignRecommendation> recommendations)
