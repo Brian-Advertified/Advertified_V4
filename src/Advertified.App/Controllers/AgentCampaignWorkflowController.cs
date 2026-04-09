@@ -265,7 +265,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
     [HttpPost("{id:guid}/send-to-client")]
     public async Task<IActionResult> SendToClient(Guid id, [FromBody] SendToClientRequest request, CancellationToken cancellationToken)
     {
-        await GetCurrentOperationsUserAsync(cancellationToken);
+        var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
         var campaign = await _db.Campaigns
             .Include(x => x.User)
             .Include(x => x.ProspectLead)
@@ -330,7 +330,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
             },
             cancellationToken);
 
-        await SendRecommendationReadyEmailIfNeededAsync(campaign.Id, currentRecommendations, request.Message, cancellationToken);
+        await SendRecommendationReadyEmailIfNeededAsync(campaign.Id, currentRecommendations, request.Message, currentUser, cancellationToken);
 
         return Accepted(new { CampaignId = id, ProposalCount = currentRecommendations.Length, Message = "Recommendation set sent to client.", ClientMessage = request.Message });
     }
@@ -484,11 +484,13 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
         Guid campaignId,
         IReadOnlyList<CampaignRecommendation> recommendations,
         string? agentMessage,
+        UserAccount senderUser,
         CancellationToken cancellationToken)
     {
         var campaign = await _db.Campaigns
             .Include(x => x.User)
             .Include(x => x.ProspectLead)
+            .Include(x => x.AssignedAgentUser)
             .Include(x => x.PackageBand)
             .Include(x => x.PackageOrder)
             .FirstOrDefaultAsync(x => x.Id == campaignId, cancellationToken);
@@ -529,6 +531,8 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
                 _logger.LogWarning(ex, "Failed to build recommendation PDF attachment for campaign {CampaignId}.", campaign.Id);
             }
 
+            var resolvedAgentMessage = ResolveRecommendationReadyAgentMessage(campaign, senderUser, agentMessage);
+
             await _emailService.SendAsync(
                 "recommendation-ready",
                 campaign.ResolveClientEmail(),
@@ -545,7 +549,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
                     ["ProposalSummary"] = proposalCount > 1
                         ? $"We have prepared {proposalCount} proposal options for you to compare."
                         : "We have prepared your recommendation for review.",
-                    ["AgentMessageBlock"] = BuildAgentMessageBlock(agentMessage),
+                    ["AgentMessageBlock"] = BuildAgentMessageBlock(resolvedAgentMessage),
                     ["RecommendationPackBlock"] = recommendationPackBlock,
                     ["ProposalAcceptButtonsBlock"] = BuildProposalAcceptButtonsBlock(campaign.Id, recommendations)
                 },
@@ -625,6 +629,31 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
                         {escapedMessage}
                       </p>
                     </div>";
+    }
+
+    private static string? ResolveRecommendationReadyAgentMessage(Campaign campaign, UserAccount senderUser, string? agentMessage)
+    {
+        if (!string.IsNullOrWhiteSpace(agentMessage))
+        {
+            return agentMessage.Trim();
+        }
+
+        if (!IsProspectiveCampaign(campaign))
+        {
+            return null;
+        }
+
+        var senderName = !string.IsNullOrWhiteSpace(senderUser.FullName)
+            ? senderUser.FullName.Trim()
+            : (!string.IsNullOrWhiteSpace(campaign.AssignedAgentUser?.FullName)
+                ? campaign.AssignedAgentUser!.FullName.Trim()
+                : "your Advertified strategist");
+
+        var businessName = !string.IsNullOrWhiteSpace(campaign.ResolveBusinessName())
+            ? campaign.ResolveBusinessName()
+            : campaign.ResolveClientName();
+
+        return $"Good Day, I'm {senderName} from Advertified. We ran a public-signal review on {businessName} and identified opportunities to capture more local demand. We've attached proposal options with low-risk, balanced, and aggressive growth paths. If useful, we can walk you through this in 15 minutes, including how each option can be launched without full upfront budget.";
     }
 
     private string BuildProposalAcceptButtonsBlock(Guid campaignId, IReadOnlyList<CampaignRecommendation> recommendations)
