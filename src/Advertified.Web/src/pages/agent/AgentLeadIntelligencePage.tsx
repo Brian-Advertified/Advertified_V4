@@ -4,6 +4,7 @@ import { BrainCircuit, DatabaseZap, Inbox, LoaderCircle, Plus, Radar } from 'luc
 import { useNavigate } from 'react-router-dom';
 import { formatCurrency } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
+import { formatChannelLabel } from '../../features/channels/channelUtils';
 import type { LeadIntelligence, PackageBand } from '../../types/domain';
 import {
   buildAutoBriefFromLead,
@@ -46,6 +47,9 @@ const googleMapsSampleImport = `business_name,website,city,main_category,place_i
 Fit Lab,fitlab.co.za,Johannesburg,Fitness,ChIJ123
 Urban Dental,,Cape Town,Dentist,ChIJ456`;
 
+const LEAD_INTELLIGENCE_QUERY_KEY = ['lead-intelligence'] as const;
+const LEAD_INTELLIGENCE_INBOX_QUERY_KEY = ['lead-intelligence-inbox'] as const;
+
 function intentTone(intentLevel: string) {
   switch (intentLevel) {
     case 'High':
@@ -69,18 +73,6 @@ function channelConfidenceTone(confidence: string) {
       return 'border-orange-200 bg-orange-50 text-orange-700';
     default:
       return 'border-slate-200 bg-slate-50 text-slate-600';
-  }
-}
-
-function formatChannelLabel(channel: string) {
-  switch (channel) {
-    case 'billboards_ooh':
-      return 'Billboards and Digital Screens';
-    default:
-      return channel
-        .split('_')
-        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-        .join(' ');
   }
 }
 
@@ -124,7 +116,7 @@ export function AgentLeadIntelligencePage() {
   });
 
   const intelligenceQuery = useQuery({
-    queryKey: ['lead-intelligence'],
+    queryKey: LEAD_INTELLIGENCE_QUERY_KEY,
     queryFn: advertifiedApi.getLeadIntelligenceList,
   });
 
@@ -134,7 +126,7 @@ export function AgentLeadIntelligencePage() {
   });
 
   const actionInboxQuery = useQuery({
-    queryKey: ['lead-action-inbox'],
+    queryKey: LEAD_INTELLIGENCE_INBOX_QUERY_KEY,
     queryFn: advertifiedApi.getLeadActionInbox,
   });
 
@@ -147,12 +139,16 @@ export function AgentLeadIntelligencePage() {
     queryFn: advertifiedApi.getLeadPaidMediaSyncStatus,
   });
 
+  const refreshLeadIntelligenceWorkspace = async () => {
+    await queryClient.invalidateQueries({ queryKey: LEAD_INTELLIGENCE_QUERY_KEY });
+    await queryClient.invalidateQueries({ queryKey: LEAD_INTELLIGENCE_INBOX_QUERY_KEY });
+  };
+
   const processSourceAutomationMutation = useMutation({
     mutationFn: advertifiedApi.processLeadSourceAutomationNow,
     onSuccess: async (result) => {
       await queryClient.invalidateQueries({ queryKey: ['lead-source-automation-status'] });
-      await queryClient.invalidateQueries({ queryKey: ['lead-intelligence'] });
-      await queryClient.invalidateQueries({ queryKey: ['lead-action-inbox'] });
+      await refreshLeadIntelligenceWorkspace();
 
       if (result.importedLeadCount > 0) {
         await selectedLead.refetch();
@@ -163,8 +159,7 @@ export function AgentLeadIntelligencePage() {
     mutationFn: advertifiedApi.runLeadPaidMediaSyncNow,
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['lead-paid-media-sync-status'] });
-      await queryClient.invalidateQueries({ queryKey: ['lead-intelligence'] });
-      await queryClient.invalidateQueries({ queryKey: ['lead-action-inbox'] });
+      await refreshLeadIntelligenceWorkspace();
       await selectedLead.refetch();
     },
   });
@@ -207,8 +202,7 @@ export function AgentLeadIntelligencePage() {
     onSuccess: async (lead) => {
       setForm(emptyForm);
       setSelectedLeadId(lead.id);
-      await queryClient.invalidateQueries({ queryKey: ['lead-intelligence'] });
-      await queryClient.invalidateQueries({ queryKey: ['lead-action-inbox'] });
+      await refreshLeadIntelligenceWorkspace();
     },
   });
 
@@ -216,8 +210,7 @@ export function AgentLeadIntelligencePage() {
     mutationFn: (leadId: number) => advertifiedApi.analyzeLead(leadId),
     onSuccess: async (result) => {
       setSelectedLeadId(result.lead.id);
-      await queryClient.invalidateQueries({ queryKey: ['lead-intelligence'] });
-      await queryClient.invalidateQueries({ queryKey: ['lead-action-inbox'] });
+      await refreshLeadIntelligenceWorkspace();
     },
   });
 
@@ -233,8 +226,7 @@ export function AgentLeadIntelligencePage() {
         setSelectedLeadId(latestLead.id);
       }
 
-      await queryClient.invalidateQueries({ queryKey: ['lead-intelligence'] });
-      await queryClient.invalidateQueries({ queryKey: ['lead-action-inbox'] });
+      await refreshLeadIntelligenceWorkspace();
     },
   });
 
@@ -242,8 +234,7 @@ export function AgentLeadIntelligencePage() {
     mutationFn: ({ leadId, actionId, status }: { leadId: number; actionId: number; status: 'completed' | 'dismissed' }) =>
       advertifiedApi.updateLeadActionStatus(leadId, actionId, status),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['lead-intelligence'] });
-      await queryClient.invalidateQueries({ queryKey: ['lead-action-inbox'] });
+      await refreshLeadIntelligenceWorkspace();
     },
   });
 
@@ -253,8 +244,7 @@ export function AgentLeadIntelligencePage() {
         ? advertifiedApi.assignLeadActionToMe(leadId, actionId)
         : advertifiedApi.unassignLeadAction(leadId, actionId),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['lead-intelligence'] });
-      await queryClient.invalidateQueries({ queryKey: ['lead-action-inbox'] });
+      await refreshLeadIntelligenceWorkspace();
     },
   });
 
@@ -268,7 +258,7 @@ export function AgentLeadIntelligencePage() {
     onSuccess: async () => {
       setInteractionNotes('');
       setInteractionActionId('');
-      await queryClient.invalidateQueries({ queryKey: ['lead-intelligence'] });
+      await queryClient.invalidateQueries({ queryKey: LEAD_INTELLIGENCE_QUERY_KEY });
     },
   });
 

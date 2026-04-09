@@ -53,6 +53,17 @@ public sealed class CampaignBriefInterpretationService : ICampaignBriefInterpret
         InterpretCampaignBriefRequest request,
         CancellationToken cancellationToken)
     {
+        var masterData = await _broadcastMasterDataService.GetOutletMasterDataAsync(cancellationToken);
+        var supportedProvinceCodes = masterData.Provinces
+            .Select(option => option.Value?.Trim().ToLowerInvariant())
+            .Where(static value => !string.IsNullOrWhiteSpace(value))
+            .Cast<string>()
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var geographyHint = supportedProvinceCodes.Length > 0
+            ? string.Join("|", supportedProvinceCodes)
+            : "national";
+
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "chat/completions");
         httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _options.ApiKey);
         httpRequest.Content = JsonContent.Create(
@@ -73,7 +84,7 @@ public sealed class CampaignBriefInterpretationService : ICampaignBriefInterpret
                             "  \"objective\": \"awareness|launch|promotion|brand_presence|leads\",\n" +
                             "  \"audience\": \"mass-market|youth|business|retail\",\n" +
                             "  \"scope\": \"local|regional|national\",\n" +
-                            "  \"geography\": \"gauteng|western_cape|kwazulu_natal|national\",\n" +
+                            $"  \"geography\": \"{geographyHint}\",\n" +
                             "  \"tone\": \"premium|balanced|high-visibility|performance\",\n" +
                             "  \"campaignName\": \"string\",\n" +
                             "  \"channels\": [\"Radio\", \"Billboards and Digital Screens\", \"TV\"],\n" +
@@ -124,7 +135,7 @@ public sealed class CampaignBriefInterpretationService : ICampaignBriefInterpret
             result.Objective = NormalizeObjective(result.Objective);
             result.Audience = NormalizeAudience(result.Audience);
             result.Scope = NormalizeScope(result.Scope);
-            result.Geography = NormalizeGeography(result.Geography, _broadcastMasterDataService);
+            result.Geography = NormalizeGeography(result.Geography, supportedProvinceCodes, _broadcastMasterDataService.NormalizeProvinceCode);
             result.Tone = NormalizeTone(result.Tone);
             result.Channels = NormalizeChannels(result.Channels);
             result.CampaignName = string.IsNullOrWhiteSpace(result.CampaignName)
@@ -148,6 +159,15 @@ public sealed class CampaignBriefInterpretationService : ICampaignBriefInterpret
     {
         var brief = request.Brief ?? string.Empty;
         var lower = brief.ToLowerInvariant();
+        var masterData = _broadcastMasterDataService.GetOutletMasterDataAsync(CancellationToken.None)
+            .GetAwaiter()
+            .GetResult();
+        var supportedProvinceCodes = masterData.Provinces
+            .Select(option => option.Value?.Trim().ToLowerInvariant())
+            .Where(static value => !string.IsNullOrWhiteSpace(value))
+            .Cast<string>()
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
 
         var objective = lower.Contains("launch") ? "launch"
             : lower.Contains("promo") || lower.Contains("promotion") || lower.Contains("sale") ? "promotion"
@@ -164,10 +184,11 @@ public sealed class CampaignBriefInterpretationService : ICampaignBriefInterpret
             : request.SelectedBudget >= 500000m ? "regional"
             : "local";
 
-        var geography = lower.Contains("western cape") ? "western_cape"
-            : lower.Contains("kwazulu") || lower.Contains("durban") ? "kwazulu_natal"
-            : lower.Contains("national") ? "national"
-            : "gauteng";
+        var geography = ResolveHeuristicGeography(
+            lower,
+            masterData.Provinces,
+            supportedProvinceCodes,
+            _broadcastMasterDataService.NormalizeProvinceCode);
 
         var channels = new List<string>();
         if (lower.Contains("radio")) channels.Add("Radio");
@@ -188,7 +209,7 @@ public sealed class CampaignBriefInterpretationService : ICampaignBriefInterpret
             Objective = objective,
             Audience = audience,
             Scope = scope,
-            Geography = NormalizeGeography(geography, _broadcastMasterDataService),
+            Geography = NormalizeGeography(geography, supportedProvinceCodes, _broadcastMasterDataService.NormalizeProvinceCode),
             Tone = tone,
             CampaignName = string.IsNullOrWhiteSpace(request.CampaignName) ? "Campaign recommendation" : request.CampaignName.Trim(),
             Channels = channels,
@@ -214,10 +235,25 @@ public sealed class CampaignBriefInterpretationService : ICampaignBriefInterpret
         return normalized is "local" or "national" ? normalized : "regional";
     }
 
-    private static string NormalizeGeography(string? value, IBroadcastMasterDataService broadcastMasterDataService)
+    private static string NormalizeGeography(
+        string? value,
+        IReadOnlyCollection<string> supportedProvinceCodes,
+        Func<string?, string> normalizeProvinceCode)
     {
-        var normalized = broadcastMasterDataService.NormalizeProvinceCode(value);
-        return normalized is "western_cape" or "kwazulu_natal" or "national" ? normalized : "gauteng";
+        var normalized = normalizeProvinceCode(value).Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return ResolveDefaultGeography(supportedProvinceCodes);
+        }
+
+        if (supportedProvinceCodes.Count == 0)
+        {
+            return normalized;
+        }
+
+        return supportedProvinceCodes.Contains(normalized, StringComparer.OrdinalIgnoreCase)
+            ? normalized
+            : ResolveDefaultGeography(supportedProvinceCodes);
     }
 
     private static string NormalizeTone(string? value)
@@ -251,6 +287,76 @@ public sealed class CampaignBriefInterpretationService : ICampaignBriefInterpret
             .ToArray();
 
         return normalized.Length == 0 ? new[] { "Radio", "OOH" } : normalized;
+    }
+
+    private static string ResolveHeuristicGeography(
+        string lowerBrief,
+        IReadOnlyList<Advertified.App.Contracts.Admin.AdminLookupOptionResponse> provinces,
+        IReadOnlyCollection<string> supportedProvinceCodes,
+        Func<string?, string> normalizeProvinceCode)
+    {
+        foreach (var province in provinces)
+        {
+            var label = (province.Label ?? string.Empty).Trim().ToLowerInvariant();
+            var value = (province.Value ?? string.Empty).Trim().ToLowerInvariant();
+            if ((!string.IsNullOrWhiteSpace(label) && lowerBrief.Contains(label, StringComparison.OrdinalIgnoreCase))
+                || (!string.IsNullOrWhiteSpace(value) && lowerBrief.Contains(value.Replace('_', ' '), StringComparison.OrdinalIgnoreCase)))
+            {
+                return value;
+            }
+        }
+
+        var normalizedText = new string(lowerBrief
+            .Select(character => char.IsLetterOrDigit(character) || char.IsWhiteSpace(character) ? character : ' ')
+            .ToArray());
+        var tokens = normalizedText
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        foreach (var token in tokens)
+        {
+            var resolved = normalizeProvinceCode(token).Trim().ToLowerInvariant();
+            if (string.IsNullOrWhiteSpace(resolved))
+            {
+                continue;
+            }
+
+            if (supportedProvinceCodes.Count == 0 || supportedProvinceCodes.Contains(resolved, StringComparer.OrdinalIgnoreCase))
+            {
+                return resolved;
+            }
+        }
+
+        for (var index = 0; index < tokens.Length - 1; index++)
+        {
+            var compound = $"{tokens[index]} {tokens[index + 1]}";
+            var resolved = normalizeProvinceCode(compound).Trim().ToLowerInvariant();
+            if (string.IsNullOrWhiteSpace(resolved))
+            {
+                continue;
+            }
+
+            if (supportedProvinceCodes.Count == 0 || supportedProvinceCodes.Contains(resolved, StringComparer.OrdinalIgnoreCase))
+            {
+                return resolved;
+            }
+        }
+
+        if (lowerBrief.Contains("national", StringComparison.OrdinalIgnoreCase)
+            && supportedProvinceCodes.Contains("national", StringComparer.OrdinalIgnoreCase))
+        {
+            return "national";
+        }
+
+        return ResolveDefaultGeography(supportedProvinceCodes);
+    }
+
+    private static string ResolveDefaultGeography(IReadOnlyCollection<string> supportedProvinceCodes)
+    {
+        if (supportedProvinceCodes.Contains("national", StringComparer.OrdinalIgnoreCase))
+        {
+            return "national";
+        }
+
+        return supportedProvinceCodes.FirstOrDefault() ?? string.Empty;
     }
 
     private sealed class OpenAIChatCompletionRequest

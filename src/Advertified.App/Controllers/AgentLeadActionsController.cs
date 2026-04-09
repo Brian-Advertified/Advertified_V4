@@ -12,6 +12,7 @@ namespace Advertified.App.Controllers;
 
 [ApiController]
 [Route("agent/lead-actions")]
+[Route("agent/lead-intelligence")]
 [Authorize(Roles = "Agent,Admin")]
 public sealed class AgentLeadActionsController : ControllerBase
 {

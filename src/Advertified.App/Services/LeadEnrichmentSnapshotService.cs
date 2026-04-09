@@ -166,7 +166,7 @@ public sealed class LeadEnrichmentSnapshotService : ILeadEnrichmentSnapshotServi
             required: true);
     }
 
-    private static LeadEnrichmentField BuildLanguageField(Lead lead, IReadOnlyList<LeadSignalEvidence> evidences)
+    private LeadEnrichmentField BuildLanguageField(Lead lead, IReadOnlyList<LeadSignalEvidence> evidences)
     {
         var languageEvidence = FindEvidence(evidences, "social_language_detected", "website_language_detected");
         if (languageEvidence is not null)
@@ -181,16 +181,20 @@ public sealed class LeadEnrichmentSnapshotService : ILeadEnrichmentSnapshotServi
                 required: false);
         }
 
-        if (ContainsAny(lead.Location, "south africa", "johannesburg", "pretoria", "cape town", "durban"))
+        if (!string.IsNullOrWhiteSpace(lead.Location))
         {
-            return CreateField(
-                key: "language",
-                label: "Language",
-                value: "English-primary",
-                confidence: "inferred",
-                source: "location_heuristic",
-                reason: "No explicit language evidence found; inferred from location context.",
-                required: false);
+            var geocoded = _geocodingService.ResolveLocation(lead.Location);
+            if (geocoded.IsResolved)
+            {
+                return CreateField(
+                    key: "language",
+                    label: "Language",
+                    value: "English-primary",
+                    confidence: "inferred",
+                    source: "geocoding_service",
+                    reason: $"No explicit language evidence found; inferred from resolved location context ({geocoded.Source}).",
+                    required: false);
+            }
         }
 
         return CreateUnknownField("language", "Language", false);

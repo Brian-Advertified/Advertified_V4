@@ -287,7 +287,7 @@ public sealed partial class WebsiteSignalProvider : IWebsiteSignalProvider
     {
         private static readonly LeadMasterTokenSet Tokens = new()
         {
-            LocationTokens = new[] { "johannesburg", "pretoria", "cape town", "durban", "gauteng", "south africa" },
+            LocationTokens = Array.Empty<string>(),
             IndustryTokens = new[] { "funeral", "retail", "clinic", "legal", "restaurant" },
             LanguageTokens = new[] { "english", "afrikaans", "isizulu", "isixhosa", "sesotho" }
         };

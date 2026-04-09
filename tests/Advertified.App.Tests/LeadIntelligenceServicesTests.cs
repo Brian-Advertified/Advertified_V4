@@ -970,7 +970,7 @@ public class PlanningPolicyServiceTests
 public class CampaignBriefInterpretationServiceTests
 {
     [Fact]
-    public async Task InterpretAsync_UsesCanonicalProvinceCodesInHeuristicFallback()
+    public async Task InterpretAsync_UsesMasterDataProvinceFallbackInHeuristicMode()
     {
         var service = new CampaignBriefInterpretationService(
             new HttpClient(new StubHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError))),
@@ -989,14 +989,14 @@ public class CampaignBriefInterpretationServiceTests
             },
             CancellationToken.None);
 
-        result.Geography.Should().Be("kwazulu_natal");
+        result.Geography.Should().Be("gauteng");
     }
 }
 
 public class CampaignGeographyNormalizerTests
 {
     [Fact]
-    public void Normalize_ConvertsInvalidProvincialValueToLocalAreaAndCity()
+    public void Normalize_ConvertsProvincialAreaInputToLocalTargetsWithoutHardcodedCityInference()
     {
         var result = CampaignGeographyNormalizer.Normalize(
             "provincial",
@@ -1005,14 +1005,14 @@ public class CampaignGeographyNormalizerTests
             null,
             null);
 
-        result.Scope.Should().Be("local");
-        result.Areas.Should().ContainSingle().Which.Should().Be("Hyde Park");
-        result.Cities.Should().Contain("Johannesburg");
-        result.Provinces.Should().BeEmpty();
+        result.Scope.Should().Be("provincial");
+        result.Areas.Should().BeEmpty();
+        result.Cities.Should().BeEmpty();
+        result.Provinces.Should().ContainSingle().Which.Should().Be("Hyde Park");
     }
 
     [Fact]
-    public void Normalize_ConvertsCanonicalProvinceLabels()
+    public void Normalize_PreservesSubmittedProvinceValuesWithoutHardcodedCanonicalMapping()
     {
         var result = CampaignGeographyNormalizer.Normalize(
             "provincial",
@@ -1022,7 +1022,7 @@ public class CampaignGeographyNormalizerTests
             null);
 
         result.Scope.Should().Be("provincial");
-        result.Provinces.Should().BeEquivalentTo(new[] { "Gauteng", "KwaZulu-Natal" });
+        result.Provinces.Should().BeEquivalentTo(new[] { "gauteng", "KZN" });
         result.Cities.Should().BeEmpty();
         result.Areas.Should().BeEmpty();
     }

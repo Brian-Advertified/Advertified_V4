@@ -488,7 +488,7 @@ internal static class ControllerMappings
     {
         return channel switch
         {
-            "ooh" => "OOH",
+            "ooh" => "Billboards and Digital Screens",
             "tv" => "TV",
             "unknown" => "Unknown",
             _ => string.Join(' ', channel.Split('_', StringSplitOptions.RemoveEmptyEntries)

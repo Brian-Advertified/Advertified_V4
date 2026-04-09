@@ -542,26 +542,26 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
             "active scaler" => proposalIndex switch
             {
                 0 => ("Proposal A — Channel Extension (Test & validate)", "Add one missing high-impact channel while maintaining current digital activity. Built for low-risk validation."),
-                1 => ("Proposal B — Multi-Channel Expansion (Best balance)", "Capture more demand across multiple touchpoints with a balanced radio, OOH, and digital reinforcement mix."),
-                _ => ("Proposal C — Market Domination (Max growth)", "Maximise visibility and push category dominance locally through stronger radio, OOH, and digital amplification.")
+                1 => ("Proposal B — Multi-Channel Expansion (Best balance)", "Capture more demand across multiple touchpoints with a balanced radio, Billboards and Digital Screens, and digital reinforcement mix."),
+                _ => ("Proposal C — Market Domination (Max growth)", "Maximise visibility and push category dominance locally through stronger radio, Billboards and Digital Screens, and digital amplification.")
             },
             "promo-dependent retailer" => proposalIndex switch
             {
                 0 => ("Proposal A — Awareness Starter (Test & validate)", "Introduce a light brand layer with small radio support and minimal digital continuity."),
-                1 => ("Proposal B — Promo + Brand Hybrid (Best balance)", "Turn promotions into more consistent foot traffic using radio consistency, OOH reinforcement, and digital amplification."),
-                _ => ("Proposal C — Always-On Presence (Max growth)", "Build continuous visibility with stronger radio, OOH presence, and ongoing digital support to reduce promo dependency.")
+                1 => ("Proposal B — Promo + Brand Hybrid (Best balance)", "Turn promotions into more consistent foot traffic using radio consistency, Billboards and Digital Screens reinforcement, and digital amplification."),
+                _ => ("Proposal C — Always-On Presence (Max growth)", "Build continuous visibility with stronger radio, Billboards and Digital Screens presence, and ongoing digital support to reduce promo dependency.")
             },
             "invisible local business" => proposalIndex switch
             {
                 0 => ("Proposal A — Discovery Fix (Test & validate)", "Fix local discovery with search presence, maps optimization, and light paid support."),
-                1 => ("Proposal B — Local Visibility Boost (Best balance)", "Combine search and maps with radio or entry-level OOH to improve both discoverability and local awareness."),
-                _ => ("Proposal C — Full Local Dominance (Max growth)", "Own local visibility across search, OOH, and radio to become the most visible option in-area.")
+                1 => ("Proposal B — Local Visibility Boost (Best balance)", "Combine search and maps with radio or entry-level Billboards and Digital Screens to improve both discoverability and local awareness."),
+                _ => ("Proposal C — Full Local Dominance (Max growth)", "Own local visibility across search, Billboards and Digital Screens, and radio to become the most visible option in-area.")
             },
             "digital-only player" => proposalIndex switch
             {
-                0 => ("Proposal A — Offline Test (Test & validate)", "Run a first offline step with small radio or 1-2 OOH placements while maintaining digital performance."),
-                1 => ("Proposal B — Omnichannel Expansion (Best balance)", "Break through digital saturation by combining current digital strength with balanced radio and OOH."),
-                _ => ("Proposal C — Scale Reach Fast (Max growth)", "Expand audience reach aggressively through heavier OOH, stronger radio coverage, and digital amplification.")
+                0 => ("Proposal A — Offline Test (Test & validate)", "Run a first offline step with small radio or 1-2 Billboards and Digital Screens placements while maintaining digital performance."),
+                1 => ("Proposal B — Omnichannel Expansion (Best balance)", "Break through digital saturation by combining current digital strength with balanced radio and Billboards and Digital Screens."),
+                _ => ("Proposal C — Scale Reach Fast (Max growth)", "Expand audience reach aggressively through heavier Billboards and Digital Screens, stronger radio coverage, and digital amplification.")
             },
             "passive / untapped business" => proposalIndex switch
             {

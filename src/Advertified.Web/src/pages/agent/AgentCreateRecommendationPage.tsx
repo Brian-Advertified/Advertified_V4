@@ -12,7 +12,6 @@ import {
   inferRecommendationAudienceFromBrief,
   inferRecommendationGeographyFromBrief,
   inferRecommendationToneFromBrief,
-  type RecommendationDraftChannel,
   type RecommendationDraftFormState,
 } from '../../features/campaigns/briefModel';
 import { catalogQueryOptions } from '../../lib/catalogQueryOptions';
@@ -20,73 +19,31 @@ import { useSharedFormOptions } from '../../lib/useSharedFormOptions';
 import { formatCurrency } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import { formatChannelLabel, normalizeChannelKey } from '../../features/channels/channelUtils';
+import {
+  AGE_RANGE_OPTIONS,
+  AUDIENCE_OPTIONS,
+  CHANNEL_OPTIONS,
+  ensureRequiredChannels,
+  GEOGRAPHY_OPTIONS,
+  GENDER_OPTIONS,
+  LANGUAGE_OPTIONS,
+  mergeUniqueChannels,
+  normalizeChannelOption,
+  normalizeOption,
+  OBJECTIVE_OPTIONS,
+  SCOPE_OPTIONS,
+  TONE_OPTIONS,
+  type ChannelOption,
+} from './recommendationDraftOptions';
 import type { AutoBriefConfidence, AutoBriefField, AutoBriefPayload } from '../../features/leads/leadAutoBrief';
 import type { AgentInboxItem, Campaign, LeadIndustryPolicy, PackageBand } from '../../types/domain';
 import { pushAgentMutationError } from './agentMutationToast';
-
-type ChannelOption = RecommendationDraftChannel;
 
 const STEP_CONFIG = [
   { id: 1, label: 'Choose campaign' },
   { id: 2, label: 'Add details' },
   { id: 3, label: 'Create draft' },
 ] as const;
-
-const CHANNEL_OPTIONS: ChannelOption[] = ['OOH', 'Radio', 'TV', 'Digital'];
-const OBJECTIVE_OPTIONS = ['awareness', 'launch', 'promotion', 'brand_presence', 'leads'] as const;
-const AUDIENCE_OPTIONS = ['mass-market', 'youth', 'business', 'retail'] as const;
-const AGE_RANGE_OPTIONS = ['18-24', '25-34', '35-44', '45-54', '55-100'] as const;
-const GENDER_OPTIONS = ['all', 'female', 'male', 'mixed'] as const;
-const SCOPE_OPTIONS = ['local', 'provincial', 'national'] as const;
-const GEOGRAPHY_OPTIONS = [
-  'johannesburg',
-  'cape-town',
-  'durban',
-  'pretoria',
-  'port-elizabeth',
-  'gauteng',
-  'western_cape',
-  'kwazulu_natal',
-] as const;
-const TONE_OPTIONS = ['premium', 'balanced', 'high-visibility', 'performance'] as const;
-const LANGUAGE_OPTIONS = [
-  'English',
-  'isiZulu',
-  'isiXhosa',
-  'Afrikaans',
-  'Sesotho',
-  'Setswana',
-  'Sepedi',
-  'Xitsonga',
-  'Tshivenda',
-  'Siswati',
-  'isiNdebele',
-  'Multilingual',
-] as const;
-
-function normalizeOption<T extends readonly string[]>(value: string | null | undefined, allowed: T): T[number] | '' {
-  if (!value) {
-    return '';
-  }
-
-  return allowed.includes(value) ? value as T[number] : '';
-}
-
-function normalizeChannelOption(channel: string | null | undefined): ChannelOption | undefined {
-  if (!channel) {
-    return undefined;
-  }
-  const normalized = normalizeChannelKey(channel);
-  return normalized === 'TV'
-    ? 'TV'
-    : normalized === 'OOH'
-      ? 'OOH'
-      : normalized === 'RADIO'
-        ? 'Radio'
-        : normalized === 'DIGITAL'
-          ? 'Digital'
-        : undefined;
-}
 
 function isProspectiveCampaign(campaign?: Pick<Campaign, 'paymentStatus' | 'status'> | Pick<AgentInboxItem, 'paymentStatus' | 'status'> | null): boolean {
   if (!campaign) {
@@ -136,16 +93,6 @@ function getAllowedChannels(campaign?: {
   }
 
   return allowed;
-}
-
-function ensureRequiredChannels(channels: ChannelOption[]): ChannelOption[] {
-  const ordered: ChannelOption[] = CHANNEL_OPTIONS.filter((channel) => channel === 'OOH' || channels.includes(channel));
-  return ordered.includes('OOH') ? ordered : ['OOH', ...ordered];
-}
-
-function mergeUniqueChannels(base: ChannelOption[], additions: ChannelOption[]): ChannelOption[] {
-  return [...base, ...additions]
-    .filter((channel, index, allChannels) => allChannels.indexOf(channel) === index);
 }
 
 function applyIndustryPolicyToForm(

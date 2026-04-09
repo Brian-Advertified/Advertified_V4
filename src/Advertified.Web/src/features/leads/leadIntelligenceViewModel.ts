@@ -55,7 +55,7 @@ export function buildResearchEvidenceLines(lead: LeadIntelligence): string[] {
   }
 
   if (ooh) {
-    lines.push(`OOH channel score: ${ooh.score}/100 | Source: channel scoring model | Confidence: ${confidenceLabel(ooh.confidence)} | Observed: ${observedAt}`);
+    lines.push(`Billboards and Digital Screens channel score: ${ooh.score}/100 | Source: channel scoring model | Confidence: ${confidenceLabel(ooh.confidence)} | Observed: ${observedAt}`);
   }
 
   if (social) {

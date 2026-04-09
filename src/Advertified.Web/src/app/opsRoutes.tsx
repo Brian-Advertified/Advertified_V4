@@ -62,7 +62,7 @@ export const opsRoutes: AppRoute[] = [
 
   { path: '/agent', element: <ProtectedRoute requireAgent><AgentDashboardPage /></ProtectedRoute> },
   { path: '/agent/lead-intelligence', element: <ProtectedRoute requireAgent><AgentLeadIntelligencePage /></ProtectedRoute> },
-  { path: '/agent/lead-actions', element: <ProtectedRoute requireAgent><AgentLeadIntelligencePage /></ProtectedRoute> },
+  { path: '/agent/lead-actions', element: <Navigate to="/agent/lead-intelligence" replace /> },
   { path: '/agent/leads', element: <ProtectedRoute requireAgent><AgentLeadsClientsPage /></ProtectedRoute> },
   { path: '/agent/briefs', element: <ProtectedRoute requireAgent><AgentBriefsPage /></ProtectedRoute> },
   { path: '/agent/recommendation-builder', element: <ProtectedRoute requireAgent><AgentRecommendationBuilderPage /></ProtectedRoute> },

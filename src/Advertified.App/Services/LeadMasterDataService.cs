@@ -6,7 +6,6 @@ namespace Advertified.App.Services;
 
 public sealed class LeadMasterDataService : ILeadMasterDataService
 {
-    private static readonly string[] FallbackLocationTokens = { "johannesburg", "pretoria", "cape town", "durban", "gauteng", "south africa" };
     private static readonly string[] FallbackIndustryTokens = { "funeral", "retail", "clinic", "legal", "restaurant" };
     private static readonly string[] FallbackLanguageTokens = { "english", "afrikaans", "isizulu", "isixhosa", "sesotho" };
 
@@ -194,9 +193,14 @@ public sealed class LeadMasterDataService : ILeadMasterDataService
             locationAliases,
             industryAliases,
             languageAliases,
-            BuildTokens(locationAliases.Keys, FallbackLocationTokens),
+            BuildTokens(locationAliases.Keys),
             BuildTokens(industryAliases.Keys, FallbackIndustryTokens),
             BuildTokens(languageAliases.Keys, FallbackLanguageTokens));
+    }
+
+    private static IReadOnlyList<string> BuildTokens(IEnumerable<string> tableTokens)
+    {
+        return BuildTokens(tableTokens, Array.Empty<string>());
     }
 
     private static IReadOnlyList<string> BuildTokens(IEnumerable<string> tableTokens, IEnumerable<string> fallbackTokens)

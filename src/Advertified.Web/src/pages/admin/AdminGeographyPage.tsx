@@ -13,36 +13,6 @@ import type {
 import { ActionButton, EmptyTableState, ReadOnlyNotice, hasText } from './adminSectionShared';
 import { AdminPageShell, AdminQueryBoundary, useAdminDashboardQuery } from './adminWorkspace';
 
-const PROVINCE_OPTIONS: SelectOption[] = [
-  { value: 'eastern_cape', label: 'Eastern Cape' },
-  { value: 'free_state', label: 'Free State' },
-  { value: 'gauteng', label: 'Gauteng' },
-  { value: 'kwazulu_natal', label: 'KwaZulu-Natal' },
-  { value: 'limpopo', label: 'Limpopo' },
-  { value: 'mpumalanga', label: 'Mpumalanga' },
-  { value: 'north_west', label: 'North West' },
-  { value: 'northern_cape', label: 'Northern Cape' },
-  { value: 'western_cape', label: 'Western Cape' },
-  { value: 'national', label: 'National' },
-];
-const CITY_OPTIONS: SelectOption[] = [
-  { value: 'Johannesburg', label: 'Johannesburg' },
-  { value: 'Pretoria', label: 'Pretoria' },
-  { value: 'Sandton', label: 'Sandton' },
-  { value: 'Randburg', label: 'Randburg' },
-  { value: 'Soweto', label: 'Soweto' },
-  { value: 'Cape Town', label: 'Cape Town' },
-  { value: 'Bellville', label: 'Bellville' },
-  { value: 'Durban', label: 'Durban' },
-  { value: 'Umhlanga', label: 'Umhlanga' },
-  { value: 'Pietermaritzburg', label: 'Pietermaritzburg' },
-  { value: 'Gqeberha', label: 'Gqeberha' },
-  { value: 'East London', label: 'East London' },
-  { value: 'Bloemfontein', label: 'Bloemfontein' },
-  { value: 'Polokwane', label: 'Polokwane' },
-  { value: 'Mbombela', label: 'Mbombela' },
-  { value: 'Rustenburg', label: 'Rustenburg' },
-];
 const SORT_ORDER_OPTIONS = [
   { value: 1, label: '1 - Featured area priority' },
   { value: 10, label: '10 - High priority' },
@@ -205,8 +175,8 @@ export function AdminGeographyPage() {
         const selectedMapping = mappingDialog?.id && selectedDetail
           ? selectedDetail.mappings.find((item) => item.id === mappingDialog.id) ?? null
           : null;
-        const provinceOptions = outletMasterDataQuery.data?.provinces ?? PROVINCE_OPTIONS;
-        const cityOptions = outletMasterDataQuery.data?.cities ?? CITY_OPTIONS;
+        const provinceOptions = outletMasterDataQuery.data?.provinces ?? [];
+        const cityOptions = outletMasterDataQuery.data?.cities ?? [];
         const openAreaDialog = (mode: 'create' | 'view' | 'edit', detail?: AdminGeographyDetail | null) => {
           if (mode === 'create' || !detail) {
             setAreaForm({ code: '', label: '', description: '', fallbackLocations: [], sortOrder: 100, isActive: true });

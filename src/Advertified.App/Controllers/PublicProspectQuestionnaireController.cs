@@ -146,7 +146,7 @@ public sealed class PublicProspectQuestionnaireController : ControllerBase
             CampaignId = campaign.Id,
             CreatedAt = now
         };
-        MapBrief(brief, request.Brief, now);
+        CampaignBriefMapper.Apply(brief, request.Brief, now);
         brief.SubmittedAt = now;
         _db.CampaignBriefs.Add(brief);
         _db.CampaignBriefDrafts.Add(new CampaignBriefDraft
@@ -210,75 +210,6 @@ public sealed class PublicProspectQuestionnaireController : ControllerBase
     {
         // Use the package floor until the client or agent confirms an exact spend.
         return packageBand.MinBudget > 0m ? packageBand.MinBudget : 25000m;
-    }
-
-    private static void MapBrief(CampaignBrief brief, SaveCampaignBriefRequest request, DateTime now)
-    {
-        var normalizedScope = NormalizeScope(request.GeographyScope);
-        IEnumerable<string>? normalizedProvinces = normalizedScope == "provincial" ? request.Provinces : Array.Empty<string>();
-        IEnumerable<string>? normalizedCities = normalizedScope == "local" ? request.Cities : Array.Empty<string>();
-        IEnumerable<string>? normalizedSuburbs = normalizedScope == "local" ? request.Suburbs : Array.Empty<string>();
-        IEnumerable<string>? normalizedAreas = normalizedScope == "local" ? request.Areas : Array.Empty<string>();
-
-        brief.Objective = request.Objective;
-        brief.BusinessStage = request.BusinessStage;
-        brief.MonthlyRevenueBand = request.MonthlyRevenueBand;
-        brief.SalesModel = request.SalesModel;
-        brief.StartDate = request.StartDate;
-        brief.EndDate = request.EndDate;
-        brief.DurationWeeks = request.DurationWeeks;
-        brief.GeographyScope = normalizedScope;
-        brief.ProvincesJson = Serialize(normalizedProvinces);
-        brief.CitiesJson = Serialize(normalizedCities);
-        brief.SuburbsJson = Serialize(normalizedSuburbs);
-        brief.AreasJson = Serialize(normalizedAreas);
-        brief.TargetAgeMin = request.TargetAgeMin;
-        brief.TargetAgeMax = request.TargetAgeMax;
-        brief.TargetGender = request.TargetGender;
-        brief.TargetLanguagesJson = Serialize(request.TargetLanguages);
-        brief.TargetLsmMin = request.TargetLsmMin;
-        brief.TargetLsmMax = request.TargetLsmMax;
-        brief.TargetInterestsJson = Serialize(request.TargetInterests);
-        brief.TargetAudienceNotes = request.TargetAudienceNotes;
-        brief.CustomerType = request.CustomerType;
-        brief.BuyingBehaviour = request.BuyingBehaviour;
-        brief.DecisionCycle = request.DecisionCycle;
-        brief.PricePositioning = request.PricePositioning;
-        brief.AverageCustomerSpendBand = request.AverageCustomerSpendBand;
-        brief.GrowthTarget = request.GrowthTarget;
-        brief.UrgencyLevel = request.UrgencyLevel;
-        brief.AudienceClarity = request.AudienceClarity;
-        brief.ValuePropositionFocus = request.ValuePropositionFocus;
-        brief.PreferredMediaTypesJson = Serialize(request.PreferredMediaTypes);
-        brief.ExcludedMediaTypesJson = Serialize(request.ExcludedMediaTypes);
-        brief.MustHaveAreasJson = Serialize(request.MustHaveAreas);
-        brief.ExcludedAreasJson = Serialize(request.ExcludedAreas);
-        brief.CreativeReady = request.CreativeReady;
-        brief.CreativeNotes = request.CreativeNotes;
-        brief.MaxMediaItems = request.MaxMediaItems;
-        brief.OpenToUpsell = request.OpenToUpsell;
-        brief.AdditionalBudget = request.AdditionalBudget;
-        brief.SpecialRequirements = request.SpecialRequirements;
-        brief.PreferredVideoAspectRatio = request.PreferredVideoAspectRatio;
-        brief.PreferredVideoDurationSeconds = request.PreferredVideoDurationSeconds;
-        brief.UpdatedAt = now;
-    }
-
-    private static string NormalizeScope(string? scope)
-    {
-        return (scope ?? string.Empty).Trim().ToLowerInvariant() switch
-        {
-            "regional" => "provincial",
-            "local" => "local",
-            "provincial" => "provincial",
-            "national" => "national",
-            _ => "provincial"
-        };
-    }
-
-    private static string? Serialize(IEnumerable<string>? values)
-    {
-        return values is null ? null : JsonSerializer.Serialize(values.Where(static value => !string.IsNullOrWhiteSpace(value)));
     }
 
     private string BuildFrontendUrl(string path)

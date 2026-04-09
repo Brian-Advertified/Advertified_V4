@@ -1,5 +1,6 @@
 using Advertified.App.Data.Entities;
 using Advertified.App.Services;
+using Advertified.App.Services.Abstractions;
 using FluentAssertions;
 
 namespace Advertified.App.Tests;
@@ -133,7 +134,7 @@ public class LeadEnrichmentSnapshotServiceTests
     [Fact]
     public void Build_AppliesFuneralAudienceAndBudgetHeuristics()
     {
-        var service = new LeadEnrichmentSnapshotService();
+        var service = new LeadEnrichmentSnapshotService(new StubResolvedGeocodingService());
         var lead = new Lead
         {
             Id = 1003,
@@ -174,5 +175,32 @@ public class LeadEnrichmentSnapshotServiceTests
 
         snapshot.Fields.Should().ContainSingle(field => field.Key == "language")
             .Which.Confidence.Should().Be("inferred");
+    }
+
+    private sealed class StubResolvedGeocodingService : IGeocodingService
+    {
+        public GeocodingResolution ResolveLocation(string? rawLocation)
+        {
+            return new GeocodingResolution
+            {
+                IsResolved = true,
+                CanonicalLocation = rawLocation?.Trim() ?? "Johannesburg",
+                Latitude = -26.2041d,
+                Longitude = 28.0473d,
+                Source = "master_locations"
+            };
+        }
+
+        public GeocodingResolution ResolveCampaignTarget(Advertified.App.Contracts.Campaigns.CampaignPlanningRequest request)
+        {
+            return new GeocodingResolution
+            {
+                IsResolved = true,
+                CanonicalLocation = "Johannesburg",
+                Latitude = -26.2041d,
+                Longitude = 28.0473d,
+                Source = "master_locations"
+            };
+        }
     }
 }

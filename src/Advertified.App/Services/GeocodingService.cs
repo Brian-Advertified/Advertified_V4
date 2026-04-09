@@ -5,16 +5,6 @@ namespace Advertified.App.Services;
 
 public sealed class GeocodingService : IGeocodingService
 {
-    private static readonly Dictionary<string, (double Latitude, double Longitude)> FallbackCoordinates =
-        new(StringComparer.OrdinalIgnoreCase)
-        {
-            ["johannesburg"] = (-26.2041d, 28.0473d),
-            ["pretoria"] = (-25.7479d, 28.2293d),
-            ["cape town"] = (-33.9249d, 18.4241d),
-            ["durban"] = (-29.8587d, 31.0218d),
-            ["south africa"] = (-30.5595d, 22.9375d)
-        };
-
     private readonly ILeadMasterDataService _masterDataService;
 
     public GeocodingService(ILeadMasterDataService masterDataService)
@@ -39,18 +29,6 @@ public sealed class GeocodingService : IGeocodingService
                 Latitude = masterMatch.Latitude,
                 Longitude = masterMatch.Longitude,
                 Source = "master_locations"
-            };
-        }
-
-        if (FallbackCoordinates.TryGetValue(rawLocation.Trim(), out var fallback))
-        {
-            return new GeocodingResolution
-            {
-                IsResolved = true,
-                CanonicalLocation = rawLocation.Trim(),
-                Latitude = fallback.Latitude,
-                Longitude = fallback.Longitude,
-                Source = "fallback"
             };
         }
 

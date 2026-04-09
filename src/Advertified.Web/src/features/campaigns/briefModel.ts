@@ -403,25 +403,14 @@ export function buildRecommendationDraftBrief(
   form: RecommendationDraftFormState,
   allowedChannels: RecommendationDraftChannel[],
 ): CampaignBrief {
-  const provinceMap: Record<string, string> = {
-    gauteng: 'Gauteng',
-    western_cape: 'Western Cape',
-    kwazulu_natal: 'KwaZulu-Natal',
-  };
-  const cityMap: Record<string, string> = {
-    johannesburg: 'Johannesburg',
-    'cape-town': 'Cape Town',
-    durban: 'Durban',
-    pretoria: 'Pretoria',
-    'port-elizabeth': 'Port Elizabeth',
-  };
   const normalizedScope = form.scope === 'regional' ? 'provincial' : (form.scope || 'provincial');
-  const geography = form.geography;
+  const geography = form.geography.trim();
+  const geographyLabel = titleCase(geography.replaceAll('_', ' ').replaceAll('-', ' '));
   const provinces = normalizedScope === 'provincial' && geography
-    ? [provinceMap[geography] ?? geography]
+    ? [geographyLabel]
     : undefined;
   const cities = normalizedScope === 'local' && geography
-    ? [cityMap[geography] ?? geography]
+    ? [geographyLabel]
     : undefined;
   const ageRange = parseAgeRange(form.ageRange);
 
