@@ -460,29 +460,24 @@ internal static class EmailTemplateDefaults
                       <h1 style=""margin:12px 0 0;font-size:30px;line-height:1.2;color:#123A33;"">Growth opportunity snapshot ready</h1>
                     </div>
                     <div style=""padding:28px 32px;"">
-                      <p style=""margin:0 0 14px;font-size:15px;line-height:1.7;color:#4b635a;"">
-                        {{RecommendationIntro}}
-                      </p>
-                      {{AgentMessageBlock}}
-                      <p style=""margin:0 0 18px;font-size:15px;line-height:1.7;color:#4b635a;"">
-                        {{ProposalSummary}} We have attached a short recommendation pack for your review with low-risk, balanced, and aggressive growth options.
-                      </p>
+                      <p style=""margin:0 0 12px;font-size:15px;line-height:1.7;color:#4b635a;"">Good day,</p>
+                      <p style=""margin:0 0 12px;font-size:15px;line-height:1.7;color:#4b635a;"">I'm Dev from Advertified - we help businesses find where they're losing customers online and put campaigns in place to fix it.</p>
+                      <p style=""margin:0 0 12px;font-size:15px;line-height:1.7;color:#4b635a;"">We recently looked at your market presence and identified a specific gap in how your business is capturing demand in {{AreaOrIndustry}}. It's fixable, and we've already mapped out three campaign approaches tailored to your situation.</p>
+                      <p style=""margin:0 0 8px;font-size:15px;line-height:1.7;color:#4b635a;"">Here's what makes this easy to act on:</p>
+                      <ul style=""margin:0 0 14px 20px;padding:0;color:#4b635a;"">
+                        <li style=""margin:0 0 6px 0;"">The campaigns are ready to review - no lengthy onboarding</li>
+                        <li style=""margin:0 0 6px 0;"">Each option is built around your budget, not a fixed package</li>
+                        <li style=""margin:0 0 6px 0;"">We offer Buy Now, Pay Later - you can start generating results before you've paid in full</li>
+                      </ul>
+                      <p style=""margin:0 0 12px;font-size:15px;line-height:1.7;color:#4b635a;"">That last point matters. Most businesses hold back on marketing spend because of cash flow. Our BNPL structure means you're not paying upfront - you're paying from the growth.</p>
+                      <p style=""margin:0 0 18px;font-size:15px;line-height:1.7;color:#4b635a;"">Would it make sense to share what we found? A quick 15-minute call is all it takes - no commitment, just clarity.</p>
                       {{ProposalAcceptButtonsBlock}}
                       <div style=""margin:18px 0 20px;"">
                         <a href=""{{ReviewUrl}}"" style=""display:inline-block;padding:12px 18px;border-radius:14px;background:#123A33;color:#ffffff;text-decoration:none;font-weight:700;"">
                           Review growth options
                         </a>
                       </div>
-                      <div style=""margin:24px 0;padding:18px 20px;border:1px solid #d8e9e1;border-radius:18px;background:#f8fcfa;"">
-                        <div style=""font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Proposal summary</div>
-                        <p style=""margin:10px 0 0;font-size:15px;line-height:1.6;""><strong>Business:</strong> {{CampaignName}}</p>
-                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Budget context:</strong> {{Budget}}</p>
-                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Options prepared:</strong> {{ProposalCount}}</p>
-                      </div>
-                      {{RecommendationPackBlock}}
-                      <p style=""margin:0;font-size:14px;line-height:1.7;color:#4b635a;"">
-                        If helpful, reply to this email and we can set up a quick 15-minute walkthrough.
-                      </p>
+                      <p style=""margin:0;font-size:15px;line-height:1.7;color:#4b635a;"">Best regards,<br/>Dev<br/>Advertified</p>
                     </div>
                   </div>
                 </div>

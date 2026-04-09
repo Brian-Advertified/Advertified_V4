@@ -504,40 +504,45 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
 
         try
         {
+            var useLeadTemplate = ShouldUseLeadOutreachMessage(campaign);
             EmailAttachment[]? attachments = null;
             string recommendationPackBlock = string.Empty;
             var proposalCount = recommendations.Count;
-            var templateName = ShouldUseLeadOutreachMessage(campaign)
+            var templateName = useLeadTemplate
                 ? "lead-proposal-ready"
                 : "recommendation-ready";
 
-            try
+            if (!useLeadTemplate)
             {
-                var recommendationPdfs = new List<EmailAttachment>(recommendations.Count);
-                foreach (var recommendation in recommendations)
+                try
                 {
-                    var pdfBytes = await _recommendationDocumentService.GetRecommendationPdfBytesAsync(campaign.Id, recommendation.Id, cancellationToken);
-                    recommendationPdfs.Add(new EmailAttachment
+                    var recommendationPdfs = new List<EmailAttachment>(recommendations.Count);
+                    foreach (var recommendation in recommendations)
                     {
-                        FileName = BuildRecommendationAttachmentFileName(campaign.Id, recommendation),
-                        ContentType = "application/pdf",
-                        Content = pdfBytes
-                    });
-                }
+                        var pdfBytes = await _recommendationDocumentService.GetRecommendationPdfBytesAsync(campaign.Id, recommendation.Id, cancellationToken);
+                        recommendationPdfs.Add(new EmailAttachment
+                        {
+                            FileName = BuildRecommendationAttachmentFileName(campaign.Id, recommendation),
+                            ContentType = "application/pdf",
+                            Content = pdfBytes
+                        });
+                    }
 
-                attachments = recommendationPdfs.ToArray();
-                recommendationPackBlock = @"
+                    attachments = recommendationPdfs.ToArray();
+                    recommendationPackBlock = @"
                     <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">
                       We have attached a separate PDF for each recommendation option. Each PDF starts with a one-page summary followed by the full detailed media plan.
                     </p>";
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to build recommendation PDF attachment for campaign {CampaignId}.", campaign.Id);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to build recommendation PDF attachment for campaign {CampaignId}.", campaign.Id);
+                }
             }
 
             var resolvedAgentMessage = ResolveRecommendationReadyAgentMessage(campaign, senderUser, agentMessage);
             var recommendationIntro = ResolveRecommendationReadyIntro(campaign, senderUser);
+            var areaOrIndustry = ResolveLeadAreaOrIndustry(campaign);
 
             await _emailService.SendAsync(
                 templateName,
@@ -551,6 +556,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
                     ["BudgetLabel"] = ResolveBudgetLabel(campaign),
                     ["Budget"] = ResolveBudgetDisplayText(campaign),
                     ["RecommendationIntro"] = recommendationIntro,
+                    ["AreaOrIndustry"] = areaOrIndustry,
                     ["ReviewUrl"] = BuildProposalUrl(campaign.Id),
                     ["ProposalCount"] = proposalCount.ToString(CultureInfo.InvariantCulture),
                     ["ProposalSummary"] = proposalCount > 1
