@@ -540,9 +540,14 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
                 }
             }
 
-            var resolvedAgentMessage = ResolveRecommendationReadyAgentMessage(campaign, senderUser, agentMessage);
+            var resolvedAgentMessage = useLeadTemplate
+                ? null
+                : ResolveRecommendationReadyAgentMessage(campaign, senderUser, agentMessage);
             var recommendationIntro = ResolveRecommendationReadyIntro(campaign, senderUser);
             var areaOrIndustry = ResolveLeadAreaOrIndustry(campaign);
+            var proposalActionButtons = useLeadTemplate
+                ? string.Empty
+                : BuildProposalAcceptButtonsBlock(campaign.Id, recommendations);
 
             await _emailService.SendAsync(
                 templateName,
@@ -564,7 +569,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
                         : "We have prepared your recommendation for review.",
                     ["AgentMessageBlock"] = BuildAgentMessageBlock(resolvedAgentMessage),
                     ["RecommendationPackBlock"] = recommendationPackBlock,
-                    ["ProposalAcceptButtonsBlock"] = BuildProposalAcceptButtonsBlock(campaign.Id, recommendations)
+                    ["ProposalAcceptButtonsBlock"] = proposalActionButtons
                 },
                 attachments,
                 cancellationToken);

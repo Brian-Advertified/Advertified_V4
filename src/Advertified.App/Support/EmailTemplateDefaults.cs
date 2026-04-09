@@ -471,12 +471,12 @@ internal static class EmailTemplateDefaults
                       </ul>
                       <p style=""margin:0 0 12px;font-size:15px;line-height:1.7;color:#4b635a;"">That last point matters. Most businesses hold back on marketing spend because of cash flow. Our BNPL structure means you're not paying upfront - you're paying from the growth.</p>
                       <p style=""margin:0 0 18px;font-size:15px;line-height:1.7;color:#4b635a;"">Would it make sense to share what we found? A quick 15-minute call is all it takes - no commitment, just clarity.</p>
-                      {{ProposalAcceptButtonsBlock}}
                       <div style=""margin:18px 0 20px;"">
                         <a href=""{{ReviewUrl}}"" style=""display:inline-block;padding:12px 18px;border-radius:14px;background:#123A33;color:#ffffff;text-decoration:none;font-weight:700;"">
                           Review growth options
                         </a>
                       </div>
+                      <p style=""margin:0 0 18px;font-size:14px;line-height:1.7;color:#4b635a;"">Reply to this email to book a quick 15-minute call.</p>
                       <p style=""margin:0;font-size:15px;line-height:1.7;color:#4b635a;"">Best regards,<br/>Dev<br/>Advertified</p>
                     </div>
                   </div>
