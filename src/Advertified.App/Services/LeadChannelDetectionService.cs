@@ -1,5 +1,6 @@
 using Advertified.App.Data.Entities;
 using Advertified.App.Services.Abstractions;
+using Advertified.App.Support;
 
 namespace Advertified.App.Services;
 
@@ -303,7 +304,7 @@ public sealed class LeadChannelDetectionService : ILeadChannelDetectionService
             if (channel == "search") evidence.Add(CreateEvidence("category_prior", "internal_rule", 6, 0.7m, 1.0m, "Auto and dealership businesses commonly invest in search."));
         }
 
-        if (industryCode == "retail" || ContainsAny(normalized, "supermarket", "grocery", "furniture"))
+        if (industryCode == LeadCanonicalValues.IndustryCodes.Retail || ContainsAny(normalized, "supermarket", "grocery", "furniture"))
         {
             if (channel == "billboards_ooh") evidence.Add(CreateEvidence("industry_pattern", "internal_rule", 10, 0.7m, 1.0m, "Retail-led businesses often use OOH for reach."));
             if (channel == "radio") evidence.Add(CreateEvidence("industry_pattern", "internal_rule", 10, 0.7m, 1.0m, "Retail-led businesses often use radio for promotion."));
@@ -326,12 +327,12 @@ public sealed class LeadChannelDetectionService : ILeadChannelDetectionService
             if (channel == "social") evidence.Add(CreateEvidence("category_prior", "internal_rule", 8, 0.7m, 1.0m, "Luxury and beauty brands commonly use social."));
         }
 
-        if (industryCode == "funeral_services")
+        if (industryCode == LeadCanonicalValues.IndustryCodes.FuneralServices)
         {
             if (channel == "radio") evidence.Add(CreateEvidence("category_prior", "internal_rule", 12, 0.7m, 1.0m, "Funeral services often rely on radio."));
         }
 
-        if (industryCode == "food_hospitality")
+        if (industryCode == LeadCanonicalValues.IndustryCodes.FoodHospitality)
         {
             if (channel == "social") evidence.Add(CreateEvidence("category_prior", "internal_rule", 10, 0.7m, 1.0m, "Restaurants and food brands often use social."));
             if (channel == "radio") evidence.Add(CreateEvidence("category_prior", "internal_rule", 4, 0.7m, 1.0m, "Restaurants sometimes use radio promotions."));
@@ -339,14 +340,14 @@ public sealed class LeadChannelDetectionService : ILeadChannelDetectionService
             if (channel == "tv") evidence.Add(CreateEvidence("budget_profile_mismatch", "contradiction", -12, 1.0m, 1.0m, "Single-location food brands are less likely to use TV."));
         }
 
-        if (industryCode == "healthcare")
+        if (industryCode == LeadCanonicalValues.IndustryCodes.Healthcare)
         {
             if (channel == "search") evidence.Add(CreateEvidence("category_prior", "internal_rule", 10, 0.7m, 1.0m, "Healthcare businesses often rely on search."));
             if (channel == "social") evidence.Add(CreateEvidence("category_prior", "internal_rule", 6, 0.7m, 1.0m, "Healthcare businesses often use social."));
             if (channel == "radio") evidence.Add(CreateEvidence("category_prior", "internal_rule", 4, 0.7m, 1.0m, "Healthcare businesses sometimes use radio."));
         }
 
-        if (industryCode == "fitness")
+        if (industryCode == LeadCanonicalValues.IndustryCodes.Fitness)
         {
             if (channel == "social") evidence.Add(CreateEvidence("category_prior", "internal_rule", 10, 0.7m, 1.0m, "Fitness brands commonly advertise on social."));
             if (channel == "search") evidence.Add(CreateEvidence("category_prior", "internal_rule", 8, 0.7m, 1.0m, "Fitness brands often use search."));

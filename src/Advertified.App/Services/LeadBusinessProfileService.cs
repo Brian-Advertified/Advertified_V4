@@ -47,14 +47,21 @@ public sealed class LeadBusinessProfileService : ILeadBusinessProfileService
 
     private static IReadOnlyList<string> ResolveLanguages(IReadOnlyDictionary<string, LeadEnrichmentField> fieldsByKey)
     {
-        var language = ResolveValue(fieldsByKey, "language");
-        if (string.IsNullOrWhiteSpace(language))
+        var values = new[]
+            {
+                ResolveValue(fieldsByKey, "language"),
+                ResolveValue(fieldsByKey, "secondary_language")
+            }
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .ToArray();
+
+        if (values.Length == 0)
         {
             return new[] { "English" };
         }
 
-        return language
-            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        return values
+            .SelectMany(value => value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             .Select(value => value.Equals("English-primary", StringComparison.OrdinalIgnoreCase) ? "English" : value)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();

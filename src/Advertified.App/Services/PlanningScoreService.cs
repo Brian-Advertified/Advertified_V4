@@ -1,6 +1,7 @@
 using Advertified.App.Contracts.Campaigns;
 using Advertified.App.Domain.Campaigns;
 using Advertified.App.Services.Abstractions;
+using Advertified.App.Support;
 using System.Text.RegularExpressions;
 using System.Text.Json;
 
@@ -13,11 +14,32 @@ public sealed class PlanningScoreService : IPlanningScoreService
     private const decimal BroadcastLanguageMismatchPenalty = -24m;
     private readonly IPlanningPolicyService _policyService;
     private readonly IBroadcastMasterDataService _broadcastMasterDataService;
+    private readonly ILeadMasterDataService _leadMasterDataService;
+    private readonly IIndustryArchetypeScoringService _industryArchetypeScoringService;
 
-    public PlanningScoreService(IPlanningPolicyService policyService, IBroadcastMasterDataService broadcastMasterDataService)
+    public PlanningScoreService(
+        IPlanningPolicyService policyService,
+        IBroadcastMasterDataService broadcastMasterDataService,
+        ILeadMasterDataService leadMasterDataService,
+        IIndustryArchetypeScoringService industryArchetypeScoringService)
     {
         _policyService = policyService;
         _broadcastMasterDataService = broadcastMasterDataService;
+        _leadMasterDataService = leadMasterDataService;
+        _industryArchetypeScoringService = industryArchetypeScoringService;
+    }
+
+    public PlanningScoreService(IPlanningPolicyService policyService, IBroadcastMasterDataService broadcastMasterDataService)
+        : this(policyService, broadcastMasterDataService, new NoOpLeadMasterDataService(), new NoOpIndustryArchetypeScoringService())
+    {
+    }
+
+    public PlanningScoreService(
+        IPlanningPolicyService policyService,
+        IBroadcastMasterDataService broadcastMasterDataService,
+        ILeadMasterDataService leadMasterDataService)
+        : this(policyService, broadcastMasterDataService, leadMasterDataService, new NoOpIndustryArchetypeScoringService())
+    {
     }
 
     public PlanningCandidateAnalysis AnalyzeCandidate(InventoryCandidate candidate, CampaignPlanningRequest request)
@@ -124,7 +146,7 @@ public sealed class PlanningScoreService : IPlanningScoreService
         }
 
         var hasPrimaryLanguageMatch = requested.Any(value =>
-            MatchesAnyMetadataToken(candidate, value, "primaryLanguages", "primary_languages", "language"));
+            MatchesAnyMetadataToken(candidate, value, "primaryLanguages", "primary_languages", "language", "secondaryLanguage", "secondary_language"));
 
         var hasLanguageNotesMatch = requested.Any(value =>
             MatchesAnyMetadataToken(candidate, value, "languageNotes", "language_notes", "targetAudience", "target_audience"));
@@ -208,6 +230,9 @@ public sealed class PlanningScoreService : IPlanningScoreService
             score += ScoreArchetypeMetadataFit(archetype, candidate);
         }
 
+        score += ScoreAudienceRequestFit(candidate, request);
+        score += ScoreGenderRequestFit(candidate, request);
+
         return Math.Min(14m, Math.Max(-4m, score));
     }
 
@@ -235,123 +260,145 @@ public sealed class PlanningScoreService : IPlanningScoreService
         return score;
     }
 
-    private static decimal ScoreArchetypeMediaFit(string archetype, InventoryCandidate candidate)
+    private decimal ScoreArchetypeMediaFit(string archetype, InventoryCandidate candidate)
     {
-        var mediaType = candidate.MediaType.Trim().ToLowerInvariant();
-        return archetype switch
+        var profile = _industryArchetypeScoringService.Resolve(archetype);
+        if (profile is null)
         {
-            "funeral_services" => mediaType switch
-            {
-                "radio" => 6m,
-                "ooh" => 4m,
-                "digital" => 1m,
-                "tv" => 0m,
-                _ => 0m
-            },
-            "food_restaurant" => mediaType switch
-            {
-                "digital" => 6m,
-                "ooh" => 5m,
-                "radio" => 3m,
-                "tv" => 0m,
-                _ => 0m
-            },
-            "retail_grocery" => mediaType switch
-            {
-                "radio" => 5m,
-                "ooh" => 5m,
-                "digital" => 4m,
-                "tv" => 1m,
-                _ => 0m
-            },
-            "healthcare_clinic" => mediaType switch
-            {
-                "search" => 6m,
-                "digital" => 5m,
-                "radio" => 3m,
-                "ooh" => 2m,
-                _ => 0m
-            },
-            "legal_services" => mediaType switch
-            {
-                "radio" => 4m,
-                "digital" => 4m,
-                "ooh" => 3m,
-                _ => 0m
-            },
-            "automotive" => mediaType switch
-            {
-                "radio" => 5m,
-                "ooh" => 5m,
-                "digital" => 4m,
-                "tv" => 2m,
-                _ => 0m
-            },
-            _ => 0m
-        };
+            return 0m;
+        }
+
+        var mediaType = NormalizeStrategyToken(candidate.MediaType);
+        return profile.MediaTypeScores.TryGetValue(mediaType, out var score) ? score : 0m;
     }
 
-    private static decimal ScoreArchetypeMetadataFit(string archetype, InventoryCandidate candidate)
+    private decimal ScoreArchetypeMetadataFit(string archetype, InventoryCandidate candidate)
     {
+        var profile = _industryArchetypeScoringService.Resolve(archetype);
+        if (profile is null)
+        {
+            return 0m;
+        }
+
         if (MatchesMetadataToken(candidate, archetype, "industryFitTags", "industry_fit_tags", "industryArchetypes", "industry_archetypes"))
         {
-            return 4m;
+            return profile.MetadataTagMatchScore;
         }
 
-        return archetype switch
+        return ScoreAudienceHintMatch(candidate, profile);
+    }
+
+    private static decimal ScoreAudienceHintMatch(InventoryCandidate candidate, IndustryArchetypeScoringProfile profile)
+    {
+        var text = BuildAudienceSearchText(candidate);
+        if (string.IsNullOrWhiteSpace(text) || profile.AudienceHintScores.Count == 0)
         {
-            "funeral_services" when HasAnyAudienceHint(candidate, "news", "current affairs", "trust", "family", "older") => 3m,
-            "food_restaurant" when HasAnyAudienceHint(candidate, "commuter", "impulse", "shopping", "lifestyle") => 3m,
-            "retail_grocery" when HasAnyAudienceHint(candidate, "shopping", "retail", "mass market", "family") => 3m,
-            "healthcare_clinic" when HasAnyAudienceHint(candidate, "health", "wellness", "family", "local services") => 3m,
-            "legal_services" when HasAnyAudienceHint(candidate, "professional", "adult", "trust") => 2m,
-            "automotive" when HasAnyAudienceHint(candidate, "commuter", "drivers", "mass market") => 3m,
+            return 0m;
+        }
+
+        decimal bestScore = 0m;
+        foreach (var hintScore in profile.AudienceHintScores)
+        {
+            if (text.Contains(hintScore.Key, StringComparison.OrdinalIgnoreCase))
+            {
+                bestScore = Math.Max(bestScore, hintScore.Value);
+            }
+        }
+
+        return bestScore;
+    }
+
+    private static decimal ScoreAudienceRequestFit(InventoryCandidate candidate, CampaignPlanningRequest request)
+    {
+        var audienceNotes = request.TargetAudienceNotes;
+        if (string.IsNullOrWhiteSpace(audienceNotes))
+        {
+            return 0m;
+        }
+
+        var candidateText = BuildAudienceSearchText(candidate);
+        if (string.IsNullOrWhiteSpace(candidateText))
+        {
+            return 0m;
+        }
+
+        var matched = TokenizeAudienceTerms(audienceNotes)
+            .Take(10)
+            .Count(token => candidateText.Contains(token, StringComparison.OrdinalIgnoreCase));
+
+        return matched switch
+        {
+            >= 3 => 4m,
+            2 => 3m,
+            1 => 1m,
             _ => 0m
         };
     }
 
-    private static bool HasAnyAudienceHint(InventoryCandidate candidate, params string[] hints)
+    private static decimal ScoreGenderRequestFit(InventoryCandidate candidate, CampaignPlanningRequest request)
     {
-        var text = BuildAudienceSearchText(candidate);
-        if (string.IsNullOrWhiteSpace(text) || hints.Length == 0)
+        var targetGender = NormalizeGender(request.TargetGender);
+        if (string.IsNullOrWhiteSpace(targetGender) || targetGender == "all")
         {
-            return false;
+            return 0m;
         }
 
-        return hints.Any(hint => text.Contains(hint, StringComparison.OrdinalIgnoreCase));
+        var genderText = GetMetadataText(candidate, "audienceGenderSkew", "audience_gender_skew", "targetAudience", "target_audience");
+        if (string.IsNullOrWhiteSpace(genderText))
+        {
+            return 0m;
+        }
+
+        var hasTargetMatch = GenderAliases(targetGender)
+            .Any(alias => genderText.Contains(alias, StringComparison.OrdinalIgnoreCase));
+        if (hasTargetMatch)
+        {
+            return 3m;
+        }
+
+        var oppositeGender = targetGender == "male" ? "female" : "male";
+        var hasOppositeMatch = GenderAliases(oppositeGender)
+            .Any(alias => genderText.Contains(alias, StringComparison.OrdinalIgnoreCase));
+        return hasOppositeMatch ? -2m : 0m;
     }
 
-    private static HashSet<string> ResolveIndustryArchetypes(CampaignPlanningRequest request)
+    private HashSet<string> ResolveIndustryArchetypes(CampaignPlanningRequest request)
     {
-        var searchText = string.Join(" ",
-            request.TargetInterests.Where(static value => !string.IsNullOrWhiteSpace(value))
-                .Concat(new[] { request.TargetAudienceNotes })
-                .Where(static value => !string.IsNullOrWhiteSpace(value)));
-
-        if (string.IsNullOrWhiteSpace(searchText))
-        {
-            return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        }
-
-        var normalized = NormalizeStrategyToken(searchText);
         var archetypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var hints = request.TargetInterests
+            .Where(static value => !string.IsNullOrWhiteSpace(value))
+            .Concat(new[] { request.TargetAudienceNotes })
+            .Where(static value => !string.IsNullOrWhiteSpace(value))
+            .SelectMany(value => new[] { value!.Trim() }.Concat(TokenizeAudienceTerms(value)))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
 
-        AddIfMatch(archetypes, normalized, "funeral_services", "funeral", "burial", "cremation", "undertaker", "memorial");
-        AddIfMatch(archetypes, normalized, "food_restaurant", "restaurant", "food", "takeaway", "cafe", "diner", "pizza");
-        AddIfMatch(archetypes, normalized, "retail_grocery", "retail", "grocery", "supermarket", "shop", "store");
-        AddIfMatch(archetypes, normalized, "healthcare_clinic", "healthcare", "clinic", "dental", "doctor", "medical", "pharmacy");
-        AddIfMatch(archetypes, normalized, "legal_services", "legal", "attorney", "law", "conveyancing");
-        AddIfMatch(archetypes, normalized, "automotive", "automotive", "dealership", "vehicle", "car", "motor");
+        foreach (var hint in hints)
+        {
+            var industryCode = _leadMasterDataService.ResolveIndustryFromHints(new[] { hint })?.Code;
+            if (_industryArchetypeScoringService.Resolve(industryCode) is not null)
+            {
+                archetypes.Add(industryCode!);
+                continue;
+            }
+
+            var normalizedHint = NormalizeStrategyToken(hint);
+            if (ContainsAnyStrategyToken(normalizedHint, "automotive", "dealership", "vehicle", "car", "motor"))
+            {
+                archetypes.Add(LeadCanonicalValues.IndustryCodes.Automotive);
+            }
+            else if (ContainsAnyStrategyToken(normalizedHint, "restaurant", "food", "takeaway", "cafe", "diner", "pizza"))
+            {
+                archetypes.Add(LeadCanonicalValues.IndustryCodes.FoodHospitality);
+            }
+        }
 
         return archetypes;
     }
 
-    private static void AddIfMatch(HashSet<string> archetypes, string normalizedSource, string archetype, params string[] aliases)
+    private static bool ContainsAnyStrategyToken(string normalizedSource, params string[] aliases)
     {
-        if (aliases.Any(alias => normalizedSource.Contains(NormalizeStrategyToken(alias), StringComparison.OrdinalIgnoreCase)))
-        {
-            archetypes.Add(archetype);
-        }
+        return aliases.Any(alias => normalizedSource.Contains(NormalizeStrategyToken(alias), StringComparison.OrdinalIgnoreCase));
     }
 
     private decimal RadioFitBonus(InventoryCandidate candidate, CampaignPlanningRequest request)
@@ -1271,5 +1318,21 @@ public sealed class PlanningScoreService : IPlanningScoreService
             "female" => new[] { "female", "women", "woman", "lady" },
             _ => Array.Empty<string>()
         };
+    }
+
+    private sealed class NoOpLeadMasterDataService : ILeadMasterDataService
+    {
+        public LeadMasterTokenSet GetTokenSet() => new();
+        public MasterLocationMatch? ResolveLocation(string? value) => null;
+        public MasterIndustryMatch? ResolveIndustry(string? value) => null;
+        public MasterIndustryMatch? ResolveIndustryFromHints(IReadOnlyList<string> hints) => null;
+        public MasterLanguageMatch? ResolveLanguage(string? value) => null;
+    }
+
+    private sealed class NoOpIndustryArchetypeScoringService : IIndustryArchetypeScoringService
+    {
+        public IndustryArchetypeScoringProfile? Resolve(string? industryCode) => null;
+
+        public IReadOnlyCollection<string> GetSupportedIndustryCodes() => Array.Empty<string>();
     }
 }

@@ -6,9 +6,6 @@ namespace Advertified.App.Services;
 
 public sealed class LeadMasterDataService : ILeadMasterDataService
 {
-    private static readonly string[] FallbackIndustryTokens = { "funeral", "retail", "clinic", "legal", "restaurant" };
-    private static readonly string[] FallbackLanguageTokens = { "english", "afrikaans", "isizulu", "isixhosa", "sesotho" };
-
     private readonly NpgsqlDataSource _dataSource;
     private readonly object _syncRoot = new();
     private LeadMasterDataSnapshot? _snapshot;
@@ -180,12 +177,11 @@ public sealed class LeadMasterDataService : ILeadMasterDataService
 
             return BuildSnapshot(locationRows, industryRows, languageRows);
         }
-        catch
+        catch (Exception ex)
         {
-            return BuildSnapshot(
-                Array.Empty<LocationAliasRow>(),
-                Array.Empty<IndustryAliasRow>(),
-                Array.Empty<LanguageAliasRow>());
+            throw new InvalidOperationException(
+                "Lead master data could not be loaded. Ensure master locations, industries, and languages are initialized before startup.",
+                ex);
         }
     }
 
@@ -230,13 +226,23 @@ public sealed class LeadMasterDataService : ILeadMasterDataService
                 },
                 StringComparer.Ordinal);
 
+        if (industryAliases.Count == 0)
+        {
+            throw new InvalidOperationException("Lead master data is missing industry aliases.");
+        }
+
+        if (languageAliases.Count == 0)
+        {
+            throw new InvalidOperationException("Lead master data is missing language aliases.");
+        }
+
         return new LeadMasterDataSnapshot(
             locationAliases,
             industryAliases,
             languageAliases,
             BuildTokens(locationAliases.Keys),
-            BuildTokens(industryAliases.Keys, FallbackIndustryTokens),
-            BuildTokens(languageAliases.Keys, FallbackLanguageTokens));
+            BuildTokens(industryAliases.Keys),
+            BuildTokens(languageAliases.Keys));
     }
 
     private static IReadOnlyList<string> BuildTokens(IEnumerable<string> tableTokens)

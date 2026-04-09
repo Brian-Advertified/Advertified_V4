@@ -406,8 +406,8 @@ public sealed partial class WebsiteSignalProvider : IWebsiteSignalProvider
         private static readonly LeadMasterTokenSet Tokens = new()
         {
             LocationTokens = Array.Empty<string>(),
-            IndustryTokens = new[] { "funeral", "retail", "clinic", "legal", "restaurant" },
-            LanguageTokens = new[] { "english", "afrikaans", "isizulu", "isixhosa", "sesotho" }
+            IndustryTokens = Array.Empty<string>(),
+            LanguageTokens = Array.Empty<string>()
         };
 
         public LeadMasterTokenSet GetTokenSet() => Tokens;

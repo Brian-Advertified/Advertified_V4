@@ -232,6 +232,7 @@ builder.Services.AddScoped<ILeadActionRecommendationService, LeadActionRecommend
 builder.Services.AddScoped<ILeadSourceAutomationStatusService, LeadSourceAutomationStatusService>();
 builder.Services.AddScoped<ILeadChannelDetectionService, LeadChannelDetectionService>();
 builder.Services.AddScoped<ILeadMasterDataService, LeadMasterDataService>();
+builder.Services.AddScoped<IIndustryArchetypeScoringService, IndustryArchetypeScoringService>();
 builder.Services.AddScoped<IGeocodingService, GeocodingService>();
 builder.Services.AddScoped<ILeadIndustryPolicyService, LeadIndustryPolicyService>();
 builder.Services.AddScoped<ILeadOpportunityProfileService, LeadOpportunityProfileService>();
@@ -373,6 +374,8 @@ if (app.Environment.IsDevelopment())
 }
 
 await DatabaseSchemaInitializer.InitializeAsync(app.Services, app.Environment);
+await LeadMasterDataValidator.ValidateAsync(app.Services);
+await IndustryArchetypeScoringValidator.ValidateAsync(app.Services);
 await EmailTemplateInitializer.InitializeAsync(app.Services);
 await PackageCatalogInitializer.InitializeAsync(app.Services);
 await using (var scope = app.Services.CreateAsyncScope())

@@ -6,11 +6,13 @@ namespace Advertified.App.Services;
 
 public sealed class LeadIndustryPolicyService : ILeadIndustryPolicyService
 {
-    private readonly IReadOnlyList<LeadIndustryPolicyMatcher> _matchers;
+    private readonly IReadOnlyDictionary<string, LeadIndustryPolicyProfile> _profilesByKey;
     private readonly LeadIndustryPolicyProfile _defaultProfile;
+    private readonly ILeadMasterDataService _leadMasterDataService;
 
-    public LeadIndustryPolicyService(IOptions<LeadIndustryPolicyOptions> options)
+    public LeadIndustryPolicyService(IOptions<LeadIndustryPolicyOptions> options, ILeadMasterDataService leadMasterDataService)
     {
+        _leadMasterDataService = leadMasterDataService;
         var configuredProfiles = options.Value.Profiles;
         if (configuredProfiles.Count == 0)
         {
@@ -20,6 +22,10 @@ public sealed class LeadIndustryPolicyService : ILeadIndustryPolicyService
         var mappedProfiles = configuredProfiles
             .Select(MapProfile)
             .ToList();
+
+        _profilesByKey = mappedProfiles
+            .Where(profile => !string.IsNullOrWhiteSpace(profile.Key))
+            .ToDictionary(profile => profile.Key.Trim(), StringComparer.OrdinalIgnoreCase);
 
         _defaultProfile = mappedProfiles.FirstOrDefault(profile =>
             profile.Key.Equals("default", StringComparison.OrdinalIgnoreCase))
@@ -40,18 +46,11 @@ public sealed class LeadIndustryPolicyService : ILeadIndustryPolicyService
                 AdditionalGap = "Opportunity to tighten channel mix around the strongest local demand signals.",
                 AdditionalOutcome = "Expected impact: clearer positioning and better conversion from existing demand.",
             };
+    }
 
-        _matchers = configuredProfiles
-            .Select((profile, index) => new LeadIndustryPolicyMatcher
-            {
-                Profile = mappedProfiles[index],
-                Keywords = profile.MatchKeywords
-                    .Select(keyword => keyword.Trim())
-                    .Where(keyword => keyword.Length > 0)
-                    .ToArray(),
-            })
-            .Where(item => !item.Profile.Key.Equals("default", StringComparison.OrdinalIgnoreCase))
-            .ToList();
+    public LeadIndustryPolicyService(IOptions<LeadIndustryPolicyOptions> options)
+        : this(options, new NoOpLeadMasterDataService())
+    {
     }
 
     public LeadIndustryPolicyProfile ResolveForCategory(string? category)
@@ -61,14 +60,17 @@ public sealed class LeadIndustryPolicyService : ILeadIndustryPolicyService
             return _defaultProfile;
         }
 
-        var normalizedCategory = category.Trim();
-        foreach (var matcher in _matchers)
+        var industryCode = _leadMasterDataService.ResolveIndustry(category)?.Code;
+        if (!string.IsNullOrWhiteSpace(industryCode)
+            && _profilesByKey.TryGetValue(industryCode, out var canonicalProfile))
         {
-            if (matcher.Keywords.Any(keyword =>
-                normalizedCategory.Contains(keyword, StringComparison.OrdinalIgnoreCase)))
-            {
-                return matcher.Profile;
-            }
+            return canonicalProfile;
+        }
+
+        var normalizedCategory = category.Trim();
+        if (_profilesByKey.TryGetValue(normalizedCategory, out var directProfile))
+        {
+            return directProfile;
         }
 
         return _defaultProfile;
@@ -98,10 +100,12 @@ public sealed class LeadIndustryPolicyService : ILeadIndustryPolicyService
         };
     }
 
-    private sealed class LeadIndustryPolicyMatcher
+    private sealed class NoOpLeadMasterDataService : ILeadMasterDataService
     {
-        public LeadIndustryPolicyProfile Profile { get; init; } = new();
-
-        public IReadOnlyList<string> Keywords { get; init; } = Array.Empty<string>();
+        public LeadMasterTokenSet GetTokenSet() => new();
+        public MasterLocationMatch? ResolveLocation(string? value) => null;
+        public MasterIndustryMatch? ResolveIndustry(string? value) => null;
+        public MasterIndustryMatch? ResolveIndustryFromHints(IReadOnlyList<string> hints) => null;
+        public MasterLanguageMatch? ResolveLanguage(string? value) => null;
     }
 }

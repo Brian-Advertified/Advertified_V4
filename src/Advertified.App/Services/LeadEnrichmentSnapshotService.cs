@@ -1,5 +1,6 @@
 using Advertified.App.Data.Entities;
 using Advertified.App.Services.Abstractions;
+using Advertified.App.Support;
 
 namespace Advertified.App.Services;
 
@@ -12,6 +13,11 @@ public sealed class LeadEnrichmentSnapshotService : ILeadEnrichmentSnapshotServi
     {
         _geocodingService = geocodingService;
         _leadMasterDataService = leadMasterDataService;
+    }
+
+    public LeadEnrichmentSnapshotService(IGeocodingService geocodingService)
+        : this(geocodingService, new NoOpLeadMasterDataService())
+    {
     }
 
     public LeadEnrichmentSnapshotService()
@@ -31,6 +37,7 @@ public sealed class LeadEnrichmentSnapshotService : ILeadEnrichmentSnapshotServi
             BuildIndustryField(lead, evidences),
             BuildChannelActivityField(channelDetections),
             BuildLanguageField(lead, evidences),
+            BuildSecondaryLanguageField(evidences),
             BuildAudienceField(lead, evidences),
             BuildGenderField(lead, evidences),
             BuildBudgetTierField(lead, channelDetections, latestSignal),
@@ -170,16 +177,17 @@ public sealed class LeadEnrichmentSnapshotService : ILeadEnrichmentSnapshotServi
 
     private LeadEnrichmentField BuildLanguageField(Lead lead, IReadOnlyList<LeadSignalEvidence> evidences)
     {
-        var languageEvidence = FindEvidence(evidences, "social_language_detected", "website_language_detected");
-        if (languageEvidence is not null)
+        var detectedLanguages = ResolveDetectedLanguages(evidences);
+        if (detectedLanguages.Count > 0)
         {
+            var primaryLanguage = detectedLanguages[0];
             return CreateField(
                 key: "language",
                 label: "Language",
-                value: languageEvidence.Value,
+                value: primaryLanguage.Value,
                 confidence: "detected",
-                source: languageEvidence.Source,
-                reason: "Language extracted from public content signals.",
+                source: primaryLanguage.Source,
+                reason: "Primary language extracted from public content signals.",
                 required: false);
         }
 
@@ -202,6 +210,25 @@ public sealed class LeadEnrichmentSnapshotService : ILeadEnrichmentSnapshotServi
         return CreateUnknownField("language", "Language", false);
     }
 
+    private LeadEnrichmentField BuildSecondaryLanguageField(IReadOnlyList<LeadSignalEvidence> evidences)
+    {
+        var detectedLanguages = ResolveDetectedLanguages(evidences);
+        if (detectedLanguages.Count > 1)
+        {
+            var secondaryLanguage = detectedLanguages[1];
+            return CreateField(
+                key: "secondary_language",
+                label: "Secondary language",
+                value: secondaryLanguage.Value,
+                confidence: "detected",
+                source: secondaryLanguage.Source,
+                reason: "Secondary language extracted from public content signals.",
+                required: false);
+        }
+
+        return CreateUnknownField("secondary_language", "Secondary language", false);
+    }
+
     private LeadEnrichmentField BuildAudienceField(Lead lead, IReadOnlyList<LeadSignalEvidence> evidences)
     {
         var audienceEvidence = FindEvidence(evidences, "website_audience_hint");
@@ -219,7 +246,7 @@ public sealed class LeadEnrichmentSnapshotService : ILeadEnrichmentSnapshotServi
 
         var industryCode = _leadMasterDataService.ResolveIndustry(lead.Category)?.Code;
 
-        if (industryCode == "funeral_services")
+        if (industryCode == LeadCanonicalValues.IndustryCodes.FuneralServices)
         {
             return CreateField(
                 key: "target_audience",
@@ -231,7 +258,7 @@ public sealed class LeadEnrichmentSnapshotService : ILeadEnrichmentSnapshotServi
                 required: false);
         }
 
-        if (industryCode == "retail")
+        if (industryCode == LeadCanonicalValues.IndustryCodes.Retail)
         {
             return CreateField(
                 key: "target_audience",
@@ -326,6 +353,33 @@ public sealed class LeadEnrichmentSnapshotService : ILeadEnrichmentSnapshotServi
             .OrderByDescending(item => item.ObservedAt)
             .ThenByDescending(item => item.CreatedAt)
             .FirstOrDefault();
+    }
+
+    private IReadOnlyList<DetectedLanguage> ResolveDetectedLanguages(IReadOnlyList<LeadSignalEvidence> evidences)
+    {
+        if (evidences.Count == 0)
+        {
+            return Array.Empty<DetectedLanguage>();
+        }
+
+        return evidences
+            .Where(item =>
+                item.SignalType.Equals("social_language_detected", StringComparison.OrdinalIgnoreCase)
+                || item.SignalType.Equals("website_language_detected", StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(item => item.ObservedAt)
+            .ThenByDescending(item => item.CreatedAt)
+            .Select(item =>
+            {
+                var resolved = _leadMasterDataService.ResolveLanguage(item.Value);
+                return new DetectedLanguage(
+                    string.IsNullOrWhiteSpace(resolved?.Label) ? item.Value.Trim() : resolved.Label,
+                    item.Source);
+            })
+            .Where(item => !string.IsNullOrWhiteSpace(item.Value))
+            .GroupBy(item => item.Value, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .Take(2)
+            .ToArray();
     }
 
     private static LeadEnrichmentField CreateField(
@@ -484,4 +538,6 @@ public sealed class LeadEnrichmentSnapshotService : ILeadEnrichmentSnapshotServi
         public MasterIndustryMatch? ResolveIndustryFromHints(IReadOnlyList<string> hints) => null;
         public MasterLanguageMatch? ResolveLanguage(string? value) => null;
     }
+
+    private sealed record DetectedLanguage(string Value, string Source);
 }

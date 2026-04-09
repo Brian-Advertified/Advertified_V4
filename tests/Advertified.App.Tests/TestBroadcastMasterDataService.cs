@@ -6,7 +6,18 @@ internal sealed class TestBroadcastMasterDataService : IBroadcastMasterDataServi
     public Task<AdminOutletMasterDataResponse> GetOutletMasterDataAsync(CancellationToken cancellationToken)
         => Task.FromResult(new AdminOutletMasterDataResponse());
 
-    public string NormalizeLanguageCode(string? value) => value ?? string.Empty;
+    public string NormalizeLanguageCode(string? value)
+    {
+        var normalized = (value ?? string.Empty).Trim().ToLowerInvariant().Replace("-", "_").Replace(" ", "_");
+        return normalized switch
+        {
+            "isizulu" or "zulu" => "zulu",
+            "isixhosa" or "xhosa" => "xhosa",
+            "afrikaans" => "afrikaans",
+            "english" => "english",
+            _ => normalized
+        };
+    }
 
     public string NormalizeProvinceCode(string? value)
     {
@@ -20,8 +31,8 @@ internal sealed class TestBroadcastMasterDataService : IBroadcastMasterDataServi
         };
     }
 
-    public string NormalizeCoverageType(string? value) => value ?? string.Empty;
-    public string NormalizeCatalogHealth(string? value) => value ?? string.Empty;
-    public string NormalizeLanguageForMatching(string? value) => value ?? string.Empty;
-    public string NormalizeGeographyForMatching(string? value) => value ?? string.Empty;
+    public string NormalizeCoverageType(string? value) => (value ?? string.Empty).Trim().ToLowerInvariant();
+    public string NormalizeCatalogHealth(string? value) => (value ?? string.Empty).Trim().ToLowerInvariant();
+    public string NormalizeLanguageForMatching(string? value) => NormalizeLanguageCode(value);
+    public string NormalizeGeographyForMatching(string? value) => (value ?? string.Empty).Trim().ToLowerInvariant().Replace("-", "_").Replace(" ", "_");
 }

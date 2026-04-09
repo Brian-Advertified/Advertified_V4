@@ -1,3 +1,5 @@
+using Advertified.App.Support;
+
 namespace Advertified.App.Configuration;
 
 public sealed class LeadIndustryPolicyOptions
@@ -12,7 +14,7 @@ public sealed class LeadIndustryPolicyOptions
         {
             new()
             {
-                Key = "funeral_services",
+                Key = LeadCanonicalValues.IndustryCodes.FuneralServices,
                 Name = "Funeral Services",
                 ObjectiveOverride = "leads",
                 PreferredTone = "balanced",
@@ -27,11 +29,10 @@ public sealed class LeadIndustryPolicyOptions
                 },
                 AdditionalGap = "Opportunity to improve trust-led local discoverability for urgent family decisions.",
                 AdditionalOutcome = "Expected impact: improved qualified enquiries and stronger community trust presence.",
-                MatchKeywords = new List<string> { "funeral", "memorial", "burial" },
             },
             new()
             {
-                Key = "healthcare",
+                Key = LeadCanonicalValues.IndustryCodes.Healthcare,
                 Name = "Healthcare",
                 ObjectiveOverride = "leads",
                 PreferredTone = "balanced",
@@ -46,11 +47,10 @@ public sealed class LeadIndustryPolicyOptions
                 },
                 AdditionalGap = "Opportunity to strengthen high-intent service capture for nearby patients.",
                 AdditionalOutcome = "Expected impact: higher consultation intent and stronger local appointment flow.",
-                MatchKeywords = new List<string> { "health", "clinic", "medical", "dental", "doctor", "hospital" },
             },
             new()
             {
-                Key = "legal_services",
+                Key = LeadCanonicalValues.IndustryCodes.LegalServices,
                 Name = "Legal Services",
                 ObjectiveOverride = "leads",
                 PreferredTone = "performance",
@@ -65,11 +65,10 @@ public sealed class LeadIndustryPolicyOptions
                 },
                 AdditionalGap = "Opportunity to capture urgent high-intent searches before competitor firms.",
                 AdditionalOutcome = "Expected impact: improved lead quality and stronger inbound case enquiries.",
-                MatchKeywords = new List<string> { "legal", "attorney", "law", "advocate" },
             },
             new()
             {
-                Key = "retail",
+                Key = LeadCanonicalValues.IndustryCodes.Retail,
                 Name = "Retail",
                 ObjectiveOverride = "promotion",
                 PreferredTone = "performance",
@@ -84,7 +83,6 @@ public sealed class LeadIndustryPolicyOptions
                 },
                 AdditionalGap = "Opportunity to convert promotional momentum into always-on visibility.",
                 AdditionalOutcome = "Expected impact: steadier footfall and stronger repeat demand beyond promotions.",
-                MatchKeywords = new List<string> { "retail", "shop", "store", "grocery", "supermarket", "furniture" },
             },
             new()
             {
@@ -102,7 +100,6 @@ public sealed class LeadIndustryPolicyOptions
                 },
                 AdditionalGap = "Opportunity to tighten channel mix around the strongest local demand signals.",
                 AdditionalOutcome = "Expected impact: clearer positioning and better conversion from existing demand.",
-                MatchKeywords = new List<string>(),
             },
         };
     }
@@ -129,6 +126,4 @@ public sealed class LeadIndustryPolicyProfileOptions
     public string AdditionalGap { get; set; } = string.Empty;
 
     public string AdditionalOutcome { get; set; } = string.Empty;
-
-    public List<string> MatchKeywords { get; set; } = new();
 }

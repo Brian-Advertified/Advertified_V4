@@ -1,6 +1,7 @@
 using Advertified.App.Data.Entities;
 using Advertified.App.Services;
 using Advertified.App.Services.Abstractions;
+using Advertified.App.Support;
 using FluentAssertions;
 
 namespace Advertified.App.Tests;
@@ -134,7 +135,7 @@ public class LeadEnrichmentSnapshotServiceTests
     [Fact]
     public void Build_AppliesFuneralAudienceAndBudgetHeuristics()
     {
-        var service = new LeadEnrichmentSnapshotService(new StubResolvedGeocodingService());
+        var service = new LeadEnrichmentSnapshotService(new StubResolvedGeocodingService(), new StubLeadMasterDataService());
         var lead = new Lead
         {
             Id = 1003,
@@ -177,6 +178,66 @@ public class LeadEnrichmentSnapshotServiceTests
             .Which.Confidence.Should().Be("inferred");
     }
 
+    [Fact]
+    public void Build_DetectsPrimaryAndSecondaryLanguages_FromEvidence()
+    {
+        var service = new LeadEnrichmentSnapshotService(new StubResolvedGeocodingService(), new StubLeadMasterDataService());
+        var lead = new Lead
+        {
+            Id = 1004,
+            Name = "Bilingual Lead",
+            Category = "Retail",
+            Location = "Pretoria"
+        };
+
+        var now = DateTime.UtcNow;
+        var evidences = new[]
+        {
+            new LeadSignalEvidence
+            {
+                LeadId = lead.Id,
+                Channel = "website",
+                SignalType = "website_language_detected",
+                Source = "website_scan",
+                Value = "English",
+                ObservedAt = now,
+                CreatedAt = now
+            },
+            new LeadSignalEvidence
+            {
+                LeadId = lead.Id,
+                Channel = "website",
+                SignalType = "social_language_detected",
+                Source = "social_scan",
+                Value = "Afrikaans",
+                ObservedAt = now.AddMinutes(-1),
+                CreatedAt = now.AddMinutes(-1)
+            }
+        };
+
+        var snapshot = service.Build(
+            lead,
+            latestSignal: null,
+            evidences: evidences,
+            channelDetections: new[]
+            {
+                new LeadChannelDetectionResult
+                {
+                    LeadId = lead.Id,
+                    Channel = "search",
+                    Score = 80,
+                    Confidence = "detected",
+                    Status = "strong",
+                    DominantReason = "Active search indicators."
+                }
+            });
+
+        snapshot.Fields.Should().ContainSingle(field => field.Key == "language")
+            .Which.Value.Should().Be("English");
+        snapshot.Fields.Should().ContainSingle(field => field.Key == "secondary_language")
+            .Which.Value.Should().Be("Afrikaans");
+    }
+
     private sealed class StubResolvedGeocodingService : IGeocodingService
     {
         public GeocodingResolution ResolveLocation(string? rawLocation)
@@ -201,6 +262,49 @@ public class LeadEnrichmentSnapshotServiceTests
                 Longitude = 28.0473d,
                 Source = "master_locations"
             };
+        }
+    }
+
+    private sealed class StubLeadMasterDataService : ILeadMasterDataService
+    {
+        public LeadMasterTokenSet GetTokenSet() => new();
+
+        public MasterLocationMatch? ResolveLocation(string? value) => null;
+
+        public MasterIndustryMatch? ResolveIndustry(string? value)
+        {
+            if (!string.IsNullOrWhiteSpace(value) && value.Contains("funeral", StringComparison.OrdinalIgnoreCase))
+            {
+                return new MasterIndustryMatch
+                {
+                    Code = LeadCanonicalValues.IndustryCodes.FuneralServices,
+                    Label = "Funeral Services"
+                };
+            }
+
+            return null;
+        }
+
+        public MasterIndustryMatch? ResolveIndustryFromHints(IReadOnlyList<string> hints) => null;
+
+        public MasterLanguageMatch? ResolveLanguage(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return null;
+            }
+
+            if (value.Contains("english", StringComparison.OrdinalIgnoreCase))
+            {
+                return new MasterLanguageMatch { Code = "en", Label = "English" };
+            }
+
+            if (value.Contains("afrikaans", StringComparison.OrdinalIgnoreCase))
+            {
+                return new MasterLanguageMatch { Code = "af", Label = "Afrikaans" };
+            }
+
+            return null;
         }
     }
 }

@@ -4,14 +4,17 @@ namespace Advertified.App.Services;
 
 public sealed class LeadStrategyEngine : ILeadStrategyEngine
 {
+    private static readonly string[] SupportedChannels = { "Digital", "OOH", "Radio" };
+
     public LeadStrategyResult Build(
         LeadBusinessProfile businessProfile,
         LeadIndustryPolicyProfile industryPolicy,
         LeadOpportunityProfile opportunityProfile,
         IReadOnlyList<LeadChannelDetectionResult> channelDetections)
     {
-        var baseSplit = ResolveBaseSplit(opportunityProfile.Key);
-        var adjustedSplit = ApplyChannelFitAdjustments(baseSplit, channelDetections);
+        var baseSplit = ResolveBaseSplit(opportunityProfile.Key, industryPolicy.PreferredChannels);
+        var opportunityAdjustedSplit = ApplyOpportunityAdjustments(baseSplit, opportunityProfile);
+        var adjustedSplit = ApplyChannelFitAdjustments(opportunityAdjustedSplit, channelDetections);
         var normalizedSplit = NormalizeSplit(adjustedSplit);
 
         var channelPlans = normalizedSplit
@@ -35,8 +38,14 @@ public sealed class LeadStrategyEngine : ILeadStrategyEngine
         };
     }
 
-    private static Dictionary<string, int> ResolveBaseSplit(string archetypeKey)
+    private static Dictionary<string, int> ResolveBaseSplit(string archetypeKey, IReadOnlyList<string> preferredChannels)
     {
+        var policySplit = BuildPolicyPreferredSplit(preferredChannels);
+        if (policySplit is not null)
+        {
+            return policySplit;
+        }
+
         return archetypeKey.ToLowerInvariant() switch
         {
             "active_scaler" => new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
@@ -72,6 +81,54 @@ public sealed class LeadStrategyEngine : ILeadStrategyEngine
         };
     }
 
+    private static Dictionary<string, int>? BuildPolicyPreferredSplit(IReadOnlyList<string> preferredChannels)
+    {
+        var normalizedChannels = preferredChannels
+            .Select(NormalizePolicyChannel)
+            .Where(channel => !string.IsNullOrWhiteSpace(channel))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(3)
+            .ToArray();
+
+        if (normalizedChannels.Length == 0)
+        {
+            return null;
+        }
+
+        var split = SupportedChannels.ToDictionary(channel => channel, static _ => 0, StringComparer.OrdinalIgnoreCase);
+        var weights = normalizedChannels.Length switch
+        {
+            1 => new[] { 100 },
+            2 => new[] { 60, 40 },
+            _ => new[] { 50, 30, 20 }
+        };
+
+        for (var index = 0; index < normalizedChannels.Length; index++)
+        {
+            split[normalizedChannels[index]!] = weights[index];
+        }
+
+        return split;
+    }
+
+    private static Dictionary<string, int> ApplyOpportunityAdjustments(
+        Dictionary<string, int> split,
+        LeadOpportunityProfile opportunityProfile)
+    {
+        var adjusted = new Dictionary<string, int>(split, StringComparer.OrdinalIgnoreCase);
+        foreach (var channel in opportunityProfile.RecommendedChannels.Select(NormalizePolicyChannel))
+        {
+            if (string.IsNullOrWhiteSpace(channel) || !adjusted.ContainsKey(channel))
+            {
+                continue;
+            }
+
+            adjusted[channel] += 4;
+        }
+
+        return adjusted;
+    }
+
     private static Dictionary<string, int> ApplyChannelFitAdjustments(
         Dictionary<string, int> split,
         IReadOnlyList<LeadChannelDetectionResult> channelDetections)
@@ -91,7 +148,7 @@ public sealed class LeadStrategyEngine : ILeadStrategyEngine
             }
             else if (detection.Score <= 25)
             {
-                adjusted[mappedChannel] = Math.Max(10, adjusted[mappedChannel] - 5);
+                adjusted[mappedChannel] = Math.Max(5, adjusted[mappedChannel] - 5);
             }
         }
 
@@ -148,6 +205,23 @@ public sealed class LeadStrategyEngine : ILeadStrategyEngine
             "social" => "Digital",
             "search" => "Digital",
             "billboards_ooh" => "OOH",
+            "radio" => "Radio",
+            _ => null
+        };
+    }
+
+    private static string? NormalizePolicyChannel(string channel)
+    {
+        if (string.IsNullOrWhiteSpace(channel))
+        {
+            return null;
+        }
+
+        var normalized = channel.Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            "search" or "social" or "display" or "digital" => "Digital",
+            "ooh" or "billboards_ooh" => "OOH",
             "radio" => "Radio",
             _ => null
         };
