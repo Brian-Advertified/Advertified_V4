@@ -452,11 +452,11 @@ internal static class EmailTemplateDefaults
                   </div>
                 </div>
                 ", nowUtc),
-            Build("lead-proposal-ready", "Growth opportunity proposals for {{CampaignName}}", @"
+            Build("lead-proposal-ready", "We found a demand gap in {{CampaignName}} in {{AreaOrIndustry}}", @"
                 <div style=""background:#f4fbf8;padding:32px;font-family:Arial,sans-serif;color:#12211D;"">
                   <div style=""max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #d8e9e1;border-radius:24px;overflow:hidden;"">
                     <div style=""padding:28px 32px;background:linear-gradient(180deg,#eefbf5 0%, #ffffff 100%);border-bottom:1px solid #d8e9e1;"">
-                      <div style=""font-size:14px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Advertified lead intelligence</div>
+                      <div style=""font-size:14px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Advertified</div>
                       <h1 style=""margin:12px 0 0;font-size:30px;line-height:1.2;color:#123A33;"">Growth opportunity snapshot ready</h1>
                     </div>
                     <div style=""padding:28px 32px;"">
@@ -464,13 +464,13 @@ internal static class EmailTemplateDefaults
                       <p style=""margin:0 0 12px;font-size:15px;line-height:1.7;color:#4b635a;"">I'm Dev from Advertified - we help businesses find where they're losing customers online and put campaigns in place to fix it.</p>
                       <p style=""margin:0 0 12px;font-size:15px;line-height:1.7;color:#4b635a;"">We recently looked at your market presence and identified a specific gap in how your business is capturing demand in {{AreaOrIndustry}}. It's fixable, and we've already mapped out three campaign approaches tailored to your situation.</p>
                       <p style=""margin:0 0 8px;font-size:15px;line-height:1.7;color:#4b635a;"">Here's what makes this easy to act on:</p>
-                      <ul style=""margin:0 0 14px 20px;padding:0;color:#4b635a;"">
-                        <li style=""margin:0 0 6px 0;"">The campaigns are ready to review - no lengthy onboarding</li>
-                        <li style=""margin:0 0 6px 0;"">Each option is built around your budget, not a fixed package</li>
-                        <li style=""margin:0 0 6px 0;"">We offer Buy Now, Pay Later - you can start generating results before you've paid in full</li>
+                      <ul style=""margin:0 0 14px 20px;padding:0;color:#4b635a;font-size:15px;line-height:1.7;"">
+                        <li style=""margin:0 0 6px 0;font-weight:500;"">The campaigns are ready to review - no lengthy onboarding</li>
+                        <li style=""margin:0 0 6px 0;font-weight:500;"">Each option is built around your budget, not a fixed package</li>
+                        <li style=""margin:0 0 6px 0;font-weight:500;"">We offer Buy Now, Pay Later - you can start generating results before you've paid in full</li>
                       </ul>
                       <p style=""margin:0 0 12px;font-size:15px;line-height:1.7;color:#4b635a;"">That last point matters. Most businesses hold back on marketing spend because of cash flow. Our BNPL structure means you're not paying upfront - you're paying from the growth.</p>
-                      <p style=""margin:0 0 18px;font-size:15px;line-height:1.7;color:#4b635a;"">Would it make sense to share what we found? A quick 15-minute call is all it takes - no commitment, just clarity.</p>
+                      <p style=""margin:0 0 18px;font-size:15px;line-height:1.7;color:#4b635a;"">We've already done the work - reply and we'll walk you through it in 15 minutes.</p>
                       <div style=""margin:18px 0 20px;"">
                         <a href=""{{ReviewUrl}}"" style=""display:inline-block;padding:12px 18px;border-radius:14px;background:#123A33;color:#ffffff;text-decoration:none;font-weight:700;"">
                           Review growth options
