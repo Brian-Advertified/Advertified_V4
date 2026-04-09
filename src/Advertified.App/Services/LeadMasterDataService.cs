@@ -72,6 +72,47 @@ public sealed class LeadMasterDataService : ILeadMasterDataService
         };
     }
 
+    public MasterIndustryMatch? ResolveIndustryFromHints(IReadOnlyList<string> hints)
+    {
+        if (hints.Count == 0)
+        {
+            return null;
+        }
+
+        var snapshot = GetSnapshot();
+
+        foreach (var hint in hints)
+        {
+            var directMatch = ResolveIndustry(hint);
+            if (directMatch is not null)
+            {
+                return directMatch;
+            }
+
+            var normalizedHint = NormalizeToken(hint);
+            if (string.IsNullOrWhiteSpace(normalizedHint))
+            {
+                continue;
+            }
+
+            var partialMatch = snapshot.IndustryAliases
+                .FirstOrDefault(entry =>
+                    normalizedHint.Contains(entry.Key, StringComparison.Ordinal)
+                    || entry.Key.Contains(normalizedHint, StringComparison.Ordinal));
+
+            if (!string.IsNullOrWhiteSpace(partialMatch.Key))
+            {
+                return new MasterIndustryMatch
+                {
+                    Code = partialMatch.Value.Code,
+                    Label = partialMatch.Value.Label
+                };
+            }
+        }
+
+        return null;
+    }
+
     public MasterLanguageMatch? ResolveLanguage(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))

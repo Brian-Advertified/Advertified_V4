@@ -17,6 +17,18 @@ public sealed class LeadChannelDetectionService : ILeadChannelDetectionService
         "influencer"
     };
 
+    private readonly ILeadMasterDataService _leadMasterDataService;
+
+    public LeadChannelDetectionService(ILeadMasterDataService leadMasterDataService)
+    {
+        _leadMasterDataService = leadMasterDataService;
+    }
+
+    public LeadChannelDetectionService()
+        : this(new NoOpLeadMasterDataService())
+    {
+    }
+
     public IReadOnlyList<LeadChannelDetectionResult> Detect(
         Lead lead,
         Signal? signal,
@@ -29,7 +41,7 @@ public sealed class LeadChannelDetectionService : ILeadChannelDetectionService
             .ToList();
     }
 
-    private static LeadChannelDetectionResult BuildChannelResult(
+    private LeadChannelDetectionResult BuildChannelResult(
         string channel,
         Lead lead,
         Signal? signal,
@@ -279,8 +291,9 @@ public sealed class LeadChannelDetectionService : ILeadChannelDetectionService
             .ToList();
     }
 
-    private static void AddCategoryPriors(string channel, string category, ICollection<LeadChannelSignalEvidence> evidence)
+    private void AddCategoryPriors(string channel, string category, ICollection<LeadChannelSignalEvidence> evidence)
     {
+        var industryCode = _leadMasterDataService.ResolveIndustry(category)?.Code;
         var normalized = category.ToLowerInvariant();
 
         if (ContainsAny(normalized, "dealership", "dealer", "auto", "car"))
@@ -290,7 +303,7 @@ public sealed class LeadChannelDetectionService : ILeadChannelDetectionService
             if (channel == "search") evidence.Add(CreateEvidence("category_prior", "internal_rule", 6, 0.7m, 1.0m, "Auto and dealership businesses commonly invest in search."));
         }
 
-        if (ContainsAny(normalized, "retail", "supermarket", "grocery", "furniture"))
+        if (industryCode == "retail" || ContainsAny(normalized, "supermarket", "grocery", "furniture"))
         {
             if (channel == "billboards_ooh") evidence.Add(CreateEvidence("industry_pattern", "internal_rule", 10, 0.7m, 1.0m, "Retail-led businesses often use OOH for reach."));
             if (channel == "radio") evidence.Add(CreateEvidence("industry_pattern", "internal_rule", 10, 0.7m, 1.0m, "Retail-led businesses often use radio for promotion."));
@@ -313,12 +326,12 @@ public sealed class LeadChannelDetectionService : ILeadChannelDetectionService
             if (channel == "social") evidence.Add(CreateEvidence("category_prior", "internal_rule", 8, 0.7m, 1.0m, "Luxury and beauty brands commonly use social."));
         }
 
-        if (ContainsAny(normalized, "funeral"))
+        if (industryCode == "funeral_services")
         {
             if (channel == "radio") evidence.Add(CreateEvidence("category_prior", "internal_rule", 12, 0.7m, 1.0m, "Funeral services often rely on radio."));
         }
 
-        if (ContainsAny(normalized, "restaurant", "food", "cafe"))
+        if (industryCode == "food_hospitality")
         {
             if (channel == "social") evidence.Add(CreateEvidence("category_prior", "internal_rule", 10, 0.7m, 1.0m, "Restaurants and food brands often use social."));
             if (channel == "radio") evidence.Add(CreateEvidence("category_prior", "internal_rule", 4, 0.7m, 1.0m, "Restaurants sometimes use radio promotions."));
@@ -326,14 +339,14 @@ public sealed class LeadChannelDetectionService : ILeadChannelDetectionService
             if (channel == "tv") evidence.Add(CreateEvidence("budget_profile_mismatch", "contradiction", -12, 1.0m, 1.0m, "Single-location food brands are less likely to use TV."));
         }
 
-        if (ContainsAny(normalized, "health", "dental", "clinic", "medical"))
+        if (industryCode == "healthcare")
         {
             if (channel == "search") evidence.Add(CreateEvidence("category_prior", "internal_rule", 10, 0.7m, 1.0m, "Healthcare businesses often rely on search."));
             if (channel == "social") evidence.Add(CreateEvidence("category_prior", "internal_rule", 6, 0.7m, 1.0m, "Healthcare businesses often use social."));
             if (channel == "radio") evidence.Add(CreateEvidence("category_prior", "internal_rule", 4, 0.7m, 1.0m, "Healthcare businesses sometimes use radio."));
         }
 
-        if (ContainsAny(normalized, "fitness", "gym"))
+        if (industryCode == "fitness")
         {
             if (channel == "social") evidence.Add(CreateEvidence("category_prior", "internal_rule", 10, 0.7m, 1.0m, "Fitness brands commonly advertise on social."));
             if (channel == "search") evidence.Add(CreateEvidence("category_prior", "internal_rule", 8, 0.7m, 1.0m, "Fitness brands often use search."));
@@ -345,5 +358,14 @@ public sealed class LeadChannelDetectionService : ILeadChannelDetectionService
     private static bool ContainsAny(string value, params string[] candidates)
     {
         return candidates.Any(candidate => value.Contains(candidate, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private sealed class NoOpLeadMasterDataService : ILeadMasterDataService
+    {
+        public LeadMasterTokenSet GetTokenSet() => new();
+        public MasterLocationMatch? ResolveLocation(string? value) => null;
+        public MasterIndustryMatch? ResolveIndustry(string? value) => null;
+        public MasterIndustryMatch? ResolveIndustryFromHints(IReadOnlyList<string> hints) => null;
+        public MasterLanguageMatch? ResolveLanguage(string? value) => null;
     }
 }

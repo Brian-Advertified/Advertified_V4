@@ -62,6 +62,7 @@ Use these defaults unless there is a good reason not to:
 - avoid hidden state
 - avoid surprising behavior
 - avoid overly clever abstractions
+- no hardcoded strings, all should be database driven 
 
 ### 6. Every change must leave the codebase cleaner
 When touching existing code:

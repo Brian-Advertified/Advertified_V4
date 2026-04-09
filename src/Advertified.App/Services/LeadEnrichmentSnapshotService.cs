@@ -6,14 +6,16 @@ namespace Advertified.App.Services;
 public sealed class LeadEnrichmentSnapshotService : ILeadEnrichmentSnapshotService
 {
     private readonly IGeocodingService _geocodingService;
+    private readonly ILeadMasterDataService _leadMasterDataService;
 
-    public LeadEnrichmentSnapshotService(IGeocodingService geocodingService)
+    public LeadEnrichmentSnapshotService(IGeocodingService geocodingService, ILeadMasterDataService leadMasterDataService)
     {
         _geocodingService = geocodingService;
+        _leadMasterDataService = leadMasterDataService;
     }
 
     public LeadEnrichmentSnapshotService()
-        : this(new NoOpGeocodingService())
+        : this(new NoOpGeocodingService(), new NoOpLeadMasterDataService())
     {
     }
 
@@ -200,7 +202,7 @@ public sealed class LeadEnrichmentSnapshotService : ILeadEnrichmentSnapshotServi
         return CreateUnknownField("language", "Language", false);
     }
 
-    private static LeadEnrichmentField BuildAudienceField(Lead lead, IReadOnlyList<LeadSignalEvidence> evidences)
+    private LeadEnrichmentField BuildAudienceField(Lead lead, IReadOnlyList<LeadSignalEvidence> evidences)
     {
         var audienceEvidence = FindEvidence(evidences, "website_audience_hint");
         if (audienceEvidence is not null)
@@ -215,7 +217,9 @@ public sealed class LeadEnrichmentSnapshotService : ILeadEnrichmentSnapshotServi
                 required: false);
         }
 
-        if (ContainsAny(lead.Category, "funeral", "memorial", "burial"))
+        var industryCode = _leadMasterDataService.ResolveIndustry(lead.Category)?.Code;
+
+        if (industryCode == "funeral_services")
         {
             return CreateField(
                 key: "target_audience",
@@ -227,7 +231,7 @@ public sealed class LeadEnrichmentSnapshotService : ILeadEnrichmentSnapshotServi
                 required: false);
         }
 
-        if (ContainsAny(lead.Category, "retail", "grocery", "supermarket", "shop"))
+        if (industryCode == "retail")
         {
             return CreateField(
                 key: "target_audience",
@@ -470,5 +474,14 @@ public sealed class LeadEnrichmentSnapshotService : ILeadEnrichmentSnapshotServi
                 Source = "none"
             };
         }
+    }
+
+    private sealed class NoOpLeadMasterDataService : ILeadMasterDataService
+    {
+        public LeadMasterTokenSet GetTokenSet() => new();
+        public MasterLocationMatch? ResolveLocation(string? value) => null;
+        public MasterIndustryMatch? ResolveIndustry(string? value) => null;
+        public MasterIndustryMatch? ResolveIndustryFromHints(IReadOnlyList<string> hints) => null;
+        public MasterLanguageMatch? ResolveLanguage(string? value) => null;
     }
 }

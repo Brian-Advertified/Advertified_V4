@@ -8,6 +8,8 @@ public interface ILeadMasterDataService
 
     MasterIndustryMatch? ResolveIndustry(string? value);
 
+    MasterIndustryMatch? ResolveIndustryFromHints(IReadOnlyList<string> hints);
+
     MasterLanguageMatch? ResolveLanguage(string? value);
 }
 

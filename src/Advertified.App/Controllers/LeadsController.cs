@@ -983,10 +983,8 @@ public sealed class LeadsController : ControllerBase
             .Select(hint => _leadMasterDataService.ResolveLocation(hint))
             .FirstOrDefault(match => match is not null)?.CanonicalName
             ?? InferLocationFromHints(signal.LocationHints);
-        var category = signal.IndustryHints
-            .Select(hint => _leadMasterDataService.ResolveIndustry(hint))
-            .FirstOrDefault(match => match is not null)?.Label
-            ?? InferCategoryFromHints(signal.IndustryHints);
+        var category = _leadMasterDataService.ResolveIndustryFromHints(signal.IndustryHints)?.Label
+            ?? InferCategoryLabel(signal.IndustryHints);
         return new LeadInputInferenceResult(location, category);
     }
 
@@ -1014,49 +1012,14 @@ public sealed class LeadsController : ControllerBase
             : ToTitleCase(matched);
     }
 
-    private static string? InferCategoryFromHints(IReadOnlyList<string> hints)
+    private static string? InferCategoryLabel(IReadOnlyList<string> hints)
     {
         if (hints.Count == 0)
         {
             return null;
         }
 
-        if (ContainsAnyHint(hints, "funeral", "memorial", "burial", "cremation"))
-        {
-            return "Funeral Services";
-        }
-
-        if (ContainsAnyHint(hints, "dental", "clinic", "medical"))
-        {
-            return "Healthcare";
-        }
-
-        if (ContainsAnyHint(hints, "legal", "attorney"))
-        {
-            return "Legal Services";
-        }
-
-        if (ContainsAnyHint(hints, "retail", "grocery", "shop", "supermarket"))
-        {
-            return "Retail";
-        }
-
-        if (ContainsAnyHint(hints, "fitness", "gym"))
-        {
-            return "Fitness";
-        }
-
-        if (ContainsAnyHint(hints, "restaurant", "food", "cafe"))
-        {
-            return "Food & Hospitality";
-        }
-
         return ToTitleCase(hints[0]);
-    }
-
-    private static bool ContainsAnyHint(IReadOnlyList<string> hints, params string[] tokens)
-    {
-        return hints.Any(hint => tokens.Any(token => hint.Equals(token, StringComparison.OrdinalIgnoreCase)));
     }
 
     private static string ToTitleCase(string value)
