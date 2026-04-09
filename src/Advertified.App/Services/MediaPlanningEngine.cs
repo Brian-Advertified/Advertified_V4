@@ -150,7 +150,7 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
             fallbackFlags.Add("no_recommendation_generated");
         }
 
-        fallbackFlags.AddRange(_explainabilityService.GetPreferredMediaFallbackFlags(request, recommendedPlan));
+        fallbackFlags.AddRange(_explainabilityService.GetPreferredMediaFallbackFlags(request, recommendedPlan, eligibleCandidates));
 
         return new RecommendationResult
         {

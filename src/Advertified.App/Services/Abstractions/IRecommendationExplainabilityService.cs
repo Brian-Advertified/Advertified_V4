@@ -7,6 +7,8 @@ public interface IRecommendationExplainabilityService
 {
     PlanningCandidateAnalysis AnalyzeCandidate(InventoryCandidate candidate, CampaignPlanningRequest request);
     string BuildRationale(List<PlannedItem> basePlan, List<PlannedItem> recommendedPlan, CampaignPlanningRequest request);
-    IReadOnlyList<string> GetPreferredMediaFallbackFlags(CampaignPlanningRequest request, List<PlannedItem> recommendedPlan);
+    IReadOnlyList<string> GetPreferredMediaFallbackFlags(
+        CampaignPlanningRequest request,
+        List<PlannedItem> recommendedPlan,
+        IReadOnlyList<InventoryCandidate> eligibleCandidates);
 }
-
