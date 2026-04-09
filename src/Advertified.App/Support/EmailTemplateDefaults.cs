@@ -452,6 +452,41 @@ internal static class EmailTemplateDefaults
                   </div>
                 </div>
                 ", nowUtc),
+            Build("lead-proposal-ready", "Growth opportunity proposals for {{CampaignName}}", @"
+                <div style=""background:#f4fbf8;padding:32px;font-family:Arial,sans-serif;color:#12211D;"">
+                  <div style=""max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #d8e9e1;border-radius:24px;overflow:hidden;"">
+                    <div style=""padding:28px 32px;background:linear-gradient(180deg,#eefbf5 0%, #ffffff 100%);border-bottom:1px solid #d8e9e1;"">
+                      <div style=""font-size:14px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Advertified lead intelligence</div>
+                      <h1 style=""margin:12px 0 0;font-size:30px;line-height:1.2;color:#123A33;"">Growth opportunity snapshot ready</h1>
+                    </div>
+                    <div style=""padding:28px 32px;"">
+                      <p style=""margin:0 0 14px;font-size:15px;line-height:1.7;color:#4b635a;"">
+                        {{RecommendationIntro}}
+                      </p>
+                      {{AgentMessageBlock}}
+                      <p style=""margin:0 0 18px;font-size:15px;line-height:1.7;color:#4b635a;"">
+                        {{ProposalSummary}} We have attached a short recommendation pack for your review with low-risk, balanced, and aggressive growth options.
+                      </p>
+                      {{ProposalAcceptButtonsBlock}}
+                      <div style=""margin:18px 0 20px;"">
+                        <a href=""{{ReviewUrl}}"" style=""display:inline-block;padding:12px 18px;border-radius:14px;background:#123A33;color:#ffffff;text-decoration:none;font-weight:700;"">
+                          Review growth options
+                        </a>
+                      </div>
+                      <div style=""margin:24px 0;padding:18px 20px;border:1px solid #d8e9e1;border-radius:18px;background:#f8fcfa;"">
+                        <div style=""font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Proposal summary</div>
+                        <p style=""margin:10px 0 0;font-size:15px;line-height:1.6;""><strong>Business:</strong> {{CampaignName}}</p>
+                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Budget context:</strong> {{Budget}}</p>
+                        <p style=""margin:6px 0 0;font-size:15px;line-height:1.6;""><strong>Options prepared:</strong> {{ProposalCount}}</p>
+                      </div>
+                      {{RecommendationPackBlock}}
+                      <p style=""margin:0;font-size:14px;line-height:1.7;color:#4b635a;"">
+                        If helpful, reply to this email and we can set up a quick 15-minute walkthrough.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                ", nowUtc),
             Build("brief-submitted", "Your campaign brief was submitted for {{CampaignName}}", @"
                 <div style=""background:#f4fbf8;padding:32px;font-family:Arial,sans-serif;color:#12211D;"">
                   <div style=""max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #d8e9e1;border-radius:24px;overflow:hidden;"">

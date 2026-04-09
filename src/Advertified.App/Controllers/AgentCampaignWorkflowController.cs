@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using System.Globalization;
+using System.Text.Json;
 
 namespace Advertified.App.Controllers;
 
@@ -506,6 +507,9 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
             EmailAttachment[]? attachments = null;
             string recommendationPackBlock = string.Empty;
             var proposalCount = recommendations.Count;
+            var templateName = ShouldUseLeadOutreachMessage(campaign)
+                ? "lead-proposal-ready"
+                : "recommendation-ready";
 
             try
             {
@@ -536,7 +540,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
             var recommendationIntro = ResolveRecommendationReadyIntro(campaign, senderUser);
 
             await _emailService.SendAsync(
-                "recommendation-ready",
+                templateName,
                 campaign.ResolveClientEmail(),
                 "noreply",
                 new Dictionary<string, string?>
@@ -624,7 +628,9 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
             return string.Empty;
         }
 
-        var escapedMessage = System.Net.WebUtility.HtmlEncode(message.Trim());
+        var escapedMessage = System.Net.WebUtility.HtmlEncode(message.Trim())
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace("\n", "<br/>", StringComparison.Ordinal);
         return $@"
                     <div style=""background-color:#f5f5f5;padding:16px;border-left:4px solid #4b635a;margin:16px 0;"">
                       <p style=""margin:0;font-size:14px;font-style:italic;color:#666;"">
@@ -655,8 +661,18 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
         var businessName = !string.IsNullOrWhiteSpace(campaign.ResolveBusinessName())
             ? campaign.ResolveBusinessName()
             : campaign.ResolveClientName();
+        var areaOrIndustry = ResolveLeadAreaOrIndustry(campaign);
 
-        return $"Good Day, I'm {senderName} from Advertified. We ran a public-signal review on {businessName} and identified opportunities to capture more local demand. We've attached proposal options with low-risk, balanced, and aggressive growth paths. If useful, we can walk you through this in 15 minutes, including how each option can be launched without full upfront budget.";
+        return $@"I'm {senderName} from Advertified — we help businesses find where they're losing customers online and put campaigns in place to fix it.
+We recently looked at {businessName}'s market presence and identified a specific gap in how your business is capturing demand in {areaOrIndustry}. It's fixable, and we've already mapped out three campaign approaches tailored to your situation.
+
+Here's what makes this easy to act on:
+- The campaigns are ready to review — no lengthy onboarding
+- Each option is built around your budget, not a fixed package
+- We offer Buy Now, Pay Later — you can start generating results before you've paid in full
+
+Most businesses hold back on marketing spend because of cash flow. Our BNPL structure means you're not paying upfront — you're paying from growth.
+If useful, we can walk you through it in a quick 15-minute call — no commitment, just clarity.";
     }
 
     private static string ResolveRecommendationReadyIntro(Campaign campaign, UserAccount senderUser)
@@ -673,6 +689,45 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
                 : "your Advertified strategist");
 
         return $"Good Day, I'm {senderName} from Advertified.";
+    }
+
+    private static string ResolveLeadAreaOrIndustry(Campaign campaign)
+    {
+        var cities = DeserializeStringList(campaign.CampaignBrief?.CitiesJson);
+        if (cities.Length > 0)
+        {
+            return string.Join(", ", cities.Take(2));
+        }
+
+        var provinces = DeserializeStringList(campaign.CampaignBrief?.ProvincesJson);
+        if (provinces.Length > 0)
+        {
+            return string.Join(", ", provinces.Take(2));
+        }
+
+        if (!string.IsNullOrWhiteSpace(campaign.CampaignBrief?.Objective))
+        {
+            return campaign.CampaignBrief.Objective.Trim();
+        }
+
+        return "your market";
+    }
+
+    private static string[] DeserializeStringList(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return Array.Empty<string>();
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<string[]>(json) ?? Array.Empty<string>();
+        }
+        catch (JsonException)
+        {
+            return Array.Empty<string>();
+        }
     }
 
     private static bool ShouldUseLeadOutreachMessage(Campaign campaign)
