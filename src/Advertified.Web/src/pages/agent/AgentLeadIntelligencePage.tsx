@@ -2,10 +2,18 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BrainCircuit, DatabaseZap, Inbox, LoaderCircle, Plus, Radar } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../features/auth/auth-context';
 import { formatCurrency } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import type { LeadIntelligence, PackageBand } from '../../types/domain';
+import {
+  buildAutoBriefFromLead,
+  buildEstimatedImpactRange,
+  buildResearchEvidenceLines,
+  buildSocialQualityNote,
+  buildWorkingSignals,
+  formatCoverageStatus,
+  getChannelScore,
+} from '../../features/leads/leadIntelligenceViewModel';
 import { AgentPageShell, AgentQueryBoundary, fmtDate } from './agentWorkspace';
 
 type CreateLeadFormState = {
@@ -67,275 +75,12 @@ function channelConfidenceTone(confidence: string) {
 function formatChannelLabel(channel: string) {
   switch (channel) {
     case 'billboards_ooh':
-      return 'Billboards / OOH';
+      return 'Billboards and Digital Screens';
     default:
       return channel
         .split('_')
         .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
         .join(' ');
-  }
-}
-
-function getChannelScore(lead: LeadIntelligence, channel: string) {
-  return lead.channelDetections.find((item) => item.channel === channel)?.score ?? 0;
-}
-
-type LeadArchetypeKey =
-  | 'active_scaler'
-  | 'promo_dependent_retailer'
-  | 'invisible_local_business'
-  | 'digital_only_player'
-  | 'passive_untapped_business';
-
-type LeadArchetypeProfile = {
-  key: LeadArchetypeKey;
-  name: string;
-  suggestedCampaignType: string;
-  detectedGaps: string[];
-  expectedOutcome: string;
-  recommendedChannels: string[];
-};
-
-type AutoBriefConfidence = 'detected' | 'strongly_inferred' | 'weakly_inferred' | 'no_evidence';
-
-type AutoBriefField = {
-  value: string;
-  confidence: AutoBriefConfidence;
-  reason: string;
-};
-
-type AutoBriefPayload = {
-  fields: {
-    objective: AutoBriefField;
-    audience: AutoBriefField;
-    scope: AutoBriefField;
-    geography: AutoBriefField;
-    tone: AutoBriefField;
-    salesModel: AutoBriefField;
-    customerType: AutoBriefField;
-    buyingBehaviour: AutoBriefField;
-    decisionCycle: AutoBriefField;
-    urgencyLevel: AutoBriefField;
-    language: AutoBriefField;
-    targetInterests: AutoBriefField;
-    targetGender: AutoBriefField;
-    ageRange: AutoBriefField;
-  };
-  channels: {
-    values: string[];
-    confidence: AutoBriefConfidence;
-    reason: string;
-  };
-  uncertainFields: string[];
-  generatedAtUtc: string;
-};
-
-const STRONG_CHANNEL_MIN = 60;
-const WEAK_CHANNEL_MAX = 39;
-
-function inferLeadArchetype(lead: LeadIntelligence): LeadArchetypeProfile {
-  const social = getChannelScore(lead, 'social');
-  const search = getChannelScore(lead, 'search');
-  const ooh = getChannelScore(lead, 'billboards_ooh');
-  const radio = getChannelScore(lead, 'radio');
-  const hasPromo = lead.latestSignal?.hasPromo ?? false;
-  const websiteActive = lead.latestSignal?.websiteUpdatedRecently ?? false;
-  const hasWebsite = Boolean(lead.lead.website?.trim());
-  const digitalStrong = social >= STRONG_CHANNEL_MIN || search >= STRONG_CHANNEL_MIN;
-  const discountHeavyCategory = /retail|grocery|supermarket|discount/i.test(lead.lead.category);
-  const locallyScoped = !/national/i.test(lead.lead.location);
-
-  if (
-    social >= STRONG_CHANNEL_MIN
-    && hasPromo
-    && (websiteActive || hasWebsite)
-    && (search <= WEAK_CHANNEL_MAX || ooh <= WEAK_CHANNEL_MAX)
-  ) {
-    return {
-      key: 'active_scaler',
-      name: 'Active Scaler',
-      suggestedCampaignType: 'brand_presence',
-      detectedGaps: [
-        'You already show strong campaign momentum in digital channels.',
-        search <= WEAK_CHANNEL_MAX
-          ? 'Limited evidence of structured high-intent search capture.'
-          : 'Search capture exists, but there is room to improve conversion-focused demand capture.',
-        ooh <= WEAK_CHANNEL_MAX
-          ? 'No strong evidence of Billboards and Digital Screens activity was found.'
-          : 'Offline visibility can still be expanded to reinforce existing momentum.',
-      ],
-      expectedOutcome:
-        'Expected impact: stronger full-funnel coverage, better local visibility, and improved conversion of demand your digital activity is already generating.',
-      recommendedChannels: ['OOH', 'Radio', 'Digital'],
-    };
-  }
-
-  if (hasPromo && social < STRONG_CHANNEL_MIN && search <= WEAK_CHANNEL_MAX && discountHeavyCategory) {
-    return {
-      key: 'promo_dependent_retailer',
-      name: 'Promo-Dependent Retailer',
-      suggestedCampaignType: 'promotion',
-      detectedGaps: [
-        'Promotional activity is visible, but channel strength remains uneven.',
-        'Limited evidence of always-on search capture for high-intent demand.',
-        'Limited evidence of sustained awareness coverage beyond promotion cycles.',
-      ],
-      expectedOutcome:
-        'Expected impact: more consistent customer flow, stronger baseline demand between promotions, and improved campaign stability.',
-      recommendedChannels: ['Radio', 'OOH', 'Digital'],
-    };
-  }
-
-  if (locallyScoped && (!hasWebsite || !websiteActive) && search <= WEAK_CHANNEL_MAX && social <= WEAK_CHANNEL_MAX) {
-    return {
-      key: 'invisible_local_business',
-      name: 'Invisible Local Business',
-      suggestedCampaignType: 'leads',
-      detectedGaps: [
-        'There appears to be limited visibility when customers search in your local area.',
-        'Digital demand capture signals are currently weak.',
-        'Local awareness channels are underutilized relative to potential foot traffic.',
-      ],
-      expectedOutcome:
-        'Expected impact: stronger local discoverability, more inbound enquiries, and improved walk-in conversion potential.',
-      recommendedChannels: ['Digital', 'OOH'],
-    };
-  }
-
-  if (digitalStrong && search >= 40 && ooh <= WEAK_CHANNEL_MAX && radio <= WEAK_CHANNEL_MAX) {
-    return {
-      key: 'digital_only_player',
-      name: 'Digital-Only Player',
-      suggestedCampaignType: 'awareness',
-      detectedGaps: [
-        'Digital presence is established and generating momentum.',
-        'No strong evidence of offline visibility channels was found.',
-        'Growth may be constrained by over-reliance on digital-only reach.',
-      ],
-      expectedOutcome:
-        'Expected impact: expanded audience reach, improved brand recall, and reduced dependence on saturated digital inventory.',
-      recommendedChannels: ['OOH', 'Radio', 'Digital'],
-    };
-  }
-
-  return {
-    key: 'passive_untapped_business',
-    name: 'Passive / Untapped Business',
-    suggestedCampaignType: 'awareness',
-    detectedGaps: [
-      'There is limited current evidence of sustained campaign activity.',
-      'Demand capture and awareness signals are both low.',
-      'A stronger baseline marketing foundation is needed before optimization.',
-    ],
-    expectedOutcome:
-      'Expected impact: stronger baseline visibility, more consistent lead flow, and a practical foundation for staged growth.',
-    recommendedChannels: ['Digital', 'OOH'],
-  };
-}
-
-function buildResearchEvidenceLines(lead: LeadIntelligence): string[] {
-  const social = lead.channelDetections.find((item) => item.channel === 'social');
-  const search = lead.channelDetections.find((item) => item.channel === 'search');
-  const ooh = lead.channelDetections.find((item) => item.channel === 'billboards_ooh');
-  const observedAt = lead.latestSignal?.createdAt
-    ? new Date(lead.latestSignal.createdAt).toISOString().slice(0, 10)
-    : new Date().toISOString().slice(0, 10);
-  const confidenceLabel = (confidence?: string) => (confidence ? confidence.replaceAll('_', ' ') : 'not available');
-
-  const lines: string[] = [];
-  lines.push(`Observed active promotions: ${lead.latestSignal?.hasPromo ? 'Yes' : 'No'} | Source: website signal scan | Confidence: medium | Observed: ${observedAt}`);
-  lines.push(`Observed Meta ad indicators: ${lead.latestSignal?.hasMetaAds ? 'Present' : 'Not found'} | Source: website stack markers | Confidence: ${lead.latestSignal?.hasMetaAds ? 'medium' : 'low'} | Observed: ${observedAt}`);
-
-  if (search) {
-    lines.push(`Search channel score: ${search.score}/100 | Source: channel scoring model | Confidence: ${confidenceLabel(search.confidence)} | Observed: ${observedAt}`);
-  }
-
-  if (ooh) {
-    lines.push(`OOH channel score: ${ooh.score}/100 | Source: channel scoring model | Confidence: ${confidenceLabel(ooh.confidence)} | Observed: ${observedAt}`);
-  }
-
-  if (social) {
-    lines.push(`Social channel score: ${social.score}/100 | Source: channel scoring model | Confidence: ${confidenceLabel(social.confidence)} | Observed: ${observedAt}`);
-  }
-
-  return lines.slice(0, 5);
-}
-
-function buildSocialQualityNote(lead: LeadIntelligence): string {
-  const socialScore = getChannelScore(lead, 'social');
-
-  if (socialScore >= STRONG_CHANNEL_MIN) {
-    return 'Social activity appears strong based on public signals. Creative quality, posting frequency quality, spend efficiency, and conversion quality are not directly verified without platform-level account data.';
-  }
-
-  if (socialScore >= 40) {
-    return 'Some social activity signals are present, but campaign quality and consistency are unclear from public signals alone.';
-  }
-
-  return 'Limited social campaign evidence was found. Current assessment is based on public signals and should be validated with direct platform data.';
-}
-
-function buildWorkingSignals(lead: LeadIntelligence): string[] {
-  const signals: string[] = [];
-  const social = getChannelScore(lead, 'social');
-  const search = getChannelScore(lead, 'search');
-  const hasPromo = lead.latestSignal?.hasPromo ?? false;
-  const websiteActive = lead.latestSignal?.websiteUpdatedRecently ?? false;
-
-  if (hasPromo) {
-    signals.push('Active promotional movement was detected.');
-  }
-
-  if (websiteActive || lead.lead.website) {
-    signals.push('Digital presence is active with a usable website foundation.');
-  }
-
-  if (social >= STRONG_CHANNEL_MIN || search >= STRONG_CHANNEL_MIN) {
-    signals.push('At least one demand channel is already showing strong momentum.');
-  }
-
-  if (signals.length === 0) {
-    signals.push('Baseline market presence exists, with room to build consistent demand capture.');
-  }
-
-  return signals.slice(0, 3);
-}
-
-function buildOutreachEmailDraft(leadBusinessName: string, agentName?: string, agentPhone?: string, agentEmail?: string): string {
-  const senderName = agentName?.trim() || '[Your Name]';
-  const signaturePhone = agentPhone?.trim() || '[Phone]';
-  const signatureEmail = agentEmail?.trim() || '[Email]';
-
-  return [
-    'Good Day,',
-    '',
-    `I’m ${senderName} from Advertified.`,
-    '',
-    `We ran a public-signal review on ${leadBusinessName} and identified a few opportunities to capture more local demand.`,
-    '',
-    'I’ve attached a short 2-page snapshot with three rollout options (low-risk, balanced, and aggressive growth).',
-    '',
-    'If useful, we can walk you through it in 15 minutes — including how each option can be launched without full upfront budget.',
-    '',
-    'Best,',
-    senderName,
-    'Advertified',
-    `${signaturePhone} | ${signatureEmail}`,
-  ].join('\n');
-}
-
-function buildWhyActNowLine(archetypeKey: LeadArchetypeKey): string {
-  switch (archetypeKey) {
-    case 'active_scaler':
-      return 'There is already active demand in your category. The immediate opportunity is to capture more of it before competitors extend into the same high-visibility channels.';
-    case 'promo_dependent_retailer':
-      return 'Promotion-driven demand is present, but without stronger baseline awareness, customer flow remains volatile between cycles.';
-    case 'invisible_local_business':
-      return 'Customers are already searching locally. Improving discoverability now can convert existing intent into measurable foot traffic.';
-    case 'digital_only_player':
-      return 'Digital momentum is visible, but audience growth can plateau without additional offline reach.';
-    default:
-      return 'The earlier visibility is established, the faster demand signals can compound into consistent growth.';
   }
 }
 
@@ -358,179 +103,8 @@ function inferDefaultPackageBandId(packageBands: PackageBand[] | undefined, lead
   return packageBands[0].id;
 }
 
-function buildEstimatedImpactRange(score: number): string {
-  if (score >= 85) {
-    return 'R80k - R180k / month';
-  }
-
-  if (score >= 70) {
-    return 'R45k - R120k / month';
-  }
-
-  if (score >= 50) {
-    return 'R20k - R65k / month';
-  }
-
-  return 'R5k - R25k / month';
-}
-
-function normalizeGeographyValue(location: string): string {
-  const normalized = location.trim().toLowerCase();
-  const mappings: Array<{ pattern: RegExp; value: string }> = [
-    { pattern: /johannesburg|joburg|jhb/, value: 'johannesburg' },
-    { pattern: /cape[\s-]?town|capetown/, value: 'cape-town' },
-    { pattern: /durban|ethekwini/, value: 'durban' },
-    { pattern: /pretoria|tshwane/, value: 'pretoria' },
-    { pattern: /port[\s-]?elizabeth|gqeberha/, value: 'port-elizabeth' },
-    { pattern: /gauteng/, value: 'gauteng' },
-    { pattern: /western[\s-]?cape/, value: 'western_cape' },
-    { pattern: /kwazulu[\s-]?natal|kzn/, value: 'kwazulu_natal' },
-  ];
-
-  const mapped = mappings.find((item) => item.pattern.test(normalized));
-  if (mapped) {
-    return mapped.value;
-  }
-
-  return normalized.replace(/\s+/g, '-');
-}
-
-function inferScopeFromLeadLocation(location: string): { value: string; confidence: AutoBriefConfidence; reason: string } {
-  const normalized = location.trim().toLowerCase();
-  if (/south africa|nationwide|national/.test(normalized)) {
-    return {
-      value: 'national',
-      confidence: 'strongly_inferred',
-      reason: 'Location signal indicates a national footprint.',
-    };
-  }
-
-  return {
-    value: 'provincial',
-    confidence: 'weakly_inferred',
-    reason: 'No explicit national footprint signal was found, so provincial is the safer default.',
-  };
-}
-
-function buildAutoBriefFromLead(lead: LeadIntelligence, archetype: LeadArchetypeProfile): AutoBriefPayload {
-  const scope = inferScopeFromLeadLocation(lead.lead.location);
-  const audienceValue = /retail|grocery|supermarket|shop/i.test(lead.lead.category) ? 'retail' : 'mass-market';
-  const toneValue = lead.latestSignal?.hasPromo || lead.score.score >= 60 ? 'performance' : 'balanced';
-
-  const uncertainFields = [
-    'Age group',
-    'Gender focus',
-    'Language',
-    'Interests',
-    'Sales model',
-    'Customer type',
-    'Buying behaviour',
-    'Decision cycle',
-    'Urgency',
-  ];
-
-  return {
-    fields: {
-      objective: {
-        value: archetype.suggestedCampaignType,
-        confidence: 'strongly_inferred',
-        reason: 'Mapped from detected lead archetype and observed growth gaps.',
-      },
-      audience: {
-        value: audienceValue,
-        confidence: 'strongly_inferred',
-        reason: 'Inferred from business category and lead profile.',
-      },
-      scope: {
-        value: scope.value,
-        confidence: scope.confidence,
-        reason: scope.reason,
-      },
-      geography: {
-        value: normalizeGeographyValue(lead.lead.location),
-        confidence: 'strongly_inferred',
-        reason: 'Mapped from lead location signal.',
-      },
-      tone: {
-        value: toneValue,
-        confidence: 'weakly_inferred',
-        reason: 'Inferred from campaign momentum and promotional signal mix.',
-      },
-      salesModel: {
-        value: '',
-        confidence: 'no_evidence',
-        reason: 'No reliable public signal available.',
-      },
-      customerType: {
-        value: '',
-        confidence: 'no_evidence',
-        reason: 'No reliable public signal available.',
-      },
-      buyingBehaviour: {
-        value: '',
-        confidence: 'no_evidence',
-        reason: 'No reliable public signal available.',
-      },
-      decisionCycle: {
-        value: '',
-        confidence: 'no_evidence',
-        reason: 'No reliable public signal available.',
-      },
-      urgencyLevel: {
-        value: '',
-        confidence: 'no_evidence',
-        reason: 'No reliable public signal available.',
-      },
-      language: {
-        value: '',
-        confidence: 'no_evidence',
-        reason: 'No reliable public signal available.',
-      },
-      targetInterests: {
-        value: '',
-        confidence: 'no_evidence',
-        reason: 'No reliable public signal available.',
-      },
-      targetGender: {
-        value: '',
-        confidence: 'no_evidence',
-        reason: 'No reliable public signal available.',
-      },
-      ageRange: {
-        value: '',
-        confidence: 'no_evidence',
-        reason: 'No reliable public signal available.',
-      },
-    },
-    channels: {
-      values: archetype.recommendedChannels,
-      confidence: 'strongly_inferred',
-      reason: 'Aligned to detected archetype and channel gap profile.',
-    },
-    uncertainFields,
-    generatedAtUtc: new Date().toISOString(),
-  };
-}
-
-function formatCoverageStatus(score: number): { label: string; tone: string } {
-  if (score >= 80) {
-    return { label: 'Detected', tone: 'border-emerald-200 bg-emerald-50 text-emerald-700' };
-  }
-
-  if (score >= 60) {
-    return { label: 'Strong', tone: 'border-sky-200 bg-sky-50 text-sky-700' };
-  }
-
-  if (score >= 40) {
-    return { label: 'Weak', tone: 'border-amber-200 bg-amber-50 text-amber-700' };
-  }
-
-  return { label: 'Missing', tone: 'border-rose-200 bg-rose-50 text-rose-700' };
-}
-
 export function AgentLeadIntelligencePage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [form, setForm] = useState<CreateLeadFormState>(emptyForm);
   const [selectedLeadId, setSelectedLeadId] = useState<number | null>(null);
@@ -568,6 +142,10 @@ export function AgentLeadIntelligencePage() {
     queryKey: ['lead-source-automation-status'],
     queryFn: advertifiedApi.getLeadSourceAutomationStatus,
   });
+  const paidMediaSyncStatusQuery = useQuery({
+    queryKey: ['lead-paid-media-sync-status'],
+    queryFn: advertifiedApi.getLeadPaidMediaSyncStatus,
+  });
 
   const processSourceAutomationMutation = useMutation({
     mutationFn: advertifiedApi.processLeadSourceAutomationNow,
@@ -579,6 +157,15 @@ export function AgentLeadIntelligencePage() {
       if (result.importedLeadCount > 0) {
         await selectedLead.refetch();
       }
+    },
+  });
+  const runPaidMediaSyncMutation = useMutation({
+    mutationFn: advertifiedApi.runLeadPaidMediaSyncNow,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['lead-paid-media-sync-status'] });
+      await queryClient.invalidateQueries({ queryKey: ['lead-intelligence'] });
+      await queryClient.invalidateQueries({ queryKey: ['lead-action-inbox'] });
+      await selectedLead.refetch();
     },
   });
 
@@ -614,8 +201,8 @@ export function AgentLeadIntelligencePage() {
     mutationFn: () => advertifiedApi.createLead({
       name: form.name.trim(),
       website: form.website.trim() || undefined,
-      location: form.location.trim(),
-      category: form.category.trim(),
+      location: form.location.trim() || undefined,
+      category: form.category.trim() || undefined,
     }),
     onSuccess: async (lead) => {
       setForm(emptyForm);
@@ -691,17 +278,15 @@ export function AgentLeadIntelligencePage() {
       if (!lead) {
         throw new Error('Select a lead before generating a proposal.');
       }
+      if (lead.enrichment.confidenceGate.isBlocked) {
+        throw new Error(lead.enrichment.confidenceGate.message);
+      }
 
-      const archetype = inferLeadArchetype(lead);
-      const autoBrief = buildAutoBriefFromLead(lead, archetype);
+      const opportunityProfile = lead.opportunityProfile;
+      const industryPolicy = lead.industryPolicy;
+      const autoBrief = buildAutoBriefFromLead(lead, opportunityProfile, industryPolicy);
       const evidenceLines = buildResearchEvidenceLines(lead);
       const socialQualityNote = buildSocialQualityNote(lead);
-      const outreachEmailBody = buildOutreachEmailDraft(
-        lead.lead.name,
-        user?.fullName,
-        user?.phone,
-        user?.email,
-      );
 
       const campaign = await advertifiedApi.createAgentProspectCampaign({
         fullName: proposalForm.fullName.trim(),
@@ -719,25 +304,34 @@ export function AgentLeadIntelligencePage() {
       navigate(`/agent/recommendations/new?campaignId=${campaign.id}`, {
         state: {
           convertToCampaign: {
+            leadId: lead.lead.id,
             businessName: lead.lead.name,
             location: lead.lead.location,
-            archetypeName: archetype.name,
-            suggestedCampaignType: archetype.suggestedCampaignType,
-            detectedGaps: archetype.detectedGaps,
+            archetypeName: opportunityProfile.name,
+            suggestedCampaignType: opportunityProfile.suggestedCampaignType,
+            detectedGaps: opportunityProfile.detectedGaps,
             insightSummary: lead.insight,
-            expectedOutcome: archetype.expectedOutcome,
-            recommendedChannels: archetype.recommendedChannels,
+            expectedOutcome: opportunityProfile.expectedOutcome,
+            recommendedChannels: opportunityProfile.recommendedChannels,
+            strategyChannels: (lead.strategy?.channels ?? []).map((channel) => ({
+              channel: channel.channel,
+              budgetSharePercent: channel.budgetSharePercent,
+              reason: channel.reason,
+            })),
+            industryProfileName: industryPolicy.name,
+            industryMessagingAngle: industryPolicy.messagingAngle,
+            industryCta: industryPolicy.cta,
+            industryGuardrails: industryPolicy.guardrails,
             whoWeAre:
-              'Advertified is a South African advertising company focused on helping businesses capture more demand using real market signals and practical campaign execution. We identify missed opportunities, build clear campaign plans, and help launch quickly without unnecessary complexity.',
+              `Advertified is a South African advertising company focused on helping businesses capture more demand using real market signals and practical campaign execution. We identify missed opportunities, build clear campaign plans, and help launch quickly without unnecessary complexity. For ${industryPolicy.name}, we prioritize ${industryPolicy.messagingAngle}.`,
             researchBasis: evidenceLines,
             lastResearchedAtUtc: lead.latestSignal?.createdAt ?? new Date().toISOString(),
             socialQualityNote,
             flexibleRollout:
               'Each option can be launched using our buy now, pay later model.',
-            whyActNow: buildWhyActNowLine(archetype.key),
+            whyActNow: opportunityProfile.whyActNow,
             nextStep:
-              'Reply with your preferred option and we will handle setup, creative coordination, and launch planning.',
-            outreachEmailBody,
+              `Reply with your preferred option and we will handle setup, creative coordination, and launch planning. Recommended CTA for this industry: ${industryPolicy.cta}.`,
             autoGenerateDraft: true,
             autoBrief,
           },
@@ -746,16 +340,20 @@ export function AgentLeadIntelligencePage() {
     },
   });
 
-  const canCreateLead = form.name.trim() && form.location.trim() && form.category.trim();
+  const canCreateLead = Boolean(
+    form.name.trim()
+    && ((form.location.trim() && form.category.trim()) || form.website.trim()),
+  );
   const canGenerateProposal = Boolean(
     selectedLead.data
     && proposalForm.fullName.trim()
     && proposalForm.email.trim()
     && proposalForm.phone.trim()
-    && proposalForm.packageBandId,
+    && proposalForm.packageBandId
+    && !selectedLead.data.enrichment.confidenceGate.isBlocked,
   );
   const selectedLeadData = selectedLead.data;
-  const selectedLeadArchetype = selectedLeadData ? inferLeadArchetype(selectedLeadData) : null;
+  const selectedLeadArchetype = selectedLeadData?.opportunityProfile ?? null;
   const priorityActions = (selectedLeadData?.recommendedActions ?? []).filter((action) => action.status === 'open').slice(0, 3);
   const visibleChannelCoverage = selectedLeadData
     ? [
@@ -774,93 +372,168 @@ export function AgentLeadIntelligencePage() {
       >
         <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
           <div className="space-y-6">
+            <section className="panel border-brand/20 bg-[linear-gradient(180deg,#f7fcfa_0%,#ffffff_100%)] px-6 py-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.16em] text-brand">Primary action</p>
+                  <h2 className="mt-1 text-2xl font-semibold text-ink">Create lead</h2>
+                  <p className="mt-1 text-sm text-ink-soft">Start here. Add a business, create the lead, then run analysis and generate a proposal.</p>
+                  <div className="mt-4 flex flex-wrap items-center gap-2">
+                    <span className="rounded-full border border-brand/20 bg-white px-3 py-1 text-xs font-semibold text-ink">1. Create lead</span>
+                    <span className="rounded-full border border-line bg-white px-3 py-1 text-xs text-ink-soft">2. Analyze</span>
+                    <span className="rounded-full border border-line bg-white px-3 py-1 text-xs text-ink-soft">3. Generate proposal</span>
+                  </div>
+                </div>
+                <div className="rounded-2xl bg-brand-soft p-3 text-brand">
+                  <Plus className="size-5" />
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-4 md:grid-cols-2">
+                <label className="block">
+                  <span className="label-base">Business name</span>
+                  <input
+                    value={form.name}
+                    onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+                    className="input-base"
+                    placeholder="Gym XYZ"
+                  />
+                </label>
+                <label className="block">
+                  <span className="label-base">Website</span>
+                  <input
+                    value={form.website}
+                    onChange={(event) => setForm((current) => ({ ...current, website: event.target.value }))}
+                    className="input-base"
+                    placeholder="example.co.za"
+                  />
+                </label>
+                <label className="block">
+                  <span className="label-base">Location</span>
+                  <input
+                    value={form.location}
+                    onChange={(event) => setForm((current) => ({ ...current, location: event.target.value }))}
+                    className="input-base"
+                    placeholder="Johannesburg"
+                  />
+                </label>
+                <label className="block">
+                  <span className="label-base">Category</span>
+                  <input
+                    value={form.category}
+                    onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))}
+                    className="input-base"
+                    placeholder="Fitness"
+                  />
+                </label>
+              </div>
+
+              <div className="mt-5 flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => createLeadMutation.mutate()}
+                  disabled={!canCreateLead || createLeadMutation.isPending}
+                  className="button-primary inline-flex items-center gap-2 px-4 py-3 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {createLeadMutation.isPending ? <LoaderCircle className="size-4 animate-spin" /> : <Plus className="size-4" />}
+                  {createLeadMutation.isPending ? 'Creating lead...' : 'Create lead'}
+                </button>
+                <p className="text-xs text-ink-soft">Required: business name, plus either (location and category) or a website URL for auto-inference.</p>
+              </div>
+            </section>
+
             <section className="panel border-line/90 px-6 py-6">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h2 className="text-lg font-semibold text-ink">Action inbox</h2>
-                  <p className="mt-1 text-sm text-ink-soft">Work recommended actions across all leads, then jump into the lead detail when you need context.</p>
+                  <p className="mt-1 text-sm text-ink-soft">Operational follow-ups. Expand only when you need assignment work.</p>
                 </div>
                 <div className="rounded-2xl bg-brand-soft p-3 text-brand">
                   <Inbox className="size-5" />
                 </div>
               </div>
 
-              <div className="mt-5 grid gap-3 md:grid-cols-4">
-                <div className="rounded-[20px] border border-line bg-white px-4 py-4">
-                  <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">Open</p>
-                  <p className="mt-2 text-2xl font-semibold text-ink">{actionInboxQuery.data?.totalOpenActions ?? 0}</p>
-                </div>
-                <div className="rounded-[20px] border border-line bg-white px-4 py-4">
-                  <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">Assigned to me</p>
-                  <p className="mt-2 text-2xl font-semibold text-ink">{actionInboxQuery.data?.assignedToMeCount ?? 0}</p>
-                </div>
-                <div className="rounded-[20px] border border-line bg-white px-4 py-4">
-                  <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">Unassigned</p>
-                  <p className="mt-2 text-2xl font-semibold text-ink">{actionInboxQuery.data?.unassignedCount ?? 0}</p>
-                </div>
-                <div className="rounded-[20px] border border-line bg-white px-4 py-4">
-                  <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">High priority</p>
-                  <p className="mt-2 text-2xl font-semibold text-ink">{actionInboxQuery.data?.highPriorityCount ?? 0}</p>
-                </div>
-              </div>
-
-              <div className="mt-5 space-y-3">
-                {(actionInboxQuery.data?.items ?? []).length > 0 ? (
-                  actionInboxQuery.data!.items.map((item) => (
-                    <div key={item.actionId} className="rounded-[20px] border border-line bg-white px-4 py-4">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <button type="button" onClick={() => setSelectedLeadId(item.leadId)} className="text-left">
-                            <p className="text-sm font-semibold text-ink">{item.action.title}</p>
-                            <p className="mt-1 text-sm text-ink-soft">{item.leadName} | {item.leadLocation} | {item.leadCategory}</p>
-                          </button>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">{item.action.priority} priority</p>
-                          <p className="mt-1 text-xs text-ink-soft">
-                            {item.action.assignedAgentName
-                              ? `Assigned to ${item.action.assignedAgentName}`
-                              : 'Unassigned'}
-                          </p>
-                        </div>
-                      </div>
-                      <p className="mt-3 text-sm text-ink">{item.action.description}</p>
-                      <div className="mt-3 flex flex-wrap items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedLeadId(item.leadId)}
-                          className="button-secondary px-3 py-2 text-xs"
-                        >
-                          Open lead
-                        </button>
-                        {!item.action.isAssignedToCurrentUser ? (
-                          <button
-                            type="button"
-                            onClick={() => assignActionMutation.mutate({ leadId: item.leadId, actionId: item.actionId, mode: 'assign' })}
-                            disabled={assignActionMutation.isPending}
-                            className="button-secondary px-3 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            Assign to me
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => assignActionMutation.mutate({ leadId: item.leadId, actionId: item.actionId, mode: 'unassign' })}
-                            disabled={assignActionMutation.isPending}
-                            className="button-secondary px-3 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            Unassign
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="rounded-[20px] border border-dashed border-line px-4 py-6 text-sm text-ink-soft">
-                    No open actions yet. Run lead analysis to generate the queue.
+              <details className="mt-5">
+                <summary className="cursor-pointer list-none text-sm font-semibold text-ink">
+                  View action queue ({actionInboxQuery.data?.totalOpenActions ?? 0} open)
+                </summary>
+                <div className="mt-4 grid gap-3 md:grid-cols-4">
+                  <div className="rounded-[20px] border border-line bg-white px-4 py-4">
+                    <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">Open</p>
+                    <p className="mt-2 text-2xl font-semibold text-ink">{actionInboxQuery.data?.totalOpenActions ?? 0}</p>
                   </div>
-                )}
-              </div>
+                  <div className="rounded-[20px] border border-line bg-white px-4 py-4">
+                    <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">Assigned to me</p>
+                    <p className="mt-2 text-2xl font-semibold text-ink">{actionInboxQuery.data?.assignedToMeCount ?? 0}</p>
+                  </div>
+                  <div className="rounded-[20px] border border-line bg-white px-4 py-4">
+                    <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">Unassigned</p>
+                    <p className="mt-2 text-2xl font-semibold text-ink">{actionInboxQuery.data?.unassignedCount ?? 0}</p>
+                  </div>
+                  <div className="rounded-[20px] border border-line bg-white px-4 py-4">
+                    <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">High priority</p>
+                    <p className="mt-2 text-2xl font-semibold text-ink">{actionInboxQuery.data?.highPriorityCount ?? 0}</p>
+                  </div>
+                </div>
+
+                <div className="mt-4 space-y-3">
+                  {(actionInboxQuery.data?.items ?? []).length > 0 ? (
+                    actionInboxQuery.data!.items.map((item) => (
+                      <div key={item.actionId} className="rounded-[20px] border border-line bg-white px-4 py-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <button type="button" onClick={() => setSelectedLeadId(item.leadId)} className="text-left">
+                              <p className="text-sm font-semibold text-ink">{item.action.title}</p>
+                              <p className="mt-1 text-sm text-ink-soft">{item.leadName} | {item.leadLocation} | {item.leadCategory}</p>
+                            </button>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">{item.action.priority} priority</p>
+                            <p className="mt-1 text-xs text-ink-soft">
+                              {item.action.assignedAgentName
+                                ? `Assigned to ${item.action.assignedAgentName}`
+                                : 'Unassigned'}
+                            </p>
+                          </div>
+                        </div>
+                        <p className="mt-3 text-sm text-ink">{item.action.description}</p>
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedLeadId(item.leadId)}
+                            className="button-secondary px-3 py-2 text-xs"
+                          >
+                            Open lead
+                          </button>
+                          {!item.action.isAssignedToCurrentUser ? (
+                            <button
+                              type="button"
+                              onClick={() => assignActionMutation.mutate({ leadId: item.leadId, actionId: item.actionId, mode: 'assign' })}
+                              disabled={assignActionMutation.isPending}
+                              className="button-secondary px-3 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              Assign to me
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => assignActionMutation.mutate({ leadId: item.leadId, actionId: item.actionId, mode: 'unassign' })}
+                              disabled={assignActionMutation.isPending}
+                              className="button-secondary px-3 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              Unassign
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="rounded-[20px] border border-dashed border-line px-4 py-6 text-sm text-ink-soft">
+                      No open actions yet. Run lead analysis to generate the queue.
+                    </div>
+                  )}
+                </div>
+              </details>
             </section>
 
               <section className="panel border-line/90 px-6 py-6">
@@ -908,6 +581,61 @@ export function AgentLeadIntelligencePage() {
                     </p>
                   </div>
 
+                  <div className="rounded-[20px] border border-line bg-white px-4 py-4">
+                    <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">Paid media sync</p>
+                    {paidMediaSyncStatusQuery.data ? (
+                      <>
+                        <div className="mt-3 grid gap-3 md:grid-cols-3">
+                          <div className="rounded-[14px] border border-line bg-slate-50 px-3 py-3">
+                            <p className="text-[11px] uppercase tracking-[0.14em] text-ink-soft">Status</p>
+                            <p className="mt-1 text-sm font-semibold text-ink">{paidMediaSyncStatusQuery.data.enabled ? 'Enabled' : 'Disabled'}</p>
+                          </div>
+                          <div className="rounded-[14px] border border-line bg-slate-50 px-3 py-3">
+                            <p className="text-[11px] uppercase tracking-[0.14em] text-ink-soft">Batch size</p>
+                            <p className="mt-1 text-sm font-semibold text-ink">{paidMediaSyncStatusQuery.data.batchSize}</p>
+                          </div>
+                          <div className="rounded-[14px] border border-line bg-slate-50 px-3 py-3">
+                            <p className="text-[11px] uppercase tracking-[0.14em] text-ink-soft">Interval</p>
+                            <p className="mt-1 text-sm font-semibold text-ink">{paidMediaSyncStatusQuery.data.intervalMinutes} min</p>
+                          </div>
+                        </div>
+
+                        {paidMediaSyncStatusQuery.data.lastRun ? (
+                          <div className="mt-3 rounded-[14px] border border-line bg-slate-50 px-3 py-3 text-xs text-ink-soft">
+                            <p className="font-semibold text-ink">Last run: {fmtDate(paidMediaSyncStatusQuery.data.lastRun.finishedAtUtc)}</p>
+                            {paidMediaSyncStatusQuery.data.lastRun.skipped ? (
+                              <p className="mt-1">
+                                Skipped: {paidMediaSyncStatusQuery.data.lastRun.skipReason ?? 'no reason provided'}.
+                              </p>
+                            ) : (
+                              <p className="mt-1">
+                                Processed {paidMediaSyncStatusQuery.data.lastRun.processedLeadCount}/{paidMediaSyncStatusQuery.data.lastRun.totalLeadCount},
+                                failures {paidMediaSyncStatusQuery.data.lastRun.failedLeadCount}, evidence rows {paidMediaSyncStatusQuery.data.lastRun.evidenceRowCount}.
+                              </p>
+                            )}
+                            {paidMediaSyncStatusQuery.data.lastRun.enabledProviders.length > 0 ? (
+                              <p className="mt-1">
+                                Enabled providers: {paidMediaSyncStatusQuery.data.lastRun.enabledProviders.join(', ')}.
+                              </p>
+                            ) : null}
+                            {Object.keys(paidMediaSyncStatusQuery.data.lastRun.providerEvidenceCounts).length > 0 ? (
+                              <p className="mt-1">
+                                Providers:{' '}
+                                {Object.entries(paidMediaSyncStatusQuery.data.lastRun.providerEvidenceCounts)
+                                  .map(([source, count]) => `${source} ${count}`)
+                                  .join(', ')}
+                              </p>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <p className="mt-3 text-xs text-ink-soft">No paid media sync run has been recorded yet.</p>
+                        )}
+                      </>
+                    ) : (
+                      <p className="mt-3 text-xs text-ink-soft">Loading paid media sync status...</p>
+                    )}
+                  </div>
+
                   <div className="flex flex-wrap items-center gap-3">
                     <button
                       type="button"
@@ -924,6 +652,21 @@ export function AgentLeadIntelligencePage() {
                         {` ${processSourceAutomationMutation.data.importedLeadCount} imported, ${processSourceAutomationMutation.data.analyzedLeadCount} analyzed.`}
                         </p>
                       ) : null}
+                    <button
+                      type="button"
+                      onClick={() => runPaidMediaSyncMutation.mutate()}
+                      disabled={runPaidMediaSyncMutation.isPending}
+                      className="button-secondary inline-flex items-center gap-2 px-4 py-3 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {runPaidMediaSyncMutation.isPending ? <LoaderCircle className="size-4 animate-spin" /> : <BrainCircuit className="size-4" />}
+                      {runPaidMediaSyncMutation.isPending ? 'Syncing paid media...' : 'Run paid media sync now'}
+                    </button>
+                    {runPaidMediaSyncMutation.data ? (
+                      <p className="text-xs text-ink-soft">
+                        Paid media run: {runPaidMediaSyncMutation.data.processedLeadCount}/{runPaidMediaSyncMutation.data.totalLeadCount} processed,
+                        {` ${runPaidMediaSyncMutation.data.failedLeadCount} failed, ${runPaidMediaSyncMutation.data.evidenceRowCount} evidence rows.`}
+                      </p>
+                    ) : null}
                     </div>
                     </div>
                   ) : (
@@ -931,51 +674,6 @@ export function AgentLeadIntelligencePage() {
                       Loading source automation status...
                     </div>
                   )}
-                </details>
-              </section>
-
-              <section className="panel border-line/90 px-6 py-6">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h2 className="text-lg font-semibold text-ink">Create a lead</h2>
-                    <p className="mt-1 text-sm text-ink-soft">Add a business manually, then run the signal engine when you are ready.</p>
-                </div>
-                  <div className="rounded-2xl bg-brand-soft p-3 text-brand">
-                    <Plus className="size-5" />
-                  </div>
-                </div>
-                <details className="mt-5">
-                  <summary className="cursor-pointer list-none text-sm font-semibold text-ink">Add a business manually</summary>
-                  <div className="mt-4 grid gap-4 md:grid-cols-2">
-                  <label className="block">
-                    <span className="label-base">Business name</span>
-                    <input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} className="input-base" placeholder="Gym XYZ" />
-                </label>
-                <label className="block">
-                  <span className="label-base">Website</span>
-                  <input value={form.website} onChange={(event) => setForm((current) => ({ ...current, website: event.target.value }))} className="input-base" placeholder="example.co.za" />
-                </label>
-                <label className="block">
-                  <span className="label-base">Location</span>
-                  <input value={form.location} onChange={(event) => setForm((current) => ({ ...current, location: event.target.value }))} className="input-base" placeholder="Johannesburg" />
-                </label>
-                <label className="block">
-                  <span className="label-base">Category</span>
-                  <input value={form.category} onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))} className="input-base" placeholder="Fitness" />
-                </label>
-              </div>
-
-              <div className="mt-5">
-                  <button
-                    type="button"
-                    onClick={() => createLeadMutation.mutate()}
-                    disabled={!canCreateLead || createLeadMutation.isPending}
-                  className="button-primary inline-flex items-center gap-2 px-4 py-3 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {createLeadMutation.isPending ? <LoaderCircle className="size-4 animate-spin" /> : <Plus className="size-4" />}
-                    {createLeadMutation.isPending ? 'Creating lead...' : 'Create lead'}
-                  </button>
-                  </div>
                 </details>
               </section>
 
@@ -1095,6 +793,11 @@ export function AgentLeadIntelligencePage() {
                               <p className="font-semibold text-ink">{item.lead.name}</p>
                               <p className="text-xs text-ink-soft">{item.lead.location} | {item.lead.category}</p>
                               <p className="text-[11px] uppercase tracking-[0.16em] text-ink-soft">{item.lead.source}</p>
+                              {(item.lead.autoInferredFields?.length ?? 0) > 0 ? (
+                                <span className="mt-1 inline-flex rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-sky-700">
+                                  Auto-inferred: {item.lead.autoInferredFields?.join(', ')}
+                                </span>
+                              ) : null}
                             </button>
                           </td>
                           <td className="px-4 py-4">
@@ -1159,23 +862,22 @@ export function AgentLeadIntelligencePage() {
                       </p>
                     </div>
                     <p className="mt-4 text-sm leading-7 text-ink">{selectedLead.data.insight || 'No insight yet. Run analysis first.'}</p>
-                    <div className="mt-4 flex flex-wrap gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setShowProposalForm((current) => !current)}
-                        className="button-primary px-4 py-3"
-                      >
-                        {showProposalForm ? 'Hide proposal setup' : 'Generate Campaign Proposal'}
-                      </button>
-                    </div>
                   </div>
 
                   <div className="space-y-4">
                     <div className="rounded-[24px] border border-line bg-white px-4 py-4">
                       <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">KPI snapshot</p>
                       <p className="mt-3 text-sm text-ink-soft">Estimated impact: <span className="font-semibold text-ink">{buildEstimatedImpactRange(selectedLead.data.score.score)}</span></p>
+                      <p className="mt-1 text-sm text-ink-soft">
+                        Enrichment confidence: <span className="font-semibold text-ink">{Math.round((selectedLead.data.enrichment.confidenceScore ?? 0) * 100)}%</span>
+                      </p>
                       <p className="mt-1 text-sm text-ink-soft">Last analysis: {selectedLead.data.latestSignal ? fmtDate(selectedLead.data.latestSignal.createdAt) : 'Not analyzed yet'}</p>
                       <p className="mt-1 text-sm text-ink-soft">Promo signal: {selectedLead.data.latestSignal?.hasPromo ? 'Detected' : 'Not detected'}</p>
+                      {(selectedLead.data.enrichment.missingFields ?? []).length > 0 ? (
+                        <p className="mt-1 text-sm text-ink-soft">
+                          Missing fields: {selectedLead.data.enrichment.missingFields.join(', ')}
+                        </p>
+                      ) : null}
                       <div className="mt-4 space-y-3">
                         {visibleChannelCoverage.map((channel) => {
                           const status = formatCoverageStatus(channel.score);
@@ -1229,6 +931,22 @@ export function AgentLeadIntelligencePage() {
                       {showProposalForm ? 'Hide proposal setup' : 'Generate Campaign Proposal'}
                     </button>
                   </div>
+
+                  {selectedLead.data.enrichment.confidenceGate.isBlocked ? (
+                    <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                      <p className="font-semibold">Confidence gate blocked</p>
+                      <p className="mt-1">{selectedLead.data.enrichment.confidenceGate.message}</p>
+                      {(selectedLead.data.enrichment.confidenceGate.missingRequiredFields ?? []).length > 0 ? (
+                        <p className="mt-1">
+                          Missing: {selectedLead.data.enrichment.confidenceGate.missingRequiredFields.join(', ')}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                      Confidence gate passed. Required enrichment fields are available.
+                    </div>
+                  )}
 
                   {showProposalForm ? (
                     <div className="mt-4 grid gap-4 md:grid-cols-2">
@@ -1292,6 +1010,11 @@ export function AgentLeadIntelligencePage() {
                         >
                           {generateProposalMutation.isPending ? 'Creating proposal draft...' : 'Create prospect campaign and generate proposal draft'}
                         </button>
+                        {generateProposalMutation.isError ? (
+                          <p className="mt-2 text-sm text-rose-700">
+                            {(generateProposalMutation.error as Error)?.message || 'Failed to create proposal draft.'}
+                          </p>
+                        ) : null}
                       </div>
                     </div>
                   ) : null}
@@ -1300,6 +1023,24 @@ export function AgentLeadIntelligencePage() {
                 <details className="rounded-[24px] border border-line bg-white px-4 py-4">
                   <summary className="cursor-pointer list-none text-sm font-semibold text-ink">View detailed diagnostics</summary>
                   <div className="mt-4 space-y-3">
+                    <div className="rounded-[18px] border border-line bg-slate-50 px-4 py-3">
+                      <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">Enrichment evidence trace</p>
+                      <div className="mt-3 space-y-2">
+                        {(selectedLead.data.enrichment.fields ?? []).map((field) => (
+                          <div key={field.key} className="rounded-xl border border-line bg-white px-3 py-2">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-sm font-semibold text-ink">{field.label}</p>
+                              <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] ${channelConfidenceTone(field.confidence)}`}>
+                                {field.confidence}
+                              </span>
+                            </div>
+                            <p className="mt-1 text-sm text-ink-soft">{field.value || 'Unknown'}</p>
+                            <p className="mt-1 text-xs text-ink-soft">Source: {field.source} | {field.reason}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
                     {(selectedLead.data.channelDetections ?? []).length > 0 ? (
                       selectedLead.data.channelDetections.map((channel) => (
                         <div key={channel.channel} className="rounded-[18px] border border-line bg-slate-50 px-4 py-3">
@@ -1494,3 +1235,4 @@ export function AgentLeadIntelligencePage() {
     </AgentQueryBoundary>
   );
 }
+

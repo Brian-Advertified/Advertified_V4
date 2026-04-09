@@ -46,6 +46,8 @@ select
     null::int as MonthlyListenership,
     false as IsFlagshipStation,
     false as IsPremiumStation,
+    coalesce(iif.latitude, nullif(iif.metadata_json ->> 'latitude', '')::double precision, nullif(iif.metadata_json ->> 'lat', '')::double precision) as Latitude,
+    coalesce(iif.longitude, nullif(iif.metadata_json ->> 'longitude', '')::double precision, nullif(iif.metadata_json ->> 'lng', '')::double precision, nullif(iif.metadata_json ->> 'lon', '')::double precision) as Longitude,
     iif.metadata_json::text as MetadataJson
 from inventory_items_final iif
 left join region_clusters rc on rc.id = iif.region_cluster_id
@@ -79,6 +81,8 @@ select
     null::int as MonthlyListenership,
     false as IsFlagshipStation,
     false as IsPremiumStation,
+    mo.latitude as Latitude,
+    mo.longitude as Longitude,
     jsonb_strip_nulls(jsonb_build_object(
         'sourceType', 'ooh',
         'mediaType', 'OOH',
@@ -122,6 +126,8 @@ select
         'premium_mass_fit', mo.strategy_fit_json ->> 'premium_mass_fit',
         'dataConfidence', mo.strategy_fit_json ->> 'data_confidence',
         'data_confidence', mo.strategy_fit_json ->> 'data_confidence',
+        'latitude', mo.latitude,
+        'longitude', mo.longitude,
         'inventoryIntelligenceNotes', mo.strategy_fit_json ->> 'intelligence_notes',
         'inventory_intelligence_notes', mo.strategy_fit_json ->> 'intelligence_notes',
         'pricingModel', 'fixed_placement_total',

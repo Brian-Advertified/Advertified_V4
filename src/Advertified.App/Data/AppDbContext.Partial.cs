@@ -498,6 +498,10 @@ public partial class AppDbContext
                 .HasColumnName("source_reference");
             entity.Property(e => e.LastDiscoveredAt)
                 .HasColumnName("last_discovered_at");
+            entity.Property(e => e.Latitude)
+                .HasColumnName("latitude");
+            entity.Property(e => e.Longitude)
+                .HasColumnName("longitude");
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("timezone('utc', now())")
                 .HasColumnName("created_at");

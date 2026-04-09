@@ -723,6 +723,10 @@ internal sealed class RecommendationOpportunityContextModel
 {
     public bool IsLeadOutreach { get; init; }
     public string? ArchetypeName { get; init; }
+    public string? IndustryProfileName { get; init; }
+    public string? IndustryMessagingAngle { get; init; }
+    public IReadOnlyList<string> IndustryGuardrails { get; init; } = Array.Empty<string>();
+    public string? IndustryRecommendedCta { get; init; }
     public string? WhoWeAre { get; init; }
     public IReadOnlyList<string> ResearchBasis { get; init; } = Array.Empty<string>();
     public string? LastResearchedAtUtc { get; init; }

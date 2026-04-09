@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Globalization;
 using Advertified.App.Domain.Campaigns;
 using Advertified.App.Services.Abstractions;
 
@@ -37,6 +38,8 @@ public sealed class PlanningInventoryCandidateMapper : IPlanningInventoryCandida
             MonthlyListenership = row.MonthlyListenership,
             IsFlagshipStation = row.IsFlagshipStation,
             IsPremiumStation = row.IsPremiumStation,
+            Latitude = row.Latitude ?? ParseNullableDouble(GetMetadataValue(metadata, "latitude")) ?? ParseNullableDouble(GetMetadataValue(metadata, "lat")),
+            Longitude = row.Longitude ?? ParseNullableDouble(GetMetadataValue(metadata, "longitude")) ?? ParseNullableDouble(GetMetadataValue(metadata, "lng")) ?? ParseNullableDouble(GetMetadataValue(metadata, "lon")),
             Metadata = metadata
         };
     }
@@ -116,6 +119,8 @@ public sealed class PlanningInventoryCandidateMapper : IPlanningInventoryCandida
         SetIfMissing(metadata, "market_scope", row.MarketScope);
         SetIfMissing(metadata, "marketTier", row.MarketTier);
         SetIfMissing(metadata, "market_tier", row.MarketTier);
+        SetIfMissing(metadata, "latitude", row.Latitude);
+        SetIfMissing(metadata, "longitude", row.Longitude);
 
         if (!metadata.ContainsKey("duration") && row.DurationSeconds.HasValue && row.DurationSeconds.Value > 0)
         {
@@ -189,6 +194,13 @@ public sealed class PlanningInventoryCandidateMapper : IPlanningInventoryCandida
 
     private static int? ParseNullableInt(string? value) => int.TryParse(value, out var parsed) ? parsed : null;
 
+    private static double? ParseNullableDouble(string? value)
+    {
+        return double.TryParse(value, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : null;
+    }
+
     private static string NormalizeMediaType(string mediaType)
     {
         return mediaType.Trim().ToLowerInvariant() switch
@@ -228,4 +240,3 @@ public sealed class PlanningInventoryCandidateMapper : IPlanningInventoryCandida
         return null;
     }
 }
-

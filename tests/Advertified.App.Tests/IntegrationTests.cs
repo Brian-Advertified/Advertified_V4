@@ -2188,6 +2188,7 @@ internal sealed class TestApiHarness : IAsyncDisposable
         builder.Services.AddScoped<IMediaPlanningEngine, StubMediaPlanningEngine>();
         builder.Services.AddScoped<ICampaignReasoningService, StubCampaignReasoningService>();
         builder.Services.AddScoped<ICampaignRecommendationService, CampaignRecommendationService>();
+        builder.Services.AddScoped<ILeadProposalConfidenceGateService, StubLeadProposalConfidenceGateService>();
         builder.Services.AddScoped<ICampaignBriefInterpretationService, StubCampaignBriefInterpretationService>();
         builder.Services.AddScoped<ITemplatedEmailService, StubTemplatedEmailService>();
         builder.Services.AddScoped<ICreativeCampaignOrchestrator, StubCreativeCampaignOrchestrator>();
@@ -2418,6 +2419,14 @@ internal sealed class StubCampaignBriefInterpretationService : ICampaignBriefInt
             Channels = new[] { "Radio", "OOH" },
             Summary = "The brief points to a premium Gauteng retail launch across radio and outdoor."
         });
+    }
+}
+
+internal sealed class StubLeadProposalConfidenceGateService : ILeadProposalConfidenceGateService
+{
+    public Task EnsureCampaignReadyAsync(Guid campaignId, CancellationToken cancellationToken)
+    {
+        return Task.CompletedTask;
     }
 }
 

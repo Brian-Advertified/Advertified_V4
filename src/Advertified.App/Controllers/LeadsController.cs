@@ -1,10 +1,13 @@
 using Advertified.App.Contracts.Leads;
+using Advertified.App.Configuration;
 using Advertified.App.Data;
 using Advertified.App.Data.Entities;
 using Advertified.App.Services;
 using Advertified.App.Services.Abstractions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using System.Text.Json;
 
 namespace Advertified.App.Controllers;
 
@@ -15,32 +18,62 @@ public sealed class LeadsController : ControllerBase
     private readonly AppDbContext _db;
     private readonly ILeadScoreService _leadScoreService;
     private readonly ILeadChannelDetectionService _leadChannelDetectionService;
+    private readonly ILeadIndustryPolicyService _leadIndustryPolicyService;
+    private readonly ILeadOpportunityProfileService _leadOpportunityProfileService;
+    private readonly ILeadEnrichmentSnapshotService _leadEnrichmentSnapshotService;
+    private readonly ILeadBusinessProfileService _leadBusinessProfileService;
+    private readonly ILeadStrategyEngine _leadStrategyEngine;
     private readonly ILeadIntelligenceOrchestrator _leadIntelligenceOrchestrator;
     private readonly ILeadSourceIngestionService _leadSourceIngestionService;
     private readonly ILeadSourceImportService _leadSourceImportService;
     private readonly ILeadSourceDropFolderProcessor _leadSourceDropFolderProcessor;
     private readonly ILeadSourceAutomationStatusService _leadSourceAutomationStatusService;
+    private readonly ILeadPaidMediaEvidenceSyncService _leadPaidMediaEvidenceSyncService;
+    private readonly IWebsiteSignalProvider _websiteSignalProvider;
+    private readonly ILeadMasterDataService _leadMasterDataService;
+    private readonly IGeocodingService _geocodingService;
+    private readonly LeadIntelligenceAutomationOptions _leadIntelligenceAutomationOptions;
     private readonly ICurrentUserAccessor _currentUserAccessor;
 
     public LeadsController(
         AppDbContext db,
         ILeadScoreService leadScoreService,
         ILeadChannelDetectionService leadChannelDetectionService,
+        ILeadIndustryPolicyService leadIndustryPolicyService,
+        ILeadOpportunityProfileService leadOpportunityProfileService,
+        ILeadEnrichmentSnapshotService leadEnrichmentSnapshotService,
+        ILeadBusinessProfileService leadBusinessProfileService,
+        ILeadStrategyEngine leadStrategyEngine,
         ILeadIntelligenceOrchestrator leadIntelligenceOrchestrator,
         ILeadSourceIngestionService leadSourceIngestionService,
         ILeadSourceImportService leadSourceImportService,
         ILeadSourceDropFolderProcessor leadSourceDropFolderProcessor,
         ILeadSourceAutomationStatusService leadSourceAutomationStatusService,
+        ILeadPaidMediaEvidenceSyncService leadPaidMediaEvidenceSyncService,
+        IWebsiteSignalProvider websiteSignalProvider,
+        ILeadMasterDataService leadMasterDataService,
+        IGeocodingService geocodingService,
+        IOptions<LeadIntelligenceAutomationOptions> leadIntelligenceAutomationOptions,
         ICurrentUserAccessor currentUserAccessor)
     {
         _db = db;
         _leadScoreService = leadScoreService;
         _leadChannelDetectionService = leadChannelDetectionService;
+        _leadIndustryPolicyService = leadIndustryPolicyService;
+        _leadOpportunityProfileService = leadOpportunityProfileService;
+        _leadEnrichmentSnapshotService = leadEnrichmentSnapshotService;
+        _leadBusinessProfileService = leadBusinessProfileService;
+        _leadStrategyEngine = leadStrategyEngine;
         _leadIntelligenceOrchestrator = leadIntelligenceOrchestrator;
         _leadSourceIngestionService = leadSourceIngestionService;
         _leadSourceImportService = leadSourceImportService;
         _leadSourceDropFolderProcessor = leadSourceDropFolderProcessor;
         _leadSourceAutomationStatusService = leadSourceAutomationStatusService;
+        _leadPaidMediaEvidenceSyncService = leadPaidMediaEvidenceSyncService;
+        _websiteSignalProvider = websiteSignalProvider;
+        _leadMasterDataService = leadMasterDataService;
+        _geocodingService = geocodingService;
+        _leadIntelligenceAutomationOptions = leadIntelligenceAutomationOptions.Value;
         _currentUserAccessor = currentUserAccessor;
     }
 
@@ -119,20 +152,19 @@ public sealed class LeadsController : ControllerBase
             latestInsights.TryGetValue(lead.Id, out var insight);
             recommendedActions.TryGetValue(lead.Id, out var action);
             var score = await _leadScoreService.ScoreAsync(lead.Id, cancellationToken);
-            var channelDetections = _leadChannelDetectionService.Detect(lead, signal, signalEvidence);
+            var derivedContext = BuildDerivedContext(lead, signal, signalEvidence);
 
-            results.Add(new LeadIntelligenceDto
-            {
-                Lead = ToDto(lead),
-                LatestSignal = signal is null ? null : ToDto(signal),
-                Score = ToDto(score),
-                Insight = insight?.Text ?? (signal is null
-                    ? "No signal analysis has been run for this lead yet."
-                    : string.Empty),
-                TrendSummary = insight?.TrendSummary ?? string.Empty,
-                ChannelDetections = channelDetections.Select(ToDto).ToList(),
-                RecommendedActions = action is null ? Array.Empty<LeadActionDto>() : new[] { action },
-            });
+            results.Add(ComposeLeadIntelligenceDto(
+                lead,
+                signal,
+                score,
+                insight?.Text ?? (signal is null ? "No signal analysis has been run for this lead yet." : string.Empty),
+                insight?.TrendSummary ?? string.Empty,
+                derivedContext,
+                signalHistory: Array.Empty<Signal>(),
+                insightHistory: Array.Empty<LeadInsight>(),
+                recommendedActions: action is null ? Array.Empty<LeadActionDto>() : new[] { action },
+                interactionHistory: Array.Empty<LeadInteraction>()));
         }
 
         return Ok(results);
@@ -142,6 +174,13 @@ public sealed class LeadsController : ControllerBase
     public ActionResult<LeadSourceAutomationStatusDto> GetSourceAutomationStatus()
     {
         return Ok(_leadSourceAutomationStatusService.GetStatus());
+    }
+
+    [HttpGet("industry-policy/resolve")]
+    public ActionResult<LeadIndustryPolicyDto> ResolveIndustryPolicy([FromQuery] string? category)
+    {
+        var policy = _leadIndustryPolicyService.ResolveForCategory(category);
+        return Ok(ToDto(policy));
     }
 
     [HttpPost("source-automation/process-now")]
@@ -156,6 +195,31 @@ public sealed class LeadsController : ControllerBase
             ImportedLeadCount = result.ImportedLeadCount,
             AnalyzedLeadCount = result.AnalyzedLeadCount,
         });
+    }
+
+    [HttpGet("paid-media-sync/status")]
+    public async Task<ActionResult<LeadPaidMediaSyncStatusDto>> GetPaidMediaSyncStatus(CancellationToken cancellationToken)
+    {
+        var latestRunAudit = await _db.ChangeAuditLogs
+            .AsNoTracking()
+            .Where(log => log.Scope == "system" && log.Action == "lead_paid_media_sync_run")
+            .OrderByDescending(log => log.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return Ok(new LeadPaidMediaSyncStatusDto
+        {
+            Enabled = _leadIntelligenceAutomationOptions.EnablePaidMediaEvidenceSync,
+            BatchSize = Math.Max(1, _leadIntelligenceAutomationOptions.BatchSize),
+            IntervalMinutes = Math.Max(15, _leadIntelligenceAutomationOptions.PaidMediaSyncIntervalMinutes),
+            LastRun = TryParseSyncRunDto(latestRunAudit?.MetadataJson),
+        });
+    }
+
+    [HttpPost("paid-media-sync/run-now")]
+    public async Task<ActionResult<LeadPaidMediaSyncRunDto>> RunPaidMediaSyncNow(CancellationToken cancellationToken)
+    {
+        var result = await _leadPaidMediaEvidenceSyncService.SyncBatchAsync(cancellationToken);
+        return Ok(ToDto(result));
     }
 
     [HttpGet("{id:int}")]
@@ -235,49 +299,93 @@ public sealed class LeadsController : ControllerBase
                 .Where(item => item.SignalId == signal.Id)
                 .OrderByDescending(item => item.CreatedAt)
                 .ToArrayAsync(cancellationToken);
-        var channelDetections = _leadChannelDetectionService.Detect(lead, signal, signalEvidence);
+        var derivedContext = BuildDerivedContext(lead, signal, signalEvidence);
         var latestInsight = insightHistory.FirstOrDefault();
         var insight = signal is null
             ? "No signal analysis has been run for this lead yet."
             : latestInsight?.Text ?? "No stored insight has been generated for this lead yet.";
 
-        return Ok(new LeadIntelligenceDto
-        {
-            Lead = ToDto(lead),
-            LatestSignal = signal is null ? null : ToDto(signal),
-            Score = ToDto(score),
-            Insight = insight,
-            TrendSummary = latestInsight?.TrendSummary ?? string.Empty,
-            ChannelDetections = channelDetections.Select(ToDto).ToList(),
-            SignalHistory = signalHistory.Select(ToDto).ToList(),
-            InsightHistory = insightHistory.Select(ToDto).ToList(),
-            RecommendedActions = actionHistory,
-            InteractionHistory = interactionHistory.Select(ToDto).ToList(),
-        });
+        return Ok(ComposeLeadIntelligenceDto(
+            lead,
+            signal,
+            score,
+            insight,
+            latestInsight?.TrendSummary ?? string.Empty,
+            derivedContext,
+            signalHistory,
+            insightHistory,
+            actionHistory,
+            interactionHistory));
     }
 
     [HttpPost]
     public async Task<ActionResult<LeadDto>> Create([FromBody] CreateLeadRequest request, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(request.Name) ||
-            string.IsNullOrWhiteSpace(request.Location) ||
-            string.IsNullOrWhiteSpace(request.Category))
+        if (string.IsNullOrWhiteSpace(request.Name))
         {
             return Problem(
-                title: "Name, location, and category are required.",
+                title: "Name is required.",
                 statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        var normalizedLocation = request.Location?.Trim() ?? string.Empty;
+        var normalizedCategory = request.Category?.Trim() ?? string.Empty;
+        var normalizedWebsite = request.Website?.Trim();
+        var inferredFields = new List<string>();
+
+        if ((string.IsNullOrWhiteSpace(normalizedLocation) || string.IsNullOrWhiteSpace(normalizedCategory))
+            && !string.IsNullOrWhiteSpace(normalizedWebsite))
+        {
+            var inferred = await InferLeadInputFromWebsiteAsync(normalizedWebsite, cancellationToken);
+            if (string.IsNullOrWhiteSpace(normalizedLocation) && !string.IsNullOrWhiteSpace(inferred.Location))
+            {
+                normalizedLocation = inferred.Location;
+                inferredFields.Add("location");
+            }
+
+            if (string.IsNullOrWhiteSpace(normalizedCategory) && !string.IsNullOrWhiteSpace(inferred.Category))
+            {
+                normalizedCategory = inferred.Category;
+                inferredFields.Add("category");
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(normalizedLocation) || string.IsNullOrWhiteSpace(normalizedCategory))
+        {
+            return Problem(
+                title: "Location and category are required, or provide a website so we can infer them.",
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        var normalizedSourceReference = string.IsNullOrWhiteSpace(request.SourceReference)
+            ? null
+            : request.SourceReference.Trim();
+        if (inferredFields.Count > 0)
+        {
+            var inferredMarker = $"auto_inferred:{string.Join(",", inferredFields.OrderBy(field => field, StringComparer.OrdinalIgnoreCase))};from:website_scan";
+            normalizedSourceReference = string.IsNullOrWhiteSpace(normalizedSourceReference)
+                ? inferredMarker
+                : $"{normalizedSourceReference};{inferredMarker}";
         }
 
         var lead = new Lead
         {
             Name = request.Name.Trim(),
-            Website = string.IsNullOrWhiteSpace(request.Website) ? null : request.Website.Trim(),
-            Location = request.Location.Trim(),
-            Category = request.Category.Trim(),
+            Website = string.IsNullOrWhiteSpace(normalizedWebsite) ? null : normalizedWebsite,
+            Location = normalizedLocation,
+            Category = normalizedCategory,
             Source = string.IsNullOrWhiteSpace(request.Source) ? "manual" : request.Source.Trim(),
-            SourceReference = string.IsNullOrWhiteSpace(request.SourceReference) ? null : request.SourceReference.Trim(),
+            SourceReference = normalizedSourceReference,
             LastDiscoveredAt = DateTime.UtcNow,
         };
+
+        var geocodedLeadLocation = _geocodingService.ResolveLocation(lead.Location);
+        if (geocodedLeadLocation.IsResolved)
+        {
+            lead.Location = geocodedLeadLocation.CanonicalLocation;
+            lead.Latitude = geocodedLeadLocation.Latitude;
+            lead.Longitude = geocodedLeadLocation.Longitude;
+        }
 
         _db.Leads.Add(lead);
         await _db.SaveChangesAsync(cancellationToken);
@@ -352,7 +460,7 @@ public sealed class LeadsController : ControllerBase
             .Where(item => item.SignalId == result.Signal.Id)
             .OrderByDescending(item => item.CreatedAt)
             .ToArrayAsync(cancellationToken);
-        var channelDetections = _leadChannelDetectionService.Detect(lead, result.Signal, resultSignalEvidence);
+        var derivedContext = BuildDerivedContext(lead, result.Signal, resultSignalEvidence);
 
         var signalHistory = await _db.Signals
             .AsNoTracking()
@@ -387,19 +495,17 @@ public sealed class LeadsController : ControllerBase
             .Take(10)
             .ToListAsync(cancellationToken);
 
-        return Ok(new LeadIntelligenceDto
-        {
-            Lead = ToDto(lead),
-            LatestSignal = ToDto(result.Signal),
-            Score = ToDto(result.Score),
-            Insight = result.Insight.Text,
-            TrendSummary = result.Insight.TrendSummary,
-            ChannelDetections = channelDetections.Select(ToDto).ToList(),
-            SignalHistory = signalHistory.Select(ToDto).ToList(),
-            InsightHistory = insightHistory.Select(ToDto).ToList(),
-            RecommendedActions = actionHistory,
-            InteractionHistory = interactionHistory.Select(ToDto).ToList(),
-        });
+        return Ok(ComposeLeadIntelligenceDto(
+            lead,
+            result.Signal,
+            result.Score,
+            result.Insight.Text,
+            result.Insight.TrendSummary,
+            derivedContext,
+            signalHistory,
+            insightHistory,
+            actionHistory,
+            interactionHistory));
     }
 
     [HttpPost("{leadId:int}/actions/{actionId:int}/status")]
@@ -537,6 +643,53 @@ public sealed class LeadsController : ControllerBase
         return Ok(ToDto(interaction));
     }
 
+    private LeadDerivedContext BuildDerivedContext(
+        Lead lead,
+        Signal? signal,
+        IReadOnlyList<LeadSignalEvidence> signalEvidence)
+    {
+        var channelDetections = _leadChannelDetectionService.Detect(lead, signal, signalEvidence);
+        var industryPolicy = _leadIndustryPolicyService.ResolveForCategory(lead.Category);
+        var opportunityProfile = _leadOpportunityProfileService.Build(lead, signal, channelDetections, industryPolicy);
+        var enrichment = _leadEnrichmentSnapshotService.Build(lead, signal, signalEvidence, channelDetections);
+        var businessProfile = _leadBusinessProfileService.Build(lead, enrichment, industryPolicy, opportunityProfile);
+        var strategy = _leadStrategyEngine.Build(businessProfile, industryPolicy, opportunityProfile, channelDetections);
+
+        return new LeadDerivedContext(channelDetections, industryPolicy, opportunityProfile, enrichment, businessProfile, strategy);
+    }
+
+    private static LeadIntelligenceDto ComposeLeadIntelligenceDto(
+        Lead lead,
+        Signal? signal,
+        LeadScoreResult score,
+        string insight,
+        string trendSummary,
+        LeadDerivedContext context,
+        IReadOnlyList<Signal> signalHistory,
+        IReadOnlyList<LeadInsight> insightHistory,
+        IReadOnlyList<LeadActionDto> recommendedActions,
+        IReadOnlyList<LeadInteraction> interactionHistory)
+    {
+        return new LeadIntelligenceDto
+        {
+            Lead = ToDto(lead),
+            LatestSignal = signal is null ? null : ToDto(signal),
+            Score = ToDto(score),
+            Insight = insight,
+            TrendSummary = trendSummary,
+            ChannelDetections = context.ChannelDetections.Select(ToDto).ToList(),
+            SignalHistory = signalHistory.Select(ToDto).ToList(),
+            InsightHistory = insightHistory.Select(ToDto).ToList(),
+            RecommendedActions = recommendedActions,
+            InteractionHistory = interactionHistory.Select(ToDto).ToList(),
+            IndustryPolicy = ToDto(context.IndustryPolicy),
+            OpportunityProfile = ToDto(context.OpportunityProfile),
+            Enrichment = ToDto(context.Enrichment),
+            BusinessProfile = ToDto(context.BusinessProfile),
+            Strategy = ToDto(context.Strategy),
+        };
+    }
+
     private static LeadDto ToDto(Lead lead)
     {
         return new LeadDto
@@ -548,7 +701,10 @@ public sealed class LeadsController : ControllerBase
             Category = lead.Category,
             Source = lead.Source,
             SourceReference = lead.SourceReference,
+            AutoInferredFields = ParseAutoInferredFields(lead.SourceReference),
             LastDiscoveredAt = lead.LastDiscoveredAt,
+            Latitude = lead.Latitude,
+            Longitude = lead.Longitude,
             CreatedAt = lead.CreatedAt
         };
     }
@@ -673,4 +829,265 @@ public sealed class LeadsController : ControllerBase
             }).ToList()
         };
     }
+
+    private static LeadIndustryPolicyDto ToDto(LeadIndustryPolicyProfile profile)
+    {
+        return new LeadIndustryPolicyDto
+        {
+            Key = profile.Key,
+            Name = profile.Name,
+            ObjectiveOverride = profile.ObjectiveOverride,
+            PreferredTone = profile.PreferredTone,
+            PreferredChannels = profile.PreferredChannels,
+            Cta = profile.Cta,
+            MessagingAngle = profile.MessagingAngle,
+            Guardrails = profile.Guardrails,
+            AdditionalGap = profile.AdditionalGap,
+            AdditionalOutcome = profile.AdditionalOutcome,
+        };
+    }
+
+    private static LeadOpportunityProfileDto ToDto(LeadOpportunityProfile profile)
+    {
+        return new LeadOpportunityProfileDto
+        {
+            Key = profile.Key,
+            Name = profile.Name,
+            SuggestedCampaignType = profile.SuggestedCampaignType,
+            DetectedGaps = profile.DetectedGaps,
+            ExpectedOutcome = profile.ExpectedOutcome,
+            RecommendedChannels = profile.RecommendedChannels,
+            WhyActNow = profile.WhyActNow,
+        };
+    }
+
+    private static LeadPaidMediaSyncRunDto ToDto(LeadPaidMediaSyncRunResult result)
+    {
+        return new LeadPaidMediaSyncRunDto
+        {
+            StartedAtUtc = result.StartedAtUtc,
+            FinishedAtUtc = result.FinishedAtUtc,
+            Skipped = result.Skipped,
+            SkipReason = result.SkipReason,
+            TotalLeadCount = result.TotalLeadCount,
+            ProcessedLeadCount = result.ProcessedLeadCount,
+            FailedLeadCount = result.FailedLeadCount,
+            EvidenceRowCount = result.EvidenceRowCount,
+            EnabledProviders = result.EnabledProviders,
+            ProviderEvidenceCounts = result.ProviderEvidenceCounts,
+        };
+    }
+
+    private static LeadPaidMediaSyncRunDto? TryParseSyncRunDto(string? metadataJson)
+    {
+        if (string.IsNullOrWhiteSpace(metadataJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            var payload = JsonSerializer.Deserialize<LeadPaidMediaSyncRunResult>(metadataJson);
+            if (payload is null)
+            {
+                return null;
+            }
+
+            return ToDto(payload);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static LeadEnrichmentSnapshotDto ToDto(LeadEnrichmentSnapshot snapshot)
+    {
+        return new LeadEnrichmentSnapshotDto
+        {
+            Fields = snapshot.Fields.Select(field => new LeadEnrichmentFieldDto
+            {
+                Key = field.Key,
+                Label = field.Label,
+                Value = field.Value,
+                Confidence = field.Confidence,
+                Source = field.Source,
+                Reason = field.Reason,
+                Required = field.Required
+            }).ToList(),
+            ConfidenceGate = new LeadConfidenceGateDto
+            {
+                IsBlocked = snapshot.ConfidenceGate.IsBlocked,
+                RequiredFields = snapshot.ConfidenceGate.RequiredFields,
+                MissingRequiredFields = snapshot.ConfidenceGate.MissingRequiredFields,
+                Message = snapshot.ConfidenceGate.Message
+            },
+            ConfidenceScore = snapshot.ConfidenceScore,
+            MissingFields = snapshot.MissingFields,
+            GeneratedAtUtc = snapshot.GeneratedAtUtc
+        };
+    }
+
+    private static LeadBusinessProfileDto ToDto(LeadBusinessProfile profile)
+    {
+        return new LeadBusinessProfileDto
+        {
+            BusinessType = profile.BusinessType,
+            PrimaryLocation = profile.PrimaryLocation,
+            TargetAudience = profile.TargetAudience,
+            GenderFocus = profile.GenderFocus,
+            Languages = profile.Languages,
+            ConfidenceScore = profile.ConfidenceScore,
+            MissingFields = profile.MissingFields,
+            EvidenceTrace = profile.EvidenceTrace.Select(trace => new LeadEvidenceFieldTraceDto
+            {
+                Field = trace.Field,
+                Value = trace.Value,
+                Confidence = trace.Confidence,
+                Source = trace.Source,
+                Reason = trace.Reason,
+            }).ToArray()
+        };
+    }
+
+    private static LeadStrategyDto ToDto(LeadStrategyResult strategy)
+    {
+        return new LeadStrategyDto
+        {
+            Archetype = strategy.Archetype,
+            Objective = strategy.Objective,
+            Channels = strategy.Channels.Select(channel => new LeadStrategyChannelDto
+            {
+                Channel = channel.Channel,
+                BudgetSharePercent = channel.BudgetSharePercent,
+                Reason = channel.Reason
+            }).ToArray(),
+            GeoTargets = strategy.GeoTargets,
+            Timing = strategy.Timing,
+            Rationale = strategy.Rationale,
+        };
+    }
+
+    private sealed record LeadDerivedContext(
+        IReadOnlyList<LeadChannelDetectionResult> ChannelDetections,
+        LeadIndustryPolicyProfile IndustryPolicy,
+        LeadOpportunityProfile OpportunityProfile,
+        LeadEnrichmentSnapshot Enrichment,
+        LeadBusinessProfile BusinessProfile,
+        LeadStrategyResult Strategy);
+
+    private async Task<LeadInputInferenceResult> InferLeadInputFromWebsiteAsync(string websiteUrl, CancellationToken cancellationToken)
+    {
+        var signal = await _websiteSignalProvider.CollectAsync(websiteUrl, cancellationToken);
+        var location = signal.LocationHints
+            .Select(hint => _leadMasterDataService.ResolveLocation(hint))
+            .FirstOrDefault(match => match is not null)?.CanonicalName
+            ?? InferLocationFromHints(signal.LocationHints);
+        var category = signal.IndustryHints
+            .Select(hint => _leadMasterDataService.ResolveIndustry(hint))
+            .FirstOrDefault(match => match is not null)?.Label
+            ?? InferCategoryFromHints(signal.IndustryHints);
+        return new LeadInputInferenceResult(location, category);
+    }
+
+    private static string? InferLocationFromHints(IReadOnlyList<string> hints)
+    {
+        if (hints.Count == 0)
+        {
+            return null;
+        }
+
+        var ordered = new[]
+        {
+            "johannesburg",
+            "pretoria",
+            "cape town",
+            "durban",
+            "gauteng",
+            "western cape",
+            "kwazulu-natal",
+            "south africa",
+        };
+        var matched = ordered.FirstOrDefault(candidate => hints.Any(hint => hint.Equals(candidate, StringComparison.OrdinalIgnoreCase)));
+        return matched is null
+            ? ToTitleCase(hints[0])
+            : ToTitleCase(matched);
+    }
+
+    private static string? InferCategoryFromHints(IReadOnlyList<string> hints)
+    {
+        if (hints.Count == 0)
+        {
+            return null;
+        }
+
+        if (ContainsAnyHint(hints, "funeral", "memorial", "burial", "cremation"))
+        {
+            return "Funeral Services";
+        }
+
+        if (ContainsAnyHint(hints, "dental", "clinic", "medical"))
+        {
+            return "Healthcare";
+        }
+
+        if (ContainsAnyHint(hints, "legal", "attorney"))
+        {
+            return "Legal Services";
+        }
+
+        if (ContainsAnyHint(hints, "retail", "grocery", "shop", "supermarket"))
+        {
+            return "Retail";
+        }
+
+        if (ContainsAnyHint(hints, "fitness", "gym"))
+        {
+            return "Fitness";
+        }
+
+        if (ContainsAnyHint(hints, "restaurant", "food", "cafe"))
+        {
+            return "Food & Hospitality";
+        }
+
+        return ToTitleCase(hints[0]);
+    }
+
+    private static bool ContainsAnyHint(IReadOnlyList<string> hints, params string[] tokens)
+    {
+        return hints.Any(hint => tokens.Any(token => hint.Equals(token, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    private static string ToTitleCase(string value)
+    {
+        var parts = value
+            .Split(new[] { ' ', '-', '_' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(part => char.ToUpperInvariant(part[0]) + part[1..].ToLowerInvariant());
+        return string.Join(" ", parts);
+    }
+
+    private static IReadOnlyList<string> ParseAutoInferredFields(string? sourceReference)
+    {
+        if (string.IsNullOrWhiteSpace(sourceReference))
+        {
+            return Array.Empty<string>();
+        }
+
+        var markerSegment = sourceReference
+            .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .FirstOrDefault(segment => segment.StartsWith("auto_inferred:", StringComparison.OrdinalIgnoreCase));
+        if (string.IsNullOrWhiteSpace(markerSegment))
+        {
+            return Array.Empty<string>();
+        }
+
+        return markerSegment["auto_inferred:".Length..]
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(field => field.Trim().ToLowerInvariant())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private sealed record LeadInputInferenceResult(string? Location, string? Category);
 }

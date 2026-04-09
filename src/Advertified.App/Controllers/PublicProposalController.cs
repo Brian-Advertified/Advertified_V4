@@ -17,21 +17,27 @@ public sealed class PublicProposalController : ControllerBase
     private readonly AppDbContext _db;
     private readonly IProposalAccessTokenService _proposalAccessTokenService;
     private readonly IRecommendationDocumentService _recommendationDocumentService;
+    private readonly ILeadProposalConfidenceGateService _leadProposalConfidenceGateService;
     private readonly IRecommendationApprovalWorkflowService _recommendationApprovalWorkflowService;
     private readonly IPackagePurchaseService _packagePurchaseService;
+    private readonly IChangeAuditService _changeAuditService;
 
     public PublicProposalController(
         AppDbContext db,
         IProposalAccessTokenService proposalAccessTokenService,
         IRecommendationDocumentService recommendationDocumentService,
+        ILeadProposalConfidenceGateService leadProposalConfidenceGateService,
         IRecommendationApprovalWorkflowService recommendationApprovalWorkflowService,
-        IPackagePurchaseService packagePurchaseService)
+        IPackagePurchaseService packagePurchaseService,
+        IChangeAuditService changeAuditService)
     {
         _db = db;
         _proposalAccessTokenService = proposalAccessTokenService;
         _recommendationDocumentService = recommendationDocumentService;
+        _leadProposalConfidenceGateService = leadProposalConfidenceGateService;
         _recommendationApprovalWorkflowService = recommendationApprovalWorkflowService;
         _packagePurchaseService = packagePurchaseService;
+        _changeAuditService = changeAuditService;
     }
 
     [HttpGet("{id:guid}")]
@@ -60,6 +66,20 @@ public sealed class PublicProposalController : ControllerBase
             {
                 Title = "Campaign not found.",
                 Status = StatusCodes.Status404NotFound
+            });
+        }
+
+        try
+        {
+            await _leadProposalConfidenceGateService.EnsureCampaignReadyAsync(id, cancellationToken);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Lead proposal confidence gate failed.",
+                Detail = ex.Message,
+                Status = StatusCodes.Status400BadRequest
             });
         }
 
@@ -110,6 +130,51 @@ public sealed class PublicProposalController : ControllerBase
         return Accepted(new { CampaignId = id, RecommendationId = request.RecommendationId.Value, Message = "Checkout prepared." });
     }
 
+    [HttpPost("{id:guid}/lead-engagement")]
+    public async Task<IActionResult> TrackLeadEngagement(Guid id, [FromBody] PublicLeadEngagementRequest request, CancellationToken cancellationToken)
+    {
+        await EnsureValidTokenAsync(id, request.Token, cancellationToken);
+
+        var eventType = (request.EventType ?? string.Empty).Trim().ToLowerInvariant();
+        if (eventType is not ("page_view" or "reply_click" or "download_pdf_click" or "callback_click"))
+        {
+            throw new BadRequestException("Unsupported lead engagement event type.");
+        }
+
+        var campaign = await _db.Campaigns
+            .AsNoTracking()
+            .Include(x => x.CampaignBrief)
+            .Include(x => x.ProspectLead)
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+            ?? throw new NotFoundException("Campaign not found.");
+
+        if (!LeadOutreachCampaignSupport.IsLeadOutreachCampaign(campaign))
+        {
+            return Accepted(new { CampaignId = id, EventType = eventType, Message = "Ignored for non-lead campaign." });
+        }
+
+        await _changeAuditService.WriteAsync(
+            actorUserId: null,
+            scope: "public",
+            action: $"lead_proposal_{eventType}",
+            entityType: "campaign",
+            entityId: campaign.Id.ToString(),
+            entityLabel: campaign.CampaignName,
+            summary: $"Public lead proposal engagement: {eventType}.",
+            metadata: new
+            {
+                CampaignId = campaign.Id,
+                EventType = eventType,
+                request.Context,
+                request.PageUrl,
+                request.UserAgent,
+                ProspectEmail = campaign.ProspectLead?.Email
+            },
+            cancellationToken);
+
+        return Accepted(new { CampaignId = id, EventType = eventType, Message = "Engagement tracked." });
+    }
+
     private async Task EnsureValidTokenAsync(Guid campaignId, string token, CancellationToken cancellationToken)
     {
         if (!_proposalAccessTokenService.TryReadToken(token, out var payload) || payload.CampaignId != campaignId)
@@ -149,5 +214,18 @@ public sealed class PublicProposalController : ControllerBase
             .Include(x => x.CampaignRecommendations)
                 .ThenInclude(x => x.RecommendationItems)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+    }
+
+    public sealed class PublicLeadEngagementRequest
+    {
+        public string Token { get; init; } = string.Empty;
+
+        public string EventType { get; init; } = string.Empty;
+
+        public string? Context { get; init; }
+
+        public string? PageUrl { get; init; }
+
+        public string? UserAgent { get; init; }
     }
 }

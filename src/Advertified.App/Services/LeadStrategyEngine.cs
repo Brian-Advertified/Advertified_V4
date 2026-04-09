@@ -1,0 +1,155 @@
+using Advertified.App.Services.Abstractions;
+
+namespace Advertified.App.Services;
+
+public sealed class LeadStrategyEngine : ILeadStrategyEngine
+{
+    public LeadStrategyResult Build(
+        LeadBusinessProfile businessProfile,
+        LeadIndustryPolicyProfile industryPolicy,
+        LeadOpportunityProfile opportunityProfile,
+        IReadOnlyList<LeadChannelDetectionResult> channelDetections)
+    {
+        var baseSplit = ResolveBaseSplit(opportunityProfile.Key);
+        var adjustedSplit = ApplyChannelFitAdjustments(baseSplit, channelDetections);
+        var normalizedSplit = NormalizeSplit(adjustedSplit);
+
+        var channelPlans = normalizedSplit
+            .Select(item => new LeadStrategyChannelPlan
+            {
+                Channel = item.Key,
+                BudgetSharePercent = item.Value,
+                Reason = BuildChannelReason(item.Key, businessProfile, opportunityProfile, channelDetections)
+            })
+            .OrderByDescending(item => item.BudgetSharePercent)
+            .ToArray();
+
+        return new LeadStrategyResult
+        {
+            Archetype = opportunityProfile.Name,
+            Objective = industryPolicy.ObjectiveOverride ?? opportunityProfile.SuggestedCampaignType,
+            Channels = channelPlans,
+            GeoTargets = new[] { businessProfile.PrimaryLocation }.Where(value => !string.IsNullOrWhiteSpace(value)).ToArray(),
+            Timing = "30-day launch with weekly optimization checkpoints",
+            Rationale = $"Strategy prioritizes business fit for {businessProfile.BusinessType} in {businessProfile.PrimaryLocation}, then amplifies channels with strongest opportunity gaps."
+        };
+    }
+
+    private static Dictionary<string, int> ResolveBaseSplit(string archetypeKey)
+    {
+        return archetypeKey.ToLowerInvariant() switch
+        {
+            "active_scaler" => new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["OOH"] = 35,
+                ["Radio"] = 30,
+                ["Digital"] = 35
+            },
+            "promo_dependent_retailer" => new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Radio"] = 35,
+                ["OOH"] = 35,
+                ["Digital"] = 30
+            },
+            "invisible_local_business" => new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Digital"] = 45,
+                ["OOH"] = 35,
+                ["Radio"] = 20
+            },
+            "digital_only_player" => new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["OOH"] = 40,
+                ["Radio"] = 30,
+                ["Digital"] = 30
+            },
+            _ => new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Digital"] = 50,
+                ["OOH"] = 30,
+                ["Radio"] = 20
+            }
+        };
+    }
+
+    private static Dictionary<string, int> ApplyChannelFitAdjustments(
+        Dictionary<string, int> split,
+        IReadOnlyList<LeadChannelDetectionResult> channelDetections)
+    {
+        var adjusted = new Dictionary<string, int>(split, StringComparer.OrdinalIgnoreCase);
+        foreach (var detection in channelDetections)
+        {
+            var mappedChannel = MapDetectionChannel(detection.Channel);
+            if (mappedChannel is null || !adjusted.ContainsKey(mappedChannel))
+            {
+                continue;
+            }
+
+            if (detection.Score >= 70)
+            {
+                adjusted[mappedChannel] += 5;
+            }
+            else if (detection.Score <= 25)
+            {
+                adjusted[mappedChannel] = Math.Max(10, adjusted[mappedChannel] - 5);
+            }
+        }
+
+        return adjusted;
+    }
+
+    private static Dictionary<string, int> NormalizeSplit(Dictionary<string, int> split)
+    {
+        var total = split.Values.Sum();
+        if (total <= 0)
+        {
+            return new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Digital"] = 50,
+                ["OOH"] = 30,
+                ["Radio"] = 20
+            };
+        }
+
+        var normalized = split.ToDictionary(
+            pair => pair.Key,
+            pair => (int)Math.Round(pair.Value * 100m / total, MidpointRounding.AwayFromZero),
+            StringComparer.OrdinalIgnoreCase);
+
+        var delta = 100 - normalized.Values.Sum();
+        if (delta != 0)
+        {
+            var topKey = normalized.OrderByDescending(pair => pair.Value).First().Key;
+            normalized[topKey] += delta;
+        }
+
+        return normalized;
+    }
+
+    private static string BuildChannelReason(
+        string channel,
+        LeadBusinessProfile businessProfile,
+        LeadOpportunityProfile opportunityProfile,
+        IReadOnlyList<LeadChannelDetectionResult> channelDetections)
+    {
+        var detection = channelDetections.FirstOrDefault(item =>
+            string.Equals(MapDetectionChannel(item.Channel), channel, StringComparison.OrdinalIgnoreCase));
+        var fitSignal = detection is null
+            ? "No strong activity signals detected yet"
+            : $"Detected score {detection.Score}/100";
+
+        return $"{opportunityProfile.Name} playbook for {businessProfile.BusinessType}. {fitSignal}.";
+    }
+
+    private static string? MapDetectionChannel(string channel)
+    {
+        return channel.ToLowerInvariant() switch
+        {
+            "social" => "Digital",
+            "search" => "Digital",
+            "billboards_ooh" => "OOH",
+            "radio" => "Radio",
+            _ => null
+        };
+    }
+}

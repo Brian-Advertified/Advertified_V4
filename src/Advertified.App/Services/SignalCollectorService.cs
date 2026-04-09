@@ -9,13 +9,16 @@ public sealed class SignalCollectorService : ISignalCollectorService
 {
     private readonly AppDbContext _db;
     private readonly IReadOnlyList<ILeadSignalEvidenceProvider> _evidenceProviders;
+    private readonly ILogger<SignalCollectorService> _logger;
 
     public SignalCollectorService(
         AppDbContext db,
-        IEnumerable<ILeadSignalEvidenceProvider> evidenceProviders)
+        IEnumerable<ILeadSignalEvidenceProvider> evidenceProviders,
+        ILogger<SignalCollectorService> logger)
     {
         _db = db;
         _evidenceProviders = evidenceProviders.ToList();
+        _logger = logger;
     }
 
     public async Task<Signal> CollectAsync(int leadId, CancellationToken cancellationToken)
@@ -24,17 +27,7 @@ public sealed class SignalCollectorService : ISignalCollectorService
             .FirstOrDefaultAsync(x => x.Id == leadId, cancellationToken)
             ?? throw new InvalidOperationException("Lead not found.");
 
-        var evidenceInputs = new List<LeadSignalEvidenceInput>();
-        foreach (var provider in _evidenceProviders)
-        {
-            var providerEvidence = await provider.CollectAsync(lead, cancellationToken);
-            if (providerEvidence.Count == 0)
-            {
-                continue;
-            }
-
-            evidenceInputs.AddRange(providerEvidence);
-        }
+        var evidenceInputs = await CollectEvidenceInputsAsync(lead, cancellationToken);
 
         var now = DateTime.UtcNow;
         var deduplicatedEvidence = evidenceInputs
@@ -96,5 +89,42 @@ public sealed class SignalCollectorService : ISignalCollectorService
         }
 
         return signal;
+    }
+
+    private async Task<List<LeadSignalEvidenceInput>> CollectEvidenceInputsAsync(Lead lead, CancellationToken cancellationToken)
+    {
+        if (_evidenceProviders.Count == 0)
+        {
+            return new List<LeadSignalEvidenceInput>();
+        }
+
+        var providerTasks = _evidenceProviders
+            .Select(provider => CollectProviderEvidenceSafeAsync(provider, lead, cancellationToken))
+            .ToArray();
+        var providerResults = await Task.WhenAll(providerTasks);
+
+        return providerResults
+            .SelectMany(items => items)
+            .ToList();
+    }
+
+    private async Task<IReadOnlyList<LeadSignalEvidenceInput>> CollectProviderEvidenceSafeAsync(
+        ILeadSignalEvidenceProvider provider,
+        Lead lead,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await provider.CollectAsync(lead, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Lead evidence provider {Provider} failed for lead {LeadId}.",
+                provider.GetType().Name,
+                lead.Id);
+            return Array.Empty<LeadSignalEvidenceInput>();
+        }
     }
 }

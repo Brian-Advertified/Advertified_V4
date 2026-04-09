@@ -205,6 +205,7 @@ public sealed class PlanningScoreService : IPlanningScoreService
         score += StrategyFitScore(candidate, request);
         score += AvailabilityScore(candidate);
         score += OohPriorityScore(candidate, request);
+        score += DistanceScore(candidate, request);
         score += MixTargetScore(candidate, request);
 
         if (candidate.MediaType.Equals("Radio", StringComparison.OrdinalIgnoreCase))
@@ -633,6 +634,55 @@ public sealed class PlanningScoreService : IPlanningScoreService
 
         return preferredOoh ? 30m : 18m;
     }
+
+    private static decimal DistanceScore(InventoryCandidate candidate, CampaignPlanningRequest request)
+    {
+        if (!candidate.MediaType.Equals("OOH", StringComparison.OrdinalIgnoreCase))
+        {
+            return 0m;
+        }
+
+        if (!candidate.Latitude.HasValue || !candidate.Longitude.HasValue)
+        {
+            return 0m;
+        }
+
+        if (!request.TargetLatitude.HasValue || !request.TargetLongitude.HasValue)
+        {
+            return 0m;
+        }
+
+        var distanceKm = HaversineDistanceKm(
+            request.TargetLatitude.Value,
+            request.TargetLongitude.Value,
+            candidate.Latitude.Value,
+            candidate.Longitude.Value);
+
+        return distanceKm switch
+        {
+            <= 5d => 14m,
+            <= 15d => 10m,
+            <= 30d => 7m,
+            <= 50d => 4m,
+            <= 80d => 2m,
+            _ => 0m
+        };
+    }
+
+    private static double HaversineDistanceKm(double startLatitude, double startLongitude, double endLatitude, double endLongitude)
+    {
+        const double earthRadiusKm = 6371d;
+        var latitudeDeltaRadians = ToRadians(endLatitude - startLatitude);
+        var longitudeDeltaRadians = ToRadians(endLongitude - startLongitude);
+
+        var a = Math.Sin(latitudeDeltaRadians / 2d) * Math.Sin(latitudeDeltaRadians / 2d)
+            + Math.Cos(ToRadians(startLatitude)) * Math.Cos(ToRadians(endLatitude))
+            * Math.Sin(longitudeDeltaRadians / 2d) * Math.Sin(longitudeDeltaRadians / 2d);
+        var c = 2d * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1d - a));
+        return earthRadiusKm * c;
+    }
+
+    private static double ToRadians(double degrees) => degrees * Math.PI / 180d;
 
     private static bool HasLsmOverlap(InventoryCandidate candidate, int requestMin, int requestMax)
     {

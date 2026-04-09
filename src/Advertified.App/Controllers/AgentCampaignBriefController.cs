@@ -28,6 +28,7 @@ public sealed class AgentCampaignBriefController : ControllerBase
     private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly ICampaignBriefService _campaignBriefService;
     private readonly ICampaignRecommendationService _campaignRecommendationService;
+    private readonly ILeadProposalConfidenceGateService _leadProposalConfidenceGateService;
     private readonly ICampaignBriefInterpretationService _campaignBriefInterpretationService;
     private readonly ITemplatedEmailService _emailService;
     private readonly IChangeAuditService _changeAuditService;
@@ -39,6 +40,7 @@ public sealed class AgentCampaignBriefController : ControllerBase
         ICurrentUserAccessor currentUserAccessor,
         ICampaignBriefService campaignBriefService,
         ICampaignRecommendationService campaignRecommendationService,
+        ILeadProposalConfidenceGateService leadProposalConfidenceGateService,
         ICampaignBriefInterpretationService campaignBriefInterpretationService,
         ITemplatedEmailService emailService,
         IChangeAuditService changeAuditService,
@@ -49,6 +51,7 @@ public sealed class AgentCampaignBriefController : ControllerBase
         _currentUserAccessor = currentUserAccessor;
         _campaignBriefService = campaignBriefService;
         _campaignRecommendationService = campaignRecommendationService;
+        _leadProposalConfidenceGateService = leadProposalConfidenceGateService;
         _campaignBriefInterpretationService = campaignBriefInterpretationService;
         _emailService = emailService;
         _changeAuditService = changeAuditService;
@@ -166,7 +169,12 @@ public sealed class AgentCampaignBriefController : ControllerBase
 
         try
         {
+            await _leadProposalConfidenceGateService.EnsureCampaignReadyAsync(id, cancellationToken);
             await _campaignRecommendationService.GenerateAndSaveAsync(id, request, cancellationToken);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { Message = ex.Message });
         }
         catch (ArgumentException ex)
         {

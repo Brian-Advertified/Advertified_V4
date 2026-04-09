@@ -63,7 +63,21 @@ public sealed class LeadPaidMediaEvidenceSyncWorker : BackgroundService
     {
         await using var scope = _scopeFactory.CreateAsyncScope();
         var service = scope.ServiceProvider.GetRequiredService<ILeadPaidMediaEvidenceSyncService>();
-        var processed = await service.SyncBatchAsync(cancellationToken);
-        _logger.LogInformation("Lead paid media evidence sync processed {ProcessedCount} leads.", processed);
+        var result = await service.SyncBatchAsync(cancellationToken);
+        if (result.Skipped)
+        {
+            _logger.LogInformation(
+                "Lead paid media evidence sync skipped. Reason: {Reason}. Enabled providers: {Providers}",
+                result.SkipReason ?? "n/a",
+                result.EnabledProviders.Count > 0 ? string.Join(", ", result.EnabledProviders) : "none");
+            return;
+        }
+
+        _logger.LogInformation(
+            "Lead paid media evidence sync processed {ProcessedCount}/{TotalCount} leads with {FailedCount} failures and {EvidenceCount} evidence rows.",
+            result.ProcessedLeadCount,
+            result.TotalLeadCount,
+            result.FailedLeadCount,
+            result.EvidenceRowCount);
     }
 }

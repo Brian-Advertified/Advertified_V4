@@ -12,10 +12,17 @@ public sealed class LeadSourceIngestionService : ILeadSourceIngestionService
     private static readonly Regex MultiWhitespaceRegex = new(@"\s+", RegexOptions.Compiled);
 
     private readonly AppDbContext _db;
+    private readonly IGeocodingService _geocodingService;
 
-    public LeadSourceIngestionService(AppDbContext db)
+    public LeadSourceIngestionService(AppDbContext db, IGeocodingService geocodingService)
     {
         _db = db;
+        _geocodingService = geocodingService;
+    }
+
+    public LeadSourceIngestionService(AppDbContext db)
+        : this(db, new NoOpGeocodingService())
+    {
     }
 
     public async Task<LeadSourceIngestionResult> IngestAsync(
@@ -48,11 +55,15 @@ public sealed class LeadSourceIngestionService : ILeadSourceIngestionService
             var normalizedSource = NormalizeText(item.Source);
             var normalizedSourceReference = TrimToNull(item.SourceReference);
             var now = DateTime.UtcNow;
+            var geocodedLocation = _geocodingService.ResolveLocation(normalizedLocation);
+            var canonicalLocation = geocodedLocation.IsResolved && !string.IsNullOrWhiteSpace(geocodedLocation.CanonicalLocation)
+                ? geocodedLocation.CanonicalLocation
+                : normalizedLocation;
 
             var existingLead = await FindExistingLeadAsync(
                 normalizedWebsite,
                 normalizedName,
-                normalizedLocation,
+                canonicalLocation,
                 normalizedSource,
                 normalizedSourceReference,
                 cancellationToken);
@@ -63,11 +74,13 @@ public sealed class LeadSourceIngestionService : ILeadSourceIngestionService
                 {
                     Name = normalizedName,
                     Website = normalizedWebsite,
-                    Location = normalizedLocation,
+                    Location = canonicalLocation,
                     Category = normalizedCategory,
                     Source = normalizedSource,
                     SourceReference = normalizedSourceReference,
                     LastDiscoveredAt = now,
+                    Latitude = geocodedLocation.Latitude,
+                    Longitude = geocodedLocation.Longitude,
                 };
 
                 _db.Leads.Add(existingLead);
@@ -77,11 +90,16 @@ public sealed class LeadSourceIngestionService : ILeadSourceIngestionService
             {
                 existingLead.Name = normalizedName;
                 existingLead.Website ??= normalizedWebsite;
-                existingLead.Location = normalizedLocation;
+                existingLead.Location = canonicalLocation;
                 existingLead.Category = normalizedCategory;
                 existingLead.Source = normalizedSource;
                 existingLead.SourceReference ??= normalizedSourceReference;
                 existingLead.LastDiscoveredAt = now;
+                if (geocodedLocation.IsResolved)
+                {
+                    existingLead.Latitude = geocodedLocation.Latitude;
+                    existingLead.Longitude = geocodedLocation.Longitude;
+                }
                 updatedCount++;
             }
 
@@ -203,5 +221,28 @@ public sealed class LeadSourceIngestionService : ILeadSourceIngestionService
     private static string? TrimToNull(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+
+    private sealed class NoOpGeocodingService : IGeocodingService
+    {
+        public GeocodingResolution ResolveLocation(string? rawLocation)
+        {
+            return new GeocodingResolution
+            {
+                IsResolved = false,
+                CanonicalLocation = rawLocation?.Trim() ?? string.Empty,
+                Source = "none"
+            };
+        }
+
+        public GeocodingResolution ResolveCampaignTarget(Contracts.Campaigns.CampaignPlanningRequest request)
+        {
+            return new GeocodingResolution
+            {
+                IsResolved = false,
+                CanonicalLocation = string.Empty,
+                Source = "none"
+            };
+        }
     }
 }

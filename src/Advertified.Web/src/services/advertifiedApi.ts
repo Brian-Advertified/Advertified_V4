@@ -31,8 +31,14 @@ import type {
   LeadActionInbox,
   LeadActionInboxItem,
   LeadChannelDetection,
+  LeadIndustryPolicy,
+  LeadOpportunityProfile,
+  LeadStrategy,
+  LeadEnrichmentSnapshot,
   LeadSourceAutomationRunResult,
   LeadSourceAutomationStatus,
+  LeadPaidMediaSyncRun,
+  LeadPaidMediaSyncStatus,
   LeadInteraction,
   LeadInsightSnapshot,
   LeadIntelligence,
@@ -549,9 +555,12 @@ type LeadResponse = {
   name: string;
   website?: string | null;
   location: string;
+  latitude?: number | null;
+  longitude?: number | null;
   category: string;
   source: string;
   sourceReference?: string | null;
+  autoInferredFields?: string[] | null;
   lastDiscoveredAt?: string | null;
   createdAt: string;
 };
@@ -638,6 +647,26 @@ type LeadSourceAutomationRunResultResponse = {
   analyzedLeadCount: number;
 };
 
+type LeadPaidMediaSyncRunResponse = {
+  startedAtUtc: string;
+  finishedAtUtc: string;
+  skipped: boolean;
+  skipReason?: string | null;
+  totalLeadCount: number;
+  processedLeadCount: number;
+  failedLeadCount: number;
+  evidenceRowCount: number;
+  enabledProviders?: string[] | null;
+  providerEvidenceCounts: Record<string, number>;
+};
+
+type LeadPaidMediaSyncStatusResponse = {
+  enabled: boolean;
+  batchSize: number;
+  intervalMinutes: number;
+  lastRun?: LeadPaidMediaSyncRunResponse | null;
+};
+
 type LeadInteractionResponse = {
   id: number;
   leadId: number;
@@ -679,6 +708,73 @@ type LeadIntelligenceResponse = {
   insightHistory?: LeadInsightResponse[];
   recommendedActions?: LeadActionResponse[];
   interactionHistory?: LeadInteractionResponse[];
+  industryPolicy: LeadIndustryPolicyResponse;
+  opportunityProfile: LeadOpportunityProfileResponse;
+  enrichment?: LeadEnrichmentSnapshotResponse;
+  strategy?: LeadStrategyResponse;
+};
+
+type LeadIndustryPolicyResponse = {
+  key: string;
+  name: string;
+  objectiveOverride?: string | null;
+  preferredTone?: string | null;
+  preferredChannels: string[];
+  cta: string;
+  messagingAngle: string;
+  guardrails: string[];
+  additionalGap: string;
+  additionalOutcome: string;
+};
+
+type LeadOpportunityProfileResponse = {
+  key: string;
+  name: string;
+  suggestedCampaignType: string;
+  detectedGaps: string[];
+  expectedOutcome: string;
+  recommendedChannels: string[];
+  whyActNow: string;
+};
+
+type LeadStrategyChannelResponse = {
+  channel: string;
+  budgetSharePercent: number;
+  reason: string;
+};
+
+type LeadStrategyResponse = {
+  archetype: string;
+  objective: string;
+  channels: LeadStrategyChannelResponse[];
+  geoTargets: string[];
+  timing: string;
+  rationale: string;
+};
+
+type LeadEnrichmentFieldResponse = {
+  key: string;
+  label: string;
+  value: string;
+  confidence: string;
+  source: string;
+  reason: string;
+  required: boolean;
+};
+
+type LeadConfidenceGateResponse = {
+  isBlocked: boolean;
+  requiredFields: string[];
+  missingRequiredFields: string[];
+  message: string;
+};
+
+type LeadEnrichmentSnapshotResponse = {
+  fields: LeadEnrichmentFieldResponse[];
+  confidenceGate: LeadConfidenceGateResponse;
+  confidenceScore: number;
+  missingFields: string[];
+  generatedAtUtc: string;
 };
 
 type CreativeSystemResponse = CreativeSystem;
@@ -688,9 +784,12 @@ function mapLead(response: LeadResponse): Lead {
     name: response.name,
     website: response.website ?? undefined,
     location: response.location,
+    latitude: response.latitude ?? undefined,
+    longitude: response.longitude ?? undefined,
     category: response.category,
     source: response.source,
     sourceReference: response.sourceReference ?? undefined,
+    autoInferredFields: response.autoInferredFields ?? [],
     lastDiscoveredAt: response.lastDiscoveredAt ?? undefined,
     createdAt: response.createdAt,
   };
@@ -777,6 +876,101 @@ function mapLeadIntelligence(response: LeadIntelligenceResponse): LeadIntelligen
       notes: interaction.notes,
       createdAt: interaction.createdAt,
     })),
+    industryPolicy: mapLeadIndustryPolicy(response.industryPolicy),
+    opportunityProfile: mapLeadOpportunityProfile(response.opportunityProfile),
+    enrichment: mapLeadEnrichmentSnapshot(response.enrichment),
+    strategy: mapLeadStrategy(response.strategy),
+  };
+}
+
+function mapLeadEnrichmentSnapshot(response?: LeadEnrichmentSnapshotResponse): LeadEnrichmentSnapshot {
+  if (!response) {
+    return {
+      fields: [],
+      confidenceGate: {
+        isBlocked: true,
+        requiredFields: ['Location', 'Industry', 'Channel activity'],
+        missingRequiredFields: ['Location', 'Industry', 'Channel activity'],
+        message: 'Recommendation halted. Lead enrichment snapshot is missing.',
+      },
+      confidenceScore: 0,
+      missingFields: ['Location', 'Industry', 'Channel activity'],
+      generatedAtUtc: new Date().toISOString(),
+    };
+  }
+
+  return {
+    fields: (response.fields ?? []).map((field) => ({
+      key: field.key,
+      label: field.label,
+      value: field.value,
+      confidence: field.confidence,
+      source: field.source,
+      reason: field.reason,
+      required: field.required,
+    })),
+    confidenceGate: {
+      isBlocked: response.confidenceGate?.isBlocked ?? false,
+      requiredFields: response.confidenceGate?.requiredFields ?? [],
+      missingRequiredFields: response.confidenceGate?.missingRequiredFields ?? [],
+      message: response.confidenceGate?.message ?? '',
+    },
+    confidenceScore: response.confidenceScore ?? 0,
+    missingFields: response.missingFields ?? [],
+    generatedAtUtc: response.generatedAtUtc,
+  };
+}
+
+function mapLeadIndustryPolicy(response: LeadIndustryPolicyResponse): LeadIndustryPolicy {
+  return {
+    key: response.key,
+    name: response.name,
+    objectiveOverride: response.objectiveOverride ?? undefined,
+    preferredTone: response.preferredTone ?? undefined,
+    preferredChannels: response.preferredChannels ?? [],
+    cta: response.cta,
+    messagingAngle: response.messagingAngle,
+    guardrails: response.guardrails ?? [],
+    additionalGap: response.additionalGap,
+    additionalOutcome: response.additionalOutcome,
+  };
+}
+
+function mapLeadOpportunityProfile(response: LeadOpportunityProfileResponse): LeadOpportunityProfile {
+  return {
+    key: response.key,
+    name: response.name,
+    suggestedCampaignType: response.suggestedCampaignType,
+    detectedGaps: response.detectedGaps ?? [],
+    expectedOutcome: response.expectedOutcome,
+    recommendedChannels: response.recommendedChannels ?? [],
+    whyActNow: response.whyActNow,
+  };
+}
+
+function mapLeadStrategy(response?: LeadStrategyResponse): LeadStrategy {
+  if (!response) {
+    return {
+      archetype: '',
+      objective: '',
+      channels: [],
+      geoTargets: [],
+      timing: '',
+      rationale: '',
+    };
+  }
+
+  return {
+    archetype: response.archetype,
+    objective: response.objective,
+    channels: (response.channels ?? []).map((channel) => ({
+      channel: channel.channel,
+      budgetSharePercent: channel.budgetSharePercent,
+      reason: channel.reason,
+    })),
+    geoTargets: response.geoTargets ?? [],
+    timing: response.timing,
+    rationale: response.rationale,
   };
 }
 
@@ -843,6 +1037,30 @@ function mapLeadSourceAutomationRunResult(response: LeadSourceAutomationRunResul
     failedFileCount: response.failedFileCount,
     importedLeadCount: response.importedLeadCount,
     analyzedLeadCount: response.analyzedLeadCount,
+  };
+}
+
+function mapLeadPaidMediaSyncRun(response: LeadPaidMediaSyncRunResponse): LeadPaidMediaSyncRun {
+  return {
+    startedAtUtc: response.startedAtUtc,
+    finishedAtUtc: response.finishedAtUtc,
+    skipped: response.skipped,
+    skipReason: response.skipReason ?? undefined,
+    totalLeadCount: response.totalLeadCount,
+    processedLeadCount: response.processedLeadCount,
+    failedLeadCount: response.failedLeadCount,
+    evidenceRowCount: response.evidenceRowCount,
+    enabledProviders: response.enabledProviders ?? [],
+    providerEvidenceCounts: response.providerEvidenceCounts ?? {},
+  };
+}
+
+function mapLeadPaidMediaSyncStatus(response: LeadPaidMediaSyncStatusResponse): LeadPaidMediaSyncStatus {
+  return {
+    enabled: response.enabled,
+    batchSize: response.batchSize,
+    intervalMinutes: response.intervalMinutes,
+    lastRun: response.lastRun ? mapLeadPaidMediaSyncRun(response.lastRun) : undefined,
   };
 }
 
@@ -1725,6 +1943,34 @@ export const advertifiedApi = {
     const response = await apiRequest<LeadIntelligenceResponse>(`/leads/${encodeURIComponent(String(leadId))}/intelligence`);
     return mapLeadIntelligence(response);
   },
+  async trackPublicLeadProposalEngagement(input: {
+    campaignId: string;
+    token: string;
+    eventType: 'page_view' | 'reply_click' | 'download_pdf_click' | 'callback_click';
+    context?: string;
+    pageUrl?: string;
+    userAgent?: string;
+  }) {
+    return apiRequest<{ campaignId: string; eventType: string; message: string }>(
+      `/public/proposals/${encodeURIComponent(input.campaignId)}/lead-engagement`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          token: input.token,
+          eventType: input.eventType,
+          context: input.context,
+          pageUrl: input.pageUrl,
+          userAgent: input.userAgent,
+        }),
+      });
+  },
+  async resolveLeadIndustryPolicy(category?: string) {
+    const query = category?.trim()
+      ? `?category=${encodeURIComponent(category.trim())}`
+      : '';
+    const response = await apiRequest<LeadIndustryPolicyResponse>(`/leads/industry-policy/resolve${query}`);
+    return mapLeadIndustryPolicy(response);
+  },
   async getLeadActionInbox() {
     const response = await apiRequest<LeadActionInboxResponse>('/agent/lead-actions/inbox');
     return mapLeadActionInbox(response);
@@ -1739,7 +1985,17 @@ export const advertifiedApi = {
     });
     return mapLeadSourceAutomationRunResult(response);
   },
-  async createLead(input: { name: string; website?: string; location: string; category: string }) {
+  async getLeadPaidMediaSyncStatus() {
+    const response = await apiRequest<LeadPaidMediaSyncStatusResponse>('/leads/paid-media-sync/status');
+    return mapLeadPaidMediaSyncStatus(response);
+  },
+  async runLeadPaidMediaSyncNow() {
+    const response = await apiRequest<LeadPaidMediaSyncRunResponse>('/leads/paid-media-sync/run-now', {
+      method: 'POST',
+    });
+    return mapLeadPaidMediaSyncRun(response);
+  },
+  async createLead(input: { name: string; website?: string; location?: string; category?: string }) {
     const response = await apiRequest<LeadResponse>('/leads', {
       method: 'POST',
       body: JSON.stringify(input),

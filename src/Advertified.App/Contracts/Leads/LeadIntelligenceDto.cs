@@ -21,4 +21,14 @@ public sealed class LeadIntelligenceDto
     public IReadOnlyList<LeadActionDto> RecommendedActions { get; init; } = Array.Empty<LeadActionDto>();
 
     public IReadOnlyList<LeadInteractionDto> InteractionHistory { get; init; } = Array.Empty<LeadInteractionDto>();
+
+    public LeadIndustryPolicyDto IndustryPolicy { get; init; } = new();
+
+    public LeadOpportunityProfileDto OpportunityProfile { get; init; } = new();
+
+    public LeadEnrichmentSnapshotDto Enrichment { get; init; } = new();
+
+    public LeadBusinessProfileDto BusinessProfile { get; init; } = new();
+
+    public LeadStrategyDto Strategy { get; init; } = new();
 }

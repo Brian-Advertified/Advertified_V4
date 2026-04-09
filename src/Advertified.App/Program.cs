@@ -37,6 +37,7 @@ builder.Services.Configure<UpstashRedisOptions>(builder.Configuration.GetSection
 builder.Services.Configure<VodaPayOptions>(builder.Configuration.GetSection(VodaPayOptions.SectionName));
 builder.Services.Configure<PlanningPolicyOptions>(builder.Configuration.GetSection(PlanningPolicyOptions.SectionName));
 builder.Services.Configure<LeadScoringOptions>(builder.Configuration.GetSection(LeadScoringOptions.SectionName));
+builder.Services.Configure<LeadIndustryPolicyOptions>(builder.Configuration.GetSection(LeadIndustryPolicyOptions.SectionName));
 builder.Services.Configure<LeadIntelligenceAutomationOptions>(builder.Configuration.GetSection(LeadIntelligenceAutomationOptions.SectionName));
 builder.Services.Configure<LeadSourceDropFolderOptions>(builder.Configuration.GetSection(LeadSourceDropFolderOptions.SectionName));
 builder.Services.Configure<OpenAIOptions>(builder.Configuration.GetSection(OpenAIOptions.SectionName));
@@ -187,6 +188,14 @@ builder.Services.AddScoped<ILeadIntelligenceOrchestrator, LeadIntelligenceOrches
 builder.Services.AddScoped<ILeadActionRecommendationService, LeadActionRecommendationService>();
 builder.Services.AddScoped<ILeadSourceAutomationStatusService, LeadSourceAutomationStatusService>();
 builder.Services.AddScoped<ILeadChannelDetectionService, LeadChannelDetectionService>();
+builder.Services.AddScoped<ILeadMasterDataService, LeadMasterDataService>();
+builder.Services.AddScoped<IGeocodingService, GeocodingService>();
+builder.Services.AddScoped<ILeadIndustryPolicyService, LeadIndustryPolicyService>();
+builder.Services.AddScoped<ILeadOpportunityProfileService, LeadOpportunityProfileService>();
+builder.Services.AddScoped<ILeadEnrichmentSnapshotService, LeadEnrichmentSnapshotService>();
+builder.Services.AddScoped<ILeadBusinessProfileService, LeadBusinessProfileService>();
+builder.Services.AddScoped<ILeadStrategyEngine, LeadStrategyEngine>();
+builder.Services.AddScoped<ILeadProposalConfidenceGateService, LeadProposalConfidenceGateService>();
 builder.Services.AddScoped<ILeadScoreService, LeadScoreService>();
 builder.Services.AddScoped<ILeadSourceDropFolderProcessor, LeadSourceDropFolderProcessor>();
 builder.Services.AddScoped<ILeadSourceIngestionService, LeadSourceIngestionService>();

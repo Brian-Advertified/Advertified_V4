@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowRight, Download, Mail } from 'lucide-react';
 import { Navigate, useParams, useSearchParams } from 'react-router-dom';
@@ -65,12 +66,44 @@ export function LeadProposalEntryPage() {
     ?? 'your market';
 
   const mailtoLink = `mailto:${supportEmail}?subject=${encodeURIComponent(`Growth options for ${campaign.campaignName}`)}`;
+  const hasTrackedViewRef = useRef(false);
+
+  function trackLeadEngagement(eventType: 'page_view' | 'reply_click' | 'download_pdf_click' | 'callback_click', context: string) {
+    return advertifiedApi.trackPublicLeadProposalEngagement({
+      campaignId: id,
+      token,
+      eventType,
+      context,
+      pageUrl: typeof window !== 'undefined' ? window.location.href : undefined,
+      userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
+    });
+  }
+
+  useEffect(() => {
+    if (!id || !token || hasTrackedViewRef.current || !proposalQuery.data) {
+      return;
+    }
+
+    hasTrackedViewRef.current = true;
+    void trackLeadEngagement('page_view', 'lead_proposal_page_loaded');
+  }, [id, token, proposalQuery.data]);
 
   async function handleDownloadPdf() {
+    void trackLeadEngagement('download_pdf_click', 'lead_proposal_download_pdf');
     await advertifiedApi.downloadPublicFile(
       `/public/proposals/${encodeURIComponent(id)}/recommendation-pdf?token=${encodeURIComponent(token)}`,
       `growth-opportunity-${id}.pdf`,
     );
+  }
+
+  function handleReplyClick() {
+    void trackLeadEngagement('reply_click', 'lead_proposal_reply_to_advertified');
+    window.location.href = mailtoLink;
+  }
+
+  function handleCallbackClick() {
+    void trackLeadEngagement('callback_click', 'lead_proposal_request_callback');
+    window.location.href = mailtoLink;
   }
 
   return (
@@ -136,13 +169,14 @@ export function LeadProposalEntryPage() {
             Reply and we will walk you through the options in 15 minutes. Campaigns can be launched with buy now, pay later.
           </p>
           <div className="mt-5 space-y-3">
-            <a
-              href={mailtoLink}
+            <button
+              type="button"
+              onClick={handleReplyClick}
               className="button-primary flex w-full items-center justify-center gap-2 px-5 py-3"
             >
               Reply to Advertified
               <Mail className="size-4" />
-            </a>
+            </button>
             <button
               type="button"
               onClick={() => void handleDownloadPdf()}
@@ -151,13 +185,14 @@ export function LeadProposalEntryPage() {
               Download PDF snapshot
               <Download className="size-4" />
             </button>
-            <a
-              href={mailtoLink}
+            <button
+              type="button"
+              onClick={handleCallbackClick}
               className="user-btn-secondary flex w-full items-center justify-center gap-2 px-5 py-3 text-sm"
             >
               Ask for a callback
               <ArrowRight className="size-4" />
-            </a>
+            </button>
           </div>
         </aside>
       </div>

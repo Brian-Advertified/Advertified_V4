@@ -50,6 +50,8 @@ public sealed class CampaignPlanningRequestSnapshot
     public int? TargetOohShare { get; set; }
     public int? TargetTvShare { get; set; }
     public int? TargetDigitalShare { get; set; }
+    public double? TargetLatitude { get; set; }
+    public double? TargetLongitude { get; set; }
 }
 
 public sealed class RecommendationTraceCount

@@ -21,6 +21,10 @@ public class Lead
 
     public DateTime? LastDiscoveredAt { get; set; }
 
+    public double? Latitude { get; set; }
+
+    public double? Longitude { get; set; }
+
     public DateTime CreatedAt { get; set; }
 
     public virtual ICollection<LeadAction> Actions { get; set; } = new List<LeadAction>();

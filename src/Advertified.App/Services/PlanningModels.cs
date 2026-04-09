@@ -49,6 +49,8 @@ public sealed class OohPlanningInventoryRow
     public int? MonthlyListenership { get; set; }
     public bool IsFlagshipStation { get; set; }
     public bool IsPremiumStation { get; set; }
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
     public string? MetadataJson { get; set; }
 }
 

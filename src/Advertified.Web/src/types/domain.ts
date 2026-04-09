@@ -639,9 +639,12 @@ export interface Lead {
   name: string;
   website?: string;
   location: string;
+  latitude?: number;
+  longitude?: number;
   category: string;
   source: string;
   sourceReference?: string;
+  autoInferredFields?: string[];
   lastDiscoveredAt?: string;
   createdAt: string;
 }
@@ -728,6 +731,26 @@ export interface LeadSourceAutomationRunResult {
   analyzedLeadCount: number;
 }
 
+export interface LeadPaidMediaSyncRun {
+  startedAtUtc: string;
+  finishedAtUtc: string;
+  skipped: boolean;
+  skipReason?: string;
+  totalLeadCount: number;
+  processedLeadCount: number;
+  failedLeadCount: number;
+  evidenceRowCount: number;
+  enabledProviders: string[];
+  providerEvidenceCounts: Record<string, number>;
+}
+
+export interface LeadPaidMediaSyncStatus {
+  enabled: boolean;
+  batchSize: number;
+  intervalMinutes: number;
+  lastRun?: LeadPaidMediaSyncRun;
+}
+
 export interface LeadChannelSignal {
   type: string;
   source: string;
@@ -758,6 +781,69 @@ export interface LeadInteraction {
   createdAt: string;
 }
 
+export interface LeadIndustryPolicy {
+  key: string;
+  name: string;
+  objectiveOverride?: string;
+  preferredTone?: string;
+  preferredChannels: string[];
+  cta: string;
+  messagingAngle: string;
+  guardrails: string[];
+  additionalGap: string;
+  additionalOutcome: string;
+}
+
+export interface LeadOpportunityProfile {
+  key: string;
+  name: string;
+  suggestedCampaignType: string;
+  detectedGaps: string[];
+  expectedOutcome: string;
+  recommendedChannels: string[];
+  whyActNow: string;
+}
+
+export interface LeadStrategyChannel {
+  channel: string;
+  budgetSharePercent: number;
+  reason: string;
+}
+
+export interface LeadStrategy {
+  archetype: string;
+  objective: string;
+  channels: LeadStrategyChannel[];
+  geoTargets: string[];
+  timing: string;
+  rationale: string;
+}
+
+export interface LeadEnrichmentField {
+  key: string;
+  label: string;
+  value: string;
+  confidence: 'detected' | 'inferred' | 'unknown' | string;
+  source: string;
+  reason: string;
+  required: boolean;
+}
+
+export interface LeadConfidenceGate {
+  isBlocked: boolean;
+  requiredFields: string[];
+  missingRequiredFields: string[];
+  message: string;
+}
+
+export interface LeadEnrichmentSnapshot {
+  fields: LeadEnrichmentField[];
+  confidenceGate: LeadConfidenceGate;
+  confidenceScore: number;
+  missingFields: string[];
+  generatedAtUtc: string;
+}
+
 export interface LeadIntelligence {
   lead: Lead;
   latestSignal?: LeadSignal;
@@ -769,6 +855,10 @@ export interface LeadIntelligence {
   insightHistory: LeadInsightSnapshot[];
   recommendedActions: LeadAction[];
   interactionHistory: LeadInteraction[];
+  industryPolicy: LeadIndustryPolicy;
+  opportunityProfile: LeadOpportunityProfile;
+  enrichment: LeadEnrichmentSnapshot;
+  strategy: LeadStrategy;
 }
 
 export interface AdminUser {

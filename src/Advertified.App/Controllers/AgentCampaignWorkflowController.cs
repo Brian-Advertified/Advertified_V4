@@ -35,6 +35,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
     private readonly ITemplatedEmailService _emailService;
     private readonly IChangeAuditService _changeAuditService;
     private readonly IRecommendationDocumentService _recommendationDocumentService;
+    private readonly ILeadProposalConfidenceGateService _leadProposalConfidenceGateService;
     private readonly IProposalAccessTokenService _proposalAccessTokenService;
     private readonly ICampaignExecutionTaskService _campaignExecutionTaskService;
     private readonly FrontendOptions _frontendOptions;
@@ -48,6 +49,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
         ITemplatedEmailService emailService,
         IChangeAuditService changeAuditService,
         IRecommendationDocumentService recommendationDocumentService,
+        ILeadProposalConfidenceGateService leadProposalConfidenceGateService,
         IProposalAccessTokenService proposalAccessTokenService,
         ICampaignExecutionTaskService campaignExecutionTaskService,
         IOptions<FrontendOptions> frontendOptions,
@@ -60,6 +62,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
         _emailService = emailService;
         _changeAuditService = changeAuditService;
         _recommendationDocumentService = recommendationDocumentService;
+        _leadProposalConfidenceGateService = leadProposalConfidenceGateService;
         _proposalAccessTokenService = proposalAccessTokenService;
         _campaignExecutionTaskService = campaignExecutionTaskService;
         _frontendOptions = frontendOptions.Value;
@@ -281,6 +284,19 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
         if (currentRecommendations.Length == 0)
         {
             throw new InvalidOperationException("Recommendation not found.");
+        }
+
+        var useLeadTemplate = ShouldUseLeadOutreachMessage(campaign);
+        if (useLeadTemplate)
+        {
+            try
+            {
+                await _leadProposalConfidenceGateService.EnsureCampaignReadyAsync(campaign.Id, cancellationToken);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
         }
 
         if (campaign.Status is CampaignStatuses.Approved
@@ -758,25 +774,8 @@ If useful, we can walk you through it in a quick 15-minute call — no commitmen
 
     private static bool ShouldUseLeadOutreachMessage(Campaign campaign)
     {
-        if (IsProspectiveCampaign(campaign))
-        {
-            return true;
-        }
-
-        if (campaign.ProspectLeadId.HasValue || campaign.PackageOrder?.ProspectLeadId.HasValue == true)
-        {
-            return true;
-        }
-
-        var notes = campaign.CampaignBrief?.SpecialRequirements ?? campaign.CampaignBrief?.CreativeNotes;
-        if (string.IsNullOrWhiteSpace(notes))
-        {
-            return false;
-        }
-
-        return notes.Contains("Why you are receiving this:", StringComparison.OrdinalIgnoreCase)
-            || notes.Contains("Archetype:", StringComparison.OrdinalIgnoreCase)
-            || notes.Contains("Lead intelligence summary:", StringComparison.OrdinalIgnoreCase);
+        return IsProspectiveCampaign(campaign)
+            || LeadOutreachCampaignSupport.IsLeadOutreachCampaign(campaign);
     }
 
     private string BuildProposalAcceptButtonsBlock(Guid campaignId, IReadOnlyList<CampaignRecommendation> recommendations)

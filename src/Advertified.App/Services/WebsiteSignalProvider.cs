@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using System.Net;
 using Advertified.App.Services.Abstractions;
 
 namespace Advertified.App.Services;
@@ -48,12 +49,41 @@ public sealed partial class WebsiteSignalProvider : IWebsiteSignalProvider
         "tiktok pixel",
         "ttq.track"
     };
+    private static readonly string[] AudienceTokens = new[]
+    {
+        "families",
+        "professionals",
+        "students",
+        "parents",
+        "small business owners",
+        "smes",
+        "entrepreneurs",
+        "homeowners",
+        "commuters",
+        "youth"
+    };
+    private static readonly string[] GenderTokens = new[]
+    {
+        "women",
+        "female",
+        "ladies",
+        "men",
+        "male",
+        "gents"
+    };
 
     private readonly HttpClient _httpClient;
+    private readonly ILeadMasterDataService _leadMasterDataService;
 
-    public WebsiteSignalProvider(HttpClient httpClient)
+    public WebsiteSignalProvider(HttpClient httpClient, ILeadMasterDataService leadMasterDataService)
     {
         _httpClient = httpClient;
+        _leadMasterDataService = leadMasterDataService;
+    }
+
+    public WebsiteSignalProvider(HttpClient httpClient)
+        : this(httpClient, new FallbackLeadMasterDataService())
+    {
     }
 
     public async Task<WebsiteSignalResult> CollectAsync(string? websiteUrl, CancellationToken cancellationToken)
@@ -75,13 +105,13 @@ public sealed partial class WebsiteSignalProvider : IWebsiteSignalProvider
             using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
-                return BuildResult(string.Empty, response.Headers.Date?.UtcDateTime, null);
+                return BuildResult(string.Empty, response.Headers.Date?.UtcDateTime, null, _leadMasterDataService.GetTokenSet());
             }
 
             var content = await response.Content.ReadAsStringAsync(cancellationToken);
             var lastModified = response.Content.Headers.LastModified?.UtcDateTime;
 
-            return BuildResult(content, lastModified, websiteUri);
+            return BuildResult(content, lastModified, websiteUri, _leadMasterDataService.GetTokenSet());
         }
         catch (HttpRequestException)
         {
@@ -93,7 +123,11 @@ public sealed partial class WebsiteSignalProvider : IWebsiteSignalProvider
         }
     }
 
-    private static WebsiteSignalResult BuildResult(string content, DateTime? lastModifiedUtc, Uri? websiteUri)
+    private static WebsiteSignalResult BuildResult(
+        string content,
+        DateTime? lastModifiedUtc,
+        Uri? websiteUri,
+        LeadMasterTokenSet tokenSet)
     {
         var lowered = content.ToLowerInvariant();
         var hasPromoKeyword = PromoKeywords.Any(keyword => ContainsWholeWord(lowered, keyword))
@@ -106,6 +140,14 @@ public sealed partial class WebsiteSignalProvider : IWebsiteSignalProvider
             || MetaPixelRegex().IsMatch(content);
         var hasLinkedInAdsTag = LinkedInAdMarkers.Any(marker => lowered.Contains(marker, StringComparison.OrdinalIgnoreCase));
         var hasTikTokAdsTag = TikTokAdMarkers.Any(marker => lowered.Contains(marker, StringComparison.OrdinalIgnoreCase));
+        var title = TryExtractTitle(content);
+        var metaSummary = BuildMetaSummary(content);
+        var extractionCorpus = $"{title} {metaSummary} {StripHtml(content)}".ToLowerInvariant();
+        var locationHints = ExtractHints(extractionCorpus, tokenSet.LocationTokens);
+        var industryHints = ExtractHints(extractionCorpus, tokenSet.IndustryTokens);
+        var languageHints = ExtractLanguageHints(content, extractionCorpus, tokenSet.LanguageTokens);
+        var audienceHints = ExtractHints(extractionCorpus, AudienceTokens);
+        var genderHints = ExtractHints(extractionCorpus, GenderTokens);
         // Only trust explicit document freshness metadata. Date headers are often request-time echoes.
         var updatedRecently = lastModifiedUtc.HasValue && lastModifiedUtc.Value >= DateTime.UtcNow.AddDays(-30);
 
@@ -122,7 +164,13 @@ public sealed partial class WebsiteSignalProvider : IWebsiteSignalProvider
             HasLinkedInAdsTag = hasLinkedInAdsTag,
             HasTikTokAdsTag = hasTikTokAdsTag,
             SourceUrl = websiteUri?.ToString(),
-            LastObservedAtUtc = DateTime.UtcNow
+            LastObservedAtUtc = DateTime.UtcNow,
+            ExtractedTitle = title,
+            LocationHints = locationHints,
+            IndustryHints = industryHints,
+            LanguageHints = languageHints,
+            AudienceHints = audienceHints,
+            GenderHints = genderHints
         };
     }
 
@@ -151,5 +199,105 @@ public sealed partial class WebsiteSignalProvider : IWebsiteSignalProvider
         var escaped = Regex.Escape(token.Trim());
         var regex = new Regex($@"\b{escaped}\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         return regex.IsMatch(source);
+    }
+
+    private static IReadOnlyList<string> ExtractHints(string source, IReadOnlyList<string> tokens)
+    {
+        return tokens
+            .Where(token => ContainsWholeWord(source, token))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static string? TryExtractTitle(string content)
+    {
+        var match = Regex.Match(content, "<title>(.*?)</title>", RegexOptions.IgnoreCase | RegexOptions.Singleline);
+        if (!match.Success)
+        {
+            return null;
+        }
+
+        var value = WebUtility.HtmlDecode(match.Groups[1].Value).Trim();
+        return string.IsNullOrWhiteSpace(value) ? null : value;
+    }
+
+    private static string BuildMetaSummary(string content)
+    {
+        var matches = Regex.Matches(
+            content,
+            "<meta\\s+[^>]*(name|property)\\s*=\\s*[\"'](?:description|keywords|og:description|og:title|og:locale)[\"'][^>]*content\\s*=\\s*[\"']([^\"']+)[\"'][^>]*>",
+            RegexOptions.IgnoreCase | RegexOptions.Singleline);
+
+        if (matches.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        return string.Join(" ", matches
+            .Select(match => WebUtility.HtmlDecode(match.Groups[2].Value).Trim())
+            .Where(value => !string.IsNullOrWhiteSpace(value)));
+    }
+
+    private static string StripHtml(string content)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            return string.Empty;
+        }
+
+        var withoutScripts = Regex.Replace(
+            content,
+            "<script\\b[^<]*(?:(?!<\\/script>)<[^<]*)*<\\/script>",
+            " ",
+            RegexOptions.IgnoreCase | RegexOptions.Singleline);
+        var withoutStyles = Regex.Replace(
+            withoutScripts,
+            "<style\\b[^<]*(?:(?!<\\/style>)<[^<]*)*<\\/style>",
+            " ",
+            RegexOptions.IgnoreCase | RegexOptions.Singleline);
+        var text = Regex.Replace(withoutStyles, "<[^>]+>", " ");
+        return WebUtility.HtmlDecode(text);
+    }
+
+    private static IReadOnlyList<string> ExtractLanguageHints(
+        string content,
+        string extractionCorpus,
+        IReadOnlyList<string> languageTokens)
+    {
+        var hints = new HashSet<string>(ExtractHints(extractionCorpus, languageTokens), StringComparer.OrdinalIgnoreCase);
+
+        var htmlLanguageMatch = Regex.Match(content, "<html[^>]*\\slang\\s*=\\s*[\"']([^\"']+)[\"']", RegexOptions.IgnoreCase);
+        if (htmlLanguageMatch.Success)
+        {
+            var languageTag = htmlLanguageMatch.Groups[1].Value.Trim().ToLowerInvariant();
+            if (languageTag.StartsWith("en", StringComparison.OrdinalIgnoreCase))
+            {
+                hints.Add("english");
+            }
+            else if (languageTag.StartsWith("af", StringComparison.OrdinalIgnoreCase))
+            {
+                hints.Add("afrikaans");
+            }
+        }
+
+        return hints.ToArray();
+    }
+
+    private sealed class FallbackLeadMasterDataService : ILeadMasterDataService
+    {
+        private static readonly LeadMasterTokenSet Tokens = new()
+        {
+            LocationTokens = new[] { "johannesburg", "pretoria", "cape town", "durban", "gauteng", "south africa" },
+            IndustryTokens = new[] { "funeral", "retail", "clinic", "legal", "restaurant" },
+            LanguageTokens = new[] { "english", "afrikaans", "isizulu", "isixhosa", "sesotho" }
+        };
+
+        public LeadMasterTokenSet GetTokenSet() => Tokens;
+
+        public MasterLocationMatch? ResolveLocation(string? value) => null;
+
+        public MasterIndustryMatch? ResolveIndustry(string? value) => null;
+
+        public MasterLanguageMatch? ResolveLanguage(string? value) => null;
     }
 }

@@ -58,6 +58,21 @@ internal static class LeadOutreachPdfGenerator
                             ? model.OpportunityContext!.WhoWeAre!
                             : "Advertified helps businesses find where they are losing customers, then launches practical campaigns to fix those gaps.";
                         who.Item().Text(ToClientCopy(intro)).FontColor("#3D4F45");
+
+                        if (!string.IsNullOrWhiteSpace(model.OpportunityContext?.IndustryProfileName))
+                        {
+                            who.Item()
+                                .Text($"Industry profile: {ToClientCopy(model.OpportunityContext.IndustryProfileName)}")
+                                .SemiBold()
+                                .FontColor("#0F6E56");
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(model.OpportunityContext?.IndustryMessagingAngle))
+                        {
+                            who.Item()
+                                .Text($"Messaging angle: {ToClientCopy(model.OpportunityContext.IndustryMessagingAngle)}")
+                                .FontColor("#3D4F45");
+                        }
                     });
 
                     column.Item().Border(1).BorderColor("#DDE8E3").Background("#FFFFFF").Padding(14).Column(hook =>
@@ -174,7 +189,7 @@ internal static class LeadOutreachPdfGenerator
 
         if (string.Equals(channel.Trim(), "OOH", StringComparison.OrdinalIgnoreCase))
         {
-            return "Billboards / OOH";
+            return "Billboards and Digital Screens";
         }
 
         return ToClientCopy(channel.Trim());

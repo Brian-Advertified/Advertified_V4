@@ -18,7 +18,13 @@ public sealed class LeadDto
 
     public string? SourceReference { get; init; }
 
+    public IReadOnlyList<string> AutoInferredFields { get; init; } = Array.Empty<string>();
+
     public DateTime? LastDiscoveredAt { get; init; }
+
+    public double? Latitude { get; init; }
+
+    public double? Longitude { get; init; }
 
     public DateTime CreatedAt { get; init; }
 }

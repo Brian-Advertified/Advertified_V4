@@ -31,6 +31,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
     private readonly ICampaignReasoningService _campaignReasoningService;
     private readonly PlanningPolicySnapshotProvider _policySnapshotProvider;
     private readonly IPlanningPolicyService _policyService;
+    private readonly IGeocodingService _geocodingService;
 
     public CampaignRecommendationService(
         AppDbContext db,
@@ -38,12 +39,30 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         ICampaignReasoningService campaignReasoningService,
         PlanningPolicySnapshotProvider policySnapshotProvider,
         IPlanningPolicyService policyService)
+        : this(
+            db,
+            planningEngine,
+            campaignReasoningService,
+            policySnapshotProvider,
+            policyService,
+            new NullGeocodingService())
+    {
+    }
+
+    public CampaignRecommendationService(
+        AppDbContext db,
+        IMediaPlanningEngine planningEngine,
+        ICampaignReasoningService campaignReasoningService,
+        PlanningPolicySnapshotProvider policySnapshotProvider,
+        IPlanningPolicyService policyService,
+        IGeocodingService geocodingService)
     {
         _db = db;
         _planningEngine = planningEngine;
         _campaignReasoningService = campaignReasoningService;
         _policySnapshotProvider = policySnapshotProvider;
         _policyService = policyService;
+        _geocodingService = geocodingService;
     }
 
     public CampaignRecommendationService(
@@ -55,7 +74,8 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             planningEngine,
             campaignReasoningService,
             new PlanningPolicySnapshotProvider(new PlanningPolicyOptions()),
-            new PlanningPolicyService(new PlanningPolicySnapshotProvider(new PlanningPolicyOptions())))
+            new PlanningPolicyService(new PlanningPolicySnapshotProvider(new PlanningPolicyOptions())),
+            new NullGeocodingService())
     {
     }
 
@@ -107,12 +127,12 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
 
             foreach (var item in recommendationResult.RecommendedPlan)
             {
-                recommendation.RecommendationItems.Add(ToRecommendationItem(item, recommendation.Id, proposalTimestamp, isUpsell: false));
+                recommendation.RecommendationItems.Add(ToRecommendationItem(item, recommendation.Id, proposalTimestamp, isUpsell: false, recommendationResult.RunTrace));
             }
 
             foreach (var item in recommendationResult.Upsells)
             {
-                recommendation.RecommendationItems.Add(ToRecommendationItem(item, recommendation.Id, proposalTimestamp, isUpsell: true));
+                recommendation.RecommendationItems.Add(ToRecommendationItem(item, recommendation.Id, proposalTimestamp, isUpsell: true, recommendationResult.RunTrace));
             }
 
             _db.RecommendationRunAudits.Add(CreateRecommendationRunAudit(
@@ -170,7 +190,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         return best;
     }
 
-    private static CampaignPlanningRequest BuildRequest(
+    private CampaignPlanningRequest BuildRequest(
         CampaignEntity campaign,
         CampaignBriefEntity brief,
         GenerateRecommendationRequest? request,
@@ -217,7 +237,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
                 .Concat(CampaignStrategySupport.BuildContextLines(strategyRequest))
                 .Where(static value => !string.IsNullOrWhiteSpace(value)));
 
-        return new CampaignPlanningRequest
+        var planningRequest = new CampaignPlanningRequest
         {
             CampaignId = campaign.Id,
             SelectedBudget = PricingPolicy.ResolvePlanningBudget(
@@ -257,8 +277,19 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             TargetRadioShare = request?.TargetRadioShare,
             TargetOohShare = request?.TargetOohShare,
             TargetTvShare = request?.TargetTvShare,
-            TargetDigitalShare = request?.TargetDigitalShare
+            TargetDigitalShare = request?.TargetDigitalShare,
+            TargetLatitude = null,
+            TargetLongitude = null
         };
+
+        var geocodingTarget = _geocodingService.ResolveCampaignTarget(planningRequest);
+        if (geocodingTarget.IsResolved)
+        {
+            planningRequest.TargetLatitude = geocodingTarget.Latitude;
+            planningRequest.TargetLongitude = geocodingTarget.Longitude;
+        }
+
+        return planningRequest;
     }
 
     private static CampaignRecommendation CreateRecommendationEntity(
@@ -417,7 +448,9 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             TargetRadioShare = targets.Radio,
             TargetOohShare = targets.Ooh,
             TargetTvShare = targets.Tv,
-            TargetDigitalShare = targets.Digital
+            TargetDigitalShare = targets.Digital,
+            TargetLatitude = source.TargetLatitude,
+            TargetLongitude = source.TargetLongitude
         };
     }
 
@@ -570,11 +603,18 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             targets.GetValueOrDefault("digital"));
     }
 
-    private static RecommendationItem ToRecommendationItem(PlannedItem item, Guid recommendationId, DateTime now, bool isUpsell)
+    private static RecommendationItem ToRecommendationItem(
+        PlannedItem item,
+        Guid recommendationId,
+        DateTime now,
+        bool isUpsell,
+        RecommendationRunTrace? runTrace)
     {
         var inventoryType = isUpsell
             ? $"upsell_{item.MediaType}"
             : item.MediaType;
+        var evidenceTrace = BuildEvidenceTrace(item, isUpsell, runTrace);
+        var rejectionLog = BuildRejectionLog(item, runTrace);
 
         return new RecommendationItem
         {
@@ -608,11 +648,86 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
                 listenershipPeriod = GetMetadataValue(item.Metadata, "listenershipPeriod") ?? GetMetadataValue(item.Metadata, "listenership_period"),
                 selectionReasons = GetMetadataArray(item.Metadata, "selectionReasons"),
                 policyFlags = GetMetadataArray(item.Metadata, "policyFlags"),
+                evidenceTrace,
+                evidence_trace = evidenceTrace,
+                rejectionLog,
+                rejection_log = rejectionLog,
                 rationale = BuildRationale(item),
                 item.Metadata
             }),
             CreatedAt = now
         };
+    }
+
+    private static IReadOnlyList<object> BuildEvidenceTrace(
+        PlannedItem item,
+        bool isUpsell,
+        RecommendationRunTrace? runTrace)
+    {
+        var traceEntries = runTrace?.SelectedItems
+            .Where(selected =>
+                selected.SourceId == item.SourceId
+                && string.Equals(selected.MediaType, item.MediaType, StringComparison.OrdinalIgnoreCase)
+                && selected.IsUpsell == isUpsell)
+            .Select(selected => new
+            {
+                source = "recommendation_run_trace",
+                selected.Score,
+                selected.SelectionReasons,
+                selected.PolicyFlags,
+                selected.ConfidenceScore
+            })
+            .Cast<object>()
+            .ToList() ?? new List<object>();
+
+        if (traceEntries.Count > 0)
+        {
+            return traceEntries;
+        }
+
+        var fallbackReasons = GetMetadataArray(item.Metadata, "selectionReasons");
+        if (fallbackReasons.Count == 0)
+        {
+            fallbackReasons = new[] { "Selected by planner based on fit and budget constraints." };
+        }
+
+        return new object[]
+        {
+            new
+            {
+                source = "selection_metadata",
+                Score = item.Score,
+                SelectionReasons = fallbackReasons,
+                PolicyFlags = GetMetadataArray(item.Metadata, "policyFlags"),
+                ConfidenceScore = GetMetadataValue(item.Metadata, "confidenceScore")
+            }
+        };
+    }
+
+    private static IReadOnlyList<object> BuildRejectionLog(
+        PlannedItem item,
+        RecommendationRunTrace? runTrace)
+    {
+        var groupedRejections = runTrace?.RejectedCandidates
+            .Where(rejected => string.Equals(rejected.MediaType, item.MediaType, StringComparison.OrdinalIgnoreCase))
+            .GroupBy(rejected => new
+            {
+                rejected.Stage,
+                rejected.Reason
+            })
+            .Select(group => new
+            {
+                group.Key.Stage,
+                group.Key.Reason,
+                Count = group.Count(),
+                Samples = group.Select(entry => entry.DisplayName).Distinct(StringComparer.OrdinalIgnoreCase).Take(3).ToArray()
+            })
+            .OrderByDescending(entry => entry.Count)
+            .Take(5)
+            .Cast<object>()
+            .ToList() ?? new List<object>();
+
+        return groupedRejections;
     }
 
     private static string BuildRationale(PlannedItem item)
@@ -793,7 +908,9 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             TargetRadioShare = source.TargetRadioShare,
             TargetOohShare = source.TargetOohShare,
             TargetTvShare = source.TargetTvShare,
-            TargetDigitalShare = source.TargetDigitalShare
+            TargetDigitalShare = source.TargetDigitalShare,
+            TargetLatitude = source.TargetLatitude,
+            TargetLongitude = source.TargetLongitude
         };
     }
 
@@ -1017,13 +1134,38 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             TargetRadioShare = request.TargetRadioShare,
             TargetOohShare = request.TargetOohShare,
             TargetTvShare = request.TargetTvShare,
-            TargetDigitalShare = request.TargetDigitalShare
+            TargetDigitalShare = request.TargetDigitalShare,
+            TargetLatitude = request.TargetLatitude,
+            TargetLongitude = request.TargetLongitude
         };
     }
 
     private static string SerializeAuditJson(object value)
     {
         return JsonSerializer.Serialize(value, AuditJsonOptions);
+    }
+
+    private sealed class NullGeocodingService : IGeocodingService
+    {
+        public GeocodingResolution ResolveLocation(string? rawLocation)
+        {
+            return new GeocodingResolution
+            {
+                IsResolved = false,
+                CanonicalLocation = rawLocation?.Trim() ?? string.Empty,
+                Source = "none"
+            };
+        }
+
+        public GeocodingResolution ResolveCampaignTarget(CampaignPlanningRequest request)
+        {
+            return new GeocodingResolution
+            {
+                IsResolved = false,
+                CanonicalLocation = string.Empty,
+                Source = "none"
+            };
+        }
     }
 
     private sealed record ProposalVariant(string Key, CampaignPlanningRequest Request, ProposalBudgetBand? BudgetBand);

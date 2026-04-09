@@ -334,8 +334,20 @@ public sealed class AgentCampaignsController : ControllerBase
             });
         }
 
-        var bytes = await _recommendationDocumentService.GetCampaignPdfBytesAsync(id, cancellationToken);
-        return File(bytes, "application/pdf", $"recommendation-{id:D}.pdf");
+        try
+        {
+            var bytes = await _recommendationDocumentService.GetCampaignPdfBytesAsync(id, cancellationToken);
+            return File(bytes, "application/pdf", $"recommendation-{id:D}.pdf");
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Lead proposal confidence gate failed.",
+                Detail = ex.Message,
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
     }
 
     private sealed class AgentCampaignListProjection

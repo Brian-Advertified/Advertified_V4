@@ -18,6 +18,7 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
     private readonly IPublicAssetStorage _publicAssetStorage;
     private readonly FrontendOptions _frontendOptions;
     private readonly IProposalAccessTokenService _proposalAccessTokenService;
+    private readonly ILeadProposalConfidenceGateService _leadProposalConfidenceGateService;
 
     public RecommendationDocumentService(
         AppDbContext db,
@@ -25,7 +26,8 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
         IPrivateDocumentStorage privateDocumentStorage,
         IPublicAssetStorage publicAssetStorage,
         IOptions<FrontendOptions> frontendOptions,
-        IProposalAccessTokenService proposalAccessTokenService)
+        IProposalAccessTokenService proposalAccessTokenService,
+        ILeadProposalConfidenceGateService leadProposalConfidenceGateService)
     {
         _db = db;
         _environment = environment;
@@ -33,10 +35,13 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
         _publicAssetStorage = publicAssetStorage;
         _frontendOptions = frontendOptions.Value;
         _proposalAccessTokenService = proposalAccessTokenService;
+        _leadProposalConfidenceGateService = leadProposalConfidenceGateService;
     }
 
     public async Task<byte[]> GetCampaignPdfBytesAsync(Guid campaignId, CancellationToken cancellationToken)
     {
+        await _leadProposalConfidenceGateService.EnsureCampaignReadyAsync(campaignId, cancellationToken);
+
         var campaign = await LoadCampaignForRecommendationsAsync(campaignId, cancellationToken);
         var opportunityContext = RecommendationOpportunityContextParser.Parse(
             campaign.CampaignBrief?.SpecialRequirements ?? campaign.CampaignBrief?.CreativeNotes);
@@ -100,6 +105,8 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
 
     public async Task<byte[]> GetRecommendationPdfBytesAsync(Guid campaignId, Guid recommendationId, CancellationToken cancellationToken)
     {
+        await _leadProposalConfidenceGateService.EnsureCampaignReadyAsync(campaignId, cancellationToken);
+
         var campaign = await LoadCampaignForRecommendationsAsync(campaignId, cancellationToken);
         var opportunityContext = RecommendationOpportunityContextParser.Parse(
             campaign.CampaignBrief?.SpecialRequirements ?? campaign.CampaignBrief?.CreativeNotes);
@@ -653,6 +660,10 @@ internal static class RecommendationOpportunityContextParser
 
         var detectedGaps = new List<string>();
         string? archetypeName = null;
+        string? industryProfileName = null;
+        string? industryMessagingAngle = null;
+        var industryGuardrails = new List<string>();
+        string? industryRecommendedCta = null;
         string? whoWeAre = null;
         var researchBasis = new List<string>();
         string? lastResearchedAtUtc = null;
@@ -683,6 +694,29 @@ internal static class RecommendationOpportunityContextParser
             if (TryParsePrefixedSection(section, "Who we are:", out var intro))
             {
                 whoWeAre = intro;
+                continue;
+            }
+
+            if (TryParsePrefixedSection(section, "Industry profile:", out var industryProfile))
+            {
+                industryProfileName = industryProfile;
+                continue;
+            }
+
+            if (TryParsePrefixedSection(section, "Industry messaging angle:", out var angle))
+            {
+                industryMessagingAngle = angle;
+                continue;
+            }
+
+            if (TryParseBulletedSection(section, "Industry guardrails:", industryGuardrails))
+            {
+                continue;
+            }
+
+            if (TryParsePrefixedSection(section, "Industry recommended CTA:", out var industryCta))
+            {
+                industryRecommendedCta = industryCta;
                 continue;
             }
 
@@ -739,11 +773,21 @@ internal static class RecommendationOpportunityContextParser
                 continue;
             }
 
+            if (TryParsePrefixedSection(section, "Lead source id:", out _))
+            {
+                // Internal provenance marker used for server-side confidence gate checks.
+                continue;
+            }
+
             remainingSections.Add(section.Trim());
         }
 
         var hasOpportunityContext = detectedGaps.Count > 0
             || !string.IsNullOrWhiteSpace(archetypeName)
+            || !string.IsNullOrWhiteSpace(industryProfileName)
+            || !string.IsNullOrWhiteSpace(industryMessagingAngle)
+            || industryGuardrails.Count > 0
+            || !string.IsNullOrWhiteSpace(industryRecommendedCta)
             || !string.IsNullOrWhiteSpace(whoWeAre)
             || researchBasis.Count > 0
             || !string.IsNullOrWhiteSpace(lastResearchedAtUtc)
@@ -767,6 +811,10 @@ internal static class RecommendationOpportunityContextParser
                 ? new RecommendationOpportunityContextModel
                 {
                     ArchetypeName = archetypeName,
+                    IndustryProfileName = industryProfileName,
+                    IndustryMessagingAngle = industryMessagingAngle,
+                    IndustryGuardrails = industryGuardrails,
+                    IndustryRecommendedCta = industryRecommendedCta,
                     WhoWeAre = whoWeAre,
                     ResearchBasis = researchBasis,
                     LastResearchedAtUtc = lastResearchedAtUtc,
