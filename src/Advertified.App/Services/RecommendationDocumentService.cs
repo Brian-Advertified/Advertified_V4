@@ -79,7 +79,9 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
         };
 
         var logoPath = Billing.InvoicePdfGenerator.ResolveLogoPath(_environment.ContentRootPath, null);
-        var pdfBytes = RecommendationPdfGenerator.Generate(model, logoPath);
+        var pdfBytes = model.OpportunityContext?.IsLeadOutreach == true
+            ? LeadOutreachPdfGenerator.Generate(model, logoPath)
+            : RecommendationPdfGenerator.Generate(model, logoPath);
 
         if (ShouldFreezeSnapshot(currentRecommendations))
         {
@@ -136,7 +138,9 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
         };
 
         var logoPath = Billing.InvoicePdfGenerator.ResolveLogoPath(_environment.ContentRootPath, null);
-        var pdfBytes = RecommendationPdfGenerator.Generate(model, logoPath);
+        var pdfBytes = model.OpportunityContext?.IsLeadOutreach == true
+            ? LeadOutreachPdfGenerator.Generate(model, logoPath)
+            : RecommendationPdfGenerator.Generate(model, logoPath);
 
         if (ShouldFreezeSnapshot(currentRecommendations))
         {
