@@ -424,7 +424,7 @@ internal static class EmailTemplateDefaults
                     </div>
                     <div style=""padding:28px 32px;"">
                       <p style=""margin:0 0 14px;font-size:15px;line-height:1.7;color:#4b635a;"">
-                        Hi {{ClientName}}, your Advertified strategist has prepared recommendation options for <strong>{{CampaignName}}</strong>.
+                        {{RecommendationIntro}}
                       </p>
                       <p style=""margin:0 0 18px;font-size:15px;line-height:1.7;color:#4b635a;"">
                         {{ProposalSummary}} Review your preferred option below, or open the full review page if you want to compare everything first. If any payment or finance review step still needs to happen first, your workspace will guide you clearly before anything else needs your confirmation.

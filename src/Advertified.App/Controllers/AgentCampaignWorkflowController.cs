@@ -533,6 +533,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
             }
 
             var resolvedAgentMessage = ResolveRecommendationReadyAgentMessage(campaign, senderUser, agentMessage);
+            var recommendationIntro = ResolveRecommendationReadyIntro(campaign, senderUser);
 
             await _emailService.SendAsync(
                 "recommendation-ready",
@@ -545,6 +546,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
                     ["PackageName"] = campaign.PackageBand.Name,
                     ["BudgetLabel"] = ResolveBudgetLabel(campaign),
                     ["Budget"] = ResolveBudgetDisplayText(campaign),
+                    ["RecommendationIntro"] = recommendationIntro,
                     ["ReviewUrl"] = BuildProposalUrl(campaign.Id),
                     ["ProposalCount"] = proposalCount.ToString(CultureInfo.InvariantCulture),
                     ["ProposalSummary"] = proposalCount > 1
@@ -655,6 +657,22 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
             : campaign.ResolveClientName();
 
         return $"Good Day, I'm {senderName} from Advertified. We ran a public-signal review on {businessName} and identified opportunities to capture more local demand. We've attached proposal options with low-risk, balanced, and aggressive growth paths. If useful, we can walk you through this in 15 minutes, including how each option can be launched without full upfront budget.";
+    }
+
+    private static string ResolveRecommendationReadyIntro(Campaign campaign, UserAccount senderUser)
+    {
+        if (!ShouldUseLeadOutreachMessage(campaign))
+        {
+            return $"Hi {campaign.ResolveClientName()}, your Advertified strategist has prepared recommendation options for {ResolveCampaignLabel(campaign)}.";
+        }
+
+        var senderName = !string.IsNullOrWhiteSpace(senderUser.FullName)
+            ? senderUser.FullName.Trim()
+            : (!string.IsNullOrWhiteSpace(campaign.AssignedAgentUser?.FullName)
+                ? campaign.AssignedAgentUser!.FullName.Trim()
+                : "your Advertified strategist");
+
+        return $"Good Day, I'm {senderName} from Advertified.";
     }
 
     private static bool ShouldUseLeadOutreachMessage(Campaign campaign)
