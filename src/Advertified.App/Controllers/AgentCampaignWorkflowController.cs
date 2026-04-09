@@ -416,6 +416,12 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
         return BuildFrontendUrl($"/proposal/{campaignId:D}?{string.Join("&", query)}");
     }
 
+    private string BuildPublicProposalPdfUrl(Guid campaignId)
+    {
+        var accessToken = _proposalAccessTokenService.CreateToken(campaignId);
+        return BuildFrontendUrl($"/api/public/proposals/{campaignId:D}/recommendation-pdf?token={Uri.EscapeDataString(accessToken)}");
+    }
+
     private async Task SendAssignmentEmailIfNeededAsync(Guid campaignId, CancellationToken cancellationToken)
     {
         var campaign = await _db.Campaigns
@@ -548,6 +554,8 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
             var proposalActionButtons = useLeadTemplate
                 ? string.Empty
                 : BuildProposalAcceptButtonsBlock(campaign.Id, recommendations);
+            var leadPdfUrl = useLeadTemplate ? BuildPublicProposalPdfUrl(campaign.Id) : null;
+            var reviewUrl = useLeadTemplate ? leadPdfUrl! : BuildProposalUrl(campaign.Id);
 
             await _emailService.SendAsync(
                 templateName,
@@ -562,7 +570,8 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
                     ["Budget"] = ResolveBudgetDisplayText(campaign),
                     ["RecommendationIntro"] = recommendationIntro,
                     ["AreaOrIndustry"] = areaOrIndustry,
-                    ["ReviewUrl"] = BuildProposalUrl(campaign.Id),
+                    ["ReviewUrl"] = reviewUrl,
+                    ["LeadPdfUrl"] = leadPdfUrl,
                     ["ProposalCount"] = proposalCount.ToString(CultureInfo.InvariantCulture),
                     ["ProposalSummary"] = proposalCount > 1
                         ? $"We have prepared {proposalCount} proposal options for you to compare."
