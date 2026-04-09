@@ -422,6 +422,12 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
         return BuildFrontendUrl($"/api/public/proposals/{campaignId:D}/recommendation-pdf?token={Uri.EscapeDataString(accessToken)}");
     }
 
+    private string BuildLeadProposalUrl(Guid campaignId)
+    {
+        var accessToken = _proposalAccessTokenService.CreateToken(campaignId);
+        return BuildFrontendUrl($"/lead-proposal/{campaignId:D}?token={Uri.EscapeDataString(accessToken)}");
+    }
+
     private async Task SendAssignmentEmailIfNeededAsync(Guid campaignId, CancellationToken cancellationToken)
     {
         var campaign = await _db.Campaigns
@@ -555,7 +561,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
                 ? string.Empty
                 : BuildProposalAcceptButtonsBlock(campaign.Id, recommendations);
             var leadPdfUrl = useLeadTemplate ? BuildPublicProposalPdfUrl(campaign.Id) : null;
-            var reviewUrl = useLeadTemplate ? leadPdfUrl! : BuildProposalUrl(campaign.Id);
+            var reviewUrl = useLeadTemplate ? BuildLeadProposalUrl(campaign.Id) : BuildProposalUrl(campaign.Id);
 
             await _emailService.SendAsync(
                 templateName,

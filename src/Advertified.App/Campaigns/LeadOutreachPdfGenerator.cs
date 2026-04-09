@@ -50,6 +50,16 @@ internal static class LeadOutreachPdfGenerator
                 {
                     column.Spacing(10);
 
+                    column.Item().Border(1).BorderColor("#DDE8E3").Background("#F8F5F0").Padding(12).Column(who =>
+                    {
+                        who.Spacing(5);
+                        who.Item().Text("Who We Are").SemiBold().FontSize(11);
+                        var intro = !string.IsNullOrWhiteSpace(model.OpportunityContext?.WhoWeAre)
+                            ? model.OpportunityContext!.WhoWeAre!
+                            : "Advertified helps businesses find where they are losing customers, then launches practical campaigns to fix those gaps.";
+                        who.Item().Text(ToClientCopy(intro)).FontColor("#3D4F45");
+                    });
+
                     column.Item().Border(1).BorderColor("#DDE8E3").Background("#FFFFFF").Padding(14).Column(hook =>
                     {
                         hook.Spacing(7);
@@ -74,16 +84,6 @@ internal static class LeadOutreachPdfGenerator
                         {
                             hook.Item().Text(ToClientCopy(model.OpportunityContext.LeadInsightSummary)).FontColor("#3D4F45");
                         }
-                    });
-
-                    column.Item().Border(1).BorderColor("#DDE8E3").Background("#F8F5F0").Padding(12).Column(who =>
-                    {
-                        who.Spacing(5);
-                        who.Item().Text("Who We Are").SemiBold().FontSize(11);
-                        var intro = !string.IsNullOrWhiteSpace(model.OpportunityContext?.WhoWeAre)
-                            ? model.OpportunityContext!.WhoWeAre!
-                            : "Advertified helps businesses find where they are losing customers, then launches practical campaigns to fix those gaps.";
-                        who.Item().Text(ToClientCopy(intro)).FontColor("#3D4F45");
                     });
 
                     column.Item().Border(1).BorderColor("#0F6E56").Background("#0F1A14").Padding(12).Column(bnpl =>
@@ -199,4 +199,3 @@ internal static class LeadOutreachPdfGenerator
         return normalized;
     }
 }
-

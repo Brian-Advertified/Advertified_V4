@@ -17,6 +17,7 @@ import { PartnerEnquiryPage } from '../pages/public/PartnerEnquiryPage';
 import { PaymentSelectionPage } from '../pages/public/PaymentSelectionPage';
 import { CheckoutConfirmationPage } from '../pages/public/CheckoutConfirmationPage';
 import { ProposalEntryPage } from '../pages/public/ProposalEntryPage';
+import { LeadProposalEntryPage } from '../pages/public/LeadProposalEntryPage';
 import { ProspectQuestionnairePage } from '../pages/public/ProspectQuestionnairePage';
 import { PrivacyPolicyPage, CookiePolicyPage, TermsPage } from '../pages/public/LegalPages';
 
@@ -41,4 +42,5 @@ export const publicRoutes: AppRoute[] = [
   { path: '/checkout/payment', element: <ProtectedRoute><PaymentSelectionPage /></ProtectedRoute> },
   { path: '/checkout/confirmation', element: <CheckoutConfirmationPage /> },
   { path: '/proposal/:id', element: <ProposalEntryPage /> },
+  { path: '/lead-proposal/:id', element: <LeadProposalEntryPage /> },
 ];
