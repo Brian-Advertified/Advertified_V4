@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using System.Net;
 using System.Net.Sockets;
 using Advertified.App.Services.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Advertified.App.Services;
 
@@ -76,6 +77,7 @@ public sealed partial class WebsiteSignalProvider : IWebsiteSignalProvider
     private readonly HttpClient _httpClient;
     private readonly ILeadMasterDataService _leadMasterDataService;
 
+    [ActivatorUtilitiesConstructor]
     public WebsiteSignalProvider(HttpClient httpClient, ILeadMasterDataService leadMasterDataService)
     {
         _httpClient = httpClient;
@@ -413,6 +415,8 @@ public sealed partial class WebsiteSignalProvider : IWebsiteSignalProvider
         public MasterLocationMatch? ResolveLocation(string? value) => null;
 
         public MasterIndustryMatch? ResolveIndustry(string? value) => null;
+
+        public MasterIndustryMatch? ResolveIndustryFromHints(IReadOnlyList<string> hints) => null;
 
         public MasterLanguageMatch? ResolveLanguage(string? value) => null;
     }
