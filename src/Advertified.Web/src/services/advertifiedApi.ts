@@ -54,7 +54,7 @@ import { createCampaignApi } from './campaignApi';
 import { createCreativeApi } from './creativeApi';
 import { createLeadApi } from './leadApi';
 import { createPublicApi } from './publicApi';
-import { apiRequest, API_BASE_URL, downloadProtectedFile, downloadPublicFile, getAuthHeaders, parseApiError, toAbsoluteApiUrl } from './apiClient';
+import { apiRequest, API_BASE_URL, downloadProtectedFile, downloadPublicFile, parseApiError, toAbsoluteApiUrl } from './apiClient';
 
 type PackageBandResponse = {
   id: string;
@@ -1746,7 +1746,7 @@ const agentApi = createAgentApi({
     const response = await fetch(`${API_BASE_URL}/agent/campaigns/${encodeURIComponent(campaignId)}/assets`, {
       method: 'POST',
       body: formData,
-      headers: getAuthHeaders(),
+      credentials: 'include',
     });
 
     if (!response.ok) {
@@ -1791,7 +1791,7 @@ const creativeApi = createCreativeApi({
     const response = await fetch(`${API_BASE_URL}/creative/campaigns/${encodeURIComponent(campaignId)}/assets`, {
       method: 'POST',
       body: formData,
-      headers: getAuthHeaders(),
+      credentials: 'include',
     });
 
     if (!response.ok) {

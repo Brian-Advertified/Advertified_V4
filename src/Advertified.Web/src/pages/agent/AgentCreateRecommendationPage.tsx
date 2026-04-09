@@ -35,6 +35,11 @@ import {
   TONE_OPTIONS,
   type ChannelOption,
 } from './recommendationDraftOptions';
+import {
+  AgentDetailGrid,
+  AgentDetailStack,
+  AgentInsightCard,
+} from './agentSectionShared';
 import type { AutoBriefConfidence, AutoBriefField, AutoBriefPayload } from '../../features/leads/leadAutoBrief';
 import type { AgentInboxItem, Campaign, LeadIndustryPolicy, PackageBand } from '../../types/domain';
 import { pushAgentMutationError } from './agentMutationToast';
@@ -69,6 +74,11 @@ function resolvePackageReferenceBudget(packageBand: PackageBand): number {
 
 function formatPackageRange(packageBand: PackageBand): string {
   return `${formatCurrency(packageBand.minBudget)} to ${formatCurrency(packageBand.maxBudget)}`;
+}
+
+function selectIndefiniteArticle(value: string): 'a' | 'an' {
+  const normalized = value.trim().toLowerCase();
+  return /^[aeiou]/.test(normalized) ? 'an' : 'a';
 }
 
 function normalizeNextAction(nextAction: string, hasPackageRange: boolean): string {
@@ -619,13 +629,20 @@ export function AgentCreateRecommendationPage() {
       .filter((item) => item.trim().length > 0)
       .map((item) => `- ${item.trim()}`)
       .join('\n');
+    const objectiveLabel = normalizedObjective || 'awareness';
+    const planningGoalLine = routePrefill.businessName?.trim()
+      ? `Build ${selectIndefiniteArticle(objectiveLabel)} ${objectiveLabel} campaign for ${routePrefill.businessName.trim()}${normalizedLocation ? ` in ${normalizedLocation}` : ''}.`
+      : '';
+    const packageDirectionLine = inferredForm.brief
+      .split('. ')
+      .find((item) => item.includes('package range') || item.includes('within '))
+      ?.trim() ?? '';
     const briefSections = [
       typeof routePrefill.leadId === 'number' && routePrefill.leadId > 0
         ? `Lead source id: ${routePrefill.leadId}`
         : '',
-      routePrefill.businessName?.trim()
-        ? `Build a ${normalizedObjective || 'awareness'} campaign for ${routePrefill.businessName.trim()}${normalizedLocation ? ` in ${normalizedLocation}` : ''}.`
-        : '',
+      planningGoalLine,
+      packageDirectionLine,
       routePrefill.archetypeName?.trim()
         ? `Archetype: ${routePrefill.archetypeName.trim()}`
         : '',
@@ -643,9 +660,6 @@ export function AgentCreateRecommendationPage() {
         : '',
       routePrefill.industryCta?.trim()
         ? `Industry recommended CTA:\n${routePrefill.industryCta.trim()}`
-        : '',
-      routePrefill.whoWeAre?.trim()
-        ? `Who we are:\n${routePrefill.whoWeAre.trim()}`
         : '',
       researchBasisBlock
         ? `Research basis:\n${researchBasisBlock}`
@@ -668,13 +682,6 @@ export function AgentCreateRecommendationPage() {
       routePrefill.whyActNow?.trim()
         ? `Why act now:\n${routePrefill.whyActNow.trim()}`
         : '',
-      routePrefill.flexibleRollout?.trim()
-        ? `Flexible rollout:\n${routePrefill.flexibleRollout.trim()}`
-        : '',
-      routePrefill.nextStep?.trim()
-        ? `Next step:\n${routePrefill.nextStep.trim()}`
-        : '',
-      inferredForm.brief,
     ].filter((item) => item.trim().length > 0);
 
     const prefilled = {
@@ -1708,22 +1715,14 @@ export function AgentCreateRecommendationPage() {
 
             <div className="space-y-3">
               {routePrefill ? (
-                <div className="rounded-[22px] border border-brand/15 bg-brand-soft/30 px-4 py-4">
-                  <p className="text-xs uppercase tracking-[0.18em] text-ink-soft">Proposal context</p>
-                  <div className="mt-3 grid gap-3 text-sm md:grid-cols-2">
-                    <div>
-                      <p className="text-ink-soft">Business</p>
-                      <p className="font-medium text-ink">{routePrefill.businessName || 'Not captured'}</p>
-                    </div>
-                    <div>
-                      <p className="text-ink-soft">Suggested campaign type</p>
-                      <p className="font-medium text-ink">{routePrefill.suggestedCampaignType || 'Not captured'}</p>
-                    </div>
-                    <div>
-                      <p className="text-ink-soft">Archetype</p>
-                      <p className="font-medium text-ink">{routePrefill.archetypeName || 'Not captured'}</p>
-                    </div>
-                  </div>
+                <AgentInsightCard eyebrow="Proposal context" tone="soft">
+                  <AgentDetailGrid
+                    items={[
+                      { label: 'Business', value: routePrefill.businessName || 'Not captured' },
+                      { label: 'Suggested campaign type', value: routePrefill.suggestedCampaignType || 'Not captured' },
+                      { label: 'Archetype', value: routePrefill.archetypeName || 'Not captured' },
+                    ]}
+                  />
                   {routePrefillGapLines.length > 0 ? (
                     <div className="mt-3 space-y-2 text-sm text-ink-soft">
                       {routePrefillGapLines.map((item) => (
@@ -1731,74 +1730,30 @@ export function AgentCreateRecommendationPage() {
                       ))}
                     </div>
                   ) : null}
-                </div>
+                </AgentInsightCard>
               ) : null}
 
-              <div className="rounded-[22px] border border-line bg-slate-50 px-4 py-4">
-                <p className="text-xs uppercase tracking-[0.18em] text-ink-soft">What the draft will use</p>
-                <div className="mt-3 grid gap-3 text-sm md:grid-cols-2">
-                  <div>
-                    <p className="text-ink-soft">Objective</p>
-                    <p className="font-medium text-ink">{form.objective || 'Not selected'}</p>
-                  </div>
-                  <div>
-                    <p className="text-ink-soft">Audience</p>
-                    <p className="font-medium text-ink">{form.audience || 'Not selected'}</p>
-                  </div>
-                  <div>
-                    <p className="text-ink-soft">Scope</p>
-                    <p className="font-medium text-ink">{form.scope || 'Not selected'}</p>
-                  </div>
-                  <div>
-                    <p className="text-ink-soft">Geography</p>
-                    <p className="font-medium text-ink">{form.geography || 'Not selected'}</p>
-                  </div>
-                  <div>
-                    <p className="text-ink-soft">Age group</p>
-                    <p className="font-medium text-ink">{form.ageRange ? (form.ageRange === '55-100' ? '55+' : form.ageRange) : 'Not selected'}</p>
-                  </div>
-                  <div>
-                    <p className="text-ink-soft">Gender focus</p>
-                    <p className="font-medium text-ink">{form.targetGender || 'Not selected'}</p>
-                  </div>
-                  <div>
-                    <p className="text-ink-soft">Language</p>
-                    <p className="font-medium text-ink">{form.language || 'Not selected'}</p>
-                  </div>
-                  <div>
-                    <p className="text-ink-soft">Interests</p>
-                    <p className="font-medium text-ink">{form.targetInterests || 'Not selected'}</p>
-                  </div>
-                  <div>
-                    <p className="text-ink-soft">Tone</p>
-                    <p className="font-medium text-ink">{form.tone || 'Not selected'}</p>
-                  </div>
-                  <div>
-                    <p className="text-ink-soft">Sales model</p>
-                    <p className="font-medium text-ink">{form.salesModel || 'Not selected'}</p>
-                  </div>
-                  <div>
-                    <p className="text-ink-soft">Customer type</p>
-                    <p className="font-medium text-ink">{form.customerType || 'Not selected'}</p>
-                  </div>
-                  <div>
-                    <p className="text-ink-soft">Buying behaviour</p>
-                    <p className="font-medium text-ink">{form.buyingBehaviour || 'Not selected'}</p>
-                  </div>
-                  <div>
-                    <p className="text-ink-soft">Decision cycle</p>
-                    <p className="font-medium text-ink">{form.decisionCycle || 'Not selected'}</p>
-                  </div>
-                  <div>
-                    <p className="text-ink-soft">Urgency</p>
-                    <p className="font-medium text-ink">{form.urgencyLevel || 'Not selected'}</p>
-                  </div>
-                  <div>
-                    <p className="text-ink-soft">Channels</p>
-                    <p className="font-medium text-ink">{form.channels.map((channel) => formatChannelLabel(channel)).join(' + ') || 'None selected'}</p>
-                  </div>
-                </div>
-              </div>
+              <AgentInsightCard eyebrow="What the draft will use">
+                <AgentDetailGrid
+                  items={[
+                    { label: 'Objective', value: form.objective || 'Not selected' },
+                    { label: 'Audience', value: form.audience || 'Not selected' },
+                    { label: 'Scope', value: form.scope || 'Not selected' },
+                    { label: 'Geography', value: form.geography || 'Not selected' },
+                    { label: 'Age group', value: form.ageRange ? (form.ageRange === '55-100' ? '55+' : form.ageRange) : 'Not selected' },
+                    { label: 'Gender focus', value: form.targetGender || 'Not selected' },
+                    { label: 'Language', value: form.language || 'Not selected' },
+                    { label: 'Interests', value: form.targetInterests || 'Not selected' },
+                    { label: 'Tone', value: form.tone || 'Not selected' },
+                    { label: 'Sales model', value: form.salesModel || 'Not selected' },
+                    { label: 'Customer type', value: form.customerType || 'Not selected' },
+                    { label: 'Buying behaviour', value: form.buyingBehaviour || 'Not selected' },
+                    { label: 'Decision cycle', value: form.decisionCycle || 'Not selected' },
+                    { label: 'Urgency', value: form.urgencyLevel || 'Not selected' },
+                    { label: 'Channels', value: form.channels.map((channel) => formatChannelLabel(channel)).join(' + ') || 'None selected' },
+                  ]}
+                />
+              </AgentInsightCard>
 
               <div className="rounded-[22px] border border-line bg-white px-4 py-4">
                 <p className="text-xs uppercase tracking-[0.18em] text-ink-soft">Rules being applied</p>
@@ -1828,23 +1783,15 @@ export function AgentCreateRecommendationPage() {
               </p>
             ) : null}
 
-            <div className="mt-5 space-y-3 text-sm text-ink-soft">
-              <div className="flex items-center justify-between border-b border-brand/10 pb-3">
-                <span>Client</span>
-                <span className="font-medium text-ink">{selectedCampaign?.clientName ?? '-'}</span>
-              </div>
-              <div className="flex items-center justify-between border-b border-brand/10 pb-3">
-                <span>Order reference</span>
-                <span className="font-medium text-ink">{selectedCampaign?.id.slice(0, 8).toUpperCase() ?? '-'}</span>
-              </div>
-              <div className="flex items-center justify-between border-b border-brand/10 pb-3">
-                <span>AI review</span>
-                <span className="font-medium text-ink">Recommended before sending</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Allowed channels</span>
-                <span className="font-medium text-ink">{allowedChannels.map((channel) => formatChannelLabel(channel)).join(', ') || 'Select channels'}</span>
-              </div>
+            <div className="mt-5">
+              <AgentDetailStack
+                items={[
+                  { label: 'Client', value: selectedCampaign?.clientName ?? '-' },
+                  { label: 'Order reference', value: selectedCampaign?.id.slice(0, 8).toUpperCase() ?? '-' },
+                  { label: 'AI review', value: 'Recommended before sending' },
+                  { label: 'Allowed channels', value: allowedChannels.map((channel) => formatChannelLabel(channel)).join(', ') || 'Select channels' },
+                ]}
+              />
             </div>
           </div>
         </div>

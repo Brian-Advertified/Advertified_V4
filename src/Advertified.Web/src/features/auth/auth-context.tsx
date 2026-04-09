@@ -161,6 +161,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         return advertifiedApi.register(input);
       },
       logout(reason = 'manual') {
+        void advertifiedApi.logout();
         persistUser(null);
         pushToast(
           reason === 'expired'

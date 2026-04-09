@@ -11,14 +11,25 @@ using Advertified.App.Support;
 using Advertified.App.Validation;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("Advertified")
     ?? throw new InvalidOperationException("Connection string 'Advertified' is not configured.");
 const string FrontendCorsPolicy = "AdvertifiedFrontend";
+var allowedFrontendOrigins = new[]
+{
+    "http://localhost:5173",
+    "https://localhost:5173",
+    "https://dev.advertified.com",
+    "http://dev.advertified.com",
+    "https://advertified.com",
+    "https://www.advertified.com"
+};
 
 builder.Services.AddControllers();
 builder.Services.AddMemoryCache();
@@ -51,16 +62,48 @@ builder.Services.AddCors(options =>
     options.AddPolicy(FrontendCorsPolicy, policy =>
     {
         policy
-            .WithOrigins(
-                "http://localhost:5173",
-                "https://localhost:5173",
-                "https://dev.advertified.com",
-                "http://dev.advertified.com",
-                "https://advertified.com",
-                "https://www.advertified.com")
+            .WithOrigins(allowedFrontendOrigins)
+            .AllowCredentials()
             .AllowAnyHeader()
             .AllowAnyMethod();
     });
+});
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    options.AddPolicy("auth", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 12,
+                Window = TimeSpan.FromMinutes(1),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0
+            }));
+
+    options.AddPolicy("public_proposal", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 60,
+                Window = TimeSpan.FromMinutes(1),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0
+            }));
+
+    options.AddPolicy("public_general", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 120,
+                Window = TimeSpan.FromMinutes(1),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0
+            }));
 });
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(
@@ -342,7 +385,97 @@ await InventoryReadinessValidator.ValidateAsync(app.Services, connectionString, 
 app.UseMiddleware<ProblemDetailsExceptionHandlingMiddleware>();
 
 app.UseCors(FrontendCorsPolicy);
+app.UseRateLimiter();
 app.UseAuthentication();
+app.Use(async (context, next) =>
+{
+    if (HttpMethods.IsGet(context.Request.Method)
+        || HttpMethods.IsHead(context.Request.Method)
+        || HttpMethods.IsOptions(context.Request.Method)
+        || HttpMethods.IsTrace(context.Request.Method))
+    {
+        await next();
+        return;
+    }
+
+    var endpoint = context.GetEndpoint();
+    if (endpoint?.Metadata.GetMetadata<IAllowAnonymous>() is not null)
+    {
+        await next();
+        return;
+    }
+
+    if (context.User?.Identity?.IsAuthenticated != true)
+    {
+        await next();
+        return;
+    }
+
+    // Apply origin validation only for browser cookie-authenticated writes.
+    if (!context.Request.Cookies.ContainsKey(SessionCookieDefaults.CookieName))
+    {
+        await next();
+        return;
+    }
+
+    static string? ResolveOrigin(HttpContext httpContext)
+    {
+        if (httpContext.Request.Headers.TryGetValue("Origin", out var originValues))
+        {
+            var origin = originValues.FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(origin))
+            {
+                return origin.Trim().TrimEnd('/');
+            }
+        }
+
+        if (httpContext.Request.Headers.TryGetValue("Referer", out var refererValues))
+        {
+            var referer = refererValues.FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(referer) && Uri.TryCreate(referer, UriKind.Absolute, out var refererUri))
+            {
+                return $"{refererUri.Scheme}://{refererUri.Authority}".TrimEnd('/');
+            }
+        }
+
+        return null;
+    }
+
+    var requestOrigin = ResolveOrigin(context);
+    if (string.IsNullOrWhiteSpace(requestOrigin))
+    {
+        context.Response.StatusCode = StatusCodes.Status403Forbidden;
+        await context.Response.WriteAsJsonAsync(new ProblemDetails
+        {
+            Title = "Cross-site request blocked.",
+            Detail = "Origin or Referer header is required for authenticated browser actions.",
+            Status = StatusCodes.Status403Forbidden
+        });
+        return;
+    }
+
+    if (!string.IsNullOrWhiteSpace(requestOrigin))
+    {
+        var requestHostOrigin = $"{context.Request.Scheme}://{context.Request.Host}".TrimEnd('/');
+        var allowed = allowedFrontendOrigins
+            .Append(requestHostOrigin)
+            .Any(origin => string.Equals(origin.TrimEnd('/'), requestOrigin, StringComparison.OrdinalIgnoreCase));
+
+        if (!allowed)
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            await context.Response.WriteAsJsonAsync(new ProblemDetails
+            {
+                Title = "Cross-site request blocked.",
+                Detail = "The request origin is not allowed for authenticated browser actions.",
+                Status = StatusCodes.Status403Forbidden
+            });
+            return;
+        }
+    }
+
+    await next();
+});
 app.UseAuthorization();
 app.MapControllers();
 

@@ -90,6 +90,97 @@ export function AgentPageLead({
   );
 }
 
+export type AgentDetailItem = {
+  label: string;
+  value: ReactNode;
+};
+
+export function AgentInsightCard({
+  eyebrow,
+  title,
+  description,
+  tone = 'default',
+  children,
+}: {
+  eyebrow: string;
+  title?: string;
+  description?: string;
+  tone?: 'default' | 'soft' | 'mint';
+  children?: ReactNode;
+}) {
+  const toneClassName = tone === 'mint'
+    ? 'hero-mint text-ink'
+    : tone === 'soft'
+      ? 'border border-brand/15 bg-brand-soft/30'
+      : 'border border-line bg-white';
+
+  return (
+    <div className={`rounded-[22px] px-4 py-4 ${toneClassName}`}>
+      <p className="text-xs uppercase tracking-[0.18em] text-ink-soft">{eyebrow}</p>
+      {title ? <h3 className="mt-2 text-lg font-semibold text-ink">{title}</h3> : null}
+      {description ? <p className="mt-2 text-sm text-ink-soft">{description}</p> : null}
+      {children ? <div className="mt-3">{children}</div> : null}
+    </div>
+  );
+}
+
+export function AgentDetailGrid({
+  items,
+  columns = 2,
+}: {
+  items: AgentDetailItem[];
+  columns?: 1 | 2;
+}) {
+  return (
+    <div className={`grid gap-3 text-sm ${columns === 2 ? 'md:grid-cols-2' : ''}`}>
+      {items.map((item) => (
+        <div key={item.label}>
+          <p className="text-ink-soft">{item.label}</p>
+          <div className="font-medium text-ink">{item.value}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function AgentDetailStack({
+  items,
+}: {
+  items: AgentDetailItem[];
+}) {
+  return (
+    <div className="space-y-3 text-sm text-ink-soft">
+      {items.map((item, index) => (
+        <div
+          key={item.label}
+          className={index < items.length - 1 ? 'flex items-center justify-between border-b border-brand/10 pb-3' : 'flex items-center justify-between'}
+        >
+          <span>{item.label}</span>
+          <span className="font-medium text-ink">{item.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function AgentBulletCard({
+  eyebrow,
+  items,
+}: {
+  eyebrow: string;
+  items: ReactNode[];
+}) {
+  return (
+    <AgentInsightCard eyebrow={eyebrow}>
+      <ul className="space-y-2 text-sm text-ink-soft">
+        {items.map((item, index) => (
+          <li key={`${eyebrow}-${index}`}>{item}</li>
+        ))}
+      </ul>
+    </AgentInsightCard>
+  );
+}
+
 export function buildClientRows(campaigns: Awaited<ReturnType<typeof useAgentCampaignsQuery>['data']>, search: string) {
   const grouped = new Map<string, {
     userId: string;

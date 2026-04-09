@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { SessionUser } from '../src/types/domain';
-import { buildAuthenticatedHeaders, readStoredSession, writeStoredSession } from '../src/services/sessionStore';
+import { readStoredSession, writeStoredSession } from '../src/services/sessionStore';
 
 const STORAGE_KEY = 'advertified-session-user';
 
@@ -13,7 +13,6 @@ function buildSession(): SessionUser {
     emailVerified: true,
     identityComplete: false,
     requiresPasswordSetup: false,
-    sessionToken: 'session-token',
   };
 }
 
@@ -27,7 +26,7 @@ describe('sessionStore', () => {
 
     writeStoredSession(session);
 
-    expect(window.sessionStorage.getItem(STORAGE_KEY)).toContain('session-token');
+    expect(window.sessionStorage.getItem(STORAGE_KEY)).toContain('test@example.com');
     expect(readStoredSession()).toEqual(session);
   });
 
@@ -42,11 +41,4 @@ describe('sessionStore', () => {
     expect(window.sessionStorage.getItem(STORAGE_KEY)).toBeNull();
   });
 
-  it('builds auth headers from the stored session token', () => {
-    writeStoredSession(buildSession());
-
-    const headers = buildAuthenticatedHeaders();
-
-    expect(headers.get('Authorization')).toBe('Bearer session-token');
-  });
 });

@@ -193,6 +193,24 @@ public sealed class PlanningScoreService : IPlanningScoreService
         return 3m;
     }
 
+    public decimal IndustryContextFitScore(InventoryCandidate candidate, CampaignPlanningRequest request)
+    {
+        var archetypes = ResolveIndustryArchetypes(request);
+        if (archetypes.Count == 0)
+        {
+            return 0m;
+        }
+
+        var score = 0m;
+        foreach (var archetype in archetypes)
+        {
+            score += ScoreArchetypeMediaFit(archetype, candidate);
+            score += ScoreArchetypeMetadataFit(archetype, candidate);
+        }
+
+        return Math.Min(14m, Math.Max(-4m, score));
+    }
+
     private decimal ScoreCandidate(InventoryCandidate candidate, CampaignPlanningRequest request)
     {
         decimal score = 0m;
@@ -207,6 +225,7 @@ public sealed class PlanningScoreService : IPlanningScoreService
         score += OohPriorityScore(candidate, request);
         score += DistanceScore(candidate, request);
         score += MixTargetScore(candidate, request);
+        score += IndustryContextFitScore(candidate, request);
 
         if (candidate.MediaType.Equals("Radio", StringComparison.OrdinalIgnoreCase))
         {
@@ -214,6 +233,125 @@ public sealed class PlanningScoreService : IPlanningScoreService
         }
 
         return score;
+    }
+
+    private static decimal ScoreArchetypeMediaFit(string archetype, InventoryCandidate candidate)
+    {
+        var mediaType = candidate.MediaType.Trim().ToLowerInvariant();
+        return archetype switch
+        {
+            "funeral_services" => mediaType switch
+            {
+                "radio" => 6m,
+                "ooh" => 4m,
+                "digital" => 1m,
+                "tv" => 0m,
+                _ => 0m
+            },
+            "food_restaurant" => mediaType switch
+            {
+                "digital" => 6m,
+                "ooh" => 5m,
+                "radio" => 3m,
+                "tv" => 0m,
+                _ => 0m
+            },
+            "retail_grocery" => mediaType switch
+            {
+                "radio" => 5m,
+                "ooh" => 5m,
+                "digital" => 4m,
+                "tv" => 1m,
+                _ => 0m
+            },
+            "healthcare_clinic" => mediaType switch
+            {
+                "search" => 6m,
+                "digital" => 5m,
+                "radio" => 3m,
+                "ooh" => 2m,
+                _ => 0m
+            },
+            "legal_services" => mediaType switch
+            {
+                "radio" => 4m,
+                "digital" => 4m,
+                "ooh" => 3m,
+                _ => 0m
+            },
+            "automotive" => mediaType switch
+            {
+                "radio" => 5m,
+                "ooh" => 5m,
+                "digital" => 4m,
+                "tv" => 2m,
+                _ => 0m
+            },
+            _ => 0m
+        };
+    }
+
+    private static decimal ScoreArchetypeMetadataFit(string archetype, InventoryCandidate candidate)
+    {
+        if (MatchesMetadataToken(candidate, archetype, "industryFitTags", "industry_fit_tags", "industryArchetypes", "industry_archetypes"))
+        {
+            return 4m;
+        }
+
+        return archetype switch
+        {
+            "funeral_services" when HasAnyAudienceHint(candidate, "news", "current affairs", "trust", "family", "older") => 3m,
+            "food_restaurant" when HasAnyAudienceHint(candidate, "commuter", "impulse", "shopping", "lifestyle") => 3m,
+            "retail_grocery" when HasAnyAudienceHint(candidate, "shopping", "retail", "mass market", "family") => 3m,
+            "healthcare_clinic" when HasAnyAudienceHint(candidate, "health", "wellness", "family", "local services") => 3m,
+            "legal_services" when HasAnyAudienceHint(candidate, "professional", "adult", "trust") => 2m,
+            "automotive" when HasAnyAudienceHint(candidate, "commuter", "drivers", "mass market") => 3m,
+            _ => 0m
+        };
+    }
+
+    private static bool HasAnyAudienceHint(InventoryCandidate candidate, params string[] hints)
+    {
+        var text = BuildAudienceSearchText(candidate);
+        if (string.IsNullOrWhiteSpace(text) || hints.Length == 0)
+        {
+            return false;
+        }
+
+        return hints.Any(hint => text.Contains(hint, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static HashSet<string> ResolveIndustryArchetypes(CampaignPlanningRequest request)
+    {
+        var searchText = string.Join(" ",
+            request.TargetInterests.Where(static value => !string.IsNullOrWhiteSpace(value))
+                .Concat(new[] { request.TargetAudienceNotes })
+                .Where(static value => !string.IsNullOrWhiteSpace(value)));
+
+        if (string.IsNullOrWhiteSpace(searchText))
+        {
+            return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        var normalized = NormalizeStrategyToken(searchText);
+        var archetypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        AddIfMatch(archetypes, normalized, "funeral_services", "funeral", "burial", "cremation", "undertaker", "memorial");
+        AddIfMatch(archetypes, normalized, "food_restaurant", "restaurant", "food", "takeaway", "cafe", "diner", "pizza");
+        AddIfMatch(archetypes, normalized, "retail_grocery", "retail", "grocery", "supermarket", "shop", "store");
+        AddIfMatch(archetypes, normalized, "healthcare_clinic", "healthcare", "clinic", "dental", "doctor", "medical", "pharmacy");
+        AddIfMatch(archetypes, normalized, "legal_services", "legal", "attorney", "law", "conveyancing");
+        AddIfMatch(archetypes, normalized, "automotive", "automotive", "dealership", "vehicle", "car", "motor");
+
+        return archetypes;
+    }
+
+    private static void AddIfMatch(HashSet<string> archetypes, string normalizedSource, string archetype, params string[] aliases)
+    {
+        if (aliases.Any(alias => normalizedSource.Contains(NormalizeStrategyToken(alias), StringComparison.OrdinalIgnoreCase)))
+        {
+            archetypes.Add(archetype);
+        }
     }
 
     private decimal RadioFitBonus(InventoryCandidate candidate, CampaignPlanningRequest request)

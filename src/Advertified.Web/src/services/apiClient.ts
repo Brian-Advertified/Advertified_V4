@@ -1,5 +1,3 @@
-import { buildAuthenticatedHeaders } from './sessionStore';
-
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:5050';
 
 type ApiErrorShape = {
@@ -117,10 +115,6 @@ export function toAbsoluteApiUrl(path?: string | null) {
   return `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
 }
 
-function getAuthHeaders() {
-  return buildAuthenticatedHeaders();
-}
-
 function resolveDownloadFileName(response: Response, fallbackFileName?: string) {
   const contentDisposition = response.headers.get('content-disposition');
   const match = contentDisposition?.match(/filename\*?=(?:UTF-8''|")?([^\";]+)/i);
@@ -135,15 +129,10 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
     headers.set('Content-Type', 'application/json');
   }
 
-  for (const [key, value] of getAuthHeaders().entries()) {
-    if (!headers.has(key)) {
-      headers.set(key, value);
-    }
-  }
-
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
     headers,
+    credentials: 'include',
   });
 
   if (!response.ok) {
@@ -159,7 +148,7 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
 
 export async function downloadProtectedFile(path: string, fallbackFileName?: string) {
   const response = await fetch(toAbsoluteApiUrl(path) ?? path, {
-    headers: getAuthHeaders(),
+    credentials: 'include',
   });
 
   if (!response.ok) {
@@ -178,7 +167,9 @@ export async function downloadProtectedFile(path: string, fallbackFileName?: str
 }
 
 export async function downloadPublicFile(path: string, fallbackFileName?: string) {
-  const response = await fetch(toAbsoluteApiUrl(path) ?? path);
+  const response = await fetch(toAbsoluteApiUrl(path) ?? path, {
+    credentials: 'include',
+  });
 
   if (!response.ok) {
     await parseApiError(response);
@@ -195,4 +186,4 @@ export async function downloadPublicFile(path: string, fallbackFileName?: string
   window.URL.revokeObjectURL(objectUrl);
 }
 
-export { API_BASE_URL, getAuthHeaders };
+export { API_BASE_URL };

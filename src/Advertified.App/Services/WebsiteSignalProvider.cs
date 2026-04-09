@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using System.Net;
+using System.Net.Sockets;
 using Advertified.App.Services.Abstractions;
 
 namespace Advertified.App.Services;
@@ -99,6 +100,11 @@ public sealed partial class WebsiteSignalProvider : IWebsiteSignalProvider
             return new WebsiteSignalResult();
         }
 
+        if (!await IsSafeWebsiteUriAsync(websiteUri, cancellationToken))
+        {
+            return new WebsiteSignalResult();
+        }
+
         try
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, websiteUri);
@@ -181,6 +187,116 @@ public sealed partial class WebsiteSignalProvider : IWebsiteSignalProvider
             || trimmed.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
             ? trimmed
             : $"https://{trimmed}";
+    }
+
+    private static async Task<bool> IsSafeWebsiteUriAsync(Uri uri, CancellationToken cancellationToken)
+    {
+        if (!uri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
+            && !uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (uri.IsLoopback)
+        {
+            return false;
+        }
+
+        var host = uri.Host.Trim();
+        if (host.Equals("localhost", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (IPAddress.TryParse(host, out var ipAddress))
+        {
+            return !IsPrivateOrReserved(ipAddress);
+        }
+
+        try
+        {
+            var addresses = await Dns.GetHostAddressesAsync(host, cancellationToken);
+            if (addresses.Length == 0)
+            {
+                return false;
+            }
+
+            return addresses.All(address => !IsPrivateOrReserved(address));
+        }
+        catch (SocketException)
+        {
+            return false;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+    }
+
+    private static bool IsPrivateOrReserved(IPAddress address)
+    {
+        if (IPAddress.IsLoopback(address))
+        {
+            return true;
+        }
+
+        if (address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+        {
+            var bytes = address.GetAddressBytes();
+            if (bytes.Length != 4)
+            {
+                return true;
+            }
+
+            if (bytes[0] == 10)
+            {
+                return true;
+            }
+
+            if (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31)
+            {
+                return true;
+            }
+
+            if (bytes[0] == 192 && bytes[1] == 168)
+            {
+                return true;
+            }
+
+            if (bytes[0] == 127)
+            {
+                return true;
+            }
+
+            if (bytes[0] == 169 && bytes[1] == 254)
+            {
+                return true;
+            }
+
+            if (bytes[0] == 0)
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        if (address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6)
+        {
+            if (address.IsIPv6LinkLocal || address.IsIPv6Multicast || address.IsIPv6SiteLocal)
+            {
+                return true;
+            }
+
+            var bytes = address.GetAddressBytes();
+            if (bytes.Length > 0 && (bytes[0] & 0xFE) == 0xFC)
+            {
+                // Unique local address range fc00::/7
+                return true;
+            }
+        }
+
+        return false;
     }
 
     [GeneratedRegex(@"fbq\s*\(|facebook\.com/tr|meta\s+pixel", RegexOptions.IgnoreCase | RegexOptions.Compiled)]

@@ -75,6 +75,7 @@ public sealed class RecommendationExplainabilityService : IRecommendationExplain
         if (_scoreService.MediaPreferenceScore(candidate, request) >= 15m) reasons.Add("Matches requested channel mix");
         if (_scoreService.MixTargetScore(candidate, request) >= 8m) reasons.Add("Supports requested mix target");
         if (_scoreService.BudgetScore(candidate, request) >= 12m) reasons.Add("Fits comfortably within budget");
+        if (_scoreService.IndustryContextFitScore(candidate, request) >= 8m) reasons.Add("Strong industry and context fit");
         if (SupportsObjective(candidate, request)) reasons.Add("Supports campaign objective");
         if (_scoreService.AnalyzeCandidate(candidate, request).Score >= 75m) reasons.Add("Strong overall strategic fit");
 

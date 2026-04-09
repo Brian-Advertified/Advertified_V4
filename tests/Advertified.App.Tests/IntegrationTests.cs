@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using Advertified.App.AIPlatform.Api;
 using Advertified.App.AIPlatform.Application;
 using Advertified.App.AIPlatform.Domain;
 using Advertified.App.AIPlatform.Infrastructure;
@@ -21,6 +22,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -136,6 +138,288 @@ public class HttpWorkflowIntegrationTests
         dbUser.IdentityProfile.Should().NotBeNull();
         dbUser.IdentityProfile!.SaIdNumber.Should().Be("9001011234088");
         passwordHasher.VerifyPassword(dbUser, "StrongPass!123").Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task AuthLogin_SetsSessionCookie_AndAllowsMeEndpointWithCookie()
+    {
+        const string email = "cookie.user@example.com";
+        const string password = "StrongPass!123";
+
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var now = DateTime.UtcNow;
+                var user = new UserAccount
+                {
+                    Id = Guid.NewGuid(),
+                    FullName = "Cookie User",
+                    Email = email,
+                    Phone = "0821112222",
+                    IsSaCitizen = true,
+                    EmailVerified = true,
+                    PhoneVerified = true,
+                    Role = UserRole.Client,
+                    AccountStatus = AccountStatus.Active,
+                    CreatedAt = now,
+                    UpdatedAt = now
+                };
+                user.PasswordHash = new PasswordHashingService().HashPassword(user, password);
+                db.UserAccounts.Add(user);
+                db.SaveChanges();
+            });
+
+        var loginResponse = await harness.Client.PostAsJsonAsync("/auth/login", new LoginRequest
+        {
+            Email = email,
+            Password = password
+        });
+        var loginContent = await loginResponse.Content.ReadAsStringAsync();
+
+        loginResponse.StatusCode.Should().Be(HttpStatusCode.OK, loginContent);
+        loginResponse.Headers.TryGetValues("Set-Cookie", out var setCookieHeaders).Should().BeTrue();
+        var sessionCookie = ExtractCookieHeader(setCookieHeaders!, SessionCookieDefaults.CookieName);
+        sessionCookie.Should().NotBeNullOrWhiteSpace();
+
+        using var meRequest = new HttpRequestMessage(HttpMethod.Get, "/me");
+        meRequest.Headers.Add("Cookie", sessionCookie!);
+        var meResponse = await harness.Client.SendAsync(meRequest);
+        var meContent = await meResponse.Content.ReadAsStringAsync();
+
+        meResponse.StatusCode.Should().Be(HttpStatusCode.OK, meContent);
+        using var meJson = System.Text.Json.JsonDocument.Parse(meContent);
+        meJson.RootElement.GetProperty("email").GetString().Should().Be(email);
+    }
+
+    [Fact]
+    public async Task AuthLogout_ClearsSessionCookie_AndBlocksMeEndpoint()
+    {
+        const string email = "logout.user@example.com";
+        const string password = "StrongPass!123";
+
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var now = DateTime.UtcNow;
+                var user = new UserAccount
+                {
+                    Id = Guid.NewGuid(),
+                    FullName = "Logout User",
+                    Email = email,
+                    Phone = "0823334444",
+                    IsSaCitizen = true,
+                    EmailVerified = true,
+                    PhoneVerified = true,
+                    Role = UserRole.Client,
+                    AccountStatus = AccountStatus.Active,
+                    CreatedAt = now,
+                    UpdatedAt = now
+                };
+                user.PasswordHash = new PasswordHashingService().HashPassword(user, password);
+                db.UserAccounts.Add(user);
+                db.SaveChanges();
+            });
+
+        var loginResponse = await harness.Client.PostAsJsonAsync("/auth/login", new LoginRequest
+        {
+            Email = email,
+            Password = password
+        });
+        var loginContent = await loginResponse.Content.ReadAsStringAsync();
+        loginResponse.StatusCode.Should().Be(HttpStatusCode.OK, loginContent);
+        loginResponse.Headers.TryGetValues("Set-Cookie", out var setCookieHeaders).Should().BeTrue();
+        var sessionCookie = ExtractCookieHeader(setCookieHeaders!, SessionCookieDefaults.CookieName);
+        sessionCookie.Should().NotBeNullOrWhiteSpace();
+
+        using var logoutRequest = new HttpRequestMessage(HttpMethod.Post, "/auth/logout");
+        logoutRequest.Headers.Add("Cookie", sessionCookie!);
+        logoutRequest.Headers.Add("Origin", "http://localhost:5173");
+        var logoutResponse = await harness.Client.SendAsync(logoutRequest);
+        var logoutContent = await logoutResponse.Content.ReadAsStringAsync();
+        logoutResponse.StatusCode.Should().Be(HttpStatusCode.OK, logoutContent);
+
+        using var meRequest = new HttpRequestMessage(HttpMethod.Get, "/me");
+        var meResponse = await harness.Client.SendAsync(meRequest);
+        meResponse.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task SessionCookie_BecomesInvalidAfterPasswordHashChange()
+    {
+        const string email = "expiry.user@example.com";
+        const string password = "StrongPass!123";
+
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var now = DateTime.UtcNow;
+                var user = new UserAccount
+                {
+                    Id = Guid.NewGuid(),
+                    FullName = "Expiry User",
+                    Email = email,
+                    Phone = "0825556666",
+                    IsSaCitizen = true,
+                    EmailVerified = true,
+                    PhoneVerified = true,
+                    Role = UserRole.Client,
+                    AccountStatus = AccountStatus.Active,
+                    CreatedAt = now,
+                    UpdatedAt = now
+                };
+                user.PasswordHash = new PasswordHashingService().HashPassword(user, password);
+                db.UserAccounts.Add(user);
+                db.SaveChanges();
+            });
+
+        var loginResponse = await harness.Client.PostAsJsonAsync("/auth/login", new LoginRequest
+        {
+            Email = email,
+            Password = password
+        });
+        var loginContent = await loginResponse.Content.ReadAsStringAsync();
+        loginResponse.StatusCode.Should().Be(HttpStatusCode.OK, loginContent);
+        loginResponse.Headers.TryGetValues("Set-Cookie", out var setCookieHeaders).Should().BeTrue();
+        var sessionCookie = ExtractCookieHeader(setCookieHeaders!, SessionCookieDefaults.CookieName);
+        sessionCookie.Should().NotBeNullOrWhiteSpace();
+
+        // Validate baseline authenticated request succeeds with fresh cookie.
+        using (var meRequest = new HttpRequestMessage(HttpMethod.Get, "/me"))
+        {
+            meRequest.Headers.Add("Cookie", sessionCookie!);
+            var meResponse = await harness.Client.SendAsync(meRequest);
+            meResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        }
+
+        // Rotate password hash, which should invalidate existing session payloads.
+        await harness.ExecuteDbAsync(async db =>
+        {
+            var user = await db.UserAccounts.SingleAsync(x => x.Email == email);
+            user.PasswordHash = new PasswordHashingService().HashPassword(user, "DifferentPass!456");
+            user.UpdatedAt = DateTime.UtcNow;
+            await db.SaveChangesAsync();
+            return true;
+        });
+
+        using var staleCookieRequest = new HttpRequestMessage(HttpMethod.Get, "/me");
+        staleCookieRequest.Headers.Add("Cookie", sessionCookie!);
+        var staleCookieResponse = await harness.Client.SendAsync(staleCookieRequest);
+
+        staleCookieResponse.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task AuthenticatedCookieWrite_WithUntrustedOrigin_IsBlocked()
+    {
+        const string email = "csrf.user@example.com";
+        const string password = "StrongPass!123";
+
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var now = DateTime.UtcNow;
+                var user = new UserAccount
+                {
+                    Id = Guid.NewGuid(),
+                    FullName = "Csrf User",
+                    Email = email,
+                    Phone = "0827778888",
+                    IsSaCitizen = true,
+                    EmailVerified = true,
+                    PhoneVerified = true,
+                    Role = UserRole.Client,
+                    AccountStatus = AccountStatus.Active,
+                    CreatedAt = now,
+                    UpdatedAt = now
+                };
+                user.PasswordHash = new PasswordHashingService().HashPassword(user, password);
+                db.UserAccounts.Add(user);
+                db.SaveChanges();
+            });
+
+        var loginResponse = await harness.Client.PostAsJsonAsync("/auth/login", new LoginRequest
+        {
+            Email = email,
+            Password = password
+        });
+        var loginContent = await loginResponse.Content.ReadAsStringAsync();
+        loginResponse.StatusCode.Should().Be(HttpStatusCode.OK, loginContent);
+        loginResponse.Headers.TryGetValues("Set-Cookie", out var setCookieHeaders).Should().BeTrue();
+        var sessionCookie = ExtractCookieHeader(setCookieHeaders!, SessionCookieDefaults.CookieName);
+        sessionCookie.Should().NotBeNullOrWhiteSpace();
+
+        using var logoutRequest = new HttpRequestMessage(HttpMethod.Post, "/auth/logout");
+        logoutRequest.Headers.Add("Cookie", sessionCookie!);
+        logoutRequest.Headers.Add("Origin", "https://evil.example");
+
+        var logoutResponse = await harness.Client.SendAsync(logoutRequest);
+
+        logoutResponse.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task AuthenticatedCookieWrite_WithoutOriginOrReferer_IsBlocked()
+    {
+        const string email = "csrf.no-origin@example.com";
+        const string password = "StrongPass!123";
+
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var now = DateTime.UtcNow;
+                var user = new UserAccount
+                {
+                    Id = Guid.NewGuid(),
+                    FullName = "Csrf Missing Origin User",
+                    Email = email,
+                    Phone = "0829990000",
+                    IsSaCitizen = true,
+                    EmailVerified = true,
+                    PhoneVerified = true,
+                    Role = UserRole.Client,
+                    AccountStatus = AccountStatus.Active,
+                    CreatedAt = now,
+                    UpdatedAt = now
+                };
+                user.PasswordHash = new PasswordHashingService().HashPassword(user, password);
+                db.UserAccounts.Add(user);
+                db.SaveChanges();
+            });
+
+        var loginResponse = await harness.Client.PostAsJsonAsync("/auth/login", new LoginRequest
+        {
+            Email = email,
+            Password = password
+        });
+        var loginContent = await loginResponse.Content.ReadAsStringAsync();
+        loginResponse.StatusCode.Should().Be(HttpStatusCode.OK, loginContent);
+        loginResponse.Headers.TryGetValues("Set-Cookie", out var setCookieHeaders).Should().BeTrue();
+        var sessionCookie = ExtractCookieHeader(setCookieHeaders!, SessionCookieDefaults.CookieName);
+        sessionCookie.Should().NotBeNullOrWhiteSpace();
+
+        using var logoutRequest = new HttpRequestMessage(HttpMethod.Post, "/auth/logout");
+        logoutRequest.Headers.Add("Cookie", sessionCookie!);
+        var logoutResponse = await harness.Client.SendAsync(logoutRequest);
+
+        logoutResponse.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    private static string? ExtractCookieHeader(IEnumerable<string> setCookieHeaders, string cookieName)
+    {
+        var prefix = $"{cookieName}=";
+        foreach (var header in setCookieHeaders)
+        {
+            if (!header.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var valueEnd = header.IndexOf(';');
+            var cookiePair = valueEnd >= 0 ? header[..valueEnd] : header;
+            return cookiePair;
+        }
+
+        return null;
     }
 
     [Fact]
@@ -2079,6 +2363,51 @@ internal sealed class AdVariantApiTestResponse
     public Guid Id { get; set; }
 }
 
+internal sealed class StubAdPlatformAccessTokenService : IAdPlatformAccessTokenService
+{
+    public Task<string?> ResolveAccessTokenAsync(
+        CampaignAdPlatformLink? link,
+        string platform,
+        CancellationToken cancellationToken)
+    {
+        return Task.FromResult<string?>("test-access-token");
+    }
+}
+
+internal sealed class StubAdPlatformConnectionService : IAdPlatformConnectionService
+{
+    public Task<IReadOnlyList<CampaignAdPlatformConnectionResponse>> GetCampaignConnectionsAsync(
+        Guid campaignId,
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyList<CampaignAdPlatformConnectionResponse> result = Array.Empty<CampaignAdPlatformConnectionResponse>();
+        return Task.FromResult(result);
+    }
+
+    public Task<CampaignAdPlatformConnectionResponse> UpsertCampaignConnectionAsync(
+        Guid campaignId,
+        Guid? ownerUserId,
+        UpsertCampaignAdPlatformConnectionRequest request,
+        CancellationToken cancellationToken)
+    {
+        var response = new CampaignAdPlatformConnectionResponse
+        {
+            LinkId = Guid.NewGuid(),
+            ConnectionId = Guid.NewGuid(),
+            CampaignId = campaignId,
+            Provider = request.Provider?.Trim() ?? "Meta",
+            ExternalAccountId = request.ExternalAccountId?.Trim() ?? string.Empty,
+            AccountName = request.AccountName?.Trim() ?? "Test Account",
+            ExternalCampaignId = request.ExternalCampaignId?.Trim(),
+            IsPrimary = request.IsPrimary,
+            Status = request.Status?.Trim() ?? "active",
+            UpdatedAt = DateTimeOffset.UtcNow
+        };
+
+        return Task.FromResult(response);
+    }
+}
+
 internal sealed class StubCreativeCampaignOrchestrator : ICreativeCampaignOrchestrator
 {
     public Task<GenerateCampaignCreativesResult> GenerateAsync(
@@ -2188,6 +2517,8 @@ internal sealed class TestApiHarness : IAsyncDisposable
         builder.Services.AddScoped<IMediaPlanningEngine, StubMediaPlanningEngine>();
         builder.Services.AddScoped<ICampaignReasoningService, StubCampaignReasoningService>();
         builder.Services.AddScoped<ICampaignRecommendationService, CampaignRecommendationService>();
+        builder.Services.AddScoped<IAdPlatformAccessTokenService, StubAdPlatformAccessTokenService>();
+        builder.Services.AddScoped<IAdPlatformConnectionService, StubAdPlatformConnectionService>();
         builder.Services.AddScoped<ILeadProposalConfidenceGateService, StubLeadProposalConfidenceGateService>();
         builder.Services.AddScoped<ICampaignBriefInterpretationService, StubCampaignBriefInterpretationService>();
         builder.Services.AddScoped<ITemplatedEmailService, StubTemplatedEmailService>();
@@ -2198,6 +2529,103 @@ internal sealed class TestApiHarness : IAsyncDisposable
 
         var app = builder.Build();
         app.UseAuthentication();
+        app.Use(async (context, next) =>
+        {
+            if (HttpMethods.IsGet(context.Request.Method)
+                || HttpMethods.IsHead(context.Request.Method)
+                || HttpMethods.IsOptions(context.Request.Method)
+                || HttpMethods.IsTrace(context.Request.Method))
+            {
+                await next();
+                return;
+            }
+
+            var endpoint = context.GetEndpoint();
+            if (endpoint?.Metadata.GetMetadata<IAllowAnonymous>() is not null)
+            {
+                await next();
+                return;
+            }
+
+            if (context.User?.Identity?.IsAuthenticated != true)
+            {
+                await next();
+                return;
+            }
+
+            if (!context.Request.Cookies.ContainsKey(SessionCookieDefaults.CookieName))
+            {
+                await next();
+                return;
+            }
+
+            static string? ResolveOrigin(HttpContext httpContext)
+            {
+                if (httpContext.Request.Headers.TryGetValue("Origin", out var originValues))
+                {
+                    var origin = originValues.FirstOrDefault();
+                    if (!string.IsNullOrWhiteSpace(origin))
+                    {
+                        return origin.Trim().TrimEnd('/');
+                    }
+                }
+
+                if (httpContext.Request.Headers.TryGetValue("Referer", out var refererValues))
+                {
+                    var referer = refererValues.FirstOrDefault();
+                    if (!string.IsNullOrWhiteSpace(referer) && Uri.TryCreate(referer, UriKind.Absolute, out var refererUri))
+                    {
+                        return $"{refererUri.Scheme}://{refererUri.Authority}".TrimEnd('/');
+                    }
+                }
+
+                return null;
+            }
+
+            var requestOrigin = ResolveOrigin(context);
+            if (string.IsNullOrWhiteSpace(requestOrigin))
+            {
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                await context.Response.WriteAsJsonAsync(new ProblemDetails
+                {
+                    Title = "Cross-site request blocked.",
+                    Detail = "Origin or Referer header is required for authenticated browser actions.",
+                    Status = StatusCodes.Status403Forbidden
+                });
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(requestOrigin))
+            {
+                var requestHostOrigin = $"{context.Request.Scheme}://{context.Request.Host}".TrimEnd('/');
+                var allowedOrigins = new[]
+                {
+                    "http://localhost:5173",
+                    "https://localhost:5173",
+                    "https://dev.advertified.com",
+                    "http://dev.advertified.com",
+                    "https://advertified.com",
+                    "https://www.advertified.com",
+                    requestHostOrigin
+                };
+                var allowed = allowedOrigins.Any(origin =>
+                    string.Equals(origin.TrimEnd('/'), requestOrigin, StringComparison.OrdinalIgnoreCase));
+
+                if (!allowed)
+                {
+                    context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                    await context.Response.WriteAsJsonAsync(new ProblemDetails
+                    {
+                        Title = "Cross-site request blocked.",
+                        Detail = "The request origin is not allowed for authenticated browser actions.",
+                        Status = StatusCodes.Status403Forbidden
+                    });
+                    return;
+                }
+            }
+
+            await next();
+        });
         app.UseAuthorization();
         app.MapControllers();
 

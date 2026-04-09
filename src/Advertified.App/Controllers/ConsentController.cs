@@ -1,25 +1,25 @@
 using Advertified.App.Contracts.Consent;
 using Advertified.App.Data;
 using Advertified.App.Data.Entities;
-using Advertified.App.Services.Abstractions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace Advertified.App.Controllers;
 
 [ApiController]
 [Route("consent")]
 [AllowAnonymous]
+[EnableRateLimiting("public_general")]
 public sealed class ConsentController : ControllerBase
 {
     private readonly AppDbContext _db;
-    private readonly ISessionTokenService _sessionTokenService;
 
-    public ConsentController(AppDbContext db, ISessionTokenService sessionTokenService)
+    public ConsentController(AppDbContext db)
     {
         _db = db;
-        _sessionTokenService = sessionTokenService;
     }
 
     [HttpGet("preferences")]
@@ -102,21 +102,13 @@ public sealed class ConsentController : ControllerBase
 
     private Guid? TryGetCurrentUserId()
     {
-        var authorizationHeader = HttpContext.Request.Headers.Authorization.FirstOrDefault();
-        if (string.IsNullOrWhiteSpace(authorizationHeader))
+        var userIdClaim = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrWhiteSpace(userIdClaim))
         {
             return null;
         }
 
-        const string BearerPrefix = "Bearer ";
-        if (!authorizationHeader.StartsWith(BearerPrefix, StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
-
-        return _sessionTokenService.TryReadToken(authorizationHeader[BearerPrefix.Length..].Trim(), out var payload)
-            ? payload.UserId
-            : null;
+        return Guid.TryParse(userIdClaim, out var userId) ? userId : null;
     }
 
     private static ConsentPreferenceResponse MapResponse(ConsentPreference preference, bool hasSavedPreferences)

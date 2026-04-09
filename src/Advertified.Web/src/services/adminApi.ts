@@ -29,7 +29,7 @@ import type {
   AdminUpsertPackageSettingInput,
   AdminUser,
 } from '../types/domain';
-import { API_BASE_URL, apiRequest, getAuthHeaders, parseApiError } from './apiClient';
+import { API_BASE_URL, apiRequest, parseApiError } from './apiClient';
 
 type AdminDashboardResponse = AdminDashboard;
 
@@ -329,7 +329,7 @@ export function createAdminApi({ mapAdminPackageOrder }: AdminApiDependencies) {
       const response = await fetch(`${API_BASE_URL}/admin/imports/rate-card`, {
         method: 'POST',
         body: formData,
-        headers: getAuthHeaders(),
+        credentials: 'include',
       });
 
       if (!response.ok) {
@@ -514,7 +514,7 @@ export function createAdminApi({ mapAdminPackageOrder }: AdminApiDependencies) {
       const response = await fetch(`${API_BASE_URL}/admin/package-orders/${encodeURIComponent(input.orderId)}/payment-status`, {
         method: 'POST',
         body: formData,
-        headers: getAuthHeaders(),
+        credentials: 'include',
       });
 
       if (!response.ok) {

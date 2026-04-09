@@ -26,7 +26,6 @@ export interface SessionUser {
   emailVerified: boolean;
   requiresPasswordSetup?: boolean;
   identityComplete?: boolean;
-  sessionToken?: string;
   businessName?: string;
   registrationNumber?: string;
   city?: string;

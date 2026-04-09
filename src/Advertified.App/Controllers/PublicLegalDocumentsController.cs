@@ -3,6 +3,7 @@ using Advertified.App.Contracts.Legal;
 using Advertified.App.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 
 namespace Advertified.App.Controllers;
@@ -10,6 +11,7 @@ namespace Advertified.App.Controllers;
 [ApiController]
 [Route("public/legal-documents")]
 [AllowAnonymous]
+[EnableRateLimiting("public_general")]
 public sealed class PublicLegalDocumentsController : ControllerBase
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);

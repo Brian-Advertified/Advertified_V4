@@ -66,7 +66,7 @@ function normalizeRole(role: string): SessionUser['role'] {
   return 'client';
 }
 
-function mapSessionUser(response: LoginResponse | MeResponse, sessionToken?: string): SessionUser {
+function mapSessionUser(response: LoginResponse | MeResponse): SessionUser {
   return {
     id: response.userId,
     fullName: response.fullName,
@@ -76,7 +76,6 @@ function mapSessionUser(response: LoginResponse | MeResponse, sessionToken?: str
     emailVerified: response.emailVerified,
     requiresPasswordSetup: response.requiresPasswordSetup,
     identityComplete: response.identityComplete,
-    sessionToken,
     businessName: 'businessName' in response ? response.businessName ?? undefined : undefined,
     registrationNumber: 'registrationNumber' in response ? response.registrationNumber ?? undefined : undefined,
     city: 'city' in response ? response.city ?? undefined : undefined,
@@ -132,10 +131,10 @@ async function login(input: LoginInput) {
     body: JSON.stringify(input),
   });
 
-  writeStoredSession(mapSessionUser(response, response.sessionToken));
+  writeStoredSession(mapSessionUser(response));
   return getMe(response.userId)
-    .then((user) => ({ ...user, sessionToken: response.sessionToken }))
-    .catch(() => mapSessionUser(response, response.sessionToken));
+    .then((user) => ({ ...user }))
+    .catch(() => mapSessionUser(response));
 }
 
 async function verifyEmail(token: string) {
@@ -144,13 +143,12 @@ async function verifyEmail(token: string) {
     body: JSON.stringify({ token }),
   });
 
-  writeStoredSession(mapSessionUser(response, response.sessionToken));
+  writeStoredSession(mapSessionUser(response));
   return getMe(response.userId)
     .then((user) => ({
       ...user,
-      sessionToken: response.sessionToken,
     }))
-    .catch(() => mapSessionUser(response, response.sessionToken));
+    .catch(() => mapSessionUser(response));
 }
 
 async function setPassword(input: { password: string; confirmPassword: string }) {
@@ -159,10 +157,20 @@ async function setPassword(input: { password: string; confirmPassword: string })
     body: JSON.stringify(input),
   });
 
-  writeStoredSession(mapSessionUser(response, response.sessionToken));
+  writeStoredSession(mapSessionUser(response));
   return getMe(response.userId)
-    .then((user) => ({ ...user, sessionToken: response.sessionToken, requiresPasswordSetup: false }))
-    .catch(() => ({ ...mapSessionUser(response, response.sessionToken), requiresPasswordSetup: false }));
+    .then((user) => ({ ...user, requiresPasswordSetup: false }))
+    .catch(() => ({ ...mapSessionUser(response), requiresPasswordSetup: false }));
+}
+
+async function logout() {
+  try {
+    await apiRequest<{ message: string }>('/auth/logout', {
+      method: 'POST',
+    });
+  } catch {
+    // Best-effort logout: local session is still cleared by auth context.
+  }
 }
 
 async function resendVerification(email?: string, nextPath?: string) {
@@ -181,6 +189,7 @@ export const authApi = {
   login,
   verifyEmail,
   setPassword,
+  logout,
   getMe,
   resendVerification,
 };

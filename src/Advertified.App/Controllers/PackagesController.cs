@@ -2,12 +2,14 @@ using Advertified.App.Services.Abstractions;
 using Advertified.App.Support;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Advertified.App.Controllers;
 
 [ApiController]
 [Route("packages")]
 [AllowAnonymous]
+[EnableRateLimiting("public_general")]
 public sealed class PackagesController : ControllerBase
 {
     private readonly IPackageCatalogService _packageCatalogService;

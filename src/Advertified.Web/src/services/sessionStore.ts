@@ -39,14 +39,3 @@ export function writeStoredSession(session: SessionUser | null) {
     storage.removeItem(SESSION_STORAGE_KEY);
   }
 }
-
-export function buildAuthenticatedHeaders(headers?: HeadersInit) {
-  const sessionToken = readStoredSession()?.sessionToken;
-  const resolvedHeaders = new Headers(headers);
-
-  if (sessionToken) {
-    resolvedHeaders.set('Authorization', `Bearer ${sessionToken}`);
-  }
-
-  return resolvedHeaders;
-}

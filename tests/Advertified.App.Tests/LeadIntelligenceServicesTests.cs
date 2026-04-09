@@ -112,6 +112,46 @@ public class WebsiteSignalProviderTests
 
         result.Should().BeEquivalentTo(new WebsiteSignalResult());
     }
+
+    [Fact]
+    public async Task CollectAsync_BlocksLocalhostUrls()
+    {
+        var wasCalled = false;
+        var client = new HttpClient(new StubHttpMessageHandler(_ =>
+        {
+            wasCalled = true;
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("<html><body>ok</body></html>")
+            };
+        }));
+        var provider = new WebsiteSignalProvider(client);
+
+        var result = await provider.CollectAsync("http://localhost:8080", CancellationToken.None);
+
+        wasCalled.Should().BeFalse();
+        result.Should().BeEquivalentTo(new WebsiteSignalResult());
+    }
+
+    [Fact]
+    public async Task CollectAsync_BlocksPrivateIpUrls()
+    {
+        var wasCalled = false;
+        var client = new HttpClient(new StubHttpMessageHandler(_ =>
+        {
+            wasCalled = true;
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("<html><body>ok</body></html>")
+            };
+        }));
+        var provider = new WebsiteSignalProvider(client);
+
+        var result = await provider.CollectAsync("http://192.168.1.4:8080", CancellationToken.None);
+
+        wasCalled.Should().BeFalse();
+        result.Should().BeEquivalentTo(new WebsiteSignalResult());
+    }
 }
 
 public class LeadScoreServiceTests

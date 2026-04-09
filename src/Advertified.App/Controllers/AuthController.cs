@@ -1,9 +1,11 @@
 using Advertified.App.Contracts.Auth;
+using Advertified.App.Authentication;
 using Advertified.App.Data;
 using Advertified.App.Data.Entities;
 using Advertified.App.Services.Abstractions;
 using Advertified.App.Validation;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.RegularExpressions;
@@ -12,7 +14,7 @@ namespace Advertified.App.Controllers;
 
 [ApiController]
 [Route("auth")]
-[AllowAnonymous]
+[EnableRateLimiting("auth")]
 public sealed class AuthController : ControllerBase
 {
     private readonly AppDbContext _db;
@@ -39,6 +41,7 @@ public sealed class AuthController : ControllerBase
     }
 
     [HttpPost("register")]
+    [AllowAnonymous]
     public async Task<ActionResult<RegisterResponse>> Register(
         [FromBody] RegisterRequest request,
         CancellationToken cancellationToken)
@@ -48,13 +51,17 @@ public sealed class AuthController : ControllerBase
     }
 
     [HttpPost("verify-email")]
+    [AllowAnonymous]
     public async Task<ActionResult<LoginResponse>> VerifyEmail([FromBody] VerifyEmailRequest request, CancellationToken cancellationToken)
     {
         var user = await _emailVerificationService.VerifyAsync(request.Token, cancellationToken);
-        return Ok(await BuildLoginResponseAsync(user.Id, cancellationToken));
+        var response = await BuildLoginResponseAsync(user.Id, cancellationToken);
+        WriteSessionCookie(response.SessionToken);
+        return Ok(response);
     }
 
     [HttpPost("login")]
+    [AllowAnonymous]
     public async Task<ActionResult<LoginResponse>> Login([FromBody] LoginRequest request, CancellationToken cancellationToken)
     {
         var normalizedEmail = request.Email.Trim().ToLowerInvariant();
@@ -80,10 +87,13 @@ public sealed class AuthController : ControllerBase
             });
         }
 
-        return Ok(await BuildLoginResponseAsync(user.Id, cancellationToken));
+        var response = await BuildLoginResponseAsync(user.Id, cancellationToken);
+        WriteSessionCookie(response.SessionToken);
+        return Ok(response);
     }
 
     [HttpPost("resend-verification")]
+    [AllowAnonymous]
     public async Task<ActionResult> ResendVerification([FromBody] ResendVerificationRequest request, CancellationToken cancellationToken)
     {
         await _emailVerificationService.ResendActivationAsync(request.Email, request.NextPath, cancellationToken);
@@ -96,6 +106,7 @@ public sealed class AuthController : ControllerBase
     }
 
     [HttpPost("set-password")]
+    [Authorize]
     public async Task<ActionResult<LoginResponse>> SetPassword([FromBody] SetPasswordRequest request, CancellationToken cancellationToken)
     {
         if (!RegistrationValidators.IsStrongPassword(request.Password))
@@ -132,7 +143,17 @@ public sealed class AuthController : ControllerBase
         user.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
 
-        return Ok(await BuildLoginResponseAsync(user.Id, cancellationToken));
+        var response = await BuildLoginResponseAsync(user.Id, cancellationToken);
+        WriteSessionCookie(response.SessionToken);
+        return Ok(response);
+    }
+
+    [HttpPost("logout")]
+    [Authorize]
+    public IActionResult Logout()
+    {
+        ClearSessionCookie();
+        return Ok(new { Message = "Logged out." });
     }
 
     private async Task<LoginResponse> BuildLoginResponseAsync(Guid userId, CancellationToken cancellationToken)
@@ -166,6 +187,39 @@ public sealed class AuthController : ControllerBase
             IdentityComplete = identityComplete,
             SessionToken = sessionToken
         };
+    }
+
+    private void WriteSessionCookie(string token)
+    {
+        var secure = Request.IsHttps;
+        Response.Cookies.Append(
+            SessionCookieDefaults.CookieName,
+            token,
+            new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = secure,
+                SameSite = SameSiteMode.Lax,
+                IsEssential = true,
+                Path = "/"
+            });
+    }
+
+    private void ClearSessionCookie()
+    {
+        var secure = Request.IsHttps;
+        Response.Cookies.Append(
+            SessionCookieDefaults.CookieName,
+            string.Empty,
+            new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = secure,
+                SameSite = SameSiteMode.Lax,
+                IsEssential = true,
+                Path = "/",
+                Expires = DateTimeOffset.UnixEpoch
+            });
     }
 
     private static bool RequiresPasswordSetup(UserAccount user)

@@ -10,6 +10,7 @@ using Advertified.App.Validation;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -18,6 +19,7 @@ namespace Advertified.App.Controllers;
 [ApiController]
 [Route("public/prospect-questionnaires")]
 [AllowAnonymous]
+[EnableRateLimiting("public_general")]
 public sealed class PublicProspectQuestionnaireController : ControllerBase
 {
     private readonly AppDbContext _db;

@@ -11,5 +11,5 @@ public interface IPlanningScoreService
     decimal BudgetScore(InventoryCandidate candidate, CampaignPlanningRequest request);
     decimal MediaPreferenceScore(InventoryCandidate candidate, CampaignPlanningRequest request);
     decimal MixTargetScore(InventoryCandidate candidate, CampaignPlanningRequest request);
+    decimal IndustryContextFitScore(InventoryCandidate candidate, CampaignPlanningRequest request);
 }
-

@@ -5,6 +5,7 @@ using Advertified.App.Services.Abstractions;
 using Advertified.App.Support;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 
 namespace Advertified.App.Controllers;
@@ -12,6 +13,7 @@ namespace Advertified.App.Controllers;
 [ApiController]
 [Route("public/proposals")]
 [AllowAnonymous]
+[EnableRateLimiting("public_proposal")]
 public sealed class PublicProposalController : ControllerBase
 {
     private readonly AppDbContext _db;

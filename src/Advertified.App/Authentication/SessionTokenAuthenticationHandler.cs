@@ -30,24 +30,14 @@ public sealed class SessionTokenAuthenticationHandler : AuthenticationHandler<Au
 
     protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
     {
-        if (!Request.Headers.TryGetValue("Authorization", out var authorizationHeaders))
+        var token = TryReadBearerToken();
+        token ??= TryReadSessionCookie();
+
+        if (string.IsNullOrWhiteSpace(token))
         {
             return AuthenticateResult.NoResult();
         }
 
-        var authorizationHeader = authorizationHeaders.FirstOrDefault();
-        if (string.IsNullOrWhiteSpace(authorizationHeader))
-        {
-            return AuthenticateResult.NoResult();
-        }
-
-        const string BearerPrefix = "Bearer ";
-        if (!authorizationHeader.StartsWith(BearerPrefix, StringComparison.OrdinalIgnoreCase))
-        {
-            return AuthenticateResult.NoResult();
-        }
-
-        var token = authorizationHeader[BearerPrefix.Length..].Trim();
         if (!_sessionTokenService.TryReadToken(token, out var payload))
         {
             return AuthenticateResult.Fail("Invalid or malformed session token.");
@@ -81,5 +71,37 @@ public sealed class SessionTokenAuthenticationHandler : AuthenticationHandler<Au
         var ticket = new AuthenticationTicket(principal, Scheme.Name);
 
         return AuthenticateResult.Success(ticket);
+    }
+
+    private string? TryReadBearerToken()
+    {
+        if (!Request.Headers.TryGetValue("Authorization", out var authorizationHeaders))
+        {
+            return null;
+        }
+
+        var authorizationHeader = authorizationHeaders.FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(authorizationHeader))
+        {
+            return null;
+        }
+
+        const string BearerPrefix = "Bearer ";
+        if (!authorizationHeader.StartsWith(BearerPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        return authorizationHeader[BearerPrefix.Length..].Trim();
+    }
+
+    private string? TryReadSessionCookie()
+    {
+        if (!Request.Cookies.TryGetValue(SessionCookieDefaults.CookieName, out var token))
+        {
+            return null;
+        }
+
+        return string.IsNullOrWhiteSpace(token) ? null : token.Trim();
     }
 }

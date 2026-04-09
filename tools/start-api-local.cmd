@@ -12,3 +12,4 @@ if not exist "%LOCALAPPDATA%" mkdir "%LOCALAPPDATA%"
 
 cd /d "%ROOT%"
 dotnet run --project src\Advertified.App\Advertified.App.csproj
+pause

@@ -160,6 +160,60 @@ public class EngineNormalizationTests
     }
 
     [Fact]
+    public void PlanningScoreService_IndustryContextFitScore_FavorsFuneralFriendlyRadio()
+    {
+        var service = CreatePlanningScoreService();
+        var request = new CampaignPlanningRequest
+        {
+            TargetInterests = new List<string> { "Funeral services" },
+            TargetAudienceNotes = "Family decision makers in Johannesburg"
+        };
+
+        var trustRadioCandidate = new InventoryCandidate
+        {
+            MediaType = "Radio",
+            DisplayName = "Talk station morning show",
+            Metadata = new Dictionary<string, object?>
+            {
+                ["industry_fit_tags"] = new[] { "funeral_services" },
+                ["target_audience"] = "News, trust-focused family audience"
+            }
+        };
+
+        var genericDigitalCandidate = new InventoryCandidate
+        {
+            MediaType = "Digital",
+            DisplayName = "Generic digital package",
+            Metadata = new Dictionary<string, object?>
+            {
+                ["target_audience"] = "General discovery audience"
+            }
+        };
+
+        var trustRadioScore = service.IndustryContextFitScore(trustRadioCandidate, request);
+        var genericDigitalScore = service.IndustryContextFitScore(genericDigitalCandidate, request);
+
+        trustRadioScore.Should().BeGreaterThan(genericDigitalScore);
+    }
+
+    [Fact]
+    public void PlanningScoreService_IndustryContextFitScore_ReturnsZeroWhenNoIndustrySignalsProvided()
+    {
+        var service = CreatePlanningScoreService();
+        var request = new CampaignPlanningRequest();
+        var candidate = new InventoryCandidate
+        {
+            MediaType = "Radio",
+            DisplayName = "Any station",
+            Metadata = new Dictionary<string, object?>()
+        };
+
+        var score = service.IndustryContextFitScore(candidate, request);
+
+        score.Should().Be(0m);
+    }
+
+    [Fact]
     public void BroadcastScoreCalculator_Score_MatchesLanguageAliases()
     {
         var calculator = new BroadcastScoreCalculator(BroadcastMatcherPolicy.Default);
