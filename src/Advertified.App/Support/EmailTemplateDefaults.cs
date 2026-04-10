@@ -426,6 +426,9 @@ internal static class EmailTemplateDefaults
                       <p style=""margin:0 0 14px;font-size:15px;line-height:1.7;color:#4b635a;"">
                         {{RecommendationIntro}}
                       </p>
+                      <p style=""margin:0 0 14px;font-size:15px;line-height:1.7;color:#4b635a;"">
+                        Thank you for choosing Advertified — we appreciate the opportunity to support your growth.
+                      </p>
                       <p style=""margin:0 0 18px;font-size:15px;line-height:1.7;color:#4b635a;"">
                         {{ProposalSummary}} Review your preferred option below, or open the full review page if you want to compare everything first. If any payment or finance review step still needs to happen first, your workspace will guide you clearly before anything else needs your confirmation.
                       </p>
