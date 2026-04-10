@@ -152,7 +152,7 @@ public sealed class AgentInventoryController : ControllerBase
             Station = candidate.DisplayName,
             Region = BuildRegion(candidate),
             Language = candidate.Language ?? "Not specified",
-            ShowDaypart = candidate.Area ?? "Not specified",
+            ShowDaypart = candidate.DayType ?? candidate.Area ?? "Not specified",
             TimeBand = candidate.TimeBand ?? "Not specified",
             SlotType = candidate.SlotType ?? "Not specified",
             Duration = BuildDuration(candidate),
@@ -176,7 +176,8 @@ public sealed class AgentInventoryController : ControllerBase
     private static string BuildRegion(InventoryCandidate candidate)
     {
         return string.Join(", ", new[] { candidate.Area, candidate.City, candidate.Province }
-            .Where(value => !string.IsNullOrWhiteSpace(value)))
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase))
             switch
             {
                 { Length: > 0 } region => region,

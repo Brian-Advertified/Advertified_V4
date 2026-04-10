@@ -4,7 +4,7 @@ import type { InventoryRow } from '../../../types/domain';
 import { InventoryTable } from './InventoryTable';
 
 function matchesSearch(item: InventoryRow, query: string) {
-  if (query.length < 3) {
+  if (query.length < 1) {
     return true;
   }
 
@@ -85,7 +85,7 @@ export function AgentInventorySelectionModal({
         <div className="flex items-center justify-between gap-3 border-b border-line px-6 py-4">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand">Matching inventory</p>
-            <p className="mt-1 text-sm text-ink-soft">Search starts filtering from the 3rd keystroke.</p>
+            <p className="mt-1 text-sm text-ink-soft">Search filters as you type.</p>
           </div>
           <button type="button" onClick={onClose} className="button-secondary inline-flex items-center gap-2 px-3 py-2">
             <X className="size-4" />
@@ -120,7 +120,7 @@ export function AgentInventorySelectionModal({
 
         <div className="flex items-center justify-between gap-3 px-6 py-3 text-xs text-ink-soft">
           <span>Showing {filteredInventoryItems.length} of {items.length} inventory row(s)</span>
-          <span>{inventorySearchInput.trim().length > 0 && inventorySearchInput.trim().length < 3 ? 'Type at least 3 characters to start search filtering.' : ''}</span>
+          <span />
         </div>
 
         <div className="min-h-0 flex-1 overflow-auto px-6 pb-6">
