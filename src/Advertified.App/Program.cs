@@ -234,6 +234,7 @@ builder.Services.AddScoped<ILeadChannelDetectionService, LeadChannelDetectionSer
 builder.Services.AddScoped<ILeadMasterDataService, LeadMasterDataService>();
 builder.Services.AddScoped<IIndustryArchetypeScoringService, IndustryArchetypeScoringService>();
 builder.Services.AddScoped<IGeocodingService, GeocodingService>();
+builder.Services.AddScoped<IPlanningRequestFactory, PlanningRequestFactory>();
 builder.Services.AddScoped<ILeadIndustryPolicyService, LeadIndustryPolicyService>();
 builder.Services.AddScoped<ILeadOpportunityProfileService, LeadOpportunityProfileService>();
 builder.Services.AddScoped<ILeadEnrichmentSnapshotService, LeadEnrichmentSnapshotService>();

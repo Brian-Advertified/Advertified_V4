@@ -31,7 +31,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
     private readonly ICampaignReasoningService _campaignReasoningService;
     private readonly PlanningPolicySnapshotProvider _policySnapshotProvider;
     private readonly IPlanningPolicyService _policyService;
-    private readonly IGeocodingService _geocodingService;
+    private readonly IPlanningRequestFactory _planningRequestFactory;
 
     public CampaignRecommendationService(
         AppDbContext db,
@@ -56,13 +56,30 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         PlanningPolicySnapshotProvider policySnapshotProvider,
         IPlanningPolicyService policyService,
         IGeocodingService geocodingService)
+        : this(
+            db,
+            planningEngine,
+            campaignReasoningService,
+            policySnapshotProvider,
+            policyService,
+            new PlanningRequestFactory(geocodingService))
+    {
+    }
+
+    public CampaignRecommendationService(
+        AppDbContext db,
+        IMediaPlanningEngine planningEngine,
+        ICampaignReasoningService campaignReasoningService,
+        PlanningPolicySnapshotProvider policySnapshotProvider,
+        IPlanningPolicyService policyService,
+        IPlanningRequestFactory planningRequestFactory)
     {
         _db = db;
         _planningEngine = planningEngine;
         _campaignReasoningService = campaignReasoningService;
         _policySnapshotProvider = policySnapshotProvider;
         _policyService = policyService;
-        _geocodingService = geocodingService;
+        _planningRequestFactory = planningRequestFactory;
     }
 
     public CampaignRecommendationService(
@@ -196,100 +213,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         GenerateRecommendationRequest? request,
         PackageBandProfile? packageProfile)
     {
-        var preferredMediaTypes = brief.GetList(nameof(CampaignBriefEntity.PreferredMediaTypesJson)).ToList();
-        if (string.Equals(packageProfile?.IncludeTv, "yes", StringComparison.OrdinalIgnoreCase)
-            && !preferredMediaTypes.Any(media =>
-                string.Equals(media?.Trim(), "tv", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(media?.Trim(), "television", StringComparison.OrdinalIgnoreCase)))
-        {
-            preferredMediaTypes.Add("tv");
-        }
-
-        var normalizedGeography = CampaignGeographyNormalizer.Normalize(
-            brief.GeographyScope,
-            brief.GetList(nameof(CampaignBriefEntity.ProvincesJson)),
-            brief.GetList(nameof(CampaignBriefEntity.CitiesJson)),
-            brief.GetList(nameof(CampaignBriefEntity.SuburbsJson)),
-            brief.GetList(nameof(CampaignBriefEntity.AreasJson)));
-        var strategyRequest = new CampaignPlanningRequest
-        {
-            BusinessStage = brief.BusinessStage,
-            MonthlyRevenueBand = brief.MonthlyRevenueBand,
-            SalesModel = brief.SalesModel,
-            CustomerType = brief.CustomerType,
-            BuyingBehaviour = brief.BuyingBehaviour,
-            DecisionCycle = brief.DecisionCycle,
-            PricePositioning = brief.PricePositioning,
-            AverageCustomerSpendBand = brief.AverageCustomerSpendBand,
-            GrowthTarget = brief.GrowthTarget,
-            UrgencyLevel = brief.UrgencyLevel,
-            AudienceClarity = brief.AudienceClarity,
-            ValuePropositionFocus = brief.ValuePropositionFocus
-        };
-        var inferredLsmRange = CampaignStrategySupport.ResolveSuggestedLsmRange(strategyRequest);
-        var targetInterests = brief.GetList(nameof(CampaignBriefEntity.TargetInterestsJson))
-            .Concat(CampaignStrategySupport.BuildAudienceTerms(strategyRequest))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        var targetAudienceNotes = string.Join(
-            Environment.NewLine,
-            new[] { brief.TargetAudienceNotes }
-                .Concat(CampaignStrategySupport.BuildContextLines(strategyRequest))
-                .Where(static value => !string.IsNullOrWhiteSpace(value)));
-
-        var planningRequest = new CampaignPlanningRequest
-        {
-            CampaignId = campaign.Id,
-            SelectedBudget = PricingPolicy.ResolvePlanningBudget(
-                campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
-                campaign.PackageOrder.AiStudioReserveAmount),
-            Objective = brief.Objective,
-            BusinessStage = brief.BusinessStage,
-            MonthlyRevenueBand = brief.MonthlyRevenueBand,
-            SalesModel = brief.SalesModel,
-            GeographyScope = normalizedGeography.Scope,
-            Provinces = normalizedGeography.Provinces.ToList(),
-            Cities = normalizedGeography.Cities.ToList(),
-            Suburbs = normalizedGeography.Suburbs.ToList(),
-            Areas = normalizedGeography.Areas.ToList(),
-            PreferredMediaTypes = preferredMediaTypes,
-            ExcludedMediaTypes = brief.GetList(nameof(CampaignBriefEntity.ExcludedMediaTypesJson)),
-            TargetLanguages = brief.GetList(nameof(CampaignBriefEntity.TargetLanguagesJson)),
-            TargetAgeMin = brief.TargetAgeMin,
-            TargetAgeMax = brief.TargetAgeMax,
-            TargetGender = brief.TargetGender,
-            TargetInterests = targetInterests,
-            TargetAudienceNotes = string.IsNullOrWhiteSpace(targetAudienceNotes) ? null : targetAudienceNotes,
-            CustomerType = brief.CustomerType,
-            BuyingBehaviour = brief.BuyingBehaviour,
-            DecisionCycle = brief.DecisionCycle,
-            PricePositioning = brief.PricePositioning,
-            AverageCustomerSpendBand = brief.AverageCustomerSpendBand,
-            GrowthTarget = brief.GrowthTarget,
-            UrgencyLevel = brief.UrgencyLevel,
-            AudienceClarity = brief.AudienceClarity,
-            ValuePropositionFocus = brief.ValuePropositionFocus,
-            TargetLsmMin = brief.TargetLsmMin ?? inferredLsmRange.Min,
-            TargetLsmMax = brief.TargetLsmMax ?? inferredLsmRange.Max,
-            OpenToUpsell = brief.OpenToUpsell,
-            AdditionalBudget = brief.AdditionalBudget,
-            MaxMediaItems = brief.MaxMediaItems,
-            TargetRadioShare = request?.TargetRadioShare,
-            TargetOohShare = request?.TargetOohShare,
-            TargetTvShare = request?.TargetTvShare,
-            TargetDigitalShare = request?.TargetDigitalShare,
-            TargetLatitude = null,
-            TargetLongitude = null
-        };
-
-        var geocodingTarget = _geocodingService.ResolveCampaignTarget(planningRequest);
-        if (geocodingTarget.IsResolved)
-        {
-            planningRequest.TargetLatitude = geocodingTarget.Latitude;
-            planningRequest.TargetLongitude = geocodingTarget.Longitude;
-        }
-
-        return planningRequest;
+        return _planningRequestFactory.FromCampaignBrief(campaign, brief, request, packageProfile);
     }
 
     private static CampaignRecommendation CreateRecommendationEntity(
