@@ -7,6 +7,7 @@ namespace Advertified.App.Services;
 public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
 {
     private readonly IPlanningPolicyService _policyService;
+    private static readonly string[] BroadcastGeoKeys = { "cityLabels", "city_labels", "city", "area" };
 
     public RecommendationPlanBuilder(IPlanningPolicyService policyService)
     {
@@ -85,17 +86,46 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
                 break;
             }
 
-                var channelCandidate = candidates
-                    .Where(candidate => MatchesChannel(candidate.MediaType, shareTarget.Channel))
-                    .Where(candidate => candidate.Cost > 0m)
-                    .Where(candidate => !usedSourceIds.Contains(candidate.SourceId))
-                    .Where(candidate => spentTotal + candidate.Cost <= request.SelectedBudget)
-                    .Where(candidate => !ExceedsStationDiversityCap(result, candidate))
-                    .OrderByDescending(candidate => HasMatchingOohSite(result, candidate))
-                    .ThenBy(candidate => GetStationSelectionCount(result, candidate, shareTarget.Channel))
-                    .ThenByDescending(candidate => candidate.Score)
-                    .ThenByDescending(candidate => candidate.Cost)
-                    .FirstOrDefault();
+            var channelCandidates = candidates
+                .Where(candidate => MatchesChannel(candidate.MediaType, shareTarget.Channel))
+                .Where(candidate => candidate.Cost > 0m)
+                .Where(candidate => !usedSourceIds.Contains(candidate.SourceId))
+                .Where(candidate => spentTotal + candidate.Cost <= request.SelectedBudget)
+                .Where(candidate => !ExceedsStationDiversityCap(result, candidate));
+
+            // If the user selected a suburb, try to anchor radio/TV with a station whose
+            // broadcast geo labels include that suburb token (e.g. "Soweto"). If none match,
+            // fall back to normal scoring so we still return a plan.
+            if (shareTarget.Channel.Equals("radio", StringComparison.OrdinalIgnoreCase)
+                && request.Suburbs.Count > 0)
+            {
+                var suburbTokens = ExtractSuburbTokens(request.Suburbs);
+                if (suburbTokens.Length > 0)
+                {
+                    var matched = channelCandidates
+                        .Where(candidate => MatchesAnyBroadcastGeoToken(candidate, suburbTokens))
+                        .OrderByDescending(candidate => HasMatchingOohSite(result, candidate))
+                        .ThenBy(candidate => GetStationSelectionCount(result, candidate, shareTarget.Channel))
+                        .ThenByDescending(candidate => candidate.Score)
+                        .ThenByDescending(candidate => candidate.Cost)
+                        .FirstOrDefault();
+
+                    if (matched is not null)
+                    {
+                        result.Add(ToPlannedItem(matched));
+                        usedSourceIds.Add(matched.SourceId);
+                        spentTotal += matched.Cost;
+                        continue;
+                    }
+                }
+            }
+
+            var channelCandidate = channelCandidates
+                .OrderByDescending(candidate => HasMatchingOohSite(result, candidate))
+                .ThenBy(candidate => GetStationSelectionCount(result, candidate, shareTarget.Channel))
+                .ThenByDescending(candidate => candidate.Score)
+                .ThenByDescending(candidate => candidate.Cost)
+                .FirstOrDefault();
 
             if (channelCandidate is null)
             {
@@ -382,6 +412,91 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
             || request.TargetOohShare.GetValueOrDefault() > 0
             || request.TargetTvShare.GetValueOrDefault() > 0
             || request.TargetDigitalShare.GetValueOrDefault() > 0;
+    }
+
+    private static string[] ExtractSuburbTokens(IEnumerable<string> suburbs)
+    {
+        return suburbs
+            .Where(static value => !string.IsNullOrWhiteSpace(value))
+            .SelectMany(value => value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            .Where(static value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static bool MatchesAnyBroadcastGeoToken(InventoryCandidate candidate, IReadOnlyList<string> tokens)
+    {
+        if (candidate.Metadata.Count == 0 || tokens.Count == 0)
+        {
+            return false;
+        }
+
+        foreach (var key in BroadcastGeoKeys)
+        {
+            if (!candidate.Metadata.TryGetValue(key, out var raw))
+            {
+                continue;
+            }
+
+            var values = ExtractMetadataTokens(raw);
+            if (values.Length == 0)
+            {
+                continue;
+            }
+
+            if (tokens.Any(token => values.Any(value => string.Equals(token, value, StringComparison.OrdinalIgnoreCase))))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static string[] ExtractMetadataTokens(object? value)
+    {
+        if (value is null)
+        {
+            return Array.Empty<string>();
+        }
+
+        if (value is string text)
+        {
+            return string.IsNullOrWhiteSpace(text) ? Array.Empty<string>() : new[] { text.Trim() };
+        }
+
+        if (value is IEnumerable<string> textValues)
+        {
+            return textValues
+                .Where(static entry => !string.IsNullOrWhiteSpace(entry))
+                .Select(static entry => entry.Trim())
+                .ToArray();
+        }
+
+        if (value is System.Text.Json.JsonElement json)
+        {
+            if (json.ValueKind == System.Text.Json.JsonValueKind.String)
+            {
+                var jsonText = json.GetString();
+                return string.IsNullOrWhiteSpace(jsonText) ? Array.Empty<string>() : new[] { jsonText.Trim() };
+            }
+
+            if (json.ValueKind == System.Text.Json.JsonValueKind.Array)
+            {
+                return json
+                    .EnumerateArray()
+                    .Where(static item => item.ValueKind == System.Text.Json.JsonValueKind.String)
+                    .Select(static item => item.GetString())
+                    .Where(static item => !string.IsNullOrWhiteSpace(item))
+                    .Select(static item => item!.Trim())
+                    .ToArray();
+            }
+
+            return Array.Empty<string>();
+        }
+
+        var fallback = value.ToString();
+        return string.IsNullOrWhiteSpace(fallback) ? Array.Empty<string>() : new[] { fallback.Trim() };
     }
 
     private static bool MatchesChannel(string? mediaType, string requestedChannel)
