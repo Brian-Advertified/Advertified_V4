@@ -8,6 +8,7 @@ using Advertified.App.Configuration;
 using Advertified.App.Domain.Campaigns;
 using Advertified.App.Services.Abstractions;
 using Advertified.App.Support;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 using CampaignEntity = Advertified.App.Data.Entities.Campaign;
 using CampaignBriefEntity = Advertified.App.Data.Entities.CampaignBrief;
@@ -66,6 +67,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
     {
     }
 
+    [ActivatorUtilitiesConstructor]
     public CampaignRecommendationService(
         AppDbContext db,
         IMediaPlanningEngine planningEngine,
