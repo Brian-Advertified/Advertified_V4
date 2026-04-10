@@ -7,6 +7,7 @@ namespace Advertified.App.Services;
 
 public sealed class PlanningEligibilityService : IPlanningEligibilityService
 {
+    private const double LocalSuburbRadiusKm = 30.0;
     private readonly IPlanningPolicyService _policyService;
     private readonly IBroadcastMasterDataService _broadcastMasterDataService;
 
@@ -75,11 +76,15 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
             return true;
         }
 
+        var isBroadcast = candidate.MediaType.Equals("Radio", StringComparison.OrdinalIgnoreCase)
+            || candidate.MediaType.Equals("TV", StringComparison.OrdinalIgnoreCase);
+        var isOohLike = candidate.MediaType.Equals("OOH", StringComparison.OrdinalIgnoreCase)
+            || candidate.MediaType.Equals("Digital", StringComparison.OrdinalIgnoreCase);
+
         // National broadcast inventory (radio + TV) should remain eligible across
         // local/provincial briefs. This prevents false preferred-media fallbacks when
         // channels are inherently national even if the brief geography is narrower.
-        if ((candidate.MediaType.Equals("Radio", StringComparison.OrdinalIgnoreCase)
-                || candidate.MediaType.Equals("TV", StringComparison.OrdinalIgnoreCase))
+        if (isBroadcast
             && Matches(candidate.MarketScope, "national"))
         {
             return true;
@@ -107,6 +112,34 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
 
         if (requestedSuburbs.Count > 0)
         {
+            // Suburb targeting is intended for hyperlocal surfaces (OOH/digital). Broadcast inventory
+            // is not sold at suburb precision, so we keep it eligible based on city/province matching.
+            if (isBroadcast)
+            {
+                return matchesRequestedCity
+                    || Matches(normalizedScope, candidate.MarketScope)
+                    || Matches(normalizedScope, candidate.RegionClusterCode);
+            }
+
+            // If we have a geocoded campaign target and the inventory has coordinates, use radius-based matching.
+            if (isOohLike
+                && request.TargetLatitude.HasValue
+                && request.TargetLongitude.HasValue
+                && candidate.Latitude.HasValue
+                && candidate.Longitude.HasValue)
+            {
+                var distanceKm = HaversineDistanceKm(
+                    request.TargetLatitude.Value,
+                    request.TargetLongitude.Value,
+                    candidate.Latitude.Value,
+                    candidate.Longitude.Value);
+
+                if (distanceKm <= LocalSuburbRadiusKm)
+                {
+                    return true;
+                }
+            }
+
             var matchesSuburb = requestedSuburbs.Any(x => Matches(x, candidate.Suburb) || Matches(x, candidate.Area));
             return matchesRequestedCity && matchesSuburb;
         }
@@ -135,6 +168,19 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
 
         return Matches(normalizedScope, candidate.MarketScope)
             || Matches(normalizedScope, candidate.RegionClusterCode);
+    }
+
+    private static double HaversineDistanceKm(double lat1, double lon1, double lat2, double lon2)
+    {
+        const double radiusKm = 6371.0;
+        static double ToRadians(double angle) => Math.PI * angle / 180.0;
+
+        var dLat = ToRadians(lat2 - lat1);
+        var dLon = ToRadians(lon2 - lon1);
+        var a = Math.Pow(Math.Sin(dLat / 2), 2)
+                + Math.Cos(ToRadians(lat1)) * Math.Cos(ToRadians(lat2)) * Math.Pow(Math.Sin(dLon / 2), 2);
+        var c = 2 * Math.Asin(Math.Min(1, Math.Sqrt(a)));
+        return radiusKm * c;
     }
 
     private bool Matches(string? left, string? right)

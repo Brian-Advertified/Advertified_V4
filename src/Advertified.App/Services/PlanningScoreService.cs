@@ -51,6 +51,8 @@ public sealed class PlanningScoreService : IPlanningScoreService
     {
         var scope = NormalizeScope(request.GeographyScope);
         var candidateCoverage = ResolveCandidateCoverage(candidate);
+        var isBroadcast = candidate.MediaType.Equals("Radio", StringComparison.OrdinalIgnoreCase)
+            || candidate.MediaType.Equals("TV", StringComparison.OrdinalIgnoreCase);
 
         var score = scope switch
         {
@@ -83,6 +85,23 @@ public sealed class PlanningScoreService : IPlanningScoreService
             score += 10m;
         }
 
+        // Broadcast inventory isn't sold at suburb precision, but our master data often carries
+        // meaningful neighborhood/city labels (e.g. "Soweto") in `cityLabels`. When the user
+        // selects a suburb, extract its tokens and boost candidates whose labels include them.
+        // If no station matches the token, nothing breaks: all other geo scoring still applies.
+        if (isBroadcast && request.Suburbs.Count > 0)
+        {
+            var suburbTokens = ExtractSuburbTokens(request.Suburbs);
+            // Important: use exact token matching here (no geography aliasing), otherwise a token like
+            // "Soweto" could alias to "Johannesburg" and incorrectly boost stations that only list
+            // the broader city label.
+            if (suburbTokens.Length > 0 && suburbTokens.Any(token =>
+                    MatchesAnyMetadataTokenExact(candidate, token, "cityLabels", "city_labels", "city", "area")))
+            {
+                score += 10m;
+            }
+        }
+
         if (request.Cities.Any(x =>
             MatchesGeo(x, candidate.City)
             || MatchesAnyMetadataToken(candidate, x, "cityLabels", "city_labels", "city", "area")))
@@ -103,6 +122,28 @@ public sealed class PlanningScoreService : IPlanningScoreService
         }
 
         return Math.Min(36m, score);
+    }
+
+    private static string[] ExtractSuburbTokens(IEnumerable<string> suburbs)
+    {
+        return suburbs
+            .Where(static value => !string.IsNullOrWhiteSpace(value))
+            .SelectMany(value => value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            .Where(static value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static bool MatchesAnyMetadataTokenExact(InventoryCandidate candidate, string requestedValue, params string[] keys)
+    {
+        if (string.IsNullOrWhiteSpace(requestedValue) || candidate.Metadata.Count == 0)
+        {
+            return false;
+        }
+
+        return keys.Any(key =>
+            candidate.Metadata.TryGetValue(key, out var value)
+            && ExtractMetadataTokens(value).Any(token => Matches(requestedValue, token)));
     }
 
     public decimal AudienceScore(InventoryCandidate candidate, CampaignPlanningRequest request)

@@ -16,19 +16,28 @@ namespace Advertified.App.Controllers;
 [Authorize(Roles = "Agent,Admin")]
 public sealed class AgentInventoryController : ControllerBase
 {
+    private const double LocalSuburbRadiusKm = 30.0;
     private readonly AppDbContext _db;
     private readonly IPlanningInventoryRepository _inventoryRepository;
+    private readonly IGeocodingService _geocodingService;
 
-    public AgentInventoryController(AppDbContext db, IPlanningInventoryRepository inventoryRepository)
+    public AgentInventoryController(AppDbContext db, IPlanningInventoryRepository inventoryRepository, IGeocodingService geocodingService)
     {
         _db = db;
         _inventoryRepository = inventoryRepository;
+        _geocodingService = geocodingService;
     }
 
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<AgentInventoryItemResponse>>> Get([FromQuery] Guid? campaignId, CancellationToken cancellationToken)
     {
         var request = await BuildRequestAsync(campaignId, cancellationToken);
+        var geocodingTarget = _geocodingService.ResolveCampaignTarget(request);
+        if (geocodingTarget.IsResolved)
+        {
+            request.TargetLatitude = geocodingTarget.Latitude;
+            request.TargetLongitude = geocodingTarget.Longitude;
+        }
         var candidates = new List<InventoryCandidate>();
 
         candidates.AddRange(await _inventoryRepository.GetOohCandidatesAsync(request, cancellationToken));
@@ -216,9 +225,14 @@ public sealed class AgentInventoryController : ControllerBase
             return true;
         }
 
+        var isBroadcast = candidate.MediaType.Equals("radio", StringComparison.OrdinalIgnoreCase)
+            || candidate.MediaType.Equals("tv", StringComparison.OrdinalIgnoreCase);
+        var isOohLike = candidate.MediaType.Equals("ooh", StringComparison.OrdinalIgnoreCase)
+            || candidate.MediaType.Equals("digital", StringComparison.OrdinalIgnoreCase);
+
         var requestedTerms = (normalizedScope == "local"
                 ? (request.Suburbs.Count > 0
-                    ? request.Suburbs
+                    ? (isBroadcast ? request.Cities : request.Suburbs)
                     : request.Areas.Concat(request.Cities))
                 : request.Provinces)
             .Where(value => !string.IsNullOrWhiteSpace(value))
@@ -231,6 +245,26 @@ public sealed class AgentInventoryController : ControllerBase
             return true;
         }
 
+        if (normalizedScope == "local"
+            && request.Suburbs.Count > 0
+            && isOohLike
+            && request.TargetLatitude.HasValue
+            && request.TargetLongitude.HasValue
+            && candidate.Latitude.HasValue
+            && candidate.Longitude.HasValue)
+        {
+            var distanceKm = HaversineDistanceKm(
+                request.TargetLatitude.Value,
+                request.TargetLongitude.Value,
+                candidate.Latitude.Value,
+                candidate.Longitude.Value);
+
+            if (distanceKm <= LocalSuburbRadiusKm)
+            {
+                return true;
+            }
+        }
+
         var haystack = string.Join(" ", new[]
         {
             candidate.DisplayName,
@@ -241,6 +275,19 @@ public sealed class AgentInventoryController : ControllerBase
         }.Where(value => !string.IsNullOrWhiteSpace(value))).ToLowerInvariant();
 
         return requestedTerms.Any(term => haystack.Contains(term));
+    }
+
+    private static double HaversineDistanceKm(double lat1, double lon1, double lat2, double lon2)
+    {
+        const double radiusKm = 6371.0;
+        static double ToRadians(double angle) => Math.PI * angle / 180.0;
+
+        var dLat = ToRadians(lat2 - lat1);
+        var dLon = ToRadians(lon2 - lon1);
+        var a = Math.Pow(Math.Sin(dLat / 2), 2)
+                + Math.Cos(ToRadians(lat1)) * Math.Cos(ToRadians(lat2)) * Math.Pow(Math.Sin(dLon / 2), 2);
+        var c = 2 * Math.Asin(Math.Min(1, Math.Sqrt(a)));
+        return radiusKm * c;
     }
 
     private static string NormalizeScope(string? scope)

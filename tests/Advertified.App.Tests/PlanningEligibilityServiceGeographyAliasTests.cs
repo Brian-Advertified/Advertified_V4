@@ -8,10 +8,40 @@ namespace Advertified.App.Tests;
 
 public sealed class PlanningEligibilityServiceGeographyAliasTests
 {
+    private static PlanningPolicyService CreatePolicyService()
+    {
+        // Mirror appsettings defaults so tests behave like production policies.
+        var options = new PlanningPolicyOptions
+        {
+            Scale = new PackagePlanningPolicy
+            {
+                BudgetFloor = 500000m,
+                MinimumNationalRadioCandidates = 1,
+                RequireNationalCapableRadio = true,
+                RequirePremiumNationalRadio = false,
+                NationalRadioBonus = 12,
+                NonNationalRadioPenalty = 8,
+                RegionalRadioPenalty = 16
+            },
+            Dominance = new PackagePlanningPolicy
+            {
+                BudgetFloor = 1000000m,
+                MinimumNationalRadioCandidates = 2,
+                RequireNationalCapableRadio = true,
+                RequirePremiumNationalRadio = true,
+                NationalRadioBonus = 18,
+                NonNationalRadioPenalty = 12,
+                RegionalRadioPenalty = 24
+            }
+        };
+
+        return new PlanningPolicyService(new PlanningPolicySnapshotProvider(options));
+    }
+
     [Fact]
     public void FilterEligibleCandidates_TreatsSowetoAsJohannesburgForLocalMatching()
     {
-        var policyService = new PlanningPolicyService(new PlanningPolicySnapshotProvider(new PlanningPolicyOptions()));
+        var policyService = CreatePolicyService();
         var service = new PlanningEligibilityService(policyService, new TestBroadcastMasterDataService());
         var request = new CampaignPlanningRequest
         {
@@ -42,7 +72,7 @@ public sealed class PlanningEligibilityServiceGeographyAliasTests
     [Fact]
     public void FilterEligibleCandidates_WhenSuburbsSpecified_RequiresSuburbMatchWithinRequestedCity()
     {
-        var policyService = new PlanningPolicyService(new PlanningPolicySnapshotProvider(new PlanningPolicyOptions()));
+        var policyService = CreatePolicyService();
         var service = new PlanningEligibilityService(policyService, new TestBroadcastMasterDataService());
         var request = new CampaignPlanningRequest
         {
@@ -99,5 +129,87 @@ public sealed class PlanningEligibilityServiceGeographyAliasTests
         }, request);
 
         result.Candidates.Should().ContainSingle(x => x.DisplayName == "DiepKloof Billboard");
+    }
+
+    [Fact]
+    public void FilterEligibleCandidates_WhenSuburbsSpecified_DoesNotExcludeRadioWhenCityMatches()
+    {
+        var policyService = CreatePolicyService();
+        var service = new PlanningEligibilityService(policyService, new TestBroadcastMasterDataService());
+        var request = new CampaignPlanningRequest
+        {
+            SelectedBudget = 100000m,
+            GeographyScope = "local",
+            Cities = new List<string> { "Johannesburg" },
+            Suburbs = new List<string> { "DiepKloof, Soweto" }
+        };
+
+        var radioCandidate = new InventoryCandidate
+        {
+            SourceId = Guid.NewGuid(),
+            SourceType = "radio_slot",
+            DisplayName = "Kaya 959 - spot",
+            MediaType = "Radio",
+            City = null,
+            MarketScope = "regional",
+            Cost = 10000m,
+            IsAvailable = true,
+            Metadata = new Dictionary<string, object?>
+            {
+                ["cityLabels"] = new[] { "Johannesburg" }
+            }
+        };
+
+        var result = service.FilterEligibleCandidates(new List<InventoryCandidate> { radioCandidate }, request);
+        result.Candidates.Should().HaveCount(1);
+    }
+
+    [Fact]
+    public void FilterEligibleCandidates_WhenSuburbsSpecified_AllowsOohWithinRadiusEvenIfSuburbTextDiffers()
+    {
+        var policyService = CreatePolicyService();
+        var service = new PlanningEligibilityService(policyService, new TestBroadcastMasterDataService());
+        var request = new CampaignPlanningRequest
+        {
+            SelectedBudget = 100000m,
+            GeographyScope = "local",
+            Cities = new List<string> { "Johannesburg" },
+            Suburbs = new List<string> { "DiepKloof, Soweto" },
+            TargetLatitude = -26.2497583,
+            TargetLongitude = 27.9539444
+        };
+
+        var nearCandidate = new InventoryCandidate
+        {
+            SourceId = Guid.NewGuid(),
+            SourceType = "ooh",
+            DisplayName = "Nearby Billboard",
+            MediaType = "OOH",
+            City = "Johannesburg",
+            Suburb = "Some Other Suburb",
+            Area = "Some Other Suburb",
+            Latitude = -26.2498,
+            Longitude = 27.9540,
+            Cost = 45000m,
+            IsAvailable = true
+        };
+
+        var farCandidate = new InventoryCandidate
+        {
+            SourceId = Guid.NewGuid(),
+            SourceType = "ooh",
+            DisplayName = "Far Billboard",
+            MediaType = "OOH",
+            City = "Johannesburg",
+            Suburb = "Some Other Suburb",
+            Area = "Some Other Suburb",
+            Latitude = -26.0,
+            Longitude = 28.5,
+            Cost = 45000m,
+            IsAvailable = true
+        };
+
+        var result = service.FilterEligibleCandidates(new List<InventoryCandidate> { nearCandidate, farCandidate }, request);
+        result.Candidates.Should().ContainSingle(x => x.DisplayName == "Nearby Billboard");
     }
 }
