@@ -46,24 +46,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             campaignReasoningService,
             policySnapshotProvider,
             policyService,
-            new NullGeocodingService())
-    {
-    }
-
-    public CampaignRecommendationService(
-        AppDbContext db,
-        IMediaPlanningEngine planningEngine,
-        ICampaignReasoningService campaignReasoningService,
-        PlanningPolicySnapshotProvider policySnapshotProvider,
-        IPlanningPolicyService policyService,
-        IGeocodingService geocodingService)
-        : this(
-            db,
-            planningEngine,
-            campaignReasoningService,
-            policySnapshotProvider,
-            policyService,
-            new PlanningRequestFactory(geocodingService))
+            new PlanningRequestFactory(new NullGeocodingService()))
     {
     }
 
@@ -94,7 +77,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             campaignReasoningService,
             new PlanningPolicySnapshotProvider(new PlanningPolicyOptions()),
             new PlanningPolicyService(new PlanningPolicySnapshotProvider(new PlanningPolicyOptions())),
-            new NullGeocodingService())
+            new PlanningRequestFactory(new NullGeocodingService()))
     {
     }
 
