@@ -24,6 +24,7 @@ type PublicApiDependencies = {
   getPackagePreviewData: (packageBandId: string, budget: number, selectedArea: string) => Promise<PackagePreview>;
   getPackagePricingSummaryData: (selectedBudget: number) => Promise<PackagePricingSummary>;
   getFormOptionsData: () => Promise<SharedFormOptions>;
+  getSuburbsData: (city: string) => Promise<string[]>;
   createOrderData: (payload: {
     packageBandId: string;
     amount: number;
@@ -141,6 +142,7 @@ export function createPublicApi({
   getPackagePreviewData,
   getPackagePricingSummaryData,
   getFormOptionsData,
+  getSuburbsData,
   createOrderData,
   initiateOrderCheckoutData,
   listOrdersData,
@@ -182,6 +184,10 @@ export function createPublicApi({
 
     async getFormOptions() {
       return getFormOptionsData();
+    },
+
+    async getSuburbs(city: string) {
+      return getSuburbsData(city);
     },
 
     async createOrder(userId: string, packageBandId: string, amount: number, paymentProvider: PaymentProvider) {

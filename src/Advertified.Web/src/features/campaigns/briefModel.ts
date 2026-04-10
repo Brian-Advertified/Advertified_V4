@@ -32,6 +32,7 @@ export type RecommendationDraftFormState = {
   audience: string;
   scope: string;
   geography: string;
+  suburbs: string[];
   ageRange: string;
   language: string;
   targetGender: string;
@@ -412,6 +413,9 @@ export function buildRecommendationDraftBrief(
   const cities = normalizedScope === 'local' && geography
     ? [geographyLabel]
     : undefined;
+  const suburbs = normalizedScope === 'local' && (form.suburbs ?? []).length > 0
+    ? form.suburbs
+    : undefined;
   const ageRange = parseAgeRange(form.ageRange);
 
   return {
@@ -419,6 +423,7 @@ export function buildRecommendationDraftBrief(
     geographyScope: normalizedScope,
     provinces,
     cities,
+    suburbs,
     areas: undefined,
     targetAgeMin: ageRange.min,
     targetAgeMax: ageRange.max,

@@ -1,0 +1,52 @@
+name: Deploy PROD to EC2
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-prod-ec2
+  cancel-in-progress: false
+
+jobs:
+  deploy-prod:
+    name: Deploy PROD (EC2)
+    runs-on: ubuntu-latest
+    environment: prod
+    env:
+      PROD_APP_DIR: ${{ vars.PROD_APP_DIR }}
+      PROD_COMPOSE_FILE: ${{ vars.PROD_COMPOSE_FILE }}
+      PROD_ENV_FILE: ${{ vars.PROD_ENV_FILE }}
+    steps:
+      - name: Workflow sanity check
+        run: echo "Starting PROD deploy run for ${GITHUB_SHA}"
+
+      - name: Deploy code on EC2 PROD host
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.PROD_EC2_HOST }}
+          username: ${{ secrets.PROD_EC2_USER }}
+          key: ${{ secrets.PROD_EC2_SSH_PRIVATE_KEY }}
+          port: ${{ secrets.PROD_EC2_PORT }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+            APP_DIR="${PROD_APP_DIR:-$HOME/apps/advertified-v4-prod}"
+            COMPOSE_FILE="${PROD_COMPOSE_FILE:-compose.v4-prod.yml}"
+            ENV_FILE="${PROD_ENV_FILE:-.deploy-v4-prod/v4-prod.env}"
+
+            cd "$APP_DIR"
+            git fetch origin
+            git checkout main
+            git pull --ff-only origin main
+
+            if [ ! -f "$ENV_FILE" ]; then
+              echo "Expected env file '$ENV_FILE' was not found. Aborting deploy."
+              exit 1
+            fi
+
+            export APP_ENV_FILE="$ENV_FILE"
+            docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" build api web
+            docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d api web
+
+            docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps
+

@@ -67,4 +67,4 @@ dotnet test tests/Advertified.AIPlatform.Tests/Advertified.AIPlatform.Tests.cspr
 - `docs/SYSTEM_TRAINING_MANUAL.md`
 - `docs/ADVERTIFIED_SYSTEM_HANDOVER_GUIDE.md`
 - `DEPLOY_DEV_EC2.md`
-
+- `DEPLOY_PROD_EC2.md`

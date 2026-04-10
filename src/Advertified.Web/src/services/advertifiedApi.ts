@@ -1864,6 +1864,9 @@ const publicApi = createPublicApi({
     const response = await apiRequest<SharedFormOptionsResponse>('/public/form-options');
     return mapSharedFormOptions(response);
   },
+  async getSuburbsData(city) {
+    return apiRequest<string[]>(`/public/suburbs?city=${encodeURIComponent(city)}`);
+  },
   async createOrderData(payload) {
     return apiRequest<{
       packageOrderId: string;

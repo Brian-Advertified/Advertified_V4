@@ -380,6 +380,7 @@ function inferInitialForm(campaign: {
     audience: 'retail',
     scope: campaign.selectedBudget >= 500000 ? 'national' : 'provincial',
     geography: campaign.selectedBudget >= 500000 ? '' : 'gauteng',
+    suburbs: [],
     ageRange: '',
     language: '',
     targetGender: '',
@@ -431,6 +432,7 @@ function inferFormFromCampaign(
     audience: inferRecommendationAudienceFromBrief(brief),
     scope: normalizeOption(brief.geographyScope, SCOPE_OPTIONS) || fallback.scope,
     geography: inferRecommendationGeographyFromBrief(brief) || fallback.geography,
+    suburbs: brief.suburbs ?? [],
     ageRange: formatAgeRange(brief.targetAgeMin, brief.targetAgeMax),
     language: brief.targetLanguages?.[0] ?? fallback.language,
     targetGender: normalizeOption(brief.targetGender, GENDER_OPTIONS) || fallback.targetGender,
@@ -491,6 +493,7 @@ export function AgentCreateRecommendationPage() {
     audience: '',
     scope: '',
     geography: '',
+    suburbs: [],
     ageRange: '',
     language: '',
     targetGender: '',
@@ -765,6 +768,19 @@ export function AgentCreateRecommendationPage() {
           ...form,
           scope: nextScope,
           geography: nextScope === 'national' ? '' : form.geography,
+          suburbs: nextScope === 'local' ? form.suburbs : [],
+        },
+      });
+      return;
+    }
+
+    if (key === 'geography') {
+      setScopedForm({
+        key: activeFormKey,
+        value: {
+          ...form,
+          geography: value as string,
+          suburbs: [],
         },
       });
       return;
@@ -778,6 +794,32 @@ export function AgentCreateRecommendationPage() {
       },
     });
   };
+
+  const selectedCityLabel = useMemo(() => {
+    if (form.scope !== 'local') {
+      return '';
+    }
+
+    const value = form.geography.trim();
+    if (!value) {
+      return '';
+    }
+
+    return value
+      .replaceAll('_', ' ')
+      .replaceAll('-', ' ')
+      .split(' ')
+      .filter(Boolean)
+      .map((part) => (part.length > 0 ? `${part.slice(0, 1).toUpperCase()}${part.slice(1).toLowerCase()}` : part))
+      .join(' ');
+  }, [form.geography, form.scope]);
+  const suburbsQuery = useQuery({
+    queryKey: ['public-suburbs', selectedCityLabel],
+    queryFn: () => advertifiedApi.getSuburbs(selectedCityLabel),
+    enabled: Boolean(selectedCityLabel),
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
 
   const toggleChannel = (channel: ChannelOption) => {
     if (!allowedChannels.includes(channel)) {
@@ -1514,6 +1556,25 @@ export function AgentCreateRecommendationPage() {
                   </select>
                 )}
               </label>
+
+              {form.scope === 'local' && form.geography ? (
+                <label className="block">
+                  <span className="label-base">Suburbs (optional)</span>
+                  <select
+                    multiple
+                    value={form.suburbs}
+                    onChange={(event) => handleFormChange('suburbs', Array.from(event.target.selectedOptions).map((option) => option.value))}
+                    className="input-base min-h-[132px]"
+                  >
+                    {suburbsQuery.data?.length ? null : (
+                      <option value="" disabled>{suburbsQuery.isFetching ? 'Loading suburbs…' : 'No suburbs found'}</option>
+                    )}
+                    {(suburbsQuery.data ?? []).map((suburb) => (
+                      <option key={suburb} value={suburb}>{suburb}</option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
             </div>
 
             <div className={`${hasCapturedBrief && !showDetailEditing ? 'hidden ' : ''}mt-5 rounded-[28px] border border-brand/10 bg-brand-soft/30 p-4 sm:p-5`}>
