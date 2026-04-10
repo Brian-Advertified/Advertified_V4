@@ -1,4 +1,5 @@
 using Advertified.App.Contracts.Agent;
+using Advertified.App.Campaigns;
 using Advertified.App.Data;
 using Advertified.App.Services.Abstractions;
 using Advertified.App.Support;
@@ -30,6 +31,78 @@ public sealed class AgentRecommendationsController : ControllerBase
         _currentUserAccessor = currentUserAccessor;
         _changeAuditService = changeAuditService;
         _logger = logger;
+    }
+
+    [HttpPost("/agent/campaigns/{campaignId:guid}/recommendations")]
+    public async Task<IActionResult> Create(Guid campaignId, [FromBody] AgentRecommendationRequest request, CancellationToken cancellationToken)
+    {
+        var currentUserId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
+
+        var campaign = await _db.Campaigns
+            .Include(x => x.CampaignRecommendations)
+                .ThenInclude(x => x.RecommendationItems)
+            .FirstOrDefaultAsync(x => x.Id == campaignId, cancellationToken)
+            ?? throw new InvalidOperationException("Campaign not found.");
+
+        if (campaign.Status is CampaignStatuses.Approved
+            or CampaignStatuses.CreativeChangesRequested
+            or CampaignStatuses.CreativeSentToClientForApproval
+            or CampaignStatuses.CreativeApproved
+            or CampaignStatuses.BookingInProgress
+            or CampaignStatuses.Launched
+            || campaign.CampaignRecommendations.Any(x => string.Equals(x.Status, RecommendationStatuses.Approved, StringComparison.OrdinalIgnoreCase)))
+        {
+            return BadRequest(new { Message = "This campaign has already been approved and can no longer be edited from the recommendation workspace." });
+        }
+
+        var currentRecommendations = RecommendationRevisionSupport.GetCurrentRecommendationSet(campaign.CampaignRecommendations);
+        if (currentRecommendations.Any(x => string.Equals(x.Status, RecommendationStatuses.Draft, StringComparison.OrdinalIgnoreCase)))
+        {
+            return Conflict(new { Message = "A draft recommendation already exists. Update the existing draft instead." });
+        }
+
+        var now = DateTime.UtcNow;
+        var notes = request.Notes?.Trim() ?? string.Empty;
+
+        RecommendationOohPolicy.EnsureSelectedInventoryContainsOoh(request.InventoryItems ?? Array.Empty<SelectedInventoryItemRequest>());
+
+        var recommendationId = Guid.NewGuid();
+        var recommendation = new Data.Entities.CampaignRecommendation
+        {
+            Id = recommendationId,
+            CampaignId = campaignId,
+            RecommendationType = "manual:balanced",
+            GeneratedBy = "agent_manual",
+            Status = RecommendationStatuses.Draft,
+            Summary = notes,
+            Rationale = notes,
+            CreatedByUserId = currentUserId,
+            CreatedAt = now,
+            UpdatedAt = now,
+            RevisionNumber = RecommendationRevisionSupport.GetNextRevisionNumber(campaign.CampaignRecommendations)
+        };
+
+        var items = BuildRecommendationItems(
+            recommendationId,
+            request.InventoryItems ?? Array.Empty<SelectedInventoryItemRequest>(),
+            now);
+
+        recommendation.TotalCost = items.Sum(x => x.TotalCost);
+        _db.CampaignRecommendations.Add(recommendation);
+        _db.RecommendationItems.AddRange(items);
+
+        campaign.UpdatedAt = now;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await WriteChangeAuditAsync(
+            "create_recommendation",
+            recommendation.Id.ToString(),
+            campaign.CampaignName,
+            $"Created draft recommendation for {ResolveCampaignLabel(campaign)}.",
+            new { RecommendationId = recommendation.Id, CampaignId = campaignId },
+            cancellationToken);
+
+        return Accepted(new { RecommendationId = recommendation.Id, Message = "Draft recommendation created." });
     }
 
     [HttpDelete("{id:guid}")]

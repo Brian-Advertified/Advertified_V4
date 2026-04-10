@@ -1624,6 +1624,68 @@ public class HttpWorkflowIntegrationTests
     }
 
     [Fact]
+    public async Task AgentCanCreateDraftRecommendation_BeforePayment()
+    {
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var now = DateTime.UtcNow;
+                var clientUser = TestSeed.CreateUser();
+                var agentUser = TestSeed.CreateAgent();
+                var (band, order, campaign) = TestSeed.CreateCampaignGraph(clientUser, selectedBudget: 250000m, status: "awaiting_purchase");
+                order.PaymentStatus = "unpaid";
+                order.PurchasedAt = null;
+                campaign.AssignedAgentUserId = agentUser.Id;
+                campaign.AssignedAt = now;
+                campaign.UpdatedAt = now;
+
+                db.UserAccounts.AddRange(clientUser, agentUser);
+                db.PackageBands.Add(band);
+                db.PackageOrders.Add(order);
+                db.Campaigns.Add(campaign);
+                db.SaveChanges();
+            });
+
+        var campaignId = await harness.ExecuteDbAsync(db => db.Campaigns.Select(x => x.Id).SingleAsync());
+        var agentUserId = await harness.ExecuteDbAsync(db => db.UserAccounts.Where(x => x.Role == UserRole.Agent).Select(x => x.Id).SingleAsync());
+        harness.Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await harness.CreateSessionTokenAsync(agentUserId));
+
+        var response = await harness.Client.PostAsJsonAsync($"/agent/campaigns/{campaignId}/recommendations", new
+        {
+            notes = "Manual recommendation draft",
+            inventoryItems = new[]
+            {
+                new
+                {
+                    id = "inv-1",
+                    type = "ooh",
+                    station = "Sandton Digital Billboard",
+                    region = "Gauteng",
+                    language = "English",
+                    showDaypart = "N/A",
+                    timeBand = "N/A",
+                    slotType = "N/A",
+                    duration = "N/A",
+                    rate = 250000m,
+                    restrictions = "None",
+                    quantity = 1
+                }
+            }
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
+
+        var saved = await harness.ExecuteDbAsync(db => db.CampaignRecommendations
+            .Include(x => x.RecommendationItems)
+            .SingleAsync(x => x.CampaignId == campaignId));
+
+        saved.Status.Should().Be("draft");
+        saved.RevisionNumber.Should().Be(1);
+        saved.TotalCost.Should().Be(250000m);
+        saved.RecommendationItems.Should().HaveCount(1);
+    }
+
+    [Fact]
     public async Task OperationsCanMarkCampaignLaunchedAfterCreativeApproval()
     {
         await using var harness = await TestApiHarness.CreateAsync(

@@ -4,6 +4,7 @@ obj/
 .vscode/
 TestResults/
 .dotnet/
+.dotnet_home/
 artifacts/
 .artifacts/
 .buildcheck/

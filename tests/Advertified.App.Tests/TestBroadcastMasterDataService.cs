@@ -34,5 +34,13 @@ internal sealed class TestBroadcastMasterDataService : IBroadcastMasterDataServi
     public string NormalizeCoverageType(string? value) => (value ?? string.Empty).Trim().ToLowerInvariant();
     public string NormalizeCatalogHealth(string? value) => (value ?? string.Empty).Trim().ToLowerInvariant();
     public string NormalizeLanguageForMatching(string? value) => NormalizeLanguageCode(value);
-    public string NormalizeGeographyForMatching(string? value) => (value ?? string.Empty).Trim().ToLowerInvariant().Replace("-", "_").Replace(" ", "_");
+    public string NormalizeGeographyForMatching(string? value)
+    {
+        var normalized = (value ?? string.Empty).Trim().ToLowerInvariant().Replace("-", "_").Replace(" ", "_");
+        return normalized switch
+        {
+            "soweto" => "johannesburg",
+            _ => normalized
+        };
+    }
 }

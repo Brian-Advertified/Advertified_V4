@@ -1499,6 +1499,7 @@ export function AgentCreateRecommendationPage() {
                   <select value={form.geography} onChange={(event) => handleFormChange('geography', event.target.value)} className="input-base">
                     <option value="">Select city</option>
                     <option value="johannesburg">Johannesburg</option>
+                    <option value="soweto">Soweto</option>
                     <option value="cape-town">Cape Town</option>
                     <option value="durban">Durban</option>
                     <option value="pretoria">Pretoria</option>

@@ -176,7 +176,14 @@ public sealed class BroadcastMasterDataService : IBroadcastMasterDataService
             return NormalizeMatchToken(normalizedProvince);
         }
 
-        return NormalizeMatchToken(value);
+        var normalizedToken = NormalizeMatchToken(value);
+        return normalizedToken switch
+        {
+            // Treat Johannesburg metros as equivalent for matching so that local briefs
+            // can still pick up inventory tagged to a sub-city/metro area.
+            "soweto" => NormalizeMatchToken("johannesburg"),
+            _ => normalizedToken
+        };
     }
 
     private static AdminLookupOptionResponse CreateOption(string value, string label) => new()

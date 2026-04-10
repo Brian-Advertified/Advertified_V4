@@ -11,6 +11,7 @@ export const GENDER_OPTIONS = ['all', 'female', 'male', 'mixed'] as const;
 export const SCOPE_OPTIONS = ['local', 'provincial', 'national'] as const;
 export const GEOGRAPHY_OPTIONS = [
   'johannesburg',
+  'soweto',
   'cape-town',
   'durban',
   'pretoria',
