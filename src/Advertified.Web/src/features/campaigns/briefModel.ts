@@ -425,6 +425,7 @@ export function buildRecommendationDraftBrief(
     cities,
     suburbs,
     areas: undefined,
+    mustHaveAreas: suburbs,
     targetAgeMin: ageRange.min,
     targetAgeMax: ageRange.max,
     targetGender: form.targetGender || undefined,
