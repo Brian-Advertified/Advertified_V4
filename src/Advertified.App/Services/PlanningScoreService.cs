@@ -12,6 +12,7 @@ public sealed class PlanningScoreService : IPlanningScoreService
     private const decimal BroadcastPrimaryLanguageMatchScore = 32m;
     private const decimal BroadcastSecondaryLanguageMatchScore = 20m;
     private const decimal BroadcastLanguageMismatchPenalty = -24m;
+    private const decimal BroadcastSuburbTokenBonus = 18m;
     private readonly IPlanningPolicyService _policyService;
     private readonly IBroadcastMasterDataService _broadcastMasterDataService;
     private readonly ILeadMasterDataService _leadMasterDataService;
@@ -282,6 +283,21 @@ public sealed class PlanningScoreService : IPlanningScoreService
         decimal score = 0m;
 
         score += GeoScore(candidate, request);
+
+        // Extra boost outside `GeoScore` (which is capped) so suburb tokens like "Soweto" can
+        // decisively prefer truly local/community stations when available.
+        if ((candidate.MediaType.Equals("Radio", StringComparison.OrdinalIgnoreCase)
+                || candidate.MediaType.Equals("TV", StringComparison.OrdinalIgnoreCase))
+            && request.Suburbs.Count > 0)
+        {
+            var suburbTokens = ExtractSuburbTokens(request.Suburbs);
+            if (suburbTokens.Length > 0 && suburbTokens.Any(token =>
+                    MatchesAnyMetadataTokenExact(candidate, token, "cityLabels", "city_labels", "city", "area")))
+            {
+                score += BroadcastSuburbTokenBonus;
+            }
+        }
+
         score += AudienceScore(candidate, request);
         score += BudgetScore(candidate, request);
         score += MediaPreferenceScore(candidate, request);
