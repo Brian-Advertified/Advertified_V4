@@ -100,9 +100,14 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
             return true;
         }
 
+        var matchesRequestedCity = requestedCities.Count == 0
+            || requestedCities.Any(x =>
+                Matches(x, candidate.City)
+                || MatchesAnyMetadataToken(candidate, x, "cityLabels", "city_labels", "city", "area"));
+
         if (requestedSuburbs.Any(x => Matches(x, candidate.Suburb) || Matches(x, candidate.Area)))
         {
-            return true;
+            return matchesRequestedCity;
         }
 
         if (requestedCities.Any(x =>
@@ -124,7 +129,7 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
             || Matches(x, candidate.Suburb)
             || MatchesAnyMetadataToken(candidate, x, "provinceCodes", "province_codes", "cityLabels", "city_labels", "area", "province", "city")))
         {
-            return true;
+            return matchesRequestedCity;
         }
 
         return Matches(normalizedScope, candidate.MarketScope)
