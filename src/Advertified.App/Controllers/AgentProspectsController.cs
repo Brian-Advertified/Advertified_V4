@@ -157,6 +157,96 @@ public sealed class AgentProspectsController : ControllerBase
         return Ok(response);
     }
 
+    [HttpPost("registered-prospects")]
+    public async Task<IActionResult> CreateRegisteredClientProspectCampaign([FromBody] CreateRegisteredClientCampaignRequest request, CancellationToken cancellationToken)
+    {
+        var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
+        var currentUserId = currentUser.Id;
+
+        var email = (request.Email?.Trim() ?? string.Empty).ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            throw new InvalidOperationException("Client email is required.");
+        }
+
+        var client = await _db.UserAccounts
+            .FirstOrDefaultAsync(x => x.Email == email, cancellationToken)
+            ?? throw new NotFoundException("Client account not found.");
+
+        if (client.Role != UserRole.Client)
+        {
+            throw new InvalidOperationException("Only client accounts can be converted to prospect campaigns.");
+        }
+
+        var packageBand = await _db.PackageBands
+            .FirstOrDefaultAsync(x => x.Id == request.PackageBandId && x.IsActive, cancellationToken)
+            ?? throw new NotFoundException("Package band not found.");
+        var selectedBudget = ResolveProspectBudget(packageBand);
+
+        var now = DateTime.UtcNow;
+        var packageOrder = new PackageOrder
+        {
+            Id = Guid.NewGuid(),
+            UserId = client.Id,
+            PackageBandId = packageBand.Id,
+            Amount = selectedBudget,
+            SelectedBudget = selectedBudget,
+            AiStudioReservePercent = 0m,
+            AiStudioReserveAmount = 0m,
+            Currency = "ZAR",
+            PaymentProvider = "prospect",
+            PaymentStatus = "pending",
+            RefundStatus = "none",
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+        _db.PackageOrders.Add(packageOrder);
+
+        var campaignName = string.IsNullOrWhiteSpace(request.CampaignName)
+            ? $"{packageBand.Name} prospect campaign"
+            : request.CampaignName.Trim();
+
+        var campaign = new Campaign
+        {
+            Id = Guid.NewGuid(),
+            UserId = client.Id,
+            PackageOrderId = packageOrder.Id,
+            PackageBandId = packageBand.Id,
+            CampaignName = campaignName,
+            Status = CampaignStatuses.AwaitingPurchase,
+            AiUnlocked = false,
+            AgentAssistanceRequested = true,
+            AssignedAgentUserId = currentUserId,
+            AssignedAt = now,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+        _db.Campaigns.Add(campaign);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        var refreshedCampaign = await LoadCampaignDetailAsync(campaign.Id, cancellationToken);
+
+        await WriteChangeAuditAsync(
+            "create_registered_client_prospect_campaign",
+            "campaign",
+            refreshedCampaign.Id.ToString(),
+            ResolveCampaignLabel(refreshedCampaign),
+            $"Created prospect campaign {ResolveCampaignLabel(refreshedCampaign)} for registered client {email}.",
+            new
+            {
+                CampaignId = refreshedCampaign.Id,
+                ClientEmail = email,
+                PackageBand = packageBand.Name,
+                SelectedBudget = selectedBudget
+            },
+            cancellationToken);
+
+        var response = refreshedCampaign.ToDetail(currentUserId);
+        var queueStage = CampaignWorkflowPolicy.ResolveAgentQueueStage(refreshedCampaign);
+        response.NextAction = CampaignWorkflowPolicy.GetAgentNextAction(refreshedCampaign, queueStage, currentUserId);
+        return Ok(response);
+    }
+
     [HttpPut("{id:guid}/prospect-pricing")]
     public async Task<IActionResult> UpdateProspectPricing(Guid id, [FromBody] UpdateProspectPricingRequest request, CancellationToken cancellationToken)
     {

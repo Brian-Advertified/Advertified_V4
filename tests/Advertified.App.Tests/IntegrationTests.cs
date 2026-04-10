@@ -9,6 +9,7 @@ using Advertified.App.Configuration;
 using Advertified.App.Contracts.Auth;
 using Advertified.App.Contracts.Admin;
 using Advertified.App.Contracts.Agent;
+using Advertified.App.Contracts.Campaigns;
 using Advertified.App.Contracts.Packages;
 using Advertified.App.Data;
 using Advertified.App.Data.Entities;
@@ -1281,6 +1282,61 @@ public class HttpWorkflowIntegrationTests
         inboxAfterUnassign!.AssignedToMeCount.Should().Be(0);
         inboxAfterUnassign.UnassignedCount.Should().Be(1);
         inboxAfterUnassign.Items.Should().ContainSingle(x => x.Id == campaignId && !x.IsAssignedToCurrentUser && x.IsUnassigned);
+    }
+
+    [Fact]
+    public async Task AgentCanCreateAwaitingPurchaseCampaignForRegisteredClientOverHttp()
+    {
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var clientUser = TestSeed.CreateUser();
+                clientUser.Email = "beggie38.bali@gmail.com";
+                clientUser.FullName = "Beggie Bali";
+
+                var agentUser = TestSeed.CreateAgent();
+                agentUser.Email = "thabo.agent@advertified.test";
+                agentUser.FullName = "Thabo Agent";
+
+                var band = new PackageBand
+                {
+                    Id = Guid.NewGuid(),
+                    Code = "scale",
+                    Name = "Scale",
+                    MinBudget = 150000m,
+                    MaxBudget = 500000m,
+                    SortOrder = 3,
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                db.UserAccounts.AddRange(clientUser, agentUser);
+                db.PackageBands.Add(band);
+                db.SaveChanges();
+            });
+
+        var agentUserId = await harness.ExecuteDbAsync(db =>
+            db.UserAccounts
+                .Where(x => x.Role == UserRole.Agent && x.Email == "thabo.agent@advertified.test")
+                .Select(x => x.Id)
+                .SingleAsync());
+        var bandId = await harness.ExecuteDbAsync(db => db.PackageBands.Select(x => x.Id).SingleAsync());
+
+        harness.Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await harness.CreateSessionTokenAsync(agentUserId));
+
+        var response = await harness.Client.PostAsJsonAsync("/agent/campaigns/registered-prospects", new
+        {
+            email = "beggie38.bali@gmail.com",
+            packageBandId = bandId,
+            campaignName = "Test prospect campaign"
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var payload = await response.Content.ReadFromJsonAsync<CampaignDetailResponse>();
+        payload.Should().NotBeNull();
+        payload!.Status.Should().Be("awaiting_purchase");
+        payload.ClientEmail.Should().Be("beggie38.bali@gmail.com");
     }
 
     [Fact]

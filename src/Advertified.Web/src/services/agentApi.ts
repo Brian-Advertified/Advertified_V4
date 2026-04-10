@@ -40,6 +40,11 @@ type AgentApiDependencies = {
     packageBandId: string;
     campaignName?: string;
   }) => Promise<Campaign>;
+  createRegisteredClientProspectCampaignData: (payload: {
+    email: string;
+    packageBandId: string;
+    campaignName?: string;
+  }) => Promise<Campaign>;
   listInventoryData: (campaignId?: string) => Promise<InventoryRow[]>;
   uploadAgentAssetData: (campaignId: string, file: File, assetType: string) => Promise<CampaignAsset>;
   postJson: (path: string, body: unknown) => Promise<void>;
@@ -60,6 +65,7 @@ export function createAgentApi({
   generateRecommendationData,
   interpretBriefData,
   createProspectCampaignData,
+  createRegisteredClientProspectCampaignData,
   listInventoryData,
   uploadAgentAssetData,
   postJson,
@@ -83,6 +89,14 @@ export function createAgentApi({
       campaignName?: string;
     }) {
       return createProspectCampaignData(payload);
+    },
+
+    async createAgentRegisteredClientProspectCampaign(payload: {
+      email: string;
+      packageBandId: string;
+      campaignName?: string;
+    }) {
+      return createRegisteredClientProspectCampaignData(payload);
     },
 
     async markCampaignLaunched(campaignId: string) {

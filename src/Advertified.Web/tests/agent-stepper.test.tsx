@@ -79,7 +79,7 @@ describe('AgentStepper', () => {
     expect(screen.getByText('Build media recommendations')).toBeInTheDocument();
   });
 
-  it('advances to recommendation review when a draft exists', () => {
+  it('keeps planning step active even when a draft exists', () => {
     render(<AgentStepper campaign={mockCampaign('planning_in_progress', {
       recommendations: [
         {
@@ -96,8 +96,8 @@ describe('AgentStepper', () => {
       ],
     })} />);
 
-    expect(screen.getByText('4 of 6 steps')).toBeInTheDocument();
-    expect(screen.getByText('Review and send the recommendation')).toBeInTheDocument();
+    expect(screen.getByText('3 of 6 steps')).toBeInTheDocument();
+    expect(screen.getByText('Build media recommendations')).toBeInTheDocument();
   });
 
   it('shows correct progress for review_ready (step 4)', () => {

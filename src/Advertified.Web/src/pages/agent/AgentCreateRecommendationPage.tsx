@@ -517,11 +517,20 @@ export function AgentCreateRecommendationPage() {
     packageBandId: '',
     campaignName: '',
   });
+  const [showRegisteredClientForm, setShowRegisteredClientForm] = useState(false);
+  const [registeredClientForm, setRegisteredClientForm] = useState<{
+    email: string;
+    packageBandId: string;
+    campaignName: string;
+  }>({
+    email: '',
+    packageBandId: '',
+    campaignName: '',
+  });
 
-  const availableCampaigns = useMemo(() => (inboxQuery.data?.items ?? []).filter((item) => (
-    item.queueStage !== 'waiting_on_client'
-    && item.queueStage !== 'completed'
-  )), [inboxQuery.data]);
+  const availableCampaigns = useMemo(() => (
+    inboxQuery.data?.items ?? []
+  ), [inboxQuery.data]);
 
   const clientOptions = useMemo(() => {
     const uniqueClients = new Map<string, { id: string; name: string; email: string }>();
@@ -841,6 +850,40 @@ export function AgentCreateRecommendationPage() {
     },
   });
 
+  const canCreateRegisteredClientCampaign = Boolean(
+    registeredClientForm.email.trim()
+    && registeredClientForm.packageBandId,
+  );
+
+  const createRegisteredClientMutation = useMutation({
+    mutationFn: async () => {
+      return advertifiedApi.createAgentRegisteredClientProspectCampaign({
+        email: registeredClientForm.email.trim(),
+        packageBandId: registeredClientForm.packageBandId,
+        campaignName: registeredClientForm.campaignName.trim() || undefined,
+      });
+    },
+    onSuccess: async (campaign) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['agent-inbox'] }),
+        queryClient.invalidateQueries({ queryKey: ['agent-campaigns'] }),
+      ]);
+      await inboxQuery.refetch();
+
+      setSelectedClientIdState(campaign.userId ?? campaign.clientEmail ?? campaign.id);
+      setSelectedCampaignIdState(campaign.id);
+      setShowRegisteredClientForm(false);
+      setRegisteredClientForm({ email: '', packageBandId: '', campaignName: '' });
+      pushToast({
+        title: 'Client campaign created.',
+        description: 'A prospective (unpaid) campaign workspace is ready for recommendation planning.',
+      });
+    },
+    onError: (error) => {
+      pushAgentMutationError(pushToast, 'Could not create client campaign.', error);
+    },
+  });
+
   const canCreateProspectCampaign = Boolean(
     prospectForm.fullName.trim()
     && prospectForm.email.trim()
@@ -1091,7 +1134,7 @@ export function AgentCreateRecommendationPage() {
             <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-ink">1. Choose the campaign</h2>
-                <p className="mt-1 text-sm text-ink-soft">Start from an existing campaign, or create a prospect lead if the person has not registered yet.</p>
+                <p className="mt-1 text-sm text-ink-soft">Start from an existing campaign, create a campaign for a registered client, or create a prospect lead if the person has not registered yet.</p>
               </div>
               <span className="pill bg-white text-ink-soft">Required</span>
             </div>
@@ -1160,14 +1203,77 @@ export function AgentCreateRecommendationPage() {
               </div>
             ) : null}
             <div className="mt-4">
-              <button
-                type="button"
-                onClick={() => setShowProspectForm((current) => !current)}
-                className="button-secondary px-4 py-2"
-              >
-                {showProspectForm ? 'Hide prospect lead form' : 'Add prospect lead'}
-              </button>
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowProspectForm(false);
+                    setShowRegisteredClientForm((current) => !current);
+                  }}
+                  className="button-secondary px-4 py-2"
+                >
+                  {showRegisteredClientForm ? 'Hide registered client form' : 'Add registered client'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowRegisteredClientForm(false);
+                    setShowProspectForm((current) => !current);
+                  }}
+                  className="button-secondary px-4 py-2"
+                >
+                  {showProspectForm ? 'Hide prospect lead form' : 'Add prospect lead'}
+                </button>
+              </div>
             </div>
+            {showRegisteredClientForm ? (
+              <div className="mt-4 rounded-2xl border border-line bg-slate-50 p-4">
+                <p className="text-sm font-semibold text-ink">Create a campaign for a registered client</p>
+                <p className="mt-1 text-xs text-ink-soft">Use this when the client has already registered but has not purchased yet. It creates an unpaid campaign workspace tied to their account.</p>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <label className="block">
+                    <span className="label-base">Client email</span>
+                    <input
+                      value={registeredClientForm.email}
+                      onChange={(event) => setRegisteredClientForm((current) => ({ ...current, email: event.target.value }))}
+                      className="input-base"
+                      type="email"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="label-base">Price band</span>
+                    <select
+                      value={registeredClientForm.packageBandId}
+                      onChange={(event) => setRegisteredClientForm((current) => ({ ...current, packageBandId: event.target.value }))}
+                      className="input-base"
+                    >
+                      <option value="">Select package</option>
+                      {(packagesQuery.data ?? []).map((item) => (
+                        <option key={item.id} value={item.id}>{item.name} | {formatPackageRange(item)}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block md:col-span-2">
+                    <span className="label-base">Campaign name (optional)</span>
+                    <input
+                      value={registeredClientForm.campaignName}
+                      onChange={(event) => setRegisteredClientForm((current) => ({ ...current, campaignName: event.target.value }))}
+                      className="input-base"
+                    />
+                  </label>
+                </div>
+                <div className="mt-4">
+                  <button
+                    type="button"
+                    onClick={() => createRegisteredClientMutation.mutate()}
+                    disabled={createRegisteredClientMutation.isPending || !canCreateRegisteredClientCampaign}
+                    className="button-primary px-4 py-2 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {createRegisteredClientMutation.isPending ? 'Creating...' : 'Create campaign'}
+                  </button>
+                </div>
+              </div>
+            ) : null}
             {showProspectForm ? (
               <div className="mt-4 rounded-2xl border border-line bg-slate-50 p-4">
                 <p className="text-sm font-semibold text-ink">Create a prospect lead</p>

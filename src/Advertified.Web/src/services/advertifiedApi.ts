@@ -1733,6 +1733,13 @@ const agentApi = createAgentApi({
     });
     return mapCampaign(response);
   },
+  async createRegisteredClientProspectCampaignData(payload) {
+    const response = await apiRequest<CampaignResponse>('/agent/campaigns/registered-prospects', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    return mapCampaign(response);
+  },
   async listInventoryData(campaignId) {
     return apiRequest<InventoryRow[]>(
       campaignId ? `/agent/inventory?campaignId=${encodeURIComponent(campaignId)}` : '/agent/inventory',

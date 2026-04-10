@@ -55,10 +55,6 @@ export function AgentStepper({ campaign }: AgentStepperProps) {
   ], []);
 
   const getCurrentStepIndex = (status: Campaign['status']): number => {
-    const hasRecommendationDraft = campaign.recommendations.some((item) => (
-      item.status === 'draft' || item.status === 'sent_to_client' || item.status === 'approved'
-    ));
-
     switch (status) {
       case 'awaiting_purchase':
       case 'paid':
@@ -67,7 +63,7 @@ export function AgentStepper({ campaign }: AgentStepperProps) {
       case 'brief_submitted':
         return 1;
       case 'planning_in_progress':
-        return hasRecommendationDraft ? 3 : 2;
+        return 2;
       case 'review_ready':
         return 3;
       case 'approved':
