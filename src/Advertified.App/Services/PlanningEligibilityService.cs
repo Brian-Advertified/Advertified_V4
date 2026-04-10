@@ -105,9 +105,10 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
                 Matches(x, candidate.City)
                 || MatchesAnyMetadataToken(candidate, x, "cityLabels", "city_labels", "city", "area"));
 
-        if (requestedSuburbs.Any(x => Matches(x, candidate.Suburb) || Matches(x, candidate.Area)))
+        if (requestedSuburbs.Count > 0)
         {
-            return matchesRequestedCity;
+            var matchesSuburb = requestedSuburbs.Any(x => Matches(x, candidate.Suburb) || Matches(x, candidate.Area));
+            return matchesRequestedCity && matchesSuburb;
         }
 
         if (requestedCities.Any(x =>
