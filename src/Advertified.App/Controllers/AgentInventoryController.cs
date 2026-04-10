@@ -216,7 +216,9 @@ public sealed class AgentInventoryController : ControllerBase
             return true;
         }
 
-        var requestedTerms = (normalizedScope == "local" ? request.Areas.Concat(request.Cities) : request.Provinces)
+        var requestedTerms = (normalizedScope == "local"
+                ? request.Areas.Concat(request.Cities).Concat(request.Suburbs)
+                : request.Provinces)
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Select(value => value.Trim().ToLowerInvariant())
             .Distinct()
