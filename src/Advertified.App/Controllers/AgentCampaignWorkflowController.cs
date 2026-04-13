@@ -390,7 +390,15 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
             return BadRequest(new { Message = "No current recommendations found for this campaign." });
         }
 
-        await SendRecommendationReadyEmailAsync(campaign, currentRecommendations, request.Message, senderUser, toEmail, cancellationToken);
+        try
+        {
+            await SendRecommendationReadyEmailAsync(campaign, currentRecommendations, request.Message, senderUser, toEmail, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Resend proposal email failed for campaign {CampaignId} to {ToEmail}.", campaign.Id, toEmail);
+            return StatusCode(StatusCodes.Status502BadGateway, new { Message = "Email send failed. Check Resend configuration/suppressions and try again.", Detail = ex.Message });
+        }
 
         await WriteChangeAuditAsync(
             "resend_proposal_email",
@@ -601,86 +609,81 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
         string toEmail,
         CancellationToken cancellationToken)
     {
-        try
+        var useLeadTemplate = ShouldUseLeadOutreachMessage(campaign);
+        EmailAttachment[]? attachments = null;
+        string recommendationPackBlock = string.Empty;
+        var proposalCount = recommendations.Count;
+        var templateName = useLeadTemplate
+            ? "lead-proposal-ready"
+            : "recommendation-ready";
+
+        if (!useLeadTemplate)
         {
-            var useLeadTemplate = ShouldUseLeadOutreachMessage(campaign);
-            EmailAttachment[]? attachments = null;
-            string recommendationPackBlock = string.Empty;
-            var proposalCount = recommendations.Count;
-            var templateName = useLeadTemplate
-                ? "lead-proposal-ready"
-                : "recommendation-ready";
-
-            if (!useLeadTemplate)
+            try
             {
-                try
+                var recommendationPdfs = new List<EmailAttachment>(recommendations.Count);
+                foreach (var recommendation in recommendations)
                 {
-                    var recommendationPdfs = new List<EmailAttachment>(recommendations.Count);
-                    foreach (var recommendation in recommendations)
+                    var pdfBytes = await _recommendationDocumentService.GetRecommendationPdfBytesAsync(campaign.Id, recommendation.Id, cancellationToken);
+                    recommendationPdfs.Add(new EmailAttachment
                     {
-                        var pdfBytes = await _recommendationDocumentService.GetRecommendationPdfBytesAsync(campaign.Id, recommendation.Id, cancellationToken);
-                        recommendationPdfs.Add(new EmailAttachment
-                        {
-                            FileName = BuildRecommendationAttachmentFileName(campaign.Id, recommendation),
-                            ContentType = "application/pdf",
-                            Content = pdfBytes
-                        });
-                    }
+                        FileName = BuildRecommendationAttachmentFileName(campaign.Id, recommendation),
+                        ContentType = "application/pdf",
+                        Content = pdfBytes
+                    });
+                }
 
-                    attachments = recommendationPdfs.ToArray();
-                    recommendationPackBlock = @"
+                attachments = recommendationPdfs.ToArray();
+                recommendationPackBlock = @"
                     <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">
                       We have attached a separate PDF for each recommendation option. Each PDF starts with a one-page summary followed by the full detailed media plan.
                     </p>";
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Failed to build recommendation PDF attachment for campaign {CampaignId}.", campaign.Id);
-                }
             }
-
-            var resolvedAgentMessage = useLeadTemplate
-                ? null
-                : ResolveRecommendationReadyAgentMessage(campaign, senderUser, agentMessage);
-            var recommendationIntro = ResolveRecommendationReadyIntro(campaign, senderUser);
-            var areaOrIndustry = ResolveLeadAreaOrIndustry(campaign);
-            var proposalActionButtons = useLeadTemplate
-                ? string.Empty
-                : BuildProposalAcceptButtonsBlock(campaign.Id, recommendations);
-            var leadPdfUrl = useLeadTemplate ? BuildPublicProposalPdfUrl(campaign.Id) : null;
-            var reviewUrl = useLeadTemplate ? BuildLeadProposalUrl(campaign.Id) : BuildProposalUrl(campaign.Id);
-
-            await _emailService.SendAsync(
-                templateName,
-                toEmail,
-                "noreply",
-                new Dictionary<string, string?>
-                {
-                    ["AgentName"] = campaign.AssignedAgentUser?.FullName ?? senderUser.FullName,
-                    ["ClientName"] = campaign.ResolveClientName(),
-                    ["CampaignName"] = string.IsNullOrWhiteSpace(campaign.CampaignName) ? $"{campaign.PackageBand.Name} campaign" : campaign.CampaignName.Trim(),
-                    ["PackageName"] = campaign.PackageBand.Name,
-                    ["BudgetLabel"] = ResolveBudgetLabel(campaign),
-                    ["Budget"] = ResolveBudgetDisplayText(campaign),
-                    ["RecommendationIntro"] = recommendationIntro,
-                    ["AreaOrIndustry"] = areaOrIndustry,
-                    ["ReviewUrl"] = reviewUrl,
-                    ["LeadPdfUrl"] = leadPdfUrl,
-                    ["ProposalCount"] = proposalCount.ToString(CultureInfo.InvariantCulture),
-                    ["ProposalSummary"] = proposalCount > 1
-                        ? $"We have prepared {proposalCount} proposal options for you to compare."
-                        : "We have prepared your recommendation for review.",
-                    ["AgentMessageBlock"] = BuildAgentMessageBlock(resolvedAgentMessage),
-                    ["RecommendationPackBlock"] = recommendationPackBlock,
-                    ["ProposalAcceptButtonsBlock"] = proposalActionButtons
-                },
-                attachments,
-                cancellationToken);
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to build recommendation PDF attachment for campaign {CampaignId}.", campaign.Id);
+            }
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to send recommendation ready email for campaign {CampaignId} to {ToEmail}.", campaign.Id, toEmail);
-        }
+
+        var resolvedAgentMessage = useLeadTemplate
+            ? null
+            : ResolveRecommendationReadyAgentMessage(campaign, senderUser, agentMessage);
+        var recommendationIntro = ResolveRecommendationReadyIntro(campaign, senderUser);
+        var areaOrIndustry = ResolveLeadAreaOrIndustry(campaign);
+        var proposalActionButtons = useLeadTemplate
+            ? string.Empty
+            : BuildProposalAcceptButtonsBlock(campaign.Id, recommendations);
+        var leadPdfUrl = useLeadTemplate ? BuildPublicProposalPdfUrl(campaign.Id) : null;
+        var reviewUrl = useLeadTemplate ? BuildLeadProposalUrl(campaign.Id) : BuildProposalUrl(campaign.Id);
+
+        await _emailService.SendAsync(
+            templateName,
+            toEmail,
+            "noreply",
+            new Dictionary<string, string?>
+            {
+                ["AgentName"] = campaign.AssignedAgentUser?.FullName ?? senderUser.FullName,
+                ["ClientName"] = campaign.ResolveClientName(),
+                ["CampaignName"] = string.IsNullOrWhiteSpace(campaign.CampaignName) ? $"{campaign.PackageBand.Name} campaign" : campaign.CampaignName.Trim(),
+                ["PackageName"] = campaign.PackageBand.Name,
+                ["BudgetLabel"] = ResolveBudgetLabel(campaign),
+                ["Budget"] = ResolveBudgetDisplayText(campaign),
+                ["RecommendationIntro"] = recommendationIntro,
+                ["AreaOrIndustry"] = areaOrIndustry,
+                ["ReviewUrl"] = reviewUrl,
+                ["LeadPdfUrl"] = leadPdfUrl,
+                ["ProposalCount"] = proposalCount.ToString(CultureInfo.InvariantCulture),
+                ["ProposalSummary"] = proposalCount > 1
+                    ? $"We have prepared {proposalCount} proposal options for you to compare."
+                    : "We have prepared your recommendation for review.",
+                ["AgentMessageBlock"] = BuildAgentMessageBlock(resolvedAgentMessage),
+                ["RecommendationPackBlock"] = recommendationPackBlock,
+                ["ProposalAcceptButtonsBlock"] = proposalActionButtons
+            },
+            attachments,
+            cancellationToken);
+
+        _logger.LogInformation("Proposal email sent for campaign {CampaignId} to {ToEmail} using template {TemplateName}.", campaign.Id, toEmail, templateName);
     }
 
     private static string BuildRecommendationAttachmentFileName(Guid campaignId, CampaignRecommendation recommendation)
