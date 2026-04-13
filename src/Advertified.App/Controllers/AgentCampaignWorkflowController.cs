@@ -352,6 +352,64 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
         return Accepted(new { CampaignId = id, ProposalCount = currentRecommendations.Length, Message = "Recommendation set sent to client.", ClientMessage = request.Message });
     }
 
+    [HttpPost("{id:guid}/resend-proposal-email")]
+    public async Task<IActionResult> ResendProposalEmail(Guid id, [FromBody] ResendProposalEmailRequest request, CancellationToken cancellationToken)
+    {
+        var senderUser = await GetCurrentOperationsUserAsync(cancellationToken);
+
+        if (string.IsNullOrWhiteSpace(request.ToEmail))
+        {
+            return BadRequest(new { Message = "Recipient email is required." });
+        }
+
+        var toEmail = request.ToEmail.Trim();
+        if (!IsValidEmailAddress(toEmail))
+        {
+            return BadRequest(new { Message = "Recipient email is not a valid address." });
+        }
+
+        var campaign = await _db.Campaigns
+            .Include(x => x.User)
+            .Include(x => x.ProspectLead)
+            .Include(x => x.CampaignBrief)
+            .Include(x => x.AssignedAgentUser)
+            .Include(x => x.CampaignRecommendations)
+                .ThenInclude(x => x.RecommendationItems)
+            .Include(x => x.PackageBand)
+            .Include(x => x.PackageOrder)
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+
+        if (campaign is null)
+        {
+            return NotFound(new { Message = "Campaign not found." });
+        }
+
+        var currentRecommendations = RecommendationRevisionSupport.GetCurrentRecommendationSet(campaign.CampaignRecommendations);
+        if (currentRecommendations.Length == 0)
+        {
+            return BadRequest(new { Message = "No current recommendations found for this campaign." });
+        }
+
+        await SendRecommendationReadyEmailAsync(campaign, currentRecommendations, request.Message, senderUser, toEmail, cancellationToken);
+
+        await WriteChangeAuditAsync(
+            "resend_proposal_email",
+            "campaign",
+            campaign.Id.ToString(),
+            ResolveCampaignLabel(campaign),
+            $"Resent proposal email to {toEmail}.",
+            new
+            {
+                CampaignId = campaign.Id,
+                ProposalCount = currentRecommendations.Length,
+                ToEmail = toEmail,
+                request.Message
+            },
+            cancellationToken);
+
+        return Accepted(new { CampaignId = id, ToEmail = toEmail, ProposalCount = currentRecommendations.Length, Message = "Proposal email resent." });
+    }
+
     private async Task WriteChangeAuditAsync(
         string action,
         string entityType,
@@ -530,6 +588,19 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
             return;
         }
 
+        await SendRecommendationReadyEmailAsync(campaign, recommendations, agentMessage, senderUser, campaign.ResolveClientEmail(), cancellationToken);
+        campaign.RecommendationReadyEmailSentAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task SendRecommendationReadyEmailAsync(
+        Campaign campaign,
+        IReadOnlyList<CampaignRecommendation> recommendations,
+        string? agentMessage,
+        UserAccount senderUser,
+        string toEmail,
+        CancellationToken cancellationToken)
+    {
         try
         {
             var useLeadTemplate = ShouldUseLeadOutreachMessage(campaign);
@@ -579,18 +650,18 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
             var leadPdfUrl = useLeadTemplate ? BuildPublicProposalPdfUrl(campaign.Id) : null;
             var reviewUrl = useLeadTemplate ? BuildLeadProposalUrl(campaign.Id) : BuildProposalUrl(campaign.Id);
 
-                await _emailService.SendAsync(
-                    templateName,
-                    campaign.ResolveClientEmail(),
-                    "noreply",
-                    new Dictionary<string, string?>
-                    {
-                        ["AgentName"] = campaign.AssignedAgentUser?.FullName ?? senderUser.FullName,
-                        ["ClientName"] = campaign.ResolveClientName(),
-                        ["CampaignName"] = string.IsNullOrWhiteSpace(campaign.CampaignName) ? $"{campaign.PackageBand.Name} campaign" : campaign.CampaignName.Trim(),
-                        ["PackageName"] = campaign.PackageBand.Name,
-                        ["BudgetLabel"] = ResolveBudgetLabel(campaign),
-                        ["Budget"] = ResolveBudgetDisplayText(campaign),
+            await _emailService.SendAsync(
+                templateName,
+                toEmail,
+                "noreply",
+                new Dictionary<string, string?>
+                {
+                    ["AgentName"] = campaign.AssignedAgentUser?.FullName ?? senderUser.FullName,
+                    ["ClientName"] = campaign.ResolveClientName(),
+                    ["CampaignName"] = string.IsNullOrWhiteSpace(campaign.CampaignName) ? $"{campaign.PackageBand.Name} campaign" : campaign.CampaignName.Trim(),
+                    ["PackageName"] = campaign.PackageBand.Name,
+                    ["BudgetLabel"] = ResolveBudgetLabel(campaign),
+                    ["Budget"] = ResolveBudgetDisplayText(campaign),
                     ["RecommendationIntro"] = recommendationIntro,
                     ["AreaOrIndustry"] = areaOrIndustry,
                     ["ReviewUrl"] = reviewUrl,
@@ -608,12 +679,8 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to send recommendation ready email for campaign {CampaignId}.", campaign.Id);
-            return;
+            _logger.LogError(ex, "Failed to send recommendation ready email for campaign {CampaignId} to {ToEmail}.", campaign.Id, toEmail);
         }
-
-        campaign.RecommendationReadyEmailSentAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync(cancellationToken);
     }
 
     private static string BuildRecommendationAttachmentFileName(Guid campaignId, CampaignRecommendation recommendation)
@@ -804,5 +871,24 @@ If useful, we can walk you through it in a quick 15-minute call — no commitmen
         return string.Equals(campaign.Status, CampaignStatuses.AwaitingPurchase, StringComparison.OrdinalIgnoreCase)
             || (campaign.PackageOrder?.PaymentProvider == "prospect" && 
                 !string.Equals(campaign.PackageOrder?.PaymentStatus, "paid", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsValidEmailAddress(string value)
+    {
+        try
+        {
+            _ = new System.Net.Mail.MailAddress(value);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public sealed class ResendProposalEmailRequest
+    {
+        public string ToEmail { get; set; } = string.Empty;
+        public string? Message { get; set; }
     }
 }
