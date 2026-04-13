@@ -747,6 +747,8 @@ internal static class ControllerMappings
         var showDaypart = ExtractMetadataValue(item.MetadataJson, "showDaypart")
             ?? ExtractMetadataValue(item.MetadataJson, "show_daypart")
             ?? ExtractMetadataValue(item.MetadataJson, "daypart")
+            ?? ExtractMetadataValue(item.MetadataJson, "dayType")
+            ?? ExtractMetadataValue(item.MetadataJson, "day_type")
             ?? InferShowDaypart(item.DisplayName, rationale);
         var timeBand = ExtractMetadataValue(item.MetadataJson, "timeBand")
             ?? ExtractMetadataValue(item.MetadataJson, "time_band")
