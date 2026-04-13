@@ -482,6 +482,7 @@ export function AgentCampaignDetailPage() {
   const canEditDraftRecommendation = !recommendationWorkflowLocked && activeRecommendation?.status?.toLowerCase() === 'draft';
   const canModifyPlan = canEditDraftRecommendation && !draftApprovalCaptured;
   const hasSendableProposal = !recommendationWorkflowLocked && recommendations.length >= 1;
+  const canResendProposalEmail = recommendations.length >= 1;
   const hasOohRecommendation = selectedPlanItems.some((item) => normalizeChannelKey(item.type) === 'OOH');
   const lockedNextStep = campaign.status === 'approved'
     ? 'The recommendation is approved and paid. The next real step belongs to the creative director team: create the campaign content and prepare it for client approval.'
@@ -1030,7 +1031,7 @@ export function AgentCampaignDetailPage() {
                 Send to client
               </button>
             ) : null}
-            {hasSendableProposal ? (
+            {canResendProposalEmail ? (
               <button
                 type="button"
                 disabled={resendEmailMutation.isPending}

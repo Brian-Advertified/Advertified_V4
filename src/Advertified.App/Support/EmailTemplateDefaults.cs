@@ -451,6 +451,7 @@ internal static class EmailTemplateDefaults
                       <p style=""margin:0;font-size:14px;line-height:1.7;color:#4b635a;"">
                         If you need help before making a decision, reply to this email or contact <a href=""mailto:support@advertified.com"" style=""color:#123A33;"">support@advertified.com</a>.
                       </p>
+                      <p style=""margin:18px 0 0;font-size:15px;line-height:1.7;color:#4b635a;"">Best regards,<br/>{{AgentName}}<br/>Advertified</p>
                     </div>
                   </div>
                 </div>
