@@ -579,17 +579,18 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
             var leadPdfUrl = useLeadTemplate ? BuildPublicProposalPdfUrl(campaign.Id) : null;
             var reviewUrl = useLeadTemplate ? BuildLeadProposalUrl(campaign.Id) : BuildProposalUrl(campaign.Id);
 
-            await _emailService.SendAsync(
-                templateName,
-                campaign.ResolveClientEmail(),
-                "noreply",
-                new Dictionary<string, string?>
-                {
-                    ["ClientName"] = campaign.ResolveClientName(),
-                    ["CampaignName"] = string.IsNullOrWhiteSpace(campaign.CampaignName) ? $"{campaign.PackageBand.Name} campaign" : campaign.CampaignName.Trim(),
-                    ["PackageName"] = campaign.PackageBand.Name,
-                    ["BudgetLabel"] = ResolveBudgetLabel(campaign),
-                    ["Budget"] = ResolveBudgetDisplayText(campaign),
+                await _emailService.SendAsync(
+                    templateName,
+                    campaign.ResolveClientEmail(),
+                    "noreply",
+                    new Dictionary<string, string?>
+                    {
+                        ["AgentName"] = campaign.AssignedAgentUser?.FullName ?? senderUser.FullName,
+                        ["ClientName"] = campaign.ResolveClientName(),
+                        ["CampaignName"] = string.IsNullOrWhiteSpace(campaign.CampaignName) ? $"{campaign.PackageBand.Name} campaign" : campaign.CampaignName.Trim(),
+                        ["PackageName"] = campaign.PackageBand.Name,
+                        ["BudgetLabel"] = ResolveBudgetLabel(campaign),
+                        ["Budget"] = ResolveBudgetDisplayText(campaign),
                     ["RecommendationIntro"] = recommendationIntro,
                     ["AreaOrIndustry"] = areaOrIndustry,
                     ["ReviewUrl"] = reviewUrl,

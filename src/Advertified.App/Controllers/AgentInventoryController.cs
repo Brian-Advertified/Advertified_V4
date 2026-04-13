@@ -54,11 +54,35 @@ public sealed class AgentInventoryController : ControllerBase
             .ThenBy(candidate => candidate.DisplayName)
             .GroupBy(candidate => candidate.SourceId)
             .Select(group => group.First())
-            .Take(500)
+            .ToArray();
+
+        const int maxItems = 500;
+        const int maxOohLikeItems = 350;
+        const int maxRadioItems = 130;
+        const int maxTvItems = 20;
+
+        var oohLike = filtered
+            .Where(candidate => candidate.MediaType.Equals("ooh", StringComparison.OrdinalIgnoreCase)
+                                || candidate.MediaType.Equals("digital", StringComparison.OrdinalIgnoreCase))
+            .Take(maxOohLikeItems);
+        var radio = filtered
+            .Where(candidate => candidate.MediaType.Equals("radio", StringComparison.OrdinalIgnoreCase))
+            .Take(maxRadioItems);
+        var tv = filtered
+            .Where(candidate => candidate.MediaType.Equals("tv", StringComparison.OrdinalIgnoreCase))
+            .Take(maxTvItems);
+
+        var results = oohLike
+            .Concat(radio)
+            .Concat(tv)
+            .OrderBy(candidate => GetChannelRank(candidate.MediaType))
+            .ThenBy(candidate => candidate.Cost)
+            .ThenBy(candidate => candidate.DisplayName)
+            .Take(maxItems)
             .Select(MapInventoryItem)
             .ToArray();
 
-        return Ok(filtered);
+        return Ok(results);
     }
 
     private async Task<CampaignPlanningRequest> BuildRequestAsync(Guid? campaignId, CancellationToken cancellationToken)

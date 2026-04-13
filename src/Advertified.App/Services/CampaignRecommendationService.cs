@@ -289,7 +289,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         }
 
         var activeChannels = ResolveActiveChannels(request);
-        var secondaryFocusChannel = ResolveUpperTierFocusChannel(activeChannels);
+        var secondaryFocusChannel = ResolveUpperTierFocusChannel(request, activeChannels);
         var secondaryFocusLabel = secondaryFocusChannel switch
         {
             "digital" => "digital_focus",
@@ -451,16 +451,28 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         return Math.Round(amount, 2, MidpointRounding.AwayFromZero);
     }
 
-    private static string ResolveUpperTierFocusChannel(IReadOnlyList<string> activeChannels)
+    private static string ResolveUpperTierFocusChannel(CampaignPlanningRequest request, IReadOnlyList<string> activeChannels)
     {
-        if (activeChannels.Contains("digital", StringComparer.OrdinalIgnoreCase))
+        var preferred = request.PreferredMediaTypes
+            .Select(channel => channel.Trim().ToLowerInvariant())
+            .Where(channel => channel is "radio" or "ooh" or "digital" or "tv" or "television")
+            .Select(channel => channel is "television" ? "tv" : channel)
+            .Distinct()
+            .ToArray();
+
+        if (preferred.Contains("digital") && !preferred.Contains("radio"))
         {
             return "digital";
         }
 
-        if (activeChannels.Contains("radio", StringComparer.OrdinalIgnoreCase))
+        if (preferred.Contains("radio") || activeChannels.Contains("radio", StringComparer.OrdinalIgnoreCase))
         {
             return "radio";
+        }
+
+        if (activeChannels.Contains("digital", StringComparer.OrdinalIgnoreCase))
+        {
+            return "digital";
         }
 
         // Avoid creating a TV-led Proposal C because that variant can collapse into

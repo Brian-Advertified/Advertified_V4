@@ -464,7 +464,7 @@ internal static class EmailTemplateDefaults
                     </div>
                     <div style=""padding:28px 32px;"">
                       <p style=""margin:0 0 12px;font-size:15px;line-height:1.7;color:#4b635a;"">Good day,</p>
-                      <p style=""margin:0 0 12px;font-size:15px;line-height:1.7;color:#4b635a;"">I'm Dev from Advertified - we help businesses find where they're losing customers online and put campaigns in place to fix it.</p>
+                      <p style=""margin:0 0 12px;font-size:15px;line-height:1.7;color:#4b635a;"">I'm {{AgentName}} from Advertified - we help businesses find where they're losing customers online and put campaigns in place to fix it.</p>
                       <p style=""margin:0 0 12px;font-size:15px;line-height:1.7;color:#4b635a;"">We recently looked at your market presence and identified a specific gap in how your business is capturing demand in {{AreaOrIndustry}}. It's fixable, and we've already mapped out three campaign approaches tailored to your situation.</p>
                       <p style=""margin:0 0 8px;font-size:15px;line-height:1.7;color:#4b635a;"">Here's what makes this easy to act on:</p>
                       <ul style=""margin:0 0 14px 20px;padding:0;color:#4b635a;font-size:15px;line-height:1.7;"">
