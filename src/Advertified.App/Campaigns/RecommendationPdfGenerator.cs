@@ -288,6 +288,7 @@ internal static class RecommendationPdfGenerator
 
                                         AddDetailRow(table, "Region", item.Region);
                                         AddDetailRow(table, "Language", item.Language);
+                                        AddDetailRow(table, "Days", item.ShowDaypart);
                                         AddDetailRow(table, "Time band", item.TimeBand);
                                         AddDetailRow(table, "Slot type", item.SlotType);
                                         AddDetailRow(table, "Duration", item.Duration);
@@ -758,6 +759,7 @@ internal sealed class RecommendationLineDocumentModel
     public int Quantity { get; init; }
     public string? Region { get; init; }
     public string? Language { get; init; }
+    public string? ShowDaypart { get; init; }
     public string? TimeBand { get; init; }
     public string? SlotType { get; init; }
     public string? Duration { get; init; }

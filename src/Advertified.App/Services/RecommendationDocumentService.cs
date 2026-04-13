@@ -204,6 +204,11 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
             Quantity = item.Quantity,
             Region = GetMetadataValue(metadata, "region"),
             Language = GetMetadataValue(metadata, "language"),
+            ShowDaypart = GetMetadataValue(metadata, "showDaypart")
+                ?? GetMetadataValue(metadata, "show_daypart")
+                ?? GetMetadataValue(metadata, "daypart")
+                ?? GetMetadataValue(metadata, "dayType")
+                ?? GetMetadataValue(metadata, "day_type"),
             TimeBand = GetMetadataValue(metadata, "timeBand") ?? GetMetadataValue(metadata, "time_band"),
             SlotType = GetMetadataValue(metadata, "slotType") ?? GetMetadataValue(metadata, "slot_type"),
             Duration = GetMetadataValue(metadata, "duration") ?? GetMetadataValue(metadata, "durationSeconds") ?? GetMetadataValue(metadata, "duration_seconds"),
