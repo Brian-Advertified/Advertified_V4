@@ -81,6 +81,11 @@ export function AgentCampaignDetailPage() {
   const [selectedRecommendationIdState, setSelectedRecommendationIdState] = useState('');
   const [inventoryModalOpen, setInventoryModalOpen] = useState(false);
   const [prospectPackageBandState, setProspectPackageBandState] = useState<{ campaignId: string; packageBandId: string } | null>(null);
+  const [resendEmailState, setResendEmailState] = useState<{ toEmail: string; message: string }>({
+    toEmail: '',
+    message: '',
+  });
+  const [resendEmailOpen, setResendEmailOpen] = useState(false);
   const mixPanelRef = useRef<HTMLDivElement | null>(null);
 
   const campaignQuery = useQuery({
@@ -128,6 +133,23 @@ export function AgentCampaignDetailPage() {
       });
     },
     onError: (error) => pushAgentMutationError(pushToast, 'Could not send recommendation to client.', error),
+  });
+
+  const resendEmailMutation = useMutation({
+    mutationFn: () => advertifiedApi.resendProposalEmail(id, {
+      toEmail: resendEmailState.toEmail.trim(),
+      message: resendEmailState.message.trim() ? resendEmailState.message.trim() : null,
+    }),
+    onSuccess: async () => {
+      await invalidateAgentCampaignQueries(queryClient, id);
+      pushToast({
+        title: 'Proposal email resent.',
+        description: `Sent to ${resendEmailState.toEmail.trim()}.`,
+      });
+      setResendEmailOpen(false);
+      setResendEmailState((prev) => ({ ...prev, message: '' }));
+    },
+    onError: (error) => pushAgentMutationError(pushToast, 'Could not resend proposal email.', error),
   });
   const updateProspectPricingMutation = useMutation({
     mutationFn: () => advertifiedApi.updateProspectPricing(id, {
@@ -553,6 +575,19 @@ export function AgentCampaignDetailPage() {
     sendMutation.mutate();
   }
 
+  function handleResendEmail() {
+    const toEmail = resendEmailState.toEmail.trim();
+    if (!toEmail) {
+      pushToast({
+        title: 'Recipient email required.',
+        description: 'Enter an email address to send this proposal to.',
+      }, 'info');
+      return;
+    }
+
+    resendEmailMutation.mutate();
+  }
+
   function toggleInventoryItem(item: SelectedPlanInventoryItem) {
     if (!canModifyPlan) {
       pushToast({
@@ -685,11 +720,13 @@ export function AgentCampaignDetailPage() {
 
   return (
     <section className="page-shell space-y-8">
-      {saveMutation.isPending || sendMutation.isPending || assignMutation.isPending || unassignMutation.isPending || regenerateMutation.isPending || markLiveMutation.isPending ? (
+      {saveMutation.isPending || sendMutation.isPending || resendEmailMutation.isPending || assignMutation.isPending || unassignMutation.isPending || regenerateMutation.isPending || markLiveMutation.isPending ? (
         <ProcessingOverlay
           label={
             sendMutation.isPending
               ? 'Sending recommendation to the client...'
+              : resendEmailMutation.isPending
+                ? 'Resending the proposal email...'
               : markLiveMutation.isPending
                 ? 'Marking the campaign live...'
               : assignMutation.isPending
@@ -993,6 +1030,17 @@ export function AgentCampaignDetailPage() {
                 Send to client
               </button>
             ) : null}
+            {hasSendableProposal ? (
+              <button
+                type="button"
+                disabled={resendEmailMutation.isPending}
+                onClick={() => setResendEmailOpen((open) => !open)}
+                className="button-secondary inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60"
+              >
+                <Send className="size-4" />
+                Resend email
+              </button>
+            ) : null}
             {!isProspectiveCampaign && !recommendationWorkflowLocked ? (
               <button
                 type="button"
@@ -1016,6 +1064,51 @@ export function AgentCampaignDetailPage() {
               </button>
             ) : null}
           </div>
+
+          {resendEmailOpen ? (
+            <div className="mt-4 rounded-2xl border border-sand px-5 py-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                <div className="flex-1">
+                  <label className="text-sm font-semibold text-ink">Resend proposal email</label>
+                  <p className="mt-1 text-sm text-ink-soft">Sends the same proposal email to another recipient.</p>
+                </div>
+                <button type="button" onClick={() => setResendEmailOpen(false)} className="button-secondary px-4 py-2">
+                  Close
+                </button>
+              </div>
+              <div className="mt-4 grid gap-4 md:grid-cols-3">
+                <div className="md:col-span-1">
+                  <label className="text-sm font-semibold text-ink">To</label>
+                  <input
+                    value={resendEmailState.toEmail}
+                    onChange={(event) => setResendEmailState((prev) => ({ ...prev, toEmail: event.target.value }))}
+                    placeholder="name@company.com"
+                    className="mt-2 w-full rounded-xl border border-sand px-3 py-2 text-sm"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="text-sm font-semibold text-ink">Message (optional)</label>
+                  <input
+                    value={resendEmailState.message}
+                    onChange={(event) => setResendEmailState((prev) => ({ ...prev, message: event.target.value }))}
+                    placeholder="Add a short note (optional)"
+                    className="mt-2 w-full rounded-xl border border-sand px-3 py-2 text-sm"
+                  />
+                </div>
+              </div>
+              <div className="mt-4 flex justify-end">
+                <button
+                  type="button"
+                  disabled={resendEmailMutation.isPending}
+                  onClick={handleResendEmail}
+                  className="button-primary inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60"
+                >
+                  <Send className="size-4" />
+                  Send email
+                </button>
+              </div>
+            </div>
+          ) : null}
 
           <AgentInventorySelectionModal
             isOpen={showRecommendationEditing && inventoryModalOpen}

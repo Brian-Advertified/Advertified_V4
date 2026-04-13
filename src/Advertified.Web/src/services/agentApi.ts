@@ -158,6 +158,11 @@ export function createAgentApi({
       return getAgentCampaignById(campaignId);
     },
 
+    async resendProposalEmail(campaignId: string, payload: { toEmail: string; message?: string | null }) {
+      await postJson(`/agent/campaigns/${campaignId}/resend-proposal-email`, payload);
+      return getAgentCampaignById(campaignId);
+    },
+
     async uploadAgentCampaignAsset(campaignId: string, file: File, assetType: string) {
       return uploadAgentAssetData(campaignId, file, assetType);
     },
