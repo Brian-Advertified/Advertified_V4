@@ -480,7 +480,7 @@ internal static class EmailTemplateDefaults
                         </a>
                       </div>
                       <p style=""margin:0 0 18px;font-size:14px;line-height:1.7;color:#4b635a;"">Reply to this email to book a quick 15-minute call.</p>
-                      <p style=""margin:0;font-size:15px;line-height:1.7;color:#4b635a;"">Best regards,<br/>Dev<br/>Advertified</p>
+                      <p style=""margin:0;font-size:15px;line-height:1.7;color:#4b635a;"">Best regards,<br/>{{AgentName}}<br/>Advertified</p>
                     </div>
                   </div>
                 </div>
