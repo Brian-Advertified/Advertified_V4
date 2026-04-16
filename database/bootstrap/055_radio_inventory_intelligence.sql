@@ -34,6 +34,7 @@ create table if not exists radio_inventory_intelligence (
     language_context_fit varchar(80) null,
     buying_behaviour_fit varchar(120) null,
     brand_safety_fit varchar(30) null,
+    genre_fit varchar(80) null,
     objective_fit_primary varchar(80) null,
     objective_fit_secondary varchar(80) null,
     audience_age_skew varchar(80) null,
@@ -62,6 +63,9 @@ create index if not exists ix_radio_inventory_intelligence_station_scope
 
 alter table if exists radio_inventory_intelligence
     add column if not exists household_decision_maker_fit varchar(20) null;
+
+alter table if exists radio_inventory_intelligence
+    add column if not exists genre_fit varchar(80) null;
 
 alter table if exists radio_inventory_intelligence
     add column if not exists source_file text null;
