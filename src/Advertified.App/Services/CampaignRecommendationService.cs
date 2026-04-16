@@ -35,7 +35,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
     private readonly IPlanningPolicyService _policyService;
     private readonly IPlanningRequestFactory _planningRequestFactory;
 
-    public CampaignRecommendationService(
+    internal CampaignRecommendationService(
         AppDbContext db,
         IMediaPlanningEngine planningEngine,
         ICampaignReasoningService campaignReasoningService,
