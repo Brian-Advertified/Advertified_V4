@@ -33,6 +33,11 @@ export type RecommendationDraftFormState = {
   scope: string;
   geography: string;
   suburbs: string[];
+  targetLocationLabel?: string;
+  targetLocationCity?: string;
+  targetLocationProvince?: string;
+  targetLatitude?: number;
+  targetLongitude?: number;
   ageRange: string;
   language: string;
   targetGender: string;
@@ -407,14 +412,23 @@ export function buildRecommendationDraftBrief(
   const normalizedScope = form.scope === 'regional' ? 'provincial' : (form.scope || 'provincial');
   const geography = form.geography.trim();
   const geographyLabel = titleCase(geography.replaceAll('_', ' ').replaceAll('-', ' '));
+  const targetLocationLabel = form.targetLocationLabel?.trim() || undefined;
+  const targetLocationCity = form.targetLocationCity?.trim() || undefined;
+  const normalizedTargetLocationLabel = targetLocationLabel?.toLowerCase();
+  const normalizedTargetLocationCity = targetLocationCity?.toLowerCase();
   const provinces = normalizedScope === 'provincial' && geography
     ? [geographyLabel]
     : undefined;
-  const cities = normalizedScope === 'local' && geography
-    ? [geographyLabel]
+  const cities = normalizedScope === 'local' && (targetLocationCity || geographyLabel)
+    ? [targetLocationCity || geographyLabel]
     : undefined;
-  const suburbs = normalizedScope === 'local' && (form.suburbs ?? []).length > 0
-    ? form.suburbs
+  const suburbs = normalizedScope === 'local'
+    ? ((form.suburbs ?? []).length > 0
+      ? form.suburbs
+      : (targetLocationLabel
+        && normalizedTargetLocationLabel !== normalizedTargetLocationCity
+          ? [targetLocationLabel]
+          : undefined))
     : undefined;
   const ageRange = parseAgeRange(form.ageRange);
 
@@ -425,6 +439,11 @@ export function buildRecommendationDraftBrief(
     cities,
     suburbs,
     areas: undefined,
+    targetLocationLabel,
+    targetLocationCity,
+    targetLocationProvince: form.targetLocationProvince?.trim() || undefined,
+    targetLatitude: form.targetLatitude,
+    targetLongitude: form.targetLongitude,
     mustHaveAreas: suburbs,
     targetAgeMin: ageRange.min,
     targetAgeMax: ageRange.max,

@@ -1,8 +1,7 @@
-using Dapper;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
-using Npgsql;
+using Advertified.App.Services.Abstractions;
 
 namespace Advertified.App.Controllers;
 
@@ -12,11 +11,11 @@ namespace Advertified.App.Controllers;
 [EnableRateLimiting("public_general")]
 public sealed class PublicSuburbsController : ControllerBase
 {
-    private readonly NpgsqlDataSource _dataSource;
+    private readonly IPublicLocationSearchService _locationSearchService;
 
-    public PublicSuburbsController(NpgsqlDataSource dataSource)
+    public PublicSuburbsController(IPublicLocationSearchService locationSearchService)
     {
-        _dataSource = dataSource;
+        _locationSearchService = locationSearchService;
     }
 
     [HttpGet]
@@ -28,15 +27,7 @@ public sealed class PublicSuburbsController : ControllerBase
             return Ok(new List<string>());
         }
 
-        const string sql = @"
-select distinct trim(iif.suburb) as suburb
-from inventory_items_final iif
-where lower(coalesce(iif.city, '')) = lower(@City)
-  and coalesce(trim(iif.suburb), '') <> ''
-order by suburb;";
-
-        await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
-        var rows = await conn.QueryAsync<string>(new CommandDefinition(sql, new { City = city }, cancellationToken: cancellationToken));
+        var rows = await _locationSearchService.ListSuburbsAsync(city, cancellationToken);
         return Ok(rows.ToList());
     }
 }

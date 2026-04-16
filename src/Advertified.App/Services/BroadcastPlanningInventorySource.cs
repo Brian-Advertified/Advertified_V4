@@ -11,36 +11,49 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
     private readonly IBroadcastInventoryCatalog _broadcastInventoryCatalog;
     private readonly IBroadcastCostNormalizer _costNormalizer;
     private readonly IPricingSettingsProvider _pricingSettingsProvider;
+    private readonly IBroadcastInventoryIntelligenceService _broadcastInventoryIntelligenceService;
+
+    public BroadcastPlanningInventorySource(
+        IBroadcastInventoryCatalog broadcastInventoryCatalog,
+        IBroadcastCostNormalizer costNormalizer,
+        IPricingSettingsProvider pricingSettingsProvider,
+        IBroadcastInventoryIntelligenceService broadcastInventoryIntelligenceService)
+    {
+        _broadcastInventoryCatalog = broadcastInventoryCatalog;
+        _costNormalizer = costNormalizer;
+        _pricingSettingsProvider = pricingSettingsProvider;
+        _broadcastInventoryIntelligenceService = broadcastInventoryIntelligenceService;
+    }
 
     public BroadcastPlanningInventorySource(
         IBroadcastInventoryCatalog broadcastInventoryCatalog,
         IBroadcastCostNormalizer costNormalizer,
         IPricingSettingsProvider pricingSettingsProvider)
+        : this(broadcastInventoryCatalog, costNormalizer, pricingSettingsProvider, new NullBroadcastInventoryIntelligenceService())
     {
-        _broadcastInventoryCatalog = broadcastInventoryCatalog;
-        _costNormalizer = costNormalizer;
-        _pricingSettingsProvider = pricingSettingsProvider;
     }
 
     public async Task<BroadcastPlanningCandidateSet> GetCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
     {
         var records = await _broadcastInventoryCatalog.GetRecordsAsync(cancellationToken);
         var pricingSettings = await _pricingSettingsProvider.GetCurrentAsync(cancellationToken);
+        var radioIntelligence = await _broadcastInventoryIntelligenceService.GetRadioIntelligenceByInternalKeyAsync(cancellationToken);
+        var tvIntelligence = await _broadcastInventoryIntelligenceService.GetTvIntelligenceByInternalKeyAsync(cancellationToken);
 
         return new BroadcastPlanningCandidateSet(
             RadioSlots: records
                 .Where(record => string.Equals(record.MediaType, "radio", StringComparison.OrdinalIgnoreCase))
-                .SelectMany(record => CreateBroadcastRateCandidates(record, pricingSettings))
+                .SelectMany(record => CreateBroadcastRateCandidates(record, pricingSettings, radioIntelligence))
                 .Where(candidate => candidate.Cost > 0m && candidate.Cost <= request.SelectedBudget)
                 .ToList(),
             RadioPackages: records
                 .Where(record => string.Equals(record.MediaType, "radio", StringComparison.OrdinalIgnoreCase))
-                .SelectMany(record => CreateBroadcastPackageCandidates(record, pricingSettings))
+                .SelectMany(record => CreateBroadcastPackageCandidates(record, pricingSettings, radioIntelligence))
                 .Where(candidate => candidate.Cost > 0m && candidate.Cost <= request.SelectedBudget)
                 .ToList(),
             Tv: records
                 .Where(record => string.Equals(record.MediaType, "tv", StringComparison.OrdinalIgnoreCase))
-                .SelectMany(record => CreateBroadcastPackageCandidates(record, pricingSettings).Concat(CreateBroadcastRateCandidates(record, pricingSettings)))
+                .SelectMany(record => CreateBroadcastPackageCandidates(record, pricingSettings, tvIntelligence).Concat(CreateBroadcastRateCandidates(record, pricingSettings, tvIntelligence)))
                 .Where(candidate => candidate.Cost > 0m && candidate.Cost <= request.SelectedBudget)
                 .ToList());
     }
@@ -63,7 +76,10 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
         return candidates.Tv;
     }
 
-    private IEnumerable<BroadcastPlanningInventorySeed> CreateBroadcastPackageCandidates(BroadcastInventoryRecord record, PricingSettingsSnapshot pricingSettings)
+    private IEnumerable<BroadcastPlanningInventorySeed> CreateBroadcastPackageCandidates(
+        BroadcastInventoryRecord record,
+        PricingSettingsSnapshot pricingSettings,
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, object?>> intelligenceLookup)
     {
         if (record.Packages.ValueKind != JsonValueKind.Array)
         {
@@ -121,6 +137,7 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
                         continue;
                     }
 
+                    var intelligenceKey = $"{record.Id}|package|{GetString(element, "name") ?? packageName}";
                     yield return new BroadcastPlanningInventorySeed
                     {
                         Record = record,
@@ -129,7 +146,7 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
                         DisplayName = $"{record.Station} - {packageName} - {GetString(element, "name") ?? "Element"}",
                         SlotType = "package",
                         Cost = markedUpCost,
-                        Metadata = CreateMetadata(
+                        Metadata = MergeMetadata(CreateMetadata(
                             record,
                             normalized,
                             markedUpCost,
@@ -139,7 +156,8 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
                             null,
                             true,
                             GetString(element, "name") ?? packageName,
-                            GetString(element, "notes") ?? GetString(package, "notes"))
+                            GetString(element, "notes") ?? GetString(package, "notes")),
+                            ResolveIntelligence(intelligenceLookup, intelligenceKey))
                     };
                 }
 
@@ -184,6 +202,7 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
                 continue;
             }
 
+            var packageIntelligenceKey = $"{record.Id}|package|{packageName}";
             yield return new BroadcastPlanningInventorySeed
             {
                 Record = record,
@@ -192,13 +211,18 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
                 DisplayName = $"{record.Station} - {packageName}",
                 SlotType = "package",
                 Cost = markedUpPackageCost,
-                Metadata = CreateMetadata(record, normalizedPackage, markedUpPackageCost, pricingSettings, packageType, null, null, true, packageName, GetString(package, "notes"))
+                Metadata = MergeMetadata(
+                    CreateMetadata(record, normalizedPackage, markedUpPackageCost, pricingSettings, packageType, null, null, true, packageName, GetString(package, "notes")),
+                    ResolveIntelligence(intelligenceLookup, packageIntelligenceKey))
             };
             index++;
         }
     }
 
-    private IEnumerable<BroadcastPlanningInventorySeed> CreateBroadcastRateCandidates(BroadcastInventoryRecord record, PricingSettingsSnapshot pricingSettings)
+    private IEnumerable<BroadcastPlanningInventorySeed> CreateBroadcastRateCandidates(
+        BroadcastInventoryRecord record,
+        PricingSettingsSnapshot pricingSettings,
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, object?>> intelligenceLookup)
     {
         if (record.Pricing.ValueKind == JsonValueKind.Object)
         {
@@ -231,6 +255,7 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
                         continue;
                     }
 
+                    var intelligenceKey = $"{record.Id}|slot|{dayGroup.Name}|{slot.Name}";
                     yield return new BroadcastPlanningInventorySeed
                     {
                         Record = record,
@@ -239,7 +264,9 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
                         DisplayName = $"{record.Station} - {slot.Name}",
                         SlotType = "spot",
                         Cost = markedUpRate,
-                        Metadata = CreateMetadata(record, normalized, markedUpRate, pricingSettings, "spot", dayGroup.Name, slot.Name, false, null, null)
+                        Metadata = MergeMetadata(
+                            CreateMetadata(record, normalized, markedUpRate, pricingSettings, "spot", dayGroup.Name, slot.Name, false, null, null),
+                            ResolveIntelligence(intelligenceLookup, intelligenceKey))
                     };
                 }
             }
@@ -276,6 +303,7 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
                     continue;
                 }
 
+                var intelligenceKey = $"{record.Id}|slot|{dayGroup}|{slotLabel}";
                 var displaySlot = string.IsNullOrWhiteSpace(programmeName) ? slotLabel : $"{programmeName} ({slotLabel})";
                 yield return new BroadcastPlanningInventorySeed
                 {
@@ -285,7 +313,9 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
                     DisplayName = $"{record.Station} - {displaySlot}",
                     SlotType = "spot",
                     Cost = markedUpRate,
-                    Metadata = CreateMetadata(record, normalized, markedUpRate, pricingSettings, "spot", dayGroup, slotLabel, false, null, null)
+                    Metadata = MergeMetadata(
+                        CreateMetadata(record, normalized, markedUpRate, pricingSettings, "spot", dayGroup, slotLabel, false, null, null),
+                        ResolveIntelligence(intelligenceLookup, intelligenceKey))
                 };
             }
         }
@@ -513,5 +543,43 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
         if (name.Contains("4 Week", StringComparison.OrdinalIgnoreCase) || name.Contains("4-Week", StringComparison.OrdinalIgnoreCase)) return 4;
         if (name.Contains("2 Week", StringComparison.OrdinalIgnoreCase)) return 2;
         return null;
+    }
+
+    private static IReadOnlyDictionary<string, object?> ResolveIntelligence(
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, object?>> lookup,
+        string internalKey)
+    {
+        return lookup.TryGetValue(internalKey, out var metadata)
+            ? metadata
+            : new Dictionary<string, object?>();
+    }
+
+    private static Dictionary<string, object?> MergeMetadata(
+        Dictionary<string, object?> baseMetadata,
+        IReadOnlyDictionary<string, object?> intelligence)
+    {
+        if (intelligence.Count == 0)
+        {
+            return baseMetadata;
+        }
+
+        foreach (var pair in intelligence)
+        {
+            if (pair.Value is not null)
+            {
+                baseMetadata[pair.Key] = pair.Value;
+            }
+        }
+
+        return baseMetadata;
+    }
+
+    private sealed class NullBroadcastInventoryIntelligenceService : IBroadcastInventoryIntelligenceService
+    {
+        public Task<IReadOnlyDictionary<string, IReadOnlyDictionary<string, object?>>> GetRadioIntelligenceByInternalKeyAsync(CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyDictionary<string, IReadOnlyDictionary<string, object?>>>(new Dictionary<string, IReadOnlyDictionary<string, object?>>());
+
+        public Task<IReadOnlyDictionary<string, IReadOnlyDictionary<string, object?>>> GetTvIntelligenceByInternalKeyAsync(CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyDictionary<string, IReadOnlyDictionary<string, object?>>>(new Dictionary<string, IReadOnlyDictionary<string, object?>>());
     }
 }

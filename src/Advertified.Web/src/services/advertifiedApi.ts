@@ -32,6 +32,7 @@ import type {
   LeadActionInboxItem,
   LeadChannelDetection,
   LeadIndustryPolicy,
+  LocationSuggestion,
   LeadOpportunityProfile,
   LeadStrategy,
   LeadEnrichmentSnapshot,
@@ -1898,6 +1899,25 @@ const publicApi = createPublicApi({
   },
   async getSuburbsData(city) {
     return apiRequest<string[]>(`/public/suburbs?city=${encodeURIComponent(city)}`);
+  },
+  async searchLocationsData(input) {
+    const searchParams = new URLSearchParams({
+      query: input.query,
+    });
+
+    if (input.geographyScope) {
+      searchParams.set('geographyScope', input.geographyScope);
+    }
+
+    if (input.city) {
+      searchParams.set('city', input.city);
+    }
+
+    if (input.limit) {
+      searchParams.set('limit', String(input.limit));
+    }
+
+    return apiRequest<LocationSuggestion[]>(`/public/locations/search?${searchParams.toString()}`);
   },
   async createOrderData(payload) {
     return apiRequest<{

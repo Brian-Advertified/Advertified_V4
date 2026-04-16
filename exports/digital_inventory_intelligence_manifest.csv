@@ -1,0 +1,5 @@
+media_type,station_or_channel_name,media_outlet_code,row_count,relative_path
+digital,Meta (Facebook + Instagram),social_meta,1,exports\digital_inventory_intelligence\meta_facebook_instagram.csv
+digital,TikTok,social_tiktok,1,exports\digital_inventory_intelligence\tiktok.csv
+digital,YouTube,social_youtube,1,exports\digital_inventory_intelligence\youtube.csv
+digital,LinkedIn,social_linkedin,1,exports\digital_inventory_intelligence\linkedin.csv

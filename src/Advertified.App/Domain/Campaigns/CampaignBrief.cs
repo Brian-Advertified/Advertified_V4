@@ -13,6 +13,11 @@ public sealed class CampaignBrief
     public string? CitiesJson { get; set; }
     public string? SuburbsJson { get; set; }
     public string? AreasJson { get; set; }
+    public string? TargetLocationLabel { get; set; }
+    public string? TargetLocationCity { get; set; }
+    public string? TargetLocationProvince { get; set; }
+    public double? TargetLatitude { get; set; }
+    public double? TargetLongitude { get; set; }
     public int? TargetAgeMin { get; set; }
     public int? TargetAgeMax { get; set; }
     public string? TargetGender { get; set; }

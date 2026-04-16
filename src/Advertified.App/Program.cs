@@ -138,6 +138,8 @@ builder.Services.AddAuthorization(options =>
 });
 builder.Services.AddScoped<IPricingSettingsProvider, PricingSettingsProvider>();
 builder.Services.AddScoped<IBroadcastMasterDataService, BroadcastMasterDataService>();
+builder.Services.AddScoped<IBroadcastLanguagePriorityService, BroadcastLanguagePriorityService>();
+builder.Services.AddScoped<IBroadcastInventoryIntelligenceService, BroadcastInventoryIntelligenceService>();
 builder.Services.AddScoped<IAdminDashboardService>(_ => new AdminDashboardService(
     _.GetRequiredService<AppDbContext>(),
     _.GetRequiredService<IBroadcastInventoryCatalog>(),
@@ -198,6 +200,7 @@ builder.Services.AddScoped<ILeadScoreService, LeadScoreService>();
 builder.Services.AddScoped<ILeadSourceDropFolderProcessor, LeadSourceDropFolderProcessor>();
 builder.Services.AddScoped<ILeadSourceIngestionService, LeadSourceIngestionService>();
 builder.Services.AddScoped<ILeadSourceImportService, LeadSourceImportService>();
+builder.Services.AddScoped<IPublicLocationSearchService, PublicLocationSearchService>();
 builder.Services.AddScoped<ISignalCollectorService, SignalCollectorService>();
 builder.Services.AddScoped<ILeadSignalEvidenceProvider, WebsiteLeadSignalEvidenceProvider>();
 builder.Services.AddHttpClient<MetaAdLibraryLeadSignalEvidenceProvider>(client =>
@@ -239,12 +242,18 @@ builder.Services.AddScoped<LeadIndustryPolicySnapshotProvider>(_ => new LeadIndu
     _.GetRequiredService<Microsoft.Extensions.Options.IOptions<LeadIndustryPolicyOptions>>().Value));
 builder.Services.AddScoped<IPlanningEligibilityService, PlanningEligibilityService>();
 builder.Services.AddScoped<IPlanningScoreService, PlanningScoreService>();
-builder.Services.AddScoped<IRecommendationPlanBuilder, RecommendationPlanBuilder>();
+builder.Services.AddScoped<IRecommendationPlanBuilder>(_ => new RecommendationPlanBuilder(
+    _.GetRequiredService<IPlanningPolicyService>(),
+    _.GetRequiredService<IBroadcastMasterDataService>()));
 builder.Services.AddScoped<IRecommendationExplainabilityService, RecommendationExplainabilityService>();
 builder.Services.AddScoped<IOohPlanningInventorySource>(_ => new OohPlanningInventorySource(
     _.GetRequiredService<Npgsql.NpgsqlDataSource>(),
     _.GetRequiredService<IPricingSettingsProvider>()));
-builder.Services.AddScoped<IBroadcastPlanningInventorySource, BroadcastPlanningInventorySource>();
+builder.Services.AddScoped<IBroadcastPlanningInventorySource>(_ => new BroadcastPlanningInventorySource(
+    _.GetRequiredService<IBroadcastInventoryCatalog>(),
+    _.GetRequiredService<IBroadcastCostNormalizer>(),
+    _.GetRequiredService<IPricingSettingsProvider>(),
+    _.GetRequiredService<IBroadcastInventoryIntelligenceService>()));
 builder.Services.AddScoped<ISocialPlanningInventorySource, SocialPlanningInventorySource>();
 builder.Services.AddScoped<IPlanningInventoryCandidateMapper, PlanningInventoryCandidateMapper>();
 builder.Services.AddScoped<IMediaPlanningEngine>(_ => new MediaPlanningEngine(
@@ -252,7 +261,8 @@ builder.Services.AddScoped<IMediaPlanningEngine>(_ => new MediaPlanningEngine(
     _.GetRequiredService<IPlanningEligibilityService>(),
     _.GetRequiredService<IRecommendationPlanBuilder>(),
     _.GetRequiredService<IRecommendationExplainabilityService>(),
-    _.GetRequiredService<IPlanningPolicyService>()));
+    _.GetRequiredService<IPlanningPolicyService>(),
+    _.GetRequiredService<IBroadcastLanguagePriorityService>()));
 builder.Services.AddScoped<IPaymentAuditService, PaymentAuditService>();
 builder.Services.AddScoped<IChangeAuditService, ChangeAuditService>();
 builder.Services.AddScoped<IPackageAreaService, PackageAreaService>();

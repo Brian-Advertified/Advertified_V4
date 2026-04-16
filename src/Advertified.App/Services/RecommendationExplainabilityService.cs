@@ -103,6 +103,15 @@ public sealed class RecommendationExplainabilityService : IRecommendationExplain
 
         if (candidate.MediaType.Equals("Radio", StringComparison.OrdinalIgnoreCase))
         {
+            if (SupportsAllRequestedLanguages(candidate, request))
+            {
+                reasons.Add("Covers the full requested language mix");
+            }
+            else if (SupportsTopRequestedLanguage(candidate, request))
+            {
+                reasons.Add("Supports the highest-priority requested language");
+            }
+
             if (IsPackageTotalCandidate(candidate)) reasons.Add("Fixed supplier package investment");
             else if (IsPerSpotRateCardCandidate(candidate)) reasons.Add("Per-spot rate card pricing");
 
@@ -122,6 +131,49 @@ public sealed class RecommendationExplainabilityService : IRecommendationExplain
         {
             reasons.Add("Billboards and Digital Screens prioritized for visibility");
             reasons.Add("Adds visible market presence");
+
+            if (MatchesMetadataToken(candidate, "premium", "premiumMassFit", "premium_mass_fit"))
+            {
+                reasons.Add("Premium venue audience fit");
+            }
+
+            if (MatchesMetadataToken(candidate, "premium_mall", "venueType", "venue_type"))
+            {
+                reasons.Add("Placed in a premium mall environment");
+            }
+
+            if (MatchesMetadataToken(candidate, "mall_interior", "environmentType", "environment_type")
+                || MatchesMetadataToken(candidate, "food_court", "environmentType", "environment_type"))
+            {
+                reasons.Add("Benefits from strong dwell-time environment");
+            }
+
+            if (MatchesMetadataToken(candidate, "high", "youthFit", "youth_fit"))
+            {
+                reasons.Add("Strong youth audience signal");
+            }
+
+            if (MatchesMetadataToken(candidate, "high", "familyFit", "family_fit"))
+            {
+                reasons.Add("Strong family shopper signal");
+            }
+
+            if (MatchesMetadataToken(candidate, "high", "professionalFit", "professional_fit"))
+            {
+                reasons.Add("Strong professional audience signal");
+            }
+        }
+
+        if (candidate.MediaType.Equals("TV", StringComparison.OrdinalIgnoreCase))
+        {
+            if (SupportsAllRequestedLanguages(candidate, request))
+            {
+                reasons.Add("Covers the full requested language mix");
+            }
+            else if (SupportsTopRequestedLanguage(candidate, request))
+            {
+                reasons.Add("Supports the highest-priority requested language");
+            }
         }
 
         return reasons.Distinct(StringComparer.OrdinalIgnoreCase).Take(4).ToArray();
@@ -204,6 +256,124 @@ public sealed class RecommendationExplainabilityService : IRecommendationExplain
     private bool IsPackageTotalCandidate(InventoryCandidate candidate) => _policyService.GetPricingModel(candidate).Equals("package_total", StringComparison.OrdinalIgnoreCase) || candidate.PackageOnly;
 
     private bool IsPerSpotRateCardCandidate(InventoryCandidate candidate) => _policyService.GetPricingModel(candidate).Equals("per_spot_rate_card", StringComparison.OrdinalIgnoreCase);
+
+    private static bool SupportsAllRequestedLanguages(InventoryCandidate candidate, CampaignPlanningRequest request)
+    {
+        if (request.TargetLanguages.Count < 2)
+        {
+            return false;
+        }
+
+        return request.TargetLanguages.All(language =>
+            MatchesMetadataToken(candidate, language, "primaryLanguages", "primary_languages", "language", "secondaryLanguage", "secondary_language"));
+    }
+
+    private static bool SupportsTopRequestedLanguage(InventoryCandidate candidate, CampaignPlanningRequest request)
+    {
+        var topLanguage = request.TargetLanguages.FirstOrDefault();
+        return !string.IsNullOrWhiteSpace(topLanguage)
+            && MatchesMetadataToken(candidate, topLanguage, "primaryLanguages", "primary_languages", "language", "secondaryLanguage", "secondary_language");
+    }
+
+    private static bool MatchesMetadataToken(InventoryCandidate candidate, string requestedValue, params string[] keys)
+    {
+        return keys.Any(key =>
+            candidate.Metadata.TryGetValue(key, out var value)
+            && ExtractMetadataTokens(value).Any(token => MatchesStrategyToken(requestedValue, token)));
+    }
+
+    private static IEnumerable<string> ExtractMetadataTokens(object? value)
+    {
+        if (value is null)
+        {
+            yield break;
+        }
+
+        if (value is string text)
+        {
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                yield return text.Trim();
+            }
+
+            yield break;
+        }
+
+        if (value is IEnumerable<string> textValues)
+        {
+            foreach (var entry in textValues)
+            {
+                if (!string.IsNullOrWhiteSpace(entry))
+                {
+                    yield return entry.Trim();
+                }
+            }
+
+            yield break;
+        }
+
+        if (value is System.Text.Json.JsonElement json)
+        {
+            if (json.ValueKind == System.Text.Json.JsonValueKind.String)
+            {
+                var jsonText = json.GetString();
+                if (!string.IsNullOrWhiteSpace(jsonText))
+                {
+                    yield return jsonText.Trim();
+                }
+
+                yield break;
+            }
+
+            if (json.ValueKind == System.Text.Json.JsonValueKind.Array)
+            {
+                foreach (var item in json.EnumerateArray())
+                {
+                    if (item.ValueKind == System.Text.Json.JsonValueKind.String)
+                    {
+                        var itemText = item.GetString();
+                        if (!string.IsNullOrWhiteSpace(itemText))
+                        {
+                            yield return itemText.Trim();
+                        }
+                    }
+                }
+            }
+
+            yield break;
+        }
+
+        var fallback = value.ToString();
+        if (!string.IsNullOrWhiteSpace(fallback))
+        {
+            yield return fallback.Trim();
+        }
+    }
+
+    private static bool MatchesStrategyToken(string requestedValue, string metadataToken)
+    {
+        var normalizedRequested = NormalizeStrategyToken(requestedValue);
+        var normalizedMetadata = NormalizeStrategyToken(metadataToken);
+        if (normalizedRequested.Length == 0 || normalizedMetadata.Length == 0)
+        {
+            return false;
+        }
+
+        return normalizedRequested == normalizedMetadata
+            || normalizedMetadata.Contains(normalizedRequested, StringComparison.OrdinalIgnoreCase)
+            || normalizedRequested.Contains(normalizedMetadata, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeStrategyToken(string value)
+    {
+        return value
+            .Trim()
+            .ToLowerInvariant()
+            .Replace('|', ' ')
+            .Replace('/', ' ')
+            .Replace('-', '_')
+            .Replace(' ', '_');
+    }
 
     private static bool Matches(string? left, string? right)
     {

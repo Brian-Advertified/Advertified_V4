@@ -137,5 +137,17 @@ public sealed class SaveCampaignBriefRequestValidator : AbstractValidator<SaveCa
         RuleFor(x => x.PreferredVideoDurationSeconds)
             .Must(value => !value.HasValue || AllowedVideoDurations.Contains(value.Value))
             .WithMessage("Select a valid video duration.");
+
+        RuleFor(x => x.TargetLatitude)
+            .InclusiveBetween(-90d, 90d)
+            .When(x => x.TargetLatitude.HasValue);
+
+        RuleFor(x => x.TargetLongitude)
+            .InclusiveBetween(-180d, 180d)
+            .When(x => x.TargetLongitude.HasValue);
+
+        RuleFor(x => x)
+            .Must(x => x.TargetLatitude.HasValue == x.TargetLongitude.HasValue)
+            .WithMessage("Target coordinates must include both latitude and longitude.");
     }
 }

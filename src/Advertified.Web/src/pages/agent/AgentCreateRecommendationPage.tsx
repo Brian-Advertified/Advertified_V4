@@ -14,6 +14,7 @@ import {
   inferRecommendationToneFromBrief,
   type RecommendationDraftFormState,
 } from '../../features/campaigns/briefModel';
+import { CampaignLocationInput, type ResolvedCampaignLocation } from '../../features/campaigns/components/CampaignLocationInput';
 import { catalogQueryOptions } from '../../lib/catalogQueryOptions';
 import { useSharedFormOptions } from '../../lib/useSharedFormOptions';
 import { formatCurrency } from '../../lib/utils';
@@ -381,6 +382,11 @@ function inferInitialForm(campaign: {
     scope: campaign.selectedBudget >= 500000 ? 'national' : 'provincial',
     geography: campaign.selectedBudget >= 500000 ? '' : 'gauteng',
     suburbs: [],
+    targetLocationLabel: undefined,
+    targetLocationCity: undefined,
+    targetLocationProvince: undefined,
+    targetLatitude: undefined,
+    targetLongitude: undefined,
     ageRange: '',
     language: '',
     targetGender: '',
@@ -433,6 +439,11 @@ function inferFormFromCampaign(
     scope: normalizeOption(brief.geographyScope, SCOPE_OPTIONS) || fallback.scope,
     geography: inferRecommendationGeographyFromBrief(brief) || fallback.geography,
     suburbs: brief.suburbs ?? [],
+    targetLocationLabel: brief.targetLocationLabel,
+    targetLocationCity: brief.targetLocationCity,
+    targetLocationProvince: brief.targetLocationProvince,
+    targetLatitude: brief.targetLatitude,
+    targetLongitude: brief.targetLongitude,
     ageRange: formatAgeRange(brief.targetAgeMin, brief.targetAgeMax),
     language: brief.targetLanguages?.[0] ?? fallback.language,
     targetGender: normalizeOption(brief.targetGender, GENDER_OPTIONS) || fallback.targetGender,
@@ -494,6 +505,11 @@ export function AgentCreateRecommendationPage() {
     scope: '',
     geography: '',
     suburbs: [],
+    targetLocationLabel: undefined,
+    targetLocationCity: undefined,
+    targetLocationProvince: undefined,
+    targetLatitude: undefined,
+    targetLongitude: undefined,
     ageRange: '',
     language: '',
     targetGender: '',
@@ -769,6 +785,11 @@ export function AgentCreateRecommendationPage() {
           scope: nextScope,
           geography: nextScope === 'national' ? '' : form.geography,
           suburbs: nextScope === 'local' ? form.suburbs : [],
+          targetLocationLabel: nextScope === 'local' ? form.targetLocationLabel : undefined,
+          targetLocationCity: nextScope === 'local' ? form.targetLocationCity : undefined,
+          targetLocationProvince: nextScope === 'local' ? form.targetLocationProvince : undefined,
+          targetLatitude: nextScope === 'local' ? form.targetLatitude : undefined,
+          targetLongitude: nextScope === 'local' ? form.targetLongitude : undefined,
         },
       });
       return;
@@ -781,6 +802,11 @@ export function AgentCreateRecommendationPage() {
           ...form,
           geography: value as string,
           suburbs: [],
+          targetLocationLabel: undefined,
+          targetLocationCity: undefined,
+          targetLocationProvince: undefined,
+          targetLatitude: undefined,
+          targetLongitude: undefined,
         },
       });
       return;
@@ -795,24 +821,32 @@ export function AgentCreateRecommendationPage() {
     });
   };
 
+  const handleResolvedLocation = (location: ResolvedCampaignLocation | null) => {
+    setScopedForm({
+      key: activeFormKey,
+      value: {
+        ...form,
+        targetLocationLabel: location?.label,
+        targetLocationCity: location?.city,
+        targetLocationProvince: location?.province,
+        targetLatitude: location?.latitude,
+        targetLongitude: location?.longitude,
+      },
+    });
+  };
+
   const selectedCityLabel = useMemo(() => {
     if (form.scope !== 'local') {
       return '';
     }
 
-    const value = form.geography.trim();
+    const value = (form.targetLocationCity ?? form.geography).trim();
     if (!value) {
       return '';
     }
 
-    return value
-      .replaceAll('_', ' ')
-      .replaceAll('-', ' ')
-      .split(' ')
-      .filter(Boolean)
-      .map((part) => (part.length > 0 ? `${part.slice(0, 1).toUpperCase()}${part.slice(1).toLowerCase()}` : part))
-      .join(' ');
-  }, [form.geography, form.scope]);
+    return value;
+  }, [form.geography, form.scope, form.targetLocationCity]);
   const suburbsQuery = useQuery({
     queryKey: ['public-suburbs', selectedCityLabel],
     queryFn: () => advertifiedApi.getSuburbs(selectedCityLabel),
@@ -1538,15 +1572,19 @@ export function AgentCreateRecommendationPage() {
                 {form.scope === 'national' ? (
                   <input value="Not needed for national coverage" className="input-base bg-slate-50 text-slate-500" disabled />
                 ) : form.scope === 'local' ? (
-                  <select value={form.geography} onChange={(event) => handleFormChange('geography', event.target.value)} className="input-base">
-                    <option value="">Select city</option>
-                    <option value="johannesburg">Johannesburg</option>
-                    <option value="soweto">Soweto</option>
-                    <option value="cape-town">Cape Town</option>
-                    <option value="durban">Durban</option>
-                    <option value="pretoria">Pretoria</option>
-                    <option value="port-elizabeth">Port Elizabeth</option>
-                  </select>
+                  <div>
+                    <CampaignLocationInput
+                      value={form.geography}
+                      geographyScope="local"
+                      placeholder="Search suburb, area, or business address"
+                      className="input-base"
+                      onChange={(nextValue) => handleFormChange('geography', nextValue)}
+                      onResolved={handleResolvedLocation}
+                    />
+                    <p className="mt-2 text-xs leading-5 text-ink-soft">
+                      Use an exact suburb or address when you have it. The planner will prefer direct matches and fall back to nearest OOH inventory using coordinates.
+                    </p>
+                  </div>
                 ) : (
                   <select value={form.geography} onChange={(event) => handleFormChange('geography', event.target.value)} className="input-base">
                     <option value="">Select province</option>

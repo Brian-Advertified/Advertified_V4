@@ -316,12 +316,23 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.TargetGender)
                 .HasMaxLength(30)
                 .HasColumnName("target_gender");
+            entity.Property(e => e.TargetLatitude).HasColumnName("target_latitude");
             entity.Property(e => e.TargetInterestsJson)
                 .HasColumnType("jsonb")
                 .HasColumnName("target_interests_json");
             entity.Property(e => e.TargetLanguagesJson)
                 .HasColumnType("jsonb")
                 .HasColumnName("target_languages_json");
+            entity.Property(e => e.TargetLocationCity)
+                .HasMaxLength(160)
+                .HasColumnName("target_location_city");
+            entity.Property(e => e.TargetLocationLabel)
+                .HasMaxLength(240)
+                .HasColumnName("target_location_label");
+            entity.Property(e => e.TargetLocationProvince)
+                .HasMaxLength(160)
+                .HasColumnName("target_location_province");
+            entity.Property(e => e.TargetLongitude).HasColumnName("target_longitude");
             entity.Property(e => e.TargetLsmMax).HasColumnName("target_lsm_max");
             entity.Property(e => e.TargetLsmMin).HasColumnName("target_lsm_min");
             entity.Property(e => e.UpdatedAt)

@@ -12,19 +12,22 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
     private readonly IRecommendationPlanBuilder _planBuilder;
     private readonly IRecommendationExplainabilityService _explainabilityService;
     private readonly IPlanningPolicyService _policyService;
+    private readonly IBroadcastLanguagePriorityService _broadcastLanguagePriorityService;
 
     public MediaPlanningEngine(
         IPlanningCandidateLoader candidateLoader,
         IPlanningEligibilityService eligibilityService,
         IRecommendationPlanBuilder planBuilder,
         IRecommendationExplainabilityService explainabilityService,
-        IPlanningPolicyService policyService)
+        IPlanningPolicyService policyService,
+        IBroadcastLanguagePriorityService broadcastLanguagePriorityService)
     {
         _candidateLoader = candidateLoader;
         _eligibilityService = eligibilityService;
         _planBuilder = planBuilder;
         _explainabilityService = explainabilityService;
         _policyService = policyService;
+        _broadcastLanguagePriorityService = broadcastLanguagePriorityService;
     }
 
     public async Task<RecommendationResult> GenerateAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
@@ -107,13 +110,14 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
         IReadOnlyCollection<string> passFallbackFlags,
         CancellationToken cancellationToken)
     {
-        var allCandidates = await _candidateLoader.LoadCandidatesAsync(request, cancellationToken);
-        var policyOutcome = _eligibilityService.FilterEligibleCandidates(allCandidates, request);
+        var preparedRequest = await PrepareRequestAsync(request, cancellationToken);
+        var allCandidates = await _candidateLoader.LoadCandidatesAsync(preparedRequest, cancellationToken);
+        var policyOutcome = _eligibilityService.FilterEligibleCandidates(allCandidates, preparedRequest);
         var eligibleCandidates = policyOutcome.Candidates;
 
         foreach (var candidate in eligibleCandidates)
         {
-            var analysis = _explainabilityService.AnalyzeCandidate(candidate, request);
+            var analysis = _explainabilityService.AnalyzeCandidate(candidate, preparedRequest);
             candidate.Score = analysis.Score;
             candidate.Metadata["selectionReasons"] = analysis.SelectionReasons;
             candidate.Metadata["policyFlags"] = analysis.PolicyFlags;
@@ -125,15 +129,15 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
             .ThenByDescending(x => x.Cost)
             .ToList();
 
-        var basePlan = _planBuilder.BuildPlan(scored, request, diversify: true);
-        var recommendedPlan = _planBuilder.BuildPlan(scored, request, diversify: false);
-        EnsureRequiredChannelCoverage(recommendedPlan, scored, request, _policyService.GetRequiredChannels(request));
+        var basePlan = _planBuilder.BuildPlan(scored, preparedRequest, diversify: true);
+        var recommendedPlan = _planBuilder.BuildPlan(scored, preparedRequest, diversify: false);
+        EnsureRequiredChannelCoverage(recommendedPlan, scored, preparedRequest, _policyService.GetRequiredChannels(preparedRequest));
 
-        var upsellBudget = request.OpenToUpsell
-            ? request.SelectedBudget + (request.AdditionalBudget ?? 0m)
-            : request.SelectedBudget;
+        var upsellBudget = preparedRequest.OpenToUpsell
+            ? preparedRequest.SelectedBudget + (preparedRequest.AdditionalBudget ?? 0m)
+            : preparedRequest.SelectedBudget;
 
-        var upsells = request.OpenToUpsell && upsellBudget > request.SelectedBudget
+        var upsells = preparedRequest.OpenToUpsell && upsellBudget > preparedRequest.SelectedBudget
             ? _planBuilder.BuildUpsells(scored, recommendedPlan, upsellBudget - recommendedPlan.Sum(x => x.TotalCost))
             : new List<PlannedItem>();
 
@@ -150,7 +154,7 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
             fallbackFlags.Add("no_recommendation_generated");
         }
 
-        fallbackFlags.AddRange(_explainabilityService.GetPreferredMediaFallbackFlags(request, recommendedPlan, eligibleCandidates));
+        fallbackFlags.AddRange(_explainabilityService.GetPreferredMediaFallbackFlags(preparedRequest, recommendedPlan, eligibleCandidates));
 
         return new RecommendationResult
         {
@@ -159,8 +163,55 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
             Upsells = upsells,
             FallbackFlags = fallbackFlags.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
             ManualReviewRequired = fallbackFlags.Count > 0,
-            Rationale = _explainabilityService.BuildRationale(basePlan, recommendedPlan, request),
-            RunTrace = BuildRunTrace(request, allCandidates, eligibleCandidates, policyOutcome.Rejections, recommendedPlan, upsells)
+            Rationale = _explainabilityService.BuildRationale(basePlan, recommendedPlan, preparedRequest),
+            RunTrace = BuildRunTrace(preparedRequest, allCandidates, eligibleCandidates, policyOutcome.Rejections, recommendedPlan, upsells)
+        };
+    }
+
+    private async Task<CampaignPlanningRequest> PrepareRequestAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
+    {
+        var orderedLanguages = await _broadcastLanguagePriorityService.OrderRequestedLanguagesAsync(request.TargetLanguages, cancellationToken);
+        return new CampaignPlanningRequest
+        {
+            CampaignId = request.CampaignId,
+            SelectedBudget = request.SelectedBudget,
+            Objective = request.Objective,
+            BusinessStage = request.BusinessStage,
+            MonthlyRevenueBand = request.MonthlyRevenueBand,
+            SalesModel = request.SalesModel,
+            GeographyScope = request.GeographyScope,
+            Provinces = request.Provinces.ToList(),
+            Cities = request.Cities.ToList(),
+            Suburbs = request.Suburbs.ToList(),
+            Areas = request.Areas.ToList(),
+            PreferredMediaTypes = request.PreferredMediaTypes.ToList(),
+            ExcludedMediaTypes = request.ExcludedMediaTypes.ToList(),
+            TargetLanguages = orderedLanguages.ToList(),
+            TargetAgeMin = request.TargetAgeMin,
+            TargetAgeMax = request.TargetAgeMax,
+            TargetGender = request.TargetGender,
+            TargetInterests = request.TargetInterests.ToList(),
+            TargetAudienceNotes = request.TargetAudienceNotes,
+            CustomerType = request.CustomerType,
+            BuyingBehaviour = request.BuyingBehaviour,
+            DecisionCycle = request.DecisionCycle,
+            PricePositioning = request.PricePositioning,
+            AverageCustomerSpendBand = request.AverageCustomerSpendBand,
+            GrowthTarget = request.GrowthTarget,
+            UrgencyLevel = request.UrgencyLevel,
+            AudienceClarity = request.AudienceClarity,
+            ValuePropositionFocus = request.ValuePropositionFocus,
+            TargetLsmMin = request.TargetLsmMin,
+            TargetLsmMax = request.TargetLsmMax,
+            OpenToUpsell = request.OpenToUpsell,
+            AdditionalBudget = request.AdditionalBudget,
+            MaxMediaItems = request.MaxMediaItems,
+            TargetRadioShare = request.TargetRadioShare,
+            TargetOohShare = request.TargetOohShare,
+            TargetTvShare = request.TargetTvShare,
+            TargetDigitalShare = request.TargetDigitalShare,
+            TargetLatitude = request.TargetLatitude,
+            TargetLongitude = request.TargetLongitude
         };
     }
 

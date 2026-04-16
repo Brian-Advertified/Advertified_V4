@@ -187,32 +187,71 @@ public sealed class PlanningScoreService : IPlanningScoreService
             return 0m;
         }
 
-        var hasPrimaryLanguageMatch = requested.Any(value =>
-            MatchesAnyMetadataToken(candidate, value, "primaryLanguages", "primary_languages", "language", "secondaryLanguage", "secondary_language"));
+        var candidateLanguages = BroadcastLanguageSupport.ExtractCandidateLanguageCodes(candidate, _broadcastMasterDataService.NormalizeLanguageCode);
+        var noteMatches = requested
+            .Where(value => MatchesAnyMetadataToken(candidate, value, "languageNotes", "language_notes", "targetAudience", "target_audience"))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
 
-        var hasLanguageNotesMatch = requested.Any(value =>
-            MatchesAnyMetadataToken(candidate, value, "languageNotes", "language_notes", "targetAudience", "target_audience"));
-
-        var hasCandidateLanguageMatch = !string.IsNullOrWhiteSpace(candidate.Language)
-            && requested.Any(value => MatchesLanguage(value, candidate.Language));
+        var candidateMatches = requested
+            .Where(value => candidateLanguages.Contains(value, StringComparer.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
 
         if (candidate.MediaType.Equals("Radio", StringComparison.OrdinalIgnoreCase)
             || candidate.MediaType.Equals("TV", StringComparison.OrdinalIgnoreCase))
         {
-            if (hasPrimaryLanguageMatch)
+            if (candidateMatches.Length == 0 && noteMatches.Length == 0)
             {
-                return BroadcastPrimaryLanguageMatchScore;
+                return BroadcastLanguageMismatchPenalty;
             }
 
-            if (hasCandidateLanguageMatch || hasLanguageNotesMatch)
+            decimal score = 0m;
+            for (var index = 0; index < requested.Length; index++)
             {
-                return BroadcastSecondaryLanguageMatchScore;
+                var language = requested[index];
+                if (candidateMatches.Contains(language, StringComparer.OrdinalIgnoreCase))
+                {
+                    score += index switch
+                    {
+                        0 => 32m,
+                        1 => 22m,
+                        2 => 16m,
+                        3 => 12m,
+                        _ => 8m
+                    };
+                    continue;
+                }
+
+                if (noteMatches.Contains(language, StringComparer.OrdinalIgnoreCase))
+                {
+                    score += index switch
+                    {
+                        0 => 20m,
+                        1 => 14m,
+                        2 => 10m,
+                        3 => 8m,
+                        _ => 5m
+                    };
+                }
             }
 
-            return BroadcastLanguageMismatchPenalty;
+            if (candidateMatches.Length == requested.Length && requested.Length > 1)
+            {
+                score += 18m;
+            }
+            else if (candidateMatches.Length > 1)
+            {
+                score += 8m;
+            }
+
+            return Math.Max(BroadcastLanguageMismatchPenalty, Math.Min(54m, score));
         }
 
-        if (hasPrimaryLanguageMatch || hasCandidateLanguageMatch)
+        var hasDirectMatch = candidateMatches.Length > 0;
+        var hasLanguageNotesMatch = noteMatches.Length > 0;
+
+        if (hasDirectMatch)
         {
             return 10m;
         }
@@ -303,6 +342,8 @@ public sealed class PlanningScoreService : IPlanningScoreService
         score += MediaPreferenceScore(candidate, request);
         score += ObjectiveFitScore(candidate, request);
         score += StrategyFitScore(candidate, request);
+        score += RadioIntelligenceFitScore(candidate, request);
+        score += OohIntelligenceFitScore(candidate, request);
         score += AvailabilityScore(candidate);
         score += OohPriorityScore(candidate, request);
         score += DistanceScore(candidate, request);
@@ -877,6 +918,160 @@ public sealed class PlanningScoreService : IPlanningScoreService
         return preferredOoh ? 30m : 18m;
     }
 
+    private static decimal OohIntelligenceFitScore(InventoryCandidate candidate, CampaignPlanningRequest request)
+    {
+        if (!candidate.MediaType.Equals("OOH", StringComparison.OrdinalIgnoreCase))
+        {
+            return 0m;
+        }
+
+        decimal score = 0m;
+        var strategySignals = CampaignStrategySupport.BuildSignals(request);
+        var audienceIntent = string.Join(" ",
+            request.TargetInterests.Where(static value => !string.IsNullOrWhiteSpace(value)),
+            request.TargetAudienceNotes,
+            request.CustomerType,
+            request.ValuePropositionFocus,
+            request.Objective);
+
+        if (strategySignals.PremiumAudience)
+        {
+            score += ScoreFitBand(candidate, "highValueShopperFit", "high_value_shopper_fit", high: 6m, medium: 3m);
+            score += ScoreMetadataMatch(candidate, "premium_mall", "venueType", "venue_type", exact: 4m);
+        }
+
+        if (strategySignals.MassMarketAudience)
+        {
+            score += ScoreMetadataMatch(candidate, "mass_market", "premiumMassFit", "premium_mass_fit", exact: 4m);
+            score += ScoreMetadataMatch(candidate, "community_mall", "venueType", "venue_type", exact: 3m);
+        }
+
+        if (MatchesAudienceIntent(audienceIntent, "youth", "student", "campus", "young"))
+        {
+            score += ScoreFitBand(candidate, "youthFit", "youth_fit", high: 6m, medium: 3m);
+        }
+
+        if (MatchesAudienceIntent(audienceIntent, "family", "families", "parents", "kids", "children"))
+        {
+            score += ScoreFitBand(candidate, "familyFit", "family_fit", high: 5m, medium: 3m);
+        }
+
+        if (MatchesAudienceIntent(audienceIntent, "professional", "executive", "b2b", "office", "corporate"))
+        {
+            score += ScoreFitBand(candidate, "professionalFit", "professional_fit", high: 5m, medium: 3m);
+        }
+
+        if (MatchesAudienceIntent(audienceIntent, "commuter", "transport", "traffic", "taxi", "rank"))
+        {
+            score += ScoreFitBand(candidate, "commuterFit", "commuter_fit", high: 5m, medium: 3m);
+        }
+
+        if (MatchesAudienceIntent(audienceIntent, "tourist", "tourism", "visitor", "visitors", "leisure"))
+        {
+            score += ScoreFitBand(candidate, "touristFit", "tourist_fit", high: 4m, medium: 2m);
+        }
+
+        if ((request.Objective ?? string.Empty).Trim().Equals("foot_traffic", StringComparison.OrdinalIgnoreCase))
+        {
+            score += ScoreFitBand(candidate, "dwellTimeScore", "dwell_time_score", high: 5m, medium: 2m);
+            score += ScoreMetadataMatch(candidate, "mall_interior", "environmentType", "environment_type", exact: 3m);
+            score += ScoreMetadataMatch(candidate, "food_court", "environmentType", "environment_type", exact: 3m);
+        }
+
+        if ((request.Objective ?? string.Empty).Trim().Equals("awareness", StringComparison.OrdinalIgnoreCase)
+            || (request.Objective ?? string.Empty).Trim().Equals("brand_presence", StringComparison.OrdinalIgnoreCase)
+            || (request.Objective ?? string.Empty).Trim().Equals("launch", StringComparison.OrdinalIgnoreCase))
+        {
+            score += ScoreMetadataMatch(candidate, "premium_mall", "venueType", "venue_type", exact: 2m);
+            score += ScoreMetadataMatch(candidate, "lifestyle_centre", "venueType", "venue_type", exact: 2m);
+            score += ScoreFitBand(candidate, "dwellTimeScore", "dwell_time_score", high: 3m, medium: 1m);
+        }
+
+        return Math.Min(16m, Math.Max(0m, score));
+    }
+
+    private static decimal RadioIntelligenceFitScore(InventoryCandidate candidate, CampaignPlanningRequest request)
+    {
+        if (!candidate.MediaType.Equals("Radio", StringComparison.OrdinalIgnoreCase))
+        {
+            return 0m;
+        }
+
+        decimal score = 0m;
+        var objective = NormalizeStrategyToken(request.Objective ?? string.Empty);
+        var strategySignals = CampaignStrategySupport.BuildSignals(request);
+        var audienceIntent = string.Join(" ",
+            request.TargetInterests.Where(static value => !string.IsNullOrWhiteSpace(value)),
+            request.TargetAudienceNotes,
+            request.CustomerType,
+            request.ValuePropositionFocus,
+            request.Objective);
+
+        if (!string.IsNullOrWhiteSpace(objective))
+        {
+            score += ScoreMetadataMatch(candidate, objective, "objectiveFitPrimary", "objective_fit_primary", exact: 8m);
+            score += ScoreMetadataMatch(candidate, objective, "objectiveFitSecondary", "objective_fit_secondary", exact: 4m);
+        }
+
+        if (MatchesAudienceIntent(audienceIntent, "youth", "student", "young", "gen z"))
+        {
+            score += ScoreFitBand(candidate, "youthFit", "youth_fit", high: 5m, medium: 3m);
+        }
+
+        if (MatchesAudienceIntent(audienceIntent, "family", "families", "parents", "children"))
+        {
+            score += ScoreFitBand(candidate, "familyFit", "family_fit", high: 5m, medium: 3m);
+        }
+
+        if (MatchesAudienceIntent(audienceIntent, "professional", "executive", "office", "corporate", "b2b"))
+        {
+            score += ScoreFitBand(candidate, "professionalFit", "professional_fit", high: 5m, medium: 3m);
+            score += ScoreFitBand(candidate, "businessDecisionMakerFit", "business_decision_maker_fit", high: 5m, medium: 3m);
+        }
+
+        if (MatchesAudienceIntent(audienceIntent, "commuter", "taxi", "traffic", "drive"))
+        {
+            score += ScoreFitBand(candidate, "commuterFit", "commuter_fit", high: 5m, medium: 3m);
+        }
+
+        if (strategySignals.PremiumAudience)
+        {
+            score += ScoreFitBand(candidate, "highValueClientFit", "high_value_client_fit", high: 5m, medium: 3m);
+            score += ScoreMetadataMatch(candidate, "premium", "premiumMassFit", "premium_mass_fit", exact: 3m);
+        }
+
+        if (strategySignals.MassMarketAudience)
+        {
+            score += ScoreMetadataMatch(candidate, "mass_market", "premiumMassFit", "premium_mass_fit", exact: 4m);
+            score += ScoreMetadataMatch(candidate, "mid_market", "premiumMassFit", "premium_mass_fit", exact: 2m);
+        }
+
+        if (strategySignals.FastDecisionCycle || strategySignals.ImmediateUrgency || strategySignals.WalkInDriven)
+        {
+            score += ScoreFitBand(candidate, "commuterFit", "commuter_fit", high: 4m, medium: 2m);
+
+            var behaviourText = GetMetadataText(candidate, "buyingBehaviourFit", "buying_behaviour_fit");
+            if (MatchesAudienceIntent(behaviourText, "impulse", "convenience", "passive"))
+            {
+                score += 3m;
+            }
+        }
+
+        if (objective is "awareness" or "launch" or "brand_presence")
+        {
+            score += ScoreFitBand(candidate, "morningDriveFit", "morning_drive_fit", high: 4m, medium: 2m);
+            score += ScoreFitBand(candidate, "afternoonDriveFit", "afternoon_drive_fit", high: 4m, medium: 2m);
+        }
+
+        if (objective is "leads" or "consideration")
+        {
+            score += ScoreFitBand(candidate, "workdayFit", "workday_fit", high: 3m, medium: 2m);
+            score += ScoreFitBand(candidate, "businessDecisionMakerFit", "business_decision_maker_fit", high: 3m, medium: 2m);
+        }
+
+        return Math.Min(22m, Math.Max(0m, score));
+    }
+
     private static decimal DistanceScore(InventoryCandidate candidate, CampaignPlanningRequest request)
     {
         if (!candidate.MediaType.Equals("OOH", StringComparison.OrdinalIgnoreCase))
@@ -972,7 +1167,31 @@ public sealed class PlanningScoreService : IPlanningScoreService
             "pricePositioningFit",
             "price_positioning_fit",
             "salesModelFit",
-            "sales_model_fit"));
+            "sales_model_fit",
+            "venueType",
+            "venue_type",
+            "premiumMassFit",
+            "premium_mass_fit",
+            "highValueShopperFit",
+            "high_value_shopper_fit",
+            "youthFit",
+            "youth_fit",
+            "familyFit",
+            "family_fit",
+            "professionalFit",
+            "professional_fit",
+            "commuterFit",
+            "commuter_fit",
+            "touristFit",
+            "tourist_fit",
+            "dwellTimeScore",
+            "dwell_time_score",
+            "primaryAudienceTags",
+            "primary_audience_tags",
+            "secondaryAudienceTags",
+            "secondary_audience_tags",
+            "recommendationTags",
+            "recommendation_tags"));
     }
 
     private static decimal GetComparableMonthlyCost(InventoryCandidate candidate)
@@ -1200,12 +1419,12 @@ public sealed class PlanningScoreService : IPlanningScoreService
                 candidate.MediaType,
                 candidate.Subtype,
                 candidate.Language,
-                GetMetadataText(candidate, "targetAudience", "target_audience", "notes", "packageName", "package_name", "audienceAgeSkew", "audience_age_skew", "audienceGenderSkew", "audience_gender_skew", "environmentType", "environment_type", "inventoryIntelligenceNotes", "inventory_intelligence_notes")
+                GetMetadataText(candidate, "targetAudience", "target_audience", "notes", "packageName", "package_name", "audienceAgeSkew", "audience_age_skew", "audienceGenderSkew", "audience_gender_skew", "environmentType", "environment_type", "inventoryIntelligenceNotes", "inventory_intelligence_notes", "venueType", "venue_type", "premiumMassFit", "premium_mass_fit", "pricePositioningFit", "price_positioning_fit", "youthFit", "youth_fit", "familyFit", "family_fit", "professionalFit", "professional_fit", "commuterFit", "commuter_fit", "touristFit", "tourist_fit", "highValueShopperFit", "high_value_shopper_fit", "dwellTimeScore", "dwell_time_score")
             }
             .Where(static part => !string.IsNullOrWhiteSpace(part))
             .ToList()!;
 
-        foreach (var key in new[] { "audienceKeywords", "audience_keywords", "keywords" })
+        foreach (var key in new[] { "audienceKeywords", "audience_keywords", "keywords", "primaryAudienceTags", "primary_audience_tags", "secondaryAudienceTags", "secondary_audience_tags", "recommendationTags", "recommendation_tags" })
         {
             if (candidate.Metadata.TryGetValue(key, out var value))
             {
@@ -1256,6 +1475,32 @@ public sealed class PlanningScoreService : IPlanningScoreService
             .Replace('/', ' ')
             .Replace('-', '_')
             .Replace(' ', '_');
+    }
+
+    private static bool MatchesAudienceIntent(string text, params string[] tokens)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        return tokens.Any(token => text.Contains(token, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static decimal ScoreFitBand(InventoryCandidate candidate, string camelKey, string snakeKey, decimal high, decimal medium)
+    {
+        var raw = GetMetadataText(candidate, camelKey, snakeKey).Trim().ToLowerInvariant();
+        return raw switch
+        {
+            "high" => high,
+            "medium" => medium,
+            _ => 0m
+        };
+    }
+
+    private static decimal ScoreMetadataMatch(InventoryCandidate candidate, string expectedToken, string camelKey, string snakeKey, decimal exact)
+    {
+        return MatchesMetadataToken(candidate, expectedToken, camelKey, snakeKey) ? exact : 0m;
     }
 
     private static IEnumerable<string> TokenizeAudienceTerms(string? text)

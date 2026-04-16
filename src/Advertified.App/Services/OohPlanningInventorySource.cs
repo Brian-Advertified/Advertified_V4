@@ -20,10 +20,15 @@ public sealed class OohPlanningInventorySource : IOohPlanningInventorySource
     public async Task<List<OohPlanningInventoryRow>> GetCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
     {
         const string sql = @"
+with ooh_intelligence as (
+    select *
+    from ooh_inventory_intelligence
+    where is_active = true
+)
 select
     iif.id as SourceId,
     'ooh' as SourceType,
-    coalesce(iif.site_name, 'Billboard or Digital Screen Site') as DisplayName,
+    coalesce(nullif(oii.site_name, ''), iif.site_name, 'Billboard or Digital Screen Site') as DisplayName,
     'OOH' as MediaType,
     iif.media_type as Subtype,
     iif.province as Province,
@@ -31,9 +36,19 @@ select
     iif.suburb as Suburb,
     coalesce(nullif(iif.suburb, ''), nullif(iif.city, ''), nullif(iif.province, '')) as Area,
     coalesce(nullif(iif.metadata_json ->> 'language', ''), 'N/A') as Language,
-    null::int as LsmMin,
-    null::int as LsmMax,
-    coalesce((iif.metadata_json ->> 'discounted_rate_zar')::numeric, (iif.metadata_json ->> 'rate_card_zar')::numeric, 0) as Cost,
+    coalesce(
+        nullif(split_part(regexp_replace(coalesce(oii.audience_income_fit, ''), '[^0-9]+', ' ', 'g'), ' ', 1), '')::int,
+        null
+    ) as LsmMin,
+    coalesce(
+        nullif(split_part(regexp_replace(coalesce(oii.audience_income_fit, ''), '[^0-9]+', ' ', 'g'), ' ', 2), '')::int,
+        nullif(split_part(regexp_replace(coalesce(oii.audience_income_fit, ''), '[^0-9]+', ' ', 'g'), ' ', 1), '')::int
+    ) as LsmMax,
+    coalesce(
+        (iif.metadata_json ->> 'discounted_rate_zar')::numeric,
+        (iif.metadata_json ->> 'rate_card_zar')::numeric,
+        (iif.metadata_json ->> 'monthly_rate_zar')::numeric,
+        0) as Cost,
     coalesce(nullif(iif.metadata_json ->> 'available', ''), 'true') <> 'false' as IsAvailable,
     false as PackageOnly,
     coalesce(nullif(iif.metadata_json ->> 'time_band', ''), nullif(iif.metadata_json ->> 'daypart', ''), 'always_on') as TimeBand,
@@ -48,10 +63,78 @@ select
     false as IsPremiumStation,
     coalesce(iif.latitude, nullif(iif.metadata_json ->> 'latitude', '')::double precision, nullif(iif.metadata_json ->> 'lat', '')::double precision) as Latitude,
     coalesce(iif.longitude, nullif(iif.metadata_json ->> 'longitude', '')::double precision, nullif(iif.metadata_json ->> 'lng', '')::double precision, nullif(iif.metadata_json ->> 'lon', '')::double precision) as Longitude,
-    iif.metadata_json::text as MetadataJson
+    jsonb_strip_nulls(
+        coalesce(iif.metadata_json, '{}'::jsonb) ||
+        jsonb_build_object(
+            'inventoryIntelligenceNotes', oii.intelligence_notes,
+            'inventory_intelligence_notes', oii.intelligence_notes,
+            'venueType', oii.venue_type,
+            'venue_type', oii.venue_type,
+            'premiumMassFit', oii.premium_mass_fit,
+            'premium_mass_fit', oii.premium_mass_fit,
+            'pricePositioningFit', oii.price_positioning_fit,
+            'price_positioning_fit', oii.price_positioning_fit,
+            'audienceIncomeFit', oii.audience_income_fit,
+            'audience_income_fit', oii.audience_income_fit,
+            'youthFit', oii.youth_fit,
+            'youth_fit', oii.youth_fit,
+            'familyFit', oii.family_fit,
+            'family_fit', oii.family_fit,
+            'professionalFit', oii.professional_fit,
+            'professional_fit', oii.professional_fit,
+            'commuterFit', oii.commuter_fit,
+            'commuter_fit', oii.commuter_fit,
+            'touristFit', oii.tourist_fit,
+            'tourist_fit', oii.tourist_fit,
+            'highValueShopperFit', oii.high_value_shopper_fit,
+            'high_value_shopper_fit', oii.high_value_shopper_fit,
+            'audienceAgeSkew', oii.audience_age_skew,
+            'audience_age_skew', oii.audience_age_skew,
+            'audienceGenderSkew', oii.audience_gender_skew,
+            'audience_gender_skew', oii.audience_gender_skew,
+            'dwellTimeScore', oii.dwell_time_score,
+            'dwell_time_score', oii.dwell_time_score,
+            'environmentType', oii.environment_type,
+            'environment_type', oii.environment_type,
+            'buyingBehaviourFit', oii.buying_behaviour_fit,
+            'buying_behaviour_fit', oii.buying_behaviour_fit,
+            'dataConfidence', oii.data_confidence,
+            'data_confidence', oii.data_confidence,
+            'primaryAudienceTags', oii.primary_audience_tags_json,
+            'primary_audience_tags', oii.primary_audience_tags_json,
+            'secondaryAudienceTags', oii.secondary_audience_tags_json,
+            'secondary_audience_tags', oii.secondary_audience_tags_json,
+            'recommendationTags', oii.recommendation_tags_json,
+            'recommendation_tags', oii.recommendation_tags_json
+        ) ||
+        coalesce(oii.metadata_json, '{}'::jsonb)
+    )::text as MetadataJson
 from inventory_items_final iif
 left join region_clusters rc on rc.id = iif.region_cluster_id
-where coalesce((iif.metadata_json ->> 'discounted_rate_zar')::numeric, (iif.metadata_json ->> 'rate_card_zar')::numeric, 0) <= @Budget
+left join lateral (
+    select intelligence.*
+    from ooh_intelligence intelligence
+    where lower(coalesce(intelligence.supplier, '')) = lower(coalesce(iif.supplier, ''))
+      and (
+          coalesce(nullif(lower(coalesce(intelligence.site_code, '')), ''), '__none__')
+          = coalesce(nullif(lower(coalesce(iif.metadata_json ->> 'site_code', '')), ''), '__none__')
+      )
+      and regexp_replace(lower(coalesce(intelligence.site_name, '')), '[^a-z0-9]+', '', 'g')
+          = regexp_replace(lower(regexp_replace(coalesce(iif.site_name, ''), ',,', ',', 'g')), '[^a-z0-9]+', '', 'g')
+      and regexp_replace(lower(coalesce(intelligence.city, '')), '[^a-z0-9]+', '', 'g')
+          = regexp_replace(lower(coalesce(iif.city, '')), '[^a-z0-9]+', '', 'g')
+      and regexp_replace(lower(coalesce(intelligence.suburb, '')), '[^a-z0-9]+', '', 'g')
+          = regexp_replace(lower(coalesce(iif.suburb, '')), '[^a-z0-9]+', '', 'g')
+      and regexp_replace(lower(coalesce(intelligence.province, '')), '[^a-z0-9]+', '', 'g')
+          = regexp_replace(lower(coalesce(iif.province, '')), '[^a-z0-9]+', '', 'g')
+    order by intelligence.updated_at desc, intelligence.created_at desc
+    limit 1
+) oii on true
+where coalesce(
+        (iif.metadata_json ->> 'discounted_rate_zar')::numeric,
+        (iif.metadata_json ->> 'rate_card_zar')::numeric,
+        (iif.metadata_json ->> 'monthly_rate_zar')::numeric,
+        0) <= @Budget
 
 union all
 

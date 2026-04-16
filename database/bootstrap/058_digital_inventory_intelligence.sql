@@ -1,0 +1,56 @@
+create table if not exists digital_inventory_intelligence (
+    id uuid primary key default gen_random_uuid(),
+    media_outlet_code text not null,
+    platform_name text not null,
+    inventory_scope varchar(30) not null default 'package',
+    source_type varchar(30) not null default 'digital_package',
+    internal_key text not null,
+    package_name text null,
+    package_type text null,
+    platform_tier varchar(50) null,
+    platform_family varchar(80) null,
+    audience_income_fit varchar(50) null,
+    premium_mass_fit varchar(50) null,
+    price_positioning_fit varchar(50) null,
+    youth_fit varchar(20) null,
+    family_fit varchar(20) null,
+    professional_fit varchar(20) null,
+    high_value_client_fit varchar(20) null,
+    b2b_fit varchar(20) null,
+    lead_generation_fit varchar(20) null,
+    awareness_fit varchar(20) null,
+    conversion_fit varchar(20) null,
+    remarketing_fit varchar(20) null,
+    video_fit varchar(20) null,
+    static_fit varchar(20) null,
+    short_form_fit varchar(20) null,
+    intent_strength varchar(30) null,
+    demand_capture_fit varchar(20) null,
+    interest_discovery_fit varchar(20) null,
+    language_context_fit varchar(80) null,
+    audience_age_skew varchar(80) null,
+    audience_gender_skew varchar(50) null,
+    content_environment varchar(120) null,
+    buying_behaviour_fit varchar(120) null,
+    brand_safety_fit varchar(30) null,
+    objective_fit_primary varchar(80) null,
+    objective_fit_secondary varchar(80) null,
+    primary_audience_tags_json jsonb not null default '[]'::jsonb,
+    secondary_audience_tags_json jsonb not null default '[]'::jsonb,
+    recommendation_tags_json jsonb not null default '[]'::jsonb,
+    intelligence_notes text null,
+    source_urls_json jsonb not null default '[]'::jsonb,
+    data_confidence varchar(20) null,
+    updated_by text null,
+    is_active boolean not null default true,
+    metadata_json jsonb not null default '{}'::jsonb,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+
+create unique index if not exists ux_digital_inventory_intelligence_internal_key
+    on digital_inventory_intelligence (lower(internal_key));
+
+create index if not exists ix_digital_inventory_intelligence_platform_scope
+    on digital_inventory_intelligence (media_outlet_code, inventory_scope, source_type);
+

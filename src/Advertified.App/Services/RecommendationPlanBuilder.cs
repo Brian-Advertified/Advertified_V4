@@ -1,17 +1,20 @@
 using Advertified.App.Contracts.Campaigns;
 using Advertified.App.Domain.Campaigns;
 using Advertified.App.Services.Abstractions;
+using Advertified.App.Support;
 
 namespace Advertified.App.Services;
 
 public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
 {
     private readonly IPlanningPolicyService _policyService;
+    private readonly IBroadcastMasterDataService _broadcastMasterDataService;
     private static readonly string[] BroadcastGeoKeys = { "cityLabels", "city_labels", "city", "area" };
 
-    public RecommendationPlanBuilder(IPlanningPolicyService policyService)
+    public RecommendationPlanBuilder(IPlanningPolicyService policyService, IBroadcastMasterDataService broadcastMasterDataService)
     {
         _policyService = policyService;
+        _broadcastMasterDataService = broadcastMasterDataService;
     }
 
     public List<PlannedItem> BuildPlan(List<InventoryCandidate> candidates, CampaignPlanningRequest request, bool diversify)
@@ -28,7 +31,7 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
 
         while (true)
         {
-            var candidate = OrderCandidatesForSelection(candidates, result)
+            var candidate = OrderCandidatesForSelection(candidates, result, request)
                 .FirstOrDefault(item =>
                     !usedSourceIds.Contains(item.SourceId)
                     && item.Cost > 0m
@@ -52,7 +55,7 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
             usedSourceIds.Add(candidate.SourceId);
         }
 
-        FillBudgetGap(result, candidates, request.SelectedBudget, request.MaxMediaItems);
+        FillBudgetGap(result, candidates, request, request.SelectedBudget, request.MaxMediaItems);
 
         if (result.Count == 0)
         {
@@ -104,7 +107,8 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
                 {
                     var matched = channelCandidates
                         .Where(candidate => MatchesAnyBroadcastGeoToken(candidate, suburbTokens))
-                        .OrderByDescending(candidate => HasMatchingOohSite(result, candidate))
+                        .OrderByDescending(candidate => ScoreRequestedLanguageCoverage(candidate, result, request))
+                        .ThenByDescending(candidate => HasMatchingOohSite(result, candidate))
                         .ThenBy(candidate => GetStationSelectionCount(result, candidate, shareTarget.Channel))
                         .ThenByDescending(candidate => candidate.Score)
                         .ThenByDescending(candidate => candidate.Cost)
@@ -121,7 +125,8 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
             }
 
             var channelCandidate = channelCandidates
-                .OrderByDescending(candidate => HasMatchingOohSite(result, candidate))
+                .OrderByDescending(candidate => ScoreRequestedLanguageCoverage(candidate, result, request))
+                .ThenByDescending(candidate => HasMatchingOohSite(result, candidate))
                 .ThenBy(candidate => GetStationSelectionCount(result, candidate, shareTarget.Channel))
                 .ThenByDescending(candidate => candidate.Score)
                 .ThenByDescending(candidate => candidate.Cost)
@@ -169,7 +174,8 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
                     .Where(candidate => !usedSourceIds.Contains(candidate.SourceId))
                     .Where(candidate => spentTotal + candidate.Cost <= request.SelectedBudget)
                     .Where(candidate => !ExceedsStationDiversityCap(result, candidate))
-                    .OrderByDescending(candidate => HasMatchingOohSite(result, candidate))
+                    .OrderByDescending(candidate => ScoreRequestedLanguageCoverage(candidate, result, request))
+                    .ThenByDescending(candidate => HasMatchingOohSite(result, candidate))
                     .ThenBy(candidate => GetStationSelectionCount(result, candidate, shareTarget.Channel))
                     .ThenByDescending(candidate => candidate.Score)
                     .ThenByDescending(candidate => candidate.Cost)
@@ -187,7 +193,7 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
             }
         }
 
-        FillBudgetGap(result, candidates, request.SelectedBudget, request.MaxMediaItems);
+        FillBudgetGap(result, candidates, request, request.SelectedBudget, request.MaxMediaItems);
 
         if (result.Count == 0)
         {
@@ -224,7 +230,7 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
         return result;
     }
 
-    private void FillBudgetGap(List<PlannedItem> result, List<InventoryCandidate> candidates, decimal budget, int? maxItems)
+    private void FillBudgetGap(List<PlannedItem> result, List<InventoryCandidate> candidates, CampaignPlanningRequest request, decimal budget, int? maxItems)
     {
         if (result.Count == 0)
         {
@@ -281,7 +287,8 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
                     ((result.Any(item => item.SourceId == x.SourceId) && _policyService.IsRepeatableCandidate(x))
                         || !maxItems.HasValue
                         || result.Count < maxItems.Value))
-                .OrderByDescending(x => HasMatchingOohSite(result, x))
+                .OrderByDescending(x => ScoreRequestedLanguageCoverage(x, result, request))
+                .ThenByDescending(x => HasMatchingOohSite(result, x))
                 .ThenBy(x => GetStationSelectionCount(result, x, x.MediaType))
                 .ThenByDescending(x => x.Score)
                 .ThenByDescending(x => x.Cost)
@@ -396,14 +403,83 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
         result.Add(ToPlannedItem(candidate));
     }
 
-    private static IEnumerable<InventoryCandidate> OrderCandidatesForSelection(
+    private IEnumerable<InventoryCandidate> OrderCandidatesForSelection(
         IEnumerable<InventoryCandidate> candidates,
-        IReadOnlyList<PlannedItem> currentPlan)
+        IReadOnlyList<PlannedItem> currentPlan,
+        CampaignPlanningRequest request)
     {
         return candidates
-            .OrderByDescending(candidate => HasMatchingOohSite(currentPlan, candidate))
+            .OrderByDescending(candidate => ScoreRequestedLanguageCoverage(candidate, currentPlan, request))
+            .ThenByDescending(candidate => HasMatchingOohSite(currentPlan, candidate))
             .ThenByDescending(candidate => candidate.Score)
             .ThenByDescending(candidate => candidate.Cost);
+    }
+
+    private decimal ScoreRequestedLanguageCoverage(
+        InventoryCandidate candidate,
+        IReadOnlyList<PlannedItem> currentPlan,
+        CampaignPlanningRequest request)
+    {
+        if (request.TargetLanguages.Count == 0
+            || !(candidate.MediaType.Equals("Radio", StringComparison.OrdinalIgnoreCase)
+                || candidate.MediaType.Equals("TV", StringComparison.OrdinalIgnoreCase)))
+        {
+            return 0m;
+        }
+
+        var requested = BroadcastLanguageSupport.NormalizeRequestedLanguages(request.TargetLanguages, _broadcastMasterDataService.NormalizeLanguageCode);
+        if (requested.Count == 0)
+        {
+            return 0m;
+        }
+
+        var candidateLanguages = BroadcastLanguageSupport.ExtractCandidateLanguageCodes(candidate, _broadcastMasterDataService.NormalizeLanguageCode);
+        if (candidateLanguages.Count == 0)
+        {
+            return 0m;
+        }
+
+        var selectedCoverage = currentPlan
+            .Where(item => MatchesChannel(item.MediaType, candidate.MediaType))
+            .SelectMany(item => BroadcastLanguageSupport.ExtractPlannedItemLanguageCodes(item, _broadcastMasterDataService.NormalizeLanguageCode))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        decimal score = 0m;
+        for (var index = 0; index < requested.Count; index++)
+        {
+            var language = requested[index];
+            if (!candidateLanguages.Contains(language, StringComparer.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var baseWeight = index switch
+            {
+                0 => 80m,
+                1 => 52m,
+                2 => 36m,
+                3 => 24m,
+                _ => Math.Max(8m, 18m - index)
+            };
+
+            score += selectedCoverage.Contains(language) ? baseWeight * 0.15m : baseWeight;
+        }
+
+        var coversAllRequested = requested.All(language => candidateLanguages.Contains(language, StringComparer.OrdinalIgnoreCase));
+        if (coversAllRequested)
+        {
+            score += 120m;
+        }
+
+        var addsMissingLanguages = requested
+            .Count(language => !selectedCoverage.Contains(language) && candidateLanguages.Contains(language, StringComparer.OrdinalIgnoreCase));
+        if (addsMissingLanguages > 1)
+        {
+            score += 18m * (addsMissingLanguages - 1);
+        }
+
+        return score;
     }
 
     private static bool HasTargetMix(CampaignPlanningRequest request)

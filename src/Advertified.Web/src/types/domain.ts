@@ -185,6 +185,11 @@ export interface CampaignBrief {
   cities?: string[];
   suburbs?: string[];
   areas?: string[];
+  targetLocationLabel?: string;
+  targetLocationCity?: string;
+  targetLocationProvince?: string;
+  targetLatitude?: number;
+  targetLongitude?: number;
   targetAgeMin?: number;
   targetAgeMax?: number;
   targetGender?: string;
@@ -214,6 +219,16 @@ export interface CampaignBrief {
   specialRequirements?: string;
   preferredVideoAspectRatio?: string;
   preferredVideoDurationSeconds?: number;
+}
+
+export interface LocationSuggestion {
+  label: string;
+  locationType: string;
+  city?: string;
+  province?: string;
+  latitude?: number;
+  longitude?: number;
+  source: string;
 }
 
 export interface RecommendationItem {

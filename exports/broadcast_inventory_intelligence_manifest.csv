@@ -1,0 +1,29 @@
+media_type,station_or_channel_name,media_outlet_code,row_count,relative_path
+radio,Kaya 959,radio_kaya_959,30,exports\radio_inventory_intelligence\kaya_959.csv
+radio,Smile 90.4FM,radio_smile_90_4fm,12,exports\radio_inventory_intelligence\smile_90_4fm.csv
+radio,Jozi FM,radio_jozi_fm,20,exports\radio_inventory_intelligence\jozi_fm.csv
+radio,Algoa FM,radio_algoa_fm,26,exports\radio_inventory_intelligence\algoa_fm.csv
+radio,Metro FM,radio_metro_fm,33,exports\radio_inventory_intelligence\metro_fm.csv
+radio,Good Hope FM,radio_good_hope_fm,33,exports\radio_inventory_intelligence\good_hope_fm.csv
+radio,5FM,radio_5fm,29,exports\radio_inventory_intelligence\5fm.csv
+radio,Ikwekwezi FM,radio_ikwekwezi_fm,31,exports\radio_inventory_intelligence\ikwekwezi_fm.csv
+radio,Lesedi FM,radio_lesedi_fm,31,exports\radio_inventory_intelligence\lesedi_fm.csv
+radio,Ligwalagwala FM,radio_ligwalagwala_fm,33,exports\radio_inventory_intelligence\ligwalagwala_fm.csv
+radio,Motsweding FM,radio_motsweding_fm,30,exports\radio_inventory_intelligence\motsweding_fm.csv
+radio,Munghana Lonene FM,radio_munghana_lonene_fm,34,exports\radio_inventory_intelligence\munghana_lonene_fm.csv
+radio,Phalaphala FM,radio_phalaphala_fm,34,exports\radio_inventory_intelligence\phalaphala_fm.csv
+radio,Ukhozi FM,radio_ukhozi_fm,31,exports\radio_inventory_intelligence\ukhozi_fm.csv
+radio,Lotus FM,radio_lotus_fm,29,exports\radio_inventory_intelligence\lotus_fm.csv
+radio,Radio 2000,radio_radio_2000,27,exports\radio_inventory_intelligence\radio_2000.csv
+radio,RSG,radio_rsg,27,exports\radio_inventory_intelligence\rsg.csv
+radio,SAfm,radio_safm,33,exports\radio_inventory_intelligence\safm.csv
+radio,XK FM,radio_xk_fm,19,exports\radio_inventory_intelligence\xk_fm.csv
+radio,Channel Africa,radio_channel_africa,32,exports\radio_inventory_intelligence\channel_africa.csv
+radio,YFM 99.2,radio_y,4,exports\radio_inventory_intelligence\yfm_99_2.csv
+radio,East Coast Radio,radio_east_coast_radio,1,exports\radio_inventory_intelligence\east_coast_radio.csv
+radio,Kfm 94.5,radio_kfm_94_5,1,exports\radio_inventory_intelligence\kfm_94_5.csv
+tv,SABC 1,tv_sabc_1,6,exports\tv_inventory_intelligence\sabc_1.csv
+tv,SABC 3,tv_sabc_3,2,exports\tv_inventory_intelligence\sabc_3.csv
+tv,SABC News Channel,tv_sabc_news_channel,3,exports\tv_inventory_intelligence\sabc_news_channel.csv
+tv,SABC Sport,tv_sabc_sport,2,exports\tv_inventory_intelligence\sabc_sport.csv
+tv,e.tv,tv_e_tv,1,exports\tv_inventory_intelligence\e_tv.csv

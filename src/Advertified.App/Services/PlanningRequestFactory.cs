@@ -82,6 +82,8 @@ public sealed class PlanningRequestFactory : IPlanningRequestFactory
             Cities = normalizedGeography.Cities.ToList(),
             Suburbs = normalizedGeography.Suburbs.ToList(),
             Areas = normalizedGeography.Areas.ToList(),
+            TargetLatitude = brief.TargetLatitude,
+            TargetLongitude = brief.TargetLongitude,
             PreferredMediaTypes = preferredMediaTypes,
             ExcludedMediaTypes = Advertified.App.Domain.Campaigns.CampaignBriefExtensions.GetList(brief, nameof(CampaignBrief.ExcludedMediaTypesJson)),
             TargetLanguages = Advertified.App.Domain.Campaigns.CampaignBriefExtensions.GetList(brief, nameof(CampaignBrief.TargetLanguagesJson)),

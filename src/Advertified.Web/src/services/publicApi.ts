@@ -1,6 +1,7 @@
 import type {
   ConsentPreference,
   LegalDocument,
+  LocationSuggestion,
   PackageAreaOption,
   PackageBand,
   PackageCheckoutSession,
@@ -25,6 +26,12 @@ type PublicApiDependencies = {
   getPackagePricingSummaryData: (selectedBudget: number) => Promise<PackagePricingSummary>;
   getFormOptionsData: () => Promise<SharedFormOptions>;
   getSuburbsData: (city: string) => Promise<string[]>;
+  searchLocationsData: (input: {
+    query: string;
+    geographyScope?: string;
+    city?: string;
+    limit?: number;
+  }) => Promise<LocationSuggestion[]>;
   createOrderData: (payload: {
     packageBandId: string;
     amount: number;
@@ -143,6 +150,7 @@ export function createPublicApi({
   getPackagePricingSummaryData,
   getFormOptionsData,
   getSuburbsData,
+  searchLocationsData,
   createOrderData,
   initiateOrderCheckoutData,
   listOrdersData,
@@ -188,6 +196,15 @@ export function createPublicApi({
 
     async getSuburbs(city: string) {
       return getSuburbsData(city);
+    },
+
+    async searchLocations(input: {
+      query: string;
+      geographyScope?: string;
+      city?: string;
+      limit?: number;
+    }) {
+      return searchLocationsData(input);
     },
 
     async createOrder(userId: string, packageBandId: string, amount: number, paymentProvider: PaymentProvider) {

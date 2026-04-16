@@ -4,9 +4,11 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { z } from 'zod';
 import { useToast } from '../../../components/ui/toast';
+import { CampaignLocationInput, type ResolvedCampaignLocation } from './CampaignLocationInput';
 import {
   createDefaultQuestionnaireBriefFields,
   parseAgeRange,
+  splitCommaList,
   type QuestionnaireBriefFields,
 } from '../briefModel';
 import { catalogQueryOptions } from '../../../lib/catalogQueryOptions';
@@ -22,6 +24,10 @@ type QuestionnaireForm = QuestionnaireBriefFields & {
   packageBandId: string;
   campaignName: string;
   primaryArea: string;
+  primaryAreaCity: string;
+  primaryAreaProvince: string;
+  primaryAreaLatitude?: number;
+  primaryAreaLongitude?: number;
   ageRange: string;
   language: string;
 };
@@ -55,40 +61,6 @@ const GEOGRAPHIES = [
   { value: 'provincial', label: 'Provincial' },
   { value: 'national', label: 'National' },
 ];
-
-const CITIES = [
-  'Johannesburg',
-  'Cape Town',
-  'Durban',
-  'Pretoria',
-  'Sandton',
-  'Midrand',
-  'Centurion',
-  'Bloemfontein',
-  'Port Elizabeth',
-  'East London',
-  'Polokwane',
-  'Nelspruit',
-  'Rustenburg',
-  'Kimberley',
-  'Pietermaritzburg',
-  'Other',
-] as const;
-
-const LANGUAGES = [
-  'English',
-  'isiZulu',
-  'isiXhosa',
-  'Afrikaans',
-  'Sesotho',
-  'Setswana',
-  'Sepedi',
-  'Xitsonga',
-  'Tshivenda',
-  'Siswati',
-  'isiNdebele',
-  'Multilingual',
-] as const;
 
 type ProspectQuestionnaireFormProps = {
   variant?: 'hero' | 'page';
@@ -205,6 +177,10 @@ function createQuestionnaireFormState(overrides?: Partial<QuestionnaireForm>): Q
     objective: overrides?.objective ?? defaultBrief.objective,
     geographyScope: overrides?.geographyScope ?? defaultBrief.geographyScope,
     primaryArea: overrides?.primaryArea ?? '',
+    primaryAreaCity: overrides?.primaryAreaCity ?? '',
+    primaryAreaProvince: overrides?.primaryAreaProvince ?? '',
+    primaryAreaLatitude: overrides?.primaryAreaLatitude,
+    primaryAreaLongitude: overrides?.primaryAreaLongitude,
     ageRange: overrides?.ageRange ?? '',
     targetGender: overrides?.targetGender ?? defaultBrief.targetGender ?? '',
     language: overrides?.language ?? '',
@@ -266,6 +242,16 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
     mutationFn: async () => {
       const ageRange = parseAgeRange(form.ageRange);
       const areaValue = form.primaryArea.trim();
+      const resolvedCity = form.primaryAreaCity.trim() || undefined;
+      const resolvedProvince = form.primaryAreaProvince.trim() || undefined;
+      const hasResolvedCoordinates = Number.isFinite(form.primaryAreaLatitude) && Number.isFinite(form.primaryAreaLongitude);
+      const localCity = resolvedCity ?? (form.geographyScope === 'local' && areaValue ? areaValue : undefined);
+      const matchesResolvedCity = resolvedCity
+        ? areaValue.localeCompare(resolvedCity, undefined, { sensitivity: 'accent' }) === 0
+        : false;
+      const localSuburb = form.geographyScope === 'local' && resolvedCity && areaValue && !matchesResolvedCity
+        ? areaValue
+        : undefined;
 
       return advertifiedApi.submitProspectQuestionnaire({
         fullName: form.fullName.trim(),
@@ -282,11 +268,17 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
           salesModel: form.salesModel || undefined,
           geographyScope: form.geographyScope,
           provinces: form.geographyScope === 'provincial' && areaValue ? [areaValue] : undefined,
-          cities: form.geographyScope === 'local' && areaValue ? [areaValue] : undefined,
+          cities: form.geographyScope === 'local' && localCity ? [localCity] : undefined,
+          suburbs: localSuburb ? [localSuburb] : undefined,
+          targetLocationLabel: areaValue || undefined,
+          targetLocationCity: resolvedCity,
+          targetLocationProvince: form.geographyScope === 'provincial' ? areaValue || undefined : resolvedProvince,
+          targetLatitude: hasResolvedCoordinates ? form.primaryAreaLatitude : undefined,
+          targetLongitude: hasResolvedCoordinates ? form.primaryAreaLongitude : undefined,
           targetAgeMin: ageRange.min,
           targetAgeMax: ageRange.max,
           targetGender: form.targetGender || undefined,
-          targetLanguages: form.language.trim() ? [form.language.trim()] : undefined,
+          targetLanguages: splitCommaList(form.language),
           customerType: form.customerType || undefined,
           buyingBehaviour: form.buyingBehaviour || undefined,
           decisionCycle: form.decisionCycle || undefined,
@@ -372,6 +364,16 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
 
   const stepErrors = validateQuestionnaireStep(step, form);
   const canAdvanceFromStep = Object.keys(stepErrors).length === 0;
+
+  function handleResolvedLocation(location: ResolvedCampaignLocation | null) {
+    setForm((current) => ({
+      ...current,
+      primaryAreaCity: location?.city ?? '',
+      primaryAreaProvince: location?.province ?? '',
+      primaryAreaLatitude: location?.latitude,
+      primaryAreaLongitude: location?.longitude,
+    }));
+  }
 
   return (
     <div className={containerClassName}>
@@ -587,32 +589,58 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                   <FieldError message={errors.geographyScope} />
                 </label>
                 <label className="block">
-                  <span className="label-base">{form.geographyScope === 'local' ? 'Which city matters most?' : 'Which area matters most?'}</span>
-                  <select
-                    value={form.primaryArea}
-                    onChange={(event) => setForm((current) => ({ ...current, primaryArea: event.target.value }))}
-                    className="input-base"
-                    disabled={form.geographyScope === 'national'}
-                  >
-                    <option value="">
-                      {form.geographyScope === 'national'
-                        ? 'Not needed for national'
-                        : form.geographyScope === 'local'
-                          ? 'Select city'
-                          : 'Select province'}
-                    </option>
-                    {(form.geographyScope === 'local' ? CITIES : provinces.map((item) => item.value)).map((item) => (
-                      <option key={item} value={item}>{item}</option>
-                    ))}
-                  </select>
+                  <span className="label-base">{form.geographyScope === 'local' ? 'Which suburb, address, or city matters most?' : 'Which area matters most?'}</span>
+                  {form.geographyScope === 'national' ? (
+                    <input value="Not needed for national" className="input-base bg-slate-50 text-slate-500" disabled />
+                  ) : form.geographyScope === 'local' ? (
+                    <>
+                      <CampaignLocationInput
+                        value={form.primaryArea}
+                        geographyScope="local"
+                        placeholder="Search suburb, area, or business address"
+                        className="input-base"
+                        onChange={(nextValue) => setForm((current) => ({ ...current, primaryArea: nextValue }))}
+                        onResolved={handleResolvedLocation}
+                      />
+                      <p className="mt-2 text-xs leading-5 text-ink-soft">
+                        Search the exact place that matters most. If there is no direct OOH inventory in that suburb, the planner will use coordinates to rank the nearest viable inventory.
+                      </p>
+                    </>
+                  ) : (
+                    <select
+                      value={form.primaryArea}
+                      onChange={(event) => {
+                        const nextValue = event.target.value;
+                        setForm((current) => ({
+                          ...current,
+                          primaryArea: nextValue,
+                          primaryAreaCity: '',
+                          primaryAreaProvince: nextValue,
+                          primaryAreaLatitude: undefined,
+                          primaryAreaLongitude: undefined,
+                        }));
+                      }}
+                      className="input-base"
+                    >
+                      <option value="">Select province</option>
+                      {provinces.map((item) => (
+                        <option key={item.value} value={item.value}>{item.label}</option>
+                      ))}
+                    </select>
+                  )}
                   <FieldError message={errors.primaryArea} />
                 </label>
                 <label className="block">
-                  <span className="label-base">What language should the message mainly use?</span>
-                  <select value={form.language} onChange={(event) => setForm((current) => ({ ...current, language: event.target.value }))} className="input-base">
-                    <option value="">Select language</option>
-                    {LANGUAGES.map((item) => <option key={item} value={item}>{item}</option>)}
-                  </select>
+                  <span className="label-base">Which languages should the campaign support?</span>
+                  <input
+                    value={form.language}
+                    onChange={(event) => setForm((current) => ({ ...current, language: event.target.value }))}
+                    className="input-base"
+                    placeholder="English, isiZulu"
+                  />
+                  <p className="mt-2 text-xs leading-5 text-ink-soft">
+                    Add one or more languages separated by commas. The engine will rank the selected languages using the live market priority policy.
+                  </p>
                 </label>
                 <label className="block">
                   <span className="label-base">What age group are you mainly trying to reach?</span>

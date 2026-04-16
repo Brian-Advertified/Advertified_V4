@@ -27,6 +27,11 @@ public static class CampaignBriefMapper
         brief.CitiesJson = Serialize(normalizedGeography.Cities);
         brief.SuburbsJson = Serialize(normalizedGeography.Suburbs);
         brief.AreasJson = Serialize(normalizedGeography.Areas);
+        brief.TargetLocationLabel = NormalizeText(request.TargetLocationLabel);
+        brief.TargetLocationCity = NormalizeText(request.TargetLocationCity);
+        brief.TargetLocationProvince = NormalizeText(request.TargetLocationProvince);
+        brief.TargetLatitude = request.TargetLatitude;
+        brief.TargetLongitude = request.TargetLongitude;
         brief.TargetAgeMin = request.TargetAgeMin;
         brief.TargetAgeMax = request.TargetAgeMax;
         brief.TargetGender = request.TargetGender;
@@ -62,5 +67,10 @@ public static class CampaignBriefMapper
     private static string? Serialize<T>(T value)
     {
         return value == null ? null : JsonSerializer.Serialize(value);
+    }
+
+    private static string? NormalizeText(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 }
