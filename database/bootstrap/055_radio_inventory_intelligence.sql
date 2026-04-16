@@ -24,6 +24,7 @@ create table if not exists radio_inventory_intelligence (
     commuter_fit varchar(20) null,
     high_value_client_fit varchar(20) null,
     business_decision_maker_fit varchar(20) null,
+    household_decision_maker_fit varchar(20) null,
     morning_drive_fit varchar(20) null,
     workday_fit varchar(20) null,
     afternoon_drive_fit varchar(20) null,
@@ -58,6 +59,9 @@ create unique index if not exists ux_radio_inventory_intelligence_internal_key
 
 create index if not exists ix_radio_inventory_intelligence_station_scope
     on radio_inventory_intelligence (media_outlet_code, inventory_scope, source_type);
+
+alter table if exists radio_inventory_intelligence
+    add column if not exists household_decision_maker_fit varchar(20) null;
 
 alter table if exists radio_inventory_intelligence
     add column if not exists source_file text null;
