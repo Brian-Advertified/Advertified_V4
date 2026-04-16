@@ -832,16 +832,20 @@ export function AgentCreateRecommendationPage() {
   };
 
   const handleResolvedLocation = (location: ResolvedCampaignLocation | null) => {
-    setScopedForm({
-      key: activeFormKey,
-      value: {
-        ...form,
-        targetLocationLabel: location?.label,
-        targetLocationCity: location?.city,
-        targetLocationProvince: location?.province,
-        targetLatitude: location?.latitude,
-        targetLongitude: location?.longitude,
-      },
+    setScopedForm((current) => {
+      const baseForm = current?.key === activeFormKey ? current.value : form;
+
+      return {
+        key: activeFormKey,
+        value: {
+          ...baseForm,
+          targetLocationLabel: location?.label,
+          targetLocationCity: location?.city,
+          targetLocationProvince: location?.province,
+          targetLatitude: location?.latitude,
+          targetLongitude: location?.longitude,
+        },
+      };
     });
   };
 
