@@ -778,18 +778,28 @@ export function AgentCreateRecommendationPage() {
   const handleFormChange = <K extends keyof CampaignFormState>(key: K, value: CampaignFormState[K]) => {
     if (key === 'scope') {
       const nextScope = value as string;
+      const switchingIntoLocal = nextScope === 'local' && form.scope !== 'local';
+      const switchingOutOfLocal = nextScope !== 'local' && form.scope === 'local';
+      const nextGeography = nextScope === 'national'
+        ? ''
+        : switchingIntoLocal
+          ? ''
+          : switchingOutOfLocal
+            ? (form.targetLocationProvince ?? '')
+            : form.geography;
+
       setScopedForm({
         key: activeFormKey,
         value: {
           ...form,
           scope: nextScope,
-          geography: nextScope === 'national' ? '' : form.geography,
-          suburbs: nextScope === 'local' ? form.suburbs : [],
-          targetLocationLabel: nextScope === 'local' ? form.targetLocationLabel : undefined,
-          targetLocationCity: nextScope === 'local' ? form.targetLocationCity : undefined,
-          targetLocationProvince: nextScope === 'local' ? form.targetLocationProvince : undefined,
-          targetLatitude: nextScope === 'local' ? form.targetLatitude : undefined,
-          targetLongitude: nextScope === 'local' ? form.targetLongitude : undefined,
+          geography: nextGeography,
+          suburbs: nextScope === 'local' && !switchingIntoLocal ? form.suburbs : [],
+          targetLocationLabel: nextScope === 'local' && !switchingIntoLocal ? form.targetLocationLabel : undefined,
+          targetLocationCity: nextScope === 'local' && !switchingIntoLocal ? form.targetLocationCity : undefined,
+          targetLocationProvince: nextScope === 'local' && !switchingIntoLocal ? form.targetLocationProvince : undefined,
+          targetLatitude: nextScope === 'local' && !switchingIntoLocal ? form.targetLatitude : undefined,
+          targetLongitude: nextScope === 'local' && !switchingIntoLocal ? form.targetLongitude : undefined,
         },
       });
       return;
@@ -1562,38 +1572,39 @@ export function AgentCreateRecommendationPage() {
                 <select value={form.scope} onChange={(event) => handleFormChange('scope', event.target.value)} className="input-base">
                   <option value="">Choose scope</option>
                   <option value="local">Local</option>
-                  <option value="provincial">Provincial</option>
+                  <option value="provincial">Regional</option>
                   <option value="national">National</option>
                 </select>
               </label>
 
-              <label className="block">
-                <span className="label-base">Main area</span>
-                {form.scope === 'national' ? (
-                  <input value="Not needed for national coverage" className="input-base bg-slate-50 text-slate-500" disabled />
-                ) : form.scope === 'local' ? (
-                  <div>
-                    <CampaignLocationInput
-                      value={form.geography}
-                      geographyScope="local"
-                      placeholder="Search suburb, area, or business address"
-                      className="input-base"
-                      onChange={(nextValue) => handleFormChange('geography', nextValue)}
-                      onResolved={handleResolvedLocation}
-                    />
-                    <p className="mt-2 text-xs leading-5 text-ink-soft">
-                      Use an exact suburb or address when you have it. The planner will prefer direct matches and fall back to nearest OOH inventory using coordinates.
-                    </p>
-                  </div>
-                ) : (
-                  <select value={form.geography} onChange={(event) => handleFormChange('geography', event.target.value)} className="input-base">
-                    <option value="">Select province</option>
-                    <option value="gauteng">Gauteng</option>
-                    <option value="western_cape">Western Cape</option>
-                    <option value="kwazulu_natal">KwaZulu-Natal</option>
-                  </select>
-                )}
-              </label>
+              {form.scope === 'national' ? null : (
+                <label className="block">
+                  <span className="label-base">{form.scope === 'local' ? 'Main area' : 'Main province'}</span>
+                  {form.scope === 'local' ? (
+                    <div>
+                      <CampaignLocationInput
+                        key={`${activeFormKey}:${form.scope}`}
+                        value={form.geography}
+                        geographyScope="local"
+                        placeholder="Search suburb, area, or business address"
+                        className="input-base"
+                        onChange={(nextValue) => handleFormChange('geography', nextValue)}
+                        onResolved={handleResolvedLocation}
+                      />
+                      <p className="mt-2 text-xs leading-5 text-ink-soft">
+                        Use an exact suburb or address when you have it. The planner will prefer direct matches and fall back to nearest OOH inventory using coordinates.
+                      </p>
+                    </div>
+                  ) : (
+                    <select value={form.geography} onChange={(event) => handleFormChange('geography', event.target.value)} className="input-base">
+                      <option value="">Select province</option>
+                      {(sharedFormOptions?.provinces ?? []).map((item) => (
+                        <option key={item.value} value={item.value}>{item.label}</option>
+                      ))}
+                    </select>
+                  )}
+                </label>
+              )}
 
               {form.scope === 'local' && form.geography ? (
                 <label className="block">

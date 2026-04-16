@@ -24,6 +24,11 @@ public sealed class CampaignPlanningRequestSnapshot
     public List<string> Cities { get; set; } = new();
     public List<string> Suburbs { get; set; } = new();
     public List<string> Areas { get; set; } = new();
+    public string? TargetLocationLabel { get; set; }
+    public string? TargetLocationCity { get; set; }
+    public string? TargetLocationProvince { get; set; }
+    public string? TargetLocationSource { get; set; }
+    public string? TargetLocationPrecision { get; set; }
     public List<string> PreferredMediaTypes { get; set; } = new();
     public List<string> ExcludedMediaTypes { get; set; } = new();
     public List<string> TargetLanguages { get; set; } = new();

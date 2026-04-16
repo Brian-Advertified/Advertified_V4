@@ -24,17 +24,20 @@ public sealed class AgentCampaignsController : ControllerBase
     private readonly AppDbContext _db;
     private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly IRecommendationDocumentService _recommendationDocumentService;
+    private readonly ICampaignPlanningTargetResolver _planningTargetResolver;
     private readonly ILogger<AgentCampaignsController> _logger;
 
     public AgentCampaignsController(
         AppDbContext db,
         ICurrentUserAccessor currentUserAccessor,
         IRecommendationDocumentService recommendationDocumentService,
+        ICampaignPlanningTargetResolver planningTargetResolver,
         ILogger<AgentCampaignsController> logger)
     {
         _db = db;
         _currentUserAccessor = currentUserAccessor;
         _recommendationDocumentService = recommendationDocumentService;
+        _planningTargetResolver = planningTargetResolver;
         _logger = logger;
     }
 
@@ -278,6 +281,20 @@ public sealed class AgentCampaignsController : ControllerBase
             ?? throw new NotFoundException("Campaign not found.");
 
         var response = campaign.ToDetail(currentUserId);
+        var resolvedTarget = _planningTargetResolver.Resolve(campaign.CampaignBrief);
+        if (!string.IsNullOrWhiteSpace(resolvedTarget.Label))
+        {
+            response.EffectivePlanningTarget = new CampaignPlanningTargetResponse
+            {
+                Label = resolvedTarget.Label,
+                City = resolvedTarget.City,
+                Province = resolvedTarget.Province,
+                Latitude = resolvedTarget.Latitude,
+                Longitude = resolvedTarget.Longitude,
+                Source = resolvedTarget.Source,
+                Precision = resolvedTarget.Precision
+            };
+        }
         var queueStage = CampaignWorkflowPolicy.ResolveAgentQueueStage(campaign);
         response.NextAction = CampaignWorkflowPolicy.GetAgentNextAction(campaign, queueStage, currentUserId);
         response.RecommendationPdfUrl = response.Recommendations.Count > 0

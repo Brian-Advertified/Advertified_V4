@@ -47,7 +47,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         _campaignReasoningService = campaignReasoningService;
         _policySnapshotProvider = policySnapshotProvider;
         _policyService = policyService;
-        _planningRequestFactory = new PlanningRequestFactory(new NullGeocodingService());
+        _planningRequestFactory = new PlanningRequestFactory(new NullPlanningTargetResolver());
     }
 
     public CampaignRecommendationService(
@@ -60,7 +60,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         _campaignReasoningService = campaignReasoningService;
         _policySnapshotProvider = new PlanningPolicySnapshotProvider(new PlanningPolicyOptions());
         _policyService = new PlanningPolicyService(_policySnapshotProvider);
-        _planningRequestFactory = new PlanningRequestFactory(new NullGeocodingService());
+        _planningRequestFactory = new PlanningRequestFactory(new NullPlanningTargetResolver());
     }
 
     [ActivatorUtilitiesConstructor]
@@ -331,6 +331,11 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             Cities = source.Cities.ToList(),
             Suburbs = source.Suburbs.ToList(),
             Areas = source.Areas.ToList(),
+            TargetLocationLabel = source.TargetLocationLabel,
+            TargetLocationCity = source.TargetLocationCity,
+            TargetLocationProvince = source.TargetLocationProvince,
+            TargetLocationSource = source.TargetLocationSource,
+            TargetLocationPrecision = source.TargetLocationPrecision,
             PreferredMediaTypes = source.PreferredMediaTypes.ToList(),
             ExcludedMediaTypes = source.ExcludedMediaTypes.ToList(),
             TargetLanguages = source.TargetLanguages.ToList(),
@@ -803,6 +808,11 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             Cities = source.Cities.ToList(),
             Suburbs = source.Suburbs.ToList(),
             Areas = source.Areas.ToList(),
+            TargetLocationLabel = source.TargetLocationLabel,
+            TargetLocationCity = source.TargetLocationCity,
+            TargetLocationProvince = source.TargetLocationProvince,
+            TargetLocationSource = source.TargetLocationSource,
+            TargetLocationPrecision = source.TargetLocationPrecision,
             PreferredMediaTypes = source.PreferredMediaTypes.ToList(),
             ExcludedMediaTypes = source.ExcludedMediaTypes.ToList(),
             TargetLanguages = source.TargetLanguages.ToList(),
@@ -1029,6 +1039,11 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             Cities = request.Cities.ToList(),
             Suburbs = request.Suburbs.ToList(),
             Areas = request.Areas.ToList(),
+            TargetLocationLabel = request.TargetLocationLabel,
+            TargetLocationCity = request.TargetLocationCity,
+            TargetLocationProvince = request.TargetLocationProvince,
+            TargetLocationSource = request.TargetLocationSource,
+            TargetLocationPrecision = request.TargetLocationPrecision,
             PreferredMediaTypes = request.PreferredMediaTypes.ToList(),
             ExcludedMediaTypes = request.ExcludedMediaTypes.ToList(),
             TargetLanguages = request.TargetLanguages.ToList(),
@@ -1065,25 +1080,25 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         return JsonSerializer.Serialize(value, AuditJsonOptions);
     }
 
-    private sealed class NullGeocodingService : IGeocodingService
+    private sealed class NullPlanningTargetResolver : ICampaignPlanningTargetResolver
     {
-        public GeocodingResolution ResolveLocation(string? rawLocation)
+        public CampaignPlanningTargetResolution Resolve(CampaignBriefEntity? brief)
         {
-            return new GeocodingResolution
-            {
-                IsResolved = false,
-                CanonicalLocation = rawLocation?.Trim() ?? string.Empty,
-                Source = "none"
-            };
+            return new CampaignPlanningTargetResolution();
         }
 
-        public GeocodingResolution ResolveCampaignTarget(CampaignPlanningRequest request)
+        public CampaignPlanningTargetResolution Resolve(CampaignPlanningRequest request)
         {
-            return new GeocodingResolution
+            return new CampaignPlanningTargetResolution
             {
-                IsResolved = false,
-                CanonicalLocation = string.Empty,
-                Source = "none"
+                Label = request.TargetLocationLabel ?? string.Empty,
+                City = request.TargetLocationCity,
+                Province = request.TargetLocationProvince,
+                Latitude = request.TargetLatitude,
+                Longitude = request.TargetLongitude,
+                Source = "none",
+                Precision = request.TargetLocationPrecision ?? "unknown",
+                IsResolved = request.TargetLatitude.HasValue && request.TargetLongitude.HasValue
             };
         }
     }

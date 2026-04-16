@@ -7,11 +7,11 @@ namespace Advertified.App.Services;
 
 public sealed class PlanningRequestFactory : IPlanningRequestFactory
 {
-    private readonly IGeocodingService _geocodingService;
+    private readonly ICampaignPlanningTargetResolver _planningTargetResolver;
 
-    public PlanningRequestFactory(IGeocodingService geocodingService)
+    public PlanningRequestFactory(ICampaignPlanningTargetResolver planningTargetResolver)
     {
-        _geocodingService = geocodingService;
+        _planningTargetResolver = planningTargetResolver;
     }
 
     public CampaignPlanningRequest FromCampaignBrief(
@@ -82,6 +82,9 @@ public sealed class PlanningRequestFactory : IPlanningRequestFactory
             Cities = normalizedGeography.Cities.ToList(),
             Suburbs = normalizedGeography.Suburbs.ToList(),
             Areas = normalizedGeography.Areas.ToList(),
+            TargetLocationLabel = brief.TargetLocationLabel,
+            TargetLocationCity = brief.TargetLocationCity,
+            TargetLocationProvince = brief.TargetLocationProvince,
             TargetLatitude = brief.TargetLatitude,
             TargetLongitude = brief.TargetLongitude,
             PreferredMediaTypes = preferredMediaTypes,
@@ -112,11 +115,16 @@ public sealed class PlanningRequestFactory : IPlanningRequestFactory
             TargetDigitalShare = request?.TargetDigitalShare
         };
 
-        var geocodingTarget = _geocodingService.ResolveCampaignTarget(planningRequest);
-        if (geocodingTarget.IsResolved)
+        var resolvedTarget = _planningTargetResolver.Resolve(planningRequest);
+        planningRequest.TargetLocationLabel = resolvedTarget.Label;
+        planningRequest.TargetLocationCity = resolvedTarget.City;
+        planningRequest.TargetLocationProvince = resolvedTarget.Province;
+        planningRequest.TargetLocationSource = resolvedTarget.Source;
+        planningRequest.TargetLocationPrecision = resolvedTarget.Precision;
+        if (resolvedTarget.IsResolved)
         {
-            planningRequest.TargetLatitude = geocodingTarget.Latitude;
-            planningRequest.TargetLongitude = geocodingTarget.Longitude;
+            planningRequest.TargetLatitude = resolvedTarget.Latitude;
+            planningRequest.TargetLongitude = resolvedTarget.Longitude;
         }
 
         return planningRequest;

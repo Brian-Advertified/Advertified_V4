@@ -462,6 +462,10 @@ export function AgentCampaignDetailPage() {
   const opportunityContext = parseCampaignOpportunityContext(campaign.brief);
   const originalPrompt = buildOriginalPrompt(campaign.brief);
   const clientNotes = buildBriefClientNotes(campaign.brief);
+  const effectivePlanningTarget = campaign.effectivePlanningTarget;
+  const planningTargetCoords = effectivePlanningTarget?.latitude != null && effectivePlanningTarget?.longitude != null
+    ? `${effectivePlanningTarget.latitude.toFixed(4)}, ${effectivePlanningTarget.longitude.toFixed(4)}`
+    : undefined;
   const statusLabel = campaign.status === 'creative_approved' || campaign.status === 'booking_in_progress' || campaign.status === 'launched'
     ? titleCase(campaign.status)
     : activeRecommendation?.status
@@ -847,6 +851,10 @@ export function AgentCampaignDetailPage() {
                     <p><span className="font-semibold">Objective:</span> {campaign.brief?.objective ?? 'Not set'}</p>
                     <p><span className="font-semibold">Audience:</span> {audienceSummary}</p>
                     <p><span className="font-semibold">Geo:</span> {geoSummary}</p>
+                    <p><span className="font-semibold">Resolved target:</span> {effectivePlanningTarget?.label ?? 'Not resolved yet'}</p>
+                    <p><span className="font-semibold">Target precision:</span> {effectivePlanningTarget?.precision ?? 'Unknown'}</p>
+                    <p><span className="font-semibold">Target source:</span> {effectivePlanningTarget?.source ?? 'Not resolved yet'}</p>
+                    {planningTargetCoords ? <p><span className="font-semibold">Coordinates:</span> {planningTargetCoords}</p> : null}
                     <p><span className="font-semibold">Channels:</span> {channelSummary}</p>
                     <p><span className="font-semibold">Tone:</span> {toneSummary}</p>
                     <p><span className="font-semibold">Confidence:</span> {confidenceScore.toFixed(2)}</p>

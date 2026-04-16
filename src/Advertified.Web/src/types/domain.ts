@@ -218,8 +218,18 @@ export interface CampaignBrief {
   additionalBudget?: number;
   specialRequirements?: string;
   preferredVideoAspectRatio?: string;
-  preferredVideoDurationSeconds?: number;
-}
+    preferredVideoDurationSeconds?: number;
+  }
+
+export interface CampaignPlanningTarget {
+    label: string;
+    city?: string;
+    province?: string;
+    latitude?: number;
+    longitude?: number;
+    source: string;
+    precision: string;
+  }
 
 export interface LocationSuggestion {
   label: string;
@@ -424,10 +434,11 @@ export interface Campaign {
   assignedAt?: string;
   isAssignedToCurrentUser?: boolean;
   isUnassigned?: boolean;
-  campaignName: string;
-  nextAction: string;
-  workflow?: CampaignWorkflowSummary;
-  timeline: CampaignTimelineStep[];
+    campaignName: string;
+    nextAction: string;
+    workflow?: CampaignWorkflowSummary;
+    effectivePlanningTarget?: CampaignPlanningTarget;
+    timeline: CampaignTimelineStep[];
   brief?: CampaignBrief;
   recommendations: CampaignRecommendation[];
   recommendation?: CampaignRecommendation;

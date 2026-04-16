@@ -26,6 +26,7 @@ public sealed class CampaignDetailResponse
     public bool IsUnassigned { get; set; }
     public string NextAction { get; set; } = string.Empty;
     public CampaignWorkflowSummaryResponse Workflow { get; set; } = new();
+    public CampaignPlanningTargetResponse? EffectivePlanningTarget { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public IReadOnlyList<CampaignTimelineStepResponse> Timeline { get; set; } = Array.Empty<CampaignTimelineStepResponse>();
     public SaveCampaignBriefRequest? Brief { get; set; }

@@ -1306,10 +1306,12 @@ internal static class ControllerMappings
     private static string BuildAuditGeographyLabel(CampaignPlanningRequestSnapshot request)
     {
         var scope = string.IsNullOrWhiteSpace(request.GeographyScope) ? "unknown geography" : request.GeographyScope.Trim().ToLowerInvariant();
-        var place = request.Cities.FirstOrDefault()
+        var place = request.TargetLocationLabel
+            ?? request.Suburbs.FirstOrDefault()
+            ?? request.Cities.FirstOrDefault()
             ?? request.Areas.FirstOrDefault()
             ?? request.Provinces.FirstOrDefault()
-            ?? request.Suburbs.FirstOrDefault();
+            ?? request.TargetLocationProvince;
 
         return string.IsNullOrWhiteSpace(place)
             ? scope

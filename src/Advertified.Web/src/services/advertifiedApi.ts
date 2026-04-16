@@ -7,6 +7,7 @@ import type {
   Campaign,
   CampaignConversationListItem,
   CampaignConversationThread,
+  CampaignPlanningTarget,
   CampaignPerformanceSnapshot,
   LegalDocument,
   NotificationSummary,
@@ -192,6 +193,11 @@ type CampaignBriefResponse = {
   cities?: string[];
   suburbs?: string[];
   areas?: string[];
+  targetLocationLabel?: string;
+  targetLocationCity?: string;
+  targetLocationProvince?: string;
+  targetLatitude?: number;
+  targetLongitude?: number;
   targetAgeMin?: number;
   targetAgeMax?: number;
   targetGender?: string;
@@ -300,6 +306,15 @@ type CampaignResponse = {
   isUnassigned?: boolean;
   campaignName?: string | null;
   nextAction: string;
+  effectivePlanningTarget?: {
+    label: string;
+    city?: string | null;
+    province?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
+    source: string;
+    precision: string;
+  } | null;
   workflow?: {
     currentStateKey: string;
     statusLabel: string;
@@ -1358,6 +1373,24 @@ function mapPerformanceTimelinePoint(
   };
 }
 
+function mapCampaignPlanningTarget(
+  response?: NonNullable<CampaignResponse['effectivePlanningTarget']> | null,
+): CampaignPlanningTarget | undefined {
+  if (!response?.label?.trim()) {
+    return undefined;
+  }
+
+  return {
+    label: response.label.trim(),
+    city: response.city ?? undefined,
+    province: response.province ?? undefined,
+    latitude: response.latitude ?? undefined,
+    longitude: response.longitude ?? undefined,
+    source: response.source,
+    precision: response.precision,
+  };
+}
+
 function normalizeCreativeSystem(response: CreativeSystem): CreativeSystem {
   return {
     ...response,
@@ -1451,6 +1484,7 @@ function mapCampaign(response: CampaignResponse): Campaign {
     isUnassigned: response.isUnassigned,
     campaignName: response.campaignName?.trim() || `${response.packageBandName} campaign`,
     nextAction: response.nextAction,
+    effectivePlanningTarget: mapCampaignPlanningTarget(response.effectivePlanningTarget),
     workflow: response.workflow ?? {
       currentStateKey: 'recommendation_approved',
       statusLabel: 'All set for now',

@@ -58,7 +58,7 @@ const AGE_RANGES = [
 
 const GEOGRAPHIES = [
   { value: 'local', label: 'Local' },
-  { value: 'provincial', label: 'Provincial' },
+  { value: 'provincial', label: 'Regional' },
   { value: 'national', label: 'National' },
 ];
 
@@ -583,53 +583,83 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                 </label>
                 <label className="block">
                   <span className="label-base">How wide should the campaign reach?</span>
-                  <select value={form.geographyScope} onChange={(event) => setForm((current) => ({ ...current, geographyScope: event.target.value }))} className="input-base">
+                  <select
+                    value={form.geographyScope}
+                    onChange={(event) => {
+                      const nextScope = event.target.value as QuestionnaireForm['geographyScope'];
+                      setForm((current) => {
+                        const switchingIntoLocal = nextScope === 'local' && current.geographyScope !== 'local';
+                        const switchingOutOfLocal = nextScope !== 'local' && current.geographyScope === 'local';
+                        const nextPrimaryArea = nextScope === 'national'
+                          ? ''
+                          : switchingIntoLocal
+                            ? ''
+                            : switchingOutOfLocal
+                              ? (current.primaryAreaProvince || '')
+                              : current.primaryArea;
+
+                        return {
+                          ...current,
+                          geographyScope: nextScope,
+                          primaryArea: nextPrimaryArea,
+                          primaryAreaCity: nextScope === 'local' && !switchingIntoLocal ? current.primaryAreaCity : '',
+                          primaryAreaProvince: nextScope === 'provincial'
+                            ? nextPrimaryArea
+                            : (nextScope === 'local' && !switchingIntoLocal ? current.primaryAreaProvince : ''),
+                          primaryAreaLatitude: nextScope === 'local' && !switchingIntoLocal ? current.primaryAreaLatitude : undefined,
+                          primaryAreaLongitude: nextScope === 'local' && !switchingIntoLocal ? current.primaryAreaLongitude : undefined,
+                        };
+                      });
+                    }}
+                    className="input-base"
+                  >
                     {GEOGRAPHIES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
                   <FieldError message={errors.geographyScope} />
                 </label>
-                <label className="block">
-                  <span className="label-base">{form.geographyScope === 'local' ? 'Which suburb, address, or city matters most?' : 'Which area matters most?'}</span>
-                  {form.geographyScope === 'national' ? (
-                    <input value="Not needed for national" className="input-base bg-slate-50 text-slate-500" disabled />
-                  ) : form.geographyScope === 'local' ? (
-                    <>
-                      <CampaignLocationInput
+                {form.geographyScope === 'national' ? null : (
+                  <label className="block">
+                    <span className="label-base">{form.geographyScope === 'local' ? 'Which suburb, address, or city matters most?' : 'Which province matters most?'}</span>
+                    {form.geographyScope === 'local' ? (
+                      <>
+                        <CampaignLocationInput
+                          key={`questionnaire:${form.geographyScope}`}
+                          value={form.primaryArea}
+                          geographyScope="local"
+                          placeholder="Search suburb, area, or business address"
+                          className="input-base"
+                          onChange={(nextValue) => setForm((current) => ({ ...current, primaryArea: nextValue }))}
+                          onResolved={handleResolvedLocation}
+                        />
+                        <p className="mt-2 text-xs leading-5 text-ink-soft">
+                          Search the exact place that matters most. If there is no direct OOH inventory in that suburb, the planner will use coordinates to rank the nearest viable inventory.
+                        </p>
+                      </>
+                    ) : (
+                      <select
                         value={form.primaryArea}
-                        geographyScope="local"
-                        placeholder="Search suburb, area, or business address"
+                        onChange={(event) => {
+                          const nextValue = event.target.value;
+                          setForm((current) => ({
+                            ...current,
+                            primaryArea: nextValue,
+                            primaryAreaCity: '',
+                            primaryAreaProvince: nextValue,
+                            primaryAreaLatitude: undefined,
+                            primaryAreaLongitude: undefined,
+                          }));
+                        }}
                         className="input-base"
-                        onChange={(nextValue) => setForm((current) => ({ ...current, primaryArea: nextValue }))}
-                        onResolved={handleResolvedLocation}
-                      />
-                      <p className="mt-2 text-xs leading-5 text-ink-soft">
-                        Search the exact place that matters most. If there is no direct OOH inventory in that suburb, the planner will use coordinates to rank the nearest viable inventory.
-                      </p>
-                    </>
-                  ) : (
-                    <select
-                      value={form.primaryArea}
-                      onChange={(event) => {
-                        const nextValue = event.target.value;
-                        setForm((current) => ({
-                          ...current,
-                          primaryArea: nextValue,
-                          primaryAreaCity: '',
-                          primaryAreaProvince: nextValue,
-                          primaryAreaLatitude: undefined,
-                          primaryAreaLongitude: undefined,
-                        }));
-                      }}
-                      className="input-base"
-                    >
-                      <option value="">Select province</option>
-                      {provinces.map((item) => (
-                        <option key={item.value} value={item.value}>{item.label}</option>
-                      ))}
-                    </select>
-                  )}
-                  <FieldError message={errors.primaryArea} />
-                </label>
+                      >
+                        <option value="">Select province</option>
+                        {provinces.map((item) => (
+                          <option key={item.value} value={item.value}>{item.label}</option>
+                        ))}
+                      </select>
+                    )}
+                    <FieldError message={errors.primaryArea} />
+                  </label>
+                )}
                 <label className="block">
                   <span className="label-base">Which languages should the campaign support?</span>
                   <input
