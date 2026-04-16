@@ -299,7 +299,7 @@ public sealed class NotificationsController : ControllerBase
                 continue;
             }
 
-            var stage = ResolveQueueStage(campaign);
+            var stage = CampaignWorkflowPolicy.ResolveAgentQueueStage(campaign);
             var latestRecommendation = (campaign.CampaignRecommendations ?? Array.Empty<CampaignRecommendation>())
                 .OrderByDescending(x => x.CreatedAt)
                 .FirstOrDefault();
@@ -422,29 +422,6 @@ public sealed class NotificationsController : ControllerBase
         }
 
         return items.Take(6).ToArray();
-    }
-
-    private static string ResolveQueueStage(Campaign campaign)
-    {
-        var latestRecommendation = (campaign.CampaignRecommendations ?? Array.Empty<CampaignRecommendation>())
-            .OrderByDescending(x => x.CreatedAt)
-            .FirstOrDefault();
-        var hasRecommendation = latestRecommendation is not null;
-        var recommendationStatus = latestRecommendation?.Status?.Trim().ToLowerInvariant();
-
-        return campaign.Status switch
-        {
-            CampaignStatuses.Paid => "newly_paid",
-            CampaignStatuses.BriefInProgress => "brief_waiting",
-            CampaignStatuses.BriefSubmitted => "planning_ready",
-            _ when recommendationStatus == RecommendationStatuses.Approved => "completed",
-            _ when recommendationStatus == RecommendationStatuses.SentToClient => "waiting_on_client",
-            CampaignStatuses.PlanningInProgress when hasRecommendation => "agent_review",
-            CampaignStatuses.PlanningInProgress => "planning_ready",
-            CampaignStatuses.ReviewReady => "waiting_on_client",
-            CampaignStatuses.BookingInProgress => "completed",
-            _ => "watching"
-        };
     }
 
     private static bool HasClientFeedback(CampaignRecommendation? recommendation)

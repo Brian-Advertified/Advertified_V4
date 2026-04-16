@@ -22,7 +22,6 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
     private readonly IAgentAreaRoutingService _agentAreaRoutingService;
     private readonly IPricingSettingsProvider _pricingSettingsProvider;
     private readonly ITemplatedEmailService _emailService;
-    private readonly IRecommendationApprovalWorkflowService _recommendationApprovalWorkflowService;
     private readonly FrontendOptions _frontendOptions;
     private readonly ILogger<PackagePurchaseService> _logger;
 
@@ -35,7 +34,6 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
         IAgentAreaRoutingService agentAreaRoutingService,
         IPricingSettingsProvider pricingSettingsProvider,
         ITemplatedEmailService emailService,
-        IRecommendationApprovalWorkflowService recommendationApprovalWorkflowService,
         IOptions<FrontendOptions> frontendOptions,
         ILogger<PackagePurchaseService> logger)
     {
@@ -47,7 +45,6 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
         _agentAreaRoutingService = agentAreaRoutingService;
         _pricingSettingsProvider = pricingSettingsProvider;
         _emailService = emailService;
-        _recommendationApprovalWorkflowService = recommendationApprovalWorkflowService;
         _frontendOptions = frontendOptions.Value;
         _logger = logger;
     }
@@ -402,12 +399,6 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
         if (order.Campaign is not null)
         {
             await _agentAreaRoutingService.TryAssignCampaignAsync(order.Campaign.Id, "payment_completed", cancellationToken);
-
-            var matchingRecommendationId = ResolvePaidRecommendationId(order.Campaign, order.Amount);
-            if (matchingRecommendationId.HasValue)
-            {
-                await _recommendationApprovalWorkflowService.ApproveAsync(order.Campaign.Id, matchingRecommendationId.Value, cancellationToken);
-            }
         }
 
         if (order.User is not null)
@@ -427,24 +418,6 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
         }
 
         await UpdatePaymentCacheAsync(order, order.PackageBand.Code, order.PaymentReference, cancellationToken);
-    }
-
-    private static Guid? ResolvePaidRecommendationId(Campaign campaign, decimal paidAmount)
-    {
-        if (!string.Equals(campaign.Status, CampaignStatuses.ReviewReady, StringComparison.OrdinalIgnoreCase)
-            && !string.Equals(campaign.Status, CampaignStatuses.PlanningInProgress, StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
-
-        var currentRecommendations = RecommendationRevisionSupport.GetCurrentRecommendationSet(campaign.CampaignRecommendations);
-        var roundedPaidAmount = decimal.Round(paidAmount, 2, MidpointRounding.AwayFromZero);
-        var matches = currentRecommendations
-            .Where(x => string.Equals(x.Status, RecommendationStatuses.SentToClient, StringComparison.OrdinalIgnoreCase))
-            .Where(x => decimal.Round(x.TotalCost, 2, MidpointRounding.AwayFromZero) == roundedPaidAmount)
-            .ToArray();
-
-        return matches.Length == 1 ? matches[0].Id : null;
     }
 
     private async Task MarkOrderFailedInternalAsync(Guid packageOrderId, string? paymentReference, CancellationToken cancellationToken)

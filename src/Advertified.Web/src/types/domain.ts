@@ -369,6 +369,24 @@ export interface CampaignTimelineStep {
   state: 'complete' | 'current' | 'upcoming';
 }
 
+export interface CampaignWorkflowSummary {
+  currentStateKey: string;
+  statusLabel: string;
+  headline: string;
+  description: string;
+  nextStep: string;
+  requiresClientAction: boolean;
+  actionLabel: string;
+  paymentState: 'cleared' | 'manual_review' | 'payment_required' | string;
+  paymentAwaitingManualReview: boolean;
+  paymentRequiredBeforeApproval: boolean;
+  hasClearedPayment: boolean;
+  recommendationAwaitingDecision: boolean;
+  recommendationApprovalCompleted: boolean;
+  canOpenBrief: boolean;
+  canOpenPlanning: boolean;
+}
+
 export interface Campaign {
   id: string;
   userId?: string;
@@ -393,6 +411,7 @@ export interface Campaign {
   isUnassigned?: boolean;
   campaignName: string;
   nextAction: string;
+  workflow?: CampaignWorkflowSummary;
   timeline: CampaignTimelineStep[];
   brief?: CampaignBrief;
   recommendations: CampaignRecommendation[];
@@ -572,7 +591,7 @@ export interface AgentInboxItem {
   paymentStatus: PaymentStatus | string;
   status: string;
   planningMode?: PlanningMode;
-  queueStage: 'newly_paid' | 'brief_waiting' | 'planning_ready' | 'agent_review' | 'ready_to_send' | 'waiting_on_client' | 'completed' | 'watching';
+  queueStage: 'newly_paid' | 'brief_waiting' | 'planning_ready' | 'agent_review' | 'waiting_on_client' | 'completed' | 'watching';
   queueLabel: string;
   assignedAgentUserId?: string;
   assignedAgentName?: string;
@@ -603,7 +622,6 @@ export interface AgentInbox {
   briefWaitingCount: number;
   planningReadyCount: number;
   agentReviewCount: number;
-  readyToSendCount: number;
   waitingOnClientCount: number;
   completedCount: number;
   items: AgentInboxItem[];
@@ -1150,6 +1168,21 @@ export interface AdminEnginePolicy {
   regionalRadioPenalty: number;
 }
 
+export interface AdminLeadIndustryPolicy {
+  key: string;
+  name: string;
+  objectiveOverride?: string;
+  preferredTone?: string;
+  preferredChannels: string[];
+  cta: string;
+  messagingAngle: string;
+  guardrails: string[];
+  additionalGap: string;
+  additionalOutcome: string;
+  sortOrder: number;
+  isActive: boolean;
+}
+
 export interface AdminCreateGeographyInput {
   code: string;
   label: string;
@@ -1182,6 +1215,21 @@ export interface AdminUpdateEnginePolicyInput {
   nationalRadioBonus: number;
   nonNationalRadioPenalty: number;
   regionalRadioPenalty: number;
+}
+
+export interface AdminUpsertLeadIndustryPolicyInput {
+  key: string;
+  name: string;
+  objectiveOverride?: string;
+  preferredTone?: string;
+  preferredChannels: string[];
+  cta: string;
+  messagingAngle: string;
+  guardrails: string[];
+  additionalGap: string;
+  additionalOutcome: string;
+  sortOrder: number;
+  isActive: boolean;
 }
 
 export interface AdminPreviewRule {
@@ -1236,6 +1284,7 @@ export interface AdminDashboard {
   packageSettings: AdminPackageSetting[];
   pricingSettings: AdminPricingSettings;
   enginePolicies: AdminEnginePolicy[];
+  leadIndustryPolicies: AdminLeadIndustryPolicy[];
   previewRules: AdminPreviewRule[];
   monitoring: AdminMonitoring;
   users: AdminUser[];

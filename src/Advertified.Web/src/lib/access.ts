@@ -80,18 +80,18 @@ export function getPackagePurchaseRestriction(user: SessionUser | null): Package
 }
 
 export function canOpenBrief(campaign?: Campaign | null) {
-  return Boolean(
+  return Boolean(campaign?.workflow?.canOpenBrief ?? (
     campaign &&
-      isCampaignInSet(campaign.status, CAMPAIGN_STATUSES_WITH_BRIEF_ACCESS),
-  );
+      isCampaignInSet(campaign.status, CAMPAIGN_STATUSES_WITH_BRIEF_ACCESS)
+  ));
 }
 
 export function canOpenPlanning(campaign?: Campaign | null) {
-  return Boolean(
-      campaign &&
+  return Boolean(campaign?.workflow?.canOpenPlanning ?? (
+    campaign &&
       campaign.aiUnlocked &&
-      isCampaignInSet(campaign.status, CAMPAIGN_STATUSES_WITH_PLANNING_ACCESS),
-  );
+      isCampaignInSet(campaign.status, CAMPAIGN_STATUSES_WITH_PLANNING_ACCESS)
+  ));
 }
 
 export function isPaymentAwaitingManualReview(
@@ -103,6 +103,10 @@ export function isPaymentAwaitingManualReview(
 }
 
 export function hasCampaignClearedPayment(campaign?: Campaign | null) {
+  if (campaign?.workflow) {
+    return campaign.workflow.hasClearedPayment;
+  }
+
   return Boolean(
     campaign
       && (
@@ -115,6 +119,18 @@ export function hasCampaignClearedPayment(campaign?: Campaign | null) {
 export function getCampaignPaymentState(campaign?: Campaign | null): CampaignPaymentState {
   if (!campaign) {
     return 'payment_required';
+  }
+
+  if (campaign.workflow?.paymentState === 'manual_review') {
+    return 'manual_review';
+  }
+
+  if (campaign.workflow?.paymentState === 'payment_required') {
+    return 'payment_required';
+  }
+
+  if (campaign.workflow?.paymentState === 'cleared') {
+    return 'cleared';
   }
 
   if (hasCampaignClearedPayment(campaign)) {
@@ -133,8 +149,20 @@ export function campaignNeedsCheckout(campaign?: Campaign | null) {
 }
 
 export function getClientCampaignState(campaign: Campaign): ClientCampaignState {
+  if (campaign.workflow) {
+    return {
+      key: campaign.workflow.currentStateKey as ClientCampaignStateKey,
+      statusLabel: campaign.workflow.statusLabel,
+      headline: campaign.workflow.headline,
+      description: campaign.workflow.description,
+      nextStep: campaign.workflow.nextStep,
+      requiresClientAction: campaign.workflow.requiresClientAction,
+      actionLabel: campaign.workflow.actionLabel,
+    };
+  }
+
   const recommendation = getPrimaryRecommendation(campaign);
-  const recommendationApproved = hasRecommendationApprovalCompleted(campaign.status, recommendation);
+  const recommendationApproved = hasRecommendationApprovalCompleted(campaign.status, recommendation, campaign.workflow);
   const recommendationAwaitingDecision = recommendation?.status === 'sent_to_client';
   const paymentState = getCampaignPaymentState(campaign);
   const paymentReview = paymentState === 'manual_review';
@@ -270,9 +298,9 @@ export function getCampaignPrimaryAction(campaign: Campaign) {
   const primaryRecommendation = getPrimaryRecommendation(campaign);
   const hasRecommendation = Boolean(primaryRecommendation);
   const selectedRecommendationId = primaryRecommendation?.id;
-  const paymentRequiredBeforeApproval =
-    getCampaignPaymentState(campaign) === 'payment_required'
-    && (campaign.status === 'review_ready' || campaign.status === 'planning_in_progress');
+  const paymentRequiredBeforeApproval = campaign.workflow?.paymentRequiredBeforeApproval
+    ?? (getCampaignPaymentState(campaign) === 'payment_required'
+      && (campaign.status === 'review_ready' || campaign.status === 'planning_in_progress'));
 
   if (campaign.status === 'paid' || campaign.status === 'brief_in_progress') {
     return {

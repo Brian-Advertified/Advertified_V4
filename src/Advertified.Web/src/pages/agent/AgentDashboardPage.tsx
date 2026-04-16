@@ -37,7 +37,7 @@ export function AgentDashboardPage() {
           const recentItems = inbox.items.slice(0, 5);
           const todayList = [
             { label: 'New leads', value: inbox.newlyPaidCount, helper: 'Campaigns that need first contact.' },
-            { label: 'Needs review', value: inbox.agentReviewCount + inbox.readyToSendCount, helper: 'Recommendation work waiting on you.' },
+            { label: 'Needs review', value: inbox.agentReviewCount, helper: 'Recommendation work waiting on you.' },
             { label: 'Waiting on client', value: inbox.waitingOnClientCount, helper: 'Sent work with no final client response yet.' },
             { label: 'Budget issues', value: inbox.overBudgetCount, helper: 'Campaigns that need setup changes before progress.' },
           ];

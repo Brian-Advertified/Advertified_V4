@@ -149,6 +149,7 @@ builder.Services.AddScoped<IAdminMutationService>(_ => new AdminMutationService(
     _.GetRequiredService<IWebHostEnvironment>(),
     _.GetRequiredService<IBroadcastInventoryCatalog>(),
     _.GetRequiredService<IBroadcastMasterDataService>()));
+builder.Services.AddScoped<IAdminLeadIndustryPolicyService, AdminLeadIndustryPolicyService>();
 builder.Services.AddScoped<ICampaignAccessService, CampaignAccessService>();
 builder.Services.AddScoped<IAgentAreaRoutingService, AgentAreaRoutingService>();
 builder.Services.AddScoped<ICampaignBriefService, CampaignBriefService>();
@@ -170,58 +171,10 @@ builder.Services.AddSingleton<IBroadcastInventoryImportService>(_ =>
         _.GetRequiredService<Microsoft.Extensions.Options.IOptions<BroadcastInventoryOptions>>(),
         _.GetRequiredService<IWebHostEnvironment>(),
         _.GetRequiredService<IBroadcastInventoryCatalog>()));
-builder.Services.AddHttpClient<ICampaignBriefInterpretationService, CampaignBriefInterpretationService>((serviceProvider, client) =>
-{
-    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<OpenAIOptions>>().Value;
-    if (!string.IsNullOrWhiteSpace(options.BaseUrl))
-    {
-        client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
-    }
-
-    if (options.TimeoutSeconds > 0)
-    {
-        client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
-    }
-}).AddHttpMessageHandler<TransientHttpRetryHandler>();
-builder.Services.AddHttpClient<ICampaignReasoningService, OpenAICampaignReasoningService>((serviceProvider, client) =>
-{
-    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<OpenAIOptions>>().Value;
-    if (!string.IsNullOrWhiteSpace(options.BaseUrl))
-    {
-        client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
-    }
-
-    if (options.TimeoutSeconds > 0)
-    {
-        client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
-    }
-}).AddHttpMessageHandler<TransientHttpRetryHandler>();
-builder.Services.AddHttpClient(nameof(OpenAiProviderStrategy), (serviceProvider, client) =>
-{
-    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<OpenAIOptions>>().Value;
-    if (!string.IsNullOrWhiteSpace(options.BaseUrl))
-    {
-        client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
-    }
-
-    if (options.TimeoutSeconds > 0)
-    {
-        client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
-    }
-}).AddHttpMessageHandler<TransientHttpRetryHandler>();
-builder.Services.AddHttpClient(nameof(ElevenLabsProviderStrategy), (serviceProvider, client) =>
-{
-    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ElevenLabsOptions>>().Value;
-    if (!string.IsNullOrWhiteSpace(options.BaseUrl))
-    {
-        client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
-    }
-
-    if (options.TimeoutSeconds > 0)
-    {
-        client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
-    }
-}).AddHttpMessageHandler<TransientHttpRetryHandler>();
+builder.Services.AddConfiguredOpenAiClient<ICampaignBriefInterpretationService, CampaignBriefInterpretationService>();
+builder.Services.AddConfiguredOpenAiClient<ICampaignReasoningService, OpenAICampaignReasoningService>();
+builder.Services.AddConfiguredOpenAiClient(nameof(OpenAiProviderStrategy));
+builder.Services.AddConfiguredElevenLabsClient(nameof(ElevenLabsProviderStrategy));
 builder.Services.AddScoped<IEmailVerificationService, EmailVerificationService>();
 builder.Services.AddScoped<IInvoiceService, InvoiceService>();
 builder.Services.AddScoped<IAdPlatformAccessTokenService, AdPlatformAccessTokenService>();
@@ -261,19 +214,7 @@ builder.Services.AddScoped<ILeadSignalEvidenceProvider>(serviceProvider =>
     serviceProvider.GetRequiredService<GoogleAdsEvidenceProvider>());
 builder.Services.AddScoped<ILeadPaidMediaEvidenceSyncService, LeadPaidMediaEvidenceSyncService>();
 builder.Services.AddScoped<ITrendAnalysisService, TrendAnalysisService>();
-builder.Services.AddHttpClient<IInsightService, InsightService>((serviceProvider, client) =>
-{
-    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<OpenAIOptions>>().Value;
-    if (!string.IsNullOrWhiteSpace(options.BaseUrl))
-    {
-        client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
-    }
-
-    if (options.TimeoutSeconds > 0)
-    {
-        client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
-    }
-}).AddHttpMessageHandler<TransientHttpRetryHandler>();
+builder.Services.AddConfiguredOpenAiClient<IInsightService, InsightService>();
 builder.Services.AddHttpClient<IWebsiteSignalProvider, WebsiteSignalProvider>(client =>
 {
     client.Timeout = TimeSpan.FromSeconds(15);
@@ -293,6 +234,9 @@ builder.Services.AddScoped<IPlanningPolicyService, PlanningPolicyService>();
 builder.Services.AddScoped<PlanningPolicySnapshotProvider>(_ => new PlanningPolicySnapshotProvider(
     _.GetRequiredService<Npgsql.NpgsqlDataSource>(),
     _.GetRequiredService<Microsoft.Extensions.Options.IOptions<PlanningPolicyOptions>>().Value));
+builder.Services.AddScoped<LeadIndustryPolicySnapshotProvider>(_ => new LeadIndustryPolicySnapshotProvider(
+    _.GetRequiredService<Npgsql.NpgsqlDataSource>(),
+    _.GetRequiredService<Microsoft.Extensions.Options.IOptions<LeadIndustryPolicyOptions>>().Value));
 builder.Services.AddScoped<IPlanningEligibilityService, PlanningEligibilityService>();
 builder.Services.AddScoped<IPlanningScoreService, PlanningScoreService>();
 builder.Services.AddScoped<IRecommendationPlanBuilder, RecommendationPlanBuilder>();

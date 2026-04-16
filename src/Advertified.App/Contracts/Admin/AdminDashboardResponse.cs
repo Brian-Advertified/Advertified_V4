@@ -12,6 +12,7 @@ public sealed class AdminDashboardResponse
     public IReadOnlyList<AdminPackageSettingResponse> PackageSettings { get; set; } = Array.Empty<AdminPackageSettingResponse>();
     public AdminPricingSettingsResponse PricingSettings { get; set; } = new();
     public IReadOnlyList<AdminEnginePolicyResponse> EnginePolicies { get; set; } = Array.Empty<AdminEnginePolicyResponse>();
+    public IReadOnlyList<AdminLeadIndustryPolicyResponse> LeadIndustryPolicies { get; set; } = Array.Empty<AdminLeadIndustryPolicyResponse>();
     public IReadOnlyList<AdminPreviewRuleResponse> PreviewRules { get; set; } = Array.Empty<AdminPreviewRuleResponse>();
     public AdminMonitoringResponse Monitoring { get; set; } = new();
     public IReadOnlyList<AdminUserResponse> Users { get; set; } = Array.Empty<AdminUserResponse>();
@@ -129,6 +130,22 @@ public sealed class AdminEnginePolicyResponse
     public int NationalRadioBonus { get; set; }
     public int NonNationalRadioPenalty { get; set; }
     public int RegionalRadioPenalty { get; set; }
+}
+
+public sealed class AdminLeadIndustryPolicyResponse
+{
+    public string Key { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string? ObjectiveOverride { get; set; }
+    public string? PreferredTone { get; set; }
+    public IReadOnlyList<string> PreferredChannels { get; set; } = Array.Empty<string>();
+    public string Cta { get; set; } = string.Empty;
+    public string MessagingAngle { get; set; } = string.Empty;
+    public IReadOnlyList<string> Guardrails { get; set; } = Array.Empty<string>();
+    public string AdditionalGap { get; set; } = string.Empty;
+    public string AdditionalOutcome { get; set; } = string.Empty;
+    public int SortOrder { get; set; }
+    public bool IsActive { get; set; }
 }
 
 public sealed class AdminPreviewRuleResponse

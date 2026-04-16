@@ -70,7 +70,7 @@ export function CampaignDetailPage() {
   const requestedAction = searchParams.get('action')?.trim() ?? '';
   const showRejectAllFlow = requestedAction === 'reject_all';
   const primaryRecommendation = campaignQuery.data ? getPrimaryRecommendation(campaignQuery.data) : undefined;
-  const recommendationApprovalComplete = hasRecommendationApprovalCompleted(campaignQuery.data?.status, primaryRecommendation);
+  const recommendationApprovalComplete = hasRecommendationApprovalCompleted(campaignQuery.data?.status, primaryRecommendation, campaignQuery.data?.workflow);
   const approvedRecommendationId = primaryRecommendation?.status === 'approved' ? primaryRecommendation.id : '';
   const resolvedRecommendationId = resolveRecommendationId(recommendations, {
     currentSelectionId: selectedRecommendationId,
@@ -126,7 +126,7 @@ export function CampaignDetailPage() {
   });
 
   const rejectAllMutation = useMutation({
-    mutationFn: (notes: string) => advertifiedApi.requestRecommendationChanges(id, notes),
+    mutationFn: (notes: string) => advertifiedApi.rejectAllRecommendations(id, notes),
     onSuccess: async () => {
       setChangeNotes('');
       await invalidateClientCampaignQueries(queryClient, id, user?.id);
@@ -684,7 +684,7 @@ export function CampaignDetailPage() {
                 <div className="rounded-[18px] border border-amber-200 bg-amber-50 p-5">
                   <div className="mb-2 text-sm font-semibold text-amber-900">Payment required first</div>
                   <p className="text-sm leading-7 text-amber-800">
-                    Continue to payment and we will automatically accept the currently selected proposal after payment succeeds.
+                    Continue to payment for the selected proposal, then return here to review and approve it explicitly.
                   </p>
                   <div className="mt-3">
                     <button
@@ -693,7 +693,7 @@ export function CampaignDetailPage() {
                       disabled={prepareCheckoutMutation.isPending}
                       className="user-btn-primary disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {prepareCheckoutMutation.isPending ? 'Preparing payment...' : 'Pay and accept selected proposal'}
+                      {prepareCheckoutMutation.isPending ? 'Preparing payment...' : 'Pay for selected proposal'}
                     </button>
                   </div>
                 </div>

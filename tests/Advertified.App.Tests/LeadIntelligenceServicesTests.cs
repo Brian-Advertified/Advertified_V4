@@ -1293,6 +1293,29 @@ sealed class StubRecommendationAuditCampaignReasoningService : ICampaignReasonin
     }
 }
 
+sealed class StubPlanningGeocodingService : IGeocodingService
+{
+    public GeocodingResolution ResolveLocation(string? rawLocation)
+    {
+        return new GeocodingResolution
+        {
+            IsResolved = false,
+            CanonicalLocation = rawLocation ?? string.Empty,
+            Source = "test"
+        };
+    }
+
+    public GeocodingResolution ResolveCampaignTarget(CampaignPlanningRequest request)
+    {
+        return new GeocodingResolution
+        {
+            IsResolved = false,
+            CanonicalLocation = string.Empty,
+            Source = "test"
+        };
+    }
+}
+
 sealed class StubBroadcastMasterDataService : IBroadcastMasterDataService
 {
     public Task<AdminOutletMasterDataResponse> GetOutletMasterDataAsync(CancellationToken cancellationToken)

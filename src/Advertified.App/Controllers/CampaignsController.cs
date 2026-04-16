@@ -160,32 +160,9 @@ public sealed class CampaignsController : ControllerBase
             });
         }
 
-        var canOpenBrief = CampaignOperationsPolicy.IsOrderOperationallyActive(campaign.PackageOrder)
-            && (campaign.Status is CampaignStatuses.Paid
-                or CampaignStatuses.BriefInProgress
-                or CampaignStatuses.BriefSubmitted
-                or CampaignStatuses.PlanningInProgress
-                or CampaignStatuses.ReviewReady
-                or CampaignStatuses.Approved
-                or CampaignStatuses.CreativeSentToClientForApproval
-                or CampaignStatuses.CreativeChangesRequested
-                or CampaignStatuses.CreativeApproved
-                or CampaignStatuses.BookingInProgress
-                or CampaignStatuses.Launched);
+        var workflow = CampaignWorkflowPolicy.BuildClientWorkflow(campaign);
 
-        var canOpenPlanning = CampaignOperationsPolicy.IsOrderOperationallyActive(campaign.PackageOrder)
-            && campaign.AiUnlocked
-            && (campaign.Status is CampaignStatuses.BriefSubmitted
-                or CampaignStatuses.PlanningInProgress
-                or CampaignStatuses.ReviewReady
-                or CampaignStatuses.Approved
-                or CampaignStatuses.CreativeSentToClientForApproval
-                or CampaignStatuses.CreativeChangesRequested
-                or CampaignStatuses.CreativeApproved
-                or CampaignStatuses.BookingInProgress
-                or CampaignStatuses.Launched);
-
-        return Ok(new CampaignAccessResponse(canOpenBrief, canOpenPlanning));
+        return Ok(new CampaignAccessResponse(workflow.CanOpenBrief, workflow.CanOpenPlanning));
     }
 
     [HttpGet("{id:guid}/recommendation-pdf")]
@@ -331,6 +308,29 @@ public sealed class CampaignsController : ControllerBase
         }
 
         var result = await _recommendationApprovalWorkflowService.RequestChangesAsync(id, request.Notes, cancellationToken);
+
+        return Accepted(new
+        {
+            result.CampaignId,
+            result.RecommendationId,
+            result.Status,
+            result.Message
+        });
+    }
+
+    [HttpPost("{id:guid}/reject-all-recommendations")]
+    public async Task<IActionResult> RejectAllRecommendations(Guid id, [FromBody] RequestRecommendationChangesRequest request, CancellationToken cancellationToken)
+    {
+        var userId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
+        var campaignExists = await _db.Campaigns
+            .AsNoTracking()
+            .AnyAsync(x => x.Id == id && x.UserId == userId, cancellationToken);
+        if (!campaignExists)
+        {
+            throw new NotFoundException("Campaign not found.");
+        }
+
+        var result = await _recommendationApprovalWorkflowService.RejectAllAsync(id, request.Notes, cancellationToken);
 
         return Accepted(new
         {

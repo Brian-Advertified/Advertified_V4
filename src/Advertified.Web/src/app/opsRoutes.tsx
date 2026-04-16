@@ -24,6 +24,7 @@ import { AdminPackageOrdersPage } from '../pages/admin/AdminPackageOrdersPage';
 import { AdminAuditPage } from '../pages/admin/AdminAuditPage';
 import { AdminEnginePage } from '../pages/admin/AdminEnginePage';
 import { AdminGeographyPage } from '../pages/admin/AdminGeographyPage';
+import { AdminIndustryPoliciesPage } from '../pages/admin/AdminIndustryPoliciesPage';
 import { AdminHealthPage, AdminImportsPage } from '../pages/admin/AdminSectionPages';
 import { AdminIntegrationsPage } from '../pages/admin/AdminIntegrationsPage';
 import { AdminMonitoringPage } from '../pages/admin/AdminMonitoringPage';
@@ -50,6 +51,7 @@ export const opsRoutes: AppRoute[] = [
   { path: '/admin/health', element: <ProtectedRoute requireAdmin><AdminHealthPage /></ProtectedRoute> },
   { path: '/admin/geography', element: <ProtectedRoute requireAdmin><AdminGeographyPage /></ProtectedRoute> },
   { path: '/admin/engine', element: <ProtectedRoute requireAdmin><AdminEnginePage /></ProtectedRoute> },
+  { path: '/admin/industry-policies', element: <ProtectedRoute requireAdmin><AdminIndustryPoliciesPage /></ProtectedRoute> },
   { path: '/admin/preview-rules', element: <ProtectedRoute requireAdmin><AdminPreviewRulesPage /></ProtectedRoute> },
   { path: '/admin/ai-voices', element: <ProtectedRoute requireAdmin><AdminAiVoicesPage /></ProtectedRoute> },
   { path: '/admin/ai-voice-packs', element: <ProtectedRoute requireAdmin><AdminAiVoicePacksPage /></ProtectedRoute> },

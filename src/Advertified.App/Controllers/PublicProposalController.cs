@@ -119,6 +119,21 @@ public sealed class PublicProposalController : ControllerBase
         });
     }
 
+    [HttpPost("{id:guid}/reject-all")]
+    public async Task<IActionResult> RejectAll(Guid id, [FromBody] PublicProposalActionRequest request, CancellationToken cancellationToken)
+    {
+        await EnsureValidTokenAsync(id, request.Token, cancellationToken);
+        var result = await _recommendationApprovalWorkflowService.RejectAllAsync(id, request.Notes, cancellationToken);
+
+        return Accepted(new
+        {
+            result.CampaignId,
+            result.RecommendationId,
+            result.Status,
+            result.Message
+        });
+    }
+
     [HttpPost("{id:guid}/prepare-checkout")]
     public async Task<IActionResult> PrepareCheckout(Guid id, [FromBody] PublicProposalActionRequest request, CancellationToken cancellationToken)
     {

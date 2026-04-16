@@ -66,7 +66,7 @@ export function ProposalEntryPage() {
   const paymentRequiredBeforeApproval = Boolean(
     publicProposalQuery.data?.paymentStatus !== 'paid' && !paymentAwaitingReview,
   );
-  const approvalAlreadyCompleted = hasRecommendationApprovalCompleted(publicProposalQuery.data?.status, recommendation);
+  const approvalAlreadyCompleted = hasRecommendationApprovalCompleted(publicProposalQuery.data?.status, recommendation, publicProposalQuery.data?.workflow);
   const currentProposalPath = `${location.pathname}${location.search}`;
   const checkoutPath = publicProposalQuery.data && recommendation
     ? `/checkout/payment?orderId=${encodeURIComponent(publicProposalQuery.data.packageOrderId)}&campaignId=${encodeURIComponent(publicProposalQuery.data.id)}&recommendationId=${encodeURIComponent(recommendation.id)}&proposalPath=${encodeURIComponent(currentProposalPath)}`
@@ -121,7 +121,7 @@ export function ProposalEntryPage() {
   });
 
   const rejectAllMutation = useMutation({
-    mutationFn: (notes: string) => advertifiedApi.requestPublicProposalChanges(id, token, notes),
+    mutationFn: (notes: string) => advertifiedApi.rejectAllPublicProposals(id, token, notes),
     onSuccess: async () => {
       setChangeNotes('');
       await publicProposalQuery.refetch();
@@ -349,7 +349,7 @@ export function ProposalEntryPage() {
                     : paymentRequiredBeforeApproval
                     ? (prepareCheckoutMutation.isPending
                       ? 'Preparing payment...'
-                      : (isAuthenticated ? 'Pay and approve selected' : 'Create account and pay to approve'))
+                      : (isAuthenticated ? 'Pay for selected proposal' : 'Create account and pay'))
                     : (approveMutation.isPending ? 'Accepting...' : 'Approve selected')}
                 </button>
                 <button

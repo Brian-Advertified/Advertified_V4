@@ -88,6 +88,7 @@ internal static class ControllerMappings
             IsAssignedToCurrentUser = currentUserId.HasValue && campaign.AssignedAgentUserId == currentUserId.Value,
             IsUnassigned = campaign.AssignedAgentUserId is null,
             NextAction = CampaignWorkflowPolicy.GetClientNextAction(campaign),
+            Workflow = CampaignWorkflowPolicy.BuildClientWorkflow(campaign),
             CreatedAt = new DateTimeOffset(campaign.CreatedAt, TimeSpan.Zero),
             Timeline = CampaignWorkflowPolicy.BuildTimeline(campaign),
             Brief = campaign.CampaignBrief == null ? null : ToRequest(campaign.CampaignBrief),

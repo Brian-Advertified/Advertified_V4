@@ -6,6 +6,10 @@ namespace Advertified.App.Support;
 
 public static class CampaignWorkflowPolicy
 {
+    private const string PaymentStateCleared = "cleared";
+    private const string PaymentStateManualReview = "manual_review";
+    private const string PaymentStateRequired = "payment_required";
+
     public static string GetClientNextAction(Campaign campaign)
     {
         return campaign.Status switch
@@ -23,6 +27,236 @@ public static class CampaignWorkflowPolicy
             CampaignStatuses.Launched => "Campaign is now live",
             _ => "Continue campaign setup"
         };
+    }
+
+    public static CampaignWorkflowSummaryResponse BuildClientWorkflow(Campaign campaign)
+    {
+        var recommendation = GetAgentCurrentRecommendation(campaign);
+        var recommendationAwaitingDecision = string.Equals(recommendation?.Status, RecommendationStatuses.SentToClient, StringComparison.OrdinalIgnoreCase);
+        var recommendationApprovalCompleted = HasRecommendationApprovalCompleted(campaign, recommendation);
+        var paymentAwaitingManualReview = IsPaymentAwaitingManualReview(campaign);
+        var hasClearedPayment = HasClearedPayment(campaign);
+        var paymentRequiredBeforeApproval = !paymentAwaitingManualReview && !hasClearedPayment && !recommendationApprovalCompleted;
+
+        if (paymentAwaitingManualReview)
+        {
+            return BuildClientWorkflow(
+                currentStateKey: "payment_under_review",
+                statusLabel: "Pay Later under review",
+                headline: "Your Pay Later application is under review",
+                description: "Your Finance Partner application has already been submitted. You do not need to pay again or approve anything while this review is pending.",
+                nextStep: "We will update this workspace once the review outcome is confirmed.",
+                requiresClientAction: false,
+                actionLabel: "View status",
+                paymentState: PaymentStateManualReview,
+                paymentAwaitingManualReview: true,
+                paymentRequiredBeforeApproval: false,
+                hasClearedPayment: false,
+                recommendationAwaitingDecision: recommendationAwaitingDecision,
+                recommendationApprovalCompleted: recommendationApprovalCompleted,
+                canOpenBrief: CanOpenBrief(campaign),
+                canOpenPlanning: CanOpenPlanning(campaign));
+        }
+
+        if (paymentRequiredBeforeApproval)
+        {
+            return BuildClientWorkflow(
+                currentStateKey: "payment_required",
+                statusLabel: "Payment required",
+                headline: "Payment is still required",
+                description: recommendationAwaitingDecision
+                    ? "Your recommendation is ready, but payment still needs to be completed before approval can continue."
+                    : "Complete payment to unlock the next step for this campaign.",
+                nextStep: "Finish payment to continue into recommendation review.",
+                requiresClientAction: true,
+                actionLabel: "Complete payment",
+                paymentState: PaymentStateRequired,
+                paymentAwaitingManualReview: false,
+                paymentRequiredBeforeApproval: true,
+                hasClearedPayment: false,
+                recommendationAwaitingDecision: recommendationAwaitingDecision,
+                recommendationApprovalCompleted: recommendationApprovalCompleted,
+                canOpenBrief: CanOpenBrief(campaign),
+                canOpenPlanning: CanOpenPlanning(campaign));
+        }
+
+        if (campaign.Status is CampaignStatuses.Paid or CampaignStatuses.BriefInProgress)
+        {
+            return BuildClientWorkflow(
+                currentStateKey: "brief_in_progress",
+                statusLabel: "Brief in progress",
+                headline: "Your campaign brief is the next step",
+                description: "Your package is paid and the campaign is ready for detail capture or review.",
+                nextStep: "Open the campaign workspace to continue the brief.",
+                requiresClientAction: true,
+                actionLabel: "Open campaign workspace",
+                paymentState: PaymentStateCleared,
+                paymentAwaitingManualReview: false,
+                paymentRequiredBeforeApproval: false,
+                hasClearedPayment: true,
+                recommendationAwaitingDecision: recommendationAwaitingDecision,
+                recommendationApprovalCompleted: recommendationApprovalCompleted,
+                canOpenBrief: CanOpenBrief(campaign),
+                canOpenPlanning: CanOpenPlanning(campaign));
+        }
+
+        if (campaign.Status == CampaignStatuses.BriefSubmitted
+            || (campaign.Status == CampaignStatuses.PlanningInProgress && !recommendationAwaitingDecision))
+        {
+            return BuildClientWorkflow(
+                currentStateKey: "planning_in_progress",
+                statusLabel: "Planning in progress",
+                headline: "We are preparing your recommendation",
+                description: "Advertified is reviewing your brief and shaping the best route forward.",
+                nextStep: "We will bring the recommendation here once it is ready.",
+                requiresClientAction: false,
+                actionLabel: "View campaign status",
+                paymentState: PaymentStateCleared,
+                paymentAwaitingManualReview: false,
+                paymentRequiredBeforeApproval: false,
+                hasClearedPayment: true,
+                recommendationAwaitingDecision: recommendationAwaitingDecision,
+                recommendationApprovalCompleted: recommendationApprovalCompleted,
+                canOpenBrief: CanOpenBrief(campaign),
+                canOpenPlanning: CanOpenPlanning(campaign));
+        }
+
+        if ((campaign.Status == CampaignStatuses.ReviewReady || recommendationAwaitingDecision) && !recommendationApprovalCompleted)
+        {
+            return BuildClientWorkflow(
+                currentStateKey: "recommendation_ready",
+                statusLabel: "Needs approval",
+                headline: "Your recommendation is ready to review",
+                description: "Review the recommended media plan and approve it so Advertified can continue.",
+                nextStep: "Approve the recommendation or send it back with notes.",
+                requiresClientAction: true,
+                actionLabel: "Review recommendation",
+                paymentState: PaymentStateCleared,
+                paymentAwaitingManualReview: false,
+                paymentRequiredBeforeApproval: false,
+                hasClearedPayment: true,
+                recommendationAwaitingDecision: recommendationAwaitingDecision,
+                recommendationApprovalCompleted: false,
+                canOpenBrief: CanOpenBrief(campaign),
+                canOpenPlanning: CanOpenPlanning(campaign));
+        }
+
+        if (campaign.Status == CampaignStatuses.CreativeSentToClientForApproval)
+        {
+            return BuildClientWorkflow(
+                currentStateKey: "creative_review",
+                statusLabel: "Content approval needed",
+                headline: "Approve your campaign content",
+                description: "Your campaign content is ready. Approve it so booking can begin, or send it back with revision notes.",
+                nextStep: "Approve the content or request changes.",
+                requiresClientAction: true,
+                actionLabel: "Approve content",
+                paymentState: PaymentStateCleared,
+                paymentAwaitingManualReview: false,
+                paymentRequiredBeforeApproval: false,
+                hasClearedPayment: true,
+                recommendationAwaitingDecision: false,
+                recommendationApprovalCompleted: true,
+                canOpenBrief: CanOpenBrief(campaign),
+                canOpenPlanning: CanOpenPlanning(campaign));
+        }
+
+        if (campaign.Status == CampaignStatuses.CreativeChangesRequested)
+        {
+            return BuildClientWorkflow(
+                currentStateKey: "creative_revision",
+                statusLabel: "Revision in progress",
+                headline: "Creative revisions are in progress",
+                description: "Your feedback has been sent back to the team and the revised creative handoff is being prepared.",
+                nextStep: "We will return the next approval here once the revision is ready.",
+                requiresClientAction: false,
+                actionLabel: "View campaign status",
+                paymentState: PaymentStateCleared,
+                paymentAwaitingManualReview: false,
+                paymentRequiredBeforeApproval: false,
+                hasClearedPayment: true,
+                recommendationAwaitingDecision: false,
+                recommendationApprovalCompleted: true,
+                canOpenBrief: CanOpenBrief(campaign),
+                canOpenPlanning: CanOpenPlanning(campaign));
+        }
+
+        if (campaign.Status == CampaignStatuses.CreativeApproved)
+        {
+            return BuildClientWorkflow(
+                currentStateKey: "creative_approved",
+                statusLabel: "Approved for booking",
+                headline: "Creative approval is complete",
+                description: "Your final content is approved and our team is moving into booking and launch preparation.",
+                nextStep: "There is nothing you need to do right now.",
+                requiresClientAction: false,
+                actionLabel: "View campaign progress",
+                paymentState: PaymentStateCleared,
+                paymentAwaitingManualReview: false,
+                paymentRequiredBeforeApproval: false,
+                hasClearedPayment: true,
+                recommendationAwaitingDecision: false,
+                recommendationApprovalCompleted: true,
+                canOpenBrief: CanOpenBrief(campaign),
+                canOpenPlanning: CanOpenPlanning(campaign));
+        }
+
+        if (campaign.Status == CampaignStatuses.BookingInProgress)
+        {
+            return BuildClientWorkflow(
+                currentStateKey: "booking_in_progress",
+                statusLabel: "Booking in progress",
+                headline: "We are booking your campaign now",
+                description: "Placements, live dates, and supplier readiness are being confirmed before launch.",
+                nextStep: "There is nothing you need to do right now.",
+                requiresClientAction: false,
+                actionLabel: "View campaign progress",
+                paymentState: PaymentStateCleared,
+                paymentAwaitingManualReview: false,
+                paymentRequiredBeforeApproval: false,
+                hasClearedPayment: true,
+                recommendationAwaitingDecision: false,
+                recommendationApprovalCompleted: true,
+                canOpenBrief: CanOpenBrief(campaign),
+                canOpenPlanning: CanOpenPlanning(campaign));
+        }
+
+        if (campaign.Status == CampaignStatuses.Launched)
+        {
+            return BuildClientWorkflow(
+                currentStateKey: "live",
+                statusLabel: "Campaign live",
+                headline: "Your campaign is now live",
+                description: "Operations has activated the campaign and it is now running.",
+                nextStep: "Use this workspace for updates, reports, and support.",
+                requiresClientAction: false,
+                actionLabel: "Review live status",
+                paymentState: PaymentStateCleared,
+                paymentAwaitingManualReview: false,
+                paymentRequiredBeforeApproval: false,
+                hasClearedPayment: true,
+                recommendationAwaitingDecision: false,
+                recommendationApprovalCompleted: true,
+                canOpenBrief: CanOpenBrief(campaign),
+                canOpenPlanning: CanOpenPlanning(campaign));
+        }
+
+        return BuildClientWorkflow(
+            currentStateKey: "recommendation_approved",
+            statusLabel: "All set for now",
+            headline: "Your campaign is moving forward",
+            description: "Your recommendation has been approved and Advertified is handling the next production step.",
+            nextStep: GetClientNextAction(campaign),
+            requiresClientAction: false,
+            actionLabel: "View campaign progress",
+            paymentState: PaymentStateCleared,
+            paymentAwaitingManualReview: false,
+            paymentRequiredBeforeApproval: false,
+            hasClearedPayment: true,
+            recommendationAwaitingDecision: false,
+            recommendationApprovalCompleted: true,
+            canOpenBrief: CanOpenBrief(campaign),
+            canOpenPlanning: CanOpenPlanning(campaign));
     }
 
     public static IReadOnlyList<CampaignTimelineStepResponse> BuildTimeline(Campaign campaign)
@@ -134,7 +368,6 @@ public static class CampaignWorkflowPolicy
             QueueStages.BriefWaiting => "Brief in progress",
             QueueStages.PlanningReady => "Needs planning",
             QueueStages.AgentReview => "Needs agent review",
-            QueueStages.ReadyToSend => "Ready to send",
             QueueStages.WaitingOnClient => "Waiting on client",
             QueueStages.Completed => "Completed",
             _ => "Watching"
@@ -189,7 +422,6 @@ public static class CampaignWorkflowPolicy
             QueueStages.BriefWaiting => $"{assignmentPrefix} monitor the brief and step in if the client needs help.",
             QueueStages.PlanningReady => $"{assignmentPrefix} open the campaign and create the recommendation.",
             QueueStages.AgentReview => $"{assignmentPrefix} review the AI draft, adjust the plan, and approve it before sending.",
-            QueueStages.ReadyToSend => $"{assignmentPrefix} review the recommendation and send it to the client.",
             QueueStages.WaitingOnClient => $"{assignmentPrefix} wait for client approval or update requests.",
             QueueStages.Completed => $"{assignmentPrefix} archive this work or support activation if needed.",
             _ => $"{assignmentPrefix} monitor campaign progress for {campaign.PackageBand.Name}."
@@ -216,12 +448,70 @@ public static class CampaignWorkflowPolicy
             QueueStages.NewlyPaid => 0,
             QueueStages.PlanningReady => 1,
             QueueStages.AgentReview => 2,
-            QueueStages.ReadyToSend => 3,
-            QueueStages.BriefWaiting => 4,
-            QueueStages.WaitingOnClient => 5,
-            QueueStages.Completed => 6,
-            _ => 7
+            QueueStages.BriefWaiting => 3,
+            QueueStages.WaitingOnClient => 4,
+            QueueStages.Completed => 5,
+            _ => 6
         };
+    }
+
+    public static bool CanOpenBrief(Campaign campaign)
+    {
+        return CampaignOperationsPolicy.IsOrderOperationallyActive(campaign.PackageOrder)
+            && (campaign.Status is CampaignStatuses.Paid
+                or CampaignStatuses.BriefInProgress
+                or CampaignStatuses.BriefSubmitted
+                or CampaignStatuses.PlanningInProgress
+                or CampaignStatuses.ReviewReady
+                or CampaignStatuses.Approved
+                or CampaignStatuses.CreativeSentToClientForApproval
+                or CampaignStatuses.CreativeChangesRequested
+                or CampaignStatuses.CreativeApproved
+                or CampaignStatuses.BookingInProgress
+                or CampaignStatuses.Launched);
+    }
+
+    public static bool CanOpenPlanning(Campaign campaign)
+    {
+        return CampaignOperationsPolicy.IsOrderOperationallyActive(campaign.PackageOrder)
+            && campaign.AiUnlocked
+            && (campaign.Status is CampaignStatuses.BriefSubmitted
+                or CampaignStatuses.PlanningInProgress
+                or CampaignStatuses.ReviewReady
+                or CampaignStatuses.Approved
+                or CampaignStatuses.CreativeSentToClientForApproval
+                or CampaignStatuses.CreativeChangesRequested
+                or CampaignStatuses.CreativeApproved
+                or CampaignStatuses.BookingInProgress
+                or CampaignStatuses.Launched);
+    }
+
+    public static bool HasClearedPayment(Campaign campaign)
+    {
+        return string.Equals(campaign.PackageOrder?.PaymentStatus, "paid", StringComparison.OrdinalIgnoreCase)
+            || campaign.Status is CampaignStatuses.Approved
+                or CampaignStatuses.CreativeSentToClientForApproval
+                or CampaignStatuses.CreativeChangesRequested
+                or CampaignStatuses.CreativeApproved
+                or CampaignStatuses.BookingInProgress
+                or CampaignStatuses.Launched;
+    }
+
+    public static bool HasRecommendationApprovalCompleted(Campaign campaign, CampaignRecommendation? recommendation)
+    {
+        return string.Equals(recommendation?.Status, RecommendationStatuses.Approved, StringComparison.OrdinalIgnoreCase)
+            || campaign.Status is CampaignStatuses.Approved
+                or CampaignStatuses.CreativeSentToClientForApproval
+                or CampaignStatuses.CreativeChangesRequested
+                or CampaignStatuses.CreativeApproved
+                or CampaignStatuses.BookingInProgress
+                or CampaignStatuses.Launched;
+    }
+
+    public static bool IsPaymentAwaitingManualReview(Campaign campaign)
+    {
+        return string.Equals(campaign.PackageOrder?.PaymentProvider, "lula", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(campaign.PackageOrder?.PaymentStatus, "pending", StringComparison.OrdinalIgnoreCase);
     }
 
     private static CampaignTimelineStepResponse BuildTimelineStep(
@@ -269,5 +559,42 @@ public static class CampaignWorkflowPolicy
             ?? currentSet
                 .OrderByDescending(x => x.CreatedAt)
                 .FirstOrDefault();
+    }
+
+    private static CampaignWorkflowSummaryResponse BuildClientWorkflow(
+        string currentStateKey,
+        string statusLabel,
+        string headline,
+        string description,
+        string nextStep,
+        bool requiresClientAction,
+        string actionLabel,
+        string paymentState,
+        bool paymentAwaitingManualReview,
+        bool paymentRequiredBeforeApproval,
+        bool hasClearedPayment,
+        bool recommendationAwaitingDecision,
+        bool recommendationApprovalCompleted,
+        bool canOpenBrief,
+        bool canOpenPlanning)
+    {
+        return new CampaignWorkflowSummaryResponse
+        {
+            CurrentStateKey = currentStateKey,
+            StatusLabel = statusLabel,
+            Headline = headline,
+            Description = description,
+            NextStep = nextStep,
+            RequiresClientAction = requiresClientAction,
+            ActionLabel = actionLabel,
+            PaymentState = paymentState,
+            PaymentAwaitingManualReview = paymentAwaitingManualReview,
+            PaymentRequiredBeforeApproval = paymentRequiredBeforeApproval,
+            HasClearedPayment = hasClearedPayment,
+            RecommendationAwaitingDecision = recommendationAwaitingDecision,
+            RecommendationApprovalCompleted = recommendationApprovalCompleted,
+            CanOpenBrief = canOpenBrief,
+            CanOpenPlanning = canOpenPlanning
+        };
     }
 }

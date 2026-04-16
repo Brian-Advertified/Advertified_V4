@@ -92,6 +92,31 @@ public sealed class RecommendationApprovalWorkflowService : IRecommendationAppro
 
     public async Task<RecommendationWorkflowResult> RequestChangesAsync(Guid campaignId, string? notes, CancellationToken cancellationToken)
     {
+        return await ReturnForChangesAsync(
+            campaignId,
+            notes,
+            defaultSummary: "Client asked for recommendation changes.",
+            defaultResultMessage: "Recommendation returned for changes.",
+            cancellationToken);
+    }
+
+    public async Task<RecommendationWorkflowResult> RejectAllAsync(Guid campaignId, string? notes, CancellationToken cancellationToken)
+    {
+        return await ReturnForChangesAsync(
+            campaignId,
+            notes,
+            defaultSummary: "Client rejected the current proposal set and asked for a fresh recommendation set.",
+            defaultResultMessage: "All recommendations rejected and returned for replanning.",
+            cancellationToken);
+    }
+
+    private async Task<RecommendationWorkflowResult> ReturnForChangesAsync(
+        Guid campaignId,
+        string? notes,
+        string defaultSummary,
+        string defaultResultMessage,
+        CancellationToken cancellationToken)
+    {
         var campaign = await _db.Campaigns
             .Include(x => x.CampaignRecommendations)
                 .ThenInclude(x => x.RecommendationItems)
@@ -118,7 +143,7 @@ public sealed class RecommendationApprovalWorkflowService : IRecommendationAppro
         campaign.Status = CampaignStatuses.PlanningInProgress;
         campaign.RecommendationReadyEmailSentAt = null;
         campaign.UpdatedAt = now;
-        var responseSummary = BuildClientResponseSummary(notes);
+        var responseSummary = BuildClientResponseSummary(notes, defaultSummary);
         AddClientResponseMessage(campaign, responseSummary, now);
 
         await _db.SaveChangesAsync(cancellationToken);
@@ -129,7 +154,7 @@ public sealed class RecommendationApprovalWorkflowService : IRecommendationAppro
             CampaignId = campaign.Id,
             RecommendationId = clonedRecommendations[0].Id,
             Status = campaign.Status,
-            Message = "Recommendation returned for changes."
+            Message = defaultResultMessage
         };
     }
 
@@ -335,11 +360,11 @@ public sealed class RecommendationApprovalWorkflowService : IRecommendationAppro
             : campaign.CampaignName.Trim();
     }
 
-    private static string BuildClientResponseSummary(string? notes)
+    private static string BuildClientResponseSummary(string? notes, string defaultSummary)
     {
         if (string.IsNullOrWhiteSpace(notes))
         {
-            return "Client asked for recommendation changes.";
+            return defaultSummary;
         }
 
         return notes.Trim();

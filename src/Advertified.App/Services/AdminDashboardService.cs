@@ -46,6 +46,7 @@ public sealed class AdminDashboardService : IAdminDashboardService
 
         var packageSettings = await GetPackageSettingsAsync(cancellationToken);
         var pricingSettings = await GetPricingSettingsAsync(cancellationToken);
+        var leadIndustryPolicies = await GetLeadIndustryPoliciesAsync(cancellationToken);
 
         var strongCount = outletRecords.Count(x => string.Equals(DetermineHealthBucket(x), "strong", StringComparison.OrdinalIgnoreCase));
         var mixedCount = outletRecords.Count(x => string.Equals(DetermineHealthBucket(x), "mixed_not_fully_healthy", StringComparison.OrdinalIgnoreCase));
@@ -114,6 +115,7 @@ public sealed class AdminDashboardService : IAdminDashboardService
             PackageSettings = packageSettings,
             PricingSettings = pricingSettings,
             EnginePolicies = BuildEnginePolicies(),
+            LeadIndustryPolicies = leadIndustryPolicies,
             PreviewRules = previewRules,
             Monitoring = monitoring,
             Users = users,
@@ -621,6 +623,32 @@ public sealed class AdminDashboardService : IAdminDashboardService
                 RegionalRadioPenalty = planningPolicyOptions.Dominance.RegionalRadioPenalty
             }
         };
+    }
+
+    private async Task<AdminLeadIndustryPolicyResponse[]> GetLeadIndustryPoliciesAsync(CancellationToken cancellationToken)
+    {
+        var rows = await _db.LeadIndustryPolicySettings
+            .AsNoTracking()
+            .OrderBy(x => x.SortOrder)
+            .ThenBy(x => x.Key)
+            .ToArrayAsync(cancellationToken);
+
+        return rows.Select(policy => new AdminLeadIndustryPolicyResponse
+            {
+                Key = policy.Key,
+                Name = policy.Name,
+                ObjectiveOverride = policy.ObjectiveOverride,
+                PreferredTone = policy.PreferredTone,
+                PreferredChannels = DeserializeJsonList(policy.PreferredChannelsJson),
+                Cta = policy.Cta,
+                MessagingAngle = policy.MessagingAngle,
+                Guardrails = DeserializeJsonList(policy.GuardrailsJson),
+                AdditionalGap = policy.AdditionalGap,
+                AdditionalOutcome = policy.AdditionalOutcome,
+                SortOrder = policy.SortOrder,
+                IsActive = policy.IsActive
+            })
+            .ToArray();
     }
 
     private static AdminOutletResponse MapOutlet(BroadcastInventoryRecord record)

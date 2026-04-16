@@ -125,7 +125,6 @@ public sealed class CreativeCampaignsController : ControllerBase
             BriefWaitingCount = 0,
             PlanningReadyCount = items.Count(x => x.Status == CampaignStatuses.Approved),
             AgentReviewCount = items.Count(x => x.Status == CampaignStatuses.CreativeChangesRequested),
-            ReadyToSendCount = items.Count(x => x.Status == CampaignStatuses.CreativeSentToClientForApproval),
             WaitingOnClientCount = items.Count(x => x.Status == CampaignStatuses.CreativeSentToClientForApproval),
             CompletedCount = items.Count(x => x.Status == CampaignStatuses.CreativeApproved || x.Status == CampaignStatuses.BookingInProgress),
             Items = items

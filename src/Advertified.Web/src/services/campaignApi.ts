@@ -59,6 +59,11 @@ export function createCampaignApi({
       return getPublicProposalById(campaignId, token);
     },
 
+    async rejectAllPublicProposals(campaignId: string, token: string, notes?: string) {
+      await mutateJson(`/public/proposals/${encodeURIComponent(campaignId)}/reject-all`, 'POST', { token, notes });
+      return getPublicProposalById(campaignId, token);
+    },
+
     async getCampaignMessages(campaignId: string) {
       return getCampaignThread(campaignId);
     },
@@ -106,6 +111,11 @@ export function createCampaignApi({
 
     async requestRecommendationChanges(campaignId: string, notes?: string) {
       await mutateJson(`/campaigns/${campaignId}/request-changes`, 'POST', { notes });
+      return getCampaignById(campaignId);
+    },
+
+    async rejectAllRecommendations(campaignId: string, notes?: string) {
+      await mutateJson(`/campaigns/${campaignId}/reject-all-recommendations`, 'POST', { notes });
       return getCampaignById(campaignId);
     },
 

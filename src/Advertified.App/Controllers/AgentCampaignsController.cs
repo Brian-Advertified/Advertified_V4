@@ -198,7 +198,6 @@ public sealed class AgentCampaignsController : ControllerBase
             BriefWaitingCount = items.Count(x => x.QueueStage == QueueStages.BriefWaiting),
             PlanningReadyCount = items.Count(x => x.QueueStage == QueueStages.PlanningReady),
             AgentReviewCount = items.Count(x => x.QueueStage == QueueStages.AgentReview),
-            ReadyToSendCount = items.Count(x => x.QueueStage == QueueStages.ReadyToSend),
             WaitingOnClientCount = items.Count(x => x.QueueStage == QueueStages.WaitingOnClient),
             CompletedCount = items.Count(x => x.QueueStage == QueueStages.Completed),
             Items = items

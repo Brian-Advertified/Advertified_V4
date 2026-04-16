@@ -59,7 +59,6 @@ export function queueTone(queueStage: string) {
     case 'waiting_on_client':
       return 'border-amber-200 bg-amber-50 text-amber-700';
     case 'agent_review':
-    case 'ready_to_send':
       return 'border-brand/20 bg-brand-soft text-brand';
     case 'planning_ready':
       return 'border-brand/20 bg-brand-soft text-brand';

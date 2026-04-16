@@ -22,6 +22,7 @@ import type {
   AdminUpdateGeographyInput,
   AdminUpdateOutletInput,
   AdminUpdatePricingSettingsInput,
+  AdminUpsertLeadIndustryPolicyInput,
   AdminUpdateUserInput,
   AdminUpsertGeographyMappingInput,
   AdminUpsertOutletPricingPackageInput,
@@ -376,6 +377,26 @@ export function createAdminApi({ mapAdminPackageOrder }: AdminApiDependencies) {
       return apiRequest(`/admin/engine-settings/${encodeURIComponent(packageCode)}`, {
         method: 'PUT',
         body: JSON.stringify(input),
+      });
+    },
+
+    async createAdminLeadIndustryPolicy(input: AdminUpsertLeadIndustryPolicyInput) {
+      return apiRequest('/admin/lead-industry-policies', {
+        method: 'POST',
+        body: JSON.stringify(input),
+      });
+    },
+
+    async updateAdminLeadIndustryPolicy(key: string, input: AdminUpsertLeadIndustryPolicyInput) {
+      return apiRequest(`/admin/lead-industry-policies/${encodeURIComponent(key)}`, {
+        method: 'PUT',
+        body: JSON.stringify(input),
+      });
+    },
+
+    async deleteAdminLeadIndustryPolicy(key: string) {
+      return apiRequest(`/admin/lead-industry-policies/${encodeURIComponent(key)}`, {
+        method: 'DELETE',
       });
     },
 

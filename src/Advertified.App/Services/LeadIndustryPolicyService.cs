@@ -1,6 +1,4 @@
-using Advertified.App.Configuration;
 using Advertified.App.Services.Abstractions;
-using Microsoft.Extensions.Options;
 
 namespace Advertified.App.Services;
 
@@ -10,26 +8,23 @@ public sealed class LeadIndustryPolicyService : ILeadIndustryPolicyService
     private readonly LeadIndustryPolicyProfile _defaultProfile;
     private readonly ILeadMasterDataService _leadMasterDataService;
 
-    public LeadIndustryPolicyService(IOptions<LeadIndustryPolicyOptions> options, ILeadMasterDataService leadMasterDataService)
+    public LeadIndustryPolicyService(LeadIndustryPolicySnapshotProvider snapshotProvider, ILeadMasterDataService leadMasterDataService)
     {
         _leadMasterDataService = leadMasterDataService;
-        var configuredProfiles = options.Value.Profiles;
-        if (configuredProfiles.Count == 0)
-        {
-            configuredProfiles = LeadIndustryPolicyOptions.BuildDefaults();
-        }
+        var mappedProfiles = snapshotProvider.GetCurrent();
 
-        var mappedProfiles = configuredProfiles
-            .Select(MapProfile)
-            .ToList();
-
-        _profilesByKey = mappedProfiles
+        var distinctProfiles = mappedProfiles
             .Where(profile => !string.IsNullOrWhiteSpace(profile.Key))
+            .GroupBy(profile => profile.Key.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.Last())
+            .ToArray();
+
+        _profilesByKey = distinctProfiles
             .ToDictionary(profile => profile.Key.Trim(), StringComparer.OrdinalIgnoreCase);
 
-        _defaultProfile = mappedProfiles.FirstOrDefault(profile =>
+        _defaultProfile = distinctProfiles.FirstOrDefault(profile =>
             profile.Key.Equals("default", StringComparison.OrdinalIgnoreCase))
-            ?? mappedProfiles.FirstOrDefault()
+            ?? distinctProfiles.FirstOrDefault()
             ?? new LeadIndustryPolicyProfile
             {
                 Key = "default",
@@ -48,8 +43,8 @@ public sealed class LeadIndustryPolicyService : ILeadIndustryPolicyService
             };
     }
 
-    public LeadIndustryPolicyService(IOptions<LeadIndustryPolicyOptions> options)
-        : this(options, new NoOpLeadMasterDataService())
+    public LeadIndustryPolicyService(LeadIndustryPolicySnapshotProvider snapshotProvider)
+        : this(snapshotProvider, new NoOpLeadMasterDataService())
     {
     }
 
@@ -75,31 +70,6 @@ public sealed class LeadIndustryPolicyService : ILeadIndustryPolicyService
 
         return _defaultProfile;
     }
-
-    private static LeadIndustryPolicyProfile MapProfile(LeadIndustryPolicyProfileOptions source)
-    {
-        return new LeadIndustryPolicyProfile
-        {
-            Key = source.Key,
-            Name = source.Name,
-            ObjectiveOverride = source.ObjectiveOverride,
-            PreferredTone = source.PreferredTone,
-            PreferredChannels = source.PreferredChannels
-                .Where(value => !string.IsNullOrWhiteSpace(value))
-                .Select(value => value.Trim())
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToArray(),
-            Cta = source.Cta,
-            MessagingAngle = source.MessagingAngle,
-            Guardrails = source.Guardrails
-                .Where(value => !string.IsNullOrWhiteSpace(value))
-                .Select(value => value.Trim())
-                .ToArray(),
-            AdditionalGap = source.AdditionalGap,
-            AdditionalOutcome = source.AdditionalOutcome,
-        };
-    }
-
     private sealed class NoOpLeadMasterDataService : ILeadMasterDataService
     {
         public LeadMasterTokenSet GetTokenSet() => new();

@@ -13,7 +13,6 @@ public sealed class AgentInboxResponse
     public int BriefWaitingCount { get; set; }
     public int PlanningReadyCount { get; set; }
     public int AgentReviewCount { get; set; }
-    public int ReadyToSendCount { get; set; }
     public int WaitingOnClientCount { get; set; }
     public int CompletedCount { get; set; }
     public IReadOnlyList<AgentInboxItemResponse> Items { get; set; } = Array.Empty<AgentInboxItemResponse>();

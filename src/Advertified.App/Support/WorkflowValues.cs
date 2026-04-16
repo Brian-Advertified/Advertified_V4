@@ -35,7 +35,6 @@ public static class QueueStages
     public const string BriefWaiting = "brief_waiting";
     public const string PlanningReady = "planning_ready";
     public const string AgentReview = "agent_review";
-    public const string ReadyToSend = "ready_to_send";
     public const string WaitingOnClient = "waiting_on_client";
     public const string Completed = "completed";
     public const string Watching = "watching";

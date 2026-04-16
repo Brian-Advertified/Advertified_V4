@@ -248,7 +248,7 @@ export function getAverageTurnaroundDays(campaigns: Awaited<ReturnType<typeof us
 export function buildTasks(inbox: NonNullable<ReturnType<typeof useAgentInboxQuery>['data']>) {
   return {
     urgent: inbox.items.filter((item) => item.isUrgent).slice(0, 5),
-    review: inbox.items.filter((item) => item.queueStage === 'agent_review' || item.queueStage === 'ready_to_send').slice(0, 5),
+    review: inbox.items.filter((item) => item.queueStage === 'agent_review').slice(0, 5),
     waiting: inbox.items.filter((item) => item.queueStage === 'waiting_on_client').slice(0, 5),
   };
 }

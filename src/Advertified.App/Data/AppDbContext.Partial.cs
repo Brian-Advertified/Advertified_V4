@@ -1180,6 +1180,7 @@ public partial class AppDbContext
                 .HasConstraintName("change_audit_log_actor_user_id_fkey");
         });
 
+        modelBuilder.ConfigureLeadIndustryPolicies();
         modelBuilder.ConfigureAiPlatformPersistence();
     }
 }

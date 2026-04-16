@@ -70,7 +70,12 @@ export function isRecommendationApproved(recommendation?: CampaignRecommendation
 export function hasRecommendationApprovalCompleted(
   campaignStatus: CampaignStatus | null | undefined,
   recommendation?: CampaignRecommendation | null,
+  workflow?: Campaign['workflow'],
 ): boolean {
+  if (workflow) {
+    return workflow.recommendationApprovalCompleted;
+  }
+
   return isRecommendationApproved(recommendation)
     || isCampaignInSet(campaignStatus, CAMPAIGN_STATUSES_AFTER_RECOMMENDATION_APPROVAL);
 }

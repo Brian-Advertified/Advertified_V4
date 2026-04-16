@@ -48,6 +48,7 @@ export const adminNavSections: AdminNavSection[] = [
     title: 'Settings',
     items: [
       { path: '/admin/engine', label: 'Planning Rules' },
+      { path: '/admin/industry-policies', label: 'Industry Policies' },
       { path: '/admin/preview-rules', label: 'Preview Rules' },
       { path: '/admin/integrations', label: 'Integrations' },
       { path: '/admin/monitoring', label: 'Monitoring' },

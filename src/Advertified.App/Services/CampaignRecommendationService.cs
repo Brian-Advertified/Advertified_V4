@@ -10,6 +10,7 @@ using Advertified.App.Services.Abstractions;
 using Advertified.App.Support;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using CampaignEntity = Advertified.App.Data.Entities.Campaign;
 using CampaignBriefEntity = Advertified.App.Data.Entities.CampaignBrief;
 
@@ -40,14 +41,26 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         ICampaignReasoningService campaignReasoningService,
         PlanningPolicySnapshotProvider policySnapshotProvider,
         IPlanningPolicyService policyService)
-        : this(
-            db,
-            planningEngine,
-            campaignReasoningService,
-            policySnapshotProvider,
-            policyService,
-            new PlanningRequestFactory(new NullGeocodingService()))
     {
+        _db = db;
+        _planningEngine = planningEngine;
+        _campaignReasoningService = campaignReasoningService;
+        _policySnapshotProvider = policySnapshotProvider;
+        _policyService = policyService;
+        _planningRequestFactory = new PlanningRequestFactory(new NullGeocodingService());
+    }
+
+    public CampaignRecommendationService(
+        AppDbContext db,
+        IMediaPlanningEngine planningEngine,
+        ICampaignReasoningService campaignReasoningService)
+    {
+        _db = db;
+        _planningEngine = planningEngine;
+        _campaignReasoningService = campaignReasoningService;
+        _policySnapshotProvider = new PlanningPolicySnapshotProvider(new PlanningPolicyOptions());
+        _policyService = new PlanningPolicyService(_policySnapshotProvider);
+        _planningRequestFactory = new PlanningRequestFactory(new NullGeocodingService());
     }
 
     [ActivatorUtilitiesConstructor]
@@ -55,30 +68,16 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         AppDbContext db,
         IMediaPlanningEngine planningEngine,
         ICampaignReasoningService campaignReasoningService,
-        PlanningPolicySnapshotProvider policySnapshotProvider,
         IPlanningPolicyService policyService,
+        IOptions<PlanningPolicyOptions> planningPolicyOptions,
         IPlanningRequestFactory planningRequestFactory)
     {
         _db = db;
         _planningEngine = planningEngine;
         _campaignReasoningService = campaignReasoningService;
-        _policySnapshotProvider = policySnapshotProvider;
+        _policySnapshotProvider = new PlanningPolicySnapshotProvider(planningPolicyOptions.Value);
         _policyService = policyService;
         _planningRequestFactory = planningRequestFactory;
-    }
-
-    public CampaignRecommendationService(
-        AppDbContext db,
-        IMediaPlanningEngine planningEngine,
-        ICampaignReasoningService campaignReasoningService)
-        : this(
-            db,
-            planningEngine,
-            campaignReasoningService,
-            new PlanningPolicySnapshotProvider(new PlanningPolicyOptions()),
-            new PlanningPolicyService(new PlanningPolicySnapshotProvider(new PlanningPolicyOptions())),
-            new PlanningRequestFactory(new NullGeocodingService()))
-    {
     }
 
     public async Task<Guid> GenerateAndSaveAsync(Guid campaignId, GenerateRecommendationRequest? request, CancellationToken cancellationToken)

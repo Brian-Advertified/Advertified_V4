@@ -44,13 +44,6 @@ function getPrimaryAction(campaign: Awaited<ReturnType<typeof advertifiedApi.get
     };
   }
 
-  if (campaign.queueStage === 'ready_to_send') {
-    return {
-      label: 'Send to client',
-      href: '/agent/review-send',
-    };
-  }
-
   if (campaign.queueStage === 'waiting_on_client') {
     return {
       label: 'View client reply',
@@ -149,7 +142,7 @@ export function AgentCampaignsPage() {
           }
 
           const queueTabs = [
-            { id: 'ready_to_work' as const, label: 'Ready to work', count: inbox.newlyPaidCount + inbox.briefWaitingCount + inbox.planningReadyCount + inbox.agentReviewCount + inbox.readyToSendCount },
+            { id: 'ready_to_work' as const, label: 'Ready to work', count: inbox.newlyPaidCount + inbox.briefWaitingCount + inbox.planningReadyCount + inbox.agentReviewCount },
             { id: 'waiting_on_client' as const, label: 'Waiting on client', count: inbox.waitingOnClientCount },
             { id: 'prospects' as const, label: 'Prospects', count: inbox.items.filter((item) => item.status === 'awaiting_purchase').length },
             { id: 'completed' as const, label: 'Completed', count: inbox.completedCount },
@@ -161,7 +154,7 @@ export function AgentCampaignsPage() {
               .toLowerCase()
               .includes(search.toLowerCase());
             const matchesStage = stageFilter === 'all'
-              || (stageFilter === 'ready_to_work' && ['newly_paid', 'brief_waiting', 'planning_ready', 'agent_review', 'ready_to_send'].includes(item.queueStage))
+              || (stageFilter === 'ready_to_work' && ['newly_paid', 'brief_waiting', 'planning_ready', 'agent_review'].includes(item.queueStage))
               || (stageFilter === 'prospects' && item.status === 'awaiting_purchase')
               || item.queueStage === stageFilter;
             const matchesOwnership = ownershipFilter === 'all'
@@ -191,7 +184,7 @@ export function AgentCampaignsPage() {
               />
 
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <AgentSummaryCard label="Ready to work" value={inbox.newlyPaidCount + inbox.briefWaitingCount + inbox.planningReadyCount + inbox.agentReviewCount + inbox.readyToSendCount} helper="Items that can move today." />
+                <AgentSummaryCard label="Ready to work" value={inbox.newlyPaidCount + inbox.briefWaitingCount + inbox.planningReadyCount + inbox.agentReviewCount} helper="Items that can move today." />
                 <AgentSummaryCard label="Needs review" value={inbox.agentReviewCount + inbox.manualReviewCount} helper="Recommendation or operator review required." />
                 <AgentSummaryCard label="Waiting on client" value={inbox.waitingOnClientCount} helper="Sent work with no final answer yet." />
                 <AgentSummaryCard label="All campaigns" value={inbox.totalCampaigns} helper="Every campaign in the live queue." />
