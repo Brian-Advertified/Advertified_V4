@@ -1,9 +1,7 @@
 import { useId, useMemo, useState, type ChangeEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import type { AddressAutofillRetrieveResponse } from '@mapbox/search-js-core';
 import { advertifiedApi } from '../../../services/advertifiedApi';
 import type { LocationSuggestion } from '../../../types/domain';
-import { AddressAutofillInput } from '../../auth/components/AddressAutofillInput';
 
 export type ResolvedCampaignLocation = {
   label: string;
@@ -35,8 +33,6 @@ export function CampaignLocationInput({
 }) {
   const listboxId = useId();
   const [focused, setFocused] = useState(false);
-  const mapboxAccessToken = (import.meta.env.VITE_MAPBOX_ACCESS_TOKEN as string | undefined)?.trim();
-  const hasMapbox = Boolean(mapboxAccessToken);
   const normalizedQuery = value.trim();
 
   const suggestionsQuery = useQuery({
@@ -89,41 +85,9 @@ export function CampaignLocationInput({
     setFocused(false);
   }
 
-  function handleRetrieve(response: AddressAutofillRetrieveResponse) {
-    const feature = response.features[0];
-    const properties = feature?.properties;
-    const coordinates = Array.isArray(feature?.geometry?.coordinates) ? feature.geometry.coordinates : undefined;
-    const label = properties?.full_address
-      ?? properties?.place_name
-      ?? value;
-    const city = properties?.address_level2 ?? properties?.address_level3 ?? undefined;
-    const province = properties?.address_level1 ?? undefined;
-    const longitude = typeof coordinates?.[0] === 'number' ? coordinates[0] : undefined;
-    const latitude = typeof coordinates?.[1] === 'number' ? coordinates[1] : undefined;
-
-    onChange(label);
-    onResolved({
-      label,
-      city,
-      province,
-      latitude,
-      longitude,
-      source: 'mapbox',
-    });
-    setFocused(false);
-  }
-
   return (
     <div className="relative">
-      {hasMapbox && mapboxAccessToken ? (
-        <AddressAutofillInput
-          accessToken={mapboxAccessToken}
-          onRetrieve={handleRetrieve}
-          inputProps={inputProps}
-        />
-      ) : (
-        <input {...inputProps} />
-      )}
+      <input {...inputProps} />
 
       {showSuggestions ? (
         <div
