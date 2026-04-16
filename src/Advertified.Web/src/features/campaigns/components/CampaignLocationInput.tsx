@@ -64,9 +64,8 @@ export function CampaignLocationInput({
     },
     onChange: (event: ChangeEvent<HTMLInputElement>) => {
       onChange(event.target.value);
-      onResolved(null);
     },
-  }), [className, disabled, onChange, onResolved, placeholder, value]);
+  }), [className, disabled, onChange, placeholder, value]);
 
   function handleSuggestionClick(suggestion: LocationSuggestion) {
     const label = suggestion.locationType === 'suburb' && suggestion.city

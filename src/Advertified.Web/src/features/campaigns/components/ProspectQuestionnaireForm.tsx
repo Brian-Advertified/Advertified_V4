@@ -628,7 +628,14 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                           geographyScope="local"
                           placeholder="Search suburb, area, or business address"
                           className="input-base"
-                          onChange={(nextValue) => setForm((current) => ({ ...current, primaryArea: nextValue }))}
+                          onChange={(nextValue) => setForm((current) => ({
+                            ...current,
+                            primaryArea: nextValue,
+                            primaryAreaCity: '',
+                            primaryAreaProvince: '',
+                            primaryAreaLatitude: undefined,
+                            primaryAreaLongitude: undefined,
+                          }))}
                           onResolved={handleResolvedLocation}
                         />
                         <p className="mt-2 text-xs leading-5 text-ink-soft">
