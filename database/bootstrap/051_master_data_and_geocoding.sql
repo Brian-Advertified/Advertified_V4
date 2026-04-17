@@ -15,6 +15,12 @@ create table if not exists master_locations
     updated_at timestamptz not null default now()
 );
 
+alter table if exists master_locations
+    add column if not exists parent_city varchar(160),
+    add column if not exists source_system varchar(80) not null default 'seed',
+    add column if not exists is_verified boolean not null default true,
+    add column if not exists last_seen_at timestamptz not null default now();
+
 create table if not exists master_location_aliases
 (
     id uuid primary key default gen_random_uuid(),
