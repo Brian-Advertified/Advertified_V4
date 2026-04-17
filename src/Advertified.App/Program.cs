@@ -239,6 +239,9 @@ builder.Services.AddScoped<IPlanningPolicyService, PlanningPolicyService>();
 builder.Services.AddScoped<PlanningPolicySnapshotProvider>(_ => new PlanningPolicySnapshotProvider(
     _.GetRequiredService<Npgsql.NpgsqlDataSource>(),
     _.GetRequiredService<Microsoft.Extensions.Options.IOptions<PlanningPolicyOptions>>().Value));
+builder.Services.AddScoped<PlanningBriefIntentSettingsSnapshotProvider>(_ =>
+    new PlanningBriefIntentSettingsSnapshotProvider(_.GetRequiredService<Npgsql.NpgsqlDataSource>()));
+builder.Services.AddScoped<IPlanningBriefIntentService, PlanningBriefIntentService>();
 builder.Services.AddScoped<LeadIndustryPolicySnapshotProvider>(_ => new LeadIndustryPolicySnapshotProvider(
     _.GetRequiredService<Npgsql.NpgsqlDataSource>(),
     _.GetRequiredService<Microsoft.Extensions.Options.IOptions<LeadIndustryPolicyOptions>>().Value));

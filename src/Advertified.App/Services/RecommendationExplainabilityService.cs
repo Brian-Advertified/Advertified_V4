@@ -78,6 +78,7 @@ public sealed class RecommendationExplainabilityService : IRecommendationExplain
         if (_scoreService.IndustryContextFitScore(candidate, request) >= 8m) reasons.Add("Strong industry and context fit");
         if (SupportsObjective(candidate, request)) reasons.Add("Supports campaign objective");
         if (_scoreService.AnalyzeCandidate(candidate, request).Score >= 75m) reasons.Add("Strong overall strategic fit");
+        reasons.AddRange(GetBriefIntentReasons(candidate));
 
         var strategySignals = CampaignStrategySupport.BuildSignals(request);
         var mediaType = candidate.MediaType.Trim().ToLowerInvariant();
@@ -195,6 +196,11 @@ public sealed class RecommendationExplainabilityService : IRecommendationExplain
         flags.Add(_policyService.GetPricingModel(candidate));
 
         if (candidate.MediaType.Equals("OOH", StringComparison.OrdinalIgnoreCase)) flags.Add("ooh_priority");
+        if (candidate.Metadata.TryGetValue("briefIntentPolicyFlags", out var briefIntentFlags)
+            && briefIntentFlags is IEnumerable<string> values)
+        {
+            flags.AddRange(values);
+        }
 
         var targetShare = _policyService.GetTargetShare(candidate.MediaType, request);
         if (targetShare.HasValue) flags.Add($"mix_target_{candidate.MediaType.Trim().ToLowerInvariant()}_{targetShare.Value}");
@@ -410,6 +416,38 @@ public sealed class RecommendationExplainabilityService : IRecommendationExplain
             "leads" => mediaType is "digital" or "radio",
             "foot_traffic" => mediaType is "ooh" or "radio",
             _ => false
+        };
+    }
+
+    private static IEnumerable<string> GetBriefIntentReasons(InventoryCandidate candidate)
+    {
+        if (!candidate.Metadata.TryGetValue("briefIntentMatchedDimensions", out var value))
+        {
+            return Array.Empty<string>();
+        }
+
+        var reasons = ExtractMetadataTokens(value)
+            .Select(MapBriefIntentReason)
+            .Where(static text => !string.IsNullOrWhiteSpace(text))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(2)
+            .ToArray();
+        return reasons.OfType<string>();
+    }
+
+    private static string? MapBriefIntentReason(string dimension)
+    {
+        return dimension.Trim().ToLowerInvariant() switch
+        {
+            "languages" => "Supports the requested language mix",
+            "age" => "Fits the requested age range",
+            "gender" => "Fits the requested gender skew",
+            "price_positioning" => "Aligned with the requested price positioning",
+            "buying_behaviour" => "Aligned with the requested buying behaviour",
+            "customer_type" => "Aligned with the requested customer type",
+            "audience_terms" => "Aligned with the requested audience signals",
+            "local_radius" => "Stays close to the selected main area",
+            _ => null
         };
     }
 }

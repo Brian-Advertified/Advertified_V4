@@ -10,11 +10,21 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
     private const double LocalSuburbRadiusKm = 30.0;
     private readonly IPlanningPolicyService _policyService;
     private readonly IBroadcastMasterDataService _broadcastMasterDataService;
+    private readonly IPlanningBriefIntentService _briefIntentService;
 
-    public PlanningEligibilityService(IPlanningPolicyService policyService, IBroadcastMasterDataService broadcastMasterDataService)
+    public PlanningEligibilityService(
+        IPlanningPolicyService policyService,
+        IBroadcastMasterDataService broadcastMasterDataService,
+        IPlanningBriefIntentService briefIntentService)
     {
         _policyService = policyService;
         _broadcastMasterDataService = broadcastMasterDataService;
+        _briefIntentService = briefIntentService;
+    }
+
+    public PlanningEligibilityService(IPlanningPolicyService policyService, IBroadcastMasterDataService broadcastMasterDataService)
+        : this(policyService, broadcastMasterDataService, new NoOpPlanningBriefIntentService())
+    {
     }
 
     public PlanningPolicyOutcome FilterEligibleCandidates(List<InventoryCandidate> candidates, CampaignPlanningRequest request)
@@ -63,9 +73,18 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
             return "media_type_excluded";
         }
 
-        return MatchesRequestedGeography(candidate, request)
-            ? null
-            : "geography_mismatch";
+        if (!MatchesRequestedGeography(candidate, request))
+        {
+            return "geography_mismatch";
+        }
+
+        var briefIntentEvaluation = _briefIntentService.EvaluateCandidate(candidate, request);
+        if (!briefIntentEvaluation.IsEligible)
+        {
+            return "brief_intent_mismatch";
+        }
+
+        return null;
     }
 
     private bool MatchesRequestedGeography(InventoryCandidate candidate, CampaignPlanningRequest request)
@@ -303,5 +322,13 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
         return string.IsNullOrWhiteSpace(mediaType)
             ? "unknown"
             : mediaType.Trim().ToLowerInvariant();
+    }
+
+    private sealed class NoOpPlanningBriefIntentService : IPlanningBriefIntentService
+    {
+        public PlanningBriefIntentEvaluation EvaluateCandidate(InventoryCandidate candidate, CampaignPlanningRequest request)
+        {
+            return new PlanningBriefIntentEvaluation();
+        }
     }
 }

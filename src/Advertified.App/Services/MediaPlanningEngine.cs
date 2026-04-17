@@ -30,6 +30,16 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
         _broadcastLanguagePriorityService = broadcastLanguagePriorityService;
     }
 
+    public MediaPlanningEngine(
+        IPlanningCandidateLoader candidateLoader,
+        IPlanningEligibilityService eligibilityService,
+        IRecommendationPlanBuilder planBuilder,
+        IRecommendationExplainabilityService explainabilityService,
+        IPlanningPolicyService policyService)
+        : this(candidateLoader, eligibilityService, planBuilder, explainabilityService, policyService, new NoOpBroadcastLanguagePriorityService())
+    {
+    }
+
     public async Task<RecommendationResult> GenerateAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
     {
         var planningPasses = BuildPlanningPasses(request);
@@ -651,4 +661,12 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
     }
 
     private sealed record PlanningPass(CampaignPlanningRequest Request, IReadOnlyCollection<string> FallbackFlags);
+
+    private sealed class NoOpBroadcastLanguagePriorityService : IBroadcastLanguagePriorityService
+    {
+        public Task<IReadOnlyList<string>> OrderRequestedLanguagesAsync(IEnumerable<string> requestedLanguages, CancellationToken cancellationToken)
+        {
+            return Task.FromResult<IReadOnlyList<string>>(requestedLanguages.ToArray());
+        }
+    }
 }

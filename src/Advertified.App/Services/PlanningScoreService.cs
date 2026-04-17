@@ -17,21 +17,24 @@ public sealed class PlanningScoreService : IPlanningScoreService
     private readonly IBroadcastMasterDataService _broadcastMasterDataService;
     private readonly ILeadMasterDataService _leadMasterDataService;
     private readonly IIndustryArchetypeScoringService _industryArchetypeScoringService;
+    private readonly IPlanningBriefIntentService _briefIntentService;
 
     public PlanningScoreService(
         IPlanningPolicyService policyService,
         IBroadcastMasterDataService broadcastMasterDataService,
         ILeadMasterDataService leadMasterDataService,
-        IIndustryArchetypeScoringService industryArchetypeScoringService)
+        IIndustryArchetypeScoringService industryArchetypeScoringService,
+        IPlanningBriefIntentService briefIntentService)
     {
         _policyService = policyService;
         _broadcastMasterDataService = broadcastMasterDataService;
         _leadMasterDataService = leadMasterDataService;
         _industryArchetypeScoringService = industryArchetypeScoringService;
+        _briefIntentService = briefIntentService;
     }
 
     public PlanningScoreService(IPlanningPolicyService policyService, IBroadcastMasterDataService broadcastMasterDataService)
-        : this(policyService, broadcastMasterDataService, new NoOpLeadMasterDataService(), new NoOpIndustryArchetypeScoringService())
+        : this(policyService, broadcastMasterDataService, new NoOpLeadMasterDataService(), new NoOpIndustryArchetypeScoringService(), new NoOpPlanningBriefIntentService())
     {
     }
 
@@ -39,7 +42,16 @@ public sealed class PlanningScoreService : IPlanningScoreService
         IPlanningPolicyService policyService,
         IBroadcastMasterDataService broadcastMasterDataService,
         ILeadMasterDataService leadMasterDataService)
-        : this(policyService, broadcastMasterDataService, leadMasterDataService, new NoOpIndustryArchetypeScoringService())
+        : this(policyService, broadcastMasterDataService, leadMasterDataService, new NoOpIndustryArchetypeScoringService(), new NoOpPlanningBriefIntentService())
+    {
+    }
+
+    public PlanningScoreService(
+        IPlanningPolicyService policyService,
+        IBroadcastMasterDataService broadcastMasterDataService,
+        ILeadMasterDataService leadMasterDataService,
+        IIndustryArchetypeScoringService industryArchetypeScoringService)
+        : this(policyService, broadcastMasterDataService, leadMasterDataService, industryArchetypeScoringService, new NoOpPlanningBriefIntentService())
     {
     }
 
@@ -349,6 +361,7 @@ public sealed class PlanningScoreService : IPlanningScoreService
         score += DistanceScore(candidate, request);
         score += MixTargetScore(candidate, request);
         score += IndustryContextFitScore(candidate, request);
+        score += _briefIntentService.EvaluateCandidate(candidate, request).ScoreBonus;
 
         if (candidate.MediaType.Equals("Radio", StringComparison.OrdinalIgnoreCase))
         {
@@ -1636,5 +1649,13 @@ public sealed class PlanningScoreService : IPlanningScoreService
         public IndustryArchetypeScoringProfile? Resolve(string? industryCode) => null;
 
         public IReadOnlyCollection<string> GetSupportedIndustryCodes() => Array.Empty<string>();
+    }
+
+    private sealed class NoOpPlanningBriefIntentService : IPlanningBriefIntentService
+    {
+        public PlanningBriefIntentEvaluation EvaluateCandidate(InventoryCandidate candidate, CampaignPlanningRequest request)
+        {
+            return new PlanningBriefIntentEvaluation();
+        }
     }
 }
