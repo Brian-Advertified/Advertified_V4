@@ -63,17 +63,18 @@ create table if not exists master_language_aliases
 
 create index if not exists ix_master_language_aliases_language_id on master_language_aliases(master_language_id);
 
-insert into master_locations (canonical_name, location_type, province, latitude, longitude)
+insert into master_locations
+    (canonical_name, location_type, parent_city, province, latitude, longitude, source_system, is_verified, last_seen_at)
 values
-    ('Johannesburg', 'city', 'Gauteng', -26.2041, 28.0473),
-    ('Pretoria', 'city', 'Gauteng', -25.7479, 28.2293),
-    ('Cape Town', 'city', 'Western Cape', -33.9249, 18.4241),
-    ('Durban', 'city', 'KwaZulu-Natal', -29.8587, 31.0218),
-    ('Gqeberha', 'city', 'Eastern Cape', -33.9608, 25.6022),
-    ('Gauteng', 'province', 'Gauteng', -26.2708, 28.1123),
-    ('Western Cape', 'province', 'Western Cape', -33.2278, 21.8569),
-    ('KwaZulu-Natal', 'province', 'KwaZulu-Natal', -28.5306, 30.8958),
-    ('South Africa', 'country', null, -30.5595, 22.9375)
+    ('Johannesburg', 'city', null, 'Gauteng', -26.2041, 28.0473, 'seed', true, now()),
+    ('Pretoria', 'city', null, 'Gauteng', -25.7479, 28.2293, 'seed', true, now()),
+    ('Cape Town', 'city', null, 'Western Cape', -33.9249, 18.4241, 'seed', true, now()),
+    ('Durban', 'city', null, 'KwaZulu-Natal', -29.8587, 31.0218, 'seed', true, now()),
+    ('Gqeberha', 'city', null, 'Eastern Cape', -33.9608, 25.6022, 'seed', true, now()),
+    ('Gauteng', 'province', null, 'Gauteng', -26.2708, 28.1123, 'seed', true, now()),
+    ('Western Cape', 'province', null, 'Western Cape', -33.2278, 21.8569, 'seed', true, now()),
+    ('KwaZulu-Natal', 'province', null, 'KwaZulu-Natal', -28.5306, 30.8958, 'seed', true, now()),
+    ('South Africa', 'country', null, null, -30.5595, 22.9375, 'seed', true, now())
 on conflict (canonical_name) do update
 set
     location_type = excluded.location_type,
