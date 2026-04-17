@@ -279,6 +279,24 @@ type CampaignRecommendationResponse = {
   } | null;
   status: 'draft' | 'sent_to_client' | 'approved';
   totalCost: number;
+  emailDeliveries?: Array<{
+    id: string;
+    provider: string;
+    purpose: string;
+    templateName: string;
+    status: string;
+    recipientEmail: string;
+    subject: string;
+    latestEventType?: string | null;
+    latestEventAt?: string | null;
+    acceptedAt?: string | null;
+    deliveredAt?: string | null;
+    openedAt?: string | null;
+    clickedAt?: string | null;
+    bouncedAt?: string | null;
+    failedAt?: string | null;
+    lastError?: string | null;
+  }> | null;
   items: RecommendationItemResponse[];
 };
 
@@ -306,6 +324,14 @@ type CampaignResponse = {
   isUnassigned?: boolean;
   campaignName?: string | null;
   nextAction: string;
+  prospectDisposition?: {
+    status: string;
+    reasonCode?: string | null;
+    notes?: string | null;
+    closedAt?: string | null;
+    closedByUserId?: string | null;
+    closedByName?: string | null;
+  } | null;
   effectivePlanningTarget?: {
     label: string;
     city?: string | null;
@@ -1282,6 +1308,24 @@ function mapRecommendation(response?: CampaignRecommendationResponse | null): Ca
         : undefined,
       status: response.status,
       totalCost: response.totalCost,
+      emailDeliveries: (response.emailDeliveries ?? []).map((delivery) => ({
+        id: delivery.id,
+        provider: delivery.provider,
+        purpose: delivery.purpose,
+        templateName: delivery.templateName,
+        status: delivery.status,
+        recipientEmail: delivery.recipientEmail,
+        subject: delivery.subject,
+        latestEventType: delivery.latestEventType ?? undefined,
+        latestEventAt: delivery.latestEventAt ?? undefined,
+        acceptedAt: delivery.acceptedAt ?? undefined,
+        deliveredAt: delivery.deliveredAt ?? undefined,
+        openedAt: delivery.openedAt ?? undefined,
+        clickedAt: delivery.clickedAt ?? undefined,
+        bouncedAt: delivery.bouncedAt ?? undefined,
+        failedAt: delivery.failedAt ?? undefined,
+        lastError: delivery.lastError ?? undefined,
+      })),
       items: (response.items ?? []).map((item) => ({
         ...item,
         sourceInventoryId: item.sourceInventoryId ?? undefined,
@@ -1484,6 +1528,16 @@ function mapCampaign(response: CampaignResponse): Campaign {
     isUnassigned: response.isUnassigned,
     campaignName: response.campaignName?.trim() || `${response.packageBandName} campaign`,
     nextAction: response.nextAction,
+    prospectDisposition: response.prospectDisposition
+      ? {
+          status: response.prospectDisposition.status,
+          reasonCode: response.prospectDisposition.reasonCode ?? undefined,
+          notes: response.prospectDisposition.notes ?? undefined,
+          closedAt: response.prospectDisposition.closedAt ?? undefined,
+          closedByUserId: response.prospectDisposition.closedByUserId ?? undefined,
+          closedByName: response.prospectDisposition.closedByName ?? undefined,
+        }
+      : undefined,
     effectivePlanningTarget: mapCampaignPlanningTarget(response.effectivePlanningTarget),
     workflow: response.workflow ?? {
       currentStateKey: 'recommendation_approved',
@@ -1811,6 +1865,9 @@ const agentApi = createAgentApi({
     return apiRequest<InventoryRow[]>(
       campaignId ? `/agent/inventory?campaignId=${encodeURIComponent(campaignId)}` : '/agent/inventory',
     );
+  },
+  async getProspectDispositionReasonsData() {
+    return apiRequest<SelectOption[]>('/agent/campaigns/prospect-disposition-reasons');
   },
   async uploadAgentAssetData(campaignId, file, assetType) {
     const formData = new FormData();

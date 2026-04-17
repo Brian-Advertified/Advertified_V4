@@ -11,10 +11,14 @@ export function InventoryTable({
   items,
   selectedItemIds,
   onToggleItem,
+  actionLabel,
+  selectedActionLabel,
 }: {
   items: InventoryRow[];
   selectedItemIds?: string[];
   onToggleItem?: (item: InventoryRow) => void;
+  actionLabel?: string;
+  selectedActionLabel?: string;
 }) {
   const selectedSet = new Set(selectedItemIds ?? []);
   const selectable = typeof onToggleItem === 'function';
@@ -56,7 +60,9 @@ export function InventoryTable({
                       onClick={() => onToggleItem(item)}
                       className={`whitespace-nowrap rounded-full px-4 py-2 text-xs font-semibold ${selectedSet.has(item.id) ? 'bg-ink text-white' : 'bg-brand text-white'}`}
                     >
-                      {selectedSet.has(item.id) ? 'Remove from plan' : 'Add to plan'}
+                      {selectedSet.has(item.id)
+                        ? (selectedActionLabel ?? 'Remove from plan')
+                        : (actionLabel ?? 'Add to plan')}
                     </button>
                   </td>
                 ) : null}

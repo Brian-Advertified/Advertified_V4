@@ -1,7 +1,7 @@
 export type UserRole = 'client' | 'agent' | 'creative_director' | 'admin';
 export type PaymentStatus = 'pending' | 'paid' | 'failed';
 export type RefundStatus = 'none' | 'partial' | 'refunded';
-export type PaymentProvider = 'vodapay' | 'lula';
+export type PaymentProvider = 'vodapay' | 'lula' | 'prospect';
 export type CampaignStatus =
   | 'awaiting_purchase'
   | 'paid'
@@ -285,7 +285,27 @@ export interface CampaignRecommendation {
   buildSourceLabel?: string;
   status: 'draft' | 'sent_to_client' | 'approved';
   totalCost: number;
+  emailDeliveries?: EmailDeliveryAttempt[];
   items: RecommendationItem[];
+}
+
+export interface EmailDeliveryAttempt {
+  id: string;
+  provider: string;
+  purpose: string;
+  templateName: string;
+  status: string;
+  recipientEmail: string;
+  subject: string;
+  latestEventType?: string;
+  latestEventAt?: string;
+  acceptedAt?: string;
+  deliveredAt?: string;
+  openedAt?: string;
+  clickedAt?: string;
+  bouncedAt?: string;
+  failedAt?: string;
+  lastError?: string;
 }
 
 export interface CampaignRecommendationAudit {
@@ -412,6 +432,15 @@ export interface CampaignWorkflowSummary {
   canOpenPlanning: boolean;
 }
 
+export interface ProspectDisposition {
+  status: 'open' | 'closed' | string;
+  reasonCode?: string;
+  notes?: string;
+  closedAt?: string;
+  closedByUserId?: string;
+  closedByName?: string;
+}
+
 export interface Campaign {
   id: string;
   userId?: string;
@@ -437,6 +466,7 @@ export interface Campaign {
     campaignName: string;
     nextAction: string;
     workflow?: CampaignWorkflowSummary;
+    prospectDisposition?: ProspectDisposition;
     effectivePlanningTarget?: CampaignPlanningTarget;
     timeline: CampaignTimelineStep[];
   brief?: CampaignBrief;

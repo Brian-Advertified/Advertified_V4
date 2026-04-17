@@ -42,22 +42,25 @@ public sealed class GeocodingService : IGeocodingService
 
     public GeocodingResolution ResolveCampaignTarget(CampaignPlanningRequest request)
     {
-        if (request.TargetLatitude.HasValue && request.TargetLongitude.HasValue)
+        var targeting = request.Targeting;
+        var latitude = targeting?.Latitude ?? request.TargetLatitude;
+        var longitude = targeting?.Longitude ?? request.TargetLongitude;
+        if (latitude.HasValue && longitude.HasValue)
         {
             return new GeocodingResolution
             {
                 IsResolved = true,
                 CanonicalLocation = "request_target",
-                Latitude = request.TargetLatitude,
-                Longitude = request.TargetLongitude,
+                Latitude = latitude,
+                Longitude = longitude,
                 Source = "request"
             };
         }
 
-        var candidates = request.Cities
-            .Concat(request.Areas)
-            .Concat(request.Suburbs)
-            .Concat(request.Provinces)
+        var candidates = (targeting?.Cities ?? request.Cities)
+            .Concat(targeting?.Areas ?? request.Areas)
+            .Concat(targeting?.Suburbs ?? request.Suburbs)
+            .Concat(targeting?.Provinces ?? request.Provinces)
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Distinct(StringComparer.OrdinalIgnoreCase);
 

@@ -8,10 +8,17 @@ namespace Advertified.App.Services;
 public sealed class PlanningRequestFactory : IPlanningRequestFactory
 {
     private readonly ICampaignPlanningTargetResolver _planningTargetResolver;
+    private readonly ICampaignBusinessLocationResolver _businessLocationResolver;
+    private readonly IPlanningBudgetAllocationService _budgetAllocationService;
 
-    public PlanningRequestFactory(ICampaignPlanningTargetResolver planningTargetResolver)
+    public PlanningRequestFactory(
+        ICampaignPlanningTargetResolver planningTargetResolver,
+        ICampaignBusinessLocationResolver businessLocationResolver,
+        IPlanningBudgetAllocationService budgetAllocationService)
     {
         _planningTargetResolver = planningTargetResolver;
+        _businessLocationResolver = businessLocationResolver;
+        _budgetAllocationService = budgetAllocationService;
     }
 
     public CampaignPlanningRequest FromCampaignBrief(
@@ -66,6 +73,9 @@ public sealed class PlanningRequestFactory : IPlanningRequestFactory
             new[] { brief.TargetAudienceNotes }
                 .Concat(Advertified.App.Domain.Campaigns.CampaignStrategySupport.BuildContextLines(strategyRequest))
                 .Where(static value => !string.IsNullOrWhiteSpace(value)));
+        var businessLocation = _businessLocationResolver.Resolve(campaign);
+        var mustHaveAreas = Advertified.App.Domain.Campaigns.CampaignBriefExtensions.GetList(brief, nameof(CampaignBrief.MustHaveAreasJson));
+        var excludedAreas = Advertified.App.Domain.Campaigns.CampaignBriefExtensions.GetList(brief, nameof(CampaignBrief.ExcludedAreasJson));
 
         var planningRequest = new CampaignPlanningRequest
         {
@@ -73,6 +83,18 @@ public sealed class PlanningRequestFactory : IPlanningRequestFactory
             SelectedBudget = PricingPolicy.ResolvePlanningBudget(
                 campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
                 campaign.PackageOrder.AiStudioReserveAmount),
+            BusinessLocation = new CampaignBusinessLocation
+            {
+                Label = businessLocation.Label,
+                Area = businessLocation.Area,
+                City = businessLocation.City,
+                Province = businessLocation.Province,
+                Latitude = businessLocation.Latitude,
+                Longitude = businessLocation.Longitude,
+                Source = businessLocation.Source,
+                Precision = businessLocation.Precision,
+                IsResolved = businessLocation.IsResolved
+            },
             Objective = brief.Objective,
             BusinessStage = brief.BusinessStage,
             MonthlyRevenueBand = brief.MonthlyRevenueBand,
@@ -106,6 +128,8 @@ public sealed class PlanningRequestFactory : IPlanningRequestFactory
             ValuePropositionFocus = brief.ValuePropositionFocus,
             TargetLsmMin = brief.TargetLsmMin ?? inferredLsmRange.Min,
             TargetLsmMax = brief.TargetLsmMax ?? inferredLsmRange.Max,
+            MustHaveAreas = mustHaveAreas,
+            ExcludedAreas = excludedAreas,
             OpenToUpsell = brief.OpenToUpsell,
             AdditionalBudget = brief.AdditionalBudget,
             MaxMediaItems = brief.MaxMediaItems,
@@ -127,6 +151,57 @@ public sealed class PlanningRequestFactory : IPlanningRequestFactory
             planningRequest.TargetLongitude = resolvedTarget.Longitude;
         }
 
+        planningRequest.Targeting = BuildTargetingProfile(planningRequest);
+        planningRequest.BudgetAllocation = _budgetAllocationService.Resolve(planningRequest);
+
         return planningRequest;
+    }
+
+    private static CampaignTargetingProfile BuildTargetingProfile(CampaignPlanningRequest request)
+    {
+        var priorityAreas = new List<string>();
+        priorityAreas.AddRange(request.MustHaveAreas);
+
+        if (!string.Equals(request.GeographyScope, "local", StringComparison.OrdinalIgnoreCase))
+        {
+            AddIfMeaningful(priorityAreas, request.BusinessLocation?.Area);
+            AddIfMeaningful(priorityAreas, request.BusinessLocation?.City);
+        }
+
+        if (priorityAreas.Count == 0)
+        {
+            AddIfMeaningful(priorityAreas, request.TargetLocationLabel);
+        }
+
+        return new CampaignTargetingProfile
+        {
+            Scope = request.GeographyScope ?? string.Empty,
+            Label = request.TargetLocationLabel,
+            City = request.TargetLocationCity,
+            Province = request.TargetLocationProvince,
+            Latitude = request.TargetLatitude,
+            Longitude = request.TargetLongitude,
+            Source = request.TargetLocationSource ?? "none",
+            Precision = request.TargetLocationPrecision ?? "unknown",
+            Provinces = request.Provinces.ToList(),
+            Cities = request.Cities.ToList(),
+            Suburbs = request.Suburbs.ToList(),
+            Areas = request.Areas.ToList(),
+            PriorityAreas = priorityAreas
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList(),
+            Exclusions = request.ExcludedAreas
+                .Where(static value => !string.IsNullOrWhiteSpace(value))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList()
+        };
+    }
+
+    private static void AddIfMeaningful(ICollection<string> values, string? value)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            values.Add(value.Trim());
+        }
     }
 }

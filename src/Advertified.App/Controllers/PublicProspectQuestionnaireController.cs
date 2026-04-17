@@ -197,6 +197,7 @@ public sealed class PublicProspectQuestionnaireController : ControllerBase
                     ["SignInUrl"] = BuildFrontendUrl("/login")
                 },
                 null,
+                null,
                 cancellationToken);
         }
         catch (Exception ex)

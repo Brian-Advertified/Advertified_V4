@@ -37,6 +37,10 @@ import {
   type ChannelOption,
 } from './recommendationDraftOptions';
 import {
+  validateRecommendationDraftForm,
+  type RecommendationDraftValidationErrors,
+} from './recommendationDraftValidation';
+import {
   AgentDetailGrid,
   AgentDetailStack,
   AgentInsightCard,
@@ -301,59 +305,12 @@ function confidenceLabel(confidence: AutoBriefConfidence): string {
   return confidence.replaceAll('_', ' ');
 }
 
-function hasOpportunityDraftRequirements(form: CampaignFormState): boolean {
-  return Boolean(
-    form.objective
-    && form.audience
-    && form.scope
-    && (form.scope === 'national' || form.geography)
-    && form.brief.trim()
-    && form.channels.length > 0,
-  );
-}
-
-function hasDetailedDraftRequirements(form: CampaignFormState): boolean {
-  return hasOpportunityDraftRequirements(form)
-    && Boolean(
-      form.salesModel
-      && form.customerType
-      && form.buyingBehaviour
-      && form.decisionCycle
-      && form.pricePositioning
-      && form.growthTarget
-      && form.urgencyLevel
-      && form.audienceClarity,
-    );
-}
-
-function listOpportunityDraftMissingFields(form: CampaignFormState): string[] {
-  const missing: string[] = [];
-
-  if (!form.objective) {
-    missing.push('campaign objective');
+function FieldErrorText({ message }: { message?: string }) {
+  if (!message) {
+    return null;
   }
 
-  if (!form.audience) {
-    missing.push('audience direction');
-  }
-
-  if (!form.scope) {
-    missing.push('coverage scope');
-  }
-
-  if (form.scope !== 'national' && !form.geography) {
-    missing.push('target geography');
-  }
-
-  if (!form.brief.trim()) {
-    missing.push('campaign brief');
-  }
-
-  if (form.channels.length === 0) {
-    missing.push('channel selection');
-  }
-
-  return missing;
+  return <p className="mt-2 text-xs font-medium text-rose-700">{message}</p>;
 }
 
 type ScopedFormState = {
@@ -495,6 +452,7 @@ export function AgentCreateRecommendationPage() {
   const autoGenerateKeyRef = useRef<string | null>(null);
   const [scopedAiInterpretationSummary, setScopedAiInterpretationSummary] = useState<{ key: string; summary: string } | null>(null);
   const [scopedForm, setScopedForm] = useState<ScopedFormState | null>(null);
+  const [draftValidationErrors, setDraftValidationErrors] = useState<RecommendationDraftValidationErrors>({});
   const [showDetailEditing, setShowDetailEditing] = useState(false);
   const [selectedProspectPackageBandState, setSelectedProspectPackageBandState] = useState<{ campaignId: string; packageBandId: string } | null>(null);
   const emptyForm: CampaignFormState = {
@@ -766,13 +724,30 @@ export function AgentCreateRecommendationPage() {
   };
   const routePrefillGapLines = routePrefill?.detectedGaps?.filter((item) => item.trim().length > 0) ?? [];
   const isOpportunityFlow = Boolean(routePrefill);
-  const opportunityMissingFields = isOpportunityFlow ? listOpportunityDraftMissingFields(form) : [];
+  const draftValidationMode = isOpportunityFlow ? 'opportunity' : 'detailed';
+  const draftValidationResult = validateRecommendationDraftForm(form, draftValidationMode);
+  const opportunityMissingFields = isOpportunityFlow ? draftValidationResult.missingFields : [];
 
   useEffect(() => {
     setShowDetailEditing(false);
+    setDraftValidationErrors({});
   }, [activeFormKey]);
 
+  const clearDraftValidationError = (key: keyof RecommendationDraftValidationErrors) => {
+    setDraftValidationErrors((current) => {
+      if (!current[key]) {
+        return current;
+      }
+
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+  };
+
   const handleFormChange = <K extends keyof CampaignFormState>(key: K, value: CampaignFormState[K]) => {
+    clearDraftValidationError(key as keyof RecommendationDraftValidationErrors);
+
     if (key === 'scope') {
       const nextScope = value as string;
       const switchingIntoLocal = nextScope === 'local' && form.scope !== 'local';
@@ -827,6 +802,7 @@ export function AgentCreateRecommendationPage() {
   };
 
   const handleResolvedLocation = (location: ResolvedCampaignLocation | null) => {
+    clearDraftValidationError('geography');
     setScopedForm((current) => {
       const baseForm = current?.key === activeFormKey ? current.value : form;
 
@@ -849,6 +825,7 @@ export function AgentCreateRecommendationPage() {
       return;
     }
 
+    clearDraftValidationError('channels');
     setScopedForm({
       key: activeFormKey,
       value: {
@@ -1064,15 +1041,14 @@ export function AgentCreateRecommendationPage() {
   });
 
   const isStep1Complete = Boolean(selectedClientId && selectedCampaign);
-  const isStep2Complete = isStep1Complete
-    && (isOpportunityFlow ? hasOpportunityDraftRequirements(form) : hasDetailedDraftRequirements(form));
+  const isStep2Complete = isStep1Complete && draftValidationResult.success;
   const isGenerating = pendingAction === 'generate' && initializeMutation.isPending;
   const isWorking = initializeMutation.isPending || interpretMutation.isPending;
-  const canGenerate = isStep2Complete && !isWorking;
+  const canGenerate = !isWorking;
   const canSaveDraft = isStep1Complete && !isWorking;
 
   useEffect(() => {
-    if (!routePrefill?.autoGenerateDraft || !selectedCampaign || !canGenerate || initializeMutation.isPending) {
+    if (!routePrefill?.autoGenerateDraft || !selectedCampaign || !draftValidationResult.success || initializeMutation.isPending) {
       return;
     }
 
@@ -1084,7 +1060,7 @@ export function AgentCreateRecommendationPage() {
     autoGenerateKeyRef.current = autoGenerateKey;
     setPendingAction('generate');
     void initializeMutation.mutateAsync({ submitBrief: true });
-  }, [activeFormKey, canGenerate, initializeMutation, routePrefill?.autoGenerateDraft, selectedCampaign]);
+  }, [activeFormKey, draftValidationResult.success, initializeMutation, routePrefill?.autoGenerateDraft, selectedCampaign]);
 
   const stepPresentation = STEP_CONFIG.map((step) => {
     if (step.id === 1) {
@@ -1134,14 +1110,17 @@ export function AgentCreateRecommendationPage() {
       return;
     }
 
-    if (!isStep2Complete) {
+    if (!draftValidationResult.success) {
+      setDraftValidationErrors(draftValidationResult.errors);
+      setShowDetailEditing(true);
       pushToast({
-        title: 'Complete the campaign details first.',
-        description: 'Add the campaign objective, audience, coverage, strategy fields, and client brief before generating the draft.',
-      }, 'info');
+        title: 'Complete the required fields first.',
+        description: draftValidationResult.missingFields[0] ?? 'Review the highlighted fields and try again.',
+      }, 'error');
       return;
     }
 
+    setDraftValidationErrors({});
     setPendingAction('generate');
     await initializeMutation.mutateAsync({ submitBrief: true });
   };
@@ -1403,6 +1382,15 @@ export function AgentCreateRecommendationPage() {
               </div>
             </div>
 
+            {Object.keys(draftValidationErrors).length > 0 ? (
+              <div className="mb-5 rounded-[22px] border border-rose-200 bg-rose-50/80 px-4 py-4">
+                <p className="text-sm font-semibold text-rose-800">Some required planning inputs are missing.</p>
+                <p className="mt-2 text-sm text-rose-700">
+                  Review the highlighted fields below, then create the recommendation draft again.
+                </p>
+              </div>
+            ) : null}
+
             {hasCapturedBrief && !showDetailEditing ? (
               <div className="rounded-[24px] border border-brand/15 bg-brand-soft/30 px-5 py-5">
                 <div className="mb-5 rounded-[18px] border border-brand/10 bg-white/70 px-4 py-3 text-sm text-ink-soft">
@@ -1533,6 +1521,7 @@ export function AgentCreateRecommendationPage() {
                   <option value="brand_presence">Brand presence</option>
                   <option value="leads">Leads</option>
                 </select>
+                <FieldErrorText message={draftValidationErrors.objective} />
               </label>
 
               <label className="block">
@@ -1544,6 +1533,7 @@ export function AgentCreateRecommendationPage() {
                   <option value="business">Business professionals</option>
                   <option value="retail">Retail shoppers</option>
                 </select>
+                <FieldErrorText message={draftValidationErrors.audience} />
               </label>
 
               <label className="block">
@@ -1554,6 +1544,7 @@ export function AgentCreateRecommendationPage() {
                   <option value="provincial">Regional</option>
                   <option value="national">National</option>
                 </select>
+                <FieldErrorText message={draftValidationErrors.scope} />
               </label>
 
               {form.scope === 'national' ? null : (
@@ -1582,6 +1573,7 @@ export function AgentCreateRecommendationPage() {
                       ))}
                     </select>
                   )}
+                  <FieldErrorText message={draftValidationErrors.geography} />
                 </label>
               )}
 
@@ -1674,6 +1666,7 @@ export function AgentCreateRecommendationPage() {
                       <option key={item.value} value={item.value}>{item.label}</option>
                     ))}
                   </select>
+                  <FieldErrorText message={draftValidationErrors.salesModel} />
                 </label>
 
                 <label className="block">
@@ -1684,6 +1677,7 @@ export function AgentCreateRecommendationPage() {
                       <option key={item.value} value={item.value}>{item.label}</option>
                     ))}
                   </select>
+                  <FieldErrorText message={draftValidationErrors.customerType} />
                 </label>
 
                 <label className="block">
@@ -1694,6 +1688,7 @@ export function AgentCreateRecommendationPage() {
                       <option key={item.value} value={item.value}>{item.label}</option>
                     ))}
                   </select>
+                  <FieldErrorText message={draftValidationErrors.pricePositioning} />
                 </label>
               </div>
             </div>
@@ -1711,6 +1706,7 @@ export function AgentCreateRecommendationPage() {
                       <option key={item.value} value={item.value}>{item.label}</option>
                     ))}
                   </select>
+                  <FieldErrorText message={draftValidationErrors.buyingBehaviour} />
                 </label>
 
                 <label className="block">
@@ -1721,6 +1717,7 @@ export function AgentCreateRecommendationPage() {
                       <option key={item.value} value={item.value}>{item.label}</option>
                     ))}
                   </select>
+                  <FieldErrorText message={draftValidationErrors.decisionCycle} />
                 </label>
 
                 <label className="block">
@@ -1731,6 +1728,7 @@ export function AgentCreateRecommendationPage() {
                       <option key={item.value} value={item.value}>{item.label}</option>
                     ))}
                   </select>
+                  <FieldErrorText message={draftValidationErrors.urgencyLevel} />
                 </label>
               </div>
             </div>
@@ -1748,6 +1746,7 @@ export function AgentCreateRecommendationPage() {
                       <option key={item.value} value={item.value}>{item.label}</option>
                     ))}
                   </select>
+                  <FieldErrorText message={draftValidationErrors.growthTarget} />
                 </label>
 
                 <label className="block">
@@ -1758,6 +1757,7 @@ export function AgentCreateRecommendationPage() {
                       <option key={item.value} value={item.value}>{item.label}</option>
                     ))}
                   </select>
+                  <FieldErrorText message={draftValidationErrors.audienceClarity} />
                 </label>
 
                 <label className="block">
@@ -1804,6 +1804,7 @@ export function AgentCreateRecommendationPage() {
                   );
                 })}
               </div>
+              <FieldErrorText message={draftValidationErrors.channels} />
             </div>
 
             <div className={`${hasCapturedBrief && !showDetailEditing ? 'hidden ' : ''}mt-5 grid gap-4 md:grid-cols-2`}>
@@ -1847,6 +1848,7 @@ export function AgentCreateRecommendationPage() {
                   <p className="text-sm text-ink-soft">{aiInterpretationSummary}</p>
                 ) : null}
               </div>
+              <FieldErrorText message={draftValidationErrors.brief} />
             </label>
           </div>
 

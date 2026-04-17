@@ -47,7 +47,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         _campaignReasoningService = campaignReasoningService;
         _policySnapshotProvider = policySnapshotProvider;
         _policyService = policyService;
-        _planningRequestFactory = new PlanningRequestFactory(new NullPlanningTargetResolver());
+        _planningRequestFactory = new PlanningRequestFactory(new NullPlanningTargetResolver(), new NullBusinessLocationResolver(), new NullPlanningBudgetAllocationService());
     }
 
     public CampaignRecommendationService(
@@ -60,7 +60,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         _campaignReasoningService = campaignReasoningService;
         _policySnapshotProvider = new PlanningPolicySnapshotProvider(new PlanningPolicyOptions());
         _policyService = new PlanningPolicyService(_policySnapshotProvider);
-        _planningRequestFactory = new PlanningRequestFactory(new NullPlanningTargetResolver());
+        _planningRequestFactory = new PlanningRequestFactory(new NullPlanningTargetResolver(), new NullBusinessLocationResolver(), new NullPlanningBudgetAllocationService());
     }
 
     [ActivatorUtilitiesConstructor]
@@ -298,10 +298,10 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
 
         var proposals = new List<ProposalVariant>
         {
-            new("balanced", ApplyChannelTargets(request, BuildBalancedTargets(activeChannels), budgetBands[0].MaxBudget), budgetBands[0]),
-            new("ooh_focus", ApplyChannelTargets(request, BuildFocusedTargets(activeChannels, "ooh"), budgetBands[1].MaxBudget), budgetBands[1]),
+            new("balanced", ApplyChannelTargets(request, BuildBalancedTargets(request, activeChannels), budgetBands[0].MaxBudget), budgetBands[0]),
+            new("ooh_focus", ApplyChannelTargets(request, BuildFocusedTargets(request, activeChannels, "ooh"), budgetBands[1].MaxBudget), budgetBands[1]),
             new(secondaryFocusLabel,
-                ApplyChannelTargets(request, BuildFocusedTargets(activeChannels, secondaryFocusChannel), budgetBands[2].MaxBudget),
+                ApplyChannelTargets(request, BuildFocusedTargets(request, activeChannels, secondaryFocusChannel), budgetBands[2].MaxBudget),
                 budgetBands[2])
         };
 
@@ -318,53 +318,14 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
 
     private static CampaignPlanningRequest ApplyChannelTargets(CampaignPlanningRequest source, ChannelTargets targets, decimal selectedBudget)
     {
-        return new CampaignPlanningRequest
-        {
-            CampaignId = source.CampaignId,
-            SelectedBudget = selectedBudget,
-            Objective = source.Objective,
-            BusinessStage = source.BusinessStage,
-            MonthlyRevenueBand = source.MonthlyRevenueBand,
-            SalesModel = source.SalesModel,
-            GeographyScope = source.GeographyScope,
-            Provinces = source.Provinces.ToList(),
-            Cities = source.Cities.ToList(),
-            Suburbs = source.Suburbs.ToList(),
-            Areas = source.Areas.ToList(),
-            TargetLocationLabel = source.TargetLocationLabel,
-            TargetLocationCity = source.TargetLocationCity,
-            TargetLocationProvince = source.TargetLocationProvince,
-            TargetLocationSource = source.TargetLocationSource,
-            TargetLocationPrecision = source.TargetLocationPrecision,
-            PreferredMediaTypes = source.PreferredMediaTypes.ToList(),
-            ExcludedMediaTypes = source.ExcludedMediaTypes.ToList(),
-            TargetLanguages = source.TargetLanguages.ToList(),
-            TargetAgeMin = source.TargetAgeMin,
-            TargetAgeMax = source.TargetAgeMax,
-            TargetGender = source.TargetGender,
-            TargetInterests = source.TargetInterests.ToList(),
-            TargetAudienceNotes = source.TargetAudienceNotes,
-            CustomerType = source.CustomerType,
-            BuyingBehaviour = source.BuyingBehaviour,
-            DecisionCycle = source.DecisionCycle,
-            PricePositioning = source.PricePositioning,
-            AverageCustomerSpendBand = source.AverageCustomerSpendBand,
-            GrowthTarget = source.GrowthTarget,
-            UrgencyLevel = source.UrgencyLevel,
-            AudienceClarity = source.AudienceClarity,
-            ValuePropositionFocus = source.ValuePropositionFocus,
-            TargetLsmMin = source.TargetLsmMin,
-            TargetLsmMax = source.TargetLsmMax,
-            OpenToUpsell = source.OpenToUpsell,
-            AdditionalBudget = source.AdditionalBudget,
-            MaxMediaItems = source.MaxMediaItems,
-            TargetRadioShare = targets.Radio,
-            TargetOohShare = targets.Ooh,
-            TargetTvShare = targets.Tv,
-            TargetDigitalShare = targets.Digital,
-            TargetLatitude = source.TargetLatitude,
-            TargetLongitude = source.TargetLongitude
-        };
+        var clone = source.DeepClone();
+        clone.SelectedBudget = selectedBudget;
+        clone.TargetRadioShare = targets.Radio;
+        clone.TargetOohShare = targets.Ooh;
+        clone.TargetTvShare = targets.Tv;
+        clone.TargetDigitalShare = targets.Digital;
+        clone.BudgetAllocation = RebalanceBudgetAllocation(clone, targets);
+        return clone;
     }
 
     private static IReadOnlyList<string> ResolveActiveChannels(CampaignPlanningRequest request)
@@ -379,8 +340,23 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         return preferred.Length > 0 ? preferred : new[] { "ooh", "radio", "digital", "tv" };
     }
 
-    private static ChannelTargets BuildBalancedTargets(IReadOnlyList<string> activeChannels)
+    private static ChannelTargets BuildBalancedTargets(CampaignPlanningRequest request, IReadOnlyList<string> activeChannels)
     {
+        var allocationTargets = request.BudgetAllocation?.ChannelAllocations
+            .Where(entry => entry.Weight > 0m)
+            .ToDictionary(
+                entry => entry.Channel,
+                entry => (int)Math.Round(entry.Weight * 100m, MidpointRounding.AwayFromZero),
+                StringComparer.OrdinalIgnoreCase);
+        if (allocationTargets is not null && allocationTargets.Count > 0)
+        {
+            return new ChannelTargets(
+                allocationTargets.GetValueOrDefault("radio"),
+                allocationTargets.GetValueOrDefault("ooh"),
+                allocationTargets.GetValueOrDefault("tv"),
+                allocationTargets.GetValueOrDefault("digital"));
+        }
+
         var channelCount = Math.Max(1, activeChannels.Count);
         var baseAllocation = 100 / channelCount;
         var remainder = 100 - (baseAllocation * channelCount);
@@ -486,7 +462,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             ?? "ooh";
     }
 
-    private static ChannelTargets BuildFocusedTargets(IReadOnlyList<string> activeChannels, string primaryChannel)
+    private static ChannelTargets BuildFocusedTargets(CampaignPlanningRequest request, IReadOnlyList<string> activeChannels, string primaryChannel)
     {
         var targets = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         if (activeChannels.Count == 0)
@@ -499,25 +475,38 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             primaryChannel = activeChannels[0];
         }
 
-        var remainderChannels = activeChannels
+        var balanced = BuildBalancedTargets(request, activeChannels);
+        targets["radio"] = balanced.Radio;
+        targets["ooh"] = balanced.Ooh;
+        targets["tv"] = balanced.Tv;
+        targets["digital"] = balanced.Digital;
+
+        var primaryBoost = 15;
+        targets[primaryChannel] = Math.Min(100, targets.GetValueOrDefault(primaryChannel) + primaryBoost);
+
+        var otherChannels = activeChannels
             .Where(channel => !channel.Equals(primaryChannel, StringComparison.OrdinalIgnoreCase))
             .ToArray();
-
-        targets[primaryChannel] = 60;
-
-        if (remainderChannels.Length == 0)
+        if (otherChannels.Length > 0)
         {
-            targets[primaryChannel] = 100;
-        }
-        else
-        {
-            var baseAllocation = 40 / remainderChannels.Length;
-            var remainder = 40 - (baseAllocation * remainderChannels.Length);
-            foreach (var channel in remainderChannels)
+            var reductionPool = targets.Values.Sum() - 100;
+            while (reductionPool > 0)
             {
-                var bump = remainder > 0 ? 1 : 0;
-                targets[channel] = baseAllocation + bump;
-                remainder = Math.Max(0, remainder - bump);
+                foreach (var channel in otherChannels)
+                {
+                    if (reductionPool <= 0)
+                    {
+                        break;
+                    }
+
+                    if (targets[channel] <= 5)
+                    {
+                        continue;
+                    }
+
+                    targets[channel] -= 1;
+                    reductionPool -= 1;
+                }
             }
         }
 
@@ -795,53 +784,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
 
     private static CampaignPlanningRequest CloneRequest(CampaignPlanningRequest source)
     {
-        return new CampaignPlanningRequest
-        {
-            CampaignId = source.CampaignId,
-            SelectedBudget = source.SelectedBudget,
-            Objective = source.Objective,
-            BusinessStage = source.BusinessStage,
-            MonthlyRevenueBand = source.MonthlyRevenueBand,
-            SalesModel = source.SalesModel,
-            GeographyScope = source.GeographyScope,
-            Provinces = source.Provinces.ToList(),
-            Cities = source.Cities.ToList(),
-            Suburbs = source.Suburbs.ToList(),
-            Areas = source.Areas.ToList(),
-            TargetLocationLabel = source.TargetLocationLabel,
-            TargetLocationCity = source.TargetLocationCity,
-            TargetLocationProvince = source.TargetLocationProvince,
-            TargetLocationSource = source.TargetLocationSource,
-            TargetLocationPrecision = source.TargetLocationPrecision,
-            PreferredMediaTypes = source.PreferredMediaTypes.ToList(),
-            ExcludedMediaTypes = source.ExcludedMediaTypes.ToList(),
-            TargetLanguages = source.TargetLanguages.ToList(),
-            TargetAgeMin = source.TargetAgeMin,
-            TargetAgeMax = source.TargetAgeMax,
-            TargetGender = source.TargetGender,
-            TargetInterests = source.TargetInterests.ToList(),
-            TargetAudienceNotes = source.TargetAudienceNotes,
-            CustomerType = source.CustomerType,
-            BuyingBehaviour = source.BuyingBehaviour,
-            DecisionCycle = source.DecisionCycle,
-            PricePositioning = source.PricePositioning,
-            AverageCustomerSpendBand = source.AverageCustomerSpendBand,
-            GrowthTarget = source.GrowthTarget,
-            UrgencyLevel = source.UrgencyLevel,
-            AudienceClarity = source.AudienceClarity,
-            ValuePropositionFocus = source.ValuePropositionFocus,
-            TargetLsmMin = source.TargetLsmMin,
-            TargetLsmMax = source.TargetLsmMax,
-            OpenToUpsell = source.OpenToUpsell,
-            AdditionalBudget = source.AdditionalBudget,
-            MaxMediaItems = source.MaxMediaItems,
-            TargetRadioShare = source.TargetRadioShare,
-            TargetOohShare = source.TargetOohShare,
-            TargetTvShare = source.TargetTvShare,
-            TargetDigitalShare = source.TargetDigitalShare,
-            TargetLatitude = source.TargetLatitude,
-            TargetLongitude = source.TargetLongitude
-        };
+        return source.DeepClone();
     }
 
     private static void MarkTierRecoveryFlags(RecommendationResult recommendationResult, bool relaxedMaxItems, bool relaxedMix)
@@ -1030,6 +973,68 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         {
             CampaignId = request.CampaignId,
             SelectedBudget = request.SelectedBudget,
+            BusinessLocation = request.BusinessLocation is null ? null : new CampaignBusinessLocationSnapshot
+            {
+                Label = request.BusinessLocation.Label,
+                Area = request.BusinessLocation.Area,
+                City = request.BusinessLocation.City,
+                Province = request.BusinessLocation.Province,
+                Latitude = request.BusinessLocation.Latitude,
+                Longitude = request.BusinessLocation.Longitude,
+                Source = request.BusinessLocation.Source,
+                Precision = request.BusinessLocation.Precision,
+                IsResolved = request.BusinessLocation.IsResolved
+            },
+            Targeting = request.Targeting is null ? null : new CampaignTargetingProfileSnapshot
+            {
+                Scope = request.Targeting.Scope,
+                Label = request.Targeting.Label,
+                City = request.Targeting.City,
+                Province = request.Targeting.Province,
+                Latitude = request.Targeting.Latitude,
+                Longitude = request.Targeting.Longitude,
+                Source = request.Targeting.Source,
+                Precision = request.Targeting.Precision,
+                Provinces = request.Targeting.Provinces.ToList(),
+                Cities = request.Targeting.Cities.ToList(),
+                Suburbs = request.Targeting.Suburbs.ToList(),
+                Areas = request.Targeting.Areas.ToList(),
+                PriorityAreas = request.Targeting.PriorityAreas.ToList(),
+                Exclusions = request.Targeting.Exclusions.ToList()
+            },
+            BudgetAllocation = request.BudgetAllocation is null ? null : new PlanningBudgetAllocationSnapshot
+            {
+                ChannelPolicyKey = request.BudgetAllocation.ChannelPolicyKey,
+                GeoPolicyKey = request.BudgetAllocation.GeoPolicyKey,
+                AudienceSegment = request.BudgetAllocation.AudienceSegment,
+                ChannelAllocations = request.BudgetAllocation.ChannelAllocations
+                    .Select(static allocation => new PlanningChannelAllocationSnapshot
+                    {
+                        Channel = allocation.Channel,
+                        Weight = allocation.Weight,
+                        Amount = allocation.Amount
+                    })
+                    .ToList(),
+                GeoAllocations = request.BudgetAllocation.GeoAllocations
+                    .Select(static allocation => new PlanningGeoAllocationSnapshot
+                    {
+                        Bucket = allocation.Bucket,
+                        Weight = allocation.Weight,
+                        Amount = allocation.Amount,
+                        RadiusKm = allocation.RadiusKm
+                    })
+                    .ToList(),
+                CompositeAllocations = request.BudgetAllocation.CompositeAllocations
+                    .Select(static allocation => new PlanningAllocationLineSnapshot
+                    {
+                        Channel = allocation.Channel,
+                        Bucket = allocation.Bucket,
+                        Weight = allocation.Weight,
+                        Amount = allocation.Amount,
+                        RadiusKm = allocation.RadiusKm
+                    })
+                    .ToList()
+            },
             Objective = request.Objective,
             BusinessStage = request.BusinessStage,
             MonthlyRevenueBand = request.MonthlyRevenueBand,
@@ -1063,6 +1068,8 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             ValuePropositionFocus = request.ValuePropositionFocus,
             TargetLsmMin = request.TargetLsmMin,
             TargetLsmMax = request.TargetLsmMax,
+            MustHaveAreas = request.MustHaveAreas.ToList(),
+            ExcludedAreas = request.ExcludedAreas.ToList(),
             OpenToUpsell = request.OpenToUpsell,
             AdditionalBudget = request.AdditionalBudget,
             MaxMediaItems = request.MaxMediaItems,
@@ -1073,6 +1080,79 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             TargetLatitude = request.TargetLatitude,
             TargetLongitude = request.TargetLongitude
         };
+    }
+
+    private static PlanningBudgetAllocation? RebalanceBudgetAllocation(CampaignPlanningRequest request, ChannelTargets targets)
+    {
+        if (request.BudgetAllocation is null)
+        {
+            return null;
+        }
+
+        var channelWeights = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["radio"] = targets.Radio / 100m,
+            ["ooh"] = targets.Ooh / 100m,
+            ["tv"] = targets.Tv / 100m,
+            ["digital"] = targets.Digital / 100m
+        }
+        .Where(entry => entry.Value > 0m)
+        .ToDictionary(entry => entry.Key, entry => entry.Value, StringComparer.OrdinalIgnoreCase);
+
+        var totalWeight = channelWeights.Sum(entry => entry.Value);
+        if (totalWeight <= 0m)
+        {
+            totalWeight = 1m;
+        }
+
+        var normalizedChannels = channelWeights.ToDictionary(
+            entry => entry.Key,
+            entry => decimal.Round(entry.Value / totalWeight, 4, MidpointRounding.AwayFromZero),
+            StringComparer.OrdinalIgnoreCase);
+
+        var geoWeights = request.BudgetAllocation.GeoAllocations
+            .ToDictionary(entry => entry.Bucket, entry => entry.Weight, StringComparer.OrdinalIgnoreCase);
+
+        var allocation = new PlanningBudgetAllocation
+        {
+            AudienceSegment = request.BudgetAllocation.AudienceSegment,
+            ChannelPolicyKey = request.BudgetAllocation.ChannelPolicyKey,
+            GeoPolicyKey = request.BudgetAllocation.GeoPolicyKey,
+            ChannelAllocations = normalizedChannels
+                .Select(entry => new PlanningChannelAllocation
+                {
+                    Channel = entry.Key,
+                    Weight = entry.Value,
+                    Amount = decimal.Round(request.SelectedBudget * entry.Value, 2, MidpointRounding.AwayFromZero)
+                })
+                .OrderByDescending(entry => entry.Weight)
+                .ToList(),
+            GeoAllocations = request.BudgetAllocation.GeoAllocations
+                .Select(entry => entry.DeepClone())
+                .ToList()
+        };
+
+        foreach (var geoAllocation in allocation.GeoAllocations)
+        {
+            geoAllocation.Amount = decimal.Round(request.SelectedBudget * geoAllocation.Weight, 2, MidpointRounding.AwayFromZero);
+        }
+
+        foreach (var channel in allocation.ChannelAllocations)
+        {
+            foreach (var geo in allocation.GeoAllocations)
+            {
+                allocation.CompositeAllocations.Add(new PlanningAllocationLine
+                {
+                    Channel = channel.Channel,
+                    Bucket = geo.Bucket,
+                    Weight = decimal.Round(channel.Weight * geo.Weight, 4, MidpointRounding.AwayFromZero),
+                    Amount = decimal.Round(request.SelectedBudget * channel.Weight * geo.Weight, 2, MidpointRounding.AwayFromZero),
+                    RadiusKm = geo.RadiusKm
+                });
+            }
+        }
+
+        return allocation;
     }
 
     private static string SerializeAuditJson(object value)
@@ -1100,6 +1180,27 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
                 Precision = request.TargetLocationPrecision ?? "unknown",
                 IsResolved = request.TargetLatitude.HasValue && request.TargetLongitude.HasValue
             };
+        }
+    }
+
+    private sealed class NullBusinessLocationResolver : ICampaignBusinessLocationResolver
+    {
+        public CampaignBusinessLocationResolution Resolve(CampaignEntity campaign)
+        {
+            return new CampaignBusinessLocationResolution();
+        }
+    }
+
+    private sealed class NullPlanningBudgetAllocationService : IPlanningBudgetAllocationService
+    {
+        public PlanningBudgetAllocation Resolve(CampaignPlanningRequest request)
+        {
+            return new PlanningBudgetAllocation();
+        }
+
+        public PlanningBudgetAllocation RebalanceChannelTargets(CampaignPlanningRequest request, IReadOnlyDictionary<string, int> channelShares)
+        {
+            return new PlanningBudgetAllocation();
         }
     }
 

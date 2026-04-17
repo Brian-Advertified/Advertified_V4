@@ -70,6 +70,7 @@ public sealed class EmailVerificationService : IEmailVerificationService
                     ["ActivationUrl"] = BuildFrontendUrl($"/verify-email?{string.Join("&", activationQuery)}")
                 },
                 null,
+                null,
                 cancellationToken);
         }
         catch (Exception ex)
@@ -111,6 +112,7 @@ public sealed class EmailVerificationService : IEmailVerificationService
                     ["UserName"] = verificationToken.User.FullName,
                     ["SignInUrl"] = BuildFrontendUrl("/login")
                 },
+                null,
                 null,
                 cancellationToken);
         }

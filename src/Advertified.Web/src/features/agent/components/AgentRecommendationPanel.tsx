@@ -1,9 +1,10 @@
-import { ArrowRightLeft, CircleAlert, CircleCheckBig, RefreshCcw, SlidersHorizontal } from 'lucide-react';
+import { ArrowRightLeft, CircleAlert, CircleCheckBig, Mail, RefreshCcw, SlidersHorizontal } from 'lucide-react';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import type { RefObject } from 'react';
 import type { CampaignRecommendation, RecommendationItem, SelectedPlanInventoryItem } from '../../../types/domain';
 
 type DisplayPlanItem = SelectedPlanInventoryItem | RecommendationItem;
+type EmailDelivery = NonNullable<CampaignRecommendation['emailDeliveries']>[number];
 
 export function AgentRecommendationPanel({
   activeRecommendation,
@@ -13,6 +14,7 @@ export function AgentRecommendationPanel({
   recommendationTitle,
   lockedNextStep,
   activeProposalLabel,
+  activeProposalTotal,
   mixPanelRef,
   mixBalance,
   setMixBalance,
@@ -24,6 +26,8 @@ export function AgentRecommendationPanel({
   budgetWarning,
   canModifyPlan,
   selectedPlanItemsCount,
+  proposalDisplayTotals,
+  proposalDisplayItemCounts,
   onSelectRecommendation,
   onRegenerate,
   onAdjustMix,
@@ -42,6 +46,7 @@ export function AgentRecommendationPanel({
   recommendationTitle: string;
   lockedNextStep: string;
   activeProposalLabel: string;
+  activeProposalTotal: number;
   mixPanelRef: RefObject<HTMLDivElement | null>;
   mixBalance: number;
   setMixBalance: (value: number) => void;
@@ -53,6 +58,8 @@ export function AgentRecommendationPanel({
   budgetWarning?: string;
   canModifyPlan: boolean;
   selectedPlanItemsCount: number;
+  proposalDisplayTotals: Record<string, number>;
+  proposalDisplayItemCounts: Record<string, number>;
   onSelectRecommendation: (recommendationId: string) => void;
   onRegenerate: () => void;
   onAdjustMix: () => void;
@@ -86,6 +93,39 @@ export function AgentRecommendationPanel({
         <div className="panel border-amber-200 bg-amber-50/80 px-6 py-5">
           <p className="text-sm font-semibold text-amber-800">Client feedback</p>
           <p className="mt-2 text-sm leading-7 text-amber-900">{activeRecommendation.clientFeedbackNotes}</p>
+        </div>
+      ) : null}
+
+      {activeRecommendation?.emailDeliveries?.length ? (
+        <div className="panel border-brand/15 bg-white px-6 py-5">
+          <div className="flex items-start gap-3">
+            <div className="rounded-2xl bg-brand-soft p-3 text-brand">
+              <Mail className="size-4" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-ink">Proposal email delivery</p>
+              <p className="mt-2 text-sm text-ink-soft">
+                {describeLatestDelivery(activeRecommendation.emailDeliveries[0])}
+              </p>
+              <div className="mt-4 space-y-2">
+                {activeRecommendation.emailDeliveries.slice(0, 3).map((delivery) => (
+                  <div key={delivery.id} className="rounded-[14px] border border-line bg-slate-50 px-4 py-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-ink">{delivery.recipientEmail}</p>
+                        <p className="mt-1 text-xs uppercase tracking-[0.14em] text-ink-soft">{delivery.templateName}</p>
+                      </div>
+                      <span className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${getDeliveryTone(delivery.status)}`}>
+                        {formatDeliveryStatus(delivery.status)}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm text-ink-soft">{describeDeliveryMoments(delivery)}</p>
+                    {delivery.lastError ? <p className="mt-2 text-sm text-rose-700">{delivery.lastError}</p> : null}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       ) : null}
 
@@ -124,8 +164,8 @@ export function AgentRecommendationPanel({
                 >
                   <p className="text-sm font-semibold text-ink">{proposal.proposalLabel ?? 'Proposal'}</p>
                   <p className="mt-1 text-sm text-ink-soft">{proposal.proposalStrategy ?? 'Recommendation option'}</p>
-                  <p className="mt-2 text-sm font-semibold text-ink">{formatCurrency(proposal.totalCost)}</p>
-                  <p className="mt-1 text-xs uppercase tracking-[0.14em] text-ink-soft">{proposal.items.length} line item(s)</p>
+                  <p className="mt-2 text-sm font-semibold text-ink">{formatCurrency(proposalDisplayTotals[proposal.id] ?? proposal.totalCost)}</p>
+                  <p className="mt-1 text-xs uppercase tracking-[0.14em] text-ink-soft">{proposalDisplayItemCounts[proposal.id] ?? proposal.items.length} line item(s)</p>
                 </button>
               );
             })}
@@ -159,7 +199,7 @@ export function AgentRecommendationPanel({
               <div className="rounded-[16px] border border-emerald-200 bg-emerald-50 px-4 py-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Approved proposal</p>
                 <p className="mt-3 text-lg font-semibold text-ink">{activeProposalLabel}</p>
-                <p className="mt-1 text-sm text-ink-soft">{formatCurrency(activeRecommendation?.totalCost ?? 0)}</p>
+                <p className="mt-1 text-sm text-ink-soft">{formatCurrency(activeProposalTotal)}</p>
                 <p className="mt-3 text-sm leading-7 text-emerald-900">
                   Recommendation work is complete. Keep this page focused on production, delivery, and client follow-up.
                 </p>
@@ -297,6 +337,65 @@ export function AgentRecommendationPanel({
       ) : null}
     </>
   );
+}
+
+function formatDeliveryStatus(status: string) {
+  return status.replace(/_/g, ' ');
+}
+
+function getDeliveryTone(status: string) {
+  switch (status) {
+    case 'delivered':
+      return 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200';
+    case 'bounced':
+    case 'failed':
+    case 'complained':
+      return 'bg-rose-50 text-rose-700 ring-1 ring-rose-200';
+    case 'delivery_delayed':
+      return 'bg-amber-50 text-amber-700 ring-1 ring-amber-200';
+    default:
+      return 'bg-brand-soft text-brand ring-1 ring-brand/10';
+  }
+}
+
+function describeLatestDelivery(delivery: EmailDelivery) {
+  if (delivery.deliveredAt) {
+    return `Delivered to ${delivery.recipientEmail} on ${formatTimestamp(delivery.deliveredAt)}.`;
+  }
+
+  if (delivery.acceptedAt) {
+    return `Sent to ${delivery.recipientEmail} on ${formatTimestamp(delivery.acceptedAt)} and awaiting a final provider event.`;
+  }
+
+  if (delivery.failedAt || delivery.bouncedAt) {
+    return `The latest send to ${delivery.recipientEmail} did not complete successfully.`;
+  }
+
+  return `The latest send attempt for ${delivery.recipientEmail} has been recorded.`;
+}
+
+function describeDeliveryMoments(delivery: EmailDelivery) {
+  if (delivery.deliveredAt) {
+    return `Accepted ${formatTimestamp(delivery.acceptedAt)}. Delivered ${formatTimestamp(delivery.deliveredAt)}.`;
+  }
+
+  if (delivery.bouncedAt) {
+    return `Accepted ${formatTimestamp(delivery.acceptedAt)}. Bounced ${formatTimestamp(delivery.bouncedAt)}.`;
+  }
+
+  if (delivery.failedAt) {
+    return `Failed ${formatTimestamp(delivery.failedAt)}.`;
+  }
+
+  if (delivery.acceptedAt) {
+    return `Accepted ${formatTimestamp(delivery.acceptedAt)}. Waiting for delivery confirmation.`;
+  }
+
+  return `Latest event ${delivery.latestEventType ?? 'recorded'} ${formatTimestamp(delivery.latestEventAt)}.`;
+}
+
+function formatTimestamp(value?: string) {
+  return value ? new Date(value).toLocaleString() : 'not recorded';
 }
 
 function AuditLine({ label, value }: { label: string; value: string }) {

@@ -5,9 +5,11 @@ import {
   CircleCheckBig,
   Download,
   MessageSquareQuote,
+  RotateCcw,
   Send,
   UserPlus2,
   UserX2,
+  XCircle,
 } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
@@ -46,7 +48,7 @@ import { catalogQueryOptions } from '../../lib/catalogQueryOptions';
 import { invalidateAgentCampaignQueries, queryKeys } from '../../lib/queryKeys';
 import { formatCurrency, formatDate, titleCase } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
-import type { RecommendationItem, SelectedPlanInventoryItem } from '../../types/domain';
+import type { RecommendationItem, SelectedPlanInventoryItem, SelectOption } from '../../types/domain';
 import { pushAgentMutationError } from './agentMutationToast';
 
 type DisplayPlanItem = SelectedPlanInventoryItem | RecommendationItem;
@@ -70,6 +72,14 @@ function formatPackageRange(minBudget: number, maxBudget: number) {
   return `${formatCurrency(minBudget)} to ${formatCurrency(maxBudget)}`;
 }
 
+function resolveOptionLabel(options: SelectOption[] | undefined, value?: string) {
+  if (!value) {
+    return undefined;
+  }
+
+  return options?.find((option) => option.value === value)?.label ?? titleCase(value.replace(/_/g, ' '));
+}
+
 export function AgentCampaignDetailPage() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
@@ -80,12 +90,18 @@ export function AgentCampaignDetailPage() {
   const [mixBalance, setMixBalance] = useState(60);
   const [selectedRecommendationIdState, setSelectedRecommendationIdState] = useState('');
   const [inventoryModalOpen, setInventoryModalOpen] = useState(false);
+  const [replacementTargetItemId, setReplacementTargetItemId] = useState<string | null>(null);
   const [prospectPackageBandState, setProspectPackageBandState] = useState<{ campaignId: string; packageBandId: string } | null>(null);
   const [resendEmailState, setResendEmailState] = useState<{ toEmail: string; message: string }>({
     toEmail: '',
     message: '',
   });
   const [resendEmailOpen, setResendEmailOpen] = useState(false);
+  const [closeProspectOpen, setCloseProspectOpen] = useState(false);
+  const [closeProspectState, setCloseProspectState] = useState<{ reasonCode: string; notes: string }>({
+    reasonCode: '',
+    notes: '',
+  });
   const mixPanelRef = useRef<HTMLDivElement | null>(null);
 
   const campaignQuery = useQuery({
@@ -104,6 +120,13 @@ export function AgentCampaignDetailPage() {
     queryFn: () => advertifiedApi.getInventory(id),
     enabled: campaignQuery.isSuccess,
     retry: false,
+  });
+  const prospectDispositionReasonsQuery = useQuery({
+    queryKey: ['agent', 'campaigns', 'prospect-disposition-reasons'],
+    queryFn: () => advertifiedApi.getProspectDispositionReasons(),
+    enabled: Boolean(id),
+    retry: false,
+    staleTime: 5 * 60 * 1000,
   });
   const packagesQuery = useQuery({
     queryKey: queryKeys.packages.all,
@@ -150,6 +173,33 @@ export function AgentCampaignDetailPage() {
       setResendEmailState((prev) => ({ ...prev, message: '' }));
     },
     onError: (error) => pushAgentMutationError(pushToast, 'Could not resend proposal email.', error),
+  });
+  const closeProspectMutation = useMutation({
+    mutationFn: () => advertifiedApi.closeProspect(id, {
+      reasonCode: closeProspectState.reasonCode,
+      notes: closeProspectState.notes.trim() ? closeProspectState.notes.trim() : null,
+    }),
+    onSuccess: async () => {
+      await invalidateAgentCampaignQueries(queryClient, id);
+      pushToast({
+        title: 'Prospect closed.',
+        description: 'This campaign has been removed from the active prospect queue until it is reopened.',
+      }, 'info');
+      setCloseProspectOpen(false);
+      setCloseProspectState({ reasonCode: '', notes: '' });
+    },
+    onError: (error) => pushAgentMutationError(pushToast, 'Could not close prospect.', error),
+  });
+  const reopenProspectMutation = useMutation({
+    mutationFn: () => advertifiedApi.reopenProspect(id),
+    onSuccess: async () => {
+      await invalidateAgentCampaignQueries(queryClient, id);
+      pushToast({
+        title: 'Prospect reopened.',
+        description: 'The campaign is back in the active prospect workflow.',
+      });
+    },
+    onError: (error) => pushAgentMutationError(pushToast, 'Could not reopen prospect.', error),
   });
   const updateProspectPricingMutation = useMutation({
     mutationFn: () => advertifiedApi.updateProspectPricing(id, {
@@ -381,6 +431,26 @@ export function AgentCampaignDetailPage() {
   const draftApprovalCaptured = draftApprovalState?.key === hydrationKey
     ? draftApprovalState.captured
     : false;
+  const proposalDisplayTotals = useMemo(() => {
+    const totals: Record<string, number> = {};
+    for (const recommendation of recommendations) {
+      totals[recommendation.id] = recommendation.id === activeRecommendation?.id
+        ? selectedPlanItems.reduce((sum, item) => sum + item.rate * item.quantity, 0) || activeRecommendation?.totalCost || 0
+        : recommendation.totalCost;
+    }
+
+    return totals;
+  }, [activeRecommendation?.id, activeRecommendation?.totalCost, recommendations, selectedPlanItems]);
+  const proposalDisplayItemCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const recommendation of recommendations) {
+      counts[recommendation.id] = recommendation.id === activeRecommendation?.id
+        ? selectedPlanItems.length
+        : recommendation.items.length;
+    }
+
+    return counts;
+  }, [activeRecommendation?.id, recommendations, selectedPlanItems.length]);
 
   if (campaignQuery.isLoading || (campaign && inventoryQuery.isLoading)) {
     return <LoadingState label="Loading agent campaign detail..." />;
@@ -424,7 +494,8 @@ export function AgentCampaignDetailPage() {
   })));
   const plannedTotal = selectedPlanItems.reduce((sum, item) => sum + item.rate * item.quantity, 0);
   const effectivePlannedTotal = plannedTotal > 0 ? plannedTotal : activeRecommendation?.totalCost ?? 0;
-  const isProspectiveCampaign = campaign.status === 'awaiting_purchase';
+  const isProspectiveCampaign = campaign.paymentStatus !== 'paid' || campaign.status === 'awaiting_purchase';
+  const isClosedProspect = isProspectiveCampaign && campaign.prospectDisposition?.status === 'closed';
   const budgetDelta = campaign.selectedBudget - effectivePlannedTotal;
   const hasSelectedPackageBand = Boolean(selectedPackageBand);
   const prospectiveBelowBandDelta = selectedPackageBand
@@ -466,7 +537,9 @@ export function AgentCampaignDetailPage() {
   const planningTargetCoords = effectivePlanningTarget?.latitude != null && effectivePlanningTarget?.longitude != null
     ? `${effectivePlanningTarget.latitude.toFixed(4)}, ${effectivePlanningTarget.longitude.toFixed(4)}`
     : undefined;
-  const statusLabel = campaign.status === 'creative_approved' || campaign.status === 'booking_in_progress' || campaign.status === 'launched'
+  const statusLabel = isClosedProspect
+    ? 'Closed prospect'
+    : campaign.status === 'creative_approved' || campaign.status === 'booking_in_progress' || campaign.status === 'launched'
     ? titleCase(campaign.status)
     : activeRecommendation?.status
       ? titleCase(activeRecommendation.status)
@@ -475,7 +548,7 @@ export function AgentCampaignDetailPage() {
   const canMarkLive = campaign.status === 'booking_in_progress' && campaign.supplierBookings.length > 0;
   const recommendationStatus = activeRecommendation?.status?.toLowerCase() ?? '';
   const awaitingClientReview = campaign.status === 'review_ready' || recommendationStatus === 'sent_to_client';
-  const recommendationWorkflowLocked = showExecutionOperations || recommendationStatus === 'approved' || awaitingClientReview;
+  const recommendationWorkflowLocked = isClosedProspect || showExecutionOperations || recommendationStatus === 'approved' || awaitingClientReview;
   const showRecommendationEditing = !recommendationWorkflowLocked;
   const showAiStudioHandoff = campaign.status === 'approved'
     || campaign.status === 'creative_changes_requested'
@@ -488,7 +561,9 @@ export function AgentCampaignDetailPage() {
   const hasSendableProposal = !recommendationWorkflowLocked && recommendations.length >= 1;
   const canResendProposalEmail = recommendations.length >= 1;
   const hasOohRecommendation = selectedPlanItems.some((item) => normalizeChannelKey(item.type) === 'OOH');
-  const lockedNextStep = campaign.status === 'approved'
+  const lockedNextStep = isClosedProspect
+    ? 'This prospect is commercially closed. Reopen it only if the client starts engaging again or the opportunity changes.'
+    : campaign.status === 'approved'
     ? 'The recommendation is approved and paid. The next real step belongs to the creative director team: create the campaign content and prepare it for client approval.'
     : campaign.status === 'creative_changes_requested'
       ? 'The client has asked for creative changes. The creative director team is updating the content and preparing the next handoff.'
@@ -534,6 +609,10 @@ export function AgentCampaignDetailPage() {
   const executionAssets = campaign.assets ?? [];
   const supplierBookings = campaign.supplierBookings ?? [];
   const deliveryReports = campaign.deliveryReports ?? [];
+  const prospectDispositionReasonLabel = resolveOptionLabel(
+    prospectDispositionReasonsQuery.data,
+    campaign.prospectDisposition?.reasonCode,
+  );
 
   async function handleDownloadRecommendationPdf() {
     const pdfUrl = campaign?.recommendationPdfUrl;
@@ -593,6 +672,18 @@ export function AgentCampaignDetailPage() {
     resendEmailMutation.mutate();
   }
 
+  function handleCloseProspect() {
+    if (!closeProspectState.reasonCode) {
+      pushToast({
+        title: 'Close reason required.',
+        description: 'Choose the reason for closing this prospect before saving.',
+      }, 'info');
+      return;
+    }
+
+    closeProspectMutation.mutate();
+  }
+
   function toggleInventoryItem(item: SelectedPlanInventoryItem) {
     if (!canModifyPlan) {
       pushToast({
@@ -635,17 +726,65 @@ export function AgentCampaignDetailPage() {
     const currentItem = selectedPlanItems.find((item) => item.id === itemId);
     if (!currentItem) return;
 
-    const suggestions = inventoryItems
-      .filter((item) => item.id !== currentItem.id && item.type === currentItem.type)
-      .slice(0, 2)
-      .map((item) => item.station);
+    setReplacementTargetItemId(itemId);
+    setInventoryModalOpen(true);
+  }
 
-    pushToast({
-      title: 'Pick a replacement below.',
-      description: suggestions.length > 0
-        ? `Suggested swaps: ${suggestions.join(', ')}.`
-        : 'Browse the inventory library below to replace this line.',
-    }, 'info');
+  function handleToggleInventoryItem(item: SelectedPlanInventoryItem) {
+    if (replacementTargetItemId) {
+      const currentItem = selectedPlanItems.find((value) => value.id === replacementTargetItemId);
+      if (!currentItem) {
+        setReplacementTargetItemId(null);
+        return;
+      }
+
+      setSelectedPlanState((currentState) => {
+        const currentItems = currentState?.key === hydrationKey
+          ? currentState.items
+          : hydratedSelectedPlanItems;
+        const replacementExists = currentItems.some((value) => value.id === item.id);
+        const nextItems = currentItems
+          .filter((value) => value.id !== currentItem.id)
+          .map((value) => (
+            value.id === item.id
+              ? {
+                ...value,
+                quantity: currentItem.quantity,
+                flighting: currentItem.flighting,
+                notes: currentItem.notes,
+                startDate: currentItem.startDate,
+                endDate: currentItem.endDate,
+              }
+              : value
+          ));
+
+        if (!replacementExists) {
+          nextItems.push({
+            ...item,
+            quantity: currentItem.quantity,
+            flighting: currentItem.flighting,
+            notes: currentItem.notes,
+            startDate: currentItem.startDate,
+            endDate: currentItem.endDate,
+          });
+        }
+
+        return {
+          key: hydrationKey,
+          items: nextItems,
+        };
+      });
+
+      setReplacementTargetItemId(null);
+      setInventoryModalOpen(false);
+      pushToast({
+        title: 'Line replaced.',
+        description: `${currentItem.station} was replaced with ${item.station}.`,
+      });
+      return;
+    }
+
+    toggleInventoryItem(item);
   }
 
   async function handleApproveRecommendation() {
@@ -725,13 +864,17 @@ export function AgentCampaignDetailPage() {
 
   return (
     <section className="page-shell space-y-8">
-      {saveMutation.isPending || sendMutation.isPending || resendEmailMutation.isPending || assignMutation.isPending || unassignMutation.isPending || regenerateMutation.isPending || markLiveMutation.isPending ? (
+      {saveMutation.isPending || sendMutation.isPending || resendEmailMutation.isPending || assignMutation.isPending || unassignMutation.isPending || regenerateMutation.isPending || markLiveMutation.isPending || closeProspectMutation.isPending || reopenProspectMutation.isPending ? (
         <ProcessingOverlay
           label={
             sendMutation.isPending
               ? 'Sending recommendation to the client...'
               : resendEmailMutation.isPending
                 ? 'Resending the proposal email...'
+              : closeProspectMutation.isPending
+                ? 'Closing this prospect...'
+              : reopenProspectMutation.isPending
+                ? 'Reopening this prospect...'
               : markLiveMutation.isPending
                 ? 'Marking the campaign live...'
               : assignMutation.isPending
@@ -772,6 +915,20 @@ export function AgentCampaignDetailPage() {
         <AgentStepper campaign={campaign} />
       </div>
 
+      {isClosedProspect ? (
+        <div className="panel border-rose-200 bg-rose-50/80 px-6 py-5 sm:px-8">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-rose-700">Prospect closed</p>
+          <div className="mt-3 space-y-2 text-sm leading-7 text-rose-900">
+            <p>
+              {prospectDispositionReasonLabel ?? 'Closure reason not captured'}
+              {campaign.prospectDisposition?.closedAt ? ` on ${formatDate(campaign.prospectDisposition.closedAt)}` : ''}
+              {campaign.prospectDisposition?.closedByName ? ` by ${campaign.prospectDisposition.closedByName}` : ''}.
+            </p>
+            {campaign.prospectDisposition?.notes ? <p>{campaign.prospectDisposition.notes}</p> : null}
+          </div>
+        </div>
+      ) : null}
+
       <div className="grid gap-6 lg:grid-cols-[360px_1fr] xl:grid-cols-[380px_1fr]">
         <div className="space-y-5 lg:sticky lg:top-24 lg:self-start">
           <div className="panel px-5 py-5">
@@ -783,14 +940,14 @@ export function AgentCampaignDetailPage() {
                 : `Package target: ${formatCurrency(campaign.selectedBudget)}`}
             </p>
             {activeRecommendation ? (
-              <p className="mt-2 text-sm font-semibold text-ink">{activeProposalLabel}: {formatCurrency(activeRecommendation.totalCost)}</p>
+              <p className="mt-2 text-sm font-semibold text-ink">{activeProposalLabel}: {formatCurrency(effectivePlannedTotal)}</p>
             ) : null}
             <div className="mt-4 inline-flex rounded-full bg-brand-soft px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-brand">
               {statusLabel}
             </div>
           </div>
 
-          {isProspectiveCampaign && campaign.isAssignedToCurrentUser ? (
+          {isProspectiveCampaign && campaign.isAssignedToCurrentUser && !isClosedProspect ? (
             <div className="panel px-5 py-5">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ink-soft">Prospect pricing</p>
               <p className="mt-2 text-sm leading-7 text-ink-soft">
@@ -908,6 +1065,7 @@ export function AgentCampaignDetailPage() {
             recommendationTitle={recommendationTitle}
             lockedNextStep={lockedNextStep}
             activeProposalLabel={activeProposalLabel}
+            activeProposalTotal={effectivePlannedTotal}
             mixPanelRef={mixPanelRef}
             mixBalance={mixBalance}
             setMixBalance={setMixBalance}
@@ -924,6 +1082,8 @@ export function AgentCampaignDetailPage() {
             budgetWarning={budgetWarning}
             canModifyPlan={canModifyPlan}
             selectedPlanItemsCount={selectedPlanItems.length}
+            proposalDisplayTotals={proposalDisplayTotals}
+            proposalDisplayItemCounts={proposalDisplayItemCounts}
             onSelectRecommendation={setSelectedRecommendationIdState}
             onRegenerate={handleRegenerate}
             onAdjustMix={handleAdjustMix}
@@ -1018,7 +1178,7 @@ export function AgentCampaignDetailPage() {
                 Preview client PDF
               </button>
             ) : null}
-            {awaitingClientReview ? (
+            {awaitingClientReview && !isClosedProspect ? (
               <button
                 type="button"
                 disabled
@@ -1039,7 +1199,7 @@ export function AgentCampaignDetailPage() {
                 Send to client
               </button>
             ) : null}
-            {canResendProposalEmail ? (
+            {canResendProposalEmail && !isClosedProspect ? (
               <button
                 type="button"
                 disabled={resendEmailMutation.isPending}
@@ -1072,7 +1232,78 @@ export function AgentCampaignDetailPage() {
                 Mark campaign live
               </button>
             ) : null}
+            {isProspectiveCampaign && campaign.isAssignedToCurrentUser && !isClosedProspect ? (
+              <button
+                type="button"
+                disabled={closeProspectMutation.isPending}
+                onClick={() => setCloseProspectOpen((open) => !open)}
+                className="button-secondary inline-flex items-center gap-2 px-5 py-3 text-rose-700 disabled:opacity-60"
+              >
+                <XCircle className="size-4" />
+                Close prospect
+              </button>
+            ) : null}
+            {isClosedProspect && campaign.isAssignedToCurrentUser ? (
+              <button
+                type="button"
+                disabled={reopenProspectMutation.isPending}
+                onClick={() => reopenProspectMutation.mutate()}
+                className="button-secondary inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60"
+              >
+                <RotateCcw className="size-4" />
+                Reopen prospect
+              </button>
+            ) : null}
           </div>
+
+          {closeProspectOpen && !isClosedProspect ? (
+            <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50/60 px-5 py-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                <div className="flex-1">
+                  <label className="text-sm font-semibold text-ink">Close prospect</label>
+                  <p className="mt-1 text-sm text-ink-soft">This removes the campaign from the active prospect inbox but keeps the full audit trail and allows reopening later.</p>
+                </div>
+                <button type="button" onClick={() => setCloseProspectOpen(false)} className="button-secondary px-4 py-2">
+                  Cancel
+                </button>
+              </div>
+              <div className="mt-4 grid gap-4 md:grid-cols-3">
+                <div className="md:col-span-1">
+                  <label className="text-sm font-semibold text-ink">Reason</label>
+                  <select
+                    value={closeProspectState.reasonCode}
+                    onChange={(event) => setCloseProspectState((prev) => ({ ...prev, reasonCode: event.target.value }))}
+                    className="mt-2 w-full rounded-xl border border-rose-200 bg-white px-3 py-2 text-sm"
+                  >
+                    <option value="">Select reason</option>
+                    {(prospectDispositionReasonsQuery.data ?? []).map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="md:col-span-2">
+                  <label className="text-sm font-semibold text-ink">Notes (optional)</label>
+                  <input
+                    value={closeProspectState.notes}
+                    onChange={(event) => setCloseProspectState((prev) => ({ ...prev, notes: event.target.value }))}
+                    placeholder="Add context for future follow-up or reporting"
+                    className="mt-2 w-full rounded-xl border border-rose-200 bg-white px-3 py-2 text-sm"
+                  />
+                </div>
+              </div>
+              <div className="mt-4 flex justify-end">
+                <button
+                  type="button"
+                  disabled={closeProspectMutation.isPending || prospectDispositionReasonsQuery.isLoading}
+                  onClick={handleCloseProspect}
+                  className="button-primary inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60"
+                >
+                  <XCircle className="size-4" />
+                  Confirm close
+                </button>
+              </div>
+            </div>
+          ) : null}
 
           {resendEmailOpen ? (
             <div className="mt-4 rounded-2xl border border-sand px-5 py-4">
@@ -1124,8 +1355,13 @@ export function AgentCampaignDetailPage() {
             items={visibleInventoryItems}
             selectedItemIds={selectedInventoryIds}
             canModifyPlan={canModifyPlan}
-            onClose={() => setInventoryModalOpen(false)}
-            onToggleItem={(item) => toggleInventoryItem(item as SelectedPlanInventoryItem)}
+            replacementItemId={replacementTargetItemId}
+            replacementInventoryType={selectedPlanItems.find((item) => item.id === replacementTargetItemId)?.type ?? null}
+            onClose={() => {
+              setInventoryModalOpen(false);
+              setReplacementTargetItemId(null);
+            }}
+            onToggleItem={(item) => handleToggleInventoryItem(item as SelectedPlanInventoryItem)}
             formatChannelLabel={formatChannelLabel}
           />
         </div>

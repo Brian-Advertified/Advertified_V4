@@ -9,6 +9,7 @@ namespace Advertified.App.Services;
 public sealed class FormOptionsService
 {
     private const string CacheKey = "public-form-options:v1";
+    private const string AllItemsCacheKey = "form-options:all:v1";
     private readonly AppDbContext _db;
     private readonly IMemoryCache _cache;
 
@@ -20,22 +21,13 @@ public sealed class FormOptionsService
 
     public async Task<PublicFormOptionsResponse> GetPublicOptionsAsync(CancellationToken cancellationToken)
     {
+        var items = await GetAllActiveRowsAsync(cancellationToken);
         return await _cache.GetOrCreateAsync(
                 CacheKey,
-                async entry =>
+                entry =>
                 {
                     entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10);
-
-                    var items = await _db.FormOptionItems
-                        .AsNoTracking()
-                        .Where(x => x.IsActive)
-                        .OrderBy(x => x.OptionSetKey)
-                        .ThenBy(x => x.SortOrder)
-                        .ThenBy(x => x.Label)
-                        .Select(x => new FormOptionRow(x.OptionSetKey, x.Value, x.Label))
-                        .ToListAsync(cancellationToken);
-
-                    return BuildResponse(items);
+                    return Task.FromResult(BuildResponse(items));
                 })
             ?? new PublicFormOptionsResponse();
     }
@@ -47,10 +39,23 @@ public sealed class FormOptionsService
             return true;
         }
 
-        var options = await GetPublicOptionsAsync(cancellationToken);
         var trimmedValue = value.Trim();
-        return GetOptions(options, optionSetKey)
+        var options = await GetOptionsAsync(optionSetKey, cancellationToken);
+        return options
             .Any(option => option.Value.Equals(trimmedValue, StringComparison.OrdinalIgnoreCase));
+    }
+
+    public async Task<IReadOnlyList<FormOptionResponse>> GetOptionsAsync(string optionSetKey, CancellationToken cancellationToken)
+    {
+        var items = await GetAllActiveRowsAsync(cancellationToken);
+        return items
+            .Where(item => item.OptionSetKey.Equals(optionSetKey, StringComparison.OrdinalIgnoreCase))
+            .Select(item => new FormOptionResponse
+            {
+                Value = item.Value,
+                Label = item.Label
+            })
+            .ToArray();
     }
 
     private static PublicFormOptionsResponse BuildResponse(IReadOnlyList<FormOptionRow> items)
@@ -120,6 +125,27 @@ public sealed class FormOptionsService
             FormOptionSetKeys.ValuePropositionFocus => options.ValuePropositionFocus,
             _ => Array.Empty<FormOptionResponse>()
         };
+    }
+
+    private async Task<IReadOnlyList<FormOptionRow>> GetAllActiveRowsAsync(CancellationToken cancellationToken)
+    {
+        var items = await _cache.GetOrCreateAsync(
+                   AllItemsCacheKey,
+                   async entry =>
+                   {
+                       entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10);
+                       return await _db.FormOptionItems
+                           .AsNoTracking()
+                           .Where(x => x.IsActive)
+                           .OrderBy(x => x.OptionSetKey)
+                           .ThenBy(x => x.SortOrder)
+                           .ThenBy(x => x.Label)
+                           .Select(x => new FormOptionRow(x.OptionSetKey, x.Value, x.Label))
+                           .ToListAsync(cancellationToken);
+                   })
+               ?? new List<FormOptionRow>();
+
+        return items;
     }
 
     private sealed record FormOptionRow(string OptionSetKey, string Value, string Label);

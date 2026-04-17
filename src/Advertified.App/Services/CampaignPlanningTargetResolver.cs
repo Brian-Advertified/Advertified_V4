@@ -38,16 +38,16 @@ public sealed class CampaignPlanningTargetResolver : ICampaignPlanningTargetReso
         ArgumentNullException.ThrowIfNull(request);
 
         return ResolveCore(
-            geographyScope: request.GeographyScope,
-            targetLocationLabel: request.TargetLocationLabel,
-            targetLocationCity: request.TargetLocationCity,
-            targetLocationProvince: request.TargetLocationProvince,
-            targetLatitude: request.TargetLatitude,
-            targetLongitude: request.TargetLongitude,
-            suburbs: request.Suburbs,
-            cities: request.Cities,
-            areas: request.Areas,
-            provinces: request.Provinces);
+            geographyScope: request.Targeting?.Scope ?? request.GeographyScope,
+            targetLocationLabel: request.Targeting?.Label ?? request.TargetLocationLabel,
+            targetLocationCity: request.Targeting?.City ?? request.TargetLocationCity,
+            targetLocationProvince: request.Targeting?.Province ?? request.TargetLocationProvince,
+            targetLatitude: request.Targeting?.Latitude ?? request.TargetLatitude,
+            targetLongitude: request.Targeting?.Longitude ?? request.TargetLongitude,
+            suburbs: request.Targeting?.Suburbs ?? request.Suburbs,
+            cities: request.Targeting?.Cities ?? request.Cities,
+            areas: request.Targeting?.Areas ?? request.Areas,
+            provinces: request.Targeting?.Provinces ?? request.Provinces);
     }
 
     private CampaignPlanningTargetResolution ResolveCore(

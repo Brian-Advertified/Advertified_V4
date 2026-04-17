@@ -1,5 +1,5 @@
 import { Search, X } from 'lucide-react';
-import { useDeferredValue, useMemo, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import type { InventoryRow } from '../../../types/domain';
 import { InventoryTable } from './InventoryTable';
 
@@ -27,6 +27,8 @@ export function AgentInventorySelectionModal({
   items,
   selectedItemIds,
   canModifyPlan,
+  replacementItemId,
+  replacementInventoryType,
   onClose,
   onToggleItem,
   formatChannelLabel,
@@ -35,6 +37,8 @@ export function AgentInventorySelectionModal({
   items: InventoryRow[];
   selectedItemIds: string[];
   canModifyPlan: boolean;
+  replacementItemId?: string | null;
+  replacementInventoryType?: InventoryRow['type'] | null;
   onClose: () => void;
   onToggleItem: (item: InventoryRow) => void;
   formatChannelLabel: (value: string) => string;
@@ -44,6 +48,10 @@ export function AgentInventorySelectionModal({
   const [inventoryLanguageFilter, setInventoryLanguageFilter] = useState('all');
   const [inventorySearchInput, setInventorySearchInput] = useState('');
   const deferredInventorySearchInput = useDeferredValue(inventorySearchInput);
+
+  useEffect(() => {
+    setInventoryTypeFilter(replacementInventoryType ?? 'all');
+  }, [replacementInventoryType]);
 
   const inventoryTypeOptions = useMemo(
     () => Array.from(new Set(items.map((item) => item.type))).sort(),
@@ -60,6 +68,14 @@ export function AgentInventorySelectionModal({
 
   const inventorySearchQuery = deferredInventorySearchInput.trim().toLowerCase();
   const filteredInventoryItems = useMemo(() => items.filter((item) => {
+    if (replacementInventoryType && item.type !== replacementInventoryType) {
+      return false;
+    }
+
+    if (replacementItemId && item.id === replacementItemId) {
+      return false;
+    }
+
     if (inventoryTypeFilter !== 'all' && item.type !== inventoryTypeFilter) {
       return false;
     }
@@ -73,7 +89,7 @@ export function AgentInventorySelectionModal({
     }
 
     return matchesSearch(item, inventorySearchQuery);
-  }), [inventoryLanguageFilter, inventoryRegionFilter, inventorySearchQuery, inventoryTypeFilter, items]);
+  }), [inventoryLanguageFilter, inventoryRegionFilter, inventorySearchQuery, inventoryTypeFilter, items, replacementInventoryType, replacementItemId]);
 
   if (!isOpen) {
     return null;
@@ -85,7 +101,11 @@ export function AgentInventorySelectionModal({
         <div className="flex items-center justify-between gap-3 border-b border-line px-6 py-4">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand">Matching inventory</p>
-            <p className="mt-1 text-sm text-ink-soft">Search filters as you type.</p>
+            <p className="mt-1 text-sm text-ink-soft">
+              {replacementItemId
+                ? 'Choose a replacement line. Matching rows stay within the same channel.'
+                : 'Search filters as you type.'}
+            </p>
           </div>
           <button type="button" onClick={onClose} className="button-secondary inline-flex items-center gap-2 px-3 py-2">
             <X className="size-4" />
@@ -104,7 +124,7 @@ export function AgentInventorySelectionModal({
               className="input-base pl-9"
             />
           </label>
-          <select className="input-base" value={inventoryTypeFilter} onChange={(event) => setInventoryTypeFilter(event.target.value)}>
+          <select className="input-base" value={inventoryTypeFilter} onChange={(event) => setInventoryTypeFilter(event.target.value)} disabled={Boolean(replacementInventoryType)}>
             <option value="all">All types</option>
             {inventoryTypeOptions.map((value) => <option key={value} value={value}>{formatChannelLabel(value)}</option>)}
           </select>
@@ -128,6 +148,8 @@ export function AgentInventorySelectionModal({
             items={filteredInventoryItems}
             selectedItemIds={selectedItemIds}
             onToggleItem={canModifyPlan ? onToggleItem : undefined}
+            actionLabel={replacementItemId ? 'Replace line' : 'Add to plan'}
+            selectedActionLabel={replacementItemId ? 'Use this line' : 'Remove from plan'}
           />
         </div>
       </div>

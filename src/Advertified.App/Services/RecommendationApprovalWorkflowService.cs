@@ -175,6 +175,12 @@ public sealed class RecommendationApprovalWorkflowService : IRecommendationAppro
                     ["CampaignUrl"] = BuildClientCampaignUrl(campaign)
                 },
                 null,
+                new EmailTrackingContext
+                {
+                    Purpose = "recommendation_approved",
+                    CampaignId = campaign.Id,
+                    RecipientUserId = campaign.UserId
+                },
                 cancellationToken);
         }
         catch (Exception ex)
@@ -215,6 +221,7 @@ public sealed class RecommendationApprovalWorkflowService : IRecommendationAppro
                         ["EventBody"] = eventBody,
                         ["ActionUrl"] = actionUrl
                     },
+                    null,
                     null,
                     cancellationToken);
             }
@@ -298,6 +305,7 @@ public sealed class RecommendationApprovalWorkflowService : IRecommendationAppro
                     ["ThreadUrl"] = BuildFrontendUrl($"/agent/messages?campaignId={campaign.Id}"),
                     ["MessagePreview"] = Truncate(responseSummary, 240)
                 },
+                null,
                 null,
                 cancellationToken);
         }

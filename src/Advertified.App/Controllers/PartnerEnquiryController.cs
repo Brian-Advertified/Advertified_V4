@@ -48,6 +48,7 @@ public sealed class PartnerEnquiryController : ControllerBase
                 ["Message"] = request.Message.Trim(),
             },
             attachments: null,
+            trackingContext: null,
             cancellationToken);
 
         return Ok(new

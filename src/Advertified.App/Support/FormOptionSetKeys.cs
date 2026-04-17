@@ -18,4 +18,5 @@ public static class FormOptionSetKeys
     public const string UrgencyLevels = "urgency_levels";
     public const string AudienceClarity = "audience_clarity";
     public const string ValuePropositionFocus = "value_proposition_focus";
+    public const string ProspectDispositionReasons = "prospect_disposition_reasons";
 }

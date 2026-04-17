@@ -230,6 +230,7 @@ public sealed class PublicProposalController : ControllerBase
             .Include(x => x.CampaignPauseWindows)
             .Include(x => x.CampaignRecommendations)
                 .ThenInclude(x => x.RecommendationItems)
+            .Include(x => x.EmailDeliveryMessages)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
     }
 

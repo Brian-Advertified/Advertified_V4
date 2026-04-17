@@ -7,6 +7,7 @@ using Advertified.App.Configuration;
 using Advertified.App.Data.Entities;
 using Advertified.App.Support;
 using CampaignPlanningRequestSnapshot = Advertified.App.Domain.Campaigns.CampaignPlanningRequestSnapshot;
+using PlanningBudgetAllocationSnapshot = Advertified.App.Domain.Campaigns.PlanningBudgetAllocationSnapshot;
 using RecommendationRejectedCandidateTrace = Advertified.App.Domain.Campaigns.RecommendationRejectedCandidateTrace;
 using RecommendationSelectedItemTrace = Advertified.App.Domain.Campaigns.RecommendationSelectedItemTrace;
 
@@ -53,7 +54,7 @@ internal static class ControllerMappings
     public static CampaignDetailResponse ToDetail(this Campaign campaign, Guid? currentUserId = null, bool includeLinePricing = true)
     {
         var recommendations = GetCurrentRecommendationSet(campaign)
-            .Select((recommendation, index) => ToResponse(recommendation, includeLinePricing, index))
+            .Select((recommendation, index) => ToResponse(campaign, recommendation, includeLinePricing, index))
             .ToArray();
         var creativeSystems = campaign.CampaignCreativeSystems
             .OrderByDescending(x => x.CreatedAt)
@@ -88,6 +89,15 @@ internal static class ControllerMappings
             IsAssignedToCurrentUser = currentUserId.HasValue && campaign.AssignedAgentUserId == currentUserId.Value,
             IsUnassigned = campaign.AssignedAgentUserId is null,
             NextAction = CampaignWorkflowPolicy.GetClientNextAction(campaign),
+            ProspectDisposition = new ProspectDispositionResponse
+            {
+                Status = campaign.ProspectDispositionStatus,
+                ReasonCode = campaign.ProspectDispositionReason,
+                Notes = campaign.ProspectDispositionNotes,
+                ClosedAt = campaign.ProspectDispositionClosedAt.HasValue ? new DateTimeOffset(campaign.ProspectDispositionClosedAt.Value, TimeSpan.Zero) : null,
+                ClosedByUserId = campaign.ProspectDispositionClosedByUserId,
+                ClosedByName = campaign.ProspectDispositionClosedByUser?.FullName
+            },
             Workflow = CampaignWorkflowPolicy.BuildClientWorkflow(campaign),
             CreatedAt = new DateTimeOffset(campaign.CreatedAt, TimeSpan.Zero),
             Timeline = CampaignWorkflowPolicy.BuildTimeline(campaign),
@@ -302,7 +312,7 @@ internal static class ControllerMappings
             : JsonSerializer.Deserialize<List<string>>(json);
     }
 
-    private static CampaignRecommendationResponse ToResponse(CampaignRecommendation recommendation, bool includeLinePricing, int proposalIndex)
+    private static CampaignRecommendationResponse ToResponse(Campaign campaign, CampaignRecommendation recommendation, bool includeLinePricing, int proposalIndex)
     {
         var extractedFeedback = ExtractClientFeedbackNotes(recommendation.Rationale);
         var fallbackFlags = ExtractFallbackFlags(recommendation.Rationale);
@@ -323,11 +333,41 @@ internal static class ControllerMappings
             Audit = BuildAuditResponse(recommendation),
             Status = recommendation.Status,
             TotalCost = recommendation.TotalCost,
+            EmailDeliveries = campaign.EmailDeliveryMessages
+                .Where(message =>
+                    string.Equals(message.DeliveryPurpose, "recommendation_ready", StringComparison.OrdinalIgnoreCase)
+                    && message.RecommendationRevisionNumber == recommendation.RevisionNumber)
+                .OrderByDescending(message => message.CreatedAt)
+                .Select(ToResponse)
+                .ToArray(),
             Items = recommendation.RecommendationItems
                 .OrderBy(item => GetRecommendationItemChannelRank(item.InventoryType))
                 .ThenBy(item => item.DisplayName)
                 .Select(item => ToResponse(item, includeLinePricing))
                 .ToArray()
+        };
+    }
+
+    private static EmailDeliveryAttemptResponse ToResponse(EmailDeliveryMessage message)
+    {
+        return new EmailDeliveryAttemptResponse
+        {
+            Id = message.Id,
+            Provider = message.ProviderKey,
+            Purpose = message.DeliveryPurpose,
+            TemplateName = message.TemplateName,
+            Status = message.Status,
+            RecipientEmail = message.RecipientEmail,
+            Subject = message.Subject,
+            LatestEventType = message.LatestEventType,
+            LatestEventAt = message.LatestEventAt.HasValue ? new DateTimeOffset(message.LatestEventAt.Value, TimeSpan.Zero) : null,
+            AcceptedAt = message.AcceptedAt.HasValue ? new DateTimeOffset(message.AcceptedAt.Value, TimeSpan.Zero) : null,
+            DeliveredAt = message.DeliveredAt.HasValue ? new DateTimeOffset(message.DeliveredAt.Value, TimeSpan.Zero) : null,
+            OpenedAt = message.OpenedAt.HasValue ? new DateTimeOffset(message.OpenedAt.Value, TimeSpan.Zero) : null,
+            ClickedAt = message.ClickedAt.HasValue ? new DateTimeOffset(message.ClickedAt.Value, TimeSpan.Zero) : null,
+            BouncedAt = message.BouncedAt.HasValue ? new DateTimeOffset(message.BouncedAt.Value, TimeSpan.Zero) : null,
+            FailedAt = message.FailedAt.HasValue ? new DateTimeOffset(message.FailedAt.Value, TimeSpan.Zero) : null,
+            LastError = message.LastError
         };
     }
 
@@ -1212,7 +1252,14 @@ internal static class ControllerMappings
     private static string BuildRequestSummary(CampaignPlanningRequestSnapshot request)
     {
         var objective = string.IsNullOrWhiteSpace(request.Objective) ? "Not specified" : request.Objective.Trim();
-        return $"Request: {objective}, {BuildAuditGeographyLabel(request)}, target mix {BuildAuditMixLabel(request)}.";
+        var businessOrigin = request.BusinessLocation?.Area
+            ?? request.BusinessLocation?.City
+            ?? request.BusinessLocation?.Province;
+        var originSuffix = string.IsNullOrWhiteSpace(businessOrigin) ? string.Empty : $", origin {businessOrigin.Trim()}";
+        var allocationSuffix = request.BudgetAllocation is null
+            ? string.Empty
+            : $", allocation {BuildAuditAllocationLabel(request.BudgetAllocation)}";
+        return $"Request: {objective}, {BuildAuditGeographyLabel(request)}{originSuffix}, target mix {BuildAuditMixLabel(request)}{allocationSuffix}.";
     }
 
     private static string BuildSelectionSummary(IReadOnlyList<RecommendationSelectedItemTrace> selectedItems)
@@ -1305,8 +1352,10 @@ internal static class ControllerMappings
 
     private static string BuildAuditGeographyLabel(CampaignPlanningRequestSnapshot request)
     {
-        var scope = string.IsNullOrWhiteSpace(request.GeographyScope) ? "unknown geography" : request.GeographyScope.Trim().ToLowerInvariant();
-        var place = request.TargetLocationLabel
+        var scope = request.Targeting?.Scope ?? request.GeographyScope;
+        var normalizedScope = string.IsNullOrWhiteSpace(scope) ? "unknown geography" : scope.Trim().ToLowerInvariant();
+        var place = request.Targeting?.Label
+            ?? request.TargetLocationLabel
             ?? request.Suburbs.FirstOrDefault()
             ?? request.Cities.FirstOrDefault()
             ?? request.Areas.FirstOrDefault()
@@ -1314,8 +1363,8 @@ internal static class ControllerMappings
             ?? request.TargetLocationProvince;
 
         return string.IsNullOrWhiteSpace(place)
-            ? scope
-            : $"{scope} {place.Trim()}";
+            ? normalizedScope
+            : $"{normalizedScope} {place.Trim()}";
     }
 
     private static string BuildAuditMixLabel(CampaignPlanningRequestSnapshot request)
@@ -1326,6 +1375,18 @@ internal static class ControllerMappings
         if (request.TargetTvShare.GetValueOrDefault() > 0) parts.Add($"TV {request.TargetTvShare.GetValueOrDefault()}%");
         if (request.TargetDigitalShare.GetValueOrDefault() > 0) parts.Add($"Digital {request.TargetDigitalShare.GetValueOrDefault()}%");
         return parts.Count > 0 ? string.Join(" | ", parts) : "not specified";
+    }
+
+    private static string BuildAuditAllocationLabel(PlanningBudgetAllocationSnapshot allocation)
+    {
+        var topChannel = allocation.ChannelAllocations.OrderByDescending(entry => entry.Weight).FirstOrDefault();
+        var topGeo = allocation.GeoAllocations.OrderByDescending(entry => entry.Weight).FirstOrDefault();
+        if (topChannel is null || topGeo is null)
+        {
+            return "not specified";
+        }
+
+        return $"{FormatAuditChannelLabel(topChannel.Channel)} {topChannel.Weight:P0}, {topGeo.Bucket} {topGeo.Weight:P0}";
     }
 
     private static string FormatAuditChannelLabel(string? mediaType)

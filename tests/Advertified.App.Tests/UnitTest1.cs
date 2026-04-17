@@ -1075,7 +1075,7 @@ public class MediaPlanningEngineTests
         var policyService = new PlanningPolicyService(snapshotProvider);
         var candidateLoader = new PlanningCandidateLoader(repository);
         var eligibilityService = new PlanningEligibilityService(policyService, new TestBroadcastMasterDataService());
-        var planBuilder = new RecommendationPlanBuilder(policyService);
+        var planBuilder = new RecommendationPlanBuilder(policyService, new TestBroadcastMasterDataService());
         var scoreService = new PlanningScoreService(policyService, new TestBroadcastMasterDataService());
         var explainabilityService = new RecommendationExplainabilityService(scoreService, policyService);
         return new MediaPlanningEngine(candidateLoader, eligibilityService, planBuilder, explainabilityService, policyService);

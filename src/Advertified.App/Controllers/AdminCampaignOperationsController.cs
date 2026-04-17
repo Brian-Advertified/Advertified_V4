@@ -574,6 +574,7 @@ public sealed class AdminCampaignOperationsController : ControllerBase
                     ["CampaignUrl"] = BuildFrontendUrl($"/campaigns/{campaign.Id}")
                 },
                 null,
+                null,
                 cancellationToken);
         }
         catch (Exception ex)
@@ -599,6 +600,7 @@ public sealed class AdminCampaignOperationsController : ControllerBase
                     ["PauseReason"] = campaign.PauseReason ?? "No reason supplied",
                     ["CampaignUrl"] = BuildFrontendUrl($"/campaigns/{campaign.Id}")
                 },
+                null,
                 null,
                 cancellationToken);
         }
@@ -627,6 +629,7 @@ public sealed class AdminCampaignOperationsController : ControllerBase
                     ["DaysLeft"] = schedule.DaysLeft?.ToString(CultureInfo.InvariantCulture) ?? "Not scheduled",
                     ["CampaignUrl"] = BuildFrontendUrl($"/campaigns/{campaign.Id}")
                 },
+                null,
                 null,
                 cancellationToken);
         }

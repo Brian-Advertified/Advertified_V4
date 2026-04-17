@@ -1,10 +1,12 @@
 using Advertified.App.Contracts.Agent;
 using Advertified.App.Contracts.Campaigns;
+using Advertified.App.Contracts.Public;
 using Advertified.App.Campaigns;
 using Advertified.App.Configuration;
 using Advertified.App.Data;
 using Advertified.App.Data.Entities;
 using Advertified.App.Data.Enums;
+using Advertified.App.Services;
 using Advertified.App.Services.Abstractions;
 using Advertified.App.Support;
 using Microsoft.AspNetCore.Authorization;
@@ -38,6 +40,8 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
     private readonly ILeadProposalConfidenceGateService _leadProposalConfidenceGateService;
     private readonly IProposalAccessTokenService _proposalAccessTokenService;
     private readonly ICampaignExecutionTaskService _campaignExecutionTaskService;
+    private readonly IProspectDispositionService _prospectDispositionService;
+    private readonly FormOptionsService _formOptionsService;
     private readonly FrontendOptions _frontendOptions;
     private readonly ILogger<AgentCampaignWorkflowController> _logger;
 
@@ -52,6 +56,8 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
         ILeadProposalConfidenceGateService leadProposalConfidenceGateService,
         IProposalAccessTokenService proposalAccessTokenService,
         ICampaignExecutionTaskService campaignExecutionTaskService,
+        IProspectDispositionService prospectDispositionService,
+        FormOptionsService formOptionsService,
         IOptions<FrontendOptions> frontendOptions,
         ILogger<AgentCampaignWorkflowController> logger)
     {
@@ -65,6 +71,8 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
         _leadProposalConfidenceGateService = leadProposalConfidenceGateService;
         _proposalAccessTokenService = proposalAccessTokenService;
         _campaignExecutionTaskService = campaignExecutionTaskService;
+        _prospectDispositionService = prospectDispositionService;
+        _formOptionsService = formOptionsService;
         _frontendOptions = frontendOptions.Value;
         _logger = logger;
     }
@@ -151,7 +159,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
             throw new InvalidOperationException("Only the assigned agent can convert this campaign to a sale.");
         }
 
-        if (!string.Equals(campaign.Status, CampaignStatuses.AwaitingPurchase, StringComparison.OrdinalIgnoreCase))
+        if (!ProspectCampaignPolicy.IsProspectiveCampaign(campaign))
         {
             throw new InvalidOperationException("Only prospective campaigns can be converted to a sale.");
         }
@@ -286,6 +294,11 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
             throw new InvalidOperationException("Recommendation not found.");
         }
 
+        if (ProspectCampaignPolicy.IsClosed(campaign))
+        {
+            throw new InvalidOperationException("Reopen this prospect before sending a recommendation to the client.");
+        }
+
         var useLeadTemplate = ShouldUseLeadOutreachMessage(campaign);
         if (useLeadTemplate)
         {
@@ -352,6 +365,81 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
         return Accepted(new { CampaignId = id, ProposalCount = currentRecommendations.Length, Message = "Recommendation set sent to client.", ClientMessage = request.Message });
     }
 
+    [HttpGet("prospect-disposition-reasons")]
+    public async Task<ActionResult<IReadOnlyList<FormOptionResponse>>> GetProspectDispositionReasons(CancellationToken cancellationToken)
+    {
+        await GetCurrentOperationsUserAsync(cancellationToken);
+        var options = await _formOptionsService.GetOptionsAsync(FormOptionSetKeys.ProspectDispositionReasons, cancellationToken);
+        return Ok(options);
+    }
+
+    [HttpPost("{id:guid}/close-prospect")]
+    public async Task<IActionResult> CloseProspect(Guid id, [FromBody] CloseProspectCampaignRequest request, CancellationToken cancellationToken)
+    {
+        var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
+        var campaign = await _db.Campaigns
+            .Include(x => x.PackageBand)
+            .Include(x => x.PackageOrder)
+            .Include(x => x.AssignedAgentUser)
+            .Include(x => x.ProspectDispositionClosedByUser)
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+            ?? throw new InvalidOperationException("Campaign not found.");
+
+        await _prospectDispositionService.CloseAsync(campaign, currentUser.Id, currentUser.Role, request.ReasonCode, request.Notes, cancellationToken);
+        await _db.SaveChangesAsync(cancellationToken);
+        await WriteChangeAuditAsync(
+            "close_prospect",
+            "campaign",
+            campaign.Id.ToString(),
+            ResolveCampaignLabel(campaign),
+            $"Closed prospect {ResolveCampaignLabel(campaign)}.",
+            new
+            {
+                CampaignId = campaign.Id,
+                request.ReasonCode,
+                Notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim()
+            },
+            cancellationToken);
+
+        _db.ChangeTracker.Clear();
+        var refreshedCampaign = await LoadCampaignDetailAsync(campaign.Id, cancellationToken);
+        var response = refreshedCampaign.ToDetail(currentUser.Id);
+        var queueStage = CampaignWorkflowPolicy.ResolveAgentQueueStage(refreshedCampaign);
+        response.NextAction = CampaignWorkflowPolicy.GetAgentNextAction(refreshedCampaign, queueStage, currentUser.Id);
+        return Ok(response);
+    }
+
+    [HttpPost("{id:guid}/reopen-prospect")]
+    public async Task<IActionResult> ReopenProspect(Guid id, CancellationToken cancellationToken)
+    {
+        var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
+        var campaign = await _db.Campaigns
+            .Include(x => x.PackageBand)
+            .Include(x => x.PackageOrder)
+            .Include(x => x.AssignedAgentUser)
+            .Include(x => x.ProspectDispositionClosedByUser)
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+            ?? throw new InvalidOperationException("Campaign not found.");
+
+        await _prospectDispositionService.ReopenAsync(campaign, currentUser.Id, currentUser.Role, cancellationToken);
+        await _db.SaveChangesAsync(cancellationToken);
+        await WriteChangeAuditAsync(
+            "reopen_prospect",
+            "campaign",
+            campaign.Id.ToString(),
+            ResolveCampaignLabel(campaign),
+            $"Reopened prospect {ResolveCampaignLabel(campaign)}.",
+            new { CampaignId = campaign.Id },
+            cancellationToken);
+
+        _db.ChangeTracker.Clear();
+        var refreshedCampaign = await LoadCampaignDetailAsync(campaign.Id, cancellationToken);
+        var response = refreshedCampaign.ToDetail(currentUser.Id);
+        var queueStage = CampaignWorkflowPolicy.ResolveAgentQueueStage(refreshedCampaign);
+        response.NextAction = CampaignWorkflowPolicy.GetAgentNextAction(refreshedCampaign, queueStage, currentUser.Id);
+        return Ok(response);
+    }
+
     [HttpPost("{id:guid}/resend-proposal-email")]
     public async Task<IActionResult> ResendProposalEmail(Guid id, [FromBody] ResendProposalEmailRequest request, CancellationToken cancellationToken)
     {
@@ -382,6 +470,11 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
         if (campaign is null)
         {
             return NotFound(new { Message = "Campaign not found." });
+        }
+
+        if (ProspectCampaignPolicy.IsClosed(campaign))
+        {
+            return BadRequest(new { Message = "Reopen this prospect before resending proposal emails." });
         }
 
         var currentRecommendations = RecommendationRevisionSupport.GetCurrentRecommendationSet(campaign.CampaignRecommendations);
@@ -455,6 +548,33 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
             : campaign.CampaignName.Trim();
     }
 
+    private async Task<Campaign> LoadCampaignDetailAsync(Guid campaignId, CancellationToken cancellationToken)
+    {
+        return await _db.Campaigns
+            .AsNoTracking()
+            .AsSplitQuery()
+            .Include(x => x.User!)
+                .ThenInclude(x => x.BusinessProfile)
+            .Include(x => x.ProspectLead)
+            .Include(x => x.AssignedAgentUser)
+            .Include(x => x.ProspectDispositionClosedByUser)
+            .Include(x => x.PackageBand)
+            .Include(x => x.PackageOrder)
+            .Include(x => x.CampaignBrief)
+            .Include(x => x.CampaignCreativeSystems)
+            .Include(x => x.CampaignAssets)
+            .Include(x => x.CampaignExecutionTasks)
+            .Include(x => x.CampaignSupplierBookings)
+                .ThenInclude(x => x.ProofAsset)
+            .Include(x => x.CampaignDeliveryReports)
+                .ThenInclude(x => x.EvidenceAsset)
+            .Include(x => x.CampaignPauseWindows)
+            .Include(x => x.CampaignRecommendations)
+                .ThenInclude(x => x.RecommendationItems)
+            .FirstOrDefaultAsync(x => x.Id == campaignId, cancellationToken)
+            ?? throw new InvalidOperationException("Campaign not found.");
+    }
+
     private static string? NormalizeOptionalText(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -519,7 +639,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
             .Include(x => x.PackageOrder)
             .FirstOrDefaultAsync(x => x.Id == campaignId, cancellationToken);
 
-        if (campaign is null || campaign.AssignmentEmailSentAt.HasValue || campaign.AssignedAgentUserId is null || IsProspectiveCampaign(campaign))
+        if (campaign is null || campaign.AssignmentEmailSentAt.HasValue || campaign.AssignedAgentUserId is null || ProspectCampaignPolicy.IsProspectiveCampaign(campaign))
         {
             return;
         }
@@ -538,6 +658,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
                     ["Budget"] = FormatCurrency(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount),
                     ["CampaignUrl"] = BuildClientCampaignUrl(campaign)
                 },
+                null,
                 null,
                 cancellationToken);
         }
@@ -566,6 +687,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
                     ["PackageName"] = campaign.PackageBand.Name,
                     ["CampaignUrl"] = BuildClientCampaignUrl(campaign)
                 },
+                null,
                 null,
                 cancellationToken);
         }
@@ -681,6 +803,20 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
                 ["ProposalAcceptButtonsBlock"] = proposalActionButtons
             },
             attachments,
+            new EmailTrackingContext
+            {
+                Purpose = "recommendation_ready",
+                CampaignId = campaign.Id,
+                RecommendationRevisionNumber = recommendations[0].RevisionNumber,
+                RecipientUserId = campaign.UserId,
+                ProspectLeadId = campaign.ProspectLeadId,
+                Metadata = new Dictionary<string, string?>
+                {
+                    ["proposalCount"] = proposalCount.ToString(CultureInfo.InvariantCulture),
+                    ["templateName"] = templateName,
+                    ["agentMessage"] = resolvedAgentMessage
+                }
+            },
             cancellationToken);
 
         _logger.LogInformation("Proposal email sent for campaign {CampaignId} to {ToEmail} using template {TemplateName}.", campaign.Id, toEmail, templateName);
@@ -845,7 +981,7 @@ If useful, we can walk you through it in a quick 15-minute call — no commitmen
 
     private static bool ShouldUseLeadOutreachMessage(Campaign campaign)
     {
-        return IsProspectiveCampaign(campaign)
+        return ProspectCampaignPolicy.IsProspectiveCampaign(campaign)
             || LeadOutreachCampaignSupport.IsLeadOutreachCampaign(campaign);
     }
 
@@ -867,13 +1003,6 @@ If useful, we can walk you through it in a quick 15-minute call — no commitmen
                     <div style=""text-align:center;margin:24px 0;"">
                       {buttons}
                     </div>";
-    }
-
-    private static bool IsProspectiveCampaign(Campaign campaign)
-    {
-        return string.Equals(campaign.Status, CampaignStatuses.AwaitingPurchase, StringComparison.OrdinalIgnoreCase)
-            || (campaign.PackageOrder?.PaymentProvider == "prospect" && 
-                !string.Equals(campaign.PackageOrder?.PaymentStatus, "paid", StringComparison.OrdinalIgnoreCase));
     }
 
     private static bool IsValidEmailAddress(string value)

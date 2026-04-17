@@ -15,6 +15,9 @@ public sealed class CampaignPlanningRequestSnapshot
 {
     public Guid CampaignId { get; set; }
     public decimal SelectedBudget { get; set; }
+    public CampaignBusinessLocationSnapshot? BusinessLocation { get; set; }
+    public CampaignTargetingProfileSnapshot? Targeting { get; set; }
+    public PlanningBudgetAllocationSnapshot? BudgetAllocation { get; set; }
     public string? Objective { get; set; }
     public string? BusinessStage { get; set; }
     public string? MonthlyRevenueBand { get; set; }
@@ -48,6 +51,8 @@ public sealed class CampaignPlanningRequestSnapshot
     public string? ValuePropositionFocus { get; set; }
     public int? TargetLsmMin { get; set; }
     public int? TargetLsmMax { get; set; }
+    public List<string> MustHaveAreas { get; set; } = new();
+    public List<string> ExcludedAreas { get; set; } = new();
     public bool OpenToUpsell { get; set; }
     public decimal? AdditionalBudget { get; set; }
     public int? MaxMediaItems { get; set; }
@@ -57,6 +62,71 @@ public sealed class CampaignPlanningRequestSnapshot
     public int? TargetDigitalShare { get; set; }
     public double? TargetLatitude { get; set; }
     public double? TargetLongitude { get; set; }
+}
+
+public sealed class CampaignBusinessLocationSnapshot
+{
+    public string Label { get; set; } = string.Empty;
+    public string? Area { get; set; }
+    public string? City { get; set; }
+    public string? Province { get; set; }
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
+    public string Source { get; set; } = "none";
+    public string Precision { get; set; } = "unknown";
+    public bool IsResolved { get; set; }
+}
+
+public sealed class CampaignTargetingProfileSnapshot
+{
+    public string Scope { get; set; } = string.Empty;
+    public string? Label { get; set; }
+    public string? City { get; set; }
+    public string? Province { get; set; }
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
+    public string Source { get; set; } = "none";
+    public string Precision { get; set; } = "unknown";
+    public List<string> Provinces { get; set; } = new();
+    public List<string> Cities { get; set; } = new();
+    public List<string> Suburbs { get; set; } = new();
+    public List<string> Areas { get; set; } = new();
+    public List<string> PriorityAreas { get; set; } = new();
+    public List<string> Exclusions { get; set; } = new();
+}
+
+public sealed class PlanningBudgetAllocationSnapshot
+{
+    public string ChannelPolicyKey { get; set; } = string.Empty;
+    public string GeoPolicyKey { get; set; } = string.Empty;
+    public string AudienceSegment { get; set; } = string.Empty;
+    public List<PlanningChannelAllocationSnapshot> ChannelAllocations { get; set; } = new();
+    public List<PlanningGeoAllocationSnapshot> GeoAllocations { get; set; } = new();
+    public List<PlanningAllocationLineSnapshot> CompositeAllocations { get; set; } = new();
+}
+
+public sealed class PlanningChannelAllocationSnapshot
+{
+    public string Channel { get; set; } = string.Empty;
+    public decimal Weight { get; set; }
+    public decimal Amount { get; set; }
+}
+
+public sealed class PlanningGeoAllocationSnapshot
+{
+    public string Bucket { get; set; } = string.Empty;
+    public decimal Weight { get; set; }
+    public decimal Amount { get; set; }
+    public double? RadiusKm { get; set; }
+}
+
+public sealed class PlanningAllocationLineSnapshot
+{
+    public string Channel { get; set; } = string.Empty;
+    public string Bucket { get; set; } = string.Empty;
+    public decimal Weight { get; set; }
+    public decimal Amount { get; set; }
+    public double? RadiusKm { get; set; }
 }
 
 public sealed class RecommendationTraceCount

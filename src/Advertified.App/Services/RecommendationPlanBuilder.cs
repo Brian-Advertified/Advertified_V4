@@ -19,6 +19,11 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
 
     public List<PlannedItem> BuildPlan(List<InventoryCandidate> candidates, CampaignPlanningRequest request, bool diversify)
     {
+        if (request.BudgetAllocation?.CompositeAllocations.Count > 0)
+        {
+            return BuildPlanWithBudgetAllocation(candidates, request);
+        }
+
         if (HasTargetMix(request))
         {
             return BuildPlanWithTargetMix(candidates, request);
@@ -64,6 +69,100 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
                 if (candidate.Cost <= request.SelectedBudget)
                 {
                     result.Add(ToPlannedItem(candidate));
+                    break;
+                }
+            }
+        }
+
+        return result;
+    }
+
+    private List<PlannedItem> BuildPlanWithBudgetAllocation(List<InventoryCandidate> candidates, CampaignPlanningRequest request)
+    {
+        var allocation = request.BudgetAllocation;
+        if (allocation is null || allocation.CompositeAllocations.Count == 0)
+        {
+            return HasTargetMix(request)
+                ? BuildPlanWithTargetMix(candidates, request)
+                : new List<PlannedItem>();
+        }
+
+        var result = new List<PlannedItem>();
+        var usedSourceIds = new HashSet<Guid>();
+        var spentTotal = 0m;
+        var allocationTargets = allocation.CompositeAllocations
+            .Where(entry => entry.Amount > 0m)
+            .OrderByDescending(entry => entry.Amount)
+            .ToList();
+
+        foreach (var target in allocationTargets)
+        {
+            if (request.MaxMediaItems.HasValue && result.Count >= request.MaxMediaItems.Value)
+            {
+                break;
+            }
+
+            if (result.Any(item => MatchesChannel(item.MediaType, target.Channel)))
+            {
+                continue;
+            }
+
+            var seedCandidate = SelectAllocationCandidate(candidates, result, request, target, usedSourceIds, spentTotal, requireBucketMatch: true)
+                ?? SelectAllocationCandidate(candidates, result, request, target, usedSourceIds, spentTotal, requireBucketMatch: false);
+            if (seedCandidate is null)
+            {
+                continue;
+            }
+
+            AddAllocatedItem(result, seedCandidate, target.Bucket);
+            usedSourceIds.Add(seedCandidate.SourceId);
+            spentTotal += seedCandidate.Cost;
+        }
+
+        var progressed = true;
+        while (progressed)
+        {
+            progressed = false;
+
+            foreach (var target in allocationTargets)
+            {
+                if (request.MaxMediaItems.HasValue && result.Count >= request.MaxMediaItems.Value)
+                {
+                    break;
+                }
+
+                var spentForTarget = result
+                    .Where(item => MatchesChannel(item.MediaType, target.Channel))
+                    .Where(item => string.Equals(GetMetadataString(item.Metadata, "allocationGeoBucket"), target.Bucket, StringComparison.OrdinalIgnoreCase))
+                    .Sum(item => item.TotalCost);
+                if (spentForTarget >= target.Amount)
+                {
+                    continue;
+                }
+
+                var nextCandidate = SelectAllocationCandidate(candidates, result, request, target, usedSourceIds, spentTotal, requireBucketMatch: true)
+                    ?? SelectAllocationCandidate(candidates, result, request, target, usedSourceIds, spentTotal, requireBucketMatch: false);
+                if (nextCandidate is null)
+                {
+                    continue;
+                }
+
+                AddAllocatedItem(result, nextCandidate, ResolveGeoBucket(nextCandidate, request, target.RadiusKm));
+                usedSourceIds.Add(nextCandidate.SourceId);
+                spentTotal += nextCandidate.Cost;
+                progressed = true;
+            }
+        }
+
+        FillBudgetGap(result, candidates, request, request.SelectedBudget, request.MaxMediaItems);
+
+        if (result.Count == 0)
+        {
+            foreach (var candidate in candidates)
+            {
+                if (candidate.Cost <= request.SelectedBudget)
+                {
+                    AddAllocatedItem(result, candidate, ResolveGeoBucket(candidate, request, nearbyRadiusKm: null));
                     break;
                 }
             }
@@ -360,13 +459,17 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
         return Array.Empty<InventoryCandidate>();
     }
 
-    private static PlannedItem ToPlannedItem(InventoryCandidate candidate)
+    private static PlannedItem ToPlannedItem(InventoryCandidate candidate, string? allocationGeoBucket = null)
     {
         var metadata = new Dictionary<string, object?>(candidate.Metadata);
         SetMetadataIfMissing(metadata, "province", candidate.Province);
         SetMetadataIfMissing(metadata, "city", candidate.City);
         SetMetadataIfMissing(metadata, "suburb", candidate.Suburb);
         SetMetadataIfMissing(metadata, "area", candidate.Area);
+        if (!string.IsNullOrWhiteSpace(allocationGeoBucket))
+        {
+            metadata["allocationGeoBucket"] = allocationGeoBucket.Trim().ToLowerInvariant();
+        }
 
         return new PlannedItem
         {
@@ -401,6 +504,11 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
         }
 
         result.Add(ToPlannedItem(candidate));
+    }
+
+    private static void AddAllocatedItem(List<PlannedItem> result, InventoryCandidate candidate, string geoBucket)
+    {
+        result.Add(ToPlannedItem(candidate, geoBucket));
     }
 
     private IEnumerable<InventoryCandidate> OrderCandidatesForSelection(
@@ -487,7 +595,8 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
         return request.TargetRadioShare.GetValueOrDefault() > 0
             || request.TargetOohShare.GetValueOrDefault() > 0
             || request.TargetTvShare.GetValueOrDefault() > 0
-            || request.TargetDigitalShare.GetValueOrDefault() > 0;
+            || request.TargetDigitalShare.GetValueOrDefault() > 0
+            || request.BudgetAllocation?.ChannelAllocations.Count > 0;
     }
 
     private static string[] ExtractSuburbTokens(IEnumerable<string> suburbs)
@@ -584,6 +693,128 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
 
         return string.Equals(mediaType.Trim(), requestedChannel.Trim(), StringComparison.OrdinalIgnoreCase);
     }
+
+    private InventoryCandidate? SelectAllocationCandidate(
+        IReadOnlyList<InventoryCandidate> candidates,
+        IReadOnlyList<PlannedItem> currentPlan,
+        CampaignPlanningRequest request,
+        PlanningAllocationLine target,
+        ISet<Guid> usedSourceIds,
+        decimal spentTotal,
+        bool requireBucketMatch)
+    {
+        return candidates
+            .Where(candidate => MatchesChannel(candidate.MediaType, target.Channel))
+            .Where(candidate => candidate.Cost > 0m)
+            .Where(candidate => !usedSourceIds.Contains(candidate.SourceId))
+            .Where(candidate => spentTotal + candidate.Cost <= request.SelectedBudget)
+            .Where(candidate => !ExceedsStationDiversityCap(currentPlan, candidate))
+            .Select(candidate => new
+            {
+                Candidate = candidate,
+                GeoBucket = ResolveGeoBucket(candidate, request, target.RadiusKm)
+            })
+            .Where(entry => !requireBucketMatch || string.Equals(entry.GeoBucket, target.Bucket, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(entry => string.Equals(entry.GeoBucket, target.Bucket, StringComparison.OrdinalIgnoreCase))
+            .ThenByDescending(entry => ScoreRequestedLanguageCoverage(entry.Candidate, currentPlan, request))
+            .ThenByDescending(entry => HasMatchingOohSite(currentPlan, entry.Candidate))
+            .ThenBy(entry => GetStationSelectionCount(currentPlan, entry.Candidate, target.Channel))
+            .ThenByDescending(entry => entry.Candidate.Score)
+            .ThenByDescending(entry => entry.Candidate.Cost)
+            .Select(entry => entry.Candidate)
+            .FirstOrDefault();
+    }
+
+    private static string ResolveGeoBucket(InventoryCandidate candidate, CampaignPlanningRequest request, double? nearbyRadiusKm)
+    {
+        if (MatchesOriginBucket(candidate, request))
+        {
+            return "origin";
+        }
+
+        if (MatchesNearbyBucket(candidate, request, nearbyRadiusKm))
+        {
+            return "nearby";
+        }
+
+        return "wider";
+    }
+
+    private static bool MatchesOriginBucket(InventoryCandidate candidate, CampaignPlanningRequest request)
+    {
+        var priorityAreas = request.Targeting?.PriorityAreas ?? request.MustHaveAreas;
+        if (priorityAreas.Any(area => MatchesGeo(area, candidate.Area) || MatchesGeo(area, candidate.Suburb)))
+        {
+            return true;
+        }
+
+        var businessLocation = request.BusinessLocation;
+        if (businessLocation is null)
+        {
+            return false;
+        }
+
+        return MatchesGeo(businessLocation.Area, candidate.Area)
+            || MatchesGeo(businessLocation.Area, candidate.Suburb)
+            || MatchesGeo(businessLocation.City, candidate.City)
+            || MatchesGeo(businessLocation.Province, candidate.Province);
+    }
+
+    private static bool MatchesNearbyBucket(InventoryCandidate candidate, CampaignPlanningRequest request, double? nearbyRadiusKm)
+    {
+        var businessLocation = request.BusinessLocation;
+        if (businessLocation is null)
+        {
+            return false;
+        }
+
+        if (candidate.Latitude.HasValue
+            && candidate.Longitude.HasValue
+            && businessLocation.Latitude.HasValue
+            && businessLocation.Longitude.HasValue
+            && nearbyRadiusKm.HasValue)
+        {
+            var distanceKm = HaversineDistanceKm(
+                businessLocation.Latitude.Value,
+                businessLocation.Longitude.Value,
+                candidate.Latitude.Value,
+                candidate.Longitude.Value);
+
+            if (distanceKm <= nearbyRadiusKm.Value)
+            {
+                return true;
+            }
+        }
+
+        return !string.IsNullOrWhiteSpace(businessLocation.City)
+            && MatchesGeo(businessLocation.City, candidate.City)
+            && !MatchesOriginBucket(candidate, request);
+    }
+
+    private static bool MatchesGeo(string? left, string? right)
+    {
+        if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right))
+        {
+            return false;
+        }
+
+        return string.Equals(left.Trim(), right.Trim(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static double HaversineDistanceKm(double startLatitude, double startLongitude, double endLatitude, double endLongitude)
+    {
+        const double earthRadiusKm = 6371d;
+        var latitudeDeltaRadians = ToRadians(endLatitude - startLatitude);
+        var longitudeDeltaRadians = ToRadians(endLongitude - startLongitude);
+
+        var a = Math.Sin(latitudeDeltaRadians / 2d) * Math.Sin(latitudeDeltaRadians / 2d)
+            + Math.Cos(ToRadians(startLatitude)) * Math.Cos(ToRadians(endLatitude))
+            * Math.Sin(longitudeDeltaRadians / 2d) * Math.Sin(longitudeDeltaRadians / 2d);
+        var c = 2d * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1d - a));
+        return earthRadiusKm * c;
+    }
+
+    private static double ToRadians(double degrees) => degrees * Math.PI / 180d;
 
     private static int GetStationSelectionCount(
         IReadOnlyList<PlannedItem> currentPlan,

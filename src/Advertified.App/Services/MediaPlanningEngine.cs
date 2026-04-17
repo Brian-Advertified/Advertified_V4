@@ -64,51 +64,10 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
 
     private static CampaignPlanningRequest NormalizeEngineRequest(CampaignPlanningRequest request)
     {
-        return new CampaignPlanningRequest
-        {
-            CampaignId = request.CampaignId,
-            SelectedBudget = request.SelectedBudget,
-            Objective = request.Objective,
-            BusinessStage = request.BusinessStage,
-            MonthlyRevenueBand = request.MonthlyRevenueBand,
-            SalesModel = request.SalesModel,
-            GeographyScope = request.GeographyScope,
-            Provinces = request.Provinces.ToList(),
-            Cities = request.Cities.ToList(),
-            Suburbs = request.Suburbs.ToList(),
-            Areas = request.Areas.ToList(),
-            TargetLocationLabel = request.TargetLocationLabel,
-            TargetLocationCity = request.TargetLocationCity,
-            TargetLocationProvince = request.TargetLocationProvince,
-            TargetLocationSource = request.TargetLocationSource,
-            TargetLocationPrecision = request.TargetLocationPrecision,
-            PreferredMediaTypes = NormalizeChannels(request.PreferredMediaTypes),
-            ExcludedMediaTypes = NormalizeChannels(request.ExcludedMediaTypes),
-            TargetLanguages = request.TargetLanguages.ToList(),
-            TargetAgeMin = request.TargetAgeMin,
-            TargetAgeMax = request.TargetAgeMax,
-            TargetGender = request.TargetGender,
-            TargetInterests = request.TargetInterests.ToList(),
-            TargetAudienceNotes = request.TargetAudienceNotes,
-            CustomerType = request.CustomerType,
-            BuyingBehaviour = request.BuyingBehaviour,
-            DecisionCycle = request.DecisionCycle,
-            PricePositioning = request.PricePositioning,
-            AverageCustomerSpendBand = request.AverageCustomerSpendBand,
-            GrowthTarget = request.GrowthTarget,
-            UrgencyLevel = request.UrgencyLevel,
-            AudienceClarity = request.AudienceClarity,
-            ValuePropositionFocus = request.ValuePropositionFocus,
-            TargetLsmMin = request.TargetLsmMin,
-            TargetLsmMax = request.TargetLsmMax,
-            OpenToUpsell = request.OpenToUpsell,
-            AdditionalBudget = request.AdditionalBudget,
-            MaxMediaItems = request.MaxMediaItems,
-            TargetRadioShare = request.TargetRadioShare,
-            TargetOohShare = request.TargetOohShare,
-            TargetTvShare = request.TargetTvShare,
-            TargetDigitalShare = request.TargetDigitalShare
-        };
+        var clone = request.DeepClone();
+        clone.PreferredMediaTypes = NormalizeChannels(request.PreferredMediaTypes);
+        clone.ExcludedMediaTypes = NormalizeChannels(request.ExcludedMediaTypes);
+        return clone;
     }
 
     private static List<string> NormalizeChannels(IEnumerable<string> channels)
@@ -186,53 +145,9 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
     private async Task<CampaignPlanningRequest> PrepareRequestAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
     {
         var orderedLanguages = await _broadcastLanguagePriorityService.OrderRequestedLanguagesAsync(request.TargetLanguages, cancellationToken);
-        return new CampaignPlanningRequest
-        {
-            CampaignId = request.CampaignId,
-            SelectedBudget = request.SelectedBudget,
-            Objective = request.Objective,
-            BusinessStage = request.BusinessStage,
-            MonthlyRevenueBand = request.MonthlyRevenueBand,
-            SalesModel = request.SalesModel,
-            GeographyScope = request.GeographyScope,
-            Provinces = request.Provinces.ToList(),
-            Cities = request.Cities.ToList(),
-            Suburbs = request.Suburbs.ToList(),
-            Areas = request.Areas.ToList(),
-            TargetLocationLabel = request.TargetLocationLabel,
-            TargetLocationCity = request.TargetLocationCity,
-            TargetLocationProvince = request.TargetLocationProvince,
-            TargetLocationSource = request.TargetLocationSource,
-            TargetLocationPrecision = request.TargetLocationPrecision,
-            PreferredMediaTypes = request.PreferredMediaTypes.ToList(),
-            ExcludedMediaTypes = request.ExcludedMediaTypes.ToList(),
-            TargetLanguages = orderedLanguages.ToList(),
-            TargetAgeMin = request.TargetAgeMin,
-            TargetAgeMax = request.TargetAgeMax,
-            TargetGender = request.TargetGender,
-            TargetInterests = request.TargetInterests.ToList(),
-            TargetAudienceNotes = request.TargetAudienceNotes,
-            CustomerType = request.CustomerType,
-            BuyingBehaviour = request.BuyingBehaviour,
-            DecisionCycle = request.DecisionCycle,
-            PricePositioning = request.PricePositioning,
-            AverageCustomerSpendBand = request.AverageCustomerSpendBand,
-            GrowthTarget = request.GrowthTarget,
-            UrgencyLevel = request.UrgencyLevel,
-            AudienceClarity = request.AudienceClarity,
-            ValuePropositionFocus = request.ValuePropositionFocus,
-            TargetLsmMin = request.TargetLsmMin,
-            TargetLsmMax = request.TargetLsmMax,
-            OpenToUpsell = request.OpenToUpsell,
-            AdditionalBudget = request.AdditionalBudget,
-            MaxMediaItems = request.MaxMediaItems,
-            TargetRadioShare = request.TargetRadioShare,
-            TargetOohShare = request.TargetOohShare,
-            TargetTvShare = request.TargetTvShare,
-            TargetDigitalShare = request.TargetDigitalShare,
-            TargetLatitude = request.TargetLatitude,
-            TargetLongitude = request.TargetLongitude
-        };
+        var clone = request.DeepClone();
+        clone.TargetLanguages = orderedLanguages.ToList();
+        return clone;
     }
 
     private static IReadOnlyList<PlanningPass> BuildPlanningPasses(CampaignPlanningRequest request)
@@ -251,51 +166,20 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
 
     private static CampaignPlanningRequest BuildBroaderGeographyRequest(CampaignPlanningRequest request)
     {
-        return new CampaignPlanningRequest
+        var clone = request.DeepClone();
+        clone.Cities = new List<string>();
+        clone.Suburbs = new List<string>();
+        clone.Areas = new List<string>();
+        clone.TargetLocationSource = "geography_relaxed";
+        if (clone.Targeting is not null)
         {
-            CampaignId = request.CampaignId,
-            SelectedBudget = request.SelectedBudget,
-            Objective = request.Objective,
-            BusinessStage = request.BusinessStage,
-            MonthlyRevenueBand = request.MonthlyRevenueBand,
-            SalesModel = request.SalesModel,
-            GeographyScope = request.GeographyScope,
-            Provinces = request.Provinces.ToList(),
-            Cities = new List<string>(),
-            Suburbs = new List<string>(),
-            Areas = new List<string>(),
-            TargetLocationLabel = request.TargetLocationLabel,
-            TargetLocationCity = request.TargetLocationCity,
-            TargetLocationProvince = request.TargetLocationProvince,
-            TargetLocationSource = "geography_relaxed",
-            TargetLocationPrecision = request.TargetLocationPrecision,
-            PreferredMediaTypes = request.PreferredMediaTypes.ToList(),
-            ExcludedMediaTypes = request.ExcludedMediaTypes.ToList(),
-            TargetLanguages = request.TargetLanguages.ToList(),
-            TargetAgeMin = request.TargetAgeMin,
-            TargetAgeMax = request.TargetAgeMax,
-            TargetGender = request.TargetGender,
-            TargetInterests = request.TargetInterests.ToList(),
-            TargetAudienceNotes = request.TargetAudienceNotes,
-            CustomerType = request.CustomerType,
-            BuyingBehaviour = request.BuyingBehaviour,
-            DecisionCycle = request.DecisionCycle,
-            PricePositioning = request.PricePositioning,
-            AverageCustomerSpendBand = request.AverageCustomerSpendBand,
-            GrowthTarget = request.GrowthTarget,
-            UrgencyLevel = request.UrgencyLevel,
-            AudienceClarity = request.AudienceClarity,
-            ValuePropositionFocus = request.ValuePropositionFocus,
-            TargetLsmMin = request.TargetLsmMin,
-            TargetLsmMax = request.TargetLsmMax,
-            OpenToUpsell = request.OpenToUpsell,
-            AdditionalBudget = request.AdditionalBudget,
-            MaxMediaItems = request.MaxMediaItems,
-            TargetRadioShare = request.TargetRadioShare,
-            TargetOohShare = request.TargetOohShare,
-            TargetTvShare = request.TargetTvShare,
-            TargetDigitalShare = request.TargetDigitalShare
-        };
+            clone.Targeting.Cities = new List<string>();
+            clone.Targeting.Suburbs = new List<string>();
+            clone.Targeting.Areas = new List<string>();
+            clone.Targeting.Source = "geography_relaxed";
+        }
+
+        return clone;
     }
 
     private static bool AreEquivalentRequests(CampaignPlanningRequest left, CampaignPlanningRequest right)
@@ -539,6 +423,68 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
         {
             CampaignId = request.CampaignId,
             SelectedBudget = request.SelectedBudget,
+            BusinessLocation = request.BusinessLocation is null ? null : new CampaignBusinessLocationSnapshot
+            {
+                Label = request.BusinessLocation.Label,
+                Area = request.BusinessLocation.Area,
+                City = request.BusinessLocation.City,
+                Province = request.BusinessLocation.Province,
+                Latitude = request.BusinessLocation.Latitude,
+                Longitude = request.BusinessLocation.Longitude,
+                Source = request.BusinessLocation.Source,
+                Precision = request.BusinessLocation.Precision,
+                IsResolved = request.BusinessLocation.IsResolved
+            },
+            Targeting = request.Targeting is null ? null : new CampaignTargetingProfileSnapshot
+            {
+                Scope = request.Targeting.Scope,
+                Label = request.Targeting.Label,
+                City = request.Targeting.City,
+                Province = request.Targeting.Province,
+                Latitude = request.Targeting.Latitude,
+                Longitude = request.Targeting.Longitude,
+                Source = request.Targeting.Source,
+                Precision = request.Targeting.Precision,
+                Provinces = request.Targeting.Provinces.ToList(),
+                Cities = request.Targeting.Cities.ToList(),
+                Suburbs = request.Targeting.Suburbs.ToList(),
+                Areas = request.Targeting.Areas.ToList(),
+                PriorityAreas = request.Targeting.PriorityAreas.ToList(),
+                Exclusions = request.Targeting.Exclusions.ToList()
+            },
+            BudgetAllocation = request.BudgetAllocation is null ? null : new PlanningBudgetAllocationSnapshot
+            {
+                ChannelPolicyKey = request.BudgetAllocation.ChannelPolicyKey,
+                GeoPolicyKey = request.BudgetAllocation.GeoPolicyKey,
+                AudienceSegment = request.BudgetAllocation.AudienceSegment,
+                ChannelAllocations = request.BudgetAllocation.ChannelAllocations
+                    .Select(static allocation => new PlanningChannelAllocationSnapshot
+                    {
+                        Channel = allocation.Channel,
+                        Weight = allocation.Weight,
+                        Amount = allocation.Amount
+                    })
+                    .ToList(),
+                GeoAllocations = request.BudgetAllocation.GeoAllocations
+                    .Select(static allocation => new PlanningGeoAllocationSnapshot
+                    {
+                        Bucket = allocation.Bucket,
+                        Weight = allocation.Weight,
+                        Amount = allocation.Amount,
+                        RadiusKm = allocation.RadiusKm
+                    })
+                    .ToList(),
+                CompositeAllocations = request.BudgetAllocation.CompositeAllocations
+                    .Select(static allocation => new PlanningAllocationLineSnapshot
+                    {
+                        Channel = allocation.Channel,
+                        Bucket = allocation.Bucket,
+                        Weight = allocation.Weight,
+                        Amount = allocation.Amount,
+                        RadiusKm = allocation.RadiusKm
+                    })
+                    .ToList()
+            },
             Objective = request.Objective,
             BusinessStage = request.BusinessStage,
             MonthlyRevenueBand = request.MonthlyRevenueBand,
@@ -572,13 +518,17 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
             ValuePropositionFocus = request.ValuePropositionFocus,
             TargetLsmMin = request.TargetLsmMin,
             TargetLsmMax = request.TargetLsmMax,
+            MustHaveAreas = request.MustHaveAreas.ToList(),
+            ExcludedAreas = request.ExcludedAreas.ToList(),
             OpenToUpsell = request.OpenToUpsell,
             AdditionalBudget = request.AdditionalBudget,
             MaxMediaItems = request.MaxMediaItems,
             TargetRadioShare = request.TargetRadioShare,
             TargetOohShare = request.TargetOohShare,
             TargetTvShare = request.TargetTvShare,
-            TargetDigitalShare = request.TargetDigitalShare
+            TargetDigitalShare = request.TargetDigitalShare,
+            TargetLatitude = request.TargetLatitude,
+            TargetLongitude = request.TargetLongitude
         };
     }
 

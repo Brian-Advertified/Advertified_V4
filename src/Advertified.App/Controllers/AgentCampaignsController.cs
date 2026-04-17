@@ -25,6 +25,7 @@ public sealed class AgentCampaignsController : ControllerBase
     private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly IRecommendationDocumentService _recommendationDocumentService;
     private readonly ICampaignPlanningTargetResolver _planningTargetResolver;
+    private readonly ICampaignBusinessLocationResolver _businessLocationResolver;
     private readonly ILogger<AgentCampaignsController> _logger;
 
     public AgentCampaignsController(
@@ -32,12 +33,14 @@ public sealed class AgentCampaignsController : ControllerBase
         ICurrentUserAccessor currentUserAccessor,
         IRecommendationDocumentService recommendationDocumentService,
         ICampaignPlanningTargetResolver planningTargetResolver,
+        ICampaignBusinessLocationResolver businessLocationResolver,
         ILogger<AgentCampaignsController> logger)
     {
         _db = db;
         _currentUserAccessor = currentUserAccessor;
         _recommendationDocumentService = recommendationDocumentService;
         _planningTargetResolver = planningTargetResolver;
+        _businessLocationResolver = businessLocationResolver;
         _logger = logger;
     }
 
@@ -112,6 +115,7 @@ public sealed class AgentCampaignsController : ControllerBase
         var campaigns = await _db.Campaigns
             .AsNoTracking()
             .AsSplitQuery()
+            .Where(x => x.ProspectDispositionStatus != ProspectDispositionStatuses.Closed)
             .Include(x => x.User)
             .Include(x => x.ProspectLead)
             .Include(x => x.AssignedAgentUser)
@@ -262,6 +266,7 @@ public sealed class AgentCampaignsController : ControllerBase
                 .ThenInclude(x => x.BusinessProfile)
             .Include(x => x.ProspectLead)
             .Include(x => x.AssignedAgentUser)
+            .Include(x => x.ProspectDispositionClosedByUser)
             .Include(x => x.PackageBand)
             .Include(x => x.PackageOrder)
             .Include(x => x.CampaignBrief)
@@ -277,22 +282,46 @@ public sealed class AgentCampaignsController : ControllerBase
                 .ThenInclude(x => x.RecommendationItems)
             .Include(x => x.CampaignRecommendations)
                 .ThenInclude(x => x.RecommendationRunAudits)
+            .Include(x => x.EmailDeliveryMessages)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw new NotFoundException("Campaign not found.");
 
         var response = campaign.ToDetail(currentUserId);
+        var resolvedBusinessLocation = _businessLocationResolver.Resolve(campaign);
+        if (!string.IsNullOrWhiteSpace(resolvedBusinessLocation.Label))
+        {
+            response.BusinessLocation = new CampaignPlanningTargetResponse
+            {
+                Label = resolvedBusinessLocation.Label,
+                Area = resolvedBusinessLocation.Area,
+                City = resolvedBusinessLocation.City,
+                Province = resolvedBusinessLocation.Province,
+                Latitude = resolvedBusinessLocation.Latitude,
+                Longitude = resolvedBusinessLocation.Longitude,
+                Source = resolvedBusinessLocation.Source,
+                Precision = resolvedBusinessLocation.Precision
+            };
+        }
+
         var resolvedTarget = _planningTargetResolver.Resolve(campaign.CampaignBrief);
         if (!string.IsNullOrWhiteSpace(resolvedTarget.Label))
         {
             response.EffectivePlanningTarget = new CampaignPlanningTargetResponse
             {
+                Scope = campaign.CampaignBrief?.GeographyScope,
                 Label = resolvedTarget.Label,
                 City = resolvedTarget.City,
                 Province = resolvedTarget.Province,
                 Latitude = resolvedTarget.Latitude,
                 Longitude = resolvedTarget.Longitude,
                 Source = resolvedTarget.Source,
-                Precision = resolvedTarget.Precision
+                Precision = resolvedTarget.Precision,
+                PriorityAreas = campaign.CampaignBrief is null
+                    ? Array.Empty<string>()
+                    : Advertified.App.Domain.Campaigns.CampaignBriefExtensions.GetList(campaign.CampaignBrief, nameof(CampaignBrief.MustHaveAreasJson)),
+                Exclusions = campaign.CampaignBrief is null
+                    ? Array.Empty<string>()
+                    : Advertified.App.Domain.Campaigns.CampaignBriefExtensions.GetList(campaign.CampaignBrief, nameof(CampaignBrief.ExcludedAreasJson))
             };
         }
         var queueStage = CampaignWorkflowPolicy.ResolveAgentQueueStage(campaign);

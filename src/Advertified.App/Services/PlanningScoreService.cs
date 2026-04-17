@@ -134,7 +134,10 @@ public sealed class PlanningScoreService : IPlanningScoreService
             score += 8m;
         }
 
-        return Math.Min(36m, score);
+        score += PriorityAreaScore(candidate, request);
+        score += BusinessLocationScore(candidate, request);
+
+        return Math.Min(48m, score);
     }
 
     private static string[] ExtractSuburbTokens(IEnumerable<string> suburbs)
@@ -931,6 +934,60 @@ public sealed class PlanningScoreService : IPlanningScoreService
         return preferredOoh ? 30m : 18m;
     }
 
+    private decimal PriorityAreaScore(InventoryCandidate candidate, CampaignPlanningRequest request)
+    {
+        var priorityAreas = request.Targeting?.PriorityAreas ?? request.MustHaveAreas;
+        if (priorityAreas.Count == 0)
+        {
+            return 0m;
+        }
+
+        if (priorityAreas.Any(area => MatchesGeo(area, candidate.Suburb) || MatchesGeo(area, candidate.Area)))
+        {
+            return 12m;
+        }
+
+        if (priorityAreas.Any(area =>
+            MatchesGeo(area, candidate.City)
+            || MatchesAnyMetadataToken(candidate, area, "cityLabels", "city_labels", "city", "area")))
+        {
+            return 7m;
+        }
+
+        return 0m;
+    }
+
+    private decimal BusinessLocationScore(InventoryCandidate candidate, CampaignPlanningRequest request)
+    {
+        var businessLocation = request.BusinessLocation;
+        if (businessLocation is null)
+        {
+            return 0m;
+        }
+
+        if (!string.IsNullOrWhiteSpace(businessLocation.Area)
+            && (MatchesGeo(businessLocation.Area, candidate.Suburb) || MatchesGeo(businessLocation.Area, candidate.Area)))
+        {
+            return 14m;
+        }
+
+        if (!string.IsNullOrWhiteSpace(businessLocation.City)
+            && (MatchesGeo(businessLocation.City, candidate.City)
+                || MatchesAnyMetadataToken(candidate, businessLocation.City, "cityLabels", "city_labels", "city", "area")))
+        {
+            return 8m;
+        }
+
+        if (!string.IsNullOrWhiteSpace(businessLocation.Province)
+            && (MatchesGeo(businessLocation.Province, candidate.Province)
+                || MatchesAnyMetadataToken(candidate, businessLocation.Province, "provinceCodes", "province_codes", "province", "area")))
+        {
+            return 4m;
+        }
+
+        return 0m;
+    }
+
     private static decimal OohIntelligenceFitScore(InventoryCandidate candidate, CampaignPlanningRequest request)
     {
         if (!candidate.MediaType.Equals("OOH", StringComparison.OrdinalIgnoreCase))
@@ -1097,14 +1154,16 @@ public sealed class PlanningScoreService : IPlanningScoreService
             return 0m;
         }
 
-        if (!request.TargetLatitude.HasValue || !request.TargetLongitude.HasValue)
+        var referenceLatitude = request.BusinessLocation?.Latitude ?? request.TargetLatitude;
+        var referenceLongitude = request.BusinessLocation?.Longitude ?? request.TargetLongitude;
+        if (!referenceLatitude.HasValue || !referenceLongitude.HasValue)
         {
             return 0m;
         }
 
         var distanceKm = HaversineDistanceKm(
-            request.TargetLatitude.Value,
-            request.TargetLongitude.Value,
+            referenceLatitude.Value,
+            referenceLongitude.Value,
             candidate.Latitude.Value,
             candidate.Longitude.Value);
 

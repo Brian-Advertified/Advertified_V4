@@ -10,6 +10,7 @@ import type {
   InventoryRow,
   PlanningMode,
   SelectedPlanInventoryItem,
+  SelectOption,
 } from '../types/domain';
 
 type AgentApiDependencies = {
@@ -46,6 +47,7 @@ type AgentApiDependencies = {
     campaignName?: string;
   }) => Promise<Campaign>;
   listInventoryData: (campaignId?: string) => Promise<InventoryRow[]>;
+  getProspectDispositionReasonsData: () => Promise<SelectOption[]>;
   uploadAgentAssetData: (campaignId: string, file: File, assetType: string) => Promise<CampaignAsset>;
   postJson: (path: string, body: unknown) => Promise<void>;
   putJson: (path: string, body: unknown) => Promise<void>;
@@ -67,6 +69,7 @@ export function createAgentApi({
   createProspectCampaignData,
   createRegisteredClientProspectCampaignData,
   listInventoryData,
+  getProspectDispositionReasonsData,
   uploadAgentAssetData,
   postJson,
   putJson,
@@ -165,6 +168,20 @@ export function createAgentApi({
 
     async uploadAgentCampaignAsset(campaignId: string, file: File, assetType: string) {
       return uploadAgentAssetData(campaignId, file, assetType);
+    },
+
+    async getProspectDispositionReasons() {
+      return getProspectDispositionReasonsData();
+    },
+
+    async closeProspect(campaignId: string, payload: { reasonCode: string; notes?: string | null }) {
+      await postJson(`/agent/campaigns/${campaignId}/close-prospect`, payload);
+      return getAgentCampaignById(campaignId);
+    },
+
+    async reopenProspect(campaignId: string) {
+      await postJson(`/agent/campaigns/${campaignId}/reopen-prospect`, {});
+      return getAgentCampaignById(campaignId);
     },
 
     async saveSupplierBooking(campaignId: string, payload: {

@@ -73,6 +73,11 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
             return "media_type_excluded";
         }
 
+        if (MatchesExcludedArea(candidate, request))
+        {
+            return "excluded_area";
+        }
+
         if (!MatchesRequestedGeography(candidate, request))
         {
             return "geography_mismatch";
@@ -187,6 +192,20 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
 
         return Matches(normalizedScope, candidate.MarketScope)
             || Matches(normalizedScope, candidate.RegionClusterCode);
+    }
+
+    private bool MatchesExcludedArea(InventoryCandidate candidate, CampaignPlanningRequest request)
+    {
+        if (request.ExcludedAreas.Count == 0)
+        {
+            return false;
+        }
+
+        return request.ExcludedAreas.Any(area =>
+            Matches(area, candidate.Area)
+            || Matches(area, candidate.Suburb)
+            || Matches(area, candidate.City)
+            || MatchesAnyMetadataToken(candidate, area, "cityLabels", "city_labels", "city", "area", "provinceCodes", "province_codes", "province"));
     }
 
     private static double HaversineDistanceKm(double lat1, double lon1, double lat2, double lon2)

@@ -8,5 +8,6 @@ public interface ITemplatedEmailService
         string senderKey,
         IReadOnlyDictionary<string, string?> tokens,
         IReadOnlyCollection<EmailAttachment>? attachments,
+        EmailTrackingContext? trackingContext,
         CancellationToken cancellationToken);
 }

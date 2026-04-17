@@ -77,4 +77,49 @@ public sealed class CampaignWorkflowPolicyTests
         Assert.False(pendingResult);
         Assert.Equal(CampaignStatuses.CreativeSentToClientForApproval, pendingCampaign.Status);
     }
+
+    [Fact]
+    public void ResolveAgentQueueStage_ReturnsClosedProspect_WhenProspectDispositionIsClosed()
+    {
+        var campaign = new Campaign
+        {
+            Status = CampaignStatuses.ReviewReady,
+            ProspectDispositionStatus = ProspectDispositionStatuses.Closed,
+            PackageOrder = new PackageOrder
+            {
+                PaymentProvider = "prospect",
+                PaymentStatus = "pending"
+            }
+        };
+
+        var stage = CampaignWorkflowPolicy.ResolveAgentQueueStage(campaign);
+
+        Assert.Equal(QueueStages.ClosedProspect, stage);
+    }
+
+    [Fact]
+    public void GetAgentNextAction_ReturnsClosedProspectGuidance_WhenProspectIsClosed()
+    {
+        var currentUserId = Guid.NewGuid();
+        var campaign = new Campaign
+        {
+            Status = CampaignStatuses.ReviewReady,
+            AssignedAgentUserId = currentUserId,
+            ProspectDispositionStatus = ProspectDispositionStatuses.Closed,
+            PackageBand = new PackageBand
+            {
+                Name = "Growth"
+            },
+            PackageOrder = new PackageOrder
+            {
+                PaymentProvider = "prospect",
+                PaymentStatus = "pending",
+                Amount = 50000m
+            }
+        };
+
+        var nextAction = CampaignWorkflowPolicy.GetAgentNextAction(campaign, QueueStages.ClosedProspect, currentUserId);
+
+        Assert.Contains("Prospect is closed", nextAction, StringComparison.OrdinalIgnoreCase);
+    }
 }

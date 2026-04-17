@@ -175,6 +175,7 @@ public sealed class InvoiceService : IInvoiceService
                         Content = pdfBytes
                     }
                 },
+                null,
                 cancellationToken);
         }
         catch (Exception ex)

@@ -264,9 +264,14 @@ public sealed class AgentProspectsController : ControllerBase
             throw new InvalidOperationException("Only the assigned agent can update this prospect campaign.");
         }
 
-        if (!string.Equals(campaign.Status, CampaignStatuses.AwaitingPurchase, StringComparison.OrdinalIgnoreCase))
+        if (!ProspectCampaignPolicy.IsProspectiveCampaign(campaign))
         {
             throw new InvalidOperationException("Only prospective campaigns can be repriced.");
+        }
+
+        if (ProspectCampaignPolicy.IsClosed(campaign))
+        {
+            throw new InvalidOperationException("Reopen this prospect before changing package pricing.");
         }
 
         var packageBand = await _db.PackageBands
@@ -352,6 +357,7 @@ public sealed class AgentProspectsController : ControllerBase
                 .ThenInclude(x => x.BusinessProfile)
             .Include(x => x.ProspectLead)
             .Include(x => x.AssignedAgentUser)
+            .Include(x => x.ProspectDispositionClosedByUser)
             .Include(x => x.PackageBand)
             .Include(x => x.PackageOrder)
             .Include(x => x.CampaignBrief)

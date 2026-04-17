@@ -432,6 +432,7 @@ public sealed class CampaignMessagingController : ControllerBase
                     ["MessagePreview"] = Truncate(messagePreview, 240)
                 },
                 null,
+                null,
                 cancellationToken);
         }
         catch (Exception ex)

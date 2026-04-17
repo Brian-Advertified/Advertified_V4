@@ -226,6 +226,7 @@ public sealed class AgentCampaignBookingsController : ControllerBase
                     ["BookingStatus"] = booking.BookingStatus
                 },
                 null,
+                null,
                 cancellationToken);
         }
         catch (Exception ex)
@@ -253,6 +254,7 @@ public sealed class AgentCampaignBookingsController : ControllerBase
                     ["PlaysOrSpots"] = report.PlaysOrSpots?.ToString(),
                     ["SpendDelivered"] = report.SpendDelivered?.ToString("C0", System.Globalization.CultureInfo.GetCultureInfo("en-ZA"))
                 },
+                null,
                 null,
                 cancellationToken);
         }

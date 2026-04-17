@@ -256,6 +256,7 @@ public sealed class AgentAreaRoutingService : IAgentAreaRoutingService
                     ["AgentCampaignUrl"] = BuildFrontendUrl($"/agent/campaigns/{campaign.Id}")
                 },
                 null,
+                null,
                 cancellationToken);
         }
         catch (Exception ex)

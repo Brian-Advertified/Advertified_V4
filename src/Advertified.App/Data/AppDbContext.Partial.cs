@@ -349,13 +349,24 @@ public partial class AppDbContext
         modelBuilder.Entity<Campaign>(entity =>
         {
             entity.HasIndex(e => e.AssignedAgentUserId, "ix_campaigns_assigned_agent_user_id");
+            entity.HasIndex(e => e.ProspectDispositionClosedByUserId, "ix_campaigns_prospect_disposition_closed_by_user_id");
             entity.HasIndex(e => e.ProspectLeadId, "ix_campaigns_prospect_lead_id");
+            entity.HasIndex(e => e.ProspectDispositionStatus, "ix_campaigns_prospect_disposition_status");
 
             entity.Property(e => e.AssignedAgentUserId).HasColumnName("assigned_agent_user_id");
             entity.Property(e => e.AssignedAt).HasColumnName("assigned_at");
             entity.Property(e => e.AssignmentEmailSentAt).HasColumnName("assignment_email_sent_at");
             entity.Property(e => e.AgentWorkStartedEmailSentAt).HasColumnName("agent_work_started_email_sent_at");
             entity.Property(e => e.ProspectLeadId).HasColumnName("prospect_lead_id");
+            entity.Property(e => e.ProspectDispositionClosedAt).HasColumnName("prospect_disposition_closed_at");
+            entity.Property(e => e.ProspectDispositionClosedByUserId).HasColumnName("prospect_disposition_closed_by_user_id");
+            entity.Property(e => e.ProspectDispositionNotes).HasColumnName("prospect_disposition_notes");
+            entity.Property(e => e.ProspectDispositionReason)
+                .HasMaxLength(100)
+                .HasColumnName("prospect_disposition_reason");
+            entity.Property(e => e.ProspectDispositionStatus)
+                .HasMaxLength(20)
+                .HasColumnName("prospect_disposition_status");
             entity.Property(e => e.RecommendationReadyEmailSentAt).HasColumnName("recommendation_ready_email_sent_at");
 
             entity.HasOne(e => e.AssignedAgentUser)
@@ -363,6 +374,12 @@ public partial class AppDbContext
                 .HasForeignKey(e => e.AssignedAgentUserId)
                 .OnDelete(DeleteBehavior.SetNull)
                 .HasConstraintName("campaigns_assigned_agent_user_id_fkey");
+
+            entity.HasOne(e => e.ProspectDispositionClosedByUser)
+                .WithMany()
+                .HasForeignKey(e => e.ProspectDispositionClosedByUserId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("campaigns_prospect_disposition_closed_by_user_id_fkey");
 
             entity.HasOne(e => e.ProspectLead)
                 .WithMany(e => e.Campaigns)
@@ -1178,6 +1195,217 @@ public partial class AppDbContext
                 .HasForeignKey(e => e.ActorUserId)
                 .OnDelete(DeleteBehavior.SetNull)
                 .HasConstraintName("change_audit_log_actor_user_id_fkey");
+        });
+
+        modelBuilder.Entity<EmailDeliveryProviderSetting>(entity =>
+        {
+            entity.HasKey(e => e.ProviderKey).HasName("email_delivery_provider_settings_pkey");
+
+            entity.ToTable("email_delivery_provider_settings");
+
+            entity.Property(e => e.ProviderKey)
+                .HasMaxLength(50)
+                .HasColumnName("provider_key");
+            entity.Property(e => e.DisplayName)
+                .HasMaxLength(120)
+                .HasColumnName("display_name");
+            entity.Property(e => e.WebhookEnabled).HasColumnName("webhook_enabled");
+            entity.Property(e => e.WebhookSigningSecret).HasColumnName("webhook_signing_secret");
+            entity.Property(e => e.WebhookEndpointPath)
+                .HasMaxLength(200)
+                .HasColumnName("webhook_endpoint_path");
+            entity.Property(e => e.AllowedEventTypesJson)
+                .HasColumnType("jsonb")
+                .HasColumnName("allowed_event_types_json");
+            entity.Property(e => e.MaxSignatureAgeSeconds).HasColumnName("max_signature_age_seconds");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+        });
+
+        modelBuilder.Entity<EmailDeliveryMessage>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("email_delivery_messages_pkey");
+
+            entity.ToTable("email_delivery_messages");
+
+            entity.HasIndex(e => new { e.CampaignId, e.CreatedAt }).HasDatabaseName("ix_email_delivery_messages_campaign_id");
+            entity.HasIndex(e => e.RecipientEmail).HasDatabaseName("ix_email_delivery_messages_recipient_email");
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.ProviderKey)
+                .HasMaxLength(50)
+                .HasColumnName("provider_key");
+            entity.Property(e => e.TemplateName)
+                .HasMaxLength(120)
+                .HasColumnName("template_name");
+            entity.Property(e => e.SenderKey)
+                .HasMaxLength(50)
+                .HasColumnName("sender_key");
+            entity.Property(e => e.DeliveryPurpose)
+                .HasMaxLength(80)
+                .HasColumnName("delivery_purpose");
+            entity.Property(e => e.Status)
+                .HasMaxLength(40)
+                .HasColumnName("status");
+            entity.Property(e => e.FromAddress)
+                .HasMaxLength(255)
+                .HasColumnName("from_address");
+            entity.Property(e => e.RecipientEmail)
+                .HasMaxLength(255)
+                .HasColumnName("recipient_email");
+            entity.Property(e => e.Subject)
+                .HasMaxLength(500)
+                .HasColumnName("subject");
+            entity.Property(e => e.CampaignId).HasColumnName("campaign_id");
+            entity.Property(e => e.RecommendationId).HasColumnName("recommendation_id");
+            entity.Property(e => e.RecommendationRevisionNumber).HasColumnName("recommendation_revision_number");
+            entity.Property(e => e.RecipientUserId).HasColumnName("recipient_user_id");
+            entity.Property(e => e.ProspectLeadId).HasColumnName("prospect_lead_id");
+            entity.Property(e => e.ProviderMessageId)
+                .HasMaxLength(120)
+                .HasColumnName("provider_message_id");
+            entity.Property(e => e.ProviderBroadcastId)
+                .HasMaxLength(120)
+                .HasColumnName("provider_broadcast_id");
+            entity.Property(e => e.LatestEventType)
+                .HasMaxLength(80)
+                .HasColumnName("latest_event_type");
+            entity.Property(e => e.LatestEventAt).HasColumnName("latest_event_at");
+            entity.Property(e => e.AcceptedAt).HasColumnName("accepted_at");
+            entity.Property(e => e.DeliveredAt).HasColumnName("delivered_at");
+            entity.Property(e => e.OpenedAt).HasColumnName("opened_at");
+            entity.Property(e => e.ClickedAt).HasColumnName("clicked_at");
+            entity.Property(e => e.ComplainedAt).HasColumnName("complained_at");
+            entity.Property(e => e.BouncedAt).HasColumnName("bounced_at");
+            entity.Property(e => e.FailedAt).HasColumnName("failed_at");
+            entity.Property(e => e.ArchivedAt).HasColumnName("archived_at");
+            entity.Property(e => e.ArchivedPath).HasColumnName("archived_path");
+            entity.Property(e => e.LastError).HasColumnName("last_error");
+            entity.Property(e => e.MetadataJson)
+                .HasColumnType("jsonb")
+                .HasColumnName("metadata_json");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+
+            entity.HasOne(e => e.Campaign)
+                .WithMany(e => e.EmailDeliveryMessages)
+                .HasForeignKey(e => e.CampaignId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("email_delivery_messages_campaign_id_fkey");
+
+            entity.HasOne(e => e.Recommendation)
+                .WithMany(e => e.EmailDeliveryMessages)
+                .HasForeignKey(e => e.RecommendationId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("email_delivery_messages_recommendation_id_fkey");
+
+            entity.HasOne(e => e.RecipientUser)
+                .WithMany(e => e.EmailDeliveryMessages)
+                .HasForeignKey(e => e.RecipientUserId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("email_delivery_messages_recipient_user_id_fkey");
+
+            entity.HasOne(e => e.ProspectLead)
+                .WithMany()
+                .HasForeignKey(e => e.ProspectLeadId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("email_delivery_messages_prospect_lead_id_fkey");
+        });
+
+        modelBuilder.Entity<EmailDeliveryEvent>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("email_delivery_events_pkey");
+
+            entity.ToTable("email_delivery_events");
+
+            entity.HasIndex(e => new { e.EmailDeliveryMessageId, e.EventCreatedAt }).HasDatabaseName("ix_email_delivery_events_message_id");
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.ProviderKey)
+                .HasMaxLength(50)
+                .HasColumnName("provider_key");
+            entity.Property(e => e.EmailDeliveryMessageId).HasColumnName("email_delivery_message_id");
+            entity.Property(e => e.ProviderWebhookMessageId)
+                .HasMaxLength(120)
+                .HasColumnName("provider_webhook_message_id");
+            entity.Property(e => e.ProviderMessageId)
+                .HasMaxLength(120)
+                .HasColumnName("provider_message_id");
+            entity.Property(e => e.ProviderEventType)
+                .HasMaxLength(80)
+                .HasColumnName("provider_event_type");
+            entity.Property(e => e.RecipientEmail)
+                .HasMaxLength(255)
+                .HasColumnName("recipient_email");
+            entity.Property(e => e.EventCreatedAt).HasColumnName("event_created_at");
+            entity.Property(e => e.ReceivedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("received_at");
+            entity.Property(e => e.ProcessingStatus)
+                .HasMaxLength(40)
+                .HasColumnName("processing_status");
+            entity.Property(e => e.ProcessingNotes).HasColumnName("processing_notes");
+            entity.Property(e => e.PayloadJson)
+                .HasColumnType("jsonb")
+                .HasColumnName("payload_json");
+
+            entity.HasOne(e => e.EmailDeliveryMessage)
+                .WithMany(e => e.Events)
+                .HasForeignKey(e => e.EmailDeliveryMessageId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("email_delivery_events_email_delivery_message_id_fkey");
+        });
+
+        modelBuilder.Entity<EmailDeliveryWebhookAudit>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("email_delivery_webhook_audits_pkey");
+
+            entity.ToTable("email_delivery_webhook_audits");
+
+            entity.HasIndex(e => new { e.ProviderKey, e.CreatedAt }).HasDatabaseName("ix_email_delivery_webhook_audits_provider_created");
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.ProviderKey)
+                .HasMaxLength(50)
+                .HasColumnName("provider_key");
+            entity.Property(e => e.RequestPath)
+                .HasMaxLength(200)
+                .HasColumnName("request_path");
+            entity.Property(e => e.WebhookMessageId)
+                .HasMaxLength(120)
+                .HasColumnName("webhook_message_id");
+            entity.Property(e => e.EventType)
+                .HasMaxLength(80)
+                .HasColumnName("event_type");
+            entity.Property(e => e.SignatureValid).HasColumnName("signature_valid");
+            entity.Property(e => e.ProcessingStatus)
+                .HasMaxLength(40)
+                .HasColumnName("processing_status");
+            entity.Property(e => e.ProcessingNotes).HasColumnName("processing_notes");
+            entity.Property(e => e.HeadersJson)
+                .HasColumnType("jsonb")
+                .HasColumnName("headers_json");
+            entity.Property(e => e.PayloadJson)
+                .HasColumnType("jsonb")
+                .HasColumnName("payload_json");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.ProcessedAt).HasColumnName("processed_at");
         });
 
         modelBuilder.ConfigureLeadIndustryPolicies();

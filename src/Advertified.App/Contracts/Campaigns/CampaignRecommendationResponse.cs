@@ -14,5 +14,6 @@ public sealed class CampaignRecommendationResponse
     public CampaignRecommendationAuditResponse? Audit { get; set; }
     public string Status { get; set; } = string.Empty;
     public decimal TotalCost { get; set; }
+    public IReadOnlyList<EmailDeliveryAttemptResponse> EmailDeliveries { get; set; } = Array.Empty<EmailDeliveryAttemptResponse>();
     public IReadOnlyList<RecommendationItemResponse> Items { get; set; } = Array.Empty<RecommendationItemResponse>();
 }

@@ -332,6 +332,11 @@ public static class CampaignWorkflowPolicy
 
     public static string ResolveAgentQueueStage(Campaign campaign)
     {
+        if (ProspectCampaignPolicy.IsClosed(campaign))
+        {
+            return QueueStages.ClosedProspect;
+        }
+
         var latestRecommendation = GetAgentCurrentRecommendation(campaign);
         var hasRecommendation = latestRecommendation is not null;
         var recommendationStatus = latestRecommendation?.Status?.Trim().ToLowerInvariant();
@@ -369,6 +374,7 @@ public static class CampaignWorkflowPolicy
             QueueStages.PlanningReady => "Needs planning",
             QueueStages.AgentReview => "Needs agent review",
             QueueStages.WaitingOnClient => "Waiting on client",
+            QueueStages.ClosedProspect => "Closed prospect",
             QueueStages.Completed => "Completed",
             _ => "Watching"
         };
@@ -389,6 +395,11 @@ public static class CampaignWorkflowPolicy
         if (string.Equals(campaign.Status, CampaignStatuses.Launched, StringComparison.OrdinalIgnoreCase))
         {
             return "Campaign is live. Monitor delivery and support any execution follow-up.";
+        }
+
+        if (ProspectCampaignPolicy.IsClosed(campaign))
+        {
+            return "Prospect is closed. Reopen only if the client re-engages or commercial circumstances change.";
         }
 
         var latestRecommendation = GetAgentCurrentRecommendation(campaign);
@@ -423,6 +434,7 @@ public static class CampaignWorkflowPolicy
             QueueStages.PlanningReady => $"{assignmentPrefix} open the campaign and create the recommendation.",
             QueueStages.AgentReview => $"{assignmentPrefix} review the AI draft, adjust the plan, and approve it before sending.",
             QueueStages.WaitingOnClient => $"{assignmentPrefix} wait for client approval or update requests.",
+            QueueStages.ClosedProspect => $"{assignmentPrefix} keep this prospect closed unless the client re-engages.",
             QueueStages.Completed => $"{assignmentPrefix} archive this work or support activation if needed.",
             _ => $"{assignmentPrefix} monitor campaign progress for {campaign.PackageBand.Name}."
         };
@@ -450,8 +462,9 @@ public static class CampaignWorkflowPolicy
             QueueStages.AgentReview => 2,
             QueueStages.BriefWaiting => 3,
             QueueStages.WaitingOnClient => 4,
-            QueueStages.Completed => 5,
-            _ => 6
+            QueueStages.ClosedProspect => 5,
+            QueueStages.Completed => 6,
+            _ => 7
         };
     }
 

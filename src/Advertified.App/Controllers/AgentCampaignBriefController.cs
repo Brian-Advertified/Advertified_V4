@@ -284,7 +284,7 @@ public sealed class AgentCampaignBriefController : ControllerBase
             .Include(x => x.PackageOrder)
             .FirstOrDefaultAsync(x => x.Id == campaignId, cancellationToken);
 
-        if (campaign is null || campaign.AssignmentEmailSentAt.HasValue || campaign.AssignedAgentUserId is null || IsProspectiveCampaign(campaign))
+        if (campaign is null || campaign.AssignmentEmailSentAt.HasValue || campaign.AssignedAgentUserId is null || ProspectCampaignPolicy.IsProspectiveCampaign(campaign))
         {
             return;
         }
@@ -303,6 +303,7 @@ public sealed class AgentCampaignBriefController : ControllerBase
                     ["Budget"] = FormatCurrency(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount),
                     ["CampaignUrl"] = BuildClientCampaignUrl(campaign)
                 },
+                null,
                 null,
                 cancellationToken);
         }
@@ -325,7 +326,7 @@ public sealed class AgentCampaignBriefController : ControllerBase
             .Include(x => x.PackageOrder)
             .FirstOrDefaultAsync(x => x.Id == campaignId, cancellationToken);
 
-        if (campaign is null || campaign.AgentWorkStartedEmailSentAt.HasValue || IsProspectiveCampaign(campaign))
+        if (campaign is null || campaign.AgentWorkStartedEmailSentAt.HasValue || ProspectCampaignPolicy.IsProspectiveCampaign(campaign))
         {
             return;
         }
@@ -345,6 +346,7 @@ public sealed class AgentCampaignBriefController : ControllerBase
                     ["CampaignUrl"] = BuildClientCampaignUrl(campaign)
                 },
                 null,
+                null,
                 cancellationToken);
         }
         catch (Exception ex)
@@ -362,10 +364,4 @@ public sealed class AgentCampaignBriefController : ControllerBase
         return amount.ToString("C0", System.Globalization.CultureInfo.GetCultureInfo("en-ZA"));
     }
 
-    private static bool IsProspectiveCampaign(Campaign campaign)
-    {
-        return string.Equals(campaign.Status, CampaignStatuses.AwaitingPurchase, StringComparison.OrdinalIgnoreCase)
-            || (campaign.PackageOrder?.PaymentProvider == "prospect" && 
-                !string.Equals(campaign.PackageOrder?.PaymentStatus, "paid", StringComparison.OrdinalIgnoreCase));
-    }
 }

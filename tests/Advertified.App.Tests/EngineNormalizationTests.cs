@@ -184,6 +184,72 @@ public class EngineNormalizationTests
     }
 
     [Fact]
+    public void PlanningScoreService_AnalyzeCandidate_BoostsBusinessOriginWithinProvincialCoverage()
+    {
+        var service = CreatePlanningScoreService();
+        var request = new CampaignPlanningRequest
+        {
+            GeographyScope = "provincial",
+            Provinces = new List<string> { "Gauteng" },
+            SelectedBudget = 100000m,
+            Objective = "awareness",
+            BusinessLocation = new CampaignBusinessLocation
+            {
+                Label = "Sandton",
+                Area = "Sandton",
+                City = "Johannesburg",
+                Province = "Gauteng",
+                Latitude = -26.1076,
+                Longitude = 28.0567,
+                Source = "test",
+                Precision = "local",
+                IsResolved = true
+            },
+            Targeting = new CampaignTargetingProfile
+            {
+                Scope = "provincial",
+                Provinces = new List<string> { "Gauteng" },
+                PriorityAreas = new List<string> { "Sandton" }
+            }
+        };
+
+        var originCandidate = new InventoryCandidate
+        {
+            SourceId = Guid.NewGuid(),
+            MediaType = "OOH",
+            DisplayName = "Sandton commuter screen",
+            Province = "Gauteng",
+            City = "Johannesburg",
+            Area = "Sandton",
+            Latitude = -26.105,
+            Longitude = 28.058,
+            Cost = 12000m,
+            IsAvailable = true,
+            MarketScope = "provincial"
+        };
+
+        var broaderProvinceCandidate = new InventoryCandidate
+        {
+            SourceId = Guid.NewGuid(),
+            MediaType = "OOH",
+            DisplayName = "Pretoria route panel",
+            Province = "Gauteng",
+            City = "Pretoria",
+            Area = "Centurion",
+            Latitude = -25.86,
+            Longitude = 28.19,
+            Cost = 12000m,
+            IsAvailable = true,
+            MarketScope = "provincial"
+        };
+
+        var originScore = service.AnalyzeCandidate(originCandidate, request).Score;
+        var broaderScore = service.AnalyzeCandidate(broaderProvinceCandidate, request).Score;
+
+        originScore.Should().BeGreaterThan(broaderScore);
+    }
+
+    [Fact]
     public void PlanningScoreService_IndustryContextFitScore_FavorsFuneralFriendlyRadio()
     {
         var service = CreatePlanningScoreService();

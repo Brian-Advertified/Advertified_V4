@@ -144,6 +144,7 @@ public sealed class CampaignBriefService : ICampaignBriefService
                     ["CampaignUrl"] = BuildFrontendUrl($"/campaigns/{campaign.Id}")
                 },
                 null,
+                null,
                 cancellationToken);
         }
         catch (Exception ex)

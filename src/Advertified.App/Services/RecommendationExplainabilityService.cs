@@ -30,9 +30,10 @@ public sealed class RecommendationExplainabilityService : IRecommendationExplain
         var targetMix = _policyService.BuildRequestedMixLabel(request);
         var strategySignals = CampaignStrategySupport.BuildSignals(request);
         var strategySummary = BuildStrategySummary(strategySignals);
+        var locationSummary = BuildLocationSummary(request);
         return string.IsNullOrWhiteSpace(targetMix)
-            ? $"Plan built within budget of {request.SelectedBudget:n0}, prioritising geography fit, audience fit, business context, media preference, and available inventory. Selected mix: {mediaMix}.{strategySummary}"
-            : $"Plan built within budget of {request.SelectedBudget:n0}, prioritising geography fit, audience fit, business context, media preference, requested mix targets, and available inventory. Selected mix: {mediaMix}. Requested target: {targetMix}.{strategySummary}";
+            ? $"Plan built within budget of {request.SelectedBudget:n0}, prioritising geography fit, audience fit, business context, media preference, and available inventory. Selected mix: {mediaMix}.{locationSummary}{strategySummary}"
+            : $"Plan built within budget of {request.SelectedBudget:n0}, prioritising geography fit, audience fit, business context, media preference, requested mix targets, and available inventory. Selected mix: {mediaMix}. Requested target: {targetMix}.{locationSummary}{strategySummary}";
     }
 
     public IReadOnlyList<string> GetPreferredMediaFallbackFlags(
@@ -68,6 +69,16 @@ public sealed class RecommendationExplainabilityService : IRecommendationExplain
 
         if (_scoreService.GeoScore(candidate, request) >= 22m) reasons.Add("Strong geography match");
         else if (_scoreService.GeoScore(candidate, request) >= 16m) reasons.Add("Good regional alignment");
+
+        if (MatchesBusinessOrigin(candidate, request))
+        {
+            reasons.Add("Close to the business origin");
+        }
+
+        if (MatchesPriorityArea(candidate, request))
+        {
+            reasons.Add("Supports a high-priority target area");
+        }
 
         if (_scoreService.AudienceScore(candidate, request) >= 15m) reasons.Add("Audience profile overlap");
         else if (_scoreService.AudienceScore(candidate, request) >= 10m) reasons.Add("Language or audience fit");
@@ -257,6 +268,42 @@ public sealed class RecommendationExplainabilityService : IRecommendationExplain
         }
 
         return string.Empty;
+    }
+
+    private static string BuildLocationSummary(CampaignPlanningRequest request)
+    {
+        var coverage = request.Targeting?.Label
+            ?? request.TargetLocationLabel
+            ?? request.TargetLocationCity
+            ?? request.TargetLocationProvince;
+        var origin = request.BusinessLocation?.Area
+            ?? request.BusinessLocation?.City
+            ?? request.BusinessLocation?.Province;
+
+        if (!string.IsNullOrWhiteSpace(origin) && !string.IsNullOrWhiteSpace(coverage))
+        {
+            return $" Coverage focused on {coverage} while retaining origin bias around {origin}.{BuildAllocationSummary(request)}";
+        }
+
+        if (!string.IsNullOrWhiteSpace(origin))
+        {
+            return $" Origin bias was retained around {origin}.{BuildAllocationSummary(request)}";
+        }
+
+        return BuildAllocationSummary(request);
+    }
+
+    private static string BuildAllocationSummary(CampaignPlanningRequest request)
+    {
+        var allocation = request.BudgetAllocation;
+        if (allocation is null || allocation.ChannelAllocations.Count == 0 || allocation.GeoAllocations.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var topChannel = allocation.ChannelAllocations.OrderByDescending(entry => entry.Weight).First();
+        var topGeo = allocation.GeoAllocations.OrderByDescending(entry => entry.Weight).First();
+        return $" Budget allocation favored {ToDisplayMediaType(topChannel.Channel)} ({topChannel.Weight:P0}) and the {topGeo.Bucket} geo bucket ({topGeo.Weight:P0}).";
     }
 
     private bool IsPackageTotalCandidate(InventoryCandidate candidate) => _policyService.GetPricingModel(candidate).Equals("package_total", StringComparison.OrdinalIgnoreCase) || candidate.PackageOnly;
@@ -449,6 +496,30 @@ public sealed class RecommendationExplainabilityService : IRecommendationExplain
             "local_radius" => "Stays close to the selected main area",
             _ => null
         };
+    }
+
+    private static bool MatchesBusinessOrigin(InventoryCandidate candidate, CampaignPlanningRequest request)
+    {
+        var businessLocation = request.BusinessLocation;
+        if (businessLocation is null)
+        {
+            return false;
+        }
+
+        return Matches(businessLocation.Area, candidate.Suburb)
+            || Matches(businessLocation.Area, candidate.Area)
+            || Matches(businessLocation.City, candidate.City)
+            || Matches(businessLocation.Province, candidate.Province);
+    }
+
+    private static bool MatchesPriorityArea(InventoryCandidate candidate, CampaignPlanningRequest request)
+    {
+        var priorityAreas = request.Targeting?.PriorityAreas ?? request.MustHaveAreas;
+        return priorityAreas.Any(area =>
+            Matches(area, candidate.Suburb)
+            || Matches(area, candidate.Area)
+            || Matches(area, candidate.City)
+            || Matches(area, candidate.Province));
     }
 }
 

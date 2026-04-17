@@ -159,6 +159,7 @@ builder.Services.AddScoped<ICampaignRecommendationService, CampaignRecommendatio
 builder.Services.AddScoped<IRecommendationDocumentService, RecommendationDocumentService>();
 builder.Services.AddScoped<IRecommendationApprovalWorkflowService, RecommendationApprovalWorkflowService>();
 builder.Services.AddScoped<ICampaignExecutionTaskService, CampaignExecutionTaskService>();
+builder.Services.AddScoped<IProspectDispositionService, ProspectDispositionService>();
 // Legacy template-based creative endpoints still depend on this registration.
 // The creative studio and AI platform now use the AI generation pipeline instead.
 builder.Services.AddScoped<ICreativeGenerationOrchestrator, CreativeGenerationOrchestrator>();
@@ -181,6 +182,8 @@ builder.Services.AddScoped<IEmailVerificationService, EmailVerificationService>(
 builder.Services.AddScoped<IInvoiceService, InvoiceService>();
 builder.Services.AddScoped<IAdPlatformAccessTokenService, AdPlatformAccessTokenService>();
 builder.Services.AddScoped<IAdPlatformTokenCipher, AdPlatformTokenCipher>();
+builder.Services.AddScoped<IEmailIntegrationSecretCipher, EmailIntegrationSecretCipher>();
+builder.Services.AddScoped<IEmailDeliveryTrackingService, EmailDeliveryTrackingService>();
 builder.Services.AddScoped<IAdPlatformConnectionService, AdPlatformConnectionService>();
 builder.Services.AddScoped<ILeadIntelligenceOrchestrator, LeadIntelligenceOrchestrator>();
 builder.Services.AddScoped<ILeadActionRecommendationService, LeadActionRecommendationService>();
@@ -190,6 +193,7 @@ builder.Services.AddScoped<ILeadMasterDataService, LeadMasterDataService>();
 builder.Services.AddScoped<IIndustryArchetypeScoringService, IndustryArchetypeScoringService>();
 builder.Services.AddScoped<IGeocodingService, GeocodingService>();
 builder.Services.AddScoped<ILocationCatalogService, LocationCatalogService>();
+builder.Services.AddScoped<ICampaignBusinessLocationResolver, CampaignBusinessLocationResolver>();
 builder.Services.AddScoped<ICampaignPlanningTargetResolver, CampaignPlanningTargetResolver>();
 builder.Services.AddScoped<IPlanningRequestFactory, PlanningRequestFactory>();
 builder.Services.AddScoped<ILeadIndustryPolicyService, LeadIndustryPolicyService>();
@@ -239,6 +243,9 @@ builder.Services.AddScoped<IPlanningPolicyService, PlanningPolicyService>();
 builder.Services.AddScoped<PlanningPolicySnapshotProvider>(_ => new PlanningPolicySnapshotProvider(
     _.GetRequiredService<Npgsql.NpgsqlDataSource>(),
     _.GetRequiredService<Microsoft.Extensions.Options.IOptions<PlanningPolicyOptions>>().Value));
+builder.Services.AddScoped<PlanningBudgetAllocationSnapshotProvider>(_ =>
+    new PlanningBudgetAllocationSnapshotProvider(_.GetRequiredService<Npgsql.NpgsqlDataSource>()));
+builder.Services.AddScoped<IPlanningBudgetAllocationService, PlanningBudgetAllocationService>();
 builder.Services.AddScoped<PlanningBriefIntentSettingsSnapshotProvider>(_ =>
     new PlanningBriefIntentSettingsSnapshotProvider(_.GetRequiredService<Npgsql.NpgsqlDataSource>()));
 builder.Services.AddScoped<IPlanningBriefIntentService, PlanningBriefIntentService>();

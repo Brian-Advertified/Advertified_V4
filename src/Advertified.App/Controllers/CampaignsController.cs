@@ -28,6 +28,8 @@ public sealed class CampaignsController : ControllerBase
     private readonly ICampaignRecommendationService _campaignRecommendationService;
     private readonly IRecommendationDocumentService _recommendationDocumentService;
     private readonly IRecommendationApprovalWorkflowService _recommendationApprovalWorkflowService;
+    private readonly ICampaignPlanningTargetResolver _planningTargetResolver;
+    private readonly ICampaignBusinessLocationResolver _businessLocationResolver;
     private readonly ICampaignExecutionTaskService _campaignExecutionTaskService;
     private readonly IPackagePurchaseService _packagePurchaseService;
     private readonly CampaignPlanningRequestValidator _campaignPlanningRequestValidator;
@@ -43,6 +45,8 @@ public sealed class CampaignsController : ControllerBase
         ICampaignRecommendationService campaignRecommendationService,
         IRecommendationDocumentService recommendationDocumentService,
         IRecommendationApprovalWorkflowService recommendationApprovalWorkflowService,
+        ICampaignPlanningTargetResolver planningTargetResolver,
+        ICampaignBusinessLocationResolver businessLocationResolver,
         ICampaignExecutionTaskService campaignExecutionTaskService,
         IPackagePurchaseService packagePurchaseService,
         CampaignPlanningRequestValidator campaignPlanningRequestValidator,
@@ -57,6 +61,8 @@ public sealed class CampaignsController : ControllerBase
         _campaignRecommendationService = campaignRecommendationService;
         _recommendationDocumentService = recommendationDocumentService;
         _recommendationApprovalWorkflowService = recommendationApprovalWorkflowService;
+        _planningTargetResolver = planningTargetResolver;
+        _businessLocationResolver = businessLocationResolver;
         _campaignExecutionTaskService = campaignExecutionTaskService;
         _packagePurchaseService = packagePurchaseService;
         _campaignPlanningRequestValidator = campaignPlanningRequestValidator;
@@ -104,6 +110,7 @@ public sealed class CampaignsController : ControllerBase
                 .ThenInclude(x => x.RecommendationItems)
             .Include(x => x.CampaignRecommendations)
                 .ThenInclude(x => x.RecommendationRunAudits)
+            .Include(x => x.EmailDeliveryMessages)
             .FirstOrDefaultAsync(x => x.Id == id && x.UserId == userId, cancellationToken);
 
         if (campaign is null)
@@ -115,7 +122,46 @@ public sealed class CampaignsController : ControllerBase
             });
         }
 
-        return Ok(campaign.ToDetail(includeLinePricing: false));
+        var response = campaign.ToDetail(includeLinePricing: false);
+        var resolvedBusinessLocation = _businessLocationResolver.Resolve(campaign);
+        if (!string.IsNullOrWhiteSpace(resolvedBusinessLocation.Label))
+        {
+            response.BusinessLocation = new CampaignPlanningTargetResponse
+            {
+                Label = resolvedBusinessLocation.Label,
+                Area = resolvedBusinessLocation.Area,
+                City = resolvedBusinessLocation.City,
+                Province = resolvedBusinessLocation.Province,
+                Latitude = resolvedBusinessLocation.Latitude,
+                Longitude = resolvedBusinessLocation.Longitude,
+                Source = resolvedBusinessLocation.Source,
+                Precision = resolvedBusinessLocation.Precision
+            };
+        }
+
+        var resolvedTarget = _planningTargetResolver.Resolve(campaign.CampaignBrief);
+        if (!string.IsNullOrWhiteSpace(resolvedTarget.Label))
+        {
+            response.EffectivePlanningTarget = new CampaignPlanningTargetResponse
+            {
+                Scope = campaign.CampaignBrief?.GeographyScope,
+                Label = resolvedTarget.Label,
+                City = resolvedTarget.City,
+                Province = resolvedTarget.Province,
+                Latitude = resolvedTarget.Latitude,
+                Longitude = resolvedTarget.Longitude,
+                Source = resolvedTarget.Source,
+                Precision = resolvedTarget.Precision,
+                PriorityAreas = campaign.CampaignBrief is null
+                    ? Array.Empty<string>()
+                    : Advertified.App.Domain.Campaigns.CampaignBriefExtensions.GetList(campaign.CampaignBrief, nameof(CampaignBrief.MustHaveAreasJson)),
+                Exclusions = campaign.CampaignBrief is null
+                    ? Array.Empty<string>()
+                    : Advertified.App.Domain.Campaigns.CampaignBriefExtensions.GetList(campaign.CampaignBrief, nameof(CampaignBrief.ExcludedAreasJson))
+            };
+        }
+
+        return Ok(response);
     }
 
     [HttpGet("{id:guid}/performance")]
@@ -506,6 +552,7 @@ public sealed class CampaignsController : ControllerBase
                         ["EventBody"] = eventBody,
                         ["ActionUrl"] = actionUrl
                     },
+                    null,
                     null,
                     cancellationToken);
             }

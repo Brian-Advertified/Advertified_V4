@@ -36,6 +36,7 @@ public static class QueueStages
     public const string PlanningReady = "planning_ready";
     public const string AgentReview = "agent_review";
     public const string WaitingOnClient = "waiting_on_client";
+    public const string ClosedProspect = "closed_prospect";
     public const string Completed = "completed";
     public const string Watching = "watching";
 }

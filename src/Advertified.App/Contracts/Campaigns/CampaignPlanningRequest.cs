@@ -4,6 +4,9 @@ public sealed class CampaignPlanningRequest
 {
     public Guid CampaignId { get; set; }
     public decimal SelectedBudget { get; set; }
+    public CampaignBusinessLocation? BusinessLocation { get; set; }
+    public CampaignTargetingProfile? Targeting { get; set; }
+    public PlanningBudgetAllocation? BudgetAllocation { get; set; }
     public string? Objective { get; set; }
     public string? BusinessStage { get; set; }
     public string? MonthlyRevenueBand { get; set; }
@@ -37,6 +40,8 @@ public sealed class CampaignPlanningRequest
     public string? ValuePropositionFocus { get; set; }
     public int? TargetLsmMin { get; set; }
     public int? TargetLsmMax { get; set; }
+    public List<string> MustHaveAreas { get; set; } = new();
+    public List<string> ExcludedAreas { get; set; } = new();
     public bool OpenToUpsell { get; set; }
     public decimal? AdditionalBudget { get; set; }
     public int? MaxMediaItems { get; set; }
@@ -46,4 +51,60 @@ public sealed class CampaignPlanningRequest
     public int? TargetDigitalShare { get; set; }
     public double? TargetLatitude { get; set; }
     public double? TargetLongitude { get; set; }
+
+    public CampaignPlanningRequest DeepClone()
+    {
+        return new CampaignPlanningRequest
+        {
+            CampaignId = CampaignId,
+            SelectedBudget = SelectedBudget,
+            BusinessLocation = BusinessLocation?.DeepClone(),
+            Targeting = Targeting?.DeepClone(),
+            BudgetAllocation = BudgetAllocation?.DeepClone(),
+            Objective = Objective,
+            BusinessStage = BusinessStage,
+            MonthlyRevenueBand = MonthlyRevenueBand,
+            SalesModel = SalesModel,
+            GeographyScope = GeographyScope,
+            Provinces = Provinces.ToList(),
+            Cities = Cities.ToList(),
+            Suburbs = Suburbs.ToList(),
+            Areas = Areas.ToList(),
+            TargetLocationLabel = TargetLocationLabel,
+            TargetLocationCity = TargetLocationCity,
+            TargetLocationProvince = TargetLocationProvince,
+            TargetLocationSource = TargetLocationSource,
+            TargetLocationPrecision = TargetLocationPrecision,
+            PreferredMediaTypes = PreferredMediaTypes.ToList(),
+            ExcludedMediaTypes = ExcludedMediaTypes.ToList(),
+            TargetLanguages = TargetLanguages.ToList(),
+            TargetAgeMin = TargetAgeMin,
+            TargetAgeMax = TargetAgeMax,
+            TargetGender = TargetGender,
+            TargetInterests = TargetInterests.ToList(),
+            TargetAudienceNotes = TargetAudienceNotes,
+            CustomerType = CustomerType,
+            BuyingBehaviour = BuyingBehaviour,
+            DecisionCycle = DecisionCycle,
+            PricePositioning = PricePositioning,
+            AverageCustomerSpendBand = AverageCustomerSpendBand,
+            GrowthTarget = GrowthTarget,
+            UrgencyLevel = UrgencyLevel,
+            AudienceClarity = AudienceClarity,
+            ValuePropositionFocus = ValuePropositionFocus,
+            TargetLsmMin = TargetLsmMin,
+            TargetLsmMax = TargetLsmMax,
+            MustHaveAreas = MustHaveAreas.ToList(),
+            ExcludedAreas = ExcludedAreas.ToList(),
+            OpenToUpsell = OpenToUpsell,
+            AdditionalBudget = AdditionalBudget,
+            MaxMediaItems = MaxMediaItems,
+            TargetRadioShare = TargetRadioShare,
+            TargetOohShare = TargetOohShare,
+            TargetTvShare = TargetTvShare,
+            TargetDigitalShare = TargetDigitalShare,
+            TargetLatitude = TargetLatitude,
+            TargetLongitude = TargetLongitude
+        };
+    }
 }

@@ -12,10 +12,12 @@ namespace Advertified.App.Services;
 
 public sealed class ResendEmailService : ITemplatedEmailService
 {
+    private const string ProviderKey = "resend";
     private readonly HttpClient _httpClient;
     private readonly AppDbContext _db;
     private readonly ResendOptions _options;
     private readonly IWebHostEnvironment _environment;
+    private readonly IEmailDeliveryTrackingService _trackingService;
     private readonly ILogger<ResendEmailService> _logger;
 
     public ResendEmailService(
@@ -23,12 +25,14 @@ public sealed class ResendEmailService : ITemplatedEmailService
         AppDbContext db,
         IOptions<ResendOptions> options,
         IWebHostEnvironment environment,
+        IEmailDeliveryTrackingService trackingService,
         ILogger<ResendEmailService> logger)
     {
         _httpClient = httpClient;
         _db = db;
         _options = options.Value;
         _environment = environment;
+        _trackingService = trackingService;
         _logger = logger;
     }
 
@@ -38,6 +42,7 @@ public sealed class ResendEmailService : ITemplatedEmailService
         string senderKey,
         IReadOnlyDictionary<string, string?> tokens,
         IReadOnlyCollection<EmailAttachment>? attachments,
+        EmailTrackingContext? trackingContext,
         CancellationToken cancellationToken)
     {
         var template = await _db.EmailTemplates
@@ -50,10 +55,20 @@ public sealed class ResendEmailService : ITemplatedEmailService
         var fromAddress = ResolveFromAddress(senderKey);
         var subject = Render(template.SubjectTemplate, tokens);
         var html = Render(template.BodyHtmlTemplate, tokens);
+        var trackedDispatch = await _trackingService.CreatePendingDispatchAsync(
+            ProviderKey,
+            templateName,
+            senderKey,
+            fromAddress,
+            recipientEmail,
+            subject,
+            trackingContext,
+            cancellationToken);
 
         if (string.IsNullOrWhiteSpace(_options.ApiKey))
         {
             var archivePath = await ArchiveEmailAsync(templateName, recipientEmail, subject, html, attachments, cancellationToken);
+            await _trackingService.MarkArchivedAsync(trackedDispatch.DispatchId, archivePath, cancellationToken);
             _logger.LogWarning(
                 "Resend API key is not configured. Email for template {TemplateName} was archived locally at {ArchivePath}.",
                 templateName,
@@ -63,12 +78,14 @@ public sealed class ResendEmailService : ITemplatedEmailService
 
         using var request = new HttpRequestMessage(HttpMethod.Post, "emails");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _options.ApiKey);
+        request.Headers.TryAddWithoutValidation("Idempotency-Key", trackedDispatch.IdempotencyKey);
         request.Content = JsonContent.Create(new ResendSendEmailRequest
         {
             From = fromAddress,
             To = new[] { recipientEmail },
             Subject = subject,
             Html = html,
+            Tags = BuildTags(templateName, trackingContext),
             Attachments = attachments?.Select(attachment => new ResendAttachment
             {
                 FileName = attachment.FileName,
@@ -82,6 +99,10 @@ public sealed class ResendEmailService : ITemplatedEmailService
         {
             var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
             var archivePath = await ArchiveEmailAsync(templateName, recipientEmail, subject, html, attachments, cancellationToken);
+            await _trackingService.MarkFailedAsync(
+                trackedDispatch.DispatchId,
+                $"HTTP {(int)response.StatusCode}: {responseBody}",
+                cancellationToken);
             _logger.LogError(
                 "Resend email send failed for template {TemplateName}. Status: {StatusCode}. Body: {Body}. Local archive: {ArchivePath}",
                 templateName,
@@ -91,6 +112,15 @@ public sealed class ResendEmailService : ITemplatedEmailService
 
             throw new InvalidOperationException($"Resend email send failed for template '{templateName}'.");
         }
+
+        var sendResponse = await response.Content.ReadFromJsonAsync<ResendSendEmailResponse>(cancellationToken: cancellationToken)
+            ?? throw new InvalidOperationException("Resend send response was empty.");
+        if (string.IsNullOrWhiteSpace(sendResponse.Id))
+        {
+            throw new InvalidOperationException("Resend send response did not include an email id.");
+        }
+
+        await _trackingService.MarkAcceptedAsync(trackedDispatch.DispatchId, sendResponse.Id, null, cancellationToken);
     }
 
     private async Task<string> ArchiveEmailAsync(
@@ -197,8 +227,63 @@ public sealed class ResendEmailService : ITemplatedEmailService
         [JsonPropertyName("html")]
         public string Html { get; set; } = string.Empty;
 
+        [JsonPropertyName("tags")]
+        public IReadOnlyList<ResendTag>? Tags { get; set; }
+
         [JsonPropertyName("attachments")]
         public IReadOnlyList<ResendAttachment>? Attachments { get; set; }
+    }
+
+    private static IReadOnlyList<ResendTag> BuildTags(string templateName, EmailTrackingContext? trackingContext)
+    {
+        var tags = new List<ResendTag>
+        {
+            new() { Name = "template", Value = SanitizeTagValue(templateName) }
+        };
+
+        if (!string.IsNullOrWhiteSpace(trackingContext?.Purpose))
+        {
+            tags.Add(new ResendTag { Name = "purpose", Value = SanitizeTagValue(trackingContext.Purpose) });
+        }
+
+        if (trackingContext?.CampaignId is Guid campaignId)
+        {
+            tags.Add(new ResendTag { Name = "campaign_id", Value = SanitizeTagValue(campaignId.ToString("D")) });
+        }
+
+        if (trackingContext?.RecommendationRevisionNumber is int revisionNumber)
+        {
+            tags.Add(new ResendTag { Name = "recommendation_revision", Value = SanitizeTagValue(revisionNumber.ToString()) });
+        }
+
+        return tags;
+    }
+
+    private static string SanitizeTagValue(string value)
+    {
+        var trimmed = value.Trim();
+        var builder = new StringBuilder(trimmed.Length);
+        foreach (var character in trimmed)
+        {
+            builder.Append(char.IsLetterOrDigit(character) || character is '_' or '-' ? character : '-');
+        }
+
+        return builder.ToString().Trim('-');
+    }
+
+    private sealed class ResendSendEmailResponse
+    {
+        [JsonPropertyName("id")]
+        public string Id { get; set; } = string.Empty;
+    }
+
+    private sealed class ResendTag
+    {
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = string.Empty;
+
+        [JsonPropertyName("value")]
+        public string Value { get; set; } = string.Empty;
     }
 
     private sealed class ResendAttachment

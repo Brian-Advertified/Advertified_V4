@@ -16,7 +16,7 @@ public sealed class RecommendationPlanBuilderSuburbTokenRadioTests
             Scale = new PackagePlanningPolicy { BudgetFloor = 500000m, MinimumNationalRadioCandidates = 1, RequireNationalCapableRadio = true },
             Dominance = new PackagePlanningPolicy { BudgetFloor = 1000000m, MinimumNationalRadioCandidates = 2, RequireNationalCapableRadio = true }
         }));
-        var builder = new RecommendationPlanBuilder(policyService);
+        var builder = new RecommendationPlanBuilder(policyService, new TestBroadcastMasterDataService());
 
         var request = new CampaignPlanningRequest
         {
