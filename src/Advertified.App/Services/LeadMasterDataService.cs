@@ -152,12 +152,26 @@ public sealed class LeadMasterDataService : ILeadMasterDataService
             using var connection = _dataSource.OpenConnection();
             var locationRows = connection.Query<LocationAliasRow>(
                 @"select
-                    mla.alias,
-                    ml.canonical_name as CanonicalName,
-                    ml.latitude as Latitude,
-                    ml.longitude as Longitude
-                  from master_location_aliases mla
-                  join master_locations ml on ml.id = mla.master_location_id;");
+                    location_aliases.alias,
+                    location_aliases.CanonicalName,
+                    location_aliases.Latitude,
+                    location_aliases.Longitude
+                  from (
+                    select
+                        ml.canonical_name as alias,
+                        ml.canonical_name as CanonicalName,
+                        ml.latitude as Latitude,
+                        ml.longitude as Longitude
+                    from master_locations ml
+                    union all
+                    select
+                        mla.alias,
+                        ml.canonical_name as CanonicalName,
+                        ml.latitude as Latitude,
+                        ml.longitude as Longitude
+                    from master_location_aliases mla
+                    join master_locations ml on ml.id = mla.master_location_id
+                  ) location_aliases;");
 
             var industryRows = connection.Query<IndustryAliasRow>(
                 @"select

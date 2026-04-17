@@ -26,6 +26,7 @@ public sealed class PublicProspectQuestionnaireController : ControllerBase
     private readonly SaveCampaignBriefRequestValidator _briefValidator;
     private readonly IAgentAreaRoutingService _agentAreaRoutingService;
     private readonly IChangeAuditService _changeAuditService;
+    private readonly ILocationCatalogService _locationCatalogService;
     private readonly ITemplatedEmailService _emailService;
     private readonly FrontendOptions _frontendOptions;
     private readonly ILogger<PublicProspectQuestionnaireController> _logger;
@@ -35,6 +36,7 @@ public sealed class PublicProspectQuestionnaireController : ControllerBase
         SaveCampaignBriefRequestValidator briefValidator,
         IAgentAreaRoutingService agentAreaRoutingService,
         IChangeAuditService changeAuditService,
+        ILocationCatalogService locationCatalogService,
         ITemplatedEmailService emailService,
         IOptions<FrontendOptions> frontendOptions,
         ILogger<PublicProspectQuestionnaireController> logger)
@@ -43,6 +45,7 @@ public sealed class PublicProspectQuestionnaireController : ControllerBase
         _briefValidator = briefValidator;
         _agentAreaRoutingService = agentAreaRoutingService;
         _changeAuditService = changeAuditService;
+        _locationCatalogService = locationCatalogService;
         _emailService = emailService;
         _frontendOptions = frontendOptions.Value;
         _logger = logger;
@@ -160,6 +163,7 @@ public sealed class PublicProspectQuestionnaireController : ControllerBase
         });
 
         await _db.SaveChangesAsync(cancellationToken);
+        await TrySeedLocationCatalogAsync(request.Brief, cancellationToken);
         await _agentAreaRoutingService.TryAssignCampaignAsync(campaign.Id, "public_prospect_questionnaire_submitted", cancellationToken);
         await _changeAuditService.WriteAsync(
             null,
@@ -229,5 +233,17 @@ public sealed class PublicProspectQuestionnaireController : ControllerBase
         }
 
         return fullName.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0];
+    }
+
+    private async Task TrySeedLocationCatalogAsync(SaveCampaignBriefRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _locationCatalogService.SeedResolvedLocationAsync(request, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Resolved prospect questionnaire location could not be added to the master location catalog.");
+        }
     }
 }

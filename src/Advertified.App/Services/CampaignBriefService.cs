@@ -20,6 +20,7 @@ public sealed class CampaignBriefService : ICampaignBriefService
     private readonly SaveCampaignBriefRequestValidator _validator;
     private readonly ITemplatedEmailService _emailService;
     private readonly IAgentAreaRoutingService _agentAreaRoutingService;
+    private readonly ILocationCatalogService _locationCatalogService;
     private readonly FrontendOptions _frontendOptions;
     private readonly ILogger<CampaignBriefService> _logger;
 
@@ -28,6 +29,7 @@ public sealed class CampaignBriefService : ICampaignBriefService
         SaveCampaignBriefRequestValidator validator,
         ITemplatedEmailService emailService,
         IAgentAreaRoutingService agentAreaRoutingService,
+        ILocationCatalogService locationCatalogService,
         IOptions<FrontendOptions> frontendOptions,
         ILogger<CampaignBriefService> logger)
     {
@@ -35,6 +37,7 @@ public sealed class CampaignBriefService : ICampaignBriefService
         _validator = validator;
         _emailService = emailService;
         _agentAreaRoutingService = agentAreaRoutingService;
+        _locationCatalogService = locationCatalogService;
         _frontendOptions = frontendOptions.Value;
         _logger = logger;
     }
@@ -95,6 +98,7 @@ public sealed class CampaignBriefService : ICampaignBriefService
         campaign.Status = CampaignStatuses.BriefInProgress;
         campaign.UpdatedAt = now;
         await _db.SaveChangesAsync(cancellationToken);
+        await TrySeedLocationCatalogAsync(request, cancellationToken);
         await _agentAreaRoutingService.TryAssignCampaignAsync(campaignId, "brief_saved", cancellationToken);
     }
 
@@ -185,5 +189,17 @@ public sealed class CampaignBriefService : ICampaignBriefService
     {
         return campaign.User
             ?? throw new InvalidOperationException("Campaign is missing its client account.");
+    }
+
+    private async Task TrySeedLocationCatalogAsync(SaveCampaignBriefRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _locationCatalogService.SeedResolvedLocationAsync(request, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Resolved campaign location could not be added to the master location catalog.");
+        }
     }
 }

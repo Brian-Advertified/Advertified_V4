@@ -381,7 +381,6 @@ function inferInitialForm(campaign: {
     audience: 'retail',
     scope: campaign.selectedBudget >= 500000 ? 'national' : 'provincial',
     geography: campaign.selectedBudget >= 500000 ? '' : 'gauteng',
-    suburbs: [],
     targetLocationLabel: undefined,
     targetLocationCity: undefined,
     targetLocationProvince: undefined,
@@ -438,7 +437,6 @@ function inferFormFromCampaign(
     audience: inferRecommendationAudienceFromBrief(brief),
     scope: normalizeOption(brief.geographyScope, SCOPE_OPTIONS) || fallback.scope,
     geography: inferRecommendationGeographyFromBrief(brief) || fallback.geography,
-    suburbs: brief.suburbs ?? [],
     targetLocationLabel: brief.targetLocationLabel,
     targetLocationCity: brief.targetLocationCity,
     targetLocationProvince: brief.targetLocationProvince,
@@ -504,7 +502,6 @@ export function AgentCreateRecommendationPage() {
     audience: '',
     scope: '',
     geography: '',
-    suburbs: [],
     targetLocationLabel: undefined,
     targetLocationCity: undefined,
     targetLocationProvince: undefined,
@@ -794,7 +791,6 @@ export function AgentCreateRecommendationPage() {
           ...form,
           scope: nextScope,
           geography: nextGeography,
-          suburbs: nextScope === 'local' && !switchingIntoLocal ? form.suburbs : [],
           targetLocationLabel: nextScope === 'local' && !switchingIntoLocal ? form.targetLocationLabel : undefined,
           targetLocationCity: nextScope === 'local' && !switchingIntoLocal ? form.targetLocationCity : undefined,
           targetLocationProvince: nextScope === 'local' && !switchingIntoLocal ? form.targetLocationProvince : undefined,
@@ -811,7 +807,6 @@ export function AgentCreateRecommendationPage() {
         value: {
           ...form,
           geography: value as string,
-          suburbs: [],
           targetLocationLabel: undefined,
           targetLocationCity: undefined,
           targetLocationProvince: undefined,
@@ -848,26 +843,6 @@ export function AgentCreateRecommendationPage() {
       };
     });
   };
-
-  const selectedCityLabel = useMemo(() => {
-    if (form.scope !== 'local') {
-      return '';
-    }
-
-    const value = (form.targetLocationCity ?? form.geography).trim();
-    if (!value) {
-      return '';
-    }
-
-    return value;
-  }, [form.geography, form.scope, form.targetLocationCity]);
-  const suburbsQuery = useQuery({
-    queryKey: ['public-suburbs', selectedCityLabel],
-    queryFn: () => advertifiedApi.getSuburbs(selectedCityLabel),
-    enabled: Boolean(selectedCityLabel),
-    staleTime: 5 * 60 * 1000,
-    retry: false,
-  });
 
   const toggleChannel = (channel: ChannelOption) => {
     if (!allowedChannels.includes(channel)) {
@@ -1610,24 +1585,6 @@ export function AgentCreateRecommendationPage() {
                 </label>
               )}
 
-              {form.scope === 'local' && form.geography ? (
-                <label className="block">
-                  <span className="label-base">Suburbs (optional)</span>
-                  <select
-                    multiple
-                    value={form.suburbs}
-                    onChange={(event) => handleFormChange('suburbs', Array.from(event.target.selectedOptions).map((option) => option.value))}
-                    className="input-base min-h-[132px]"
-                  >
-                    {suburbsQuery.data?.length ? null : (
-                      <option value="" disabled>{suburbsQuery.isFetching ? 'Loading suburbs…' : 'No suburbs found'}</option>
-                    )}
-                    {(suburbsQuery.data ?? []).map((suburb) => (
-                      <option key={suburb} value={suburb}>{suburb}</option>
-                    ))}
-                  </select>
-                </label>
-              ) : null}
             </div>
 
             <div className={`${hasCapturedBrief && !showDetailEditing ? 'hidden ' : ''}mt-5 rounded-[28px] border border-brand/10 bg-brand-soft/30 p-4 sm:p-5`}>

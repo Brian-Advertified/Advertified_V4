@@ -3,10 +3,14 @@ create table if not exists master_locations
     id uuid primary key default gen_random_uuid(),
     canonical_name text not null unique,
     location_type varchar(40) not null default 'city',
+    parent_city varchar(160),
     province varchar(120),
     country varchar(120) not null default 'South Africa',
     latitude double precision,
     longitude double precision,
+    source_system varchar(80) not null default 'seed',
+    is_verified boolean not null default true,
+    last_seen_at timestamptz not null default now(),
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
 );
@@ -73,9 +77,13 @@ values
 on conflict (canonical_name) do update
 set
     location_type = excluded.location_type,
+    parent_city = excluded.parent_city,
     province = excluded.province,
     latitude = excluded.latitude,
     longitude = excluded.longitude,
+    source_system = excluded.source_system,
+    is_verified = excluded.is_verified,
+    last_seen_at = now(),
     updated_at = now();
 
 insert into master_location_aliases (master_location_id, alias)

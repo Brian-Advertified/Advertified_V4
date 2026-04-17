@@ -246,12 +246,6 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
       const resolvedProvince = form.primaryAreaProvince.trim() || undefined;
       const hasResolvedCoordinates = Number.isFinite(form.primaryAreaLatitude) && Number.isFinite(form.primaryAreaLongitude);
       const localCity = resolvedCity ?? (form.geographyScope === 'local' && areaValue ? areaValue : undefined);
-      const matchesResolvedCity = resolvedCity
-        ? areaValue.localeCompare(resolvedCity, undefined, { sensitivity: 'accent' }) === 0
-        : false;
-      const localSuburb = form.geographyScope === 'local' && resolvedCity && areaValue && !matchesResolvedCity
-        ? areaValue
-        : undefined;
 
       return advertifiedApi.submitProspectQuestionnaire({
         fullName: form.fullName.trim(),
@@ -269,7 +263,6 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
           geographyScope: form.geographyScope,
           provinces: form.geographyScope === 'provincial' && areaValue ? [areaValue] : undefined,
           cities: form.geographyScope === 'local' && localCity ? [localCity] : undefined,
-          suburbs: localSuburb ? [localSuburb] : undefined,
           targetLocationLabel: areaValue || undefined,
           targetLocationCity: resolvedCity,
           targetLocationProvince: form.geographyScope === 'provincial' ? areaValue || undefined : resolvedProvince,

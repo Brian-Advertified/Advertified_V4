@@ -66,11 +66,11 @@ public sealed class PublicLocationSearchService : IPublicLocationSearchService
                 select
                     ml.canonical_name as label,
                     lower(ml.location_type) as location_type,
-                    null::text as city,
+                    ml.parent_city as city,
                     ml.province as province,
                     ml.latitude as latitude,
                     ml.longitude as longitude,
-                    'master'::text as source,
+                    ml.source_system as source,
                     0 as source_rank
                 from master_locations ml
                 where (
