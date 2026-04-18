@@ -1,26 +1,22 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, Eye, Pencil, Search, UserPlus2, UserX2, WalletCards } from 'lucide-react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Search } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { useToast } from '../../components/ui/toast';
+import { AgentCampaignQueueCard } from '../../features/agent/components/AgentCampaignQueueCard';
+import { AgentCampaignQueueFiltersPanel } from '../../features/agent/components/AgentCampaignQueueFiltersPanel';
+import { AgentCampaignQueueSidebar } from '../../features/agent/components/AgentCampaignQueueSidebar';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import {
   AgentPageShell,
   AgentQueryBoundary,
-  fmtCurrency,
-  queueTone,
-  titleize,
   useAgentInboxQuery,
 } from './agentWorkspace';
 import {
-  ActionIconButton,
   AgentPageLead,
-  AgentSectionIntro,
   AgentSummaryCard,
 } from './agentSectionShared';
 import {
   buildAgentCampaignQueueHref,
-  buildAgentMessagesHref,
-  buildQueueFiltersForInboxItem,
   matchesCampaignOwnership,
   matchesCampaignQueueFocus,
   matchesCampaignQueueStage,
@@ -32,66 +28,6 @@ import {
   type CampaignQueueStageFilter,
 } from './agentCampaignQueueFilters';
 import { pushAgentMutationError } from './agentMutationToast';
-
-function formatBuildSource(planningMode?: 'ai_assisted' | 'agent_assisted' | 'hybrid') {
-  switch (planningMode) {
-    case 'ai_assisted':
-      return 'AI draft';
-    case 'agent_assisted':
-      return 'Agent built';
-    case 'hybrid':
-      return 'Hybrid';
-    default:
-      return 'Not selected';
-  }
-}
-
-function getPrimaryAction(campaign: Awaited<ReturnType<typeof advertifiedApi.getAgentInbox>>['items'][number]) {
-  if (campaign.status === 'awaiting_purchase') {
-    return {
-      label: 'Open prospect',
-      href: `/agent/campaigns/${campaign.id}`,
-    };
-  }
-
-  if (campaign.queueStage === 'waiting_on_client') {
-    return {
-      label: 'View client reply',
-      href: `/agent/campaigns/${campaign.id}`,
-    };
-  }
-
-  if (campaign.queueStage === 'brief_waiting') {
-    return {
-      label: 'Check brief',
-      href: `/agent/campaigns/${campaign.id}`,
-    };
-  }
-
-  if (campaign.queueStage === 'planning_ready' || campaign.queueStage === 'agent_review') {
-    return {
-      label: 'Work on recommendation',
-      href: `/agent/recommendations/new?campaignId=${campaign.id}`,
-    };
-  }
-
-  return {
-    label: 'Open campaign',
-    href: `/agent/campaigns/${campaign.id}`,
-  };
-}
-
-function getOwnershipLabel(campaign: Awaited<ReturnType<typeof advertifiedApi.getAgentInbox>>['items'][number]) {
-  if (campaign.isAssignedToCurrentUser) {
-    return 'Assigned to me';
-  }
-
-  if (campaign.isUnassigned) {
-    return 'Unassigned';
-  }
-
-  return `Assigned to ${campaign.assignedAgentName ?? 'another agent'}`;
-}
 
 export function AgentCampaignsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -191,8 +127,8 @@ export function AgentCampaignsPage() {
             <section className="space-y-6">
               <AgentPageLead
                 eyebrow="Campaigns"
-                title="Table-first queue with direct actions."
-                description="Filter the queue, scan the campaign, then take the next step without opening extra workflow pages first."
+                title="Focused queue with direct action."
+                description="Keep this page as the front door to campaign operations: filter the live queue, confirm the next step, then move work forward without extra navigation."
                 aside={(
                   <label className="relative block">
                     <Search className="absolute left-4 top-1/2 size-4 -translate-y-1/2 text-ink-soft" />
@@ -238,193 +174,45 @@ export function AgentCampaignsPage() {
               </div>
 
               <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
-                <div className="panel px-6 py-6">
-                  <AgentSectionIntro
-                    title="Campaign queue"
-                    description="Choose the view you need, then work from top to bottom."
+                <div className="space-y-6">
+                  <AgentCampaignQueueFiltersPanel
+                    stageFilter={stageFilter}
+                    focusFilter={focusFilter}
+                    ownershipFilter={ownershipFilter}
+                    queueTabs={queueTabs}
+                    focusTabs={focusTabs}
+                    ownershipTabs={[
+                      { label: 'Mine', count: inbox.assignedToMeCount, id: 'assigned_to_me' as const satisfies CampaignOwnershipFilter },
+                      { label: 'Unassigned', count: inbox.unassignedCount, id: 'unassigned' as const satisfies CampaignOwnershipFilter },
+                      { label: 'All', count: inbox.totalCampaigns, id: 'all' as const satisfies CampaignOwnershipFilter },
+                    ]}
+                    visibleCampaignCount={campaigns.length}
+                    onStageChange={(value) => updateQueueFilters({ stage: value })}
+                    onFocusChange={(value) => updateQueueFilters({ focus: value })}
+                    onOwnershipChange={(value) => updateQueueFilters({ ownership: value })}
                   />
 
-                  <div className="mt-5 space-y-4">
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-soft">Queue view</p>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {queueTabs.map((tab) => (
-                          <button
-                            key={tab.id}
-                            type="button"
-                            onClick={() => updateQueueFilters({ stage: tab.id })}
-                            className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
-                              stageFilter === tab.id
-                                ? 'border-brand bg-brand text-white'
-                                : 'border-line bg-white text-ink-soft'
-                            }`}
-                          >
-                            {tab.label} ({tab.count})
-                          </button>
-                        ))}
+                  <div className="space-y-4">
+                    {campaigns.length > 0 ? campaigns.map((campaign) => (
+                      <AgentCampaignQueueCard
+                        key={campaign.id}
+                        campaign={campaign}
+                        onAssign={(campaignId) => assignMutation.mutate(campaignId)}
+                        onUnassign={(campaignId) => unassignMutation.mutate(campaignId)}
+                        onConvertToSale={handleConvertToSale}
+                        assignDisabled={assignMutation.isPending}
+                        unassignDisabled={unassignMutation.isPending}
+                        convertDisabled={convertSaleMutation.isPending}
+                      />
+                    )) : (
+                      <div className="rounded-[24px] border border-dashed border-line bg-white px-5 py-10 text-sm text-ink-soft">
+                        No campaigns match this queue view right now.
                       </div>
-                    </div>
-
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-soft">Action focus</p>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {focusTabs.map((tab) => (
-                          <button
-                            key={tab.id}
-                            type="button"
-                            onClick={() => updateQueueFilters({ focus: tab.id })}
-                            className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
-                              focusFilter === tab.id
-                                ? 'border-brand bg-brand text-white'
-                                : 'border-line bg-white text-ink-soft'
-                            }`}
-                          >
-                            {tab.label} ({tab.count})
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-soft">Ownership</p>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {[
-                          { label: `Mine (${inbox.assignedToMeCount})`, id: 'assigned_to_me' as const satisfies CampaignOwnershipFilter },
-                          { label: `Unassigned (${inbox.unassignedCount})`, id: 'unassigned' as const satisfies CampaignOwnershipFilter },
-                          { label: `All (${inbox.totalCampaigns})`, id: 'all' as const satisfies CampaignOwnershipFilter },
-                        ].map((filter) => (
-                          <button
-                            key={filter.id}
-                            type="button"
-                            onClick={() => updateQueueFilters({ ownership: filter.id })}
-                            className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
-                              ownershipFilter === filter.id
-                                ? 'border-brand bg-brand text-white'
-                                : 'border-line bg-white text-ink-soft'
-                            }`}
-                          >
-                            {filter.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      {campaigns.length > 0 ? campaigns.map((campaign) => {
-                        const primaryAction = getPrimaryAction(campaign);
-
-                        return (
-                          <article key={campaign.id} className="rounded-[20px] border border-line bg-slate-50/70 p-4">
-                            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                              <div className="min-w-0 flex-1">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <Link
-                                    to={buildAgentCampaignQueueHref(buildQueueFiltersForInboxItem(campaign))}
-                                    className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold transition hover:-translate-y-0.5 ${queueTone(campaign.queueStage)}`}
-                                  >
-                                    {campaign.queueLabel}
-                                  </Link>
-                                  <span className="pill bg-white text-ink-soft">{getOwnershipLabel(campaign)}</span>
-                                  {campaign.isUrgent ? (
-                                    <Link to={buildAgentCampaignQueueHref({ stage: 'all', ownership: 'all', focus: 'urgent' })} className="pill border-rose-200 bg-rose-50 text-rose-700 transition hover:border-rose-300 hover:bg-rose-100">
-                                      Urgent
-                                    </Link>
-                                  ) : null}
-                                  {campaign.manualReviewRequired ? (
-                                    <Link to={buildAgentCampaignQueueHref({ stage: 'ready_to_work', ownership: 'all', focus: 'needs_review' })} className="pill border-amber-200 bg-amber-50 text-amber-700 transition hover:border-amber-300 hover:bg-amber-100">
-                                      Manual review
-                                    </Link>
-                                  ) : null}
-                                  {campaign.isOverBudget ? (
-                                    <Link to={buildAgentCampaignQueueHref({ stage: 'all', ownership: 'all', focus: 'budget_issues' })} className="pill border-rose-200 bg-rose-50 text-rose-700 transition hover:border-rose-300 hover:bg-rose-100">
-                                      Over budget
-                                    </Link>
-                                  ) : null}
-                                </div>
-
-                                <h3 className="mt-3 text-lg font-semibold text-ink">{campaign.campaignName}</h3>
-                                <p className="mt-1 text-sm text-ink-soft">{campaign.clientName} | {campaign.clientEmail}</p>
-
-                                <div className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
-                                  <div className="rounded-[18px] border border-line bg-white px-4 py-4">
-                                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-soft">Next step</p>
-                                    <p className="mt-2 text-sm text-ink">{campaign.nextAction}</p>
-                                    <p className="mt-3 text-xs text-ink-soft">Status: {titleize(campaign.status)} | Build style: {formatBuildSource(campaign.planningMode)}</p>
-                                  </div>
-
-                                  <div className="rounded-[18px] border border-line bg-white px-4 py-4">
-                                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-soft">Campaign</p>
-                                    <p className="mt-2 text-sm font-semibold text-ink">{campaign.packageBandName}</p>
-                                    <p className="mt-1 text-sm text-ink-soft">{fmtCurrency(campaign.selectedBudget)}</p>
-                                    {campaign.isStale ? <p className="mt-3 text-xs text-amber-700">Stale for {campaign.ageInDays} days</p> : null}
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="flex w-full shrink-0 flex-col gap-3 xl:w-[220px]">
-                                <Link to={primaryAction.href} className="button-primary inline-flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold">
-                                  {primaryAction.label}
-                                  <ArrowRight className="size-4" />
-                                </Link>
-                                <Link to={`/agent/campaigns/${campaign.id}`} className="button-secondary inline-flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold">
-                                  View campaign
-                                  <Eye className="size-4" />
-                                </Link>
-                                <Link to={buildAgentMessagesHref(campaign.id)} className="button-secondary inline-flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold">
-                                  Message client
-                                </Link>
-                                <div className="flex flex-wrap gap-2 xl:justify-end">
-                                  <Link to={`/agent/recommendations/new?campaignId=${campaign.id}`} className="button-secondary p-2" title={`Edit ${campaign.campaignName}`}>
-                                    <Pencil className="size-4" />
-                                  </Link>
-                                  {campaign.status === 'awaiting_purchase' && campaign.isAssignedToCurrentUser ? (
-                                    <ActionIconButton title={`Convert ${campaign.campaignName} to sale`} onClick={() => handleConvertToSale(campaign.id)} disabled={convertSaleMutation.isPending}>
-                                      <WalletCards className="size-4" />
-                                    </ActionIconButton>
-                                  ) : null}
-                                  {campaign.isAssignedToCurrentUser ? (
-                                    <ActionIconButton title={`Unassign ${campaign.campaignName}`} onClick={() => unassignMutation.mutate(campaign.id)} disabled={unassignMutation.isPending}>
-                                      <UserX2 className="size-4" />
-                                    </ActionIconButton>
-                                  ) : (
-                                    <ActionIconButton title={`Assign ${campaign.campaignName}`} onClick={() => assignMutation.mutate(campaign.id)} disabled={assignMutation.isPending}>
-                                      <UserPlus2 className="size-4" />
-                                    </ActionIconButton>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </article>
-                        );
-                      }) : (
-                        <div className="rounded-[20px] border border-line bg-slate-50/70 px-4 py-8 text-sm text-ink-soft">
-                          No campaigns match this view right now.
-                        </div>
-                      )}
-                    </div>
+                    )}
                   </div>
                 </div>
 
-                <div className="panel px-6 py-6">
-                  <AgentSectionIntro
-                    title="Review guide"
-                    description="Minimal operator support."
-                  />
-
-                  <div className="mt-5 space-y-3">
-                    {[
-                      'Urgent, over-budget, and manual-review items first.',
-                      'Check the next step before opening deeper workflow screens.',
-                      'Assign, unassign, or escalate ownership from the queue when possible.',
-                      'Move to the campaign page only when you need full context.',
-                    ].map((line, index) => (
-                      <div key={line} className="rounded-[20px] border border-line bg-slate-50/70 p-4">
-                        <p className="text-sm font-semibold text-ink">{index + 1}. Step</p>
-                        <p className="mt-2 text-sm text-ink-soft">{line}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <AgentCampaignQueueSidebar inbox={inbox} visibleCampaignCount={campaigns.length} />
               </div>
             </section>
           );
