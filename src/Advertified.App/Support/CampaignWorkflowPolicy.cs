@@ -264,9 +264,7 @@ public static class CampaignWorkflowPolicy
         var latestRecommendation = GetAgentCurrentRecommendation(campaign);
         var recommendationStatus = latestRecommendation?.Status?.Trim().ToLowerInvariant();
 
-        var paymentComplete = campaign.PackageOrder is not null
-            ? CampaignOperationsPolicy.IsOrderOperationallyActive(campaign.PackageOrder)
-            : campaign.Status is not CampaignStatuses.AwaitingPurchase;
+        var paymentComplete = HasClearedPayment(campaign);
         var briefComplete = campaign.Status is not CampaignStatuses.Paid and not CampaignStatuses.BriefInProgress || campaign.CampaignBrief?.SubmittedAt is not null;
         var recommendationReady = campaign.Status is CampaignStatuses.PlanningInProgress or CampaignStatuses.ReviewReady or CampaignStatuses.Approved or CampaignStatuses.CreativeChangesRequested or CampaignStatuses.CreativeSentToClientForApproval or CampaignStatuses.CreativeApproved or CampaignStatuses.BookingInProgress or CampaignStatuses.Launched || latestRecommendation is not null;
         var clientReviewActive = campaign.Status is CampaignStatuses.ReviewReady || recommendationStatus == RecommendationStatuses.SentToClient;

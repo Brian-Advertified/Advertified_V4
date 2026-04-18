@@ -545,6 +545,8 @@ export function AgentCampaignDetailPage() {
   const recommendationTitle = activeRecommendation?.summary || 'Draft recommendation';
   const canMarkLive = campaign.status === 'booking_in_progress' && campaign.supplierBookings.length > 0;
   const recommendationStatus = activeRecommendation?.status?.toLowerCase() ?? '';
+  const recommendationApproved = recommendationStatus === 'approved' || Boolean(campaign.workflow?.recommendationApprovalCompleted);
+  const recommendationSentToClient = campaign.status === 'review_ready' || recommendationStatus === 'sent_to_client';
   const awaitingClientReview = campaign.status === 'review_ready' || recommendationStatus === 'sent_to_client';
   const recommendationWorkflowLocked = isClosedProspect || showExecutionOperations || recommendationStatus === 'approved' || awaitingClientReview;
   const showRecommendationEditing = !recommendationWorkflowLocked;
@@ -657,6 +659,16 @@ export function AgentCampaignDetailPage() {
   const proposalChannelsSummary = groupedTotals.length > 0
     ? groupedTotals.map((entry) => formatChannelLabel(entry.channel)).join(' · ')
     : channelSummary;
+  const lockedProposalLabel = recommendationApproved
+    ? 'Approved proposal'
+    : recommendationSentToClient
+      ? 'Proposal sent to client'
+      : 'Current proposal';
+  const lockedProposalDescription = recommendationApproved
+    ? 'Recommendation work is complete. Keep this page focused on production, delivery, and client follow-up.'
+    : recommendationSentToClient
+      ? 'The current proposal was sent to the client and is waiting for a response. Keep the proposal stable and use messages for follow-up until they reply.'
+      : 'This proposal is locked in the current workflow stage.';
 
   async function handleDownloadRecommendationPdf() {
     const pdfUrl = campaign?.recommendationPdfUrl;
@@ -1168,6 +1180,8 @@ export function AgentCampaignDetailPage() {
             lockedNextStep={lockedNextStep}
             activeProposalLabel={activeProposalLabel}
             activeProposalTotal={effectivePlannedTotal}
+            lockedProposalLabel={lockedProposalLabel}
+            lockedProposalDescription={lockedProposalDescription}
             mixPanelRef={mixPanelRef}
             mixBalance={mixBalance}
             setMixBalance={setMixBalance}

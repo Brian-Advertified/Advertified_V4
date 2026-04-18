@@ -15,6 +15,8 @@ export function AgentRecommendationPanel({
   lockedNextStep,
   activeProposalLabel,
   activeProposalTotal,
+  lockedProposalLabel,
+  lockedProposalDescription,
   mixPanelRef,
   mixBalance,
   setMixBalance,
@@ -47,6 +49,8 @@ export function AgentRecommendationPanel({
   lockedNextStep: string;
   activeProposalLabel: string;
   activeProposalTotal: number;
+  lockedProposalLabel: string;
+  lockedProposalDescription: string;
   mixPanelRef: RefObject<HTMLDivElement | null>;
   mixBalance: number;
   setMixBalance: (value: number) => void;
@@ -197,11 +201,11 @@ export function AgentRecommendationPanel({
           {recommendationWorkflowLocked ? (
             <div className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
               <div className="rounded-[16px] border border-emerald-200 bg-emerald-50 px-4 py-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Approved proposal</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">{lockedProposalLabel}</p>
                 <p className="mt-3 text-lg font-semibold text-ink">{activeProposalLabel}</p>
                 <p className="mt-1 text-sm text-ink-soft">{formatCurrency(activeProposalTotal)}</p>
                 <p className="mt-3 text-sm leading-7 text-emerald-900">
-                  Recommendation work is complete. Keep this page focused on production, delivery, and client follow-up.
+                  {lockedProposalDescription}
                 </p>
               </div>
               <div className="rounded-[16px] border border-line bg-slate-50 px-4 py-4">
@@ -229,7 +233,7 @@ export function AgentRecommendationPanel({
             <p className="mt-1 text-sm text-ink-soft">Current draft: {formatMixSummary(currentMix)}</p>
           </div>
 
-          {showRecommendationEditing && Object.entries(displayedGroups).length > 0 ? Object.entries(displayedGroups).map(([channel, items]) => (
+          {Object.entries(displayedGroups).length > 0 ? Object.entries(displayedGroups).map(([channel, items]) => (
             <div key={channel}>
               <p className="mb-3 text-sm font-semibold text-ink">{formatChannelLabel(channel)}</p>
               <div className="grid gap-2.5 md:grid-cols-2">
@@ -274,7 +278,9 @@ export function AgentRecommendationPanel({
                         </button>
                       ) : (
                         <span className="inline-flex rounded-full border border-brand/15 bg-white px-2.5 py-1 text-[11px] font-semibold text-brand">
-                          {'station' in item ? 'Locked' : 'AI draft'}
+                          {showRecommendationEditing
+                            ? ('station' in item ? 'Locked' : 'AI draft')
+                            : 'Saved line'}
                         </span>
                       )}
                     </div>
@@ -285,7 +291,9 @@ export function AgentRecommendationPanel({
           )) : (
             <EmptyState
               title="No recommendation lines yet"
-              description="Generate the recommendation first, or use the inventory table below to add radio, Billboards and Digital Screens, or digital lines manually."
+              description={recommendations.length > 0
+                ? 'This proposal exists, but no recommendation lines were saved on the current version.'
+                : 'Generate the recommendation first, or use the inventory table below to add radio, Billboards and Digital Screens, or digital lines manually.'}
             />
           )}
         </div>
