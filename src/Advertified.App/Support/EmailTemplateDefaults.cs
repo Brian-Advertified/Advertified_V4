@@ -465,16 +465,18 @@ internal static class EmailTemplateDefaults
                     </div>
                     <div style=""padding:28px 32px;"">
                       <p style=""margin:0 0 12px;font-size:15px;line-height:1.7;color:#4b635a;"">Good day,</p>
-                      <p style=""margin:0 0 12px;font-size:15px;line-height:1.7;color:#4b635a;"">I'm {{AgentName}} from Advertified - we help businesses find where they're losing customers online and put campaigns in place to fix it.</p>
-                      <p style=""margin:0 0 12px;font-size:15px;line-height:1.7;color:#4b635a;"">We recently looked at your market presence and identified a specific gap in how your business is capturing demand in {{AreaOrIndustry}}. It's fixable, and we've already mapped out three campaign approaches tailored to your situation.</p>
-                      <p style=""margin:0 0 8px;font-size:15px;line-height:1.7;color:#4b635a;"">Here's what makes this easy to act on:</p>
+                      <p style=""margin:0 0 12px;font-size:15px;line-height:1.7;color:#4b635a;"">I'm {{AgentName}} from Advertified.</p>
+                      <p style=""margin:0 0 12px;font-size:15px;line-height:1.7;color:#4b635a;"">We help businesses launch targeted campaigns without paying upfront - using a Buy Now, Pay Later model designed specifically for marketing.</p>
+                      <p style=""margin:0 0 12px;font-size:15px;line-height:1.7;color:#4b635a;"">Here's why I'm reaching out:</p>
+                      <p style=""margin:0 0 12px;font-size:15px;line-height:1.7;color:#4b635a;"">We analysed your presence in {{AreaOrIndustry}} and found a clear gap in how you're capturing demand. We've already built three campaign options to address it - ready to review, no onboarding required.</p>
+                      <p style=""margin:0 0 8px;font-size:15px;line-height:1.7;color:#4b635a;"">What makes this different:</p>
                       <ul style=""margin:0 0 14px 20px;padding:0;color:#4b635a;font-size:15px;line-height:1.7;"">
-                        <li style=""margin:0 0 6px 0;font-weight:500;"">The campaigns are ready to review - no lengthy onboarding</li>
-                        <li style=""margin:0 0 6px 0;font-weight:500;"">Each option is built around your budget, not a fixed package</li>
-                        <li style=""margin:0 0 6px 0;font-weight:500;"">We offer Buy Now, Pay Later - you can start generating results before you've paid in full</li>
+                        <li style=""margin:0 0 6px 0;font-weight:500;"">You don't need to pay before launching</li>
+                        <li style=""margin:0 0 6px 0;font-weight:500;"">Campaigns are tailored to your actual budget</li>
+                        <li style=""margin:0 0 6px 0;font-weight:500;"">You start generating results first - then pay over time</li>
                       </ul>
-                      <p style=""margin:0 0 12px;font-size:15px;line-height:1.7;color:#4b635a;"">That last point matters. Most businesses hold back on marketing spend because of cash flow. Our BNPL structure means you're not paying upfront - you're paying from the growth.</p>
-                      <p style=""margin:0 0 18px;font-size:15px;line-height:1.7;color:#4b635a;"">We've already done the work - reply and we'll walk you through it in 15 minutes.</p>
+                      <p style=""margin:0 0 12px;font-size:15px;line-height:1.7;color:#4b635a;"">Most businesses delay marketing because of cash flow. This removes that barrier completely.</p>
+                      <p style=""margin:0 0 18px;font-size:15px;line-height:1.7;color:#4b635a;"">We've already done the work - if you're open to it, I can walk you through the strategy in 15 minutes.</p>
                       <div style=""margin:18px 0 20px;"">
                         <a href=""{{ReviewUrl}}"" style=""display:inline-block;padding:12px 18px;border-radius:14px;background:#123A33;color:#ffffff;text-decoration:none;font-weight:700;"">
                           Review growth options

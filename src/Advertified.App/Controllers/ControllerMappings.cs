@@ -605,7 +605,38 @@ internal static class ControllerMappings
 
     private static IReadOnlyList<CampaignRecommendation> GetCurrentRecommendationSet(Campaign campaign)
     {
-        return RecommendationRevisionSupport.GetCurrentRecommendationSet(campaign.CampaignRecommendations);
+        var recommendations = campaign.CampaignRecommendations.ToArray();
+        if (recommendations.Length == 0)
+        {
+            return Array.Empty<CampaignRecommendation>();
+        }
+
+        var approvedRecommendation = recommendations
+            .Where(x => string.Equals(x.Status, RecommendationStatuses.Approved, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(x => x.ApprovedAt ?? x.UpdatedAt)
+            .ThenByDescending(x => x.RevisionNumber)
+            .FirstOrDefault();
+        if (approvedRecommendation is not null)
+        {
+            return new[] { approvedRecommendation };
+        }
+
+        var sentRevisionNumber = recommendations
+            .Where(x => string.Equals(x.Status, RecommendationStatuses.SentToClient, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(x => x.SentToClientAt ?? x.UpdatedAt)
+            .ThenByDescending(x => x.RevisionNumber)
+            .Select(x => (int?)x.RevisionNumber)
+            .FirstOrDefault();
+        if (sentRevisionNumber.HasValue)
+        {
+            return recommendations
+                .Where(x => x.RevisionNumber == sentRevisionNumber.Value)
+                .OrderBy(x => GetProposalRank(x.RecommendationType))
+                .ThenBy(x => x.CreatedAt)
+                .ToArray();
+        }
+
+        return RecommendationRevisionSupport.GetCurrentRecommendationSet(recommendations);
     }
 
     private static (string ProposalLabel, string ProposalStrategy) GetProposalDetails(string? recommendationType, int proposalIndex)

@@ -177,6 +177,7 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
             Channel = "Studio",
             Title = "AI Studio services",
             Rationale = "Creative support and studio services included in campaign workflow.",
+            TotalCost = 0m,
             Quantity = 1,
             Restrictions = "Included service line item."
         });
@@ -201,6 +202,7 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
             Channel = item.InventoryType,
             Title = item.DisplayName,
             Rationale = GetMetadataValue(metadata, "rationale") ?? string.Empty,
+            TotalCost = item.TotalCost,
             Quantity = item.Quantity,
             Region = GetMetadataValue(metadata, "region"),
             Language = GetMetadataValue(metadata, "language"),

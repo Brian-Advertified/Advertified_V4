@@ -800,7 +800,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
             "noreply",
             new Dictionary<string, string?>
             {
-                ["AgentName"] = campaign.AssignedAgentUser?.FullName ?? senderUser.FullName,
+                ["AgentName"] = ResolveAgentDisplayName(campaign, senderUser),
                 ["ClientName"] = campaign.ResolveClientName(),
                 ["CampaignName"] = string.IsNullOrWhiteSpace(campaign.CampaignName) ? $"{campaign.PackageBand.Name} campaign" : campaign.CampaignName.Trim(),
                 ["PackageName"] = campaign.PackageBand.Name,
@@ -836,6 +836,21 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
             cancellationToken);
 
         _logger.LogInformation("Proposal email sent for campaign {CampaignId} to {ToEmail} using template {TemplateName}.", campaign.Id, toEmail, templateName);
+    }
+
+    private static string ResolveAgentDisplayName(Campaign campaign, UserAccount senderUser)
+    {
+        if (!string.IsNullOrWhiteSpace(campaign.AssignedAgentUser?.FullName))
+        {
+            return campaign.AssignedAgentUser.FullName.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(senderUser.FullName))
+        {
+            return senderUser.FullName.Trim();
+        }
+
+        return "the Advertified team";
     }
 
     private static string BuildRecommendationAttachmentFileName(Guid campaignId, CampaignRecommendation recommendation)
