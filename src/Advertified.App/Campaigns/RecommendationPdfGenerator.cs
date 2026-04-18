@@ -90,13 +90,11 @@ internal static class RecommendationPdfGenerator
                         text.Span("ified").FontSize(18).SemiBold().FontColor(ColorGreen);
                     });
                 }
-
-                col.Item().PaddingTop(3).Text("advertise now - pay later").FontSize(8).LetterSpacing(1.2f).FontColor(ColorMuted);
             });
 
             row.ConstantItem(220).AlignRight().Column(col =>
             {
-                col.Item().AlignRight().Background(ColorGreenLight).PaddingVertical(4).PaddingHorizontal(10).Text("Client Copy").FontSize(9).SemiBold().FontColor(ColorGreen).LetterSpacing(1.2f);
+                col.Item().AlignRight().Background(ColorGreenLight).PaddingVertical(4).PaddingHorizontal(10).Text("Client Copy").FontSize(9).SemiBold().FontColor(ColorGreen);
                 col.Item().PaddingTop(8).Text($"Generated: {model.GeneratedAtUtc:dd MMM yyyy}").FontSize(9).FontColor(ColorMuted);
                 col.Item().Text($"{model.PackageName} | {model.BudgetDisplayText}").FontSize(9).FontColor(ColorMuted);
             });
@@ -109,7 +107,7 @@ internal static class RecommendationPdfGenerator
         {
             column.Spacing(6);
             column.Item().Text(model.OpportunityContext?.IsLeadOutreach == true ? "Growth opportunity pack" : "Recommendation pack")
-                .FontSize(9).SemiBold().LetterSpacing(1.1f).FontColor(ColorMuted);
+                .FontSize(9).SemiBold().FontColor(ColorMuted);
             column.Item().Text(model.CampaignName).FontSize(28).SemiBold();
             column.Item().Text(
                     !string.IsNullOrWhiteSpace(model.CampaignObjective)
@@ -160,7 +158,7 @@ internal static class RecommendationPdfGenerator
         container.Column(column =>
         {
             column.Spacing(10);
-            column.Item().Text("Campaign overview").FontSize(9).SemiBold().LetterSpacing(1.1f).FontColor(ColorMuted);
+            column.Item().Text("Campaign overview").FontSize(9).SemiBold().FontColor(ColorMuted);
             column.Item().Border(1).BorderColor(ColorBorder).Table(table =>
             {
                 table.ColumnsDefinition(columns =>
@@ -175,7 +173,7 @@ internal static class RecommendationPdfGenerator
                     table.Cell().BorderBottom(1).BorderColor(ColorBorder).Background(ColorSurface).Padding(12).Column(cell =>
                     {
                         cell.Spacing(4);
-                        cell.Item().Text(item.Label).FontSize(8).SemiBold().LetterSpacing(1.0f).FontColor(ColorMuted);
+                        cell.Item().Text(item.Label).FontSize(8).SemiBold().FontColor(ColorMuted);
                         cell.Item().Text(item.Value).FontSize(10);
                     });
                 }
@@ -188,7 +186,7 @@ internal static class RecommendationPdfGenerator
         container.Column(column =>
         {
             column.Spacing(12);
-            column.Item().Text("Choose your growth path").FontSize(9).SemiBold().LetterSpacing(1.1f).FontColor(ColorMuted);
+            column.Item().Text("Choose your growth path").FontSize(9).SemiBold().FontColor(ColorMuted);
             column.Item().Row(row =>
             {
                 row.Spacing(10);
@@ -209,20 +207,20 @@ internal static class RecommendationPdfGenerator
         {
             if (featured)
             {
-                column.Item().AlignRight().Background(ColorAmber).PaddingVertical(3).PaddingHorizontal(8).Text("Recommended").FontSize(7).FontColor(ColorWhite).SemiBold().LetterSpacing(1.0f);
+                column.Item().AlignRight().Background(ColorAmber).PaddingVertical(3).PaddingHorizontal(8).Text("Recommended").FontSize(7).FontColor(ColorWhite).SemiBold();
             }
 
             column.Item().Background(featured ? ColorGreen : ColorSurface).Padding(14).Column(header =>
             {
                 header.Spacing(3);
-                header.Item().Text(proposal.Label).FontSize(8).SemiBold().LetterSpacing(1.0f).FontColor(featured ? ColorWhite : ColorMuted);
+                header.Item().Text(proposal.Label).FontSize(8).SemiBold().FontColor(featured ? ColorWhite : ColorMuted);
                 header.Item().Text(ToClientCopy(proposal.Strategy ?? "Recommendation option")).FontSize(11).SemiBold().FontColor(featured ? ColorWhite : ColorInk);
             });
 
             column.Item().Padding(14).Column(body =>
             {
                 body.Spacing(8);
-                body.Item().Text("Campaign total").FontSize(8).SemiBold().LetterSpacing(1.0f).FontColor(ColorMuted);
+                body.Item().Text("Campaign total").FontSize(8).SemiBold().FontColor(ColorMuted);
                 body.Item().Text(FormatCurrency(proposal.TotalCost)).FontSize(18).SemiBold();
 
                 foreach (var count in mediaCounts)
@@ -263,7 +261,7 @@ internal static class RecommendationPdfGenerator
                 row.RelativeItem().Column(col =>
                 {
                     col.Spacing(3);
-                    col.Item().Text(proposal.Label).FontSize(10).SemiBold().LetterSpacing(1.0f).FontColor(ColorMuted);
+                    col.Item().Text(proposal.Label).FontSize(10).SemiBold().FontColor(ColorMuted);
                     col.Item().Text(ToClientCopy(proposal.Strategy ?? "Recommendation option")).FontSize(18).SemiBold();
                     col.Item().Text(BuildProposalSubheading(model, proposal)).FontSize(10).FontColor(ColorMuted);
                 });
@@ -276,7 +274,7 @@ internal static class RecommendationPdfGenerator
 
             section.Item().Element(item => ComposeBudgetSplit(item, proposal));
 
-            section.Item().Text("Your placements").FontSize(9).SemiBold().LetterSpacing(1.1f).FontColor(ColorMuted);
+            section.Item().Text("Your placements").FontSize(9).SemiBold().FontColor(ColorMuted);
             foreach (var item in proposal.Items)
             {
                 section.Item().Element(card => ComposePlacementCard(card, model, item));
@@ -316,7 +314,7 @@ internal static class RecommendationPdfGenerator
         container.Background(ColorSurface).Padding(14).Column(column =>
         {
             column.Spacing(8);
-            column.Item().Text("Budget split").FontSize(8).SemiBold().LetterSpacing(1.0f).FontColor(ColorMuted);
+            column.Item().Text("Budget split").FontSize(8).SemiBold().FontColor(ColorMuted);
             foreach (var entry in split)
             {
                 column.Item().Row(row =>
@@ -391,7 +389,7 @@ internal static class RecommendationPdfGenerator
         container.Column(terms =>
         {
             terms.Spacing(10);
-            terms.Item().Text("Terms and conditions summary").FontSize(9).SemiBold().LetterSpacing(1.1f).FontColor(ColorMuted);
+            terms.Item().Text("Terms and conditions summary").FontSize(9).SemiBold().FontColor(ColorMuted);
             terms.Item().Border(1).BorderColor(ColorBorder).Padding(14).Column(body =>
             {
                 body.Spacing(6);
