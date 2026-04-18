@@ -770,14 +770,25 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
             }
 
             attachments = recommendationPdfs.ToArray();
+            if (attachments.Length != recommendations.Count)
+            {
+                throw new InvalidOperationException($"Expected {recommendations.Count} recommendation PDF attachments but built {attachments.Length}.");
+            }
+
             recommendationPackBlock = @"
                 <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">
                   We have attached a separate PDF for each recommendation option. Each PDF starts with a one-page summary followed by the full detailed media plan.
                 </p>";
+            _logger.LogInformation(
+                "Built {AttachmentCount} recommendation PDF attachments for campaign {CampaignId} using template {TemplateName}.",
+                attachments.Length,
+                campaign.Id,
+                templateName);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to build recommendation PDF attachment for campaign {CampaignId}.", campaign.Id);
+            _logger.LogError(ex, "Failed to build recommendation PDF attachment for campaign {CampaignId}.", campaign.Id);
+            throw new InvalidOperationException("Recommendation PDFs could not be generated for the email send.", ex);
         }
 
         var resolvedAgentMessage = useLeadTemplate
