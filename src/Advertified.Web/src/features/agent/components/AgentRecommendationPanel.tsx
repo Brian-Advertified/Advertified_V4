@@ -155,16 +155,14 @@ export function AgentRecommendationPanel({
         </div>
       ) : null}
 
-      {(showRecommendationEditing || recommendations.length > 1) ? (
+      {showRecommendationEditing && recommendations.length > 1 ? (
         <div className="panel px-6 py-5">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand">Proposal set</p>
-              {!showRecommendationEditing ? (
-                <p className="mt-1 text-sm text-ink-soft">
-                  The client has not accepted a proposal unless it is explicitly marked approved below.
-                </p>
-              ) : null}
+              <p className="mt-1 text-sm text-ink-soft">
+                Compare the proposal options and choose the one you want to keep working on.
+              </p>
             </div>
           </div>
           <div className="mt-4 flex flex-wrap gap-3">

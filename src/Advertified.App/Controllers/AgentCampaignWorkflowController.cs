@@ -41,6 +41,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
     private readonly IProposalAccessTokenService _proposalAccessTokenService;
     private readonly ICampaignExecutionTaskService _campaignExecutionTaskService;
     private readonly IProspectDispositionService _prospectDispositionService;
+    private readonly IRecommendationApprovalWorkflowService _recommendationApprovalWorkflowService;
     private readonly IAgentCampaignOwnershipService _ownershipService;
     private readonly FormOptionsService _formOptionsService;
     private readonly FrontendOptions _frontendOptions;
@@ -58,6 +59,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
         IProposalAccessTokenService proposalAccessTokenService,
         ICampaignExecutionTaskService campaignExecutionTaskService,
         IProspectDispositionService prospectDispositionService,
+        IRecommendationApprovalWorkflowService recommendationApprovalWorkflowService,
         IAgentCampaignOwnershipService ownershipService,
         FormOptionsService formOptionsService,
         IOptions<FrontendOptions> frontendOptions,
@@ -74,6 +76,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
         _proposalAccessTokenService = proposalAccessTokenService;
         _campaignExecutionTaskService = campaignExecutionTaskService;
         _prospectDispositionService = prospectDispositionService;
+        _recommendationApprovalWorkflowService = recommendationApprovalWorkflowService;
         _ownershipService = ownershipService;
         _formOptionsService = formOptionsService;
         _frontendOptions = frontendOptions.Value;
@@ -385,6 +388,56 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
         await GetCurrentOperationsUserAsync(cancellationToken);
         var options = await _formOptionsService.GetOptionsAsync(FormOptionSetKeys.ProspectDispositionReasons, cancellationToken);
         return Ok(options);
+    }
+
+    [HttpPost("{id:guid}/request-recommendation-changes")]
+    public async Task<IActionResult> RequestRecommendationChanges(Guid id, [FromBody] RequestRecommendationChangesRequest request, CancellationToken cancellationToken)
+    {
+        var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
+        var campaign = await _ownershipService.GetOwnedCampaignAsync(
+            id,
+            currentUser,
+            query => query.Include(x => x.CampaignRecommendations),
+            cancellationToken);
+
+        if (ProspectCampaignPolicy.IsClosed(campaign))
+        {
+            throw new InvalidOperationException("Reopen this prospect before requesting recommendation changes.");
+        }
+
+        var currentRecommendations = RecommendationRevisionSupport.GetCurrentRecommendationSet(campaign.CampaignRecommendations);
+        if (currentRecommendations.Length == 0)
+        {
+            throw new InvalidOperationException("Recommendation not found.");
+        }
+
+        if (!currentRecommendations.Any(x => string.Equals(x.Status, RecommendationStatuses.SentToClient, StringComparison.OrdinalIgnoreCase))
+            && !string.Equals(campaign.Status, CampaignStatuses.ReviewReady, StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest(new { Message = "Only recommendation sets that are awaiting client review can be returned for changes." });
+        }
+
+        var result = await _recommendationApprovalWorkflowService.RequestChangesAsync(id, request.Notes, cancellationToken);
+        await WriteChangeAuditAsync(
+            "agent_request_recommendation_changes",
+            "campaign",
+            campaign.Id.ToString(),
+            ResolveCampaignLabel(campaign),
+            $"Agent captured recommendation changes for {ResolveCampaignLabel(campaign)} and reopened the recommendation set as a draft revision.",
+            new
+            {
+                CampaignId = campaign.Id,
+                Notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim()
+            },
+            cancellationToken);
+
+        return Accepted(new
+        {
+            result.CampaignId,
+            result.RecommendationId,
+            result.Status,
+            result.Message
+        });
     }
 
     [HttpPost("{id:guid}/close-prospect")]

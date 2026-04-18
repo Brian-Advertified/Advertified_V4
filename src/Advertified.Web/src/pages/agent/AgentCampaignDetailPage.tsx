@@ -3,6 +3,7 @@ import {
   CircleCheckBig,
   Download,
   Send,
+  X,
 } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
@@ -31,7 +32,7 @@ import { catalogQueryOptions } from '../../lib/catalogQueryOptions';
 import { invalidateAgentCampaignQueries, queryKeys } from '../../lib/queryKeys';
 import { formatCurrency } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
-import type { RecommendationItem, SelectedPlanInventoryItem } from '../../types/domain';
+import type { RecommendationItem, SelectedPlanInventoryItem, SelectOption } from '../../types/domain';
 import { AgentPageShell } from './agentWorkspace';
 import { pushAgentMutationError } from './agentMutationToast';
 
@@ -77,6 +78,11 @@ export function AgentCampaignDetailPage() {
   const [selectedRecommendationIdState, setSelectedRecommendationIdState] = useState('');
   const [inventoryModalOpen, setInventoryModalOpen] = useState(false);
   const [replacementTargetItemId, setReplacementTargetItemId] = useState<string | null>(null);
+  const [closeProspectModalOpen, setCloseProspectModalOpen] = useState(false);
+  const [closeReasonCode, setCloseReasonCode] = useState('');
+  const [closeReasonNotes, setCloseReasonNotes] = useState('');
+  const [requestChangesModalOpen, setRequestChangesModalOpen] = useState(false);
+  const [requestChangesNotes, setRequestChangesNotes] = useState('');
   const mixPanelRef = useRef<HTMLDivElement | null>(null);
 
   const campaignQuery = useQuery({
@@ -94,6 +100,11 @@ export function AgentCampaignDetailPage() {
     queryKey: queryKeys.packages.all,
     queryFn: () => advertifiedApi.getPackages(),
     ...catalogQueryOptions,
+  });
+  const prospectDispositionReasonsQuery = useQuery<SelectOption[]>({
+    queryKey: ['agent', 'prospect-disposition-reasons'],
+    queryFn: () => advertifiedApi.getProspectDispositionReasons(),
+    retry: false,
   });
 
   const saveMutation = useMutation({
@@ -134,6 +145,48 @@ export function AgentCampaignDetailPage() {
       });
     },
     onError: (error) => pushAgentMutationError(pushToast, 'Could not resend proposal email.', error),
+  });
+  const closeProspectMutation = useMutation({
+    mutationFn: () => advertifiedApi.closeProspect(id, {
+      reasonCode: closeReasonCode,
+      notes: closeReasonNotes.trim() ? closeReasonNotes.trim() : null,
+    }),
+    onSuccess: async () => {
+      await invalidateAgentCampaignQueries(queryClient, id);
+      setCloseProspectModalOpen(false);
+      setCloseReasonCode('');
+      setCloseReasonNotes('');
+      pushToast({
+        title: 'Prospect closed.',
+        description: 'The close reason was saved on this campaign.',
+      });
+    },
+    onError: (error) => pushAgentMutationError(pushToast, 'Could not close prospect.', error),
+  });
+  const reopenProspectMutation = useMutation({
+    mutationFn: () => advertifiedApi.reopenProspect(id),
+    onSuccess: async () => {
+      await invalidateAgentCampaignQueries(queryClient, id);
+      pushToast({
+        title: 'Prospect reopened.',
+        description: 'The campaign is active again.',
+      });
+    },
+    onError: (error) => pushAgentMutationError(pushToast, 'Could not reopen prospect.', error),
+  });
+  const requestRecommendationChangesMutation = useMutation({
+    mutationFn: () => advertifiedApi.requestRecommendationChanges(id, requestChangesNotes.trim()),
+    onSuccess: async () => {
+      await invalidateAgentCampaignQueries(queryClient, id);
+      setRequestChangesModalOpen(false);
+      setRequestChangesNotes('');
+      setSelectedRecommendationIdState('');
+      pushToast({
+        title: 'Change request captured.',
+        description: 'A new draft revision is ready for the requested proposal updates.',
+      });
+    },
+    onError: (error) => pushAgentMutationError(pushToast, 'Could not reopen the recommendation for changes.', error),
   });
 
   const regenerateMutation = useMutation({
@@ -332,6 +385,8 @@ export function AgentCampaignDetailPage() {
   const canModifyPlan = canEditDraftRecommendation && !draftApprovalCaptured;
   const hasSendableProposal = !recommendationWorkflowLocked && recommendations.length >= 1;
   const canResendProposalEmail = recommendations.length >= 1;
+  const canCloseProspect = isProspectiveCampaign && !isClosedProspect;
+  const canRequestRecommendationChanges = awaitingClientReview && !recommendationApproved && !isClosedProspect;
   const hasOohRecommendation = selectedPlanItems.some((item) => normalizeChannelKey(item.type) === 'OOH');
   const lockedNextStep = isClosedProspect
     ? 'This prospect is commercially closed. Reopen it only if the client starts engaging again or the opportunity changes.'
@@ -496,6 +551,57 @@ export function AgentCampaignDetailPage() {
       successTitle: 'Preview email sent.',
       successDescription: `Sent to ${agentPreviewEmail}.`,
     });
+  }
+
+  function handleOpenCloseProspectModal() {
+    setCloseProspectModalOpen(true);
+  }
+
+  function handleOpenRequestChangesModal() {
+    setRequestChangesModalOpen(true);
+  }
+
+  function handleCloseProspectModal() {
+    if (closeProspectMutation.isPending) {
+      return;
+    }
+
+    setCloseProspectModalOpen(false);
+    setCloseReasonCode('');
+    setCloseReasonNotes('');
+  }
+
+  function handleCloseRequestChangesModal() {
+    if (requestRecommendationChangesMutation.isPending) {
+      return;
+    }
+
+    setRequestChangesModalOpen(false);
+    setRequestChangesNotes('');
+  }
+
+  function handleSubmitCloseProspect() {
+    if (!closeReasonCode) {
+      pushToast({
+        title: 'Close reason required.',
+        description: 'Choose the reason for closing this prospect before continuing.',
+      }, 'info');
+      return;
+    }
+
+    closeProspectMutation.mutate();
+  }
+
+  function handleSubmitRecommendationChanges() {
+    if (!requestChangesNotes.trim()) {
+      pushToast({
+        title: 'Change notes required.',
+        description: 'Capture the client feedback before reopening this proposal set for changes.',
+      }, 'info');
+      return;
+    }
+
+    requestRecommendationChangesMutation.mutate();
   }
 
   function toggleInventoryItem(item: SelectedPlanInventoryItem) {
@@ -670,13 +776,19 @@ export function AgentCampaignDetailPage() {
       description="Review the campaign, move the next action forward, and keep recommendation and execution work in one controlled workspace."
     >
       <section className="space-y-8">
-        {saveMutation.isPending || sendMutation.isPending || resendEmailMutation.isPending || regenerateMutation.isPending ? (
+        {saveMutation.isPending || sendMutation.isPending || resendEmailMutation.isPending || regenerateMutation.isPending || closeProspectMutation.isPending || reopenProspectMutation.isPending || requestRecommendationChangesMutation.isPending ? (
           <ProcessingOverlay
             label={
             sendMutation.isPending
               ? 'Sending recommendation to the client...'
               : resendEmailMutation.isPending
                 ? 'Resending the proposal email...'
+              : requestRecommendationChangesMutation.isPending
+                ? 'Reopening recommendation for changes...'
+              : closeProspectMutation.isPending
+                ? 'Closing prospect...'
+              : reopenProspectMutation.isPending
+                ? 'Reopening prospect...'
               : regenerateMutation.isPending
                 ? 'Regenerating the recommendation from the latest campaign inputs...'
                 : 'Saving recommendation draft...'
@@ -727,6 +839,34 @@ export function AgentCampaignDetailPage() {
                 >
                   <Send className="size-4" />
                   Send preview email to myself
+                </button>
+              ) : null}
+              {canRequestRecommendationChanges ? (
+                <button
+                  type="button"
+                  onClick={handleOpenRequestChangesModal}
+                  className="button-secondary inline-flex items-center gap-2 px-5 py-3"
+                >
+                  Request changes
+                </button>
+              ) : null}
+              {canCloseProspect ? (
+                <button
+                  type="button"
+                  onClick={handleOpenCloseProspectModal}
+                  className="rounded-full border border-rose-200 bg-white px-5 py-3 font-semibold text-rose-600 transition hover:bg-rose-50"
+                >
+                  Close prospect
+                </button>
+              ) : null}
+              {isClosedProspect ? (
+                <button
+                  type="button"
+                  onClick={() => reopenProspectMutation.mutate()}
+                  disabled={reopenProspectMutation.isPending}
+                  className="button-secondary inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60"
+                >
+                  Reopen prospect
                 </button>
               ) : null}
               {!isProspectiveCampaign && !recommendationWorkflowLocked ? (
@@ -817,6 +957,133 @@ export function AgentCampaignDetailPage() {
             onToggleItem={(item) => handleToggleInventoryItem(item as SelectedPlanInventoryItem)}
             formatChannelLabel={formatChannelLabel}
           />
+          {closeProspectModalOpen ? (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4">
+              <div className="w-full max-w-2xl rounded-[28px] border border-line bg-white p-6 shadow-[0_24px_80px_rgba(15,23,42,0.24)]">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-semibold uppercase tracking-[0.18em] text-rose-600">Close prospect</p>
+                    <h3 className="mt-2 text-2xl font-semibold text-ink">Why are we closing this prospect?</h3>
+                    <p className="mt-3 text-sm leading-7 text-ink-soft">
+                      Save the close reason so the team can understand why this opportunity is no longer moving forward.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="button-secondary p-3"
+                    onClick={handleCloseProspectModal}
+                    disabled={closeProspectMutation.isPending}
+                    aria-label="Close modal"
+                  >
+                    <X className="size-4" />
+                  </button>
+                </div>
+
+                <div className="mt-6 space-y-5">
+                  <label className="block">
+                    <span className="text-sm font-semibold text-ink">Reason</span>
+                    <select
+                      className="input-base mt-2"
+                      value={closeReasonCode}
+                      onChange={(event) => setCloseReasonCode(event.target.value)}
+                      disabled={closeProspectMutation.isPending}
+                    >
+                      <option value="">Select a close reason</option>
+                      {prospectDispositionReasonsQuery.data?.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="block">
+                    <span className="text-sm font-semibold text-ink">Notes</span>
+                    <textarea
+                      className="input-base mt-2 min-h-[140px]"
+                      placeholder="Add any context that explains why this prospect is being closed."
+                      value={closeReasonNotes}
+                      onChange={(event) => setCloseReasonNotes(event.target.value)}
+                      disabled={closeProspectMutation.isPending}
+                    />
+                  </label>
+                </div>
+
+                <div className="mt-6 flex flex-wrap justify-end gap-3">
+                  <button
+                    type="button"
+                    className="button-secondary px-5 py-3"
+                    onClick={handleCloseProspectModal}
+                    disabled={closeProspectMutation.isPending}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-full bg-rose-600 px-5 py-3 font-semibold text-white transition hover:bg-rose-700 disabled:opacity-60"
+                    onClick={handleSubmitCloseProspect}
+                    disabled={closeProspectMutation.isPending || !closeReasonCode}
+                  >
+                    Save and close prospect
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+          {requestChangesModalOpen ? (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4">
+              <div className="w-full max-w-2xl rounded-[28px] border border-line bg-white p-6 shadow-[0_24px_80px_rgba(15,23,42,0.24)]">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand">Request changes</p>
+                    <h3 className="mt-2 text-2xl font-semibold text-ink">What changes did the client ask for?</h3>
+                    <p className="mt-3 text-sm leading-7 text-ink-soft">
+                      Save the client feedback here and we will reopen this recommendation set as a new draft revision.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="button-secondary p-3"
+                    onClick={handleCloseRequestChangesModal}
+                    disabled={requestRecommendationChangesMutation.isPending}
+                    aria-label="Close modal"
+                  >
+                    <X className="size-4" />
+                  </button>
+                </div>
+
+                <div className="mt-6 space-y-5">
+                  <label className="block">
+                    <span className="text-sm font-semibold text-ink">Client feedback</span>
+                    <textarea
+                      className="input-base mt-2 min-h-[180px]"
+                      placeholder="Example: Client likes Proposal B, but wants less radio and more Pretoria billboards."
+                      value={requestChangesNotes}
+                      onChange={(event) => setRequestChangesNotes(event.target.value)}
+                      disabled={requestRecommendationChangesMutation.isPending}
+                    />
+                  </label>
+                </div>
+
+                <div className="mt-6 flex flex-wrap justify-end gap-3">
+                  <button
+                    type="button"
+                    className="button-secondary px-5 py-3"
+                    onClick={handleCloseRequestChangesModal}
+                    disabled={requestRecommendationChangesMutation.isPending}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="button-primary px-5 py-3 disabled:opacity-60"
+                    onClick={handleSubmitRecommendationChanges}
+                    disabled={requestRecommendationChangesMutation.isPending || !requestChangesNotes.trim()}
+                  >
+                    Save changes and reopen draft
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
       </section>

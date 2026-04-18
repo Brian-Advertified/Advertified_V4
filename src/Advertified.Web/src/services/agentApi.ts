@@ -166,6 +166,11 @@ export function createAgentApi({
       return getAgentCampaignById(campaignId);
     },
 
+    async requestRecommendationChanges(campaignId: string, notes?: string) {
+      await postJson(`/agent/campaigns/${campaignId}/request-recommendation-changes`, { notes });
+      return getAgentCampaignById(campaignId);
+    },
+
     async uploadAgentCampaignAsset(campaignId: string, file: File, assetType: string) {
       return uploadAgentAssetData(campaignId, file, assetType);
     },
