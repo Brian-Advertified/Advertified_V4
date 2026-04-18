@@ -1632,6 +1632,66 @@ public class HttpWorkflowIntegrationTests
     }
 
     [Fact]
+    public async Task SendToClient_AttachesEachCurrentRecommendationPdfToEmail()
+    {
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var clientUser = TestSeed.CreateUser();
+                var agentUser = TestSeed.CreateAgent();
+                var (band, order, campaign) = TestSeed.CreateCampaignGraph(clientUser, selectedBudget: 250000m, status: "planning_in_progress");
+                campaign.AssignedAgentUserId = agentUser.Id;
+                campaign.AssignedAt = DateTime.UtcNow;
+
+                var recommendations = new[]
+                {
+                    TestSeed.CreateRecommendation(campaign.Id, status: "draft", recommendationType: "hybrid:balanced"),
+                    TestSeed.CreateRecommendation(campaign.Id, status: "draft", recommendationType: "hybrid:ooh_focus"),
+                    TestSeed.CreateRecommendation(campaign.Id, status: "draft", recommendationType: "hybrid:radio_focus")
+                };
+
+                db.UserAccounts.AddRange(clientUser, agentUser);
+                db.PackageBands.Add(band);
+                db.PackageOrders.Add(order);
+                db.Campaigns.Add(campaign);
+                db.CampaignRecommendations.AddRange(recommendations);
+                db.SaveChanges();
+            },
+            configureServices: services =>
+            {
+                services.AddSingleton<StubTemplatedEmailService>();
+                services.AddSingleton<ITemplatedEmailService>(sp => sp.GetRequiredService<StubTemplatedEmailService>());
+            });
+
+        var campaignId = await harness.ExecuteDbAsync(db => db.Campaigns.Select(x => x.Id).SingleAsync());
+        var agentUserId = await harness.ExecuteDbAsync(db => db.UserAccounts.Where(x => x.Role == UserRole.Agent).Select(x => x.Id).SingleAsync());
+
+        harness.Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await harness.CreateSessionTokenAsync(agentUserId));
+
+        var sendResponse = await harness.Client.PostAsJsonAsync($"/agent/campaigns/{campaignId}/send-to-client", new
+        {
+            message = "Please compare the attached recommendation options."
+        });
+
+        sendResponse.StatusCode.Should().Be(HttpStatusCode.Accepted);
+
+        var emailService = harness.Services.GetRequiredService<StubTemplatedEmailService>();
+        emailService.SentEmails.Should().ContainSingle();
+
+        var sentEmail = emailService.SentEmails[0];
+        sentEmail.TemplateName.Should().Be("recommendation-ready");
+        sentEmail.Attachments.Should().NotBeNull();
+        sentEmail.Attachments!.Should().HaveCount(3);
+        sentEmail.Attachments.Select(x => x.FileName).Should().OnlyHaveUniqueItems();
+        sentEmail.Attachments.Select(x => x.FileName).Should().Contain(new[]
+        {
+            $"advertified-recommendation-{campaignId:D}-balanced.pdf",
+            $"advertified-recommendation-{campaignId:D}-ooh-focus.pdf",
+            $"advertified-recommendation-{campaignId:D}-radio-focus.pdf"
+        });
+    }
+
+    [Fact]
     public async Task PublicProposalApproval_SendsApprovalSideEffectsOverHttp()
     {
         await using var harness = await TestApiHarness.CreateAsync(
@@ -3151,7 +3211,7 @@ internal static class TestSeed
         return (band, order, campaign);
     }
 
-    public static CampaignRecommendation CreateRecommendation(Guid campaignId, string status)
+    public static CampaignRecommendation CreateRecommendation(Guid campaignId, string status, string recommendationType = "hybrid")
     {
         var now = DateTime.UtcNow;
         var recommendationId = Guid.NewGuid();
@@ -3159,7 +3219,7 @@ internal static class TestSeed
         {
             Id = recommendationId,
             CampaignId = campaignId,
-            RecommendationType = "hybrid",
+            RecommendationType = recommendationType,
             GeneratedBy = "system",
             Status = status,
             TotalCost = 250000m,
@@ -3227,7 +3287,7 @@ internal sealed class StubRecommendationDocumentService : IRecommendationDocumen
 
 internal sealed class StubTemplatedEmailService : ITemplatedEmailService
 {
-    public List<(string TemplateName, string RecipientEmail, IReadOnlyDictionary<string, string?> Tokens)> SentEmails { get; } = new();
+    public List<SentEmailRecord> SentEmails { get; } = new();
 
     public Task SendAsync(
         string templateName,
@@ -3238,10 +3298,20 @@ internal sealed class StubTemplatedEmailService : ITemplatedEmailService
         EmailTrackingContext? trackingContext,
         CancellationToken cancellationToken)
     {
-        SentEmails.Add((templateName, recipientEmail, tokens));
+        SentEmails.Add(new SentEmailRecord(
+            templateName,
+            recipientEmail,
+            tokens,
+            attachments?.ToArray()));
         return Task.CompletedTask;
     }
 }
+
+internal sealed record SentEmailRecord(
+    string TemplateName,
+    string RecipientEmail,
+    IReadOnlyDictionary<string, string?> Tokens,
+    IReadOnlyCollection<EmailAttachment>? Attachments);
 
 internal sealed class StubMediaPlanningEngine : IMediaPlanningEngine
 {

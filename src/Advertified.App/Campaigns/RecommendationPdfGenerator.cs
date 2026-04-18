@@ -61,7 +61,7 @@ internal static class RecommendationPdfGenerator
                             column.Item().PageBreak();
                         }
 
-                        column.Item().ShowEntire().Element(container => ComposeProposalSection(container, model, proposal, index, model.Proposals.Count));
+                        column.Item().Element(container => ComposeProposalSection(container, model, proposal, index, model.Proposals.Count));
                     }
 
                     column.Item().PageBreak();
