@@ -188,6 +188,25 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             return retried;
         }
 
+        if (variant.BudgetBand.PlanningBudget < variant.BudgetBand.MaxBudget)
+        {
+            var maxBudgetRequest = CloneRequest(variant.Request);
+            maxBudgetRequest.SelectedBudget = variant.BudgetBand.MaxBudget;
+            var maxBudgetRetry = await _planningEngine.GenerateAsync(maxBudgetRequest, cancellationToken);
+            if (maxBudgetRetry.RecommendedPlanTotal > best.RecommendedPlanTotal)
+            {
+                best = maxBudgetRetry;
+            }
+
+            var withinTier = IsWithinProposalTier(maxBudgetRetry.RecommendedPlanTotal, variant.BudgetBand.MinBudget, variant.BudgetBand.MaxBudget)
+                || IsWithinProposalTierTolerance(maxBudgetRetry.RecommendedPlanTotal, variant.BudgetBand.MinBudget, variant.BudgetBand.MaxBudget);
+            if (withinTier)
+            {
+                MarkTierRecoveryFlags(maxBudgetRetry, relaxedMaxItems: false, relaxedMix: false);
+                return maxBudgetRetry;
+            }
+        }
+
         return best;
     }
 
@@ -298,10 +317,10 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
 
         var proposals = new List<ProposalVariant>
         {
-            new("balanced", ApplyChannelTargets(request, BuildBalancedTargets(request, activeChannels), budgetBands[0].MaxBudget), budgetBands[0]),
-            new("ooh_focus", ApplyChannelTargets(request, BuildFocusedTargets(request, activeChannels, "ooh"), budgetBands[1].MaxBudget), budgetBands[1]),
+            new("balanced", ApplyChannelTargets(request, BuildBalancedTargets(request, activeChannels), budgetBands[0].PlanningBudget), budgetBands[0]),
+            new("ooh_focus", ApplyChannelTargets(request, BuildFocusedTargets(request, activeChannels, "ooh"), budgetBands[1].PlanningBudget), budgetBands[1]),
             new(secondaryFocusLabel,
-                ApplyChannelTargets(request, BuildFocusedTargets(request, activeChannels, secondaryFocusChannel), budgetBands[2].MaxBudget),
+                ApplyChannelTargets(request, BuildFocusedTargets(request, activeChannels, secondaryFocusChannel), budgetBands[2].PlanningBudget),
                 budgetBands[2])
         };
 

@@ -13,7 +13,7 @@ public sealed class LeadPaidMediaEvidenceSyncService : ILeadPaidMediaEvidenceSyn
     private readonly AppDbContext _db;
     private readonly ISignalCollectorService _signalCollectorService;
     private readonly IChangeAuditService _changeAuditService;
-    private readonly LeadIntelligenceAutomationOptions _options;
+    private readonly LeadIntelligenceAutomationSnapshotProvider _automationSnapshotProvider;
     private readonly AdPlatformOptions _adPlatformOptions;
     private readonly ILogger<LeadPaidMediaEvidenceSyncService> _logger;
 
@@ -22,14 +22,14 @@ public sealed class LeadPaidMediaEvidenceSyncService : ILeadPaidMediaEvidenceSyn
         ISignalCollectorService signalCollectorService,
         IChangeAuditService changeAuditService,
         IOptions<AdPlatformOptions> adPlatformOptions,
-        IOptions<LeadIntelligenceAutomationOptions> options,
+        LeadIntelligenceAutomationSnapshotProvider automationSnapshotProvider,
         ILogger<LeadPaidMediaEvidenceSyncService> logger)
     {
         _db = db;
         _signalCollectorService = signalCollectorService;
         _changeAuditService = changeAuditService;
         _adPlatformOptions = adPlatformOptions.Value;
-        _options = options.Value;
+        _automationSnapshotProvider = automationSnapshotProvider;
         _logger = logger;
     }
 
@@ -54,6 +54,7 @@ public sealed class LeadPaidMediaEvidenceSyncService : ILeadPaidMediaEvidenceSyn
 
         try
         {
+            var options = _automationSnapshotProvider.GetCurrent();
             var leadIds = await _db.Leads
                 .AsNoTracking()
                 .Where(lead => lead.Website != null && lead.Website != string.Empty)
@@ -67,7 +68,7 @@ public sealed class LeadPaidMediaEvidenceSyncService : ILeadPaidMediaEvidenceSyn
                 })
                 .OrderBy(item => item.LastSignalAt ?? DateTime.MinValue)
                 .ThenBy(item => item.Id)
-                .Take(Math.Max(1, _options.BatchSize))
+                .Take(Math.Max(1, options.BatchSize))
                 .Select(item => item.Id)
                 .ToListAsync(cancellationToken);
 

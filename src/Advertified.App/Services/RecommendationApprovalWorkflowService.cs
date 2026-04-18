@@ -71,7 +71,7 @@ public sealed class RecommendationApprovalWorkflowService : IRecommendationAppro
 
         await _db.SaveChangesAsync(cancellationToken);
         await _campaignExecutionTaskService.EnsureApprovalTasksAsync(campaign.Id, cancellationToken);
-        await SendAssignedAgentClientResponseEmailAsync(campaign, responseMessage.Body, cancellationToken);
+        await SendActivationInProgressEmailAsync(campaign, cancellationToken);
         await SendRecommendationApprovedEmailAsync(campaign, cancellationToken);
         await SendInternalCreativeQueueUpdateAsync(
             campaign,
@@ -156,6 +156,37 @@ public sealed class RecommendationApprovalWorkflowService : IRecommendationAppro
             Status = campaign.Status,
             Message = defaultResultMessage
         };
+    }
+
+    private async Task SendActivationInProgressEmailAsync(Campaign campaign, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _emailService.SendAsync(
+                "activation-in-progress",
+                campaign.ResolveClientEmail(),
+                "campaigns",
+                new Dictionary<string, string?>
+                {
+                    ["ClientName"] = campaign.ResolveClientName(),
+                    ["CampaignName"] = ResolveCampaignName(campaign),
+                    ["PackageName"] = campaign.PackageBand.Name,
+                    ["Budget"] = FormatCurrency(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount),
+                    ["CampaignUrl"] = BuildClientCampaignUrl(campaign)
+                },
+                null,
+                new EmailTrackingContext
+                {
+                    Purpose = "activation_in_progress",
+                    CampaignId = campaign.Id,
+                    RecipientUserId = campaign.UserId
+                },
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send activation in progress email for campaign {CampaignId}.", campaign.Id);
+        }
     }
 
     private async Task SendRecommendationApprovedEmailAsync(Campaign campaign, CancellationToken cancellationToken)
@@ -277,7 +308,7 @@ public sealed class RecommendationApprovalWorkflowService : IRecommendationAppro
             ReadByClientAt = now
         };
 
-        conversation.Messages.Add(message);
+        _db.CampaignMessages.Add(message);
         return message;
     }
 

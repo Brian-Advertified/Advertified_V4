@@ -91,9 +91,30 @@ public sealed class AiCostControlService : IAiCostControlService
 
     public async Task<AiCostGuardDecision> GuardAsync(AiCostGuardRequest request, CancellationToken cancellationToken)
     {
+        if (!_db.Database.IsRelational())
+        {
+            return await GuardWithoutTransactionAsync(request, cancellationToken);
+        }
+
         await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
         await AcquireCampaignLockAsync(request.CampaignId, transaction, cancellationToken);
 
+        var decision = await EvaluateGuardAsync(request, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return decision;
+    }
+
+    private Task<AiCostGuardDecision> GuardWithoutTransactionAsync(
+        AiCostGuardRequest request,
+        CancellationToken cancellationToken)
+    {
+        return EvaluateGuardAsync(request, cancellationToken);
+    }
+
+    private async Task<AiCostGuardDecision> EvaluateGuardAsync(
+        AiCostGuardRequest request,
+        CancellationToken cancellationToken)
+    {
         var campaignBudget = request.CampaignBudgetZar ?? await ResolveCampaignBudgetAsync(request.CampaignId, cancellationToken);
         var maxAllowed = await ResolveMaxAllowedCostAsync(request.CampaignId, campaignBudget, cancellationToken);
         var committed = await GetCommittedCostAsync(request.CampaignId, cancellationToken);
@@ -101,7 +122,6 @@ public sealed class AiCostControlService : IAiCostControlService
 
         if (projected > maxAllowed)
         {
-            // We keep rejected attempts for auditability and abuse tracking.
             _db.AiUsageLogs.Add(new AiUsageLog
             {
                 Id = Guid.NewGuid(),
@@ -118,7 +138,6 @@ public sealed class AiCostControlService : IAiCostControlService
                 UpdatedAt = DateTime.UtcNow
             });
             await _db.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
 
             return new AiCostGuardDecision(
                 Allowed: false,
@@ -147,7 +166,6 @@ public sealed class AiCostControlService : IAiCostControlService
             UpdatedAt = DateTime.UtcNow
         });
         await _db.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
 
         return new AiCostGuardDecision(
             Allowed: true,
@@ -164,6 +182,12 @@ public sealed class AiCostControlService : IAiCostControlService
         IDbContextTransaction transaction,
         CancellationToken cancellationToken)
     {
+        var providerName = _db.Database.ProviderName ?? string.Empty;
+        if (!providerName.Contains("Npgsql", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
         var bytes = campaignId.ToByteArray();
         var key1 = BitConverter.ToInt32(bytes, 0);
         var key2 = BitConverter.ToInt32(bytes, 4);

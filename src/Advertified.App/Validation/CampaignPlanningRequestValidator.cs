@@ -8,6 +8,7 @@ public sealed class CampaignPlanningRequestValidator : AbstractValidator<Campaig
     private static readonly HashSet<string> AllowedGeographyScopes = new(StringComparer.OrdinalIgnoreCase)
     {
         "local",
+        "regional",
         "provincial",
         "national"
     };

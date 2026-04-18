@@ -152,7 +152,9 @@ builder.Services.AddScoped<IAdminMutationService>(_ => new AdminMutationService(
     _.GetRequiredService<IBroadcastInventoryCatalog>(),
     _.GetRequiredService<IBroadcastMasterDataService>()));
 builder.Services.AddScoped<IAdminLeadIndustryPolicyService, AdminLeadIndustryPolicyService>();
+builder.Services.AddScoped<IAdminLeadIntelligenceSettingsService, AdminLeadIntelligenceSettingsService>();
 builder.Services.AddScoped<ICampaignAccessService, CampaignAccessService>();
+builder.Services.AddScoped<IAgentCampaignOwnershipService, AgentCampaignOwnershipService>();
 builder.Services.AddScoped<IAgentAreaRoutingService, AgentAreaRoutingService>();
 builder.Services.AddScoped<ICampaignBriefService, CampaignBriefService>();
 builder.Services.AddScoped<ICampaignRecommendationService, CampaignRecommendationService>();
@@ -252,6 +254,12 @@ builder.Services.AddScoped<IPlanningBriefIntentService, PlanningBriefIntentServi
 builder.Services.AddScoped<LeadIndustryPolicySnapshotProvider>(_ => new LeadIndustryPolicySnapshotProvider(
     _.GetRequiredService<Npgsql.NpgsqlDataSource>(),
     _.GetRequiredService<Microsoft.Extensions.Options.IOptions<LeadIndustryPolicyOptions>>().Value));
+builder.Services.AddScoped<LeadScoringSettingsSnapshotProvider>(_ => new LeadScoringSettingsSnapshotProvider(
+    _.GetRequiredService<Npgsql.NpgsqlDataSource>(),
+    _.GetRequiredService<Microsoft.Extensions.Options.IOptions<LeadScoringOptions>>().Value));
+builder.Services.AddScoped<LeadIntelligenceAutomationSnapshotProvider>(_ => new LeadIntelligenceAutomationSnapshotProvider(
+    _.GetRequiredService<Npgsql.NpgsqlDataSource>(),
+    _.GetRequiredService<Microsoft.Extensions.Options.IOptions<LeadIntelligenceAutomationOptions>>().Value));
 builder.Services.AddScoped<IPlanningEligibilityService, PlanningEligibilityService>();
 builder.Services.AddScoped<IPlanningScoreService, PlanningScoreService>();
 builder.Services.AddScoped<IRecommendationPlanBuilder>(_ => new RecommendationPlanBuilder(
@@ -296,6 +304,7 @@ builder.Services.AddScoped<IPackagePreviewService>(_ => new PackagePreviewServic
     _.GetRequiredService<IPackagePreviewFormatter>()));
 builder.Services.AddScoped<IPackagePurchaseService, PackagePurchaseService>();
 builder.Services.AddScoped<IProspectLeadLinkingService, ProspectLeadLinkingService>();
+builder.Services.AddScoped<IProspectLeadRegistrationService, ProspectLeadRegistrationService>();
 builder.Services.AddHttpClient<IWebhookQueueService, UpstashQStashWebhookQueueService>((serviceProvider, client) =>
 {
     var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<UpstashQStashOptions>>().Value;

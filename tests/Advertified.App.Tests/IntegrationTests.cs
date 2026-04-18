@@ -1022,7 +1022,7 @@ public class HttpWorkflowIntegrationTests
         created.Should().NotBeNull();
 
         var publishResponse = await harness.Client.PostAsJsonAsync($"/api/v2/ai-platform/ad-ops/variants/{created!.Id}/publish", new { });
-        publishResponse.StatusCode.Should().Be(HttpStatusCode.InternalServerError);
+        publishResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
 
         var variantStatus = await harness.ExecuteDbAsync(db => db.AiAdVariants.Where(x => x.Id == created.Id).Select(x => x.Status).SingleAsync());
         variantStatus.Should().Be("cost_stopped");
@@ -1259,7 +1259,8 @@ public class HttpWorkflowIntegrationTests
         harness.Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await harness.CreateSessionTokenAsync(agentUserId));
 
         var assignResponse = await harness.Client.PostAsJsonAsync($"/agent/campaigns/{campaignId}/assign", new { });
-        assignResponse.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        var assignContent = await assignResponse.Content.ReadAsStringAsync();
+        assignResponse.StatusCode.Should().Be(HttpStatusCode.Accepted, assignContent);
 
         var assignedCampaign = await harness.ExecuteDbAsync(db => db.Campaigns.SingleAsync(x => x.Id == campaignId));
         assignedCampaign.AssignedAgentUserId.Should().Be(agentUserId);
@@ -1280,8 +1281,215 @@ public class HttpWorkflowIntegrationTests
         var inboxAfterUnassign = await harness.Client.GetFromJsonAsync<AgentInboxResponse>("/agent/campaigns/inbox");
         inboxAfterUnassign.Should().NotBeNull();
         inboxAfterUnassign!.AssignedToMeCount.Should().Be(0);
-        inboxAfterUnassign.UnassignedCount.Should().Be(1);
-        inboxAfterUnassign.Items.Should().ContainSingle(x => x.Id == campaignId && !x.IsAssignedToCurrentUser && x.IsUnassigned);
+        inboxAfterUnassign.UnassignedCount.Should().Be(0);
+        inboxAfterUnassign.Items.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task AgentCampaignReadEndpoints_HideOtherAgentsWorkOverHttp()
+    {
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var clientUser = TestSeed.CreateUser();
+                var assignedAgent = TestSeed.CreateAgent();
+                assignedAgent.Email = "assigned.agent@advertified.test";
+                var otherAgent = TestSeed.CreateAgent();
+                otherAgent.Email = "other.agent@advertified.test";
+                var (band, order, campaign) = TestSeed.CreateCampaignGraph(clientUser, selectedBudget: 200000m, status: "planning_in_progress");
+                campaign.AssignedAgentUserId = assignedAgent.Id;
+                campaign.AssignedAt = DateTime.UtcNow;
+
+                db.UserAccounts.AddRange(clientUser, assignedAgent, otherAgent);
+                db.PackageBands.Add(band);
+                db.PackageOrders.Add(order);
+                db.Campaigns.Add(campaign);
+                db.SaveChanges();
+            });
+
+        var campaignId = await harness.ExecuteDbAsync(db => db.Campaigns.Select(x => x.Id).SingleAsync());
+        var otherAgentId = await harness.ExecuteDbAsync(db =>
+            db.UserAccounts
+                .Where(x => x.Role == UserRole.Agent && x.Email == "other.agent@advertified.test")
+                .Select(x => x.Id)
+                .SingleAsync());
+
+        harness.Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await harness.CreateSessionTokenAsync(otherAgentId));
+
+        var listHttpResponse = await harness.Client.GetAsync("/agent/campaigns");
+        var listContent = await listHttpResponse.Content.ReadAsStringAsync();
+        listHttpResponse.StatusCode.Should().Be(HttpStatusCode.OK, listContent);
+        var listResponse = System.Text.Json.JsonSerializer.Deserialize<CampaignListItemResponse[]>(listContent, new System.Text.Json.JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        });
+        listResponse.Should().NotBeNull();
+        listResponse!.Should().BeEmpty();
+
+        var inboxHttpResponse = await harness.Client.GetAsync("/agent/campaigns/inbox");
+        var inboxContent = await inboxHttpResponse.Content.ReadAsStringAsync();
+        inboxHttpResponse.StatusCode.Should().Be(HttpStatusCode.OK, inboxContent);
+        var inboxResponse = System.Text.Json.JsonSerializer.Deserialize<AgentInboxResponse>(inboxContent, new System.Text.Json.JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        });
+        inboxResponse.Should().NotBeNull();
+        inboxResponse!.Items.Should().BeEmpty();
+
+        var detailResponse = await harness.Client.GetAsync($"/agent/campaigns/{campaignId}");
+        detailResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task AgentCannotCreateRecommendationOnAnotherAgentsCampaignOverHttp()
+    {
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var clientUser = TestSeed.CreateUser();
+                var assignedAgent = TestSeed.CreateAgent();
+                assignedAgent.Email = "assigned.agent@advertified.test";
+                var otherAgent = TestSeed.CreateAgent();
+                otherAgent.Email = "other.agent@advertified.test";
+                var (band, order, campaign) = TestSeed.CreateCampaignGraph(clientUser, selectedBudget: 250000m, status: "planning_in_progress");
+                campaign.AssignedAgentUserId = assignedAgent.Id;
+                campaign.AssignedAt = DateTime.UtcNow;
+
+                db.UserAccounts.AddRange(clientUser, assignedAgent, otherAgent);
+                db.PackageBands.Add(band);
+                db.PackageOrders.Add(order);
+                db.Campaigns.Add(campaign);
+                db.SaveChanges();
+            });
+
+        var campaignId = await harness.ExecuteDbAsync(db => db.Campaigns.Select(x => x.Id).SingleAsync());
+        var otherAgentId = await harness.ExecuteDbAsync(db =>
+            db.UserAccounts
+                .Where(x => x.Role == UserRole.Agent && x.Email == "other.agent@advertified.test")
+                .Select(x => x.Id)
+                .SingleAsync());
+
+        harness.Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await harness.CreateSessionTokenAsync(otherAgentId));
+
+        var response = await harness.Client.PostAsJsonAsync($"/agent/campaigns/{campaignId}/recommendations", new
+        {
+            notes = "Unauthorized draft",
+            inventoryItems = new[]
+            {
+                new
+                {
+                    id = "slot-1",
+                    type = "ooh",
+                    station = "Sandton Digital Billboard",
+                    quantity = 1,
+                    rate = 125000m,
+                    region = "Gauteng",
+                    language = "English",
+                    showDaypart = "Drive",
+                    timeBand = "06:00-09:00",
+                    slotType = "Billboard",
+                    duration = "4 weeks"
+                }
+            }
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        var recommendationCount = await harness.ExecuteDbAsync(db => db.CampaignRecommendations.CountAsync());
+        recommendationCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task AgentProspectRegistration_BlocksDuplicateLeadAcrossAgentsOverHttp()
+    {
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var now = DateTime.UtcNow;
+                var assignedAgent = TestSeed.CreateAgent();
+                assignedAgent.Email = "assigned.agent@advertified.test";
+                var otherAgent = TestSeed.CreateAgent();
+                otherAgent.Email = "other.agent@advertified.test";
+                var lead = new ProspectLead
+                {
+                    Id = Guid.NewGuid(),
+                    FullName = "Duplicate Lead",
+                    Email = "duplicate.lead@example.com",
+                    NormalizedEmail = "duplicate.lead@example.com",
+                    Phone = "0821234567",
+                    NormalizedPhone = "+27821234567",
+                    Source = "agent_prospect",
+                    OwnerAgentUserId = assignedAgent.Id,
+                    CreatedAt = now,
+                    UpdatedAt = now
+                };
+                var band = new PackageBand
+                {
+                    Id = Guid.NewGuid(),
+                    Code = "scale",
+                    Name = "Scale",
+                    MinBudget = 150000m,
+                    MaxBudget = 500000m,
+                    SortOrder = 3,
+                    IsActive = true,
+                    CreatedAt = now
+                };
+                var order = new PackageOrder
+                {
+                    Id = Guid.NewGuid(),
+                    ProspectLeadId = lead.Id,
+                    PackageBandId = band.Id,
+                    Amount = 150000m,
+                    SelectedBudget = 150000m,
+                    Currency = "ZAR",
+                    PaymentProvider = "prospect",
+                    PaymentStatus = "pending",
+                    RefundStatus = "none",
+                    CreatedAt = now,
+                    UpdatedAt = now
+                };
+                var campaign = new Campaign
+                {
+                    Id = Guid.NewGuid(),
+                    ProspectLeadId = lead.Id,
+                    PackageOrderId = order.Id,
+                    PackageBandId = band.Id,
+                    CampaignName = "Duplicate lead campaign",
+                    Status = "awaiting_purchase",
+                    AssignedAgentUserId = assignedAgent.Id,
+                    AssignedAt = now,
+                    CreatedAt = now,
+                    UpdatedAt = now
+                };
+
+                db.UserAccounts.AddRange(assignedAgent, otherAgent);
+                db.ProspectLeads.Add(lead);
+                db.PackageBands.Add(band);
+                db.PackageOrders.Add(order);
+                db.Campaigns.Add(campaign);
+                db.SaveChanges();
+            });
+
+        var otherAgentId = await harness.ExecuteDbAsync(db =>
+            db.UserAccounts
+                .Where(x => x.Role == UserRole.Agent && x.Email == "other.agent@advertified.test")
+                .Select(x => x.Id)
+                .SingleAsync());
+        var bandId = await harness.ExecuteDbAsync(db => db.PackageBands.Select(x => x.Id).SingleAsync());
+
+        harness.Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await harness.CreateSessionTokenAsync(otherAgentId));
+
+        var response = await harness.Client.PostAsJsonAsync("/agent/campaigns/prospects", new
+        {
+            fullName = "Duplicate Lead",
+            email = "duplicate.lead@example.com",
+            phone = "082 123 4567",
+            packageBandId = bandId,
+            campaignName = "Attempted duplicate"
+        });
+        var content = await response.Content.ReadAsStringAsync();
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict, content);
+        content.Should().Contain("A prospect with this contact information already exists.");
     }
 
     [Fact]
@@ -2330,6 +2538,7 @@ public class ResendEmailServiceFallbackTests
                     }
                 }),
                 new StubWebHostEnvironment(archiveRoot),
+                new StubEmailDeliveryTrackingService(),
                 NullLogger<ResendEmailService>.Instance);
 
             await service.SendAsync(
@@ -2337,6 +2546,7 @@ public class ResendEmailServiceFallbackTests
                 "client@example.com",
                 "noreply",
                 new Dictionary<string, string?> { ["Name"] = "Brian" },
+                null,
                 null,
                 CancellationToken.None);
 
@@ -2556,6 +2766,24 @@ internal sealed class StubCreativeCampaignOrchestrator : ICreativeCampaignOrches
     }
 }
 
+internal sealed class StubLocationCatalogService : ILocationCatalogService
+{
+    public Task SeedResolvedLocationAsync(SaveCampaignBriefRequest request, CancellationToken cancellationToken)
+        => Task.CompletedTask;
+}
+
+internal sealed class StubCampaignPlanningTargetResolver : ICampaignPlanningTargetResolver
+{
+    public CampaignPlanningTargetResolution Resolve(CampaignBrief? brief) => new();
+
+    public CampaignPlanningTargetResolution Resolve(CampaignPlanningRequest request) => new();
+}
+
+internal sealed class StubCampaignBusinessLocationResolver : ICampaignBusinessLocationResolver
+{
+    public CampaignBusinessLocationResolution Resolve(Campaign campaign) => new();
+}
+
 internal sealed class StubAssetJobQueue : IAssetJobQueue
 {
     public ValueTask EnqueueAsync(Guid jobId, CancellationToken cancellationToken) => ValueTask.CompletedTask;
@@ -2616,7 +2844,11 @@ internal sealed class TestApiHarness : IAsyncDisposable
         builder.Services.AddScoped<IAdminDashboardService, StubAdminDashboardService>();
         builder.Services.AddScoped<IAdminMutationService, StubAdminMutationService>();
         builder.Services.AddScoped<ICampaignAccessService, CampaignAccessService>();
+        builder.Services.AddScoped<IAgentCampaignOwnershipService, AgentCampaignOwnershipService>();
         builder.Services.AddScoped<IAgentAreaRoutingService, StubAgentAreaRoutingService>();
+        builder.Services.AddScoped<ILocationCatalogService, StubLocationCatalogService>();
+        builder.Services.AddScoped<ICampaignPlanningTargetResolver, StubCampaignPlanningTargetResolver>();
+        builder.Services.AddScoped<ICampaignBusinessLocationResolver, StubCampaignBusinessLocationResolver>();
         builder.Services.AddScoped<FormOptionsService>();
         builder.Services.AddScoped<ICampaignBriefService, CampaignBriefService>();
         builder.Services.AddScoped<CampaignPlanningRequestValidator>();
@@ -2625,7 +2857,9 @@ internal sealed class TestApiHarness : IAsyncDisposable
         builder.Services.AddScoped<IEmailVerificationService, StubEmailVerificationService>();
         builder.Services.AddScoped<IInvoiceService, StubInvoiceService>();
         builder.Services.AddScoped<IPackagePurchaseService, StubPackagePurchaseService>();
+        builder.Services.AddScoped<IProspectDispositionService, ProspectDispositionService>();
         builder.Services.AddScoped<IProspectLeadLinkingService, ProspectLeadLinkingService>();
+        builder.Services.AddScoped<IProspectLeadRegistrationService, ProspectLeadRegistrationService>();
         builder.Services.AddScoped<IRegistrationService, RegistrationService>();
         builder.Services.AddScoped<IPrivateDocumentStorage, StubPrivateDocumentStorage>();
         builder.Services.AddScoped<IRecommendationDocumentService, StubRecommendationDocumentService>();
@@ -2646,6 +2880,7 @@ internal sealed class TestApiHarness : IAsyncDisposable
         configureServices?.Invoke(builder.Services);
 
         var app = builder.Build();
+        app.UseMiddleware<Advertified.App.Middleware.ProblemDetailsExceptionHandlingMiddleware>();
         app.UseAuthentication();
         app.Use(async (context, next) =>
         {
@@ -3000,6 +3235,7 @@ internal sealed class StubTemplatedEmailService : ITemplatedEmailService
         string senderKey,
         IReadOnlyDictionary<string, string?> tokens,
         IReadOnlyCollection<EmailAttachment>? attachments,
+        EmailTrackingContext? trackingContext,
         CancellationToken cancellationToken)
     {
         SentEmails.Add((templateName, recipientEmail, tokens));
@@ -3123,6 +3359,48 @@ internal sealed class StubPublicAssetStorage : IPublicAssetStorage
 
     public string? GetPublicUrl(string objectKey)
         => $"/campaign-assets/{Uri.EscapeDataString(objectKey)}";
+}
+
+internal sealed class StubEmailDeliveryTrackingService : IEmailDeliveryTrackingService
+{
+    public Task<TrackedEmailDispatch> CreatePendingDispatchAsync(
+        string providerKey,
+        string templateName,
+        string senderKey,
+        string fromAddress,
+        string recipientEmail,
+        string subject,
+        EmailTrackingContext? trackingContext,
+        CancellationToken cancellationToken)
+    {
+        return Task.FromResult(new TrackedEmailDispatch
+        {
+            DispatchId = Guid.NewGuid(),
+            IdempotencyKey = Guid.NewGuid().ToString("N")
+        });
+    }
+
+    public Task MarkAcceptedAsync(Guid dispatchId, string providerMessageId, string? providerBroadcastId, CancellationToken cancellationToken)
+        => Task.CompletedTask;
+
+    public Task MarkArchivedAsync(Guid dispatchId, string archivePath, CancellationToken cancellationToken)
+        => Task.CompletedTask;
+
+    public Task MarkFailedAsync(Guid dispatchId, string errorMessage, CancellationToken cancellationToken)
+        => Task.CompletedTask;
+
+    public Task<EmailWebhookProcessResult> ProcessResendWebhookAsync(
+        string requestPath,
+        IReadOnlyDictionary<string, string> headers,
+        string payload,
+        CancellationToken cancellationToken)
+    {
+        return Task.FromResult(new EmailWebhookProcessResult
+        {
+            SignatureValid = true,
+            ProcessingStatus = "accepted"
+        });
+    }
 }
 
 internal sealed class StubWebHostEnvironment : IWebHostEnvironment

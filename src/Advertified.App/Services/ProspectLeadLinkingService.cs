@@ -1,6 +1,7 @@
 using Advertified.App.Data;
 using Advertified.App.Data.Entities;
 using Advertified.App.Services.Abstractions;
+using Advertified.App.Support;
 using Microsoft.EntityFrameworkCore;
 
 namespace Advertified.App.Services;
@@ -16,14 +17,14 @@ public sealed class ProspectLeadLinkingService : IProspectLeadLinkingService
 
     public async Task ClaimByEmailAsync(UserAccount user, CancellationToken cancellationToken)
     {
-        var normalizedEmail = (user.Email ?? string.Empty).Trim().ToLowerInvariant();
+        var normalizedEmail = ProspectLeadContactNormalizer.NormalizeEmail(user.Email);
         if (string.IsNullOrWhiteSpace(normalizedEmail))
         {
             return;
         }
 
         var leadIds = await _db.ProspectLeads
-            .Where(x => x.Email == normalizedEmail)
+            .Where(x => x.NormalizedEmail == normalizedEmail)
             .Select(x => x.Id)
             .ToArrayAsync(cancellationToken);
 
@@ -40,6 +41,8 @@ public sealed class ProspectLeadLinkingService : IProspectLeadLinkingService
         foreach (var lead in leads)
         {
             lead.ClaimedUserId = user.Id;
+            lead.Email = normalizedEmail;
+            lead.NormalizedEmail = normalizedEmail;
             lead.UpdatedAt = now;
         }
 

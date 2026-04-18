@@ -1,4 +1,6 @@
+import { ArrowRight } from 'lucide-react';
 import { type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import type { useAgentCampaignsQuery, useAgentInboxQuery } from './agentWorkspace';
 
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:5050';
@@ -31,17 +33,44 @@ export function AgentSummaryCard({
   label,
   value,
   helper,
+  href,
+  actionLabel = 'Open',
 }: {
   label: string;
   value: string | number;
   helper?: string;
+  href?: string;
+  actionLabel?: string;
 }) {
-  return (
-    <div className="rounded-[22px] border border-line bg-white px-5 py-4">
+  const content = (
+    <>
       <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-soft">{label}</p>
       <p className="mt-3 text-3xl font-semibold text-ink">{value}</p>
       {helper ? <p className="mt-2 text-sm text-ink-soft">{helper}</p> : null}
-    </div>
+      {href ? (
+        <div className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-brand">
+          {actionLabel}
+          <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5 group-focus-visible:translate-x-0.5" />
+        </div>
+      ) : null}
+    </>
+  );
+
+  if (!href) {
+    return (
+      <div className="rounded-[22px] border border-line bg-white px-5 py-4">
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <Link
+      to={href}
+      className="group block rounded-[22px] border border-line bg-white px-5 py-4 transition hover:-translate-y-0.5 hover:border-brand/30 hover:shadow-[0_18px_40px_rgba(31,143,99,0.08)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30"
+    >
+      {content}
+    </Link>
   );
 }
 
@@ -248,7 +277,7 @@ export function getAverageTurnaroundDays(campaigns: Awaited<ReturnType<typeof us
 export function buildTasks(inbox: NonNullable<ReturnType<typeof useAgentInboxQuery>['data']>) {
   return {
     urgent: inbox.items.filter((item) => item.isUrgent).slice(0, 5),
-    review: inbox.items.filter((item) => item.queueStage === 'agent_review').slice(0, 5),
+    review: inbox.items.filter((item) => item.queueStage === 'agent_review' || item.manualReviewRequired).slice(0, 5),
     waiting: inbox.items.filter((item) => item.queueStage === 'waiting_on_client').slice(0, 5),
   };
 }

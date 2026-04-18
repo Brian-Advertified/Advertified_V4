@@ -49,15 +49,11 @@ public sealed class RecommendationExplainabilityService : IRecommendationExplain
         var selectedMedia = recommendedPlan
             .Select(item => item.MediaType.Trim().ToLowerInvariant())
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var eligibleMedia = eligibleCandidates
-            .Select(candidate => candidate.MediaType.Trim().ToLowerInvariant())
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         return request.PreferredMediaTypes
             .Select(preferred => preferred.Trim().ToLowerInvariant())
             .Where(preferred => !string.IsNullOrWhiteSpace(preferred))
             .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Where(preferred => eligibleMedia.Contains(preferred))
             .Where(preferred => !selectedMedia.Contains(preferred))
             .Select(preferred => $"preferred_media_unfulfilled:{preferred}")
             .ToArray();

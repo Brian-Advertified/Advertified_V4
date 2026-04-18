@@ -27,6 +27,7 @@ public sealed class PublicProspectQuestionnaireController : ControllerBase
     private readonly IAgentAreaRoutingService _agentAreaRoutingService;
     private readonly IChangeAuditService _changeAuditService;
     private readonly ILocationCatalogService _locationCatalogService;
+    private readonly IProspectLeadRegistrationService _prospectLeadRegistrationService;
     private readonly ITemplatedEmailService _emailService;
     private readonly FrontendOptions _frontendOptions;
     private readonly ILogger<PublicProspectQuestionnaireController> _logger;
@@ -37,6 +38,7 @@ public sealed class PublicProspectQuestionnaireController : ControllerBase
         IAgentAreaRoutingService agentAreaRoutingService,
         IChangeAuditService changeAuditService,
         ILocationCatalogService locationCatalogService,
+        IProspectLeadRegistrationService prospectLeadRegistrationService,
         ITemplatedEmailService emailService,
         IOptions<FrontendOptions> frontendOptions,
         ILogger<PublicProspectQuestionnaireController> logger)
@@ -46,6 +48,7 @@ public sealed class PublicProspectQuestionnaireController : ControllerBase
         _agentAreaRoutingService = agentAreaRoutingService;
         _changeAuditService = changeAuditService;
         _locationCatalogService = locationCatalogService;
+        _prospectLeadRegistrationService = prospectLeadRegistrationService;
         _emailService = emailService;
         _frontendOptions = frontendOptions.Value;
         _logger = logger;
@@ -59,7 +62,7 @@ public sealed class PublicProspectQuestionnaireController : ControllerBase
         await _briefValidator.ValidateAndThrowAsync(request.Brief, cancellationToken);
 
         var fullName = request.FullName?.Trim() ?? string.Empty;
-        var email = (request.Email?.Trim() ?? string.Empty).ToLowerInvariant();
+        var email = ProspectLeadContactNormalizer.NormalizeEmail(request.Email);
         var phone = request.Phone?.Trim() ?? string.Empty;
         if (string.IsNullOrWhiteSpace(fullName))
         {
@@ -81,31 +84,13 @@ public sealed class PublicProspectQuestionnaireController : ControllerBase
             ?? throw new NotFoundException("Package band not found.");
 
         var selectedBudget = ResolveProspectBudget(packageBand);
-        var lead = await _db.ProspectLeads
-            .FirstOrDefaultAsync(x => x.Email == email, cancellationToken);
-
-        var createdNewLead = false;
-        if (lead is null)
-        {
-            lead = new ProspectLead
-            {
-                Id = Guid.NewGuid(),
-                FullName = fullName,
-                Email = email,
-                Phone = phone,
-                Source = "public_questionnaire",
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-            _db.ProspectLeads.Add(lead);
-            createdNewLead = true;
-        }
-        else
-        {
-            lead.FullName = fullName;
-            lead.Phone = phone;
-            lead.UpdatedAt = DateTime.UtcNow;
-        }
+        var leadResult = await _prospectLeadRegistrationService.UpsertPublicLeadAsync(
+            fullName,
+            email,
+            phone,
+            "public_questionnaire",
+            cancellationToken);
+        var lead = leadResult.Lead;
 
         var now = DateTime.UtcNow;
         var packageOrder = new PackageOrder
@@ -179,7 +164,7 @@ public sealed class PublicProspectQuestionnaireController : ControllerBase
                 ProspectEmail = email,
                 PackageBand = packageBand.Name,
                 SelectedBudget = selectedBudget,
-                createdNewLead
+                CreatedNewLead = leadResult.CreatedNewLead
             },
             cancellationToken);
 

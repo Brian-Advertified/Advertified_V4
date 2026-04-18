@@ -1,9 +1,10 @@
 import { ProtectedRoute } from '../components/ui/ProtectedRoute';
-import type { AppRoute } from './routeUtils';
-import { DashboardPage } from '../pages/client/DashboardPage';
-import { OrdersPage } from '../pages/client/OrdersPage';
-import { CampaignDetailPage } from '../pages/client/CampaignDetailPage';
-import { CreativeStudioPreviewPage } from '../pages/creative/CreativeDirectorPages';
+import { lazyPage, type AppRoute } from './routeUtils';
+
+const DashboardPage = lazyPage(() => import('../pages/client/DashboardPage'), 'DashboardPage');
+const OrdersPage = lazyPage(() => import('../pages/client/OrdersPage'), 'OrdersPage');
+const CampaignDetailPage = lazyPage(() => import('../pages/client/CampaignDetailPage'), 'CampaignDetailPage');
+const CreativeStudioPreviewPage = lazyPage(() => import('../pages/creative/CreativeDirectorPages'), 'CreativeStudioPreviewPage');
 
 export const clientRoutes: AppRoute[] = [
   { path: '/dashboard', element: <ProtectedRoute><DashboardPage /></ProtectedRoute> },

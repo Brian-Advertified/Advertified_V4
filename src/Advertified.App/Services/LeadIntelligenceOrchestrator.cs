@@ -15,8 +15,8 @@ public sealed class LeadIntelligenceOrchestrator : ILeadIntelligenceOrchestrator
     private readonly ITrendAnalysisService _trendAnalysisService;
     private readonly IInsightService _insightService;
     private readonly ILeadActionRecommendationService _leadActionRecommendationService;
+    private readonly LeadIntelligenceAutomationSnapshotProvider _automationSnapshotProvider;
     private readonly ILogger<LeadIntelligenceOrchestrator> _logger;
-    private readonly LeadIntelligenceAutomationOptions _options;
 
     public LeadIntelligenceOrchestrator(
         AppDbContext db,
@@ -25,7 +25,7 @@ public sealed class LeadIntelligenceOrchestrator : ILeadIntelligenceOrchestrator
         ITrendAnalysisService trendAnalysisService,
         IInsightService insightService,
         ILeadActionRecommendationService leadActionRecommendationService,
-        IOptions<LeadIntelligenceAutomationOptions> options,
+        LeadIntelligenceAutomationSnapshotProvider automationSnapshotProvider,
         ILogger<LeadIntelligenceOrchestrator> logger)
     {
         _db = db;
@@ -34,7 +34,7 @@ public sealed class LeadIntelligenceOrchestrator : ILeadIntelligenceOrchestrator
         _trendAnalysisService = trendAnalysisService;
         _insightService = insightService;
         _leadActionRecommendationService = leadActionRecommendationService;
-        _options = options.Value;
+        _automationSnapshotProvider = automationSnapshotProvider;
         _logger = logger;
     }
 
@@ -105,11 +105,12 @@ public sealed class LeadIntelligenceOrchestrator : ILeadIntelligenceOrchestrator
 
     public async Task<int> RunAllAsync(CancellationToken cancellationToken)
     {
+        var options = _automationSnapshotProvider.GetCurrent();
         var leadIds = await _db.Leads
             .AsNoTracking()
             .OrderBy(x => x.Id)
             .Select(x => x.Id)
-            .Take(Math.Max(1, _options.BatchSize))
+            .Take(Math.Max(1, options.BatchSize))
             .ToListAsync(cancellationToken);
 
         var processedCount = 0;

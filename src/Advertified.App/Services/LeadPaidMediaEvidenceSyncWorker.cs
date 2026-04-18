@@ -1,49 +1,50 @@
 using Advertified.App.Configuration;
 using Advertified.App.Services.Abstractions;
-using Microsoft.Extensions.Options;
 
 namespace Advertified.App.Services;
 
 public sealed class LeadPaidMediaEvidenceSyncWorker : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly LeadIntelligenceAutomationOptions _options;
     private readonly ILogger<LeadPaidMediaEvidenceSyncWorker> _logger;
 
     public LeadPaidMediaEvidenceSyncWorker(
         IServiceScopeFactory scopeFactory,
-        IOptions<LeadIntelligenceAutomationOptions> options,
         ILogger<LeadPaidMediaEvidenceSyncWorker> logger)
     {
         _scopeFactory = scopeFactory;
-        _options = options.Value;
         _logger = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!_options.EnablePaidMediaEvidenceSync)
+        var initialSnapshot = await GetSnapshotAsync(stoppingToken);
+        if (!initialSnapshot.EnablePaidMediaEvidenceSync)
         {
-            _logger.LogInformation("Lead paid media evidence sync worker is disabled.");
-            return;
+            _logger.LogInformation("Lead paid media evidence sync worker is disabled. Polling settings for future enablement.");
         }
 
-        if (_options.RunOnStartup)
+        if (initialSnapshot.EnablePaidMediaEvidenceSync && initialSnapshot.RunOnStartup)
         {
             await RunIterationAsync(stoppingToken);
         }
-
-        var interval = TimeSpan.FromMinutes(Math.Max(15, _options.PaidMediaSyncIntervalMinutes));
-        using var timer = new PeriodicTimer(interval);
 
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
+                var snapshot = await GetSnapshotAsync(stoppingToken);
+                var interval = TimeSpan.FromMinutes(Math.Max(15, snapshot.PaidMediaSyncIntervalMinutes));
+                using var timer = new PeriodicTimer(interval);
                 var hasNextTick = await timer.WaitForNextTickAsync(stoppingToken);
                 if (!hasNextTick)
                 {
                     break;
+                }
+
+                if (!snapshot.EnablePaidMediaEvidenceSync)
+                {
+                    continue;
                 }
 
                 await RunIterationAsync(stoppingToken);
@@ -79,5 +80,13 @@ public sealed class LeadPaidMediaEvidenceSyncWorker : BackgroundService
             result.TotalLeadCount,
             result.FailedLeadCount,
             result.EvidenceRowCount);
+    }
+
+    private async Task<LeadIntelligenceAutomationOptions> GetSnapshotAsync(CancellationToken cancellationToken)
+    {
+        await using var scope = _scopeFactory.CreateAsyncScope();
+        var provider = scope.ServiceProvider.GetRequiredService<LeadIntelligenceAutomationSnapshotProvider>();
+        cancellationToken.ThrowIfCancellationRequested();
+        return provider.GetCurrent();
     }
 }

@@ -32,7 +32,7 @@ public sealed class LeadsController : ControllerBase
     private readonly IWebsiteSignalProvider _websiteSignalProvider;
     private readonly ILeadMasterDataService _leadMasterDataService;
     private readonly IGeocodingService _geocodingService;
-    private readonly LeadIntelligenceAutomationOptions _leadIntelligenceAutomationOptions;
+    private readonly LeadIntelligenceAutomationSnapshotProvider _leadIntelligenceAutomationSnapshotProvider;
     private readonly ICurrentUserAccessor _currentUserAccessor;
 
     public LeadsController(
@@ -53,7 +53,7 @@ public sealed class LeadsController : ControllerBase
         IWebsiteSignalProvider websiteSignalProvider,
         ILeadMasterDataService leadMasterDataService,
         IGeocodingService geocodingService,
-        IOptions<LeadIntelligenceAutomationOptions> leadIntelligenceAutomationOptions,
+        LeadIntelligenceAutomationSnapshotProvider leadIntelligenceAutomationSnapshotProvider,
         ICurrentUserAccessor currentUserAccessor)
     {
         _db = db;
@@ -73,7 +73,7 @@ public sealed class LeadsController : ControllerBase
         _websiteSignalProvider = websiteSignalProvider;
         _leadMasterDataService = leadMasterDataService;
         _geocodingService = geocodingService;
-        _leadIntelligenceAutomationOptions = leadIntelligenceAutomationOptions.Value;
+        _leadIntelligenceAutomationSnapshotProvider = leadIntelligenceAutomationSnapshotProvider;
         _currentUserAccessor = currentUserAccessor;
     }
 
@@ -200,6 +200,7 @@ public sealed class LeadsController : ControllerBase
     [HttpGet("paid-media-sync/status")]
     public async Task<ActionResult<LeadPaidMediaSyncStatusDto>> GetPaidMediaSyncStatus(CancellationToken cancellationToken)
     {
+        var automationSettings = _leadIntelligenceAutomationSnapshotProvider.GetCurrent();
         var latestRunAudit = await _db.ChangeAuditLogs
             .AsNoTracking()
             .Where(log => log.Scope == "system" && log.Action == "lead_paid_media_sync_run")
@@ -208,9 +209,9 @@ public sealed class LeadsController : ControllerBase
 
         return Ok(new LeadPaidMediaSyncStatusDto
         {
-            Enabled = _leadIntelligenceAutomationOptions.EnablePaidMediaEvidenceSync,
-            BatchSize = Math.Max(1, _leadIntelligenceAutomationOptions.BatchSize),
-            IntervalMinutes = Math.Max(15, _leadIntelligenceAutomationOptions.PaidMediaSyncIntervalMinutes),
+            Enabled = automationSettings.EnablePaidMediaEvidenceSync,
+            BatchSize = Math.Max(1, automationSettings.BatchSize),
+            IntervalMinutes = Math.Max(15, automationSettings.PaidMediaSyncIntervalMinutes),
             LastRun = TryParseSyncRunDto(latestRunAudit?.MetadataJson),
         });
     }

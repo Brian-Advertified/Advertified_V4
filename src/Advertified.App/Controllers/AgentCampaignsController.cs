@@ -26,6 +26,7 @@ public sealed class AgentCampaignsController : ControllerBase
     private readonly IRecommendationDocumentService _recommendationDocumentService;
     private readonly ICampaignPlanningTargetResolver _planningTargetResolver;
     private readonly ICampaignBusinessLocationResolver _businessLocationResolver;
+    private readonly IAgentCampaignOwnershipService _ownershipService;
     private readonly ILogger<AgentCampaignsController> _logger;
 
     public AgentCampaignsController(
@@ -34,6 +35,7 @@ public sealed class AgentCampaignsController : ControllerBase
         IRecommendationDocumentService recommendationDocumentService,
         ICampaignPlanningTargetResolver planningTargetResolver,
         ICampaignBusinessLocationResolver businessLocationResolver,
+        IAgentCampaignOwnershipService ownershipService,
         ILogger<AgentCampaignsController> logger)
     {
         _db = db;
@@ -41,6 +43,7 @@ public sealed class AgentCampaignsController : ControllerBase
         _recommendationDocumentService = recommendationDocumentService;
         _planningTargetResolver = planningTargetResolver;
         _businessLocationResolver = businessLocationResolver;
+        _ownershipService = ownershipService;
         _logger = logger;
     }
 
@@ -49,7 +52,7 @@ public sealed class AgentCampaignsController : ControllerBase
     {
         var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
         var currentUserId = currentUser.Id;
-        var campaigns = await _db.Campaigns
+        var campaigns = await _ownershipService.ApplyReadableScope(_db.Campaigns, currentUser)
             .AsNoTracking()
             .OrderByDescending(x => x.CreatedAt)
             .Select(x => new AgentCampaignListProjection
@@ -112,7 +115,7 @@ public sealed class AgentCampaignsController : ControllerBase
     {
         var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
         var currentUserId = currentUser.Id;
-        var campaigns = await _db.Campaigns
+        var campaigns = await _ownershipService.ApplyReadableScope(_db.Campaigns, currentUser)
             .AsNoTracking()
             .AsSplitQuery()
             .Where(x => x.ProspectDispositionStatus != ProspectDispositionStatuses.Closed)
@@ -216,8 +219,8 @@ public sealed class AgentCampaignsController : ControllerBase
     [HttpGet("sales")]
     public async Task<IActionResult> GetSales(CancellationToken cancellationToken)
     {
-        await GetCurrentOperationsUserAsync(cancellationToken);
-        var sales = await _db.Campaigns
+        var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
+        var sales = await _ownershipService.ApplyReadableScope(_db.Campaigns, currentUser)
             .AsNoTracking()
             .Where(x => x.PackageOrder.PaymentStatus == "paid")
             .OrderByDescending(x => x.PackageOrder.PurchasedAt)
@@ -259,32 +262,34 @@ public sealed class AgentCampaignsController : ControllerBase
     {
         var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
         var currentUserId = currentUser.Id;
-        var campaign = await _db.Campaigns
-            .AsNoTracking()
-            .AsSplitQuery()
-            .Include(x => x.User!)
-                .ThenInclude(x => x.BusinessProfile)
-            .Include(x => x.ProspectLead)
-            .Include(x => x.AssignedAgentUser)
-            .Include(x => x.ProspectDispositionClosedByUser)
-            .Include(x => x.PackageBand)
-            .Include(x => x.PackageOrder)
-            .Include(x => x.CampaignBrief)
-            .Include(x => x.CampaignCreativeSystems)
-            .Include(x => x.CampaignAssets)
-            .Include(x => x.CampaignExecutionTasks)
-            .Include(x => x.CampaignSupplierBookings)
-                .ThenInclude(x => x.ProofAsset)
-            .Include(x => x.CampaignDeliveryReports)
-                .ThenInclude(x => x.EvidenceAsset)
-            .Include(x => x.CampaignPauseWindows)
-            .Include(x => x.CampaignRecommendations)
-                .ThenInclude(x => x.RecommendationItems)
-            .Include(x => x.CampaignRecommendations)
-                .ThenInclude(x => x.RecommendationRunAudits)
-            .Include(x => x.EmailDeliveryMessages)
-            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
-            ?? throw new NotFoundException("Campaign not found.");
+        var campaign = await _ownershipService.GetReadableCampaignAsync(
+            id,
+            currentUser,
+            query => query
+                .AsNoTracking()
+                .AsSplitQuery()
+                .Include(x => x.User!)
+                    .ThenInclude(x => x.BusinessProfile)
+                .Include(x => x.ProspectLead)
+                .Include(x => x.AssignedAgentUser)
+                .Include(x => x.ProspectDispositionClosedByUser)
+                .Include(x => x.PackageBand)
+                .Include(x => x.PackageOrder)
+                .Include(x => x.CampaignBrief)
+                .Include(x => x.CampaignCreativeSystems)
+                .Include(x => x.CampaignAssets)
+                .Include(x => x.CampaignExecutionTasks)
+                .Include(x => x.CampaignSupplierBookings)
+                    .ThenInclude(x => x.ProofAsset)
+                .Include(x => x.CampaignDeliveryReports)
+                    .ThenInclude(x => x.EvidenceAsset)
+                .Include(x => x.CampaignPauseWindows)
+                .Include(x => x.CampaignRecommendations)
+                    .ThenInclude(x => x.RecommendationItems)
+                .Include(x => x.CampaignRecommendations)
+                    .ThenInclude(x => x.RecommendationRunAudits)
+                .Include(x => x.EmailDeliveryMessages),
+            cancellationToken);
 
         var response = campaign.ToDetail(currentUserId);
         var resolvedBusinessLocation = _businessLocationResolver.Resolve(campaign);
@@ -341,23 +346,17 @@ public sealed class AgentCampaignsController : ControllerBase
     [HttpGet("{id:guid}/performance")]
     public async Task<ActionResult<CampaignPerformanceSnapshotResponse>> GetPerformance(Guid id, CancellationToken cancellationToken)
     {
-        await GetCurrentOperationsUserAsync(cancellationToken);
-        var campaign = await _db.Campaigns
-            .AsNoTracking()
-            .AsSplitQuery()
-            .Include(x => x.CampaignChannelMetrics)
-            .Include(x => x.CampaignSupplierBookings)
-            .Include(x => x.CampaignDeliveryReports)
-            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
-
-        if (campaign is null)
-        {
-            return NotFound(new ProblemDetails
-            {
-                Title = "Campaign not found.",
-                Status = StatusCodes.Status404NotFound
-            });
-        }
+        var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
+        var campaign = await _ownershipService.GetReadableCampaignAsync(
+            id,
+            currentUser,
+            query => query
+                .AsNoTracking()
+                .AsSplitQuery()
+                .Include(x => x.CampaignChannelMetrics)
+                .Include(x => x.CampaignSupplierBookings)
+                .Include(x => x.CampaignDeliveryReports),
+            cancellationToken);
 
         return Ok(campaign.ToPerformanceSnapshot());
     }
@@ -365,19 +364,12 @@ public sealed class AgentCampaignsController : ControllerBase
     [HttpGet("{id:guid}/recommendation-pdf")]
     public async Task<IActionResult> DownloadRecommendationPdf(Guid id, CancellationToken cancellationToken)
     {
-        await GetCurrentOperationsUserAsync(cancellationToken);
-
-        var campaignExists = await _db.Campaigns
-            .AsNoTracking()
-            .AnyAsync(x => x.Id == id, cancellationToken);
-        if (!campaignExists)
-        {
-            return NotFound(new ProblemDetails
-            {
-                Title = "Campaign not found.",
-                Status = StatusCodes.Status404NotFound
-            });
-        }
+        var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
+        _ = await _ownershipService.GetReadableCampaignAsync(
+            id,
+            currentUser,
+            query => query.AsNoTracking(),
+            cancellationToken);
 
         try
         {

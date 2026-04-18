@@ -41,6 +41,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
     private readonly IProposalAccessTokenService _proposalAccessTokenService;
     private readonly ICampaignExecutionTaskService _campaignExecutionTaskService;
     private readonly IProspectDispositionService _prospectDispositionService;
+    private readonly IAgentCampaignOwnershipService _ownershipService;
     private readonly FormOptionsService _formOptionsService;
     private readonly FrontendOptions _frontendOptions;
     private readonly ILogger<AgentCampaignWorkflowController> _logger;
@@ -57,6 +58,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
         IProposalAccessTokenService proposalAccessTokenService,
         ICampaignExecutionTaskService campaignExecutionTaskService,
         IProspectDispositionService prospectDispositionService,
+        IAgentCampaignOwnershipService ownershipService,
         FormOptionsService formOptionsService,
         IOptions<FrontendOptions> frontendOptions,
         ILogger<AgentCampaignWorkflowController> logger)
@@ -72,6 +74,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
         _proposalAccessTokenService = proposalAccessTokenService;
         _campaignExecutionTaskService = campaignExecutionTaskService;
         _prospectDispositionService = prospectDispositionService;
+        _ownershipService = ownershipService;
         _formOptionsService = formOptionsService;
         _frontendOptions = frontendOptions.Value;
         _logger = logger;
@@ -84,9 +87,20 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
         var currentUserId = currentUser.Id;
         var agentUserId = request.AgentUserId ?? currentUserId;
 
-        var campaign = await _db.Campaigns
-            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
-            ?? throw new InvalidOperationException("Campaign not found.");
+        if (currentUser.Role == UserRole.Agent)
+        {
+            if (request.AgentUserId.HasValue && request.AgentUserId != currentUserId)
+            {
+                throw new ForbiddenException("Agents can only assign campaigns to themselves.");
+            }
+
+            agentUserId = currentUserId;
+        }
+
+        var campaign = currentUser.Role == UserRole.Agent
+            ? await _ownershipService.GetOwnedOrClaimableCampaignAsync(id, currentUser, query => query, cancellationToken)
+            : await _db.Campaigns.FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+                ?? throw new NotFoundException("Campaign not found.");
 
         campaign.AssignedAgentUserId = agentUserId;
         campaign.AssignedAt = DateTime.UtcNow;
@@ -108,10 +122,11 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
     [HttpPost("{id:guid}/unassign")]
     public async Task<IActionResult> Unassign(Guid id, CancellationToken cancellationToken)
     {
-        await GetCurrentOperationsUserAsync(cancellationToken);
-        var campaign = await _db.Campaigns
-            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
-            ?? throw new InvalidOperationException("Campaign not found.");
+        var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
+        var campaign = currentUser.Role == UserRole.Agent
+            ? await _ownershipService.GetOwnedCampaignAsync(id, currentUser, query => query, cancellationToken)
+            : await _db.Campaigns.FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+                ?? throw new NotFoundException("Campaign not found.");
 
         campaign.AssignedAgentUserId = null;
         campaign.AssignedAt = null;
@@ -133,31 +148,28 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
     public async Task<IActionResult> ConvertProspectToSale(Guid id, [FromBody] ConvertProspectToSaleRequest request, CancellationToken cancellationToken)
     {
         var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
-        var campaign = await _db.Campaigns
-            .Include(x => x.PackageOrder)
-            .Include(x => x.PackageBand)
-            .Include(x => x.User!)
-                .ThenInclude(x => x.BusinessProfile)
-            .Include(x => x.ProspectLead)
-            .Include(x => x.AssignedAgentUser)
-            .Include(x => x.CampaignBrief)
-            .Include(x => x.CampaignCreativeSystems)
-            .Include(x => x.CampaignAssets)
-            .Include(x => x.CampaignExecutionTasks)
-            .Include(x => x.CampaignSupplierBookings)
-                .ThenInclude(x => x.ProofAsset)
-            .Include(x => x.CampaignDeliveryReports)
-                .ThenInclude(x => x.EvidenceAsset)
-            .Include(x => x.CampaignPauseWindows)
-            .Include(x => x.CampaignRecommendations)
-                .ThenInclude(x => x.RecommendationItems)
-            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
-            ?? throw new InvalidOperationException("Campaign not found.");
-
-        if (currentUser.Role == UserRole.Agent && campaign.AssignedAgentUserId != currentUser.Id)
-        {
-            throw new InvalidOperationException("Only the assigned agent can convert this campaign to a sale.");
-        }
+        var campaign = await _ownershipService.GetOwnedCampaignAsync(
+            id,
+            currentUser,
+            query => query
+                .Include(x => x.PackageOrder)
+                .Include(x => x.PackageBand)
+                .Include(x => x.User!)
+                    .ThenInclude(x => x.BusinessProfile)
+                .Include(x => x.ProspectLead)
+                .Include(x => x.AssignedAgentUser)
+                .Include(x => x.CampaignBrief)
+                .Include(x => x.CampaignCreativeSystems)
+                .Include(x => x.CampaignAssets)
+                .Include(x => x.CampaignExecutionTasks)
+                .Include(x => x.CampaignSupplierBookings)
+                    .ThenInclude(x => x.ProofAsset)
+                .Include(x => x.CampaignDeliveryReports)
+                    .ThenInclude(x => x.EvidenceAsset)
+                .Include(x => x.CampaignPauseWindows)
+                .Include(x => x.CampaignRecommendations)
+                    .ThenInclude(x => x.RecommendationItems),
+            cancellationToken);
 
         if (!ProspectCampaignPolicy.IsProspectiveCampaign(campaign))
         {
@@ -224,20 +236,20 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
     [HttpPost("{id:guid}/mark-launched")]
     public async Task<IActionResult> MarkLaunched(Guid id, CancellationToken cancellationToken)
     {
-        await GetCurrentOperationsUserAsync(cancellationToken);
-        var campaign = await _db.Campaigns
-            .Include(x => x.User)
-            .Include(x => x.PackageBand)
-            .Include(x => x.PackageOrder)
-            .Include(x => x.CampaignRecommendations)
-            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
-            ?? throw new InvalidOperationException("Campaign not found.");
+        var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
+        var campaign = await _ownershipService.GetOwnedCampaignAsync(
+            id,
+            currentUser,
+            query => query
+                .Include(x => x.User)
+                .Include(x => x.PackageBand)
+                .Include(x => x.PackageOrder)
+                .Include(x => x.CampaignRecommendations),
+            cancellationToken);
 
         if (campaign.Status is CampaignStatuses.Approved
             or CampaignStatuses.CreativeChangesRequested
             or CampaignStatuses.CreativeSentToClientForApproval
-            or CampaignStatuses.CreativeApproved
-            or CampaignStatuses.BookingInProgress
             or CampaignStatuses.Launched
             || campaign.CampaignRecommendations.Any(x => string.Equals(x.Status, RecommendationStatuses.Approved, StringComparison.OrdinalIgnoreCase)))
         {
@@ -278,15 +290,17 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
     public async Task<IActionResult> SendToClient(Guid id, [FromBody] SendToClientRequest request, CancellationToken cancellationToken)
     {
         var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
-        var campaign = await _db.Campaigns
-            .Include(x => x.User)
-            .Include(x => x.ProspectLead)
-            .Include(x => x.CampaignRecommendations)
-                .ThenInclude(x => x.RecommendationItems)
-            .Include(x => x.PackageBand)
-            .Include(x => x.PackageOrder)
-            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
-            ?? throw new InvalidOperationException("Campaign not found.");
+        var campaign = await _ownershipService.GetOwnedCampaignAsync(
+            id,
+            currentUser,
+            query => query
+                .Include(x => x.User)
+                .Include(x => x.ProspectLead)
+                .Include(x => x.CampaignRecommendations)
+                    .ThenInclude(x => x.RecommendationItems)
+                .Include(x => x.PackageBand)
+                .Include(x => x.PackageOrder),
+            cancellationToken);
 
         var currentRecommendations = RecommendationRevisionSupport.GetCurrentRecommendationSet(campaign.CampaignRecommendations);
         if (currentRecommendations.Length == 0)
@@ -377,13 +391,15 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
     public async Task<IActionResult> CloseProspect(Guid id, [FromBody] CloseProspectCampaignRequest request, CancellationToken cancellationToken)
     {
         var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
-        var campaign = await _db.Campaigns
-            .Include(x => x.PackageBand)
-            .Include(x => x.PackageOrder)
-            .Include(x => x.AssignedAgentUser)
-            .Include(x => x.ProspectDispositionClosedByUser)
-            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
-            ?? throw new InvalidOperationException("Campaign not found.");
+        var campaign = await _ownershipService.GetOwnedCampaignAsync(
+            id,
+            currentUser,
+            query => query
+                .Include(x => x.PackageBand)
+                .Include(x => x.PackageOrder)
+                .Include(x => x.AssignedAgentUser)
+                .Include(x => x.ProspectDispositionClosedByUser),
+            cancellationToken);
 
         await _prospectDispositionService.CloseAsync(campaign, currentUser.Id, currentUser.Role, request.ReasonCode, request.Notes, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
@@ -413,13 +429,15 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
     public async Task<IActionResult> ReopenProspect(Guid id, CancellationToken cancellationToken)
     {
         var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
-        var campaign = await _db.Campaigns
-            .Include(x => x.PackageBand)
-            .Include(x => x.PackageOrder)
-            .Include(x => x.AssignedAgentUser)
-            .Include(x => x.ProspectDispositionClosedByUser)
-            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
-            ?? throw new InvalidOperationException("Campaign not found.");
+        var campaign = await _ownershipService.GetOwnedCampaignAsync(
+            id,
+            currentUser,
+            query => query
+                .Include(x => x.PackageBand)
+                .Include(x => x.PackageOrder)
+                .Include(x => x.AssignedAgentUser)
+                .Include(x => x.ProspectDispositionClosedByUser),
+            cancellationToken);
 
         await _prospectDispositionService.ReopenAsync(campaign, currentUser.Id, currentUser.Role, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
@@ -456,21 +474,19 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
             return BadRequest(new { Message = "Recipient email is not a valid address." });
         }
 
-        var campaign = await _db.Campaigns
-            .Include(x => x.User)
-            .Include(x => x.ProspectLead)
-            .Include(x => x.CampaignBrief)
-            .Include(x => x.AssignedAgentUser)
-            .Include(x => x.CampaignRecommendations)
-                .ThenInclude(x => x.RecommendationItems)
-            .Include(x => x.PackageBand)
-            .Include(x => x.PackageOrder)
-            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
-
-        if (campaign is null)
-        {
-            return NotFound(new { Message = "Campaign not found." });
-        }
+        var campaign = await _ownershipService.GetOwnedCampaignAsync(
+            id,
+            senderUser,
+            query => query
+                .Include(x => x.User)
+                .Include(x => x.ProspectLead)
+                .Include(x => x.CampaignBrief)
+                .Include(x => x.AssignedAgentUser)
+                .Include(x => x.CampaignRecommendations)
+                    .ThenInclude(x => x.RecommendationItems)
+                .Include(x => x.PackageBand)
+                .Include(x => x.PackageOrder),
+            cancellationToken);
 
         if (ProspectCampaignPolicy.IsClosed(campaign))
         {
@@ -677,7 +693,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
         try
         {
             await _emailService.SendAsync(
-                "campaign-launched",
+                "campaign-live",
                 campaign.ResolveClientEmail(),
                 "campaigns",
                 new Dictionary<string, string?>

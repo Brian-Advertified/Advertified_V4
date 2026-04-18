@@ -22,6 +22,7 @@ public sealed class AgentCampaignAssetsController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly ICurrentUserAccessor _currentUserAccessor;
+    private readonly IAgentCampaignOwnershipService _ownershipService;
     private readonly IPublicAssetStorage _assetStorage;
     private readonly IChangeAuditService _changeAuditService;
     private readonly ILogger<AgentCampaignAssetsController> _logger;
@@ -29,12 +30,14 @@ public sealed class AgentCampaignAssetsController : ControllerBase
     public AgentCampaignAssetsController(
         AppDbContext db,
         ICurrentUserAccessor currentUserAccessor,
+        IAgentCampaignOwnershipService ownershipService,
         IPublicAssetStorage assetStorage,
         IChangeAuditService changeAuditService,
         ILogger<AgentCampaignAssetsController> logger)
     {
         _db = db;
         _currentUserAccessor = currentUserAccessor;
+        _ownershipService = ownershipService;
         _assetStorage = assetStorage;
         _changeAuditService = changeAuditService;
         _logger = logger;
@@ -49,8 +52,11 @@ public sealed class AgentCampaignAssetsController : ControllerBase
         CancellationToken cancellationToken)
     {
         var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
-        var campaign = await _db.Campaigns.FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
-            ?? throw new InvalidOperationException("Campaign not found.");
+        var campaign = await _ownershipService.GetOwnedCampaignAsync(
+            id,
+            currentUser,
+            query => query,
+            cancellationToken);
 
         if (file.Length <= 0)
         {

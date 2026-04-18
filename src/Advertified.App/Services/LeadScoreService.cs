@@ -3,28 +3,28 @@ using Advertified.App.Data;
 using Advertified.App.Data.Entities;
 using Advertified.App.Services.Abstractions;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 
 namespace Advertified.App.Services;
 
 public sealed class LeadScoreService : ILeadScoreService
 {
     private readonly AppDbContext _db;
-    private readonly LeadScoringOptions _options;
+    private readonly LeadScoringSettingsSnapshotProvider _settingsSnapshotProvider;
     private readonly ILeadChannelDetectionService _leadChannelDetectionService;
 
     public LeadScoreService(
         AppDbContext db,
-        IOptions<LeadScoringOptions> options,
+        LeadScoringSettingsSnapshotProvider settingsSnapshotProvider,
         ILeadChannelDetectionService leadChannelDetectionService)
     {
         _db = db;
-        _options = options.Value;
+        _settingsSnapshotProvider = settingsSnapshotProvider;
         _leadChannelDetectionService = leadChannelDetectionService;
     }
 
     public async Task<LeadScoreResult> ScoreAsync(int leadId, CancellationToken cancellationToken)
     {
+        var options = _settingsSnapshotProvider.GetCurrent();
         var lead = await _db.Leads
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == leadId, cancellationToken)
@@ -54,87 +54,88 @@ public sealed class LeadScoreService : ILeadScoreService
         {
             if (latestSignal.HasPromo)
             {
-                activityScore += _options.ActivityWeights.PromoActive;
+                activityScore += options.ActivityWeights.PromoActive;
             }
 
             if (channelScores.TryGetValue("social", out var socialScore)
-                && socialScore >= _options.SignalThresholds.StrongChannelMin)
+                && socialScore >= options.SignalThresholds.StrongChannelMin)
             {
-                activityScore += _options.ActivityWeights.MetaStrong;
+                activityScore += options.ActivityWeights.MetaStrong;
             }
 
             if (latestSignal.WebsiteUpdatedRecently)
             {
-                activityScore += _options.ActivityWeights.WebsiteActive;
+                activityScore += options.ActivityWeights.WebsiteActive;
             }
 
-            var activeChannelCount = channelScores.Count(score => score.Value >= _options.SignalThresholds.ActiveChannelMin);
+            var activeChannelCount = channelScores.Count(score => score.Value >= options.SignalThresholds.ActiveChannelMin);
             if (activeChannelCount >= 2)
             {
-                activityScore += _options.ActivityWeights.MultiChannelPresence;
+                activityScore += options.ActivityWeights.MultiChannelPresence;
             }
         }
 
         activityScore = Math.Clamp(activityScore, 0, 50);
 
         var opportunityScore = 0;
-        var digitalStrong = IsChannelStrong(channelScores, "social") || IsChannelStrong(channelScores, "search");
-        var searchWeak = IsChannelWeak(channelScores, "search");
-        var oohWeak = IsChannelWeak(channelScores, "billboards_ooh");
-        var radioWeak = IsChannelWeak(channelScores, "radio");
-        var tvWeak = IsChannelWeak(channelScores, "tv");
+        var digitalStrong = IsChannelStrong(channelScores, "social", options.SignalThresholds.StrongChannelMin)
+            || IsChannelStrong(channelScores, "search", options.SignalThresholds.StrongChannelMin);
+        var searchWeak = IsChannelWeak(channelScores, "search", options.SignalThresholds.WeakChannelMax);
+        var oohWeak = IsChannelWeak(channelScores, "billboards_ooh", options.SignalThresholds.WeakChannelMax);
+        var radioWeak = IsChannelWeak(channelScores, "radio", options.SignalThresholds.WeakChannelMax);
+        var tvWeak = IsChannelWeak(channelScores, "tv", options.SignalThresholds.WeakChannelMax);
         var broadReachWeak = oohWeak && radioWeak && tvWeak;
 
         if (digitalStrong && searchWeak)
         {
-            opportunityScore += _options.OpportunityWeights.DigitalStrongButSearchWeak;
+            opportunityScore += options.OpportunityWeights.DigitalStrongButSearchWeak;
         }
 
         if (digitalStrong && oohWeak)
         {
-            opportunityScore += _options.OpportunityWeights.DigitalStrongButOohWeak;
+            opportunityScore += options.OpportunityWeights.DigitalStrongButOohWeak;
         }
 
         if (latestSignal?.HasPromo == true && broadReachWeak)
         {
-            opportunityScore += _options.OpportunityWeights.PromoHeavyButBrandPresenceWeak;
+            opportunityScore += options.OpportunityWeights.PromoHeavyButBrandPresenceWeak;
         }
 
-        var activeChannelCountForDependency = channelScores.Count(score => score.Value >= _options.SignalThresholds.ActiveChannelMin);
+        var activeChannelCountForDependency = channelScores.Count(score => score.Value >= options.SignalThresholds.ActiveChannelMin);
         if (activeChannelCountForDependency == 1)
         {
-            opportunityScore += _options.OpportunityWeights.SingleChannelDependency;
+            opportunityScore += options.OpportunityWeights.SingleChannelDependency;
         }
 
         opportunityScore = Math.Clamp(opportunityScore, 0, 50);
-        var score = Math.Clamp(_options.BaseScore + activityScore + opportunityScore, 0, 100);
+        var score = Math.Clamp(options.BaseScore + activityScore + opportunityScore, 0, 100);
 
         return new LeadScoreResult
         {
             LeadId = leadId,
             Score = score,
-            IntentLevel = ResolveIntentLevel(score)
+            IntentLevel = ResolveIntentLevel(score, options.Thresholds)
         };
     }
 
-    private bool IsChannelStrong(IReadOnlyDictionary<string, int> channelScores, string channel)
+    private static bool IsChannelStrong(IReadOnlyDictionary<string, int> channelScores, string channel, int strongChannelMin)
     {
-        return channelScores.TryGetValue(channel, out var score) && score >= _options.SignalThresholds.StrongChannelMin;
+        return channelScores.TryGetValue(channel, out var score) && score >= strongChannelMin;
     }
 
-    private bool IsChannelWeak(IReadOnlyDictionary<string, int> channelScores, string channel)
+    private static bool IsChannelWeak(IReadOnlyDictionary<string, int> channelScores, string channel, int weakChannelMax)
     {
-        return !channelScores.TryGetValue(channel, out var score) || score <= _options.SignalThresholds.WeakChannelMax;
+        return !channelScores.TryGetValue(channel, out var score) || score <= weakChannelMax;
     }
 
-    private string ResolveIntentLevel(int score)
+    private static string ResolveIntentLevel(int score, LeadIntentThresholds thresholds)
     {
-        if (score <= _options.Thresholds.LowMax)
+        if (score <= thresholds.LowMax)
         {
             return "Low";
         }
 
-        if (score <= _options.Thresholds.MediumMax)
+        if (score <= thresholds.MediumMax)
         {
             return "Medium";
         }

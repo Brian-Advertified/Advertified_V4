@@ -806,10 +806,6 @@ internal static class RecommendationOpportunityContextParser
         var campaignNotes = remainingSections.Count > 0
             ? string.Join(Environment.NewLine + Environment.NewLine, remainingSections)
             : null;
-        if (isLeadOutreach)
-        {
-            campaignNotes = null;
-        }
 
         return new RecommendationOpportunityContextParseResult(
             hasOpportunityContext

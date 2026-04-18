@@ -29,6 +29,7 @@ public sealed class AgentCampaignBriefController : ControllerBase
     private readonly ICampaignRecommendationService _campaignRecommendationService;
     private readonly ILeadProposalConfidenceGateService _leadProposalConfidenceGateService;
     private readonly ICampaignBriefInterpretationService _campaignBriefInterpretationService;
+    private readonly IAgentCampaignOwnershipService _ownershipService;
     private readonly ITemplatedEmailService _emailService;
     private readonly IChangeAuditService _changeAuditService;
     private readonly FrontendOptions _frontendOptions;
@@ -41,6 +42,7 @@ public sealed class AgentCampaignBriefController : ControllerBase
         ICampaignRecommendationService campaignRecommendationService,
         ILeadProposalConfidenceGateService leadProposalConfidenceGateService,
         ICampaignBriefInterpretationService campaignBriefInterpretationService,
+        IAgentCampaignOwnershipService ownershipService,
         ITemplatedEmailService emailService,
         IChangeAuditService changeAuditService,
         IOptions<FrontendOptions> frontendOptions,
@@ -52,6 +54,7 @@ public sealed class AgentCampaignBriefController : ControllerBase
         _campaignRecommendationService = campaignRecommendationService;
         _leadProposalConfidenceGateService = leadProposalConfidenceGateService;
         _campaignBriefInterpretationService = campaignBriefInterpretationService;
+        _ownershipService = ownershipService;
         _emailService = emailService;
         _changeAuditService = changeAuditService;
         _frontendOptions = frontendOptions.Value;
@@ -63,13 +66,16 @@ public sealed class AgentCampaignBriefController : ControllerBase
     {
         var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
         var currentUserId = currentUser.Id;
-        var campaign = await _db.Campaigns
-            .Include(x => x.PackageOrder)
-            .Include(x => x.PackageBand)
-            .Include(x => x.CampaignBrief)
-            .Include(x => x.ProspectLead)
-            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
-            ?? throw new InvalidOperationException("Campaign not found.");
+        var campaign = await _ownershipService.GetOwnedOrClaimableCampaignAsync(
+            id,
+            currentUser,
+            query => query
+                .Include(x => x.PackageOrder)
+                .Include(x => x.PackageBand)
+                .Include(x => x.CampaignBrief)
+                .Include(x => x.ProspectLead),
+            cancellationToken);
+        _ownershipService.TryClaim(campaign, currentUser, DateTime.UtcNow);
 
         var isOrderOperationallyActive = CampaignOperationsPolicy.IsOrderOperationallyActive(campaign.PackageOrder);
         if (isOrderOperationallyActive && campaign.UserId.HasValue)
@@ -152,16 +158,18 @@ public sealed class AgentCampaignBriefController : ControllerBase
     {
         var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
         var currentUserId = currentUser.Id;
-        var campaign = await _db.Campaigns
-            .Include(x => x.User)
-            .Include(x => x.PackageBand)
-            .Include(x => x.PackageOrder)
-            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
-            ?? throw new InvalidOperationException("Campaign not found.");
+        var campaign = await _ownershipService.GetOwnedOrClaimableCampaignAsync(
+            id,
+            currentUser,
+            query => query
+                .Include(x => x.User)
+                .Include(x => x.PackageBand)
+                .Include(x => x.PackageOrder),
+            cancellationToken);
 
-        campaign.AssignedAgentUserId ??= currentUserId;
-        campaign.AssignedAt ??= DateTime.UtcNow;
-        campaign.UpdatedAt = DateTime.UtcNow;
+        var now = DateTime.UtcNow;
+        _ownershipService.TryClaim(campaign, currentUser, now);
+        campaign.UpdatedAt = now;
         await _db.SaveChangesAsync(cancellationToken);
         await SendAssignmentEmailIfNeededAsync(campaign.Id, cancellationToken);
         await SendAgentWorkStartedEmailIfNeededAsync(campaign.Id, cancellationToken);
@@ -212,16 +220,22 @@ public sealed class AgentCampaignBriefController : ControllerBase
     [HttpPost("{id:guid}/interpret-brief")]
     public async Task<IActionResult> InterpretBrief(Guid id, [FromBody] InterpretCampaignBriefRequest request, CancellationToken cancellationToken)
     {
-        await GetCurrentOperationsUserAsync(cancellationToken);
+        var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
         if (string.IsNullOrWhiteSpace(request.Brief))
         {
             throw new InvalidOperationException("Campaign brief is required.");
         }
 
-        var campaign = await _db.Campaigns
-            .Include(x => x.PackageOrder)
-            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
-            ?? throw new InvalidOperationException("Campaign not found.");
+        var campaign = await _ownershipService.GetOwnedOrClaimableCampaignAsync(
+            id,
+            currentUser,
+            query => query.Include(x => x.PackageOrder),
+            cancellationToken);
+
+        if (_ownershipService.TryClaim(campaign, currentUser, DateTime.UtcNow))
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
 
         request.SelectedBudget = request.SelectedBudget > 0
             ? request.SelectedBudget

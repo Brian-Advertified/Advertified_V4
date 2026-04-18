@@ -407,7 +407,10 @@ public partial class AppDbContext
             entity.ToTable("prospect_leads");
 
             entity.HasIndex(e => e.Email, "ix_prospect_leads_email");
+            entity.HasIndex(e => e.NormalizedEmail, "ix_prospect_leads_normalized_email");
+            entity.HasIndex(e => e.NormalizedPhone, "ix_prospect_leads_normalized_phone");
             entity.HasIndex(e => e.ClaimedUserId, "ix_prospect_leads_claimed_user_id");
+            entity.HasIndex(e => e.OwnerAgentUserId, "ix_prospect_leads_owner_agent_user_id");
 
             entity.Property(e => e.Id)
                 .HasDefaultValueSql("gen_random_uuid()")
@@ -418,13 +421,20 @@ public partial class AppDbContext
             entity.Property(e => e.Email)
                 .HasMaxLength(255)
                 .HasColumnName("email");
+            entity.Property(e => e.NormalizedEmail)
+                .HasMaxLength(255)
+                .HasColumnName("normalized_email");
             entity.Property(e => e.Phone)
                 .HasMaxLength(30)
                 .HasColumnName("phone");
+            entity.Property(e => e.NormalizedPhone)
+                .HasMaxLength(30)
+                .HasColumnName("normalized_phone");
             entity.Property(e => e.Source)
                 .HasMaxLength(50)
                 .HasColumnName("source");
             entity.Property(e => e.ClaimedUserId).HasColumnName("claimed_user_id");
+            entity.Property(e => e.OwnerAgentUserId).HasColumnName("owner_agent_user_id");
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("created_at");
@@ -437,6 +447,12 @@ public partial class AppDbContext
                 .HasForeignKey(e => e.ClaimedUserId)
                 .OnDelete(DeleteBehavior.SetNull)
                 .HasConstraintName("prospect_leads_claimed_user_id_fkey");
+
+            entity.HasOne(e => e.OwnerAgentUser)
+                .WithMany()
+                .HasForeignKey(e => e.OwnerAgentUserId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("prospect_leads_owner_agent_user_id_fkey");
         });
 
         modelBuilder.Entity<IdentityProfile>(entity =>
@@ -1409,6 +1425,7 @@ public partial class AppDbContext
         });
 
         modelBuilder.ConfigureLeadIndustryPolicies();
+        modelBuilder.ConfigureLeadIntelligenceSettings();
         modelBuilder.ConfigureAiPlatformPersistence();
     }
 }

@@ -13,6 +13,11 @@ import {
   AgentSummaryCard,
   buildTasks,
 } from './agentSectionShared';
+import {
+  buildAgentCampaignQueueHref,
+  buildAgentMessagesHref,
+  buildQueueFiltersForInboxItem,
+} from './agentCampaignQueueFilters';
 
 function shorten(value: string, maxLength: number) {
   const trimmed = value.trim();
@@ -36,10 +41,34 @@ export function AgentDashboardPage() {
             .slice(0, 4);
           const recentItems = inbox.items.slice(0, 5);
           const todayList = [
-            { label: 'New leads', value: inbox.newlyPaidCount, helper: 'Campaigns that need first contact.' },
-            { label: 'Needs review', value: inbox.agentReviewCount, helper: 'Recommendation work waiting on you.' },
-            { label: 'Waiting on client', value: inbox.waitingOnClientCount, helper: 'Sent work with no final client response yet.' },
-            { label: 'Budget issues', value: inbox.overBudgetCount, helper: 'Campaigns that need setup changes before progress.' },
+            {
+              label: 'New leads',
+              value: inbox.newlyPaidCount,
+              helper: 'Campaigns that need first contact.',
+              href: buildAgentCampaignQueueHref({ stage: 'ready_to_work', ownership: 'all', focus: 'newly_paid' }),
+              actionLabel: 'Open new leads',
+            },
+            {
+              label: 'Needs review',
+              value: inbox.agentReviewCount + inbox.manualReviewCount,
+              helper: 'Recommendation work waiting on you.',
+              href: buildAgentCampaignQueueHref({ stage: 'ready_to_work', ownership: 'all', focus: 'needs_review' }),
+              actionLabel: 'Open review queue',
+            },
+            {
+              label: 'Waiting on client',
+              value: inbox.waitingOnClientCount,
+              helper: 'Sent work with no final client response yet.',
+              href: buildAgentCampaignQueueHref({ stage: 'waiting_on_client', ownership: 'all' }),
+              actionLabel: 'Open client replies',
+            },
+            {
+              label: 'Budget issues',
+              value: inbox.overBudgetCount,
+              helper: 'Campaigns that need setup changes before progress.',
+              href: buildAgentCampaignQueueHref({ stage: 'all', ownership: 'all', focus: 'budget_issues' }),
+              actionLabel: 'Open budget issues',
+            },
           ];
           const supportLinks = [
             { label: 'Campaign queue', href: '/agent/campaigns', helper: 'Open the full work queue.', icon: FolderKanban },
@@ -63,7 +92,14 @@ export function AgentDashboardPage() {
 
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 {todayList.map((item) => (
-                  <AgentSummaryCard key={item.label} label={item.label} value={item.value} helper={item.helper} />
+                  <AgentSummaryCard
+                    key={item.label}
+                    label={item.label}
+                    value={item.value}
+                    helper={item.helper}
+                    href={item.href}
+                    actionLabel={item.actionLabel}
+                  />
                 ))}
               </div>
 
@@ -81,10 +117,27 @@ export function AgentDashboardPage() {
                         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
-                              {item.isUrgent ? <span className="pill border-rose-200 bg-rose-50 text-rose-700">Urgent</span> : null}
-                              {item.manualReviewRequired ? <span className="pill border-amber-200 bg-amber-50 text-amber-700">Needs review</span> : null}
-                              {item.isOverBudget ? <span className="pill border-rose-200 bg-rose-50 text-rose-700">Over budget</span> : null}
-                              <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${queueTone(item.queueStage)}`}>{item.queueLabel}</span>
+                              {item.isUrgent ? (
+                                <Link to={buildAgentCampaignQueueHref({ stage: 'all', ownership: 'all', focus: 'urgent' })} className="pill border-rose-200 bg-rose-50 text-rose-700 transition hover:border-rose-300 hover:bg-rose-100">
+                                  Urgent
+                                </Link>
+                              ) : null}
+                              {item.manualReviewRequired ? (
+                                <Link to={buildAgentCampaignQueueHref({ stage: 'ready_to_work', ownership: 'all', focus: 'needs_review' })} className="pill border-amber-200 bg-amber-50 text-amber-700 transition hover:border-amber-300 hover:bg-amber-100">
+                                  Needs review
+                                </Link>
+                              ) : null}
+                              {item.isOverBudget ? (
+                                <Link to={buildAgentCampaignQueueHref({ stage: 'all', ownership: 'all', focus: 'budget_issues' })} className="pill border-rose-200 bg-rose-50 text-rose-700 transition hover:border-rose-300 hover:bg-rose-100">
+                                  Over budget
+                                </Link>
+                              ) : null}
+                              <Link
+                                to={buildAgentCampaignQueueHref(buildQueueFiltersForInboxItem(item))}
+                                className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold transition hover:-translate-y-0.5 ${queueTone(item.queueStage)}`}
+                              >
+                                {item.queueLabel}
+                              </Link>
                             </div>
                             <h3 className="mt-3 text-base font-semibold text-ink">{item.campaignName}</h3>
                             <p className="mt-1 text-sm text-ink-soft">{item.clientName} | {fmtCurrency(item.selectedBudget)}</p>
@@ -95,7 +148,7 @@ export function AgentDashboardPage() {
                             <Link to={`/agent/campaigns/${item.id}`} className="button-primary px-4 py-2 text-sm font-semibold">
                               Open
                             </Link>
-                            <Link to="/agent/messages" className="button-secondary px-4 py-2 text-sm font-semibold">
+                            <Link to={buildAgentMessagesHref(item.id)} className="button-secondary px-4 py-2 text-sm font-semibold">
                               Message
                             </Link>
                           </div>
@@ -141,13 +194,13 @@ export function AgentDashboardPage() {
                       <p className="text-sm font-semibold text-ink">Recent work</p>
                       <div className="mt-3 space-y-3">
                         {recentItems.length > 0 ? recentItems.map((item) => (
-                          <div key={item.id} className="flex items-start justify-between gap-3 rounded-2xl border border-line bg-white px-3 py-3">
+                          <Link key={item.id} to={`/agent/campaigns/${item.id}`} className="flex items-start justify-between gap-3 rounded-2xl border border-line bg-white px-3 py-3 transition hover:border-brand/30 hover:bg-brand-soft/10">
                             <div className="min-w-0">
                               <p className="truncate text-sm font-medium text-ink">{item.campaignName}</p>
                               <p className="mt-1 text-xs text-ink-soft">{item.clientName}</p>
                             </div>
                             <span className={`inline-flex rounded-full border px-3 py-1 text-[11px] font-semibold ${queueTone(item.queueStage)}`}>{item.queueLabel}</span>
-                          </div>
+                          </Link>
                         )) : (
                           <p className="text-sm text-ink-soft">No recent campaign work yet.</p>
                         )}

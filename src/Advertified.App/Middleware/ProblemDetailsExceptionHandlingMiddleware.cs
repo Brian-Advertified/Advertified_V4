@@ -69,6 +69,12 @@ public sealed class ProblemDetailsExceptionHandlingMiddleware
             return true;
         }
 
+        if (exception is ConflictException conflict)
+        {
+            problem = BuildProblem(StatusCodes.Status409Conflict, "Conflict.", conflict.Message);
+            return true;
+        }
+
         if (exception is NotFoundException notFound)
         {
             problem = BuildProblem(StatusCodes.Status404NotFound, "Resource not found.", notFound.Message);

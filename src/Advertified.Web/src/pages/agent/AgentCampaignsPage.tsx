@@ -1,7 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, Eye, Pencil, Search, UserPlus2, UserX2, WalletCards } from 'lucide-react';
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useToast } from '../../components/ui/toast';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import {
@@ -18,10 +17,21 @@ import {
   AgentSectionIntro,
   AgentSummaryCard,
 } from './agentSectionShared';
+import {
+  buildAgentCampaignQueueHref,
+  buildAgentMessagesHref,
+  buildQueueFiltersForInboxItem,
+  matchesCampaignOwnership,
+  matchesCampaignQueueFocus,
+  matchesCampaignQueueStage,
+  parseAgentCampaignQueueFilters,
+  toAgentCampaignQueueSearchParams,
+  type AgentCampaignQueueFilters,
+  type CampaignOwnershipFilter,
+  type CampaignQueueFocusFilter,
+  type CampaignQueueStageFilter,
+} from './agentCampaignQueueFilters';
 import { pushAgentMutationError } from './agentMutationToast';
-
-type QueueStageFilter = 'all' | 'ready_to_work' | 'waiting_on_client' | 'prospects' | 'completed';
-type OwnershipFilter = 'all' | 'assigned_to_me' | 'unassigned';
 
 function formatBuildSource(planningMode?: 'ai_assisted' | 'agent_assisted' | 'hybrid') {
   switch (planningMode) {
@@ -84,12 +94,12 @@ function getOwnershipLabel(campaign: Awaited<ReturnType<typeof advertifiedApi.ge
 }
 
 export function AgentCampaignsPage() {
-  const [search, setSearch] = useState('');
-  const [stageFilter, setStageFilter] = useState<QueueStageFilter>('ready_to_work');
-  const [ownershipFilter, setOwnershipFilter] = useState<OwnershipFilter>('assigned_to_me');
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { pushToast } = useToast();
   const inboxQuery = useAgentInboxQuery();
+  const queueFilters = parseAgentCampaignQueueFilters(searchParams);
+  const { search, stage: stageFilter, ownership: ownershipFilter, focus: focusFilter } = queueFilters;
   const assignMutation = useMutation({
     mutationFn: (campaignId: string) => advertifiedApi.assignCampaignToMe(campaignId),
     onSuccess: async () => {
@@ -132,6 +142,15 @@ export function AgentCampaignsPage() {
     });
   };
 
+  const updateQueueFilters = (overrides: Partial<AgentCampaignQueueFilters>) => {
+    const nextFilters: AgentCampaignQueueFilters = {
+      ...queueFilters,
+      ...overrides,
+    };
+
+    setSearchParams(toAgentCampaignQueueSearchParams(nextFilters), { replace: true });
+  };
+
   return (
     <AgentQueryBoundary query={inboxQuery} loadingLabel="Loading agent inbox...">
       <AgentPageShell title="Campaigns" description="Use the main queue to find the next campaign, understand the next step, and act quickly.">
@@ -142,26 +161,30 @@ export function AgentCampaignsPage() {
           }
 
           const queueTabs = [
-            { id: 'ready_to_work' as const, label: 'Ready to work', count: inbox.newlyPaidCount + inbox.briefWaitingCount + inbox.planningReadyCount + inbox.agentReviewCount },
-            { id: 'waiting_on_client' as const, label: 'Waiting on client', count: inbox.waitingOnClientCount },
-            { id: 'prospects' as const, label: 'Prospects', count: inbox.items.filter((item) => item.status === 'awaiting_purchase').length },
-            { id: 'completed' as const, label: 'Completed', count: inbox.completedCount },
-            { id: 'all' as const, label: 'All', count: inbox.totalCampaigns },
+            { id: 'ready_to_work' as const satisfies CampaignQueueStageFilter, label: 'Ready to work', count: inbox.newlyPaidCount + inbox.briefWaitingCount + inbox.planningReadyCount + inbox.agentReviewCount },
+            { id: 'waiting_on_client' as const satisfies CampaignQueueStageFilter, label: 'Waiting on client', count: inbox.waitingOnClientCount },
+            { id: 'prospects' as const satisfies CampaignQueueStageFilter, label: 'Prospects', count: inbox.items.filter((item) => item.status === 'awaiting_purchase').length },
+            { id: 'completed' as const satisfies CampaignQueueStageFilter, label: 'Completed', count: inbox.completedCount },
+            { id: 'all' as const satisfies CampaignQueueStageFilter, label: 'All', count: inbox.totalCampaigns },
+          ];
+          const focusTabs = [
+            { id: 'all' as const satisfies CampaignQueueFocusFilter, label: 'All actions', count: inbox.totalCampaigns },
+            { id: 'urgent' as const satisfies CampaignQueueFocusFilter, label: 'Urgent', count: inbox.urgentCount },
+            { id: 'newly_paid' as const satisfies CampaignQueueFocusFilter, label: 'New leads', count: inbox.newlyPaidCount },
+            { id: 'brief_waiting' as const satisfies CampaignQueueFocusFilter, label: 'Need brief', count: inbox.briefWaitingCount },
+            { id: 'planning_ready' as const satisfies CampaignQueueFocusFilter, label: 'Planning ready', count: inbox.planningReadyCount },
+            { id: 'needs_review' as const satisfies CampaignQueueFocusFilter, label: 'Needs review', count: inbox.agentReviewCount + inbox.manualReviewCount },
+            { id: 'budget_issues' as const satisfies CampaignQueueFocusFilter, label: 'Budget issues', count: inbox.overBudgetCount },
           ];
 
           const campaigns = inbox.items.filter((item) => {
             const matchesSearch = `${item.campaignName} ${item.packageBandName} ${item.clientName} ${item.clientEmail}`
               .toLowerCase()
               .includes(search.toLowerCase());
-            const matchesStage = stageFilter === 'all'
-              || (stageFilter === 'ready_to_work' && ['newly_paid', 'brief_waiting', 'planning_ready', 'agent_review'].includes(item.queueStage))
-              || (stageFilter === 'prospects' && item.status === 'awaiting_purchase')
-              || item.queueStage === stageFilter;
-            const matchesOwnership = ownershipFilter === 'all'
-              || (ownershipFilter === 'assigned_to_me' && item.isAssignedToCurrentUser)
-              || (ownershipFilter === 'unassigned' && item.isUnassigned);
-
-            return matchesSearch && matchesStage && matchesOwnership;
+            return matchesSearch
+              && matchesCampaignQueueStage(item, stageFilter)
+              && matchesCampaignOwnership(item, ownershipFilter)
+              && matchesCampaignQueueFocus(item, focusFilter);
           });
 
           return (
@@ -175,7 +198,7 @@ export function AgentCampaignsPage() {
                     <Search className="absolute left-4 top-1/2 size-4 -translate-y-1/2 text-ink-soft" />
                     <input
                       value={search}
-                      onChange={(event) => setSearch(event.target.value)}
+                      onChange={(event) => updateQueueFilters({ search: event.target.value })}
                       className="input-base min-w-[280px] pl-11"
                       placeholder="Search campaign, client, or package"
                     />
@@ -184,10 +207,34 @@ export function AgentCampaignsPage() {
               />
 
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <AgentSummaryCard label="Ready to work" value={inbox.newlyPaidCount + inbox.briefWaitingCount + inbox.planningReadyCount + inbox.agentReviewCount} helper="Items that can move today." />
-                <AgentSummaryCard label="Needs review" value={inbox.agentReviewCount + inbox.manualReviewCount} helper="Recommendation or operator review required." />
-                <AgentSummaryCard label="Waiting on client" value={inbox.waitingOnClientCount} helper="Sent work with no final answer yet." />
-                <AgentSummaryCard label="All campaigns" value={inbox.totalCampaigns} helper="Every campaign in the live queue." />
+                <AgentSummaryCard
+                  label="Ready to work"
+                  value={inbox.newlyPaidCount + inbox.briefWaitingCount + inbox.planningReadyCount + inbox.agentReviewCount}
+                  helper="Items that can move today."
+                  href={buildAgentCampaignQueueHref({ stage: 'ready_to_work', ownership: 'all' })}
+                  actionLabel="Open ready queue"
+                />
+                <AgentSummaryCard
+                  label="Needs review"
+                  value={inbox.agentReviewCount + inbox.manualReviewCount}
+                  helper="Recommendation or operator review required."
+                  href={buildAgentCampaignQueueHref({ stage: 'ready_to_work', ownership: 'all', focus: 'needs_review' })}
+                  actionLabel="Open reviews"
+                />
+                <AgentSummaryCard
+                  label="Waiting on client"
+                  value={inbox.waitingOnClientCount}
+                  helper="Sent work with no final answer yet."
+                  href={buildAgentCampaignQueueHref({ stage: 'waiting_on_client', ownership: 'all' })}
+                  actionLabel="Open client replies"
+                />
+                <AgentSummaryCard
+                  label="All campaigns"
+                  value={inbox.totalCampaigns}
+                  helper="Every campaign in the live queue."
+                  href={buildAgentCampaignQueueHref({ stage: 'all', ownership: 'all' })}
+                  actionLabel="Open full queue"
+                />
               </div>
 
               <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -205,9 +252,29 @@ export function AgentCampaignsPage() {
                           <button
                             key={tab.id}
                             type="button"
-                            onClick={() => setStageFilter(tab.id)}
+                            onClick={() => updateQueueFilters({ stage: tab.id })}
                             className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
                               stageFilter === tab.id
+                                ? 'border-brand bg-brand text-white'
+                                : 'border-line bg-white text-ink-soft'
+                            }`}
+                          >
+                            {tab.label} ({tab.count})
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-soft">Action focus</p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {focusTabs.map((tab) => (
+                          <button
+                            key={tab.id}
+                            type="button"
+                            onClick={() => updateQueueFilters({ focus: tab.id })}
+                            className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                              focusFilter === tab.id
                                 ? 'border-brand bg-brand text-white'
                                 : 'border-line bg-white text-ink-soft'
                             }`}
@@ -222,14 +289,14 @@ export function AgentCampaignsPage() {
                       <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-soft">Ownership</p>
                       <div className="mt-3 flex flex-wrap gap-2">
                         {[
-                          { label: `Mine (${inbox.assignedToMeCount})`, id: 'assigned_to_me' as const },
-                          { label: `Unassigned (${inbox.unassignedCount})`, id: 'unassigned' as const },
-                          { label: `All (${inbox.totalCampaigns})`, id: 'all' as const },
+                          { label: `Mine (${inbox.assignedToMeCount})`, id: 'assigned_to_me' as const satisfies CampaignOwnershipFilter },
+                          { label: `Unassigned (${inbox.unassignedCount})`, id: 'unassigned' as const satisfies CampaignOwnershipFilter },
+                          { label: `All (${inbox.totalCampaigns})`, id: 'all' as const satisfies CampaignOwnershipFilter },
                         ].map((filter) => (
                           <button
                             key={filter.id}
                             type="button"
-                            onClick={() => setOwnershipFilter(filter.id)}
+                            onClick={() => updateQueueFilters({ ownership: filter.id })}
                             className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
                               ownershipFilter === filter.id
                                 ? 'border-brand bg-brand text-white'
@@ -251,11 +318,28 @@ export function AgentCampaignsPage() {
                             <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                               <div className="min-w-0 flex-1">
                                 <div className="flex flex-wrap items-center gap-2">
-                                  <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${queueTone(campaign.queueStage)}`}>{campaign.queueLabel}</span>
+                                  <Link
+                                    to={buildAgentCampaignQueueHref(buildQueueFiltersForInboxItem(campaign))}
+                                    className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold transition hover:-translate-y-0.5 ${queueTone(campaign.queueStage)}`}
+                                  >
+                                    {campaign.queueLabel}
+                                  </Link>
                                   <span className="pill bg-white text-ink-soft">{getOwnershipLabel(campaign)}</span>
-                                  {campaign.isUrgent ? <span className="pill border-rose-200 bg-rose-50 text-rose-700">Urgent</span> : null}
-                                  {campaign.manualReviewRequired ? <span className="pill border-amber-200 bg-amber-50 text-amber-700">Manual review</span> : null}
-                                  {campaign.isOverBudget ? <span className="pill border-rose-200 bg-rose-50 text-rose-700">Over budget</span> : null}
+                                  {campaign.isUrgent ? (
+                                    <Link to={buildAgentCampaignQueueHref({ stage: 'all', ownership: 'all', focus: 'urgent' })} className="pill border-rose-200 bg-rose-50 text-rose-700 transition hover:border-rose-300 hover:bg-rose-100">
+                                      Urgent
+                                    </Link>
+                                  ) : null}
+                                  {campaign.manualReviewRequired ? (
+                                    <Link to={buildAgentCampaignQueueHref({ stage: 'ready_to_work', ownership: 'all', focus: 'needs_review' })} className="pill border-amber-200 bg-amber-50 text-amber-700 transition hover:border-amber-300 hover:bg-amber-100">
+                                      Manual review
+                                    </Link>
+                                  ) : null}
+                                  {campaign.isOverBudget ? (
+                                    <Link to={buildAgentCampaignQueueHref({ stage: 'all', ownership: 'all', focus: 'budget_issues' })} className="pill border-rose-200 bg-rose-50 text-rose-700 transition hover:border-rose-300 hover:bg-rose-100">
+                                      Over budget
+                                    </Link>
+                                  ) : null}
                                 </div>
 
                                 <h3 className="mt-3 text-lg font-semibold text-ink">{campaign.campaignName}</h3>
@@ -285,6 +369,9 @@ export function AgentCampaignsPage() {
                                 <Link to={`/agent/campaigns/${campaign.id}`} className="button-secondary inline-flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold">
                                   View campaign
                                   <Eye className="size-4" />
+                                </Link>
+                                <Link to={buildAgentMessagesHref(campaign.id)} className="button-secondary inline-flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold">
+                                  Message client
                                 </Link>
                                 <div className="flex flex-wrap gap-2 xl:justify-end">
                                   <Link to={`/agent/recommendations/new?campaignId=${campaign.id}`} className="button-secondary p-2" title={`Edit ${campaign.campaignName}`}>

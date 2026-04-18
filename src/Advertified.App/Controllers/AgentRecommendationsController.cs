@@ -18,17 +18,20 @@ public sealed class AgentRecommendationsController : ControllerBase
     private const string ClientFeedbackMarker = "Client feedback:";
     private readonly AppDbContext _db;
     private readonly ICurrentUserAccessor _currentUserAccessor;
+    private readonly IAgentCampaignOwnershipService _ownershipService;
     private readonly IChangeAuditService _changeAuditService;
     private readonly ILogger<AgentRecommendationsController> _logger;
 
     public AgentRecommendationsController(
         AppDbContext db,
         ICurrentUserAccessor currentUserAccessor,
+        IAgentCampaignOwnershipService ownershipService,
         IChangeAuditService changeAuditService,
         ILogger<AgentRecommendationsController> logger)
     {
         _db = db;
         _currentUserAccessor = currentUserAccessor;
+        _ownershipService = ownershipService;
         _changeAuditService = changeAuditService;
         _logger = logger;
     }
@@ -36,13 +39,16 @@ public sealed class AgentRecommendationsController : ControllerBase
     [HttpPost("/agent/campaigns/{campaignId:guid}/recommendations")]
     public async Task<IActionResult> Create(Guid campaignId, [FromBody] AgentRecommendationRequest request, CancellationToken cancellationToken)
     {
-        var currentUserId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
+        var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
+        var currentUserId = currentUser.Id;
 
-        var campaign = await _db.Campaigns
-            .Include(x => x.CampaignRecommendations)
-                .ThenInclude(x => x.RecommendationItems)
-            .FirstOrDefaultAsync(x => x.Id == campaignId, cancellationToken)
-            ?? throw new InvalidOperationException("Campaign not found.");
+        var campaign = await _ownershipService.GetOwnedCampaignAsync(
+            campaignId,
+            currentUser,
+            query => query
+                .Include(x => x.CampaignRecommendations)
+                    .ThenInclude(x => x.RecommendationItems),
+            cancellationToken);
 
         if (campaign.Status is CampaignStatuses.Approved
             or CampaignStatuses.CreativeChangesRequested
@@ -108,17 +114,21 @@ public sealed class AgentRecommendationsController : ControllerBase
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
     {
+        var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
         var recommendation = await _db.CampaignRecommendations
             .Include(x => x.RecommendationItems)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw new InvalidOperationException("Recommendation not found.");
+        var campaign = await _ownershipService.GetOwnedCampaignAsync(
+            recommendation.CampaignId,
+            currentUser,
+            query => query,
+            cancellationToken);
 
         if (!string.Equals(recommendation.Status, RecommendationStatuses.Draft, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException("Only draft recommendations can be deleted.");
         }
-
-        var campaign = await _db.Campaigns.FirstOrDefaultAsync(x => x.Id == recommendation.CampaignId, cancellationToken);
 
         _db.RecommendationItems.RemoveRange(recommendation.RecommendationItems);
         _db.CampaignRecommendations.Remove(recommendation);
@@ -143,9 +153,15 @@ public sealed class AgentRecommendationsController : ControllerBase
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateRecommendationRequest request, CancellationToken cancellationToken)
     {
+        var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
         var recommendation = await _db.CampaignRecommendations
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw new InvalidOperationException("Recommendation not found.");
+        _ = await _ownershipService.GetOwnedCampaignAsync(
+            recommendation.CampaignId,
+            currentUser,
+            query => query,
+            cancellationToken);
 
         if (!string.Equals(recommendation.Status, RecommendationStatuses.Draft, StringComparison.OrdinalIgnoreCase))
         {
@@ -233,6 +249,23 @@ public sealed class AgentRecommendationsController : ControllerBase
     {
         var currentUserId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
         await _changeAuditService.WriteAsync(currentUserId, "agent", action, "recommendation", entityId, entityLabel, summary, metadata, cancellationToken);
+    }
+
+    private async Task<Data.Entities.UserAccount> GetCurrentOperationsUserAsync(CancellationToken cancellationToken)
+    {
+        var currentUserId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
+        var currentUser = await _db.UserAccounts.FirstOrDefaultAsync(x => x.Id == currentUserId, cancellationToken);
+        if (currentUser is null)
+        {
+            throw new InvalidOperationException("Authenticated user account could not be found.");
+        }
+
+        if (currentUser.Role is not Data.Enums.UserRole.Agent and not Data.Enums.UserRole.Admin and not Data.Enums.UserRole.CreativeDirector)
+        {
+            throw new ForbiddenException("Agent, creative director, or admin access is required.");
+        }
+
+        return currentUser;
     }
 
     private static string ResolveCampaignLabel(Data.Entities.Campaign? campaign)

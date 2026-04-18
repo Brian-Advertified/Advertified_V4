@@ -11,11 +11,17 @@ public class ProspectLead
 
     public string Email { get; set; } = null!;
 
+    public string NormalizedEmail { get; set; } = null!;
+
     public string Phone { get; set; } = null!;
+
+    public string NormalizedPhone { get; set; } = null!;
 
     public string Source { get; set; } = null!;
 
     public Guid? ClaimedUserId { get; set; }
+
+    public Guid? OwnerAgentUserId { get; set; }
 
     public DateTime CreatedAt { get; set; }
 
@@ -24,6 +30,8 @@ public class ProspectLead
     public virtual ICollection<Campaign> Campaigns { get; set; } = new List<Campaign>();
 
     public virtual UserAccount? ClaimedUser { get; set; }
+
+    public virtual UserAccount? OwnerAgentUser { get; set; }
 
     public virtual ICollection<PackageOrder> PackageOrders { get; set; } = new List<PackageOrder>();
 }

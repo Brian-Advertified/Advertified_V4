@@ -28,6 +28,15 @@ public class ForbiddenException : Exception
 }
 
 /// <summary>
+/// Exception that should result in HTTP 409 Conflict
+/// </summary>
+public class ConflictException : Exception
+{
+    public ConflictException(string message) : base(message) { }
+    public ConflictException(string message, Exception innerException) : base(message, innerException) { }
+}
+
+/// <summary>
 /// Exception that should result in HTTP 404 Not Found
 /// </summary>
 public class NotFoundException : Exception

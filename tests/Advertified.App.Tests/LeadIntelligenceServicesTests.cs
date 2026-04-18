@@ -191,7 +191,7 @@ public class LeadScoreServiceTests
 
         var service = new LeadScoreService(
             db,
-            Options.Create(new LeadScoringOptions
+            new LeadScoringSettingsSnapshotProvider(new LeadScoringOptions
             {
                 BaseScore = 0,
                 ActivityWeights = new LeadActivityScoringWeights
@@ -226,6 +226,77 @@ public class LeadScoreServiceTests
 
         result.Score.Should().Be(45);
         result.IntentLevel.Should().Be("Medium");
+    }
+}
+
+public class LeadScoringSettingsSnapshotProviderTests
+{
+    [Fact]
+    public void GetCurrent_UsesFallbackValuesWhenNoDatabaseSourceIsAvailable()
+    {
+        var provider = new LeadScoringSettingsSnapshotProvider(new LeadScoringOptions
+        {
+            BaseScore = 5,
+            ActivityWeights = new LeadActivityScoringWeights
+            {
+                PromoActive = 11,
+                MetaStrong = 22,
+                WebsiteActive = 7,
+                MultiChannelPresence = 3
+            },
+            OpportunityWeights = new LeadOpportunityScoringWeights
+            {
+                DigitalStrongButSearchWeak = 14,
+                DigitalStrongButOohWeak = 13,
+                PromoHeavyButBrandPresenceWeak = 9,
+                SingleChannelDependency = 8
+            },
+            SignalThresholds = new LeadScoringSignalThresholds
+            {
+                StrongChannelMin = 65,
+                WeakChannelMax = 35,
+                ActiveChannelMin = 45
+            },
+            Thresholds = new LeadIntentThresholds
+            {
+                LowMax = 25,
+                MediumMax = 55
+            }
+        });
+
+        var snapshot = provider.GetCurrent();
+
+        snapshot.BaseScore.Should().Be(5);
+        snapshot.ActivityWeights.MetaStrong.Should().Be(22);
+        snapshot.OpportunityWeights.DigitalStrongButOohWeak.Should().Be(13);
+        snapshot.SignalThresholds.ActiveChannelMin.Should().Be(45);
+        snapshot.Thresholds.MediumMax.Should().Be(55);
+    }
+}
+
+public class LeadIntelligenceAutomationSnapshotProviderTests
+{
+    [Fact]
+    public void GetCurrent_UsesFallbackValuesWhenNoDatabaseSourceIsAvailable()
+    {
+        var provider = new LeadIntelligenceAutomationSnapshotProvider(new LeadIntelligenceAutomationOptions
+        {
+            Enabled = true,
+            RefreshIntervalMinutes = 30,
+            BatchSize = 42,
+            RunOnStartup = true,
+            EnablePaidMediaEvidenceSync = true,
+            PaidMediaSyncIntervalMinutes = 90
+        });
+
+        var snapshot = provider.GetCurrent();
+
+        snapshot.Enabled.Should().BeTrue();
+        snapshot.RefreshIntervalMinutes.Should().Be(30);
+        snapshot.BatchSize.Should().Be(42);
+        snapshot.RunOnStartup.Should().BeTrue();
+        snapshot.EnablePaidMediaEvidenceSync.Should().BeTrue();
+        snapshot.PaidMediaSyncIntervalMinutes.Should().Be(90);
     }
 }
 
@@ -1262,12 +1333,17 @@ sealed class TierRecoveryMediaPlanningEngineStub : IMediaPlanningEngine
 
     private static decimal ResolveTotal(CampaignPlanningRequest request)
     {
-        if (request.TargetOohShare == 60 && request.MaxMediaItems.HasValue)
+        var oohDominantMix = request.TargetOohShare.HasValue
+            && request.TargetOohShare.Value > (request.TargetRadioShare ?? 0)
+            && request.TargetOohShare.Value > (request.TargetDigitalShare ?? 0)
+            && request.TargetOohShare.Value > (request.TargetTvShare ?? 0);
+
+        if (oohDominantMix && request.MaxMediaItems.HasValue)
         {
             return 18_480m;
         }
 
-        if (request.TargetOohShare == 60 && !request.MaxMediaItems.HasValue)
+        if (oohDominantMix && !request.MaxMediaItems.HasValue)
         {
             return 55_000m;
         }

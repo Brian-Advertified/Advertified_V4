@@ -1295,6 +1295,10 @@ textarea {
     padding: 10px 14px;
     font-size: 0.95rem;
   }
+
+  button.user-btn {
+    width: 100%;
+  }
 }
 
 .user-split {

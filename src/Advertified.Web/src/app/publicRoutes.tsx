@@ -1,25 +1,28 @@
 import { Navigate } from 'react-router-dom';
 import { ProtectedRoute } from '../components/ui/ProtectedRoute';
 import { publicAiStudioEnabled } from '../lib/featureFlags';
-import type { AppRoute } from './routeUtils';
-import { HomePage } from '../pages/public/HomePage';
-import { RegisterPage } from '../pages/public/RegisterPage';
-import { LoginPage } from '../pages/public/LoginPage';
-import { VerifyEmailPage } from '../pages/public/VerifyEmailPage';
-import { SetPasswordPage } from '../pages/public/SetPasswordPage';
-import { PackagesPage } from '../pages/public/PackagesPage';
-import { HowItWorksPage } from '../pages/public/HowItWorksPage';
-import { AboutUsPage } from '../pages/public/AboutUsPage';
-import { AiStudioPage } from '../pages/public/AiStudioPage';
-import { FaqPage } from '../pages/public/FaqPage';
-import { MediaPartnersPage } from '../pages/public/MediaPartnersPage';
-import { PartnerEnquiryPage } from '../pages/public/PartnerEnquiryPage';
-import { PaymentSelectionPage } from '../pages/public/PaymentSelectionPage';
-import { CheckoutConfirmationPage } from '../pages/public/CheckoutConfirmationPage';
-import { ProposalEntryPage } from '../pages/public/ProposalEntryPage';
-import { LeadProposalEntryPage } from '../pages/public/LeadProposalEntryPage';
-import { ProspectQuestionnairePage } from '../pages/public/ProspectQuestionnairePage';
-import { PrivacyPolicyPage, CookiePolicyPage, TermsPage } from '../pages/public/LegalPages';
+import { lazyPage, type AppRoute } from './routeUtils';
+
+const HomePage = lazyPage(() => import('../pages/public/HomePage'), 'HomePage');
+const RegisterPage = lazyPage(() => import('../pages/public/RegisterPage'), 'RegisterPage');
+const LoginPage = lazyPage(() => import('../pages/public/LoginPage'), 'LoginPage');
+const VerifyEmailPage = lazyPage(() => import('../pages/public/VerifyEmailPage'), 'VerifyEmailPage');
+const SetPasswordPage = lazyPage(() => import('../pages/public/SetPasswordPage'), 'SetPasswordPage');
+const PackagesPage = lazyPage(() => import('../pages/public/PackagesPage'), 'PackagesPage');
+const HowItWorksPage = lazyPage(() => import('../pages/public/HowItWorksPage'), 'HowItWorksPage');
+const AboutUsPage = lazyPage(() => import('../pages/public/AboutUsPage'), 'AboutUsPage');
+const AiStudioPage = lazyPage(() => import('../pages/public/AiStudioPage'), 'AiStudioPage');
+const FaqPage = lazyPage(() => import('../pages/public/FaqPage'), 'FaqPage');
+const MediaPartnersPage = lazyPage(() => import('../pages/public/MediaPartnersPage'), 'MediaPartnersPage');
+const PartnerEnquiryPage = lazyPage(() => import('../pages/public/PartnerEnquiryPage'), 'PartnerEnquiryPage');
+const PaymentSelectionPage = lazyPage(() => import('../pages/public/PaymentSelectionPage'), 'PaymentSelectionPage');
+const CheckoutConfirmationPage = lazyPage(() => import('../pages/public/CheckoutConfirmationPage'), 'CheckoutConfirmationPage');
+const ProposalEntryPage = lazyPage(() => import('../pages/public/ProposalEntryPage'), 'ProposalEntryPage');
+const LeadProposalEntryPage = lazyPage(() => import('../pages/public/LeadProposalEntryPage'), 'LeadProposalEntryPage');
+const ProspectQuestionnairePage = lazyPage(() => import('../pages/public/ProspectQuestionnairePage'), 'ProspectQuestionnairePage');
+const PrivacyPolicyPage = lazyPage(() => import('../pages/public/LegalPages'), 'PrivacyPolicyPage');
+const CookiePolicyPage = lazyPage(() => import('../pages/public/LegalPages'), 'CookiePolicyPage');
+const TermsPage = lazyPage(() => import('../pages/public/LegalPages'), 'TermsPage');
 
 export const publicRoutes: AppRoute[] = [
   { path: '/', element: <HomePage /> },

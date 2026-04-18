@@ -22,18 +22,24 @@ public sealed class AgentProspectsController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly ICurrentUserAccessor _currentUserAccessor;
+    private readonly IAgentCampaignOwnershipService _ownershipService;
     private readonly IChangeAuditService _changeAuditService;
+    private readonly IProspectLeadRegistrationService _prospectLeadRegistrationService;
     private readonly ILogger<AgentProspectsController> _logger;
 
     public AgentProspectsController(
         AppDbContext db,
         ICurrentUserAccessor currentUserAccessor,
+        IAgentCampaignOwnershipService ownershipService,
         IChangeAuditService changeAuditService,
+        IProspectLeadRegistrationService prospectLeadRegistrationService,
         ILogger<AgentProspectsController> logger)
     {
         _db = db;
         _currentUserAccessor = currentUserAccessor;
+        _ownershipService = ownershipService;
         _changeAuditService = changeAuditService;
+        _prospectLeadRegistrationService = prospectLeadRegistrationService;
         _logger = logger;
     }
 
@@ -44,7 +50,7 @@ public sealed class AgentProspectsController : ControllerBase
         var currentUserId = currentUser.Id;
 
         var fullName = request.FullName?.Trim() ?? string.Empty;
-        var email = (request.Email?.Trim() ?? string.Empty).ToLowerInvariant();
+        var email = ProspectLeadContactNormalizer.NormalizeEmail(request.Email);
         var phone = request.Phone?.Trim() ?? string.Empty;
         if (string.IsNullOrWhiteSpace(fullName))
         {
@@ -66,31 +72,14 @@ public sealed class AgentProspectsController : ControllerBase
             ?? throw new NotFoundException("Package band not found.");
         var selectedBudget = ResolveProspectBudget(packageBand);
 
-        var lead = await _db.ProspectLeads
-            .FirstOrDefaultAsync(x => x.Email == email, cancellationToken);
-
-        var createdNewLead = false;
-        if (lead is null)
-        {
-            lead = new ProspectLead
-            {
-                Id = Guid.NewGuid(),
-                FullName = fullName,
-                Email = email,
-                Phone = phone,
-                Source = "agent_prospect",
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-            _db.ProspectLeads.Add(lead);
-            createdNewLead = true;
-        }
-        else
-        {
-            lead.FullName = fullName;
-            lead.Phone = phone;
-            lead.UpdatedAt = DateTime.UtcNow;
-        }
+        var leadResult = await _prospectLeadRegistrationService.UpsertAgentLeadAsync(
+            currentUserId,
+            fullName,
+            email,
+            phone,
+            "agent_prospect",
+            cancellationToken);
+        var lead = leadResult.Lead;
 
         var now = DateTime.UtcNow;
         var packageOrder = new PackageOrder
@@ -147,7 +136,7 @@ public sealed class AgentProspectsController : ControllerBase
                 ProspectEmail = email,
                 PackageBand = packageBand.Name,
                 SelectedBudget = selectedBudget,
-                CreatedNewLead = createdNewLead
+                CreatedNewLead = leadResult.CreatedNewLead
             },
             cancellationToken);
 
@@ -251,18 +240,15 @@ public sealed class AgentProspectsController : ControllerBase
     public async Task<IActionResult> UpdateProspectPricing(Guid id, [FromBody] UpdateProspectPricingRequest request, CancellationToken cancellationToken)
     {
         var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
-        var campaign = await _db.Campaigns
-            .Include(x => x.PackageOrder)
-            .Include(x => x.PackageBand)
-            .Include(x => x.User)
-            .Include(x => x.ProspectLead)
-            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
-            ?? throw new InvalidOperationException("Campaign not found.");
-
-        if (currentUser.Role == UserRole.Agent && campaign.AssignedAgentUserId != currentUser.Id)
-        {
-            throw new InvalidOperationException("Only the assigned agent can update this prospect campaign.");
-        }
+        var campaign = await _ownershipService.GetOwnedCampaignAsync(
+            id,
+            currentUser,
+            query => query
+                .Include(x => x.PackageOrder)
+                .Include(x => x.PackageBand)
+                .Include(x => x.User)
+                .Include(x => x.ProspectLead),
+            cancellationToken);
 
         if (!ProspectCampaignPolicy.IsProspectiveCampaign(campaign))
         {

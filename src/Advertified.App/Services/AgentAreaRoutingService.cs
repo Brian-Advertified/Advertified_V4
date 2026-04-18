@@ -114,24 +114,32 @@ public sealed class AgentAreaRoutingService : IAgentAreaRoutingService
             left join region_cluster_mappings rcm on rcm.cluster_id = rc.id
             where pap.is_active = true;";
 
-        var connection = _db.Database.GetDbConnection();
-        var shouldClose = connection.State != ConnectionState.Open;
-        if (shouldClose)
-        {
-            await connection.OpenAsync(cancellationToken);
-        }
-
         try
         {
-            var rows = await connection.QueryAsync<TerritoryRow>(new CommandDefinition(sql, cancellationToken: cancellationToken));
-            return rows.ToArray();
-        }
-        finally
-        {
+            var connection = _db.Database.GetDbConnection();
+            var shouldClose = connection.State != ConnectionState.Open;
             if (shouldClose)
             {
-                await connection.CloseAsync();
+                await connection.OpenAsync(cancellationToken);
             }
+
+            try
+            {
+                var rows = await connection.QueryAsync<TerritoryRow>(new CommandDefinition(sql, cancellationToken: cancellationToken));
+                return rows.ToArray();
+            }
+            finally
+            {
+                if (shouldClose)
+                {
+                    await connection.CloseAsync();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Agent area routing metadata could not be loaded. Automatic campaign assignment will be skipped.");
+            return Array.Empty<TerritoryRow>();
         }
     }
 

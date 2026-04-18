@@ -22,6 +22,7 @@ public sealed class AgentCampaignBookingsController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly ICurrentUserAccessor _currentUserAccessor;
+    private readonly IAgentCampaignOwnershipService _ownershipService;
     private readonly ITemplatedEmailService _emailService;
     private readonly IChangeAuditService _changeAuditService;
     private readonly ILogger<AgentCampaignBookingsController> _logger;
@@ -29,12 +30,14 @@ public sealed class AgentCampaignBookingsController : ControllerBase
     public AgentCampaignBookingsController(
         AppDbContext db,
         ICurrentUserAccessor currentUserAccessor,
+        IAgentCampaignOwnershipService ownershipService,
         ITemplatedEmailService emailService,
         IChangeAuditService changeAuditService,
         ILogger<AgentCampaignBookingsController> logger)
     {
         _db = db;
         _currentUserAccessor = currentUserAccessor;
+        _ownershipService = ownershipService;
         _emailService = emailService;
         _changeAuditService = changeAuditService;
         _logger = logger;
@@ -44,12 +47,14 @@ public sealed class AgentCampaignBookingsController : ControllerBase
     public async Task<IActionResult> SaveSupplierBooking(Guid id, [FromBody] SaveCampaignSupplierBookingRequest request, CancellationToken cancellationToken)
     {
         var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
-        var campaign = await _db.Campaigns
-            .Include(x => x.User!)
-            .Include(x => x.PackageBand)
-            .Include(x => x.PackageOrder)
-            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
-            ?? throw new InvalidOperationException("Campaign not found.");
+        var campaign = await _ownershipService.GetOwnedCampaignAsync(
+            id,
+            currentUser,
+            query => query
+                .Include(x => x.User!)
+                .Include(x => x.PackageBand)
+                .Include(x => x.PackageOrder),
+            cancellationToken);
 
         if (string.IsNullOrWhiteSpace(request.SupplierOrStation) || string.IsNullOrWhiteSpace(request.Channel))
         {
@@ -106,12 +111,14 @@ public sealed class AgentCampaignBookingsController : ControllerBase
     public async Task<IActionResult> SaveDeliveryReport(Guid id, [FromBody] SaveCampaignDeliveryReportRequest request, CancellationToken cancellationToken)
     {
         var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
-        var campaign = await _db.Campaigns
-            .Include(x => x.User!)
-            .Include(x => x.PackageBand)
-            .Include(x => x.PackageOrder)
-            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
-            ?? throw new InvalidOperationException("Campaign not found.");
+        var campaign = await _ownershipService.GetOwnedCampaignAsync(
+            id,
+            currentUser,
+            query => query
+                .Include(x => x.User!)
+                .Include(x => x.PackageBand)
+                .Include(x => x.PackageOrder),
+            cancellationToken);
 
         if (string.IsNullOrWhiteSpace(request.ReportType) || string.IsNullOrWhiteSpace(request.Headline))
         {
@@ -214,7 +221,7 @@ public sealed class AgentCampaignBookingsController : ControllerBase
         try
         {
             await _emailService.SendAsync(
-                "supplier-booking-confirmation",
+                "campaign-booking-confirmed",
                 campaignUser.Email,
                 "campaigns",
                 new Dictionary<string, string?>
@@ -241,7 +248,7 @@ public sealed class AgentCampaignBookingsController : ControllerBase
         try
         {
             await _emailService.SendAsync(
-                "delivery-report-confirmation",
+                "campaign-report-available",
                 campaignUser.Email,
                 "campaigns",
                 new Dictionary<string, string?>
