@@ -160,7 +160,7 @@ public sealed class LeadEnrichmentSnapshotService : ILeadEnrichmentSnapshotServi
 
         if (strongest is null || strongest.Score <= 19)
         {
-            return CreateUnknownField("channel_activity", "Channel activity", true);
+            return CreateUnknownField("channel_activity", "Channel activity", false);
         }
 
         var confidence = strongest.Score >= 80 ? "detected" : "inferred";
@@ -172,7 +172,7 @@ public sealed class LeadEnrichmentSnapshotService : ILeadEnrichmentSnapshotServi
             confidence: confidence,
             source: "channel_detection",
             reason: strongest.DominantReason,
-            required: true);
+            required: false);
     }
 
     private LeadEnrichmentField BuildLanguageField(Lead lead, IReadOnlyList<LeadSignalEvidence> evidences)

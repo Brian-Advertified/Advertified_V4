@@ -53,7 +53,7 @@ public class LeadProposalConfidenceGateServiceTests
             Name = "Solo Shoes",
             Website = "soloshoes.co.za",
             Location = "Johannesburg",
-            Category = "Retail",
+            Category = string.Empty,
             CreatedAt = DateTime.UtcNow.AddDays(-3)
         });
 
@@ -68,6 +68,72 @@ public class LeadProposalConfidenceGateServiceTests
 
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("*Recommendation halted. Missing required confidence fields*");
+    }
+
+    [Fact]
+    public async Task EnsureCampaignReadyAsync_AllowsLeadCampaignWithoutChannelActivity_WhenLocationAndIndustryExist()
+    {
+        await using var db = LeadIntelligenceTestHelpers.CreateDbContext();
+        var campaignId = Guid.NewGuid();
+        const int leadId = 7022;
+        var now = DateTime.UtcNow;
+
+        db.Leads.Add(new Lead
+        {
+            Id = leadId,
+            Name = "Solo Shoes",
+            Website = "soloshoes.co.za",
+            Location = "Johannesburg",
+            Category = "Retail",
+            CreatedAt = now.AddDays(-3)
+        });
+
+        const int signalId = 8801;
+        const long locationEvidenceId = 99001;
+        const long industryEvidenceId = 99002;
+        db.Signals.Add(new Signal
+        {
+            Id = signalId,
+            LeadId = leadId,
+            CreatedAt = now.AddHours(-2)
+        });
+
+        db.LeadSignalEvidences.AddRange(
+            new LeadSignalEvidence
+            {
+                Id = locationEvidenceId,
+                LeadId = leadId,
+                SignalId = signalId,
+                Channel = "website",
+                SignalType = "google_business_profile_location",
+                Source = "google_business_profile",
+                Value = "Johannesburg",
+                ObservedAt = now.AddHours(-2),
+                CreatedAt = now.AddHours(-2)
+            },
+            new LeadSignalEvidence
+            {
+                Id = industryEvidenceId,
+                LeadId = leadId,
+                SignalId = signalId,
+                Channel = "website",
+                SignalType = "google_business_profile_category",
+                Source = "google_business_profile",
+                Value = "Retail",
+                ObservedAt = now.AddHours(-2),
+                CreatedAt = now.AddHours(-2)
+            });
+
+        await SeedCampaignAsync(
+            db,
+            campaignId,
+            specialRequirements: $"Lead source id: {leadId}\n\nLead intelligence summary:\nSignals found.");
+
+        var service = CreateService(db);
+
+        var act = async () => await service.EnsureCampaignReadyAsync(campaignId, CancellationToken.None);
+
+        await act.Should().NotThrowAsync();
     }
 
     private static LeadProposalConfidenceGateService CreateService(AppDbContext db)

@@ -26,7 +26,7 @@ public class LeadEnrichmentSnapshotServiceTests
 
         snapshot.ConfidenceGate.IsBlocked.Should().BeTrue();
         snapshot.ConfidenceGate.MissingRequiredFields.Should().BeEquivalentTo(
-            new[] { "Location", "Industry", "Channel activity" });
+            new[] { "Location", "Industry" });
         snapshot.MissingFields.Should().Contain(new[] { "Location", "Industry", "Channel activity" });
         snapshot.ConfidenceScore.Should().Be(0m);
     }
@@ -128,7 +128,7 @@ public class LeadEnrichmentSnapshotServiceTests
             Confidence = "detected",
             Source = "channel_detection",
             Reason = "Strong search signal evidence.",
-            Required = true
+            Required = false
         });
     }
 
