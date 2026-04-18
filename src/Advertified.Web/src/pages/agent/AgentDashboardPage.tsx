@@ -1,4 +1,4 @@
-import { ArrowRight, FolderKanban, MessageSquareText, UserRoundSearch } from 'lucide-react';
+import { FolderKanban, MessageSquareText, UserRoundSearch } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import {
   AgentPageShell,
@@ -8,7 +8,6 @@ import {
   useAgentInboxQuery,
 } from './agentWorkspace';
 import {
-  AgentPageLead,
   AgentSectionIntro,
   AgentSummaryCard,
   buildTasks,
@@ -78,18 +77,6 @@ export function AgentDashboardPage() {
 
           return (
             <section className="space-y-6">
-              <AgentPageLead
-                eyebrow="Dashboard"
-                title="One summary strip, one work queue, one support panel."
-                description="This page is the simple starting point for the day. Check what needs action, open the next campaign, and move on without hunting through extra screens."
-                aside={(
-                  <Link to="/agent/campaigns" className="button-primary inline-flex items-center gap-2 rounded-full px-4 py-3 text-sm font-semibold">
-                    Open campaign queue
-                    <ArrowRight className="size-4" />
-                  </Link>
-                )}
-              />
-
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 {todayList.map((item) => (
                   <AgentSummaryCard

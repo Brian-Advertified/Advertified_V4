@@ -9,29 +9,23 @@ export function AgentCampaignQueueSidebar({
   visibleCampaignCount: number;
 }) {
   return (
-    <div className="space-y-4">
-      <AgentInsightCard
-        eyebrow="Queue health"
-        title="Keep the shared queue safe and moving."
-        description="Use the queue first, then open deeper workflow screens only when the campaign needs extra context."
-        tone="soft"
-      >
-        <AgentDetailStack
-          items={[
-            { label: 'Visible now', value: visibleCampaignCount },
-            { label: 'Urgent', value: inbox.urgentCount },
-            { label: 'Unassigned', value: inbox.unassignedCount },
-            { label: 'Waiting on client', value: inbox.waitingOnClientCount },
-            { label: 'Stale', value: inbox.staleCount },
-          ]}
-        />
-      </AgentInsightCard>
+    <AgentInsightCard
+      eyebrow="Queue support"
+      title="Keep the queue moving without extra screens."
+      description="Use this page to handle ownership, urgency, and the next action before opening the full campaign when you need deeper context."
+      tone="soft"
+    >
+      <AgentDetailStack
+        items={[
+          { label: 'Visible now', value: visibleCampaignCount },
+          { label: 'Urgent', value: inbox.urgentCount },
+          { label: 'Unassigned', value: inbox.unassignedCount },
+          { label: 'Waiting on client', value: inbox.waitingOnClientCount },
+          { label: 'Stale', value: inbox.staleCount },
+        ]}
+      />
 
-      <AgentInsightCard
-        eyebrow="Operating rhythm"
-        title="Minimal queue handling guide"
-        description="A clean front door helps avoid missed ownership, stalled work, and duplicate follow-up."
-      >
+      <div className="mt-5 space-y-3">
         <div className="space-y-3">
           {[
             'Handle urgent, over-budget, and review-blocked items first.',
@@ -44,7 +38,7 @@ export function AgentCampaignQueueSidebar({
             </div>
           ))}
         </div>
-      </AgentInsightCard>
-    </div>
+      </div>
+    </AgentInsightCard>
   );
 }

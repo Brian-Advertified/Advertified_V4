@@ -46,6 +46,7 @@ import { invalidateAgentCampaignQueries, queryKeys } from '../../lib/queryKeys';
 import { formatCurrency, formatDate, titleCase } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import type { RecommendationItem, SelectedPlanInventoryItem, SelectOption } from '../../types/domain';
+import { AgentPageShell } from './agentWorkspace';
 import { pushAgentMutationError } from './agentMutationToast';
 
 type DisplayPlanItem = SelectedPlanInventoryItem | RecommendationItem;
@@ -906,10 +907,14 @@ export function AgentCampaignDetailPage() {
   }
 
   return (
-    <section className="page-shell space-y-8">
-      {saveMutation.isPending || sendMutation.isPending || resendEmailMutation.isPending || assignMutation.isPending || unassignMutation.isPending || regenerateMutation.isPending || markLiveMutation.isPending || closeProspectMutation.isPending || reopenProspectMutation.isPending ? (
-        <ProcessingOverlay
-          label={
+    <AgentPageShell
+      title={campaign.campaignName}
+      description="Review the campaign, move the next action forward, and keep recommendation and execution work in one controlled workspace."
+    >
+      <section className="space-y-8">
+        {saveMutation.isPending || sendMutation.isPending || resendEmailMutation.isPending || assignMutation.isPending || unassignMutation.isPending || regenerateMutation.isPending || markLiveMutation.isPending || closeProspectMutation.isPending || reopenProspectMutation.isPending ? (
+          <ProcessingOverlay
+            label={
             sendMutation.isPending
               ? 'Sending recommendation to the client...'
               : resendEmailMutation.isPending
@@ -1353,6 +1358,7 @@ export function AgentCampaignDetailPage() {
           />
         </div>
       </div>
-    </section>
+      </section>
+    </AgentPageShell>
   );
 }
