@@ -185,7 +185,7 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
         return new RecommendationProposalDocumentModel
         {
             Label = label,
-            Strategy = $"{strategy} This campaign can be launched using our buy now, pay later structure.",
+            Strategy = strategy,
             AcceptUrl = BuildProposalUrl(campaignId, recommendation.Id),
             Summary = recommendation.Summary ?? string.Empty,
             Rationale = RemoveInternalMarkers(recommendation.Rationale),

@@ -262,8 +262,9 @@ internal static class RecommendationPdfGenerator
             {
                 row.RelativeItem().Column(col =>
                 {
-                    col.Spacing(2);
-                    col.Item().Text($"{proposal.Label} - {ToClientCopy(proposal.Strategy ?? "Recommendation option")}").FontSize(18).SemiBold();
+                    col.Spacing(3);
+                    col.Item().Text(proposal.Label).FontSize(10).SemiBold().LetterSpacing(1.0f).FontColor(ColorMuted);
+                    col.Item().Text(ToClientCopy(proposal.Strategy ?? "Recommendation option")).FontSize(18).SemiBold();
                     col.Item().Text(BuildProposalSubheading(model, proposal)).FontSize(10).FontColor(ColorMuted);
                 });
                 row.ConstantItem(130).AlignRight().Text(FormatCurrency(proposal.TotalCost)).FontSize(18).SemiBold().FontColor(ColorGreen);
