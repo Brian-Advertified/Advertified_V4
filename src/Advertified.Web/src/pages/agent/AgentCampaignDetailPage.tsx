@@ -1,10 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  BrainCircuit,
-  Building2,
   CircleCheckBig,
   Download,
-  MessageSquareQuote,
   RotateCcw,
   Send,
   UserPlus2,
@@ -17,7 +14,6 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { ProcessingOverlay } from '../../components/ui/ProcessingOverlay';
 import { useToast } from '../../components/ui/toast';
-import { AgentStepper } from '../../components/agent/AgentStepper';
 import {
   type BudgetConstraintContext,
   buildAudienceSummary,
@@ -36,6 +32,7 @@ import {
   normalizeChannelKey,
 } from '../../features/agent/agentCampaignDetailUtils';
 import { AgentBookingPanel } from '../../features/agent/components/AgentBookingPanel';
+import { AgentCampaignWorkspaceOverview } from '../../features/agent/components/AgentCampaignWorkspaceOverview';
 import { AgentDeliveryReportPanel } from '../../features/agent/components/AgentDeliveryReportPanel';
 import { AgentInventorySelectionModal } from '../../features/agent/components/AgentInventorySelectionModal';
 import { AgentOpsAssetsPanel } from '../../features/agent/components/AgentOpsAssetsPanel';
@@ -613,6 +610,52 @@ export function AgentCampaignDetailPage() {
     prospectDispositionReasonsQuery.data,
     campaign.prospectDisposition?.reasonCode,
   );
+  const auditSummary = activeRecommendation?.audit
+    ? {
+      request: activeRecommendation.audit.requestSummary,
+      selected: activeRecommendation.audit.selectionSummary,
+      rejected: activeRecommendation.audit.rejectionSummary,
+      policy: activeRecommendation.audit.policySummary,
+      budget: activeRecommendation.audit.budgetSummary,
+      fallback: activeRecommendation.audit.fallbackSummary
+        ?? (activeRecommendation.fallbackFlags.length > 0
+          ? activeRecommendation.fallbackFlags.map(formatFallbackFlag).join(' ')
+          : activeRecommendation.manualReviewRequired
+            ? 'Manual review was required for this recommendation.'
+            : undefined),
+    }
+    : (activeRecommendation?.fallbackFlags.length || activeRecommendation?.manualReviewRequired)
+      ? {
+        request: originalPrompt,
+        selected: activeRecommendation?.summary ?? 'Recommendation selected.',
+        rejected: 'Detailed rejection traces are not available for this recommendation.',
+        policy: activeRecommendation.manualReviewRequired
+          ? 'Manual review safeguards were triggered during planning.'
+          : 'No special policy overrides were required.',
+        budget: selectedPackageBand
+          ? `${formatCurrency(effectivePlannedTotal)} inside ${formatPackageRange(selectedPackageBand.minBudget, selectedPackageBand.maxBudget)}.`
+          : `${formatCurrency(effectivePlannedTotal)} against ${formatCurrency(campaign.selectedBudget)}.`,
+        fallback: activeRecommendation.fallbackFlags.length > 0
+          ? activeRecommendation.fallbackFlags.map(formatFallbackFlag).join(' ')
+          : 'No fallback conditions were recorded.',
+      }
+      : null;
+  const proposalBudgetUsed = (() => {
+    const denominator = selectedPackageBand?.maxBudget ?? campaign.selectedBudget;
+    if (denominator <= 0) {
+      return '0%';
+    }
+
+    return `${Math.round((effectivePlannedTotal / denominator) * 100)}%`;
+  })();
+  const overviewOwnershipLabel = campaign.isAssignedToCurrentUser
+    ? 'Assigned to you'
+    : campaign.isUnassigned
+      ? 'Unassigned'
+      : `Assigned to ${campaign.assignedAgentName ?? 'another agent'}`;
+  const proposalChannelsSummary = groupedTotals.length > 0
+    ? groupedTotals.map((entry) => formatChannelLabel(entry.channel)).join(' · ')
+    : channelSummary;
 
   async function handleDownloadRecommendationPdf() {
     const pdfUrl = campaign?.recommendationPdfUrl;
@@ -888,33 +931,6 @@ export function AgentCampaignDetailPage() {
         />
       ) : null}
 
-      <div className="panel border-brand/10 bg-white/80 px-6 py-6 sm:px-8">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <div className="hero-kicker">Agent review workspace</div>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-ink">{campaign.campaignName}</h1>
-            <p className="mt-3 max-w-3xl text-sm leading-7 text-ink-soft">
-              User expresses intent, AI drafts the direction, and the agent validates and elevates the final recommendation.
-            </p>
-          </div>
-          <div className="rounded-[20px] border border-line bg-slate-50 px-4 py-4 text-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Ownership</p>
-            <p className="mt-2 font-semibold text-ink">
-              {campaign.isAssignedToCurrentUser
-                ? 'Assigned to you'
-                : campaign.isUnassigned
-                  ? 'Unassigned'
-                  : `Assigned to ${campaign.assignedAgentName ?? 'another agent'}`}
-            </p>
-            <p className="mt-2 leading-7 text-ink-soft">{campaign.nextAction}</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="panel border-brand/10 bg-white/80 px-6 py-6 sm:px-8">
-        <AgentStepper campaign={campaign} />
-      </div>
-
       {isClosedProspect ? (
         <div className="panel border-rose-200 bg-rose-50/80 px-6 py-5 sm:px-8">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-rose-700">Prospect closed</p>
@@ -929,132 +945,213 @@ export function AgentCampaignDetailPage() {
         </div>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-[360px_1fr] xl:grid-cols-[380px_1fr]">
-        <div className="space-y-5 lg:sticky lg:top-24 lg:self-start">
-          <div className="panel px-5 py-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ink-soft">Order</p>
-            <h2 className="mt-3 text-xl font-semibold text-ink">{campaign.packageBandName}</h2>
-            <p className="mt-2 text-sm text-ink-soft">
-              {selectedPackageBand
-                ? `Package range: ${formatPackageRange(selectedPackageBand.minBudget, selectedPackageBand.maxBudget)}`
-                : `Package target: ${formatCurrency(campaign.selectedBudget)}`}
-            </p>
-            {activeRecommendation ? (
-              <p className="mt-2 text-sm font-semibold text-ink">{activeProposalLabel}: {formatCurrency(effectivePlannedTotal)}</p>
-            ) : null}
-            <div className="mt-4 inline-flex rounded-full bg-brand-soft px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-brand">
-              {statusLabel}
-            </div>
-          </div>
-
-          {isProspectiveCampaign && campaign.isAssignedToCurrentUser && !isClosedProspect ? (
-            <div className="panel px-5 py-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ink-soft">Prospect pricing</p>
-              <p className="mt-2 text-sm leading-7 text-ink-soft">
-                If this prospect was captured on the wrong package band, update it here before conversion.
-              </p>
-              <div className="mt-4 space-y-3">
-                <label className="block">
-                  <span className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Package band</span>
-                  <select
-                    value={prospectPackageBandId}
-                    onChange={(event) => setProspectPackageBandState({ campaignId: campaign.id, packageBandId: event.target.value })}
-                    className="input-base mt-2"
-                  >
-                    <option value="">Select package</option>
-                    {(packagesQuery.data ?? []).map((item) => (
-                      <option key={item.id} value={item.id}>{item.name}</option>
-                    ))}
-                  </select>
-                </label>
-                <p className="text-xs text-ink-soft">
-                  The budget is now derived automatically from the selected package band.
-                </p>
+      <div className="space-y-6">
+        <AgentCampaignWorkspaceOverview
+          campaignName={campaign.campaignName}
+          ownershipLabel={overviewOwnershipLabel}
+          whatToDo={lockedNextStep}
+          timeline={campaign.timeline}
+          proposal={{
+            title: activeProposalLabel,
+            statusLabel: statusLabel,
+            packageName: campaign.packageBandName,
+            value: formatCurrency(effectivePlannedTotal),
+            budgetUsed: proposalBudgetUsed,
+            channels: proposalChannelsSummary,
+          }}
+          primaryActions={(
+            <>
+              {campaign.recommendationPdfUrl ? (
                 <button
                   type="button"
-                  disabled={updateProspectPricingMutation.isPending}
-                  onClick={handleUpdateProspectPricing}
-                  className="button-primary inline-flex w-full items-center justify-center gap-2 px-4 py-2 disabled:opacity-60"
+                  onClick={() => void handleDownloadRecommendationPdf()}
+                  className="button-primary inline-flex items-center gap-2 px-5 py-3"
                 >
-                  {updateProspectPricingMutation.isPending ? 'Updating...' : 'Update package'}
+                  <Download className="size-4" />
+                  Preview client PDF
                 </button>
-              </div>
+              ) : null}
+              {canResendProposalEmail && !isClosedProspect ? (
+                <button
+                  type="button"
+                  disabled={resendEmailMutation.isPending}
+                  onClick={() => setResendEmailOpen((open) => !open)}
+                  className="button-secondary inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60"
+                >
+                  <Send className="size-4" />
+                  Resend email
+                </button>
+              ) : null}
+              {!recommendationWorkflowLocked ? (
+                <button
+                  type="button"
+                  disabled={sendMutation.isPending || isOverBudget || !hasSendableProposal || !hasOohRecommendation}
+                  onClick={handleSendToClient}
+                  className="button-secondary inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60"
+                >
+                  <Send className="size-4" />
+                  Send to client
+                </button>
+              ) : null}
+              {!isProspectiveCampaign && !recommendationWorkflowLocked ? (
+                <button
+                  type="button"
+                  disabled={saveMutation.isPending || !canEditDraftRecommendation || draftApprovalCaptured || !hasOohRecommendation}
+                  onClick={() => void handleApproveRecommendation()}
+                  className="button-secondary inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60"
+                >
+                  <CircleCheckBig className="size-4" />
+                  {draftApprovalCaptured ? 'Draft finalized' : 'Finalize draft'}
+                </button>
+              ) : null}
+              {canMarkLive ? (
+                <button
+                  type="button"
+                  disabled={markLiveMutation.isPending}
+                  onClick={() => markLiveMutation.mutate()}
+                  className="button-secondary inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60"
+                >
+                  <CircleCheckBig className="size-4" />
+                  Mark campaign live
+                </button>
+              ) : null}
+            </>
+          )}
+          clientSummary={(
+            <div className="space-y-2">
+              <p className="text-lg font-semibold text-ink">{campaign.businessName ?? campaign.clientName ?? 'Client account'}</p>
+              <p className="text-sm text-ink-soft">{campaign.industry ?? 'Industry not captured'} · {geoSummary}</p>
+              <p className="text-sm leading-7 text-ink-soft">{clientNotes}</p>
             </div>
-          ) : null}
-
-          <div className="panel px-5 py-5">
-            <div className="flex items-start gap-3">
-              <div className="rounded-2xl bg-brand-soft p-3 text-brand">
-                <Building2 className="size-4" />
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ink-soft">Client</p>
-                <p className="mt-3 text-lg font-semibold text-ink">{campaign.businessName ?? campaign.clientName ?? 'Client account'}</p>
-                <p className="mt-2 text-sm text-ink-soft">{campaign.industry ?? 'Industry not captured'} | {geoSummary}</p>
-                <p className="mt-2 line-clamp-4 text-sm text-ink-soft">{clientNotes}</p>
-              </div>
+          )}
+          aiSummary={(
+            <div className="space-y-2 text-sm text-ink">
+              <p><span className="font-semibold">Objective:</span> {campaign.brief?.objective ?? 'Not set'}</p>
+              <p><span className="font-semibold">Audience:</span> {audienceSummary}</p>
+              <p><span className="font-semibold">Geo:</span> {geoSummary}</p>
+              <p><span className="font-semibold">Resolved target:</span> {effectivePlanningTarget?.label ?? 'Not resolved yet'}</p>
+              <p><span className="font-semibold">Target precision:</span> {effectivePlanningTarget?.precision ?? 'Unknown'}</p>
+              <p><span className="font-semibold">Target source:</span> {effectivePlanningTarget?.source ?? 'Not resolved yet'}</p>
+              {planningTargetCoords ? <p><span className="font-semibold">Coordinates:</span> {planningTargetCoords}</p> : null}
+              <p><span className="font-semibold">Channels:</span> {channelSummary}</p>
+              <p><span className="font-semibold">Tone:</span> {toneSummary}</p>
+              <p><span className="font-semibold">Confidence:</span> {confidenceScore.toFixed(2)}</p>
             </div>
-          </div>
-
-          <div className="panel px-5 py-5">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-3">
-                <div className="rounded-2xl bg-brand-soft p-3 text-brand">
-                  <BrainCircuit className="size-4" />
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ink-soft">AI inputs</p>
-                  <div className="mt-3 space-y-1.5 text-sm text-ink">
-                    <p><span className="font-semibold">Objective:</span> {campaign.brief?.objective ?? 'Not set'}</p>
-                    <p><span className="font-semibold">Audience:</span> {audienceSummary}</p>
-                    <p><span className="font-semibold">Geo:</span> {geoSummary}</p>
-                    <p><span className="font-semibold">Resolved target:</span> {effectivePlanningTarget?.label ?? 'Not resolved yet'}</p>
-                    <p><span className="font-semibold">Target precision:</span> {effectivePlanningTarget?.precision ?? 'Unknown'}</p>
-                    <p><span className="font-semibold">Target source:</span> {effectivePlanningTarget?.source ?? 'Not resolved yet'}</p>
-                    {planningTargetCoords ? <p><span className="font-semibold">Coordinates:</span> {planningTargetCoords}</p> : null}
-                    <p><span className="font-semibold">Channels:</span> {channelSummary}</p>
-                    <p><span className="font-semibold">Tone:</span> {toneSummary}</p>
-                    <p><span className="font-semibold">Confidence:</span> {confidenceScore.toFixed(2)}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-            {!recommendationWorkflowLocked ? (
-              <Link to={`/agent/recommendations/new?campaignId=${campaign.id}`} className="button-secondary mt-4 inline-flex px-4 py-2">
-                Edit inputs
-              </Link>
-            ) : (
-              <p className="mt-4 text-sm leading-6 text-ink-soft">
-                Inputs are locked here because the recommendation phase is complete.
-              </p>
-            )}
-          </div>
-
-          {showAiStudioHandoff ? (
-            <div className="panel px-5 py-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ink-soft">Campaign timeline</p>
-              <div className="mt-3 space-y-2 text-sm text-ink">
-                <p><span className="font-semibold">Planned start:</span> {plannedStartLabel}</p>
-                <p><span className="font-semibold">Planned end:</span> {plannedEndLabel}</p>
-                <p><span className="font-semibold">Duration:</span> {campaign.brief?.durationWeeks ? `${campaign.brief.durationWeeks} week(s)` : 'Not set'}</p>
-                {campaign.daysLeft != null ? <p><span className="font-semibold">Days left:</span> {campaign.daysLeft}</p> : null}
-                {campaign.effectiveEndDate ? <p><span className="font-semibold">Current end date:</span> {effectiveEndLabel}</p> : null}
-              </div>
-            </div>
-          ) : null}
-
-          <div className="panel px-5 py-5">
-            <div className="flex items-start gap-3">
-              <div className="rounded-2xl bg-brand-soft p-3 text-brand">
-                <MessageSquareQuote className="size-4" />
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ink-soft">User prompt</p>
+          )}
+          campaignDetailsExtra={(
+            <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+              <div className="rounded-[24px] border border-line bg-white px-5 py-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">User prompt</p>
                 <p className="mt-3 text-sm leading-7 text-ink">{originalPrompt}</p>
+                {!recommendationWorkflowLocked ? (
+                  <Link to={`/agent/recommendations/new?campaignId=${campaign.id}`} className="button-secondary mt-4 inline-flex px-4 py-2">
+                    Edit inputs
+                  </Link>
+                ) : (
+                  <p className="mt-4 text-sm leading-6 text-ink-soft">
+                    Inputs are locked here because the recommendation phase is complete.
+                  </p>
+                )}
+              </div>
+              <div className="space-y-4">
+                {showAiStudioHandoff ? (
+                  <div className="rounded-[24px] border border-line bg-white px-5 py-5">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Campaign timeline</p>
+                    <div className="mt-3 space-y-2 text-sm text-ink">
+                      <p><span className="font-semibold">Planned start:</span> {plannedStartLabel}</p>
+                      <p><span className="font-semibold">Planned end:</span> {plannedEndLabel}</p>
+                      <p><span className="font-semibold">Duration:</span> {campaign.brief?.durationWeeks ? `${campaign.brief.durationWeeks} week(s)` : 'Not set'}</p>
+                      {campaign.daysLeft != null ? <p><span className="font-semibold">Days left:</span> {campaign.daysLeft}</p> : null}
+                      {campaign.effectiveEndDate ? <p><span className="font-semibold">Current end date:</span> {effectiveEndLabel}</p> : null}
+                    </div>
+                  </div>
+                ) : null}
+                {isProspectiveCampaign && campaign.isAssignedToCurrentUser && !isClosedProspect ? (
+                  <div className="rounded-[24px] border border-line bg-white px-5 py-5">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Prospect pricing</p>
+                    <p className="mt-2 text-sm leading-7 text-ink-soft">
+                      If this prospect was captured on the wrong package band, update it here before conversion.
+                    </p>
+                    <div className="mt-4 space-y-3">
+                      <label className="block">
+                        <span className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Package band</span>
+                        <select
+                          value={prospectPackageBandId}
+                          onChange={(event) => setProspectPackageBandState({ campaignId: campaign.id, packageBandId: event.target.value })}
+                          className="input-base mt-2"
+                        >
+                          <option value="">Select package</option>
+                          {(packagesQuery.data ?? []).map((item) => (
+                            <option key={item.id} value={item.id}>{item.name}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <p className="text-xs text-ink-soft">
+                        The budget is now derived automatically from the selected package band.
+                      </p>
+                      <button
+                        type="button"
+                        disabled={updateProspectPricingMutation.isPending}
+                        onClick={handleUpdateProspectPricing}
+                        className="button-primary inline-flex w-full items-center justify-center gap-2 px-4 py-2 disabled:opacity-60"
+                      >
+                        {updateProspectPricingMutation.isPending ? 'Updating...' : 'Update package'}
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </div>
-          </div>
-        </div>
+          )}
+          audit={auditSummary}
+          footerActions={(
+            <>
+              {campaign.isAssignedToCurrentUser ? (
+                <button
+                  type="button"
+                  disabled={unassignMutation.isPending}
+                  onClick={() => unassignMutation.mutate()}
+                  className="button-secondary inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60"
+                >
+                  <UserX2 className="size-4" />
+                  Unassign
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={assignMutation.isPending}
+                  onClick={() => assignMutation.mutate()}
+                  className="button-secondary inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60"
+                >
+                  <UserPlus2 className="size-4" />
+                  Assign to me
+                </button>
+              )}
+              {isProspectiveCampaign && campaign.isAssignedToCurrentUser && !isClosedProspect ? (
+                <button
+                  type="button"
+                  disabled={closeProspectMutation.isPending}
+                  onClick={() => setCloseProspectOpen((open) => !open)}
+                  className="button-secondary inline-flex items-center gap-2 px-5 py-3 text-rose-700 disabled:opacity-60"
+                >
+                  <XCircle className="size-4" />
+                  Close prospect
+                </button>
+              ) : null}
+              {isClosedProspect && campaign.isAssignedToCurrentUser ? (
+                <button
+                  type="button"
+                  disabled={reopenProspectMutation.isPending}
+                  onClick={() => reopenProspectMutation.mutate()}
+                  className="button-secondary inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60"
+                >
+                  <RotateCcw className="size-4" />
+                  Reopen prospect
+                </button>
+              ) : null}
+            </>
+          )}
+        />
 
         <div className="space-y-6">
           <AgentRecommendationPanel
@@ -1145,116 +1242,6 @@ export function AgentCampaignDetailPage() {
               </div>
             </div>
           ) : null}
-
-          <div className="flex flex-wrap justify-end gap-3">
-            {campaign.isAssignedToCurrentUser ? (
-              <button
-                type="button"
-                disabled={unassignMutation.isPending}
-                onClick={() => unassignMutation.mutate()}
-                className="button-secondary inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60"
-              >
-                <UserX2 className="size-4" />
-                Unassign
-              </button>
-            ) : (
-              <button
-                type="button"
-                disabled={assignMutation.isPending}
-                onClick={() => assignMutation.mutate()}
-                className="button-secondary inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60"
-              >
-                <UserPlus2 className="size-4" />
-                Assign to me
-              </button>
-            )}
-            {campaign.recommendationPdfUrl ? (
-              <button
-                type="button"
-                onClick={() => void handleDownloadRecommendationPdf()}
-                className="button-secondary inline-flex items-center gap-2 px-5 py-3"
-              >
-                <Download className="size-4" />
-                Preview client PDF
-              </button>
-            ) : null}
-            {awaitingClientReview && !isClosedProspect ? (
-              <button
-                type="button"
-                disabled
-                className="button-secondary inline-flex items-center gap-2 px-5 py-3 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <Send className="size-4" />
-                Sent to client
-              </button>
-            ) : null}
-            {!recommendationWorkflowLocked ? (
-              <button
-                type="button"
-                disabled={sendMutation.isPending || isOverBudget || !hasSendableProposal || !hasOohRecommendation}
-                onClick={handleSendToClient}
-                className="button-secondary inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60"
-              >
-                <Send className="size-4" />
-                Send to client
-              </button>
-            ) : null}
-            {canResendProposalEmail && !isClosedProspect ? (
-              <button
-                type="button"
-                disabled={resendEmailMutation.isPending}
-                onClick={() => setResendEmailOpen((open) => !open)}
-                className="button-secondary inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60"
-              >
-                <Send className="size-4" />
-                Resend email
-              </button>
-            ) : null}
-            {!isProspectiveCampaign && !recommendationWorkflowLocked ? (
-              <button
-                type="button"
-                disabled={saveMutation.isPending || !canEditDraftRecommendation || draftApprovalCaptured || !hasOohRecommendation}
-                onClick={() => void handleApproveRecommendation()}
-                className="button-primary inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60"
-              >
-                <CircleCheckBig className="size-4" />
-                {draftApprovalCaptured ? 'Draft finalized' : 'Finalize draft'}
-              </button>
-            ) : null}
-            {canMarkLive ? (
-              <button
-                type="button"
-                disabled={markLiveMutation.isPending}
-                onClick={() => markLiveMutation.mutate()}
-                className="button-primary inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60"
-              >
-                <CircleCheckBig className="size-4" />
-                Mark campaign live
-              </button>
-            ) : null}
-            {isProspectiveCampaign && campaign.isAssignedToCurrentUser && !isClosedProspect ? (
-              <button
-                type="button"
-                disabled={closeProspectMutation.isPending}
-                onClick={() => setCloseProspectOpen((open) => !open)}
-                className="button-secondary inline-flex items-center gap-2 px-5 py-3 text-rose-700 disabled:opacity-60"
-              >
-                <XCircle className="size-4" />
-                Close prospect
-              </button>
-            ) : null}
-            {isClosedProspect && campaign.isAssignedToCurrentUser ? (
-              <button
-                type="button"
-                disabled={reopenProspectMutation.isPending}
-                onClick={() => reopenProspectMutation.mutate()}
-                className="button-secondary inline-flex items-center gap-2 px-5 py-3 disabled:opacity-60"
-              >
-                <RotateCcw className="size-4" />
-                Reopen prospect
-              </button>
-            ) : null}
-          </div>
 
           {closeProspectOpen && !isClosedProspect ? (
             <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50/60 px-5 py-4">
