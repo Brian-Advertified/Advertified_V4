@@ -643,7 +643,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
     private string BuildLeadProposalUrl(Guid campaignId)
     {
         var accessToken = _proposalAccessTokenService.CreateToken(campaignId);
-        return BuildFrontendUrl($"/lead-proposal/{campaignId:D}?token={Uri.EscapeDataString(accessToken)}");
+        return BuildFrontendUrl($"/proposal/{campaignId:D}?token={Uri.EscapeDataString(accessToken)}");
     }
 
     private async Task SendAssignmentEmailIfNeededAsync(Guid campaignId, CancellationToken cancellationToken)
@@ -755,32 +755,29 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
             ? "lead-proposal-ready"
             : "recommendation-ready";
 
-        if (!useLeadTemplate)
+        try
         {
-            try
+            var recommendationPdfs = new List<EmailAttachment>(recommendations.Count);
+            foreach (var recommendation in recommendations)
             {
-                var recommendationPdfs = new List<EmailAttachment>(recommendations.Count);
-                foreach (var recommendation in recommendations)
+                var pdfBytes = await _recommendationDocumentService.GetRecommendationPdfBytesAsync(campaign.Id, recommendation.Id, cancellationToken);
+                recommendationPdfs.Add(new EmailAttachment
                 {
-                    var pdfBytes = await _recommendationDocumentService.GetRecommendationPdfBytesAsync(campaign.Id, recommendation.Id, cancellationToken);
-                    recommendationPdfs.Add(new EmailAttachment
-                    {
-                        FileName = BuildRecommendationAttachmentFileName(campaign.Id, recommendation),
-                        ContentType = "application/pdf",
-                        Content = pdfBytes
-                    });
-                }
+                    FileName = BuildRecommendationAttachmentFileName(campaign.Id, recommendation),
+                    ContentType = "application/pdf",
+                    Content = pdfBytes
+                });
+            }
 
-                attachments = recommendationPdfs.ToArray();
-                recommendationPackBlock = @"
-                    <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">
-                      We have attached a separate PDF for each recommendation option. Each PDF starts with a one-page summary followed by the full detailed media plan.
-                    </p>";
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to build recommendation PDF attachment for campaign {CampaignId}.", campaign.Id);
-            }
+            attachments = recommendationPdfs.ToArray();
+            recommendationPackBlock = @"
+                <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">
+                  We have attached a separate PDF for each recommendation option. Each PDF starts with a one-page summary followed by the full detailed media plan.
+                </p>";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to build recommendation PDF attachment for campaign {CampaignId}.", campaign.Id);
         }
 
         var resolvedAgentMessage = useLeadTemplate

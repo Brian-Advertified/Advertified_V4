@@ -18,7 +18,6 @@ const PartnerEnquiryPage = lazyPage(() => import('../pages/public/PartnerEnquiry
 const PaymentSelectionPage = lazyPage(() => import('../pages/public/PaymentSelectionPage'), 'PaymentSelectionPage');
 const CheckoutConfirmationPage = lazyPage(() => import('../pages/public/CheckoutConfirmationPage'), 'CheckoutConfirmationPage');
 const ProposalEntryPage = lazyPage(() => import('../pages/public/ProposalEntryPage'), 'ProposalEntryPage');
-const LeadProposalEntryPage = lazyPage(() => import('../pages/public/LeadProposalEntryPage'), 'LeadProposalEntryPage');
 const ProspectQuestionnairePage = lazyPage(() => import('../pages/public/ProspectQuestionnairePage'), 'ProspectQuestionnairePage');
 const PrivacyPolicyPage = lazyPage(() => import('../pages/public/LegalPages'), 'PrivacyPolicyPage');
 const CookiePolicyPage = lazyPage(() => import('../pages/public/LegalPages'), 'CookiePolicyPage');
@@ -45,5 +44,5 @@ export const publicRoutes: AppRoute[] = [
   { path: '/checkout/payment', element: <ProtectedRoute><PaymentSelectionPage /></ProtectedRoute> },
   { path: '/checkout/confirmation', element: <CheckoutConfirmationPage /> },
   { path: '/proposal/:id', element: <ProposalEntryPage /> },
-  { path: '/lead-proposal/:id', element: <LeadProposalEntryPage /> },
+  { path: '/lead-proposal/:id', element: <ProposalEntryPage /> },
 ];
