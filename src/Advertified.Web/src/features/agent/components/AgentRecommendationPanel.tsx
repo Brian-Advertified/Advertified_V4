@@ -11,6 +11,8 @@ export function AgentRecommendationPanel({
   recommendations,
   showRecommendationEditing,
   recommendationWorkflowLocked,
+  showAuditSummary = true,
+  showEmailDelivery = true,
   recommendationTitle,
   lockedNextStep,
   activeProposalLabel,
@@ -45,6 +47,8 @@ export function AgentRecommendationPanel({
   recommendations: CampaignRecommendation[];
   showRecommendationEditing: boolean;
   recommendationWorkflowLocked: boolean;
+  showAuditSummary?: boolean;
+  showEmailDelivery?: boolean;
   recommendationTitle: string;
   lockedNextStep: string;
   activeProposalLabel: string;
@@ -77,7 +81,7 @@ export function AgentRecommendationPanel({
 }) {
   return (
     <>
-      {activeRecommendation?.audit ? (
+      {showAuditSummary && activeRecommendation?.audit ? (
         <div className="panel border-brand/15 bg-white px-6 py-5">
           <p className="text-sm font-semibold text-ink">Engine audit</p>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -100,7 +104,7 @@ export function AgentRecommendationPanel({
         </div>
       ) : null}
 
-      {activeRecommendation?.emailDeliveries?.length ? (
+      {showEmailDelivery && activeRecommendation?.emailDeliveries?.length ? (
         <div className="panel border-brand/15 bg-white px-6 py-5">
           <div className="flex items-start gap-3">
             <div className="rounded-2xl bg-brand-soft p-3 text-brand">
