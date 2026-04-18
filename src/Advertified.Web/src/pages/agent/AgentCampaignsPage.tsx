@@ -112,6 +112,14 @@ export function AgentCampaignsPage() {
             { id: 'needs_review' as const satisfies CampaignQueueFocusFilter, label: 'Needs review', count: inbox.agentReviewCount + inbox.manualReviewCount },
             { id: 'budget_issues' as const satisfies CampaignQueueFocusFilter, label: 'Budget issues', count: inbox.overBudgetCount },
           ];
+          const ownershipTabs = [
+            { label: 'Mine', count: inbox.assignedToMeCount, id: 'assigned_to_me' as const satisfies CampaignOwnershipFilter },
+            { label: 'Unassigned', count: inbox.unassignedCount, id: 'unassigned' as const satisfies CampaignOwnershipFilter },
+            { label: 'All', count: inbox.totalCampaigns, id: 'all' as const satisfies CampaignOwnershipFilter },
+          ];
+          const visibleQueueTabs = queueTabs.filter((tab) => tab.id === 'all' || tab.id === stageFilter || tab.count > 0);
+          const visibleFocusTabs = focusTabs.filter((tab) => tab.id === 'all' || tab.id === focusFilter || tab.count > 0);
+          const visibleOwnershipTabs = ownershipTabs.filter((tab) => tab.id === 'all' || tab.id === ownershipFilter || tab.count > 0);
 
           const campaigns = inbox.items.filter((item) => {
             const matchesSearch = `${item.campaignName} ${item.packageBandName} ${item.clientName} ${item.clientEmail}`
@@ -179,13 +187,9 @@ export function AgentCampaignsPage() {
                     stageFilter={stageFilter}
                     focusFilter={focusFilter}
                     ownershipFilter={ownershipFilter}
-                    queueTabs={queueTabs}
-                    focusTabs={focusTabs}
-                    ownershipTabs={[
-                      { label: 'Mine', count: inbox.assignedToMeCount, id: 'assigned_to_me' as const satisfies CampaignOwnershipFilter },
-                      { label: 'Unassigned', count: inbox.unassignedCount, id: 'unassigned' as const satisfies CampaignOwnershipFilter },
-                      { label: 'All', count: inbox.totalCampaigns, id: 'all' as const satisfies CampaignOwnershipFilter },
-                    ]}
+                    queueTabs={visibleQueueTabs}
+                    focusTabs={visibleFocusTabs}
+                    ownershipTabs={visibleOwnershipTabs}
                     visibleCampaignCount={campaigns.length}
                     onStageChange={(value) => updateQueueFilters({ stage: value })}
                     onFocusChange={(value) => updateQueueFilters({ focus: value })}

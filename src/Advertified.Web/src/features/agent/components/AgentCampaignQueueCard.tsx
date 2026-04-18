@@ -85,8 +85,8 @@ export function AgentCampaignQueueCard({
   const primaryAction = getPrimaryCampaignAction(campaign);
 
   return (
-    <article className="rounded-[24px] border border-line bg-white p-5 shadow-[0_18px_40px_rgba(17,24,39,0.04)]">
-      <div className="flex flex-col gap-5 2xl:flex-row 2xl:items-start 2xl:justify-between">
+    <article className="rounded-[24px] border border-line bg-white p-4 shadow-[0_18px_40px_rgba(17,24,39,0.04)]">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_220px] xl:items-start">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <Link
@@ -113,10 +113,10 @@ export function AgentCampaignQueueCard({
             ) : null}
           </div>
 
-          <h3 className="mt-3 text-xl font-semibold text-ink">{campaign.campaignName}</h3>
+          <h3 className="mt-3 text-xl font-semibold leading-tight text-ink">{campaign.campaignName}</h3>
           <p className="mt-1 text-sm text-ink-soft">{campaign.clientName} | {campaign.clientEmail}</p>
 
-          <div className="mt-4 grid gap-3 xl:grid-cols-2">
+          <div className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1.35fr)_minmax(150px,0.8fr)]">
             <div className="rounded-[20px] border border-line bg-slate-50/75 px-4 py-4">
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-soft">Action needed</p>
               <p className="mt-2 text-sm leading-6 text-ink">{campaign.nextAction}</p>
@@ -138,7 +138,7 @@ export function AgentCampaignQueueCard({
           </div>
         </div>
 
-        <div className="flex w-full shrink-0 flex-col gap-3 2xl:w-[230px]">
+        <div className="flex w-full shrink-0 flex-col gap-3">
           <Link to={primaryAction.href} className="button-primary inline-flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold">
             {primaryAction.label}
             <ArrowRight className="size-4" />

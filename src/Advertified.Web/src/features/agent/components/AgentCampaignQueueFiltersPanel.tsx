@@ -73,17 +73,16 @@ export function AgentCampaignQueueFiltersPanel({
   onOwnershipChange: (value: CampaignOwnershipFilter) => void;
 }) {
   const activeStage = queueTabs.find((item) => item.id === stageFilter);
-  const activeFocus = focusTabs.find((item) => item.id === focusFilter);
   const activeOwnership = ownershipTabs.find((item) => item.id === ownershipFilter);
 
   return (
     <div className="panel px-6 py-6">
       <AgentSectionIntro
         title="Campaign queue"
-        description="Filter the live queue to the exact work slice you need, then move straight into the next action."
+        description="Choose the queue view you need, then work from top to bottom."
         action={(
           <div className="rounded-full border border-brand/20 bg-brand-soft px-4 py-2 text-sm font-semibold text-brand">
-            {activeStage?.label ?? 'Queue'} | {activeFocus?.label ?? 'Focus'} | {activeOwnership?.label ?? 'Ownership'} | {visibleCampaignCount} campaign{visibleCampaignCount === 1 ? '' : 's'}
+            {activeStage?.label ?? 'Queue'} | {activeOwnership?.label ?? 'Ownership'} | {visibleCampaignCount} campaign{visibleCampaignCount === 1 ? '' : 's'}
           </div>
         )}
       />
