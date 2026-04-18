@@ -24,8 +24,8 @@ const campaignQueueFocusFilters = new Set<CampaignQueueFocusFilter>(['all', 'urg
 
 export const defaultAgentCampaignQueueFilters: AgentCampaignQueueFilters = {
   search: '',
-  stage: 'ready_to_work',
-  ownership: 'assigned_to_me',
+  stage: 'all',
+  ownership: 'all',
   focus: 'all',
 };
 

@@ -52,15 +52,15 @@ describe('agentCampaignQueueFilters', () => {
     });
     expect(fallbackFilters).toEqual({
       search: '',
-      stage: 'ready_to_work',
-      ownership: 'assigned_to_me',
+      stage: 'all',
+      ownership: 'all',
       focus: 'all',
     });
   });
 
   it('builds compact queue and message hrefs', () => {
     expect(buildAgentCampaignQueueHref()).toBe('/agent/campaigns');
-    expect(buildAgentCampaignQueueHref({ stage: 'all', ownership: 'all', focus: 'urgent' })).toBe('/agent/campaigns?stage=all&ownership=all&focus=urgent');
+    expect(buildAgentCampaignQueueHref({ stage: 'all', ownership: 'all', focus: 'urgent' })).toBe('/agent/campaigns?focus=urgent');
     expect(buildAgentMessagesHref('campaign-42')).toBe('/agent/messages?campaignId=campaign-42');
   });
 

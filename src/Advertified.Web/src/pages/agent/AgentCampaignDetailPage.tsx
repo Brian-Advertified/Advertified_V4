@@ -669,6 +669,11 @@ export function AgentCampaignDetailPage() {
     : recommendationSentToClient
       ? 'The current proposal was sent to the client and is waiting for a response. Keep the proposal stable and use messages for follow-up until they reply.'
       : 'This proposal is locked in the current workflow stage.';
+  const overviewProposalTitle = recommendationApproved
+    ? 'Approved recommendation summary'
+    : recommendationSentToClient
+      ? 'Client review recommendation'
+      : 'Recommendation summary';
 
   async function handleDownloadRecommendationPdf() {
     const pdfUrl = campaign?.recommendationPdfUrl;
@@ -969,7 +974,8 @@ export function AgentCampaignDetailPage() {
           whatToDo={lockedNextStep}
           timeline={campaign.timeline}
           proposal={{
-            title: activeProposalLabel,
+            title: overviewProposalTitle,
+            optionLabel: activeProposalLabel,
             statusLabel: statusLabel,
             packageName: campaign.packageBandName,
             value: formatCurrency(effectivePlannedTotal),

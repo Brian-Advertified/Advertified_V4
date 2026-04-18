@@ -151,9 +151,18 @@ export function AgentRecommendationPanel({
         </div>
       ) : null}
 
-      {showRecommendationEditing && recommendations.length > 1 ? (
+      {(showRecommendationEditing || recommendations.length > 1) ? (
         <div className="panel px-6 py-5">
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand">Proposal set</p>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-brand">Proposal set</p>
+              {!showRecommendationEditing ? (
+                <p className="mt-1 text-sm text-ink-soft">
+                  The client has not accepted a proposal unless it is explicitly marked approved below.
+                </p>
+              ) : null}
+            </div>
+          </div>
           <div className="mt-4 flex flex-wrap gap-3">
             {recommendations.map((proposal) => {
               const isActive = proposal.id === activeRecommendation?.id;
@@ -165,11 +174,15 @@ export function AgentRecommendationPanel({
                   className={`rounded-[18px] border px-4 py-3 text-left transition ${
                     isActive ? 'border-brand bg-brand-soft' : 'border-line bg-slate-50 hover:border-brand/30'
                   }`}
+                  disabled={!showRecommendationEditing}
                 >
                   <p className="text-sm font-semibold text-ink">{proposal.proposalLabel ?? 'Proposal'}</p>
                   <p className="mt-1 text-sm text-ink-soft">{proposal.proposalStrategy ?? 'Recommendation option'}</p>
                   <p className="mt-2 text-sm font-semibold text-ink">{formatCurrency(proposalDisplayTotals[proposal.id] ?? proposal.totalCost)}</p>
                   <p className="mt-1 text-xs uppercase tracking-[0.14em] text-ink-soft">{proposalDisplayItemCounts[proposal.id] ?? proposal.items.length} line item(s)</p>
+                  <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-brand">
+                    {getProposalStageLabel(proposal.status)}
+                  </p>
                 </button>
               );
             })}
@@ -363,6 +376,18 @@ function getDeliveryTone(status: string) {
       return 'bg-amber-50 text-amber-700 ring-1 ring-amber-200';
     default:
       return 'bg-brand-soft text-brand ring-1 ring-brand/10';
+  }
+}
+
+function getProposalStageLabel(status?: CampaignRecommendation['status']) {
+  switch (status) {
+    case 'approved':
+      return 'Client approved';
+    case 'sent_to_client':
+      return 'Sent to client';
+    case 'draft':
+    default:
+      return 'Draft only';
   }
 }
 

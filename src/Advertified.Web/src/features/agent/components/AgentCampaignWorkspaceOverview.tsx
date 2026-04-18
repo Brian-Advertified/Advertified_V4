@@ -9,6 +9,7 @@ type OverviewValue = {
 
 type ProposalSummary = {
   title: string;
+  optionLabel?: string;
   statusLabel: string;
   packageName: string;
   value: string;
@@ -122,6 +123,9 @@ export function AgentCampaignWorkspaceOverview({
             )}>
               <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
                 <div>
+                  {proposal.optionLabel ? (
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">{proposal.optionLabel}</p>
+                  ) : null}
                   <p className="text-sm leading-7 text-ink-soft">{whatToDo}</p>
                   {primaryActions ? <div className="mt-4 flex flex-wrap items-center gap-3">{primaryActions}</div> : null}
                 </div>
