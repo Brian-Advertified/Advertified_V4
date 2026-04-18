@@ -185,6 +185,7 @@ export function AgentCampaignDetailPage() {
         title: 'Change request captured.',
         description: 'A new draft revision is ready for the requested proposal updates.',
       });
+      navigate(`/agent/recommendations/new?campaignId=${id}`);
     },
     onError: (error) => pushAgentMutationError(pushToast, 'Could not reopen the recommendation for changes.', error),
   });
