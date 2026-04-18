@@ -24,7 +24,7 @@ function FilterPillGroup<T extends string>({
   const Icon = icon === 'layers' ? Layers3 : Filter;
 
   return (
-    <div className="rounded-[22px] border border-line bg-slate-50/70 p-4">
+    <div>
       <div className="flex items-center gap-2">
         <Icon className="size-4 text-brand" />
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-soft">{label}</p>
@@ -72,6 +72,10 @@ export function AgentCampaignQueueFiltersPanel({
   onFocusChange: (value: CampaignQueueFocusFilter) => void;
   onOwnershipChange: (value: CampaignOwnershipFilter) => void;
 }) {
+  const activeStage = queueTabs.find((item) => item.id === stageFilter);
+  const activeFocus = focusTabs.find((item) => item.id === focusFilter);
+  const activeOwnership = ownershipTabs.find((item) => item.id === ownershipFilter);
+
   return (
     <div className="panel px-6 py-6">
       <AgentSectionIntro
@@ -79,12 +83,12 @@ export function AgentCampaignQueueFiltersPanel({
         description="Filter the live queue to the exact work slice you need, then move straight into the next action."
         action={(
           <div className="rounded-full border border-brand/20 bg-brand-soft px-4 py-2 text-sm font-semibold text-brand">
-            Showing {visibleCampaignCount} campaign{visibleCampaignCount === 1 ? '' : 's'}
+            {activeStage?.label ?? 'Queue'} | {activeFocus?.label ?? 'Focus'} | {activeOwnership?.label ?? 'Ownership'} | {visibleCampaignCount} campaign{visibleCampaignCount === 1 ? '' : 's'}
           </div>
         )}
       />
 
-      <div className="mt-5 space-y-4">
+      <div className="mt-5 space-y-5 rounded-[24px] border border-line bg-slate-50/55 p-5">
         <FilterPillGroup label="Queue view" icon="layers" value={stageFilter} items={queueTabs} onChange={onStageChange} />
         <FilterPillGroup label="Action focus" icon="filter" value={focusFilter} items={focusTabs} onChange={onFocusChange} />
         <FilterPillGroup label="Ownership" icon="filter" value={ownershipFilter} items={ownershipTabs} onChange={onOwnershipChange} />

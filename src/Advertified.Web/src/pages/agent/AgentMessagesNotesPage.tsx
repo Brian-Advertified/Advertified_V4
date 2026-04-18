@@ -5,6 +5,7 @@ import { MessageSquareText, SendHorizontal } from 'lucide-react';
 import { useToast } from '../../components/ui/toast';
 import { formatDate, titleCase } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
+import type { CampaignConversationListItem } from '../../types/domain';
 import {
   AgentPageShell,
   AgentQueryBoundary,
@@ -12,20 +13,33 @@ import {
 } from './agentWorkspace';
 import { pushAgentMutationError } from './agentMutationToast';
 
+function isMessageReady(item: CampaignConversationListItem) {
+  return item.clientEmail.trim().length > 0;
+}
+
 export function AgentMessagesNotesPage() {
   const queryClient = useQueryClient();
   const { pushToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const [draft, setDraft] = useState('');
   const inboxQuery = useQuery({ queryKey: ['agent-message-inbox'], queryFn: advertifiedApi.getAgentMessageInbox });
-  const selectedCampaignId = searchParams.get('campaignId')
-    ?? inboxQuery.data?.[0]?.campaignId
+  const inboxItems = inboxQuery.data ?? [];
+  const messageReadyItems = inboxItems.filter(isMessageReady);
+  const requestedCampaignId = searchParams.get('campaignId');
+  const requestedItem = requestedCampaignId
+    ? inboxItems.find((item) => item.campaignId === requestedCampaignId) ?? null
+    : null;
+  const selectedItem = requestedItem
+    ?? messageReadyItems[0]
+    ?? inboxItems[0]
     ?? null;
+  const selectedCampaignId = selectedItem?.campaignId ?? null;
+  const selectedItemIsMessageReady = selectedItem ? isMessageReady(selectedItem) : false;
 
   const threadQuery = useQuery({
     queryKey: ['agent-message-thread', selectedCampaignId],
     queryFn: () => advertifiedApi.getAgentMessageThread(selectedCampaignId!),
-    enabled: Boolean(selectedCampaignId),
+    enabled: Boolean(selectedCampaignId && selectedItemIsMessageReady),
   });
 
   const sendMessageMutation = useMutation({
@@ -51,17 +65,23 @@ export function AgentMessagesNotesPage() {
               <p className="mt-2 text-sm text-ink-soft">Choose a campaign to read the latest messages and reply to the client.</p>
             </div>
             <div className="max-h-[760px] overflow-y-auto p-4">
-              {(inboxQuery.data ?? []).length > 0 ? (
+              {inboxItems.length > 0 ? (
                 <div className="space-y-3">
-                  {(inboxQuery.data ?? []).map((item) => (
-                    <button
+                  {inboxItems.map((item) => {
+                    const itemIsMessageReady = isMessageReady(item);
+
+                    return (
+                      <button
                       key={item.campaignId}
                       type="button"
                       onClick={() => setSearchParams({ campaignId: item.campaignId })}
+                      disabled={!itemIsMessageReady}
                       className={`w-full rounded-[24px] border p-4 text-left transition ${
                         item.campaignId === selectedCampaignId
                           ? 'border-brand bg-brand-soft/40'
-                          : 'border-line bg-slate-50/70 hover:border-brand/30 hover:bg-brand-soft/20'
+                          : itemIsMessageReady
+                            ? 'border-line bg-slate-50/70 hover:border-brand/30 hover:bg-brand-soft/20'
+                            : 'border-line bg-slate-50/40 opacity-80'
                       }`}
                     >
                       <div className="flex items-start justify-between gap-3">
@@ -80,13 +100,20 @@ export function AgentMessagesNotesPage() {
                         <span className="text-xs text-ink-soft">{item.packageBandName}</span>
                       </div>
                       <p className="mt-3 text-sm text-ink-soft">
-                        {item.lastMessagePreview ?? 'No messages yet. Open this thread to start the conversation.'}
+                        {itemIsMessageReady
+                          ? (item.lastMessagePreview ?? 'No messages yet. Open this thread to start the conversation.')
+                          : 'Messaging is unavailable until this campaign is linked to a client account.'}
                       </p>
                       <p className="mt-2 text-xs text-ink-soft">
-                        {item.lastMessageAt ? `Last message ${formatDate(item.lastMessageAt)}` : 'No messages yet'}
+                        {!itemIsMessageReady
+                          ? 'Client account missing'
+                          : item.lastMessageAt
+                            ? `Last message ${formatDate(item.lastMessageAt)}`
+                            : 'No messages yet'}
                       </p>
                     </button>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="rounded-[24px] border border-dashed border-line bg-slate-50 p-6 text-sm text-ink-soft">
@@ -97,7 +124,7 @@ export function AgentMessagesNotesPage() {
           </div>
 
           <div className="rounded-[30px] border border-line bg-white shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
-            {selectedCampaignId ? (
+            {selectedCampaignId && selectedItemIsMessageReady ? (
               <AgentQueryBoundary query={threadQuery} loadingLabel="Loading thread...">
                 {(() => {
                   const thread = threadQuery.data;
@@ -175,6 +202,21 @@ export function AgentMessagesNotesPage() {
                   );
                 })()}
               </AgentQueryBoundary>
+            ) : selectedItem ? (
+              <div className="flex min-h-[760px] flex-col items-center justify-center px-8 text-center">
+                <div className="max-w-md rounded-[28px] border border-line bg-slate-50/70 px-6 py-8">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Messaging unavailable</p>
+                  <h3 className="mt-3 text-xl font-semibold text-ink">{selectedItem.campaignName}</h3>
+                  <p className="mt-3 text-sm leading-7 text-ink-soft">
+                    This campaign is not linked to a client account yet, so a message thread cannot be opened safely.
+                  </p>
+                  <div className="mt-5 flex flex-wrap justify-center gap-3">
+                    <Link to={`/agent/campaigns/${selectedItem.campaignId}`} className="button-secondary px-4 py-2">
+                      View campaign
+                    </Link>
+                  </div>
+                </div>
+              </div>
             ) : (
               <div className="flex min-h-[760px] items-center justify-center px-8 text-center text-sm text-ink-soft">
                 Select a conversation on the left to open it here.
