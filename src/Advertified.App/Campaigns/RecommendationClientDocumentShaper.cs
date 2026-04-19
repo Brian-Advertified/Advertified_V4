@@ -53,11 +53,10 @@ internal static class RecommendationClientDocumentShaper
             .Select(item => new
             {
                 Item = item,
-                Venue = ExtractOohVenue(item.Title),
-                TimingKey = BuildTimingKey(item)
+                Venue = ExtractOohVenue(item.Title)
             })
             .Where(entry => !string.IsNullOrWhiteSpace(entry.Venue))
-            .GroupBy(entry => $"{entry.Venue}|{entry.TimingKey}", StringComparer.OrdinalIgnoreCase)
+            .GroupBy(entry => entry.Venue!, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.Select(entry => entry.Item).ToArray(), StringComparer.OrdinalIgnoreCase);
 
         var consumedVenueKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -71,16 +70,15 @@ internal static class RecommendationClientDocumentShaper
             }
 
             var venue = ExtractOohVenue(item.Title);
-            var groupKey = string.IsNullOrWhiteSpace(venue) ? null : $"{venue}|{BuildTimingKey(item)}";
-            if (string.IsNullOrWhiteSpace(groupKey)
-                || !venueGroups.TryGetValue(groupKey, out var groupedItems)
+            if (string.IsNullOrWhiteSpace(venue)
+                || !venueGroups.TryGetValue(venue, out var groupedItems)
                 || groupedItems.Length <= 1)
             {
                 collapsed.Add(item);
                 continue;
             }
 
-            if (!consumedVenueKeys.Add(groupKey))
+            if (!consumedVenueKeys.Add(venue))
             {
                 continue;
             }
@@ -105,11 +103,10 @@ internal static class RecommendationClientDocumentShaper
             .Select(item => new
             {
                 Item = item,
-                Station = ExtractStationName(item.Title),
-                TimingKey = BuildTimingKey(item)
+                Station = ExtractStationName(item.Title)
             })
             .Where(entry => !string.IsNullOrWhiteSpace(entry.Station))
-            .GroupBy(entry => $"{entry.Station}|{entry.TimingKey}", StringComparer.OrdinalIgnoreCase)
+            .GroupBy(entry => entry.Station!, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.Select(entry => entry.Item).ToArray(), StringComparer.OrdinalIgnoreCase);
 
         var consumedStations = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -123,16 +120,15 @@ internal static class RecommendationClientDocumentShaper
             }
 
             var station = ExtractStationName(item.Title);
-            var groupKey = string.IsNullOrWhiteSpace(station) ? null : $"{station}|{BuildTimingKey(item)}";
-            if (string.IsNullOrWhiteSpace(groupKey)
-                || !radioGroups.TryGetValue(groupKey, out var groupedItems)
+            if (string.IsNullOrWhiteSpace(station)
+                || !radioGroups.TryGetValue(station, out var groupedItems)
                 || groupedItems.Length <= 1)
             {
                 collapsed.Add(item);
                 continue;
             }
 
-            if (!consumedStations.Add(groupKey))
+            if (!consumedStations.Add(station))
             {
                 continue;
             }
@@ -151,24 +147,6 @@ internal static class RecommendationClientDocumentShaper
             .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
         var duration = items
             .Select(item => item.Duration)
-            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
-        var appliedDuration = items
-            .Select(item => item.AppliedDuration)
-            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
-        var requestedStartDate = items
-            .Select(item => item.RequestedStartDate)
-            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
-        var requestedEndDate = items
-            .Select(item => item.RequestedEndDate)
-            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
-        var resolvedStartDate = items
-            .Select(item => item.ResolvedStartDate)
-            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
-        var resolvedEndDate = items
-            .Select(item => item.ResolvedEndDate)
-            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
-        var commercialExplanation = items
-            .Select(item => item.CommercialExplanation)
             .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
         var reasons = items
             .SelectMany(item => item.SelectionReasons)
@@ -189,12 +167,6 @@ internal static class RecommendationClientDocumentShaper
             Quantity = totalPlacements,
             Region = region,
             Duration = duration,
-            AppliedDuration = appliedDuration,
-            RequestedStartDate = requestedStartDate,
-            RequestedEndDate = requestedEndDate,
-            ResolvedStartDate = resolvedStartDate,
-            ResolvedEndDate = resolvedEndDate,
-            CommercialExplanation = commercialExplanation,
             SelectionReasons = reasons
         };
     }
@@ -210,24 +182,6 @@ internal static class RecommendationClientDocumentShaper
             .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
         var duration = items
             .Select(item => item.Duration)
-            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
-        var appliedDuration = items
-            .Select(item => item.AppliedDuration)
-            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
-        var requestedStartDate = items
-            .Select(item => item.RequestedStartDate)
-            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
-        var requestedEndDate = items
-            .Select(item => item.RequestedEndDate)
-            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
-        var resolvedStartDate = items
-            .Select(item => item.ResolvedStartDate)
-            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
-        var resolvedEndDate = items
-            .Select(item => item.ResolvedEndDate)
-            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
-        var commercialExplanation = items
-            .Select(item => item.CommercialExplanation)
             .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
         var slotList = items
             .Select(BuildRadioSlotLabel)
@@ -261,26 +215,8 @@ internal static class RecommendationClientDocumentShaper
             Region = region,
             Language = language,
             Duration = duration,
-            AppliedDuration = appliedDuration,
-            RequestedStartDate = requestedStartDate,
-            RequestedEndDate = requestedEndDate,
-            ResolvedStartDate = resolvedStartDate,
-            ResolvedEndDate = resolvedEndDate,
-            CommercialExplanation = commercialExplanation,
             SelectionReasons = reasons.ToArray()
         };
-    }
-
-    private static string BuildTimingKey(RecommendationLineDocumentModel item)
-    {
-        return string.Join("|", new[]
-        {
-            item.AppliedDuration,
-            item.RequestedStartDate,
-            item.RequestedEndDate,
-            item.ResolvedStartDate,
-            item.ResolvedEndDate
-        }.Select(value => value?.Trim() ?? string.Empty));
     }
 
     private static bool CanGroupRadioPlacement(RecommendationLineDocumentModel item)
@@ -352,7 +288,6 @@ internal static class RecommendationClientDocumentShaper
         normalized = StripKnownOohSuffix(normalized);
         normalized = normalized.Replace(",,", ",");
         normalized = Regex.Replace(normalized, "\\s*,\\s*", ", ");
-
         normalized = normalized.TrimEnd('-', '|', ',', ' ');
         return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
     }
@@ -427,15 +362,15 @@ internal static class RecommendationClientDocumentShaper
         }
 
         var normalized = value
-            .Replace("Ã¢â‚¬â„¢", "'")
-            .Replace("Ã¢â‚¬Ëœ", "'")
-            .Replace("Ã¢â‚¬Å“", "\"")
-            .Replace("Ã¢â‚¬Â", "\"")
-            .Replace("Ã¢â‚¬â€œ", "-")
-            .Replace("Ã¢â‚¬â€", "-")
+            .Replace("ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢", "'")
+            .Replace("ÃƒÂ¢Ã¢â€šÂ¬Ã‹Å“", "'")
+            .Replace("ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ", "\"")
+            .Replace("ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â", "\"")
+            .Replace("ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“", "-")
+            .Replace("ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â", "-")
             .Replace("\u00A0", " ");
         normalized = Regex.Replace(normalized, "\\s+", " ").Trim();
-        return Regex.Replace(normalized, "\\booh\\b", "Billboards and Digital Screens", RegexOptions.IgnoreCase);
+        return normalized;
     }
 
     private static string? FirstNonEmpty(params string?[] values)
