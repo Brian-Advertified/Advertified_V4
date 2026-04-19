@@ -150,9 +150,7 @@ internal static class RecommendationPdfGenerator
             ("Client", ResolveBusinessReference(model)),
             ("Objective", ToClientCopy(model.CampaignObjective) is { Length: > 0 } objective ? objective : "Campaign growth"),
             ("Region", model.TargetAreas.Count > 0 ? string.Join(", ", model.TargetAreas.Select(ToClientCopy)) : "South Africa"),
-            ("Target audience", !string.IsNullOrWhiteSpace(model.TargetAudienceSummary) ? ToClientCopy(model.TargetAudienceSummary) : "Audience not specified"),
-            ("Language", model.TargetLanguages.Count > 0 ? string.Join(", ", model.TargetLanguages.Select(ToClientCopy)) : "Language not specified"),
-            ("Payment", "Buy now, pay later available")
+            ("Target audience", !string.IsNullOrWhiteSpace(model.TargetAudienceSummary) ? ToClientCopy(model.TargetAudienceSummary) : "Audience not specified")
         };
 
         container.Column(column =>
@@ -274,10 +272,14 @@ internal static class RecommendationPdfGenerator
 
             section.Item().Element(item => ComposeBudgetSplit(item, proposal));
 
-            section.Item().Text("Your placements").FontSize(9).SemiBold().FontColor(ColorMuted);
-            foreach (var item in proposal.Items)
+            var groupedPlacements = BuildPlacementSections(proposal);
+            if (groupedPlacements.Count > 0)
             {
-                section.Item().Element(card => ComposePlacementCard(card, model, item));
+                section.Item().Text("Recommended placements").FontSize(9).SemiBold().FontColor(ColorMuted);
+                foreach (var placementGroup in groupedPlacements)
+                {
+                    section.Item().Element(item => ComposePlacementSection(item, model, placementGroup));
+                }
             }
 
             if (!string.IsNullOrWhiteSpace(proposal.AcceptUrl))
@@ -357,30 +359,41 @@ internal static class RecommendationPdfGenerator
                     col.Item().Row(tagRow =>
                     {
                         tagRow.Spacing(4);
-                        foreach (var tag in details.Take(3))
+                        foreach (var tag in details.Take(2))
                         {
                             tagRow.AutoItem().Border(1).BorderColor(ColorBorder).Background(ColorWhite).PaddingVertical(2).PaddingHorizontal(6).Text(tag).FontSize(7).FontColor(ColorMuted);
                         }
                     });
                 }
 
-                foreach (var line in clientSummary.Take(2))
+                foreach (var line in clientSummary.Take(1))
                 {
                     col.Item().Text(line).FontSize(8).FontColor(ColorMuted);
                 }
             });
-            row.ConstantItem(70).AlignRight().Column(col =>
+        });
+    }
+
+    private static void ComposePlacementSection(IContainer container, RecommendationDocumentModel model, PlacementSectionDocumentModel sectionModel)
+    {
+        container.Border(1).BorderColor(ColorBorder).Background(ColorWhite).Padding(12).Column(section =>
+        {
+            section.Spacing(10);
+            section.Item().Row(row =>
             {
-                col.Item().Text($"Qty: {Math.Max(1, item.Quantity)}").FontSize(8).SemiBold().FontColor(ColorMuted);
-                if (item.TotalCost > 0)
+                row.RelativeItem().Column(col =>
                 {
-                    col.Item().PaddingTop(4).Text(FormatCurrency(item.TotalCost)).FontSize(9).SemiBold();
-                }
-                else
-                {
-                    col.Item().PaddingTop(4).Text("Included").FontSize(9).SemiBold();
-                }
+                    col.Spacing(2);
+                    col.Item().Text(sectionModel.Label).FontSize(10).SemiBold();
+                    col.Item().Text($"{sectionModel.Placements.Count} placement{(sectionModel.Placements.Count == 1 ? string.Empty : "s")}").FontSize(8).FontColor(ColorMuted);
+                });
+                row.ConstantItem(120).AlignRight().Text(sectionModel.TotalLabel).FontSize(10).SemiBold().FontColor(ColorGreen);
             });
+
+            foreach (var placement in sectionModel.Placements)
+            {
+                section.Item().Element(card => ComposePlacementCard(card, model, placement));
+            }
         });
     }
 
@@ -465,7 +478,7 @@ internal static class RecommendationPdfGenerator
             {
                 var label = entry.Key switch
                 {
-                    "ooh" => "Billboards and Digital",
+                    "ooh" => "Billboards and Digital Screens",
                     "radio" => "Radio",
                     "digital" => "Digital (online)",
                     "tv" => "TV",
@@ -522,6 +535,48 @@ internal static class RecommendationPdfGenerator
         return $"{placements} placements across {string.Join(", ", channels)} | {areaText}";
     }
 
+    private static IReadOnlyList<PlacementSectionDocumentModel> BuildPlacementSections(RecommendationProposalDocumentModel proposal)
+    {
+        return proposal.Items
+            .Where(item => !string.Equals(item.Channel, "Studio", StringComparison.OrdinalIgnoreCase))
+            .GroupBy(item => NormalizeRecommendationChannel(item.Channel))
+            .OrderBy(group => GetChannelSortOrder(group.Key))
+            .Select(group =>
+            {
+                var items = group.ToArray();
+                var total = items.Sum(item => item.TotalCost);
+                return new PlacementSectionDocumentModel(
+                    GetPlacementSectionLabel(group.Key),
+                    total > 0 ? FormatCurrency(total) : "Included",
+                    items);
+            })
+            .ToArray();
+    }
+
+    private static int GetChannelSortOrder(string? channel)
+    {
+        return NormalizeRecommendationChannel(channel) switch
+        {
+            "ooh" => 0,
+            "radio" => 1,
+            "tv" => 2,
+            "digital" => 3,
+            _ => 9
+        };
+    }
+
+    private static string GetPlacementSectionLabel(string? channel)
+    {
+        return NormalizeRecommendationChannel(channel) switch
+        {
+            "ooh" => "Billboards and Digital Screens",
+            "radio" => "Radio",
+            "tv" => "TV",
+            "digital" => "Digital",
+            _ => ToClientCopy(channel)
+        };
+    }
+
     private static int GetFeaturedProposalIndex(int count)
     {
         if (count <= 1)
@@ -537,7 +592,7 @@ internal static class RecommendationPdfGenerator
         var normalized = NormalizeRecommendationChannel(channel);
         return normalized switch
         {
-            "ooh" => ("OOH", "#E6F1FB"),
+            "ooh" => ("BDS", "#E6F1FB"),
             "radio" => ("RAD", ColorAmberLight),
             "digital" => ("DIG", "#EAF3FF"),
             "tv" => ("TV", "#EEE9FF"),
@@ -863,6 +918,11 @@ internal static class RecommendationPdfGenerator
         };
     }
 }
+
+internal sealed record PlacementSectionDocumentModel(
+    string Label,
+    string TotalLabel,
+    IReadOnlyList<RecommendationLineDocumentModel> Placements);
 
 public static class RecommendationPdfPreviewFactory
 {
