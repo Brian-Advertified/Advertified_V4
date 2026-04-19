@@ -6,5 +6,5 @@ export const agentInventoryFallbackEnabled =
   inventoryFallbackOverride !== 'false';
 
 export const publicAiStudioEnabled =
-  import.meta.env.DEV
-  && publicAiStudioOverride !== 'false';
+  publicAiStudioOverride === 'true'
+  || (import.meta.env.DEV && publicAiStudioOverride !== 'false');
