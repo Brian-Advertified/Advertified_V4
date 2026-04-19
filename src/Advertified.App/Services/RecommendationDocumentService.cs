@@ -237,6 +237,8 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
             ListenershipPeriod = GetMetadataValue(metadata, "listenershipPeriod") ?? GetMetadataValue(metadata, "listenership_period"),
             SiteNumber = GetMetadataValue(metadata, "siteNumber") ?? GetMetadataValue(metadata, "site_number"),
             ItemNotes = GetMetadataValue(metadata, "itemNotes"),
+            VenueType = GetMetadataValue(metadata, "venueType") ?? GetMetadataValue(metadata, "venue_type"),
+            EnvironmentType = GetMetadataValue(metadata, "environmentType") ?? GetMetadataValue(metadata, "environment_type"),
             SelectionReasons = GetMetadataValues(metadata, "selectionReasons"),
             PolicyFlags = GetMetadataValues(metadata, "policyFlags")
         };

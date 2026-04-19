@@ -758,6 +758,8 @@ internal sealed class RecommendationLineDocumentModel
     public string? ListenershipPeriod { get; init; }
     public string? SiteNumber { get; init; }
     public string? ItemNotes { get; init; }
+    public string? VenueType { get; init; }
+    public string? EnvironmentType { get; init; }
     public IReadOnlyList<string> SelectionReasons { get; init; } = Array.Empty<string>();
     public IReadOnlyList<string> PolicyFlags { get; init; } = Array.Empty<string>();
 }

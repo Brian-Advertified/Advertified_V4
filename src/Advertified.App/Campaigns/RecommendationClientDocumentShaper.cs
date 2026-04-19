@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace Advertified.App.Campaigns;
@@ -157,16 +158,22 @@ internal static class RecommendationClientDocumentShaper
             .Select(item => item.Rationale)
             .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))
             ?? string.Empty;
+        var aggregatedTraffic = SumWholeNumbers(items.Select(item => item.TrafficCount));
 
         return new RecommendationLineDocumentModel
         {
             Channel = items[0].Channel,
-            Title = $"{totalPlacements} placement{(totalPlacements == 1 ? string.Empty : "s")} at {venue}",
-            Rationale = rationale,
+            Title = $"{totalPlacements} mall screen placement{(totalPlacements == 1 ? string.Empty : "s")} at {venue}",
+            Rationale = string.IsNullOrWhiteSpace(rationale)
+                ? "Grouped mall screen placements to show the full in-mall screen presence at this venue."
+                : rationale,
             TotalCost = items.Sum(item => item.TotalCost),
             Quantity = totalPlacements,
             Region = region,
             Duration = duration,
+            TrafficCount = aggregatedTraffic > 0 ? aggregatedTraffic.ToString(CultureInfo.InvariantCulture) : null,
+            VenueType = items.Select(item => item.VenueType).FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)),
+            EnvironmentType = items.Select(item => item.EnvironmentType).FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)),
             SelectionReasons = reasons
         };
     }
@@ -274,7 +281,86 @@ internal static class RecommendationClientDocumentShaper
             return false;
         }
 
-        return !string.IsNullOrWhiteSpace(ExtractOohVenue(item.Title));
+        return IsMallScreenPlacement(item)
+            && !string.IsNullOrWhiteSpace(ExtractOohVenue(item.Title));
+    }
+
+    private static bool IsMallScreenPlacement(RecommendationLineDocumentModel item)
+    {
+        return IsDigitalScreenPlacement(item) && IsMallPlacement(item);
+    }
+
+    private static bool IsDigitalScreenPlacement(RecommendationLineDocumentModel item)
+    {
+        return ContainsToken(item.Title, "digital screen")
+            || ContainsToken(item.Title, "screen")
+            || ContainsToken(item.SlotType, "digital screen")
+            || ContainsToken(item.SlotType, "screen");
+    }
+
+    private static bool IsMallPlacement(RecommendationLineDocumentModel item)
+    {
+        if (MatchesMallMetadata(item.VenueType) || MatchesMallMetadata(item.EnvironmentType))
+        {
+            return true;
+        }
+
+        var normalizedTitle = NormalizeClientCopy(item.Title);
+        return normalizedTitle.Contains(" mall", StringComparison.OrdinalIgnoreCase)
+            || normalizedTitle.Contains("shopping centre", StringComparison.OrdinalIgnoreCase)
+            || normalizedTitle.Contains("shopping center", StringComparison.OrdinalIgnoreCase)
+            || normalizedTitle.Contains("lifestyle centre", StringComparison.OrdinalIgnoreCase)
+            || normalizedTitle.Contains("lifestyle center", StringComparison.OrdinalIgnoreCase)
+            || normalizedTitle.Contains(" centre", StringComparison.OrdinalIgnoreCase)
+            || normalizedTitle.Contains(" center", StringComparison.OrdinalIgnoreCase)
+            || normalizedTitle.Contains(" corner", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool MatchesMallMetadata(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        var normalized = value.Trim().ToLowerInvariant();
+        return normalized.Contains("mall", StringComparison.OrdinalIgnoreCase)
+            || normalized.Contains("shopping", StringComparison.OrdinalIgnoreCase)
+            || normalized.Contains("lifestyle", StringComparison.OrdinalIgnoreCase)
+            || normalized.Contains("food_court", StringComparison.OrdinalIgnoreCase)
+            || normalized.Contains("food court", StringComparison.OrdinalIgnoreCase)
+            || normalized.Contains("mall_interior", StringComparison.OrdinalIgnoreCase)
+            || normalized.Contains("mall interior", StringComparison.OrdinalIgnoreCase)
+            || normalized.Contains("corner", StringComparison.OrdinalIgnoreCase)
+            || normalized.Contains("centre", StringComparison.OrdinalIgnoreCase)
+            || normalized.Contains("center", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool ContainsToken(string? value, string token)
+    {
+        return !string.IsNullOrWhiteSpace(value)
+            && value.Contains(token, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static long SumWholeNumbers(IEnumerable<string?> values)
+    {
+        long total = 0;
+
+        foreach (var value in values)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                continue;
+            }
+
+            var digits = Regex.Replace(value, "[^0-9]", string.Empty);
+            if (long.TryParse(digits, out var number) && number > 0)
+            {
+                total += number;
+            }
+        }
+
+        return total;
     }
 
     private static string? ExtractOohVenue(string? title)

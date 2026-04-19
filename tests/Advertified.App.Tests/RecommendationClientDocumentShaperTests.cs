@@ -6,7 +6,7 @@ namespace Advertified.App.Tests;
 public sealed class RecommendationClientDocumentShaperTests
 {
     [Fact]
-    public void ShapeProposal_CollapsesOohPlacementsIntoSingleVenueBlock()
+    public void ShapeProposal_CollapsesMallScreensButLeavesNonScreenOohSeparate()
     {
         var proposal = new RecommendationProposalDocumentModel
         {
@@ -21,6 +21,9 @@ public sealed class RecommendationClientDocumentShaperTests
                     TotalCost = 10000m,
                     Quantity = 1,
                     Region = "Johannesburg",
+                    TrafficCount = "12,000",
+                    VenueType = "premium_mall",
+                    EnvironmentType = "mall_interior",
                     SelectionReasons = new[] { "High foot traffic" }
                 },
                 new RecommendationLineDocumentModel
@@ -30,6 +33,9 @@ public sealed class RecommendationClientDocumentShaperTests
                     TotalCost = 10000m,
                     Quantity = 1,
                     Region = "Johannesburg",
+                    TrafficCount = "18000",
+                    VenueType = "premium_mall",
+                    EnvironmentType = "mall_interior",
                     SelectionReasons = new[] { "Premium retail context" }
                 },
                 new RecommendationLineDocumentModel
@@ -46,19 +52,21 @@ public sealed class RecommendationClientDocumentShaperTests
 
         var shaped = RecommendationClientDocumentShaper.ShapeProposal(proposal);
 
-        shaped.Items.Should().ContainSingle();
-        shaped.Items[0].Title.Should().Be("3 placements at Rosebank Mall");
-        shaped.Items[0].TotalCost.Should().Be(30000m);
+        shaped.Items.Should().HaveCount(2);
+        shaped.Items[0].Title.Should().Be("2 mall screen placements at Rosebank Mall");
+        shaped.Items[0].TotalCost.Should().Be(20000m);
+        shaped.Items[0].TrafficCount.Should().Be("30000");
         shaped.Items[0].SelectionReasons.Should().BeEquivalentTo(new[]
         {
             "High foot traffic",
-            "Premium retail context",
-            "Commuter reach"
+            "Premium retail context"
         });
+        shaped.Items[1].Title.Should().Be("Rosebank Mall - Billboard");
+        shaped.Items[1].TotalCost.Should().Be(10000m);
     }
 
     [Fact]
-    public void ShapeProposal_CollapsesRepeatedVenueRowsEvenWhenAssetTypeLivesOutsideTitle()
+    public void ShapeProposal_CollapsesRepeatedMallScreenRowsWhenMallMetadataExists()
     {
         var proposal = new RecommendationProposalDocumentModel
         {
@@ -73,6 +81,9 @@ public sealed class RecommendationClientDocumentShaperTests
                     TotalCost = 4000m,
                     Quantity = 1,
                     Region = "Pretoria",
+                    TrafficCount = "15000",
+                    SlotType = "Digital screen placement",
+                    VenueType = "community_mall",
                     SelectionReasons = new[] { "CBD footfall" }
                 },
                 new RecommendationLineDocumentModel
@@ -82,6 +93,9 @@ public sealed class RecommendationClientDocumentShaperTests
                     TotalCost = 10000m,
                     Quantity = 1,
                     Region = "Pretoria",
+                    TrafficCount = "25000",
+                    SlotType = "Digital screen placement",
+                    VenueType = "community_mall",
                     SelectionReasons = new[] { "Taxi rank traffic" }
                 },
                 new RecommendationLineDocumentModel
@@ -91,6 +105,9 @@ public sealed class RecommendationClientDocumentShaperTests
                     TotalCost = 8500m,
                     Quantity = 1,
                     Region = "Pretoria",
+                    TrafficCount = "8,500",
+                    SlotType = "Digital screen placement",
+                    VenueType = "community_mall",
                     SelectionReasons = new[] { "Shopping audience" }
                 },
                 new RecommendationLineDocumentModel
@@ -100,6 +117,9 @@ public sealed class RecommendationClientDocumentShaperTests
                     TotalCost = 8000m,
                     Quantity = 1,
                     Region = "Pretoria",
+                    TrafficCount = "9500",
+                    SlotType = "Digital screen placement",
+                    VenueType = "community_mall",
                     SelectionReasons = new[] { "Commuter traffic" }
                 }
             }
@@ -110,9 +130,54 @@ public sealed class RecommendationClientDocumentShaperTests
         shaped.Items.Should().HaveCount(2);
         shaped.Items.Select(item => item.Title).Should().BeEquivalentTo(new[]
         {
-            "2 placements at Bloed Street Mall, Pretoria",
-            "2 placements at Sunnypark Shopping, Centre, Pretoria"
+            "2 mall screen placements at Bloed Street Mall, Pretoria",
+            "2 mall screen placements at Sunnypark Shopping, Centre, Pretoria"
         });
+        shaped.Items.Select(item => item.TrafficCount).Should().BeEquivalentTo(new[]
+        {
+            "40000",
+            "18000"
+        });
+    }
+
+    [Fact]
+    public void ShapeProposal_DoesNotCollapseNonMallScreens()
+    {
+        var proposal = new RecommendationProposalDocumentModel
+        {
+            Label = "Proposal D",
+            TotalCost = 28400m,
+            Items = new[]
+            {
+                new RecommendationLineDocumentModel
+                {
+                    Channel = "OOH",
+                    Title = "89 Grayston Drive - Digital Screen",
+                    TotalCost = 14200m,
+                    Quantity = 1,
+                    Region = "Sandton, Gauteng",
+                    EnvironmentType = "roadside",
+                    SelectionReasons = new[] { "Commuter route" }
+                },
+                new RecommendationLineDocumentModel
+                {
+                    Channel = "OOH",
+                    Title = "89 Grayston Drive - Digital Screen",
+                    TotalCost = 14200m,
+                    Quantity = 1,
+                    Region = "Sandton, Gauteng",
+                    EnvironmentType = "roadside",
+                    SelectionReasons = new[] { "High visibility" }
+                }
+            }
+        };
+
+        var shaped = RecommendationClientDocumentShaper.ShapeProposal(proposal);
+
+        shaped.Items.Should().HaveCount(2);
+        shaped.Items.Select(item => item.Title).Should().Equal(
+            "89 Grayston Drive - Digital Screen",
+            "89 Grayston Drive - Digital Screen");
     }
 
     [Fact]
