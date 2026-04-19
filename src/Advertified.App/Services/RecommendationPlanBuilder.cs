@@ -208,6 +208,7 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
                         .Where(candidate => MatchesAnyBroadcastGeoToken(candidate, suburbTokens))
                         .OrderByDescending(candidate => ScoreRequestedLanguageCoverage(candidate, result, request))
                         .ThenByDescending(candidate => HasMatchingOohSite(result, candidate))
+                        .ThenBy(candidate => GetSelectionPriority(candidate))
                         .ThenBy(candidate => GetStationSelectionCount(result, candidate, shareTarget.Channel))
                         .ThenByDescending(candidate => candidate.Score)
                         .ThenByDescending(candidate => candidate.Cost)
@@ -226,6 +227,7 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
             var channelCandidate = channelCandidates
                 .OrderByDescending(candidate => ScoreRequestedLanguageCoverage(candidate, result, request))
                 .ThenByDescending(candidate => HasMatchingOohSite(result, candidate))
+                .ThenBy(candidate => GetSelectionPriority(candidate))
                 .ThenBy(candidate => GetStationSelectionCount(result, candidate, shareTarget.Channel))
                 .ThenByDescending(candidate => candidate.Score)
                 .ThenByDescending(candidate => candidate.Cost)
@@ -275,6 +277,7 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
                     .Where(candidate => !ExceedsStationDiversityCap(result, candidate))
                     .OrderByDescending(candidate => ScoreRequestedLanguageCoverage(candidate, result, request))
                     .ThenByDescending(candidate => HasMatchingOohSite(result, candidate))
+                    .ThenBy(candidate => GetSelectionPriority(candidate))
                     .ThenBy(candidate => GetStationSelectionCount(result, candidate, shareTarget.Channel))
                     .ThenByDescending(candidate => candidate.Score)
                     .ThenByDescending(candidate => candidate.Cost)
@@ -315,7 +318,11 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
         var result = new List<PlannedItem>();
         var spent = 0m;
 
-        foreach (var candidate in candidates.Where(x => !selectedIds.Contains(x.SourceId)))
+        foreach (var candidate in candidates
+                     .Where(x => !selectedIds.Contains(x.SourceId))
+                     .OrderBy(candidate => GetSelectionPriority(candidate))
+                     .ThenByDescending(candidate => candidate.Score)
+                     .ThenByDescending(candidate => candidate.Cost))
         {
             if (candidate.Cost <= 0) continue;
             if (spent + candidate.Cost > upsellHeadroom) continue;
@@ -388,6 +395,7 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
                         || result.Count < maxItems.Value))
                 .OrderByDescending(x => ScoreRequestedLanguageCoverage(x, result, request))
                 .ThenByDescending(x => HasMatchingOohSite(result, x))
+                .ThenBy(x => GetSelectionPriority(x))
                 .ThenBy(x => GetStationSelectionCount(result, x, x.MediaType))
                 .ThenByDescending(x => x.Score)
                 .ThenByDescending(x => x.Cost)
@@ -421,7 +429,11 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
             return Array.Empty<InventoryCandidate>();
         }
 
-        foreach (var candidate in candidates.Where(x => x.Cost <= remaining))
+        foreach (var candidate in candidates
+                     .Where(x => x.Cost <= remaining)
+                     .OrderBy(x => GetSelectionPriority(x))
+                     .ThenByDescending(x => x.Score)
+                     .ThenByDescending(x => x.Cost))
         {
             var wouldAddNewLine = currentPlan.All(item => item.SourceId != candidate.SourceId);
             var wouldRepeatExisting = !wouldAddNewLine;
@@ -519,8 +531,19 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
         return candidates
             .OrderByDescending(candidate => ScoreRequestedLanguageCoverage(candidate, currentPlan, request))
             .ThenByDescending(candidate => HasMatchingOohSite(currentPlan, candidate))
+            .ThenBy(candidate => GetSelectionPriority(candidate))
             .ThenByDescending(candidate => candidate.Score)
             .ThenByDescending(candidate => candidate.Cost);
+    }
+
+    private static int GetSelectionPriority(InventoryCandidate candidate)
+    {
+        return PlanningChannelSupport.NormalizeChannel(candidate.MediaType) switch
+        {
+            PlanningChannelSupport.Billboard => 0,
+            PlanningChannelSupport.DigitalScreen => 1,
+            _ => 0
+        };
     }
 
     private decimal ScoreRequestedLanguageCoverage(
@@ -713,6 +736,7 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
             .OrderByDescending(entry => string.Equals(entry.GeoBucket, target.Bucket, StringComparison.OrdinalIgnoreCase))
             .ThenByDescending(entry => ScoreRequestedLanguageCoverage(entry.Candidate, currentPlan, request))
             .ThenByDescending(entry => HasMatchingOohSite(currentPlan, entry.Candidate))
+            .ThenBy(entry => GetSelectionPriority(entry.Candidate))
             .ThenBy(entry => GetStationSelectionCount(currentPlan, entry.Candidate, target.Channel))
             .ThenByDescending(entry => entry.Candidate.Score)
             .ThenByDescending(entry => entry.Candidate.Cost)

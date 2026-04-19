@@ -376,6 +376,8 @@ internal static class RecommendationPdfGenerator
 
     private static void ComposePlacementSection(IContainer container, RecommendationDocumentModel model, PlacementSectionDocumentModel sectionModel)
     {
+        var placementCount = sectionModel.Placements.Sum(item => Math.Max(1, item.Quantity));
+
         container.Border(1).BorderColor(ColorBorder).Background(ColorWhite).Padding(12).Column(section =>
         {
             section.Spacing(10);
@@ -385,7 +387,7 @@ internal static class RecommendationPdfGenerator
                 {
                     col.Spacing(2);
                     col.Item().Text(sectionModel.Label).FontSize(10).SemiBold();
-                    col.Item().Text($"{sectionModel.Placements.Count} placement{(sectionModel.Placements.Count == 1 ? string.Empty : "s")}").FontSize(8).FontColor(ColorMuted);
+                    col.Item().Text($"{placementCount} placement{(placementCount == 1 ? string.Empty : "s")}").FontSize(8).FontColor(ColorMuted);
                 });
                 row.ConstantItem(120).AlignRight().Text(sectionModel.TotalLabel).FontSize(10).SemiBold().FontColor(ColorGreen);
             });
@@ -543,7 +545,10 @@ internal static class RecommendationPdfGenerator
             .OrderBy(group => GetChannelSortOrder(group.Key))
             .Select(group =>
             {
-                var items = group.ToArray();
+                var items = CollapseMallScreenDuplicates(group)
+                    .OrderBy(item => GetPlacementPriority(item))
+                    .ThenBy(item => ToClientCopy(item.Title), StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
                 var total = items.Sum(item => item.TotalCost);
                 return new PlacementSectionDocumentModel(
                     GetPlacementSectionLabel(group.Key),
@@ -551,6 +556,88 @@ internal static class RecommendationPdfGenerator
                     items);
             })
             .ToArray();
+    }
+
+    private static IEnumerable<RecommendationLineDocumentModel> CollapseMallScreenDuplicates(IEnumerable<RecommendationLineDocumentModel> items)
+    {
+        var materialized = items.ToArray();
+        if (materialized.Length <= 1)
+        {
+            return materialized;
+        }
+
+        var collapsed = new List<RecommendationLineDocumentModel>();
+        var mallScreenGroups = materialized
+            .Where(IsDigitalScreenPlacement)
+            .Select(item => new
+            {
+                Item = item,
+                Venue = ExtractScreenVenue(item.Title)
+            })
+            .Where(entry => !string.IsNullOrWhiteSpace(entry.Venue))
+            .GroupBy(entry => entry.Venue!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.Select(entry => entry.Item).ToArray(), StringComparer.OrdinalIgnoreCase);
+
+        var consumedVenueKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var item in materialized)
+        {
+            if (!IsDigitalScreenPlacement(item))
+            {
+                collapsed.Add(item);
+                continue;
+            }
+
+            var venue = ExtractScreenVenue(item.Title);
+            if (string.IsNullOrWhiteSpace(venue)
+                || !mallScreenGroups.TryGetValue(venue, out var groupedItems)
+                || groupedItems.Length <= 1)
+            {
+                collapsed.Add(item);
+                continue;
+            }
+
+            if (!consumedVenueKeys.Add(venue))
+            {
+                continue;
+            }
+
+            collapsed.Add(BuildCollapsedMallScreenPlacement(venue, groupedItems));
+        }
+
+        return collapsed;
+    }
+
+    private static RecommendationLineDocumentModel BuildCollapsedMallScreenPlacement(string venue, IReadOnlyList<RecommendationLineDocumentModel> items)
+    {
+        var totalScreens = items.Sum(item => Math.Max(1, item.Quantity));
+        var region = items
+            .Select(item => item.Region)
+            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+        var duration = items
+            .Select(item => item.Duration)
+            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+        var reasons = items
+            .SelectMany(item => item.SelectionReasons)
+            .Where(reason => !string.IsNullOrWhiteSpace(reason))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var rationale = items
+            .Select(item => item.Rationale)
+            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))
+            ?? string.Empty;
+
+        return new RecommendationLineDocumentModel
+        {
+            Channel = items[0].Channel,
+            Title = $"{totalScreens} digital screen{(totalScreens == 1 ? string.Empty : "s")} at {venue}",
+            Rationale = rationale,
+            TotalCost = items.Sum(item => item.TotalCost),
+            Quantity = totalScreens,
+            Region = region,
+            Duration = duration,
+            SelectionReasons = reasons
+        };
     }
 
     private static int GetChannelSortOrder(string? channel)
@@ -575,6 +662,55 @@ internal static class RecommendationPdfGenerator
             "digital" => "Digital",
             _ => ToClientCopy(channel)
         };
+    }
+
+    private static int GetPlacementPriority(RecommendationLineDocumentModel item)
+    {
+        var normalizedChannel = NormalizeRecommendationChannel(item.Channel);
+        if (!string.Equals(normalizedChannel, "ooh", StringComparison.OrdinalIgnoreCase))
+        {
+            return 0;
+        }
+
+        var title = (item.Title ?? string.Empty).Trim();
+        if (title.Contains("billboard", StringComparison.OrdinalIgnoreCase))
+        {
+            return 0;
+        }
+
+        if (title.Contains("digital screen", StringComparison.OrdinalIgnoreCase)
+            || title.Contains("digital screens", StringComparison.OrdinalIgnoreCase)
+            || title.Contains("screen", StringComparison.OrdinalIgnoreCase))
+        {
+            return 1;
+        }
+
+        return 2;
+    }
+
+    private static bool IsDigitalScreenPlacement(RecommendationLineDocumentModel item)
+    {
+        return NormalizeRecommendationChannel(item.Channel) == "ooh"
+            && !string.IsNullOrWhiteSpace(item.Title)
+            && item.Title.Contains("digital screen", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? ExtractScreenVenue(string? title)
+    {
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            return null;
+        }
+
+        var normalized = ToClientCopy(title).Trim();
+        const string suffix = "digital screen";
+        if (normalized.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+        {
+            normalized = normalized[..^suffix.Length].Trim();
+            normalized = normalized.TrimEnd('-', '|', ',', ' ');
+        }
+
+        return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
     }
 
     private static int GetFeaturedProposalIndex(int count)
@@ -642,6 +778,8 @@ internal static class RecommendationPdfGenerator
         var normalized = (channel ?? string.Empty).Trim().ToLowerInvariant();
         if (normalized.Contains("ooh", StringComparison.OrdinalIgnoreCase)
             || normalized.Contains("billboard", StringComparison.OrdinalIgnoreCase)
+            || normalized.Contains("digital screen", StringComparison.OrdinalIgnoreCase)
+            || normalized.Contains("digital screens", StringComparison.OrdinalIgnoreCase)
             || normalized.Contains("out of home", StringComparison.OrdinalIgnoreCase))
         {
             return "ooh";
