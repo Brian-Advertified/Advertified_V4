@@ -269,8 +269,7 @@ builder.Services.AddScoped<IRecommendationPlanBuilder>(_ => new RecommendationPl
 builder.Services.AddScoped<IRecommendationExplainabilityService, RecommendationExplainabilityService>();
 builder.Services.AddScoped<IOohPlanningInventorySource>(_ => new OohPlanningInventorySource(
     _.GetRequiredService<Npgsql.NpgsqlDataSource>(),
-    _.GetRequiredService<IPricingSettingsProvider>(),
-    _.GetRequiredService<ICommercialFlightPricingResolver>()));
+    _.GetRequiredService<IPricingSettingsProvider>()));
 builder.Services.AddScoped<IBroadcastPlanningInventorySource>(_ => new BroadcastPlanningInventorySource(
     _.GetRequiredService<IBroadcastInventoryCatalog>(),
     _.GetRequiredService<IBroadcastCostNormalizer>(),
