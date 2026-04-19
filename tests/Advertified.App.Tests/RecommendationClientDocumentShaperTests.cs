@@ -6,7 +6,7 @@ namespace Advertified.App.Tests;
 public sealed class RecommendationClientDocumentShaperTests
 {
     [Fact]
-    public void ShapeProposal_CollapsesMallPlacementsIntoSingleClientBlock()
+    public void ShapeProposal_CollapsesOohPlacementsIntoSingleVenueBlock()
     {
         var proposal = new RecommendationProposalDocumentModel
         {
@@ -47,13 +47,71 @@ public sealed class RecommendationClientDocumentShaperTests
         var shaped = RecommendationClientDocumentShaper.ShapeProposal(proposal);
 
         shaped.Items.Should().ContainSingle();
-        shaped.Items[0].Title.Should().Be("3 billboards and digital screens at Rosebank Mall");
+        shaped.Items[0].Title.Should().Be("3 placements at Rosebank Mall");
         shaped.Items[0].TotalCost.Should().Be(30000m);
         shaped.Items[0].SelectionReasons.Should().BeEquivalentTo(new[]
         {
             "High foot traffic",
             "Premium retail context",
             "Commuter reach"
+        });
+    }
+
+    [Fact]
+    public void ShapeProposal_CollapsesRepeatedVenueRowsEvenWhenAssetTypeLivesOutsideTitle()
+    {
+        var proposal = new RecommendationProposalDocumentModel
+        {
+            Label = "Proposal C",
+            TotalCost = 30500m,
+            Items = new[]
+            {
+                new RecommendationLineDocumentModel
+                {
+                    Channel = "OOH",
+                    Title = "Bloed Street Mall,, Pretoria",
+                    TotalCost = 4000m,
+                    Quantity = 1,
+                    Region = "Pretoria",
+                    SelectionReasons = new[] { "CBD footfall" }
+                },
+                new RecommendationLineDocumentModel
+                {
+                    Channel = "OOH",
+                    Title = "Bloed Street Mall,, Pretoria",
+                    TotalCost = 10000m,
+                    Quantity = 1,
+                    Region = "Pretoria",
+                    SelectionReasons = new[] { "Taxi rank traffic" }
+                },
+                new RecommendationLineDocumentModel
+                {
+                    Channel = "OOH",
+                    Title = "Sunnypark Shopping, Centre, Pretoria",
+                    TotalCost = 8500m,
+                    Quantity = 1,
+                    Region = "Pretoria",
+                    SelectionReasons = new[] { "Shopping audience" }
+                },
+                new RecommendationLineDocumentModel
+                {
+                    Channel = "OOH",
+                    Title = "Sunnypark Shopping, Centre, Pretoria",
+                    TotalCost = 8000m,
+                    Quantity = 1,
+                    Region = "Pretoria",
+                    SelectionReasons = new[] { "Commuter traffic" }
+                }
+            }
+        };
+
+        var shaped = RecommendationClientDocumentShaper.ShapeProposal(proposal);
+
+        shaped.Items.Should().HaveCount(2);
+        shaped.Items.Select(item => item.Title).Should().BeEquivalentTo(new[]
+        {
+            "2 placements at Bloed Street Mall, Pretoria",
+            "2 placements at Sunnypark Shopping, Centre, Pretoria"
         });
     }
 
