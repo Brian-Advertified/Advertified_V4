@@ -122,4 +122,110 @@ public sealed class CampaignWorkflowPolicyTests
 
         Assert.Contains("Prospect is closed", nextAction, StringComparison.OrdinalIgnoreCase);
     }
+
+    [Fact]
+    public void BuildClientWorkflow_AllowsProspectProposalReviewBeforePayment()
+    {
+        var campaign = CreateProspectCampaign();
+        campaign.CampaignRecommendations = new[]
+        {
+            new CampaignRecommendation
+            {
+                Status = RecommendationStatuses.SentToClient,
+                RecommendationType = "mix:balanced",
+                RevisionNumber = 1,
+                SentToClientAt = DateTime.UtcNow.AddMinutes(-5),
+                CreatedAt = DateTime.UtcNow.AddMinutes(-10),
+                UpdatedAt = DateTime.UtcNow.AddMinutes(-5)
+            }
+        };
+
+        var workflow = CampaignWorkflowPolicy.BuildClientWorkflow(campaign);
+
+        Assert.Equal("recommendation_ready", workflow.CurrentStateKey);
+        Assert.False(workflow.PaymentRequiredBeforeApproval);
+        Assert.True(workflow.RecommendationAwaitingDecision);
+        Assert.Equal("Review proposal", workflow.ActionLabel);
+    }
+
+    [Fact]
+    public void BuildTimeline_OrdersProspectProposalReviewBeforePayment()
+    {
+        var campaign = CreateProspectCampaign();
+        campaign.CampaignRecommendations = new[]
+        {
+            new CampaignRecommendation
+            {
+                Status = RecommendationStatuses.SentToClient,
+                RecommendationType = "mix:balanced",
+                RevisionNumber = 1,
+                SentToClientAt = DateTime.UtcNow.AddMinutes(-5),
+                CreatedAt = DateTime.UtcNow.AddMinutes(-10),
+                UpdatedAt = DateTime.UtcNow.AddMinutes(-5)
+            }
+        };
+
+        var timeline = CampaignWorkflowPolicy.BuildTimeline(campaign);
+
+        Assert.Equal(7, timeline.Count);
+        Assert.Equal("proposal", timeline[0].Key);
+        Assert.Equal(TimelineStates.Complete, timeline[0].State);
+        Assert.Equal("review", timeline[1].Key);
+        Assert.Equal(TimelineStates.Current, timeline[1].State);
+        Assert.Equal("payment", timeline[2].Key);
+        Assert.Equal(TimelineStates.Upcoming, timeline[2].State);
+    }
+
+    [Fact]
+    public void ResolveAgentQueueStage_UsesWaitingOnClientForSentProspectProposal()
+    {
+        var currentUserId = Guid.NewGuid();
+        var campaign = CreateProspectCampaign();
+        campaign.AssignedAgentUserId = currentUserId;
+        campaign.CampaignRecommendations = new[]
+        {
+            new CampaignRecommendation
+            {
+                Status = RecommendationStatuses.SentToClient,
+                RecommendationType = "mix:balanced",
+                RevisionNumber = 1,
+                SentToClientAt = DateTime.UtcNow.AddMinutes(-5),
+                CreatedAt = DateTime.UtcNow.AddMinutes(-10),
+                UpdatedAt = DateTime.UtcNow.AddMinutes(-5)
+            }
+        };
+
+        var stage = CampaignWorkflowPolicy.ResolveAgentQueueStage(campaign);
+        var nextAction = CampaignWorkflowPolicy.GetAgentNextAction(campaign, stage, currentUserId);
+
+        Assert.Equal(QueueStages.WaitingOnClient, stage);
+        Assert.Contains("proposal feedback", nextAction, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static Campaign CreateProspectCampaign()
+    {
+        return new Campaign
+        {
+            Status = CampaignStatuses.AwaitingPurchase,
+            PackageBand = new PackageBand
+            {
+                Name = "Scale"
+            },
+            PackageOrder = new PackageOrder
+            {
+                PaymentProvider = "prospect",
+                PaymentStatus = "pending",
+                Amount = 185000m,
+                SelectedBudget = 185000m
+            },
+            ProspectLead = new ProspectLead
+            {
+                FullName = "Brian Prospect",
+                Email = "prospect@example.com",
+                Phone = "0821234567",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            }
+        };
+    }
 }

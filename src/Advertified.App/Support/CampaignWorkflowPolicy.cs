@@ -12,8 +12,14 @@ public static class CampaignWorkflowPolicy
 
     public static string GetClientNextAction(Campaign campaign)
     {
+        var recommendation = RecommendationSelectionPolicy.GetVisibleRecommendation(campaign);
+        var isProspectiveCampaign = ProspectCampaignPolicy.IsProspectiveCampaign(campaign);
+        var recommendationAwaitingDecision = IsRecommendationAwaitingDecision(campaign, recommendation);
+
         return campaign.Status switch
         {
+            CampaignStatuses.AwaitingPurchase when recommendationAwaitingDecision => "Review your proposal and choose how to proceed",
+            CampaignStatuses.AwaitingPurchase when isProspectiveCampaign => "Wait for your tailored proposal",
             CampaignStatuses.Paid => "Complete your campaign brief",
             CampaignStatuses.BriefInProgress => "Finish and submit your brief",
             CampaignStatuses.BriefSubmitted => "Choose planning mode",
@@ -31,8 +37,9 @@ public static class CampaignWorkflowPolicy
 
     public static CampaignWorkflowSummaryResponse BuildClientWorkflow(Campaign campaign)
     {
-        var recommendation = GetAgentCurrentRecommendation(campaign);
-        var recommendationAwaitingDecision = string.Equals(recommendation?.Status, RecommendationStatuses.SentToClient, StringComparison.OrdinalIgnoreCase);
+        var recommendation = RecommendationSelectionPolicy.GetVisibleRecommendation(campaign);
+        var isProspectiveCampaign = ProspectCampaignPolicy.IsProspectiveCampaign(campaign);
+        var recommendationAwaitingDecision = IsRecommendationAwaitingDecision(campaign, recommendation);
         var recommendationApprovalCompleted = HasRecommendationApprovalCompleted(campaign, recommendation);
         var paymentAwaitingManualReview = IsPaymentAwaitingManualReview(campaign);
         var hasClearedPayment = HasClearedPayment(campaign);
@@ -58,7 +65,47 @@ public static class CampaignWorkflowPolicy
                 canOpenPlanning: CanOpenPlanning(campaign));
         }
 
-        if (paymentRequiredBeforeApproval)
+        if (isProspectiveCampaign && recommendationAwaitingDecision && !recommendationApprovalCompleted)
+        {
+            return BuildClientWorkflow(
+                currentStateKey: "recommendation_ready",
+                statusLabel: "Proposal ready",
+                headline: "Your proposal is ready to review",
+                description: "Review the prepared proposal options, choose the one you want to move forward with, or send it back with feedback.",
+                nextStep: "Select a proposal to continue to checkout, or request changes if you want the plan refined first.",
+                requiresClientAction: true,
+                actionLabel: "Review proposal",
+                paymentState: PaymentStateRequired,
+                paymentAwaitingManualReview: false,
+                paymentRequiredBeforeApproval: false,
+                hasClearedPayment: false,
+                recommendationAwaitingDecision: true,
+                recommendationApprovalCompleted: false,
+                canOpenBrief: CanOpenBrief(campaign),
+                canOpenPlanning: CanOpenPlanning(campaign));
+        }
+
+        if (isProspectiveCampaign && campaign.Status == CampaignStatuses.AwaitingPurchase)
+        {
+            return BuildClientWorkflow(
+                currentStateKey: "planning_in_progress",
+                statusLabel: "Proposal in progress",
+                headline: "We are preparing your proposal",
+                description: "Advertified is shaping a proposal for your business and will bring it here once it is ready to review.",
+                nextStep: "We will notify you as soon as the proposal is available.",
+                requiresClientAction: false,
+                actionLabel: "View status",
+                paymentState: PaymentStateRequired,
+                paymentAwaitingManualReview: false,
+                paymentRequiredBeforeApproval: false,
+                hasClearedPayment: false,
+                recommendationAwaitingDecision: false,
+                recommendationApprovalCompleted: false,
+                canOpenBrief: CanOpenBrief(campaign),
+                canOpenPlanning: CanOpenPlanning(campaign));
+        }
+
+        if (paymentRequiredBeforeApproval && !isProspectiveCampaign)
         {
             return BuildClientWorkflow(
                 currentStateKey: "payment_required",
@@ -261,19 +308,69 @@ public static class CampaignWorkflowPolicy
 
     public static IReadOnlyList<CampaignTimelineStepResponse> BuildTimeline(Campaign campaign)
     {
-        var latestRecommendation = GetAgentCurrentRecommendation(campaign);
+        var latestRecommendation = RecommendationSelectionPolicy.GetVisibleRecommendation(campaign);
         var recommendationStatus = latestRecommendation?.Status?.Trim().ToLowerInvariant();
+        var isProspectiveCampaign = ProspectCampaignPolicy.IsProspectiveCampaign(campaign);
 
         var paymentComplete = HasClearedPayment(campaign);
         var briefComplete = campaign.Status is not CampaignStatuses.Paid and not CampaignStatuses.BriefInProgress || campaign.CampaignBrief?.SubmittedAt is not null;
         var recommendationReady = campaign.Status is CampaignStatuses.PlanningInProgress or CampaignStatuses.ReviewReady or CampaignStatuses.Approved or CampaignStatuses.CreativeChangesRequested or CampaignStatuses.CreativeSentToClientForApproval or CampaignStatuses.CreativeApproved or CampaignStatuses.BookingInProgress or CampaignStatuses.Launched || latestRecommendation is not null;
-        var clientReviewActive = campaign.Status is CampaignStatuses.ReviewReady || recommendationStatus == RecommendationStatuses.SentToClient;
+        var clientReviewActive = IsRecommendationAwaitingDecision(campaign, latestRecommendation);
         var recommendationApproved = campaign.Status is CampaignStatuses.Approved or CampaignStatuses.CreativeChangesRequested or CampaignStatuses.CreativeSentToClientForApproval or CampaignStatuses.CreativeApproved or CampaignStatuses.BookingInProgress or CampaignStatuses.Launched || recommendationStatus == RecommendationStatuses.Approved;
         var creativeProductionStarted = campaign.Status is CampaignStatuses.Approved or CampaignStatuses.CreativeChangesRequested or CampaignStatuses.CreativeSentToClientForApproval or CampaignStatuses.CreativeApproved or CampaignStatuses.BookingInProgress or CampaignStatuses.Launched;
         var creativeReviewActive = campaign.Status == CampaignStatuses.CreativeSentToClientForApproval;
         var creativeApproved = campaign.Status is CampaignStatuses.CreativeApproved or CampaignStatuses.BookingInProgress or CampaignStatuses.Launched;
         var bookingInProgress = campaign.Status == CampaignStatuses.BookingInProgress;
         var launchActivated = campaign.Status == CampaignStatuses.Launched;
+
+        if (isProspectiveCampaign)
+        {
+            return new[]
+            {
+                BuildTimelineStep(
+                    key: "proposal",
+                    label: "Proposal prepared",
+                    description: "Advertified has prepared proposal options tailored to your business.",
+                    isComplete: recommendationReady,
+                    isCurrent: campaign.Status == CampaignStatuses.AwaitingPurchase && latestRecommendation is null),
+                BuildTimelineStep(
+                    key: "review",
+                    label: "Client review",
+                    description: "Review the proposal, request changes, or choose the option you want to purchase.",
+                    isComplete: recommendationApproved || paymentComplete,
+                    isCurrent: clientReviewActive && !recommendationApproved && !paymentComplete),
+                BuildTimelineStep(
+                    key: "payment",
+                    label: "Payment confirmed",
+                    description: "Your selected proposal has been purchased and the campaign can move into production.",
+                    isComplete: paymentComplete,
+                    isCurrent: !paymentComplete && recommendationApproved),
+                BuildTimelineStep(
+                    key: "creative-production",
+                    label: "Creative production",
+                    description: "Advertified's creative director is preparing your finished media from the approved recommendation.",
+                    isComplete: campaign.Status is CampaignStatuses.CreativeSentToClientForApproval or CampaignStatuses.CreativeApproved or CampaignStatuses.BookingInProgress or CampaignStatuses.Launched,
+                    isCurrent: creativeProductionStarted && !creativeReviewActive && !creativeApproved),
+                BuildTimelineStep(
+                    key: "creative-approval",
+                    label: "Final creative approval",
+                    description: "Your finished media has been sent back for final client approval.",
+                    isComplete: creativeApproved,
+                    isCurrent: creativeReviewActive),
+                BuildTimelineStep(
+                    key: "booking",
+                    label: "Supplier booking",
+                    description: "Advertified is confirming placements and activation timing with suppliers.",
+                    isComplete: bookingInProgress || launchActivated,
+                    isCurrent: (creativeApproved && !bookingInProgress && !launchActivated) || bookingInProgress),
+                BuildTimelineStep(
+                    key: "live",
+                    label: "Campaign live",
+                    description: "Operations has activated the campaign and it is now live.",
+                    isComplete: launchActivated,
+                    isCurrent: false)
+            };
+        }
 
         return new[]
         {
@@ -335,9 +432,20 @@ public static class CampaignWorkflowPolicy
             return QueueStages.ClosedProspect;
         }
 
-        var latestRecommendation = GetAgentCurrentRecommendation(campaign);
+        var latestRecommendation = RecommendationSelectionPolicy.GetVisibleRecommendation(campaign);
         var hasRecommendation = latestRecommendation is not null;
         var recommendationStatus = latestRecommendation?.Status?.Trim().ToLowerInvariant();
+
+        if (ProspectCampaignPolicy.IsProspectiveCampaign(campaign))
+        {
+            return recommendationStatus switch
+            {
+                RecommendationStatuses.SentToClient => QueueStages.WaitingOnClient,
+                RecommendationStatuses.Approved => QueueStages.Completed,
+                _ when hasRecommendation => QueueStages.AgentReview,
+                _ => QueueStages.PlanningReady
+            };
+        }
 
         if (campaign.Status is CampaignStatuses.Approved
             or CampaignStatuses.CreativeChangesRequested
@@ -400,7 +508,7 @@ public static class CampaignWorkflowPolicy
             return "Prospect is closed. Reopen only if the client re-engages or commercial circumstances change.";
         }
 
-        var latestRecommendation = GetAgentCurrentRecommendation(campaign);
+        var latestRecommendation = RecommendationSelectionPolicy.GetVisibleRecommendation(campaign);
         var selectedBudget = PricingPolicy.ResolvePlanningBudget(
             campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
             campaign.PackageOrder.AiStudioReserveAmount);
@@ -423,6 +531,18 @@ public static class CampaignWorkflowPolicy
         if (manualReviewRequired)
         {
             return $"{assignmentPrefix} review the fallback warnings carefully before sending this recommendation.";
+        }
+
+        if (ProspectCampaignPolicy.IsProspectiveCampaign(campaign))
+        {
+            return stage switch
+            {
+                QueueStages.PlanningReady => $"{assignmentPrefix} create the prospect proposal and prepare it for review.",
+                QueueStages.AgentReview => $"{assignmentPrefix} review the proposal draft and send it to the prospect.",
+                QueueStages.WaitingOnClient => $"{assignmentPrefix} wait for proposal feedback, selection, or purchase.",
+                QueueStages.Completed => $"{assignmentPrefix} support conversion and activation follow-up.",
+                _ => $"{assignmentPrefix} monitor this prospect and keep the opportunity moving."
+            };
         }
 
         return stage switch
@@ -562,14 +682,11 @@ public static class CampaignWorkflowPolicy
         return bool.TryParse(rawValue, out var parsed) && parsed;
     }
 
-    private static CampaignRecommendation? GetAgentCurrentRecommendation(Campaign campaign)
+    private static bool IsRecommendationAwaitingDecision(Campaign campaign, CampaignRecommendation? recommendation)
     {
-        var currentSet = RecommendationRevisionSupport.GetCurrentRecommendationSet(campaign.CampaignRecommendations);
-        return currentSet.FirstOrDefault(x => string.Equals(x.Status, RecommendationStatuses.Approved, StringComparison.OrdinalIgnoreCase))
-            ?? currentSet.FirstOrDefault(x => string.Equals(x.Status, RecommendationStatuses.SentToClient, StringComparison.OrdinalIgnoreCase))
-            ?? currentSet
-                .OrderByDescending(x => x.CreatedAt)
-                .FirstOrDefault();
+        return string.Equals(campaign.Status, CampaignStatuses.ReviewReady, StringComparison.OrdinalIgnoreCase)
+            || (ProspectCampaignPolicy.IsProspectiveCampaign(campaign)
+                && string.Equals(recommendation?.Status, RecommendationStatuses.SentToClient, StringComparison.OrdinalIgnoreCase));
     }
 
     private static CampaignWorkflowSummaryResponse BuildClientWorkflow(

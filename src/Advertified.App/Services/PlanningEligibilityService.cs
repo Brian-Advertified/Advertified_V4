@@ -105,10 +105,12 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
         var isOohLike = candidate.MediaType.Equals("OOH", StringComparison.OrdinalIgnoreCase)
             || candidate.MediaType.Equals("Digital", StringComparison.OrdinalIgnoreCase);
 
-        // National broadcast inventory (radio + TV) should remain eligible across
-        // local/provincial briefs. This prevents false preferred-media fallbacks when
-        // channels are inherently national even if the brief geography is narrower.
-        if (isBroadcast
+        // National broadcast inventory (radio + TV) and national digital packages
+        // should remain eligible across local/provincial briefs. This prevents false
+        // preferred-media fallbacks when channels are inherently national even if the
+        // brief geography is narrower.
+        if ((isBroadcast
+                || candidate.MediaType.Equals("Digital", StringComparison.OrdinalIgnoreCase))
             && Matches(candidate.MarketScope, "national"))
         {
             return true;

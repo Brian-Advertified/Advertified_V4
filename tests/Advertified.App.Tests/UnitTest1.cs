@@ -2111,6 +2111,246 @@ public class ControllerMappingsTests
     }
 
     [Fact]
+    public void ToDetail_ReturnsLatestDraftProposalSetWhenCampaignIsBackInPlanning()
+    {
+        var userId = Guid.NewGuid();
+        var now = DateTime.UtcNow;
+        var campaign = new CampaignEntity
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            PackageOrderId = Guid.NewGuid(),
+            PackageBandId = Guid.NewGuid(),
+            CampaignName = "Replanning campaign",
+            Status = "planning_in_progress",
+            CreatedAt = now,
+            User = new UserAccount
+            {
+                Id = userId,
+                FullName = "Brian Rapula",
+                Email = "brian@example.com",
+                Phone = "0821234567",
+                PasswordHash = "hash",
+                CreatedAt = now,
+                UpdatedAt = now
+            },
+            PackageBand = new PackageBandEntity
+            {
+                Id = Guid.NewGuid(),
+                Code = "scale",
+                Name = "Scale",
+                MinBudget = 150000m,
+                MaxBudget = 500000m,
+                SortOrder = 3,
+                IsActive = true,
+                CreatedAt = now
+            },
+            PackageOrder = new PackageOrderEntity
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                PackageBandId = Guid.NewGuid(),
+                Amount = 250000m,
+                SelectedBudget = 250000m,
+                Currency = "ZAR",
+                PaymentStatus = "paid",
+                CreatedAt = now,
+                UpdatedAt = now,
+                User = new UserAccount
+                {
+                    Id = userId,
+                    FullName = "Brian Rapula",
+                    Email = "brian@example.com",
+                    Phone = "0821234567",
+                    PasswordHash = "hash",
+                    CreatedAt = now,
+                    UpdatedAt = now
+                },
+                PackageBand = new PackageBandEntity
+                {
+                    Id = Guid.NewGuid(),
+                    Code = "scale",
+                    Name = "Scale",
+                    MinBudget = 150000m,
+                    MaxBudget = 500000m,
+                    SortOrder = 3,
+                    IsActive = true,
+                    CreatedAt = now
+                }
+            }
+        };
+
+        campaign.CampaignRecommendations.Add(new CampaignRecommendation
+        {
+            Id = Guid.NewGuid(),
+            CampaignId = campaign.Id,
+            RecommendationType = "mix:balanced",
+            GeneratedBy = "system",
+            Status = "sent_to_client",
+            TotalCost = 230000m,
+            Summary = "Proposal A",
+            Rationale = "Balanced recommendation",
+            RevisionNumber = 1,
+            SentToClientAt = now.AddMinutes(-20),
+            CreatedAt = now.AddMinutes(-30),
+            UpdatedAt = now.AddMinutes(-20)
+        });
+        campaign.CampaignRecommendations.Add(new CampaignRecommendation
+        {
+            Id = Guid.NewGuid(),
+            CampaignId = campaign.Id,
+            RecommendationType = "mix:ooh_focus",
+            GeneratedBy = "system",
+            Status = "sent_to_client",
+            TotalCost = 240000m,
+            Summary = "Proposal B",
+            Rationale = "OOH recommendation",
+            RevisionNumber = 1,
+            SentToClientAt = now.AddMinutes(-20),
+            CreatedAt = now.AddMinutes(-29),
+            UpdatedAt = now.AddMinutes(-20)
+        });
+        campaign.CampaignRecommendations.Add(new CampaignRecommendation
+        {
+            Id = Guid.NewGuid(),
+            CampaignId = campaign.Id,
+            RecommendationType = "mix:radio_focus",
+            GeneratedBy = "system",
+            Status = "sent_to_client",
+            TotalCost = 220000m,
+            Summary = "Proposal C",
+            Rationale = "Radio recommendation",
+            RevisionNumber = 1,
+            SentToClientAt = now.AddMinutes(-20),
+            CreatedAt = now.AddMinutes(-28),
+            UpdatedAt = now.AddMinutes(-20)
+        });
+        campaign.CampaignRecommendations.Add(new CampaignRecommendation
+        {
+            Id = Guid.NewGuid(),
+            CampaignId = campaign.Id,
+            RecommendationType = "mix:balanced",
+            GeneratedBy = "system",
+            Status = "draft",
+            TotalCost = 235000m,
+            Summary = "Draft Proposal A",
+            Rationale = "Latest balanced draft",
+            RevisionNumber = 2,
+            CreatedAt = now.AddMinutes(-10),
+            UpdatedAt = now.AddMinutes(-10)
+        });
+        campaign.CampaignRecommendations.Add(new CampaignRecommendation
+        {
+            Id = Guid.NewGuid(),
+            CampaignId = campaign.Id,
+            RecommendationType = "mix:ooh_focus",
+            GeneratedBy = "system",
+            Status = "draft",
+            TotalCost = 245000m,
+            Summary = "Draft Proposal B",
+            Rationale = "Latest OOH draft",
+            RevisionNumber = 2,
+            CreatedAt = now.AddMinutes(-9),
+            UpdatedAt = now.AddMinutes(-9)
+        });
+        campaign.CampaignRecommendations.Add(new CampaignRecommendation
+        {
+            Id = Guid.NewGuid(),
+            CampaignId = campaign.Id,
+            RecommendationType = "mix:radio_focus",
+            GeneratedBy = "system",
+            Status = "draft",
+            TotalCost = 225000m,
+            Summary = "Draft Proposal C",
+            Rationale = "Latest radio draft",
+            RevisionNumber = 2,
+            CreatedAt = now.AddMinutes(-8),
+            UpdatedAt = now.AddMinutes(-8)
+        });
+
+        var response = campaign.ToDetail(userId);
+
+        response.Recommendations.Should().HaveCount(3);
+        response.Recommendations.Should().OnlyContain(x => x.Status == "draft");
+        response.Recommendations.Select(x => x.ProposalLabel).Should().ContainInOrder("Proposal A", "Proposal B", "Proposal C");
+        response.Recommendations.Select(x => x.Summary).Should().Contain(new[] { "Draft Proposal A", "Draft Proposal B", "Draft Proposal C" });
+    }
+
+    [Fact]
+    public void ToDetail_UsesProspectWorkflowSummaryWhenProposalIsAwaitingSelection()
+    {
+        var now = DateTime.UtcNow;
+        var prospectLeadId = Guid.NewGuid();
+        var campaign = new CampaignEntity
+        {
+            Id = Guid.NewGuid(),
+            ProspectLeadId = prospectLeadId,
+            PackageOrderId = Guid.NewGuid(),
+            PackageBandId = Guid.NewGuid(),
+            CampaignName = "Prospect proposal campaign",
+            Status = "awaiting_purchase",
+            CreatedAt = now,
+            UpdatedAt = now,
+            ProspectLead = new ProspectLead
+            {
+                Id = prospectLeadId,
+                FullName = "Brian Prospect",
+                Email = "prospect@example.com",
+                Phone = "0821234567",
+                CreatedAt = now,
+                UpdatedAt = now
+            },
+            PackageBand = new PackageBandEntity
+            {
+                Id = Guid.NewGuid(),
+                Code = "scale",
+                Name = "Scale",
+                MinBudget = 150000m,
+                MaxBudget = 500000m,
+                SortOrder = 3,
+                IsActive = true,
+                CreatedAt = now
+            },
+            PackageOrder = new PackageOrderEntity
+            {
+                Id = Guid.NewGuid(),
+                ProspectLeadId = prospectLeadId,
+                PackageBandId = Guid.NewGuid(),
+                Amount = 185000m,
+                SelectedBudget = 185000m,
+                Currency = "ZAR",
+                PaymentProvider = "prospect",
+                PaymentStatus = "pending",
+                RefundStatus = "none",
+                CreatedAt = now,
+                UpdatedAt = now
+            }
+        };
+
+        campaign.CampaignRecommendations.Add(new CampaignRecommendation
+        {
+            Id = Guid.NewGuid(),
+            CampaignId = campaign.Id,
+            RecommendationType = "mix:balanced",
+            GeneratedBy = "system",
+            Status = "sent_to_client",
+            TotalCost = 185000m,
+            Summary = "Proposal A",
+            Rationale = "Prospect proposal ready",
+            RevisionNumber = 1,
+            SentToClientAt = now.AddMinutes(-5),
+            CreatedAt = now.AddMinutes(-10),
+            UpdatedAt = now.AddMinutes(-5)
+        });
+
+        var response = campaign.ToDetail();
+
+        response.Workflow.CurrentStateKey.Should().Be("recommendation_ready");
+        response.Workflow.PaymentRequiredBeforeApproval.Should().BeFalse();
+        response.NextAction.Should().Be("Review your proposal and choose how to proceed");
+    }
+
+    [Fact]
     public void ToDetail_IncludesPackageOrderPaymentStatus()
     {
         var userId = Guid.NewGuid();

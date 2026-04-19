@@ -47,7 +47,7 @@ public sealed class RecommendationApprovalWorkflowService : IRecommendationAppro
             .FirstOrDefaultAsync(x => x.Id == campaignId, cancellationToken)
             ?? throw new InvalidOperationException("Campaign not found.");
 
-        var currentRecommendations = RecommendationRevisionSupport.GetCurrentRecommendationSet(campaign.CampaignRecommendations);
+        var currentRecommendations = RecommendationSelectionPolicy.GetVisibleRecommendationSet(campaign);
         var recommendation = currentRecommendations
             .FirstOrDefault(x => x.Id == recommendationId)
             ?? currentRecommendations.FirstOrDefault()
@@ -130,7 +130,7 @@ public sealed class RecommendationApprovalWorkflowService : IRecommendationAppro
             .FirstOrDefaultAsync(x => x.Id == campaignId, cancellationToken)
             ?? throw new InvalidOperationException("Campaign not found.");
 
-        var currentRecommendations = RecommendationRevisionSupport.GetCurrentRecommendationSet(campaign.CampaignRecommendations);
+        var currentRecommendations = RecommendationSelectionPolicy.GetVisibleRecommendationSet(campaign);
         if (currentRecommendations.Length == 0)
         {
             throw new InvalidOperationException("Recommendation not found.");

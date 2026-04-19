@@ -134,11 +134,8 @@ public sealed class AgentCampaignsController : ControllerBase
         {
             var workflowCampaign = campaign;
             var stage = CampaignWorkflowPolicy.ResolveAgentQueueStage(workflowCampaign);
-            var currentRecommendations = RecommendationRevisionSupport.GetCurrentRecommendationSet(campaign.CampaignRecommendations);
-            var activeRecommendation = currentRecommendations
-                .FirstOrDefault(x => string.Equals(x.Status, RecommendationStatuses.Approved, StringComparison.OrdinalIgnoreCase))
-                ?? currentRecommendations.FirstOrDefault(x => string.Equals(x.Status, RecommendationStatuses.SentToClient, StringComparison.OrdinalIgnoreCase))
-                ?? currentRecommendations.OrderByDescending(x => x.CreatedAt).FirstOrDefault();
+            var currentRecommendations = RecommendationSelectionPolicy.GetVisibleRecommendationSet(campaign);
+            var activeRecommendation = RecommendationSelectionPolicy.GetVisibleRecommendation(campaign);
             var selectedBudget = PricingPolicy.ResolvePlanningBudget(
                 campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
                 campaign.PackageOrder.AiStudioReserveAmount);

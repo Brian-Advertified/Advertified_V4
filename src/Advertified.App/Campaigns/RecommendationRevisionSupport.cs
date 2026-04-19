@@ -16,7 +16,12 @@ internal static class RecommendationRevisionSupport
         }
 
         var revisionNumber = materialized.Max(x => x.RevisionNumber);
-        return materialized
+        return GetRevisionSet(materialized, revisionNumber);
+    }
+
+    internal static CampaignRecommendation[] GetRevisionSet(IEnumerable<CampaignRecommendation> recommendations, int revisionNumber)
+    {
+        return recommendations
             .Where(x => x.RevisionNumber == revisionNumber)
             .OrderBy(x => GetProposalRank(x.RecommendationType))
             .ThenBy(x => x.CreatedAt)

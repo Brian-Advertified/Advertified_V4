@@ -212,4 +212,31 @@ public sealed class PlanningEligibilityServiceGeographyAliasTests
         var result = service.FilterEligibleCandidates(new List<InventoryCandidate> { nearCandidate, farCandidate }, request);
         result.Candidates.Should().ContainSingle(x => x.DisplayName == "Nearby Billboard");
     }
+
+    [Fact]
+    public void FilterEligibleCandidates_AllowsNationalDigitalForProvincialBriefs()
+    {
+        var policyService = CreatePolicyService();
+        var service = new PlanningEligibilityService(policyService, new TestBroadcastMasterDataService());
+        var request = new CampaignPlanningRequest
+        {
+            SelectedBudget = 100000m,
+            GeographyScope = "provincial",
+            Provinces = new List<string> { "Western Cape" }
+        };
+
+        var digitalCandidate = new InventoryCandidate
+        {
+            SourceId = Guid.NewGuid(),
+            SourceType = "digital_package",
+            DisplayName = "Meta - Awareness benchmark",
+            MediaType = "Digital",
+            MarketScope = "national",
+            Cost = 15000m,
+            IsAvailable = true
+        };
+
+        var result = service.FilterEligibleCandidates(new List<InventoryCandidate> { digitalCandidate }, request);
+        result.Candidates.Should().ContainSingle(x => x.DisplayName == "Meta - Awareness benchmark");
+    }
 }

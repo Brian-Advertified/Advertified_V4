@@ -46,7 +46,7 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
         var opportunityContext = RecommendationOpportunityContextParser.Parse(
             campaign.CampaignBrief?.SpecialRequirements ?? campaign.CampaignBrief?.CreativeNotes);
 
-        var currentRecommendations = RecommendationRevisionSupport.GetCurrentRecommendationSet(campaign.CampaignRecommendations);
+        var currentRecommendations = RecommendationSelectionPolicy.GetVisibleRecommendationSet(campaign);
 
         if (currentRecommendations.Length == 0)
         {
@@ -111,7 +111,7 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
         var opportunityContext = RecommendationOpportunityContextParser.Parse(
             campaign.CampaignBrief?.SpecialRequirements ?? campaign.CampaignBrief?.CreativeNotes);
 
-        var currentRecommendations = RecommendationRevisionSupport.GetCurrentRecommendationSet(campaign.CampaignRecommendations);
+        var currentRecommendations = RecommendationSelectionPolicy.GetVisibleRecommendationSet(campaign);
         var recommendation = currentRecommendations.FirstOrDefault(x => x.Id == recommendationId)
             ?? throw new InvalidOperationException("Recommendation not found.");
 
