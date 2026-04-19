@@ -567,12 +567,12 @@ internal static class RecommendationPdfGenerator
         }
 
         var collapsed = new List<RecommendationLineDocumentModel>();
-        var mallScreenGroups = materialized
-            .Where(IsDigitalScreenPlacement)
+        var mallOohGroups = materialized
+            .Where(IsMallOohPlacement)
             .Select(item => new
             {
                 Item = item,
-                Venue = ExtractScreenVenue(item.Title)
+                Venue = ExtractMallVenue(item.Title)
             })
             .Where(entry => !string.IsNullOrWhiteSpace(entry.Venue))
             .GroupBy(entry => entry.Venue!, StringComparer.OrdinalIgnoreCase)
@@ -582,15 +582,15 @@ internal static class RecommendationPdfGenerator
 
         foreach (var item in materialized)
         {
-            if (!IsDigitalScreenPlacement(item))
+            if (!IsMallOohPlacement(item))
             {
                 collapsed.Add(item);
                 continue;
             }
 
-            var venue = ExtractScreenVenue(item.Title);
+            var venue = ExtractMallVenue(item.Title);
             if (string.IsNullOrWhiteSpace(venue)
-                || !mallScreenGroups.TryGetValue(venue, out var groupedItems)
+                || !mallOohGroups.TryGetValue(venue, out var groupedItems)
                 || groupedItems.Length <= 1)
             {
                 collapsed.Add(item);
@@ -610,7 +610,7 @@ internal static class RecommendationPdfGenerator
 
     private static RecommendationLineDocumentModel BuildCollapsedMallScreenPlacement(string venue, IReadOnlyList<RecommendationLineDocumentModel> items)
     {
-        var totalScreens = items.Sum(item => Math.Max(1, item.Quantity));
+        var totalPlacements = items.Sum(item => Math.Max(1, item.Quantity));
         var region = items
             .Select(item => item.Region)
             .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
@@ -630,10 +630,10 @@ internal static class RecommendationPdfGenerator
         return new RecommendationLineDocumentModel
         {
             Channel = items[0].Channel,
-            Title = $"{totalScreens} digital screen{(totalScreens == 1 ? string.Empty : "s")} at {venue}",
+            Title = $"{totalPlacements} {BuildCombinedMallPlacementLabel(items)} at {venue}",
             Rationale = rationale,
             TotalCost = items.Sum(item => item.TotalCost),
-            Quantity = totalScreens,
+            Quantity = totalPlacements,
             Region = region,
             Duration = duration,
             SelectionReasons = reasons
@@ -688,14 +688,20 @@ internal static class RecommendationPdfGenerator
         return 2;
     }
 
-    private static bool IsDigitalScreenPlacement(RecommendationLineDocumentModel item)
+    private static bool IsMallOohPlacement(RecommendationLineDocumentModel item)
     {
-        return NormalizeRecommendationChannel(item.Channel) == "ooh"
-            && !string.IsNullOrWhiteSpace(item.Title)
-            && item.Title.Contains("digital screen", StringComparison.OrdinalIgnoreCase);
+        if (NormalizeRecommendationChannel(item.Channel) != "ooh"
+            || string.IsNullOrWhiteSpace(item.Title))
+        {
+            return false;
+        }
+
+        var title = item.Title.Trim();
+        return title.Contains("digital screen", StringComparison.OrdinalIgnoreCase)
+            || title.Contains("billboard", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string? ExtractScreenVenue(string? title)
+    private static string? ExtractMallVenue(string? title)
     {
         if (string.IsNullOrWhiteSpace(title))
         {
@@ -703,14 +709,35 @@ internal static class RecommendationPdfGenerator
         }
 
         var normalized = ToClientCopy(title).Trim();
-        const string suffix = "digital screen";
-        if (normalized.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+        if (normalized.EndsWith("digital screen", StringComparison.OrdinalIgnoreCase))
         {
-            normalized = normalized[..^suffix.Length].Trim();
-            normalized = normalized.TrimEnd('-', '|', ',', ' ');
+            normalized = normalized[..^"digital screen".Length].Trim();
+        }
+        else if (normalized.EndsWith("billboard", StringComparison.OrdinalIgnoreCase))
+        {
+            normalized = normalized[..^"billboard".Length].Trim();
         }
 
+        normalized = normalized.TrimEnd('-', '|', ',', ' ');
         return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
+    }
+
+    private static string BuildCombinedMallPlacementLabel(IReadOnlyList<RecommendationLineDocumentModel> items)
+    {
+        var hasBillboards = items.Any(item => item.Title.Contains("billboard", StringComparison.OrdinalIgnoreCase));
+        var hasScreens = items.Any(item => item.Title.Contains("digital screen", StringComparison.OrdinalIgnoreCase));
+
+        if (hasBillboards && hasScreens)
+        {
+            return "billboards and digital screens";
+        }
+
+        if (hasBillboards)
+        {
+            return "billboard" + (items.Sum(item => Math.Max(1, item.Quantity)) == 1 ? string.Empty : "s");
+        }
+
+        return "digital screen" + (items.Sum(item => Math.Max(1, item.Quantity)) == 1 ? string.Empty : "s");
     }
 
     private static int GetFeaturedProposalIndex(int count)
