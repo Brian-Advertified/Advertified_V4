@@ -12,24 +12,32 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
     private readonly IBroadcastCostNormalizer _costNormalizer;
     private readonly IPricingSettingsProvider _pricingSettingsProvider;
     private readonly IBroadcastInventoryIntelligenceService _broadcastInventoryIntelligenceService;
+    private readonly ICommercialFlightPricingResolver _commercialFlightPricingResolver;
 
     public BroadcastPlanningInventorySource(
         IBroadcastInventoryCatalog broadcastInventoryCatalog,
         IBroadcastCostNormalizer costNormalizer,
         IPricingSettingsProvider pricingSettingsProvider,
-        IBroadcastInventoryIntelligenceService broadcastInventoryIntelligenceService)
+        IBroadcastInventoryIntelligenceService broadcastInventoryIntelligenceService,
+        ICommercialFlightPricingResolver commercialFlightPricingResolver)
     {
         _broadcastInventoryCatalog = broadcastInventoryCatalog;
         _costNormalizer = costNormalizer;
         _pricingSettingsProvider = pricingSettingsProvider;
         _broadcastInventoryIntelligenceService = broadcastInventoryIntelligenceService;
+        _commercialFlightPricingResolver = commercialFlightPricingResolver;
     }
 
     public BroadcastPlanningInventorySource(
         IBroadcastInventoryCatalog broadcastInventoryCatalog,
         IBroadcastCostNormalizer costNormalizer,
         IPricingSettingsProvider pricingSettingsProvider)
-        : this(broadcastInventoryCatalog, costNormalizer, pricingSettingsProvider, new NullBroadcastInventoryIntelligenceService())
+        : this(
+            broadcastInventoryCatalog,
+            costNormalizer,
+            pricingSettingsProvider,
+            new NullBroadcastInventoryIntelligenceService(),
+            new CommercialFlightPricingResolver())
     {
     }
 
@@ -43,17 +51,17 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
         return new BroadcastPlanningCandidateSet(
             RadioSlots: records
                 .Where(record => string.Equals(record.MediaType, "radio", StringComparison.OrdinalIgnoreCase))
-                .SelectMany(record => CreateBroadcastRateCandidates(record, pricingSettings, radioIntelligence))
+                .SelectMany(record => CreateBroadcastRateCandidates(request, record, pricingSettings, radioIntelligence))
                 .Where(candidate => candidate.Cost > 0m && candidate.Cost <= request.SelectedBudget)
                 .ToList(),
             RadioPackages: records
                 .Where(record => string.Equals(record.MediaType, "radio", StringComparison.OrdinalIgnoreCase))
-                .SelectMany(record => CreateBroadcastPackageCandidates(record, pricingSettings, radioIntelligence))
+                .SelectMany(record => CreateBroadcastPackageCandidates(request, record, pricingSettings, radioIntelligence))
                 .Where(candidate => candidate.Cost > 0m && candidate.Cost <= request.SelectedBudget)
                 .ToList(),
             Tv: records
                 .Where(record => string.Equals(record.MediaType, "tv", StringComparison.OrdinalIgnoreCase))
-                .SelectMany(record => CreateBroadcastPackageCandidates(record, pricingSettings, tvIntelligence).Concat(CreateBroadcastRateCandidates(record, pricingSettings, tvIntelligence)))
+                .SelectMany(record => CreateBroadcastPackageCandidates(request, record, pricingSettings, tvIntelligence).Concat(CreateBroadcastRateCandidates(request, record, pricingSettings, tvIntelligence)))
                 .Where(candidate => candidate.Cost > 0m && candidate.Cost <= request.SelectedBudget)
                 .ToList());
     }
@@ -77,6 +85,7 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
     }
 
     private IEnumerable<BroadcastPlanningInventorySeed> CreateBroadcastPackageCandidates(
+        CampaignPlanningRequest request,
         BroadcastInventoryRecord record,
         PricingSettingsSnapshot pricingSettings,
         IReadOnlyDictionary<string, IReadOnlyDictionary<string, object?>> intelligenceLookup)
@@ -131,8 +140,20 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
                         continue;
                     }
 
-                    var markedUpCost = PricingPolicy.ApplyMarkup(normalized.MonthlyCostEstimateZar, record.MediaType, packageType, pricingSettings);
-                    if (markedUpCost <= 0m)
+                    var markedUpComparableMonthlyCost = PricingPolicy.ApplyMarkup(normalized.MonthlyCostEstimateZar, record.MediaType, packageType, pricingSettings);
+                    var markedUpRawCost = PricingPolicy.ApplyMarkup(normalized.RawCostZar, record.MediaType, packageType, pricingSettings);
+                    var commercialResolution = _commercialFlightPricingResolver.Resolve(
+                        request,
+                        record.MediaType,
+                        ResolvePricingModel(normalized, durationWeeks, durationMonths, packageOnly: true),
+                        markedUpRawCost,
+                        markedUpComparableMonthlyCost,
+                        durationWeeks,
+                        durationMonths,
+                        packageOnly: true,
+                        allowsProration: normalized.CostType.Contains("monthly", StringComparison.OrdinalIgnoreCase));
+
+                    if (commercialResolution.QuotedCost <= 0m)
                     {
                         continue;
                     }
@@ -145,16 +166,18 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
                         SourceType = record.MediaType.Equals("tv", StringComparison.OrdinalIgnoreCase) ? "tv_package" : "radio_package",
                         DisplayName = $"{record.Station} - {packageName} - {GetString(element, "name") ?? "Element"}",
                         SlotType = "package",
-                        Cost = markedUpCost,
+                        Cost = commercialResolution.QuotedCost,
                         Metadata = MergeMetadata(CreateMetadata(
                             record,
                             normalized,
-                            markedUpCost,
+                            commercialResolution,
                             pricingSettings,
                             packageType,
                             null,
                             null,
                             true,
+                            durationWeeks,
+                            durationMonths,
                             GetString(element, "name") ?? packageName,
                             GetString(element, "notes") ?? GetString(package, "notes")),
                             ResolveIntelligence(intelligenceLookup, intelligenceKey))
@@ -195,8 +218,19 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
                 continue;
             }
 
-            var markedUpPackageCost = PricingPolicy.ApplyMarkup(normalizedPackage.MonthlyCostEstimateZar, record.MediaType, packageType, pricingSettings);
-            if (markedUpPackageCost <= 0m)
+            var markedUpComparableMonthlyPackageCost = PricingPolicy.ApplyMarkup(normalizedPackage.MonthlyCostEstimateZar, record.MediaType, packageType, pricingSettings);
+            var markedUpRawPackageCost = PricingPolicy.ApplyMarkup(normalizedPackage.RawCostZar, record.MediaType, packageType, pricingSettings);
+            var packageResolution = _commercialFlightPricingResolver.Resolve(
+                request,
+                record.MediaType,
+                ResolvePricingModel(normalizedPackage, durationWeeksForPackage, durationMonthsForPackage, packageOnly: true),
+                markedUpRawPackageCost,
+                markedUpComparableMonthlyPackageCost,
+                durationWeeksForPackage,
+                durationMonthsForPackage,
+                packageOnly: true,
+                allowsProration: normalizedPackage.CostType.Contains("monthly", StringComparison.OrdinalIgnoreCase));
+            if (packageResolution.QuotedCost <= 0m)
             {
                 index++;
                 continue;
@@ -210,9 +244,9 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
                 SourceType = record.MediaType.Equals("tv", StringComparison.OrdinalIgnoreCase) ? "tv_package" : "radio_package",
                 DisplayName = $"{record.Station} - {packageName}",
                 SlotType = "package",
-                Cost = markedUpPackageCost,
+                Cost = packageResolution.QuotedCost,
                 Metadata = MergeMetadata(
-                    CreateMetadata(record, normalizedPackage, markedUpPackageCost, pricingSettings, packageType, null, null, true, packageName, GetString(package, "notes")),
+                    CreateMetadata(record, normalizedPackage, packageResolution, pricingSettings, packageType, null, null, true, durationWeeksForPackage, durationMonthsForPackage, packageName, GetString(package, "notes")),
                     ResolveIntelligence(intelligenceLookup, packageIntelligenceKey))
             };
             index++;
@@ -220,6 +254,7 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
     }
 
     private IEnumerable<BroadcastPlanningInventorySeed> CreateBroadcastRateCandidates(
+        CampaignPlanningRequest request,
         BroadcastInventoryRecord record,
         PricingSettingsSnapshot pricingSettings,
         IReadOnlyDictionary<string, IReadOnlyDictionary<string, object?>> intelligenceLookup)
@@ -249,8 +284,18 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
                         continue;
                     }
 
-                    var markedUpRate = PricingPolicy.ApplyMarkup(normalized.MonthlyCostEstimateZar, record.MediaType, slot.Name, pricingSettings);
-                    if (markedUpRate <= 0m)
+                    var markedUpComparableMonthlyRate = PricingPolicy.ApplyMarkup(normalized.MonthlyCostEstimateZar, record.MediaType, slot.Name, pricingSettings);
+                    var commercialResolution = _commercialFlightPricingResolver.Resolve(
+                        request,
+                        record.MediaType,
+                        "monthly_equivalent",
+                        markedUpComparableMonthlyRate,
+                        markedUpComparableMonthlyRate,
+                        null,
+                        null,
+                        packageOnly: false,
+                        allowsProration: true);
+                    if (commercialResolution.QuotedCost <= 0m)
                     {
                         continue;
                     }
@@ -263,9 +308,9 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
                         SourceType = record.MediaType.Equals("tv", StringComparison.OrdinalIgnoreCase) ? "tv_slot" : "radio_slot",
                         DisplayName = $"{record.Station} - {slot.Name}",
                         SlotType = "spot",
-                        Cost = markedUpRate,
+                        Cost = commercialResolution.QuotedCost,
                         Metadata = MergeMetadata(
-                            CreateMetadata(record, normalized, markedUpRate, pricingSettings, "spot", dayGroup.Name, slot.Name, false, null, null),
+                            CreateMetadata(record, normalized, commercialResolution, pricingSettings, "spot", dayGroup.Name, slot.Name, false, null, null, null, null),
                             ResolveIntelligence(intelligenceLookup, intelligenceKey))
                     };
                 }
@@ -297,8 +342,18 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
                 }
 
                 var markupKey = programmeName ?? slotLabel;
-                var markedUpRate = PricingPolicy.ApplyMarkup(normalized.MonthlyCostEstimateZar, record.MediaType, markupKey, pricingSettings);
-                if (markedUpRate <= 0m)
+                var markedUpComparableMonthlyRate = PricingPolicy.ApplyMarkup(normalized.MonthlyCostEstimateZar, record.MediaType, markupKey, pricingSettings);
+                var commercialResolution = _commercialFlightPricingResolver.Resolve(
+                    request,
+                    record.MediaType,
+                    "monthly_equivalent",
+                    markedUpComparableMonthlyRate,
+                    markedUpComparableMonthlyRate,
+                    null,
+                    null,
+                    packageOnly: false,
+                    allowsProration: true);
+                if (commercialResolution.QuotedCost <= 0m)
                 {
                     continue;
                 }
@@ -312,9 +367,9 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
                     SourceType = record.MediaType.Equals("tv", StringComparison.OrdinalIgnoreCase) ? "tv_slot" : "radio_slot",
                     DisplayName = $"{record.Station} - {displaySlot}",
                     SlotType = "spot",
-                    Cost = markedUpRate,
+                    Cost = commercialResolution.QuotedCost,
                     Metadata = MergeMetadata(
-                        CreateMetadata(record, normalized, markedUpRate, pricingSettings, "spot", dayGroup, slotLabel, false, null, null),
+                        CreateMetadata(record, normalized, commercialResolution, pricingSettings, "spot", dayGroup, slotLabel, false, null, null, null, null),
                         ResolveIntelligence(intelligenceLookup, intelligenceKey))
                 };
             }
@@ -324,34 +379,63 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
     private static Dictionary<string, object?> CreateMetadata(
         BroadcastInventoryRecord record,
         NormalizedCostResult normalizedCost,
-        decimal quotedCost,
+        CommercialPriceResolution commercialResolution,
         PricingSettingsSnapshot pricingSettings,
         string pricingModel,
         string? dayType,
         string? timeBand,
         bool packageOnly,
+        int? offerDurationWeeks,
+        int? offerDurationMonths,
         string? packageName,
         string? notes)
     {
+        var requestedFlight = commercialResolution.RequestedDurationLabel;
         return new Dictionary<string, object?>
         {
             ["sourceType"] = packageOnly
                 ? (record.MediaType.Equals("tv", StringComparison.OrdinalIgnoreCase) ? "tv_package" : "radio_package")
                 : (record.MediaType.Equals("tv", StringComparison.OrdinalIgnoreCase) ? "tv_slot" : "radio_slot"),
             ["mediaType"] = NormalizeMediaType(record.MediaType),
-            ["pricingModel"] = pricingModel,
+            ["pricingModel"] = commercialResolution.AppliedPricingModel,
             ["rawCostZar"] = normalizedCost.RawCostZar,
             ["raw_cost_zar"] = normalizedCost.RawCostZar,
-            ["monthlyCostEstimateZar"] = normalizedCost.MonthlyCostEstimateZar,
-            ["monthly_cost_estimate_zar"] = normalizedCost.MonthlyCostEstimateZar,
-            ["quotedCostZar"] = quotedCost,
-            ["quoted_cost_zar"] = quotedCost,
+            ["monthlyCostEstimateZar"] = commercialResolution.ComparableMonthlyCost,
+            ["monthly_cost_estimate_zar"] = commercialResolution.ComparableMonthlyCost,
+            ["quotedCostZar"] = commercialResolution.QuotedCost,
+            ["quoted_cost_zar"] = commercialResolution.QuotedCost,
             ["markupPercent"] = PricingPolicy.ResolveMarkupPercent(record.MediaType, packageName ?? timeBand, pricingSettings),
             ["markup_percent"] = PricingPolicy.ResolveMarkupPercent(record.MediaType, packageName ?? timeBand, pricingSettings),
             ["costType"] = normalizedCost.CostType,
             ["cost_type"] = normalizedCost.CostType,
             ["normalizationNote"] = normalizedCost.NormalizationNote,
             ["normalization_note"] = normalizedCost.NormalizationNote,
+            ["requestedDurationLabel"] = requestedFlight,
+            ["requested_duration_label"] = requestedFlight,
+            ["appliedDurationLabel"] = commercialResolution.AppliedDurationLabel,
+            ["applied_duration_label"] = commercialResolution.AppliedDurationLabel,
+            ["requestedMonthsEquivalent"] = commercialResolution.RequestedMonthsEquivalent,
+            ["requested_months_equivalent"] = commercialResolution.RequestedMonthsEquivalent,
+            ["appliedMonthsEquivalent"] = commercialResolution.AppliedMonthsEquivalent,
+            ["applied_months_equivalent"] = commercialResolution.AppliedMonthsEquivalent,
+            ["durationFitScore"] = commercialResolution.DurationFitScore,
+            ["duration_fit_score"] = commercialResolution.DurationFitScore,
+            ["commercialPenalty"] = commercialResolution.CommercialPenalty,
+            ["commercial_penalty"] = commercialResolution.CommercialPenalty,
+            ["commercialExplanation"] = commercialResolution.Explanation,
+            ["commercial_explanation"] = commercialResolution.Explanation,
+            ["requestedStartDate"] = commercialResolution.RequestedStartDate,
+            ["requested_start_date"] = commercialResolution.RequestedStartDate,
+            ["requestedEndDate"] = commercialResolution.RequestedEndDate,
+            ["requested_end_date"] = commercialResolution.RequestedEndDate,
+            ["resolvedStartDate"] = commercialResolution.ResolvedStartDate,
+            ["resolved_start_date"] = commercialResolution.ResolvedStartDate,
+            ["resolvedEndDate"] = commercialResolution.ResolvedEndDate,
+            ["resolved_end_date"] = commercialResolution.ResolvedEndDate,
+            ["offerDurationWeeks"] = offerDurationWeeks,
+            ["offer_duration_weeks"] = offerDurationWeeks,
+            ["offerDurationMonths"] = offerDurationMonths,
+            ["offer_duration_months"] = offerDurationMonths,
             ["rateBasis"] = packageOnly ? "package" : "per_spot",
             ["province"] = record.ProvinceCodes.FirstOrDefault(),
             ["city"] = record.CityLabels.FirstOrDefault(),
@@ -416,6 +500,21 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
             ["inventoryIntelligenceNotes"] = record.IntelligenceNotes,
             ["inventory_intelligence_notes"] = record.IntelligenceNotes
         };
+    }
+
+    private static string ResolvePricingModel(NormalizedCostResult normalizedCost, int? durationWeeks, int? durationMonths, bool packageOnly)
+    {
+        if (normalizedCost.CostType.Contains("monthly", StringComparison.OrdinalIgnoreCase))
+        {
+            return "monthly";
+        }
+
+        if (packageOnly && (durationWeeks.HasValue || durationMonths.HasValue))
+        {
+            return "fixed_term_package";
+        }
+
+        return packageOnly ? "package_total" : "monthly_equivalent";
     }
 
     private static string NormalizeMediaType(string mediaType)

@@ -249,6 +249,9 @@ public partial class AppDbContext : DbContext
                 .HasMaxLength(50)
                 .HasColumnName("buying_behaviour");
             entity.Property(e => e.CampaignId).HasColumnName("campaign_id");
+            entity.Property(e => e.ChannelFlightsJson)
+                .HasColumnType("jsonb")
+                .HasColumnName("channel_flights_json");
             entity.Property(e => e.CitiesJson)
                 .HasColumnType("jsonb")
                 .HasColumnName("cities_json");

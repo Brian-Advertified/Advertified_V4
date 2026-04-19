@@ -76,6 +76,11 @@ public sealed class PlanningRequestFactory : IPlanningRequestFactory
         var businessLocation = _businessLocationResolver.Resolve(campaign);
         var mustHaveAreas = Advertified.App.Domain.Campaigns.CampaignBriefExtensions.GetList(brief, nameof(CampaignBrief.MustHaveAreasJson));
         var excludedAreas = Advertified.App.Domain.Campaigns.CampaignBriefExtensions.GetList(brief, nameof(CampaignBrief.ExcludedAreasJson));
+        var channelFlights = CampaignFlightingSupport.Normalize(
+            CampaignFlightingSupport.Deserialize(brief.ChannelFlightsJson),
+            brief.StartDate,
+            brief.EndDate,
+            brief.DurationWeeks);
 
         var planningRequest = new CampaignPlanningRequest
         {
@@ -99,6 +104,10 @@ public sealed class PlanningRequestFactory : IPlanningRequestFactory
             BusinessStage = brief.BusinessStage,
             MonthlyRevenueBand = brief.MonthlyRevenueBand,
             SalesModel = brief.SalesModel,
+            StartDate = brief.StartDate,
+            EndDate = brief.EndDate,
+            DurationWeeks = brief.DurationWeeks,
+            ChannelFlights = channelFlights,
             GeographyScope = normalizedGeography.Scope,
             Provinces = normalizedGeography.Provinces.ToList(),
             Cities = normalizedGeography.Cities.ToList(),

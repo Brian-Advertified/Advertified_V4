@@ -10,6 +10,7 @@ public sealed class RecommendationItemResponse
     public string? TimeBand { get; set; }
     public string? SlotType { get; set; }
     public string? Duration { get; set; }
+    public string? AppliedDuration { get; set; }
     public string? Restrictions { get; set; }
     public decimal? ConfidenceScore { get; set; }
     public IReadOnlyList<string> SelectionReasons { get; set; } = Array.Empty<string>();
@@ -24,6 +25,12 @@ public sealed class RecommendationItemResponse
     public string? SiteNumber { get; set; }
     public string? StartDate { get; set; }
     public string? EndDate { get; set; }
+    public string? RequestedStartDate { get; set; }
+    public string? RequestedEndDate { get; set; }
+    public string? ResolvedStartDate { get; set; }
+    public string? ResolvedEndDate { get; set; }
+    public string? CommercialExplanation { get; set; }
+    public decimal? DurationFitScore { get; set; }
     public string Title { get; set; } = string.Empty;
     public string Channel { get; set; } = string.Empty;
     public string Rationale { get; set; } = string.Empty;

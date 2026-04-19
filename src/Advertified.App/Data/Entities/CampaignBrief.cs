@@ -23,6 +23,8 @@ public partial class CampaignBrief
 
     public int? DurationWeeks { get; set; }
 
+    public string? ChannelFlightsJson { get; set; }
+
     public string GeographyScope { get; set; } = null!;
 
     public string? ProvincesJson { get; set; }

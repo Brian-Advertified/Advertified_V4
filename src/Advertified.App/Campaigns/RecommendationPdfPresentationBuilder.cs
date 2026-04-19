@@ -121,6 +121,22 @@ internal static class RecommendationPdfPresentationBuilder
             }
         }
 
+        if (!string.IsNullOrWhiteSpace(item.ResolvedStartDate) || !string.IsNullOrWhiteSpace(item.ResolvedEndDate))
+        {
+            var dateLabel = (item.ResolvedStartDate, item.ResolvedEndDate) switch
+            {
+                ({ Length: > 0 } start, { Length: > 0 } end) => $"{RecommendationPdfCopy.ToClientCopy(start)} to {RecommendationPdfCopy.ToClientCopy(end)}",
+                ({ Length: > 0 } start, _) => $"From {RecommendationPdfCopy.ToClientCopy(start)}",
+                (_, { Length: > 0 } end) => $"Until {RecommendationPdfCopy.ToClientCopy(end)}",
+                _ => null
+            };
+
+            if (!string.IsNullOrWhiteSpace(dateLabel))
+            {
+                parts.Add(dateLabel);
+            }
+        }
+
         return parts.Count > 0 ? string.Join(" | ", parts) : RecommendationPdfCopy.ToClientCopy(item.Rationale);
     }
 
@@ -137,6 +153,11 @@ internal static class RecommendationPdfPresentationBuilder
         if (!string.IsNullOrWhiteSpace(item.ShowDaypart))
         {
             tags.Add(RecommendationPdfCopy.ToClientCopy(item.ShowDaypart));
+        }
+
+        if (!string.IsNullOrWhiteSpace(item.AppliedDuration))
+        {
+            tags.Add(RecommendationPdfCopy.ToClientCopy(item.AppliedDuration));
         }
 
         return tags
@@ -160,6 +181,11 @@ internal static class RecommendationPdfPresentationBuilder
         if (!string.IsNullOrWhiteSpace(scale))
         {
             lines.Add($"Estimated audience size: {RecommendationPdfCopy.ToClientCopy(scale)}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(item.CommercialExplanation))
+        {
+            lines.Add($"Commercial fit: {RecommendationPdfCopy.ToClientCopy(item.CommercialExplanation)}");
         }
 
         var fit = BuildFitNarrative(model, item);

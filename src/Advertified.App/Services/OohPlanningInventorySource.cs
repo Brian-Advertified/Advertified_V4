@@ -3,6 +3,7 @@ using Advertified.App.Services.Abstractions;
 using Advertified.App.Support;
 using Dapper;
 using Npgsql;
+using System.Text.Json;
 
 namespace Advertified.App.Services;
 
@@ -10,11 +11,16 @@ public sealed class OohPlanningInventorySource : IOohPlanningInventorySource
 {
     private readonly Npgsql.NpgsqlDataSource _dataSource;
     private readonly IPricingSettingsProvider _pricingSettingsProvider;
+    private readonly ICommercialFlightPricingResolver _commercialFlightPricingResolver;
 
-    public OohPlanningInventorySource(Npgsql.NpgsqlDataSource dataSource, IPricingSettingsProvider pricingSettingsProvider)
+    public OohPlanningInventorySource(
+        Npgsql.NpgsqlDataSource dataSource,
+        IPricingSettingsProvider pricingSettingsProvider,
+        ICommercialFlightPricingResolver commercialFlightPricingResolver)
     {
         _dataSource = dataSource;
         _pricingSettingsProvider = pricingSettingsProvider;
+        _commercialFlightPricingResolver = commercialFlightPricingResolver;
     }
 
     public async Task<List<OohPlanningInventoryRow>> GetCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
@@ -214,7 +220,11 @@ select
         'inventoryIntelligenceNotes', mo.strategy_fit_json ->> 'intelligence_notes',
         'inventory_intelligence_notes', mo.strategy_fit_json ->> 'intelligence_notes',
         'pricingModel', 'fixed_placement_total',
-        'rateBasis', 'per_placement'
+        'rateBasis', 'per_placement',
+        'durationMonths', mop.duration_months,
+        'duration_months', mop.duration_months,
+        'durationWeeks', mop.duration_weeks,
+        'duration_weeks', mop.duration_weeks
     ))::text as MetadataJson
 from media_outlet mo
 join media_outlet_pricing_package mop on mop.media_outlet_id = mo.id
@@ -267,10 +277,92 @@ where lower(mo.media_type) = 'ooh'
                 row.MediaType = PlanningChannelSupport.ClassifyOohChannel(row.Subtype, row.SlotType, row.DisplayName);
 
                 var rawCost = row.Cost;
-                row.Cost = PricingPolicy.ApplyMarkup(rawCost, row.MediaType, row.Subtype, pricingSettings);
+                var markedUpCost = PricingPolicy.ApplyMarkup(rawCost, row.MediaType, row.Subtype, pricingSettings);
+                var metadata = DeserializeMetadata(row.MetadataJson);
+                var offerDurationWeeks = ParseNullableInt(GetMetadataValue(metadata, "durationWeeks") ?? GetMetadataValue(metadata, "duration_weeks"));
+                var offerDurationMonths = ParseNullableInt(GetMetadataValue(metadata, "durationMonths") ?? GetMetadataValue(metadata, "duration_months"));
+                var pricingModel = GetMetadataValue(metadata, "pricingModel")
+                    ?? (offerDurationWeeks.HasValue || offerDurationMonths.HasValue ? "fixed_term_package" : "monthly");
+                var resolution = _commercialFlightPricingResolver.Resolve(
+                    request,
+                    row.MediaType,
+                    pricingModel,
+                    markedUpCost,
+                    markedUpCost,
+                    offerDurationWeeks,
+                    offerDurationMonths,
+                    row.PackageOnly,
+                    allowsProration: pricingModel.Contains("monthly", StringComparison.OrdinalIgnoreCase));
+
+                row.Cost = resolution.QuotedCost;
+                row.MetadataJson = SerializeMetadata(metadata, resolution, offerDurationWeeks, offerDurationMonths);
                 return row;
             })
             .Where(row => row.Cost > 0m && row.Cost <= request.SelectedBudget)
             .ToList();
+    }
+
+    private static Dictionary<string, object?> DeserializeMetadata(string? metadataJson)
+    {
+        if (string.IsNullOrWhiteSpace(metadataJson))
+        {
+            return new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<Dictionary<string, object?>>(metadataJson) ?? new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        }
+        catch (JsonException)
+        {
+            return new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    private static string SerializeMetadata(
+        Dictionary<string, object?> metadata,
+        CommercialPriceResolution resolution,
+        int? offerDurationWeeks,
+        int? offerDurationMonths)
+    {
+        metadata["quotedCostZar"] = resolution.QuotedCost;
+        metadata["quoted_cost_zar"] = resolution.QuotedCost;
+        metadata["monthlyCostEstimateZar"] = resolution.ComparableMonthlyCost;
+        metadata["monthly_cost_estimate_zar"] = resolution.ComparableMonthlyCost;
+        metadata["appliedDurationLabel"] = resolution.AppliedDurationLabel;
+        metadata["applied_duration_label"] = resolution.AppliedDurationLabel;
+        metadata["requestedDurationLabel"] = resolution.RequestedDurationLabel;
+        metadata["requested_duration_label"] = resolution.RequestedDurationLabel;
+        metadata["durationFitScore"] = resolution.DurationFitScore;
+        metadata["duration_fit_score"] = resolution.DurationFitScore;
+        metadata["commercialPenalty"] = resolution.CommercialPenalty;
+        metadata["commercial_penalty"] = resolution.CommercialPenalty;
+        metadata["commercialExplanation"] = resolution.Explanation;
+        metadata["commercial_explanation"] = resolution.Explanation;
+        metadata["requestedStartDate"] = resolution.RequestedStartDate?.ToString("yyyy-MM-dd");
+        metadata["requested_start_date"] = resolution.RequestedStartDate?.ToString("yyyy-MM-dd");
+        metadata["requestedEndDate"] = resolution.RequestedEndDate?.ToString("yyyy-MM-dd");
+        metadata["requested_end_date"] = resolution.RequestedEndDate?.ToString("yyyy-MM-dd");
+        metadata["resolvedStartDate"] = resolution.ResolvedStartDate?.ToString("yyyy-MM-dd");
+        metadata["resolved_start_date"] = resolution.ResolvedStartDate?.ToString("yyyy-MM-dd");
+        metadata["resolvedEndDate"] = resolution.ResolvedEndDate?.ToString("yyyy-MM-dd");
+        metadata["resolved_end_date"] = resolution.ResolvedEndDate?.ToString("yyyy-MM-dd");
+        metadata["offerDurationWeeks"] = offerDurationWeeks;
+        metadata["offer_duration_weeks"] = offerDurationWeeks;
+        metadata["offerDurationMonths"] = offerDurationMonths;
+        metadata["offer_duration_months"] = offerDurationMonths;
+        return JsonSerializer.Serialize(metadata);
+    }
+
+    private static string? GetMetadataValue(IReadOnlyDictionary<string, object?> metadata, string key)
+    {
+        return metadata.TryGetValue(key, out var value) && value is not null
+            ? value.ToString()
+            : null;
+    }
+
+    private static int? ParseNullableInt(string? value)
+    {
+        return int.TryParse(value, out var parsed) ? parsed : null;
     }
 }

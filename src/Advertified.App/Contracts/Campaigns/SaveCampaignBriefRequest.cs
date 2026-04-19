@@ -9,6 +9,7 @@ public sealed class SaveCampaignBriefRequest
     public DateOnly? StartDate { get; set; }
     public DateOnly? EndDate { get; set; }
     public int? DurationWeeks { get; set; }
+    public List<CampaignChannelFlightRequest>? ChannelFlights { get; set; }
     public string GeographyScope { get; set; } = string.Empty;
     public List<string>? Provinces { get; set; }
     public List<string>? Cities { get; set; }

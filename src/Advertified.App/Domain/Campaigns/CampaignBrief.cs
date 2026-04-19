@@ -8,6 +8,7 @@ public sealed class CampaignBrief
     public DateOnly? StartDate { get; set; }
     public DateOnly? EndDate { get; set; }
     public int? DurationWeeks { get; set; }
+    public string? ChannelFlightsJson { get; set; }
     public string GeographyScope { get; set; } = string.Empty;
     public string? ProvincesJson { get; set; }
     public string? CitiesJson { get; set; }

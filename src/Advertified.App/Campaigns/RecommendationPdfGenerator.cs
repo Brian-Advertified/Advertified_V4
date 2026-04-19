@@ -737,7 +737,13 @@ internal sealed class RecommendationLineDocumentModel
     public string? TimeBand { get; init; }
     public string? SlotType { get; init; }
     public string? Duration { get; init; }
+    public string? AppliedDuration { get; init; }
     public string? Flighting { get; init; }
+    public string? RequestedStartDate { get; init; }
+    public string? RequestedEndDate { get; init; }
+    public string? ResolvedStartDate { get; init; }
+    public string? ResolvedEndDate { get; init; }
+    public string? CommercialExplanation { get; init; }
     public string? Restrictions { get; init; }
     public string? Dimensions { get; init; }
     public string? Material { get; init; }

@@ -263,6 +263,7 @@ internal static class ControllerMappings
             StartDate = brief.StartDate,
             EndDate = brief.EndDate,
             DurationWeeks = brief.DurationWeeks,
+            ChannelFlights = CampaignFlightingSupport.Deserialize(brief.ChannelFlightsJson),
             GeographyScope = brief.GeographyScope,
             Provinces = DeserializeList(brief.ProvincesJson),
             Cities = DeserializeList(brief.CitiesJson),
@@ -660,6 +661,7 @@ internal static class ControllerMappings
             TimeBand = normalized.TimeBand,
             SlotType = normalized.SlotType,
             Duration = normalized.Duration,
+            AppliedDuration = normalized.AppliedDuration,
             Restrictions = normalized.Restrictions,
             ConfidenceScore = normalized.ConfidenceScore,
             SelectionReasons = normalized.SelectionReasons,
@@ -674,6 +676,12 @@ internal static class ControllerMappings
             SiteNumber = normalized.SiteNumber,
             StartDate = normalized.StartDate,
             EndDate = normalized.EndDate,
+            RequestedStartDate = normalized.RequestedStartDate,
+            RequestedEndDate = normalized.RequestedEndDate,
+            ResolvedStartDate = normalized.ResolvedStartDate,
+            ResolvedEndDate = normalized.ResolvedEndDate,
+            CommercialExplanation = normalized.CommercialExplanation,
+            DurationFitScore = normalized.DurationFitScore,
             Title = item.DisplayName,
             Channel = item.InventoryType,
             Rationale = normalized.Rationale,
@@ -802,6 +810,10 @@ internal static class ControllerMappings
             ?? ExtractMetadataValue(item.MetadataJson, "durationSeconds")
             ?? ExtractMetadataValue(item.MetadataJson, "duration_seconds")
             ?? InferDuration(item.DisplayName, rationale));
+        var appliedDuration = NormalizeDuration(
+            ExtractMetadataValue(item.MetadataJson, "appliedDuration")
+            ?? ExtractMetadataValue(item.MetadataJson, "appliedDurationLabel")
+            ?? ExtractMetadataValue(item.MetadataJson, "applied_duration_label"));
         var restrictions = ExtractMetadataValue(item.MetadataJson, "restrictions")
             ?? ExtractMetadataValue(item.MetadataJson, "restrictionNotes")
             ?? InferRestrictions(rationale);
@@ -814,6 +826,7 @@ internal static class ControllerMappings
             TimeBand: timeBand,
             SlotType: slotType,
             Duration: duration,
+            AppliedDuration: appliedDuration,
             Restrictions: restrictions,
             ConfidenceScore: ExtractDecimalMetadataValue(item.MetadataJson, "confidenceScore"),
             SelectionReasons: ExtractMetadataValues(item.MetadataJson, "selectionReasons"),
@@ -827,6 +840,12 @@ internal static class ControllerMappings
             SiteNumber: ExtractMetadataValue(item.MetadataJson, "siteNumber") ?? ExtractMetadataValue(item.MetadataJson, "site_number"),
             StartDate: ExtractMetadataValue(item.MetadataJson, "startDate"),
             EndDate: ExtractMetadataValue(item.MetadataJson, "endDate"),
+            RequestedStartDate: ExtractMetadataValue(item.MetadataJson, "requestedStartDate") ?? ExtractMetadataValue(item.MetadataJson, "requested_start_date"),
+            RequestedEndDate: ExtractMetadataValue(item.MetadataJson, "requestedEndDate") ?? ExtractMetadataValue(item.MetadataJson, "requested_end_date"),
+            ResolvedStartDate: ExtractMetadataValue(item.MetadataJson, "resolvedStartDate") ?? ExtractMetadataValue(item.MetadataJson, "resolved_start_date"),
+            ResolvedEndDate: ExtractMetadataValue(item.MetadataJson, "resolvedEndDate") ?? ExtractMetadataValue(item.MetadataJson, "resolved_end_date"),
+            CommercialExplanation: ExtractMetadataValue(item.MetadataJson, "commercialExplanation") ?? ExtractMetadataValue(item.MetadataJson, "commercial_explanation"),
+            DurationFitScore: ExtractDecimalMetadataValue(item.MetadataJson, "durationFitScore") ?? ExtractDecimalMetadataValue(item.MetadataJson, "duration_fit_score"),
             Rationale: rationale);
     }
 
@@ -1442,6 +1461,7 @@ internal static class ControllerMappings
         string? TimeBand,
         string? SlotType,
         string? Duration,
+        string? AppliedDuration,
         string? Restrictions,
         decimal? ConfidenceScore,
         IReadOnlyList<string> SelectionReasons,
@@ -1455,6 +1475,12 @@ internal static class ControllerMappings
         string? SiteNumber,
         string? StartDate,
         string? EndDate,
+        string? RequestedStartDate,
+        string? RequestedEndDate,
+        string? ResolvedStartDate,
+        string? ResolvedEndDate,
+        string? CommercialExplanation,
+        decimal? DurationFitScore,
         string Rationale);
 
     private sealed class RecommendationFallbackAuditSnapshot

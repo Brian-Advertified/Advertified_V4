@@ -11,6 +11,10 @@ public sealed class CampaignPlanningRequest
     public string? BusinessStage { get; set; }
     public string? MonthlyRevenueBand { get; set; }
     public string? SalesModel { get; set; }
+    public DateOnly? StartDate { get; set; }
+    public DateOnly? EndDate { get; set; }
+    public int? DurationWeeks { get; set; }
+    public List<CampaignChannelFlightRequest> ChannelFlights { get; set; } = new();
     public string? GeographyScope { get; set; }
     public List<string> Provinces { get; set; } = new();
     public List<string> Cities { get; set; } = new();
@@ -65,6 +69,21 @@ public sealed class CampaignPlanningRequest
             BusinessStage = BusinessStage,
             MonthlyRevenueBand = MonthlyRevenueBand,
             SalesModel = SalesModel,
+            StartDate = StartDate,
+            EndDate = EndDate,
+            DurationWeeks = DurationWeeks,
+            ChannelFlights = ChannelFlights
+                .Select(flight => new CampaignChannelFlightRequest
+                {
+                    Channel = flight.Channel,
+                    StartDate = flight.StartDate,
+                    EndDate = flight.EndDate,
+                    DurationWeeks = flight.DurationWeeks,
+                    DurationMonths = flight.DurationMonths,
+                    Priority = flight.Priority,
+                    Notes = flight.Notes
+                })
+                .ToList(),
             GeographyScope = GeographyScope,
             Provinces = Provinces.ToList(),
             Cities = Cities.ToList(),

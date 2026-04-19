@@ -572,8 +572,15 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
                 timeBand = GetMetadataValue(item.Metadata, "timeBand") ?? GetMetadataValue(item.Metadata, "time_band"),
                 slotType = GetMetadataValue(item.Metadata, "slotType") ?? GetMetadataValue(item.Metadata, "slot_type"),
                 duration = BuildDuration(item),
+                appliedDuration = GetMetadataValue(item.Metadata, "appliedDurationLabel") ?? GetMetadataValue(item.Metadata, "applied_duration_label"),
+                requestedDuration = GetMetadataValue(item.Metadata, "requestedDurationLabel") ?? GetMetadataValue(item.Metadata, "requested_duration_label"),
                 restrictions = GetMetadataValue(item.Metadata, "restrictions") ?? GetMetadataValue(item.Metadata, "restrictionNotes"),
                 confidenceScore = GetMetadataValue(item.Metadata, "confidenceScore"),
+                commercialExplanation = GetMetadataValue(item.Metadata, "commercialExplanation") ?? GetMetadataValue(item.Metadata, "commercial_explanation"),
+                durationFitScore = GetMetadataValue(item.Metadata, "durationFitScore") ?? GetMetadataValue(item.Metadata, "duration_fit_score"),
+                quotedCostZar = GetMetadataValue(item.Metadata, "quotedCostZar") ?? GetMetadataValue(item.Metadata, "quoted_cost_zar"),
+                comparableMonthlyCostZar = GetMetadataValue(item.Metadata, "monthlyCostEstimateZar") ?? GetMetadataValue(item.Metadata, "monthly_cost_estimate_zar"),
+                pricingModel = GetMetadataValue(item.Metadata, "pricingModel"),
                 targetAudience = GetMetadataValue(item.Metadata, "targetAudience") ?? GetMetadataValue(item.Metadata, "target_audience"),
                 audienceAgeSkew = GetMetadataValue(item.Metadata, "audienceAgeSkew") ?? GetMetadataValue(item.Metadata, "audience_age_skew"),
                 audienceGenderSkew = GetMetadataValue(item.Metadata, "audienceGenderSkew") ?? GetMetadataValue(item.Metadata, "audience_gender_skew"),
@@ -583,6 +590,10 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
                 listenershipPeriod = GetMetadataValue(item.Metadata, "listenershipPeriod") ?? GetMetadataValue(item.Metadata, "listenership_period"),
                 selectionReasons = GetMetadataArray(item.Metadata, "selectionReasons"),
                 policyFlags = GetMetadataArray(item.Metadata, "policyFlags"),
+                requestedStartDate = GetMetadataValue(item.Metadata, "requestedStartDate") ?? GetMetadataValue(item.Metadata, "requested_start_date"),
+                requestedEndDate = GetMetadataValue(item.Metadata, "requestedEndDate") ?? GetMetadataValue(item.Metadata, "requested_end_date"),
+                resolvedStartDate = GetMetadataValue(item.Metadata, "resolvedStartDate") ?? GetMetadataValue(item.Metadata, "resolved_start_date"),
+                resolvedEndDate = GetMetadataValue(item.Metadata, "resolvedEndDate") ?? GetMetadataValue(item.Metadata, "resolved_end_date"),
                 evidenceTrace,
                 evidence_trace = evidenceTrace,
                 rejectionLog,
@@ -693,6 +704,12 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
 
     private static string? BuildDuration(PlannedItem item)
     {
+        var appliedDuration = GetMetadataValue(item.Metadata, "appliedDurationLabel") ?? GetMetadataValue(item.Metadata, "applied_duration_label");
+        if (!string.IsNullOrWhiteSpace(appliedDuration))
+        {
+            return appliedDuration;
+        }
+
         var duration = GetMetadataValue(item.Metadata, "duration");
         if (!string.IsNullOrWhiteSpace(duration))
         {
@@ -1077,6 +1094,21 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             BusinessStage = request.BusinessStage,
             MonthlyRevenueBand = request.MonthlyRevenueBand,
             SalesModel = request.SalesModel,
+            StartDate = request.StartDate,
+            EndDate = request.EndDate,
+            DurationWeeks = request.DurationWeeks,
+            ChannelFlights = request.ChannelFlights
+                .Select(flight => new CampaignChannelFlightSnapshot
+                {
+                    Channel = flight.Channel,
+                    StartDate = flight.StartDate,
+                    EndDate = flight.EndDate,
+                    DurationWeeks = flight.DurationWeeks,
+                    DurationMonths = flight.DurationMonths,
+                    Priority = flight.Priority,
+                    Notes = flight.Notes
+                })
+                .ToList(),
             GeographyScope = request.GeographyScope,
             Provinces = request.Provinces.ToList(),
             Cities = request.Cities.ToList(),

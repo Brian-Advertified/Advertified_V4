@@ -93,8 +93,11 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
         foreach (var candidate in eligibleCandidates)
         {
             var analysis = _explainabilityService.AnalyzeCandidate(candidate, preparedRequest);
-            candidate.Score = analysis.Score;
-            candidate.Metadata["selectionReasons"] = analysis.SelectionReasons;
+            var commercialAdjustment = ResolveCommercialScoreAdjustment(candidate.Metadata);
+            candidate.Score = Math.Max(0m, analysis.Score + commercialAdjustment);
+            candidate.Metadata["selectionReasons"] = MergeSelectionReasons(
+                analysis.SelectionReasons,
+                GetMetadataString(candidate.Metadata, "commercialExplanation"));
             candidate.Metadata["policyFlags"] = analysis.PolicyFlags;
             candidate.Metadata["confidenceScore"] = analysis.ConfidenceScore;
         }
@@ -486,6 +489,21 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
             BusinessStage = request.BusinessStage,
             MonthlyRevenueBand = request.MonthlyRevenueBand,
             SalesModel = request.SalesModel,
+            StartDate = request.StartDate,
+            EndDate = request.EndDate,
+            DurationWeeks = request.DurationWeeks,
+            ChannelFlights = request.ChannelFlights
+                .Select(flight => new CampaignChannelFlightSnapshot
+                {
+                    Channel = flight.Channel,
+                    StartDate = flight.StartDate,
+                    EndDate = flight.EndDate,
+                    DurationWeeks = flight.DurationWeeks,
+                    DurationMonths = flight.DurationMonths,
+                    Priority = flight.Priority,
+                    Notes = flight.Notes
+                })
+                .ToList(),
             GeographyScope = request.GeographyScope,
             Provinces = request.Provinces.ToList(),
             Cities = request.Cities.ToList(),
@@ -605,6 +623,45 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
 
         var text = value.ToString();
         return string.IsNullOrWhiteSpace(text) ? null : text;
+    }
+
+    private static decimal ResolveCommercialScoreAdjustment(IReadOnlyDictionary<string, object?> metadata)
+    {
+        if (!metadata.TryGetValue("durationFitScore", out var fitScoreValue) || fitScoreValue is null)
+        {
+            return 0m;
+        }
+
+        if (!decimal.TryParse(fitScoreValue.ToString(), out var fitScore))
+        {
+            return 0m;
+        }
+
+        return decimal.Round((fitScore - 50m) / 5m, 2, MidpointRounding.AwayFromZero);
+    }
+
+    private static string[] MergeSelectionReasons(IEnumerable<string> existing, string? commercialExplanation)
+    {
+        var merged = existing
+            .Where(reason => !string.IsNullOrWhiteSpace(reason))
+            .Select(reason => reason.Trim())
+            .ToList();
+
+        if (!string.IsNullOrWhiteSpace(commercialExplanation))
+        {
+            merged.Add(commercialExplanation.Trim());
+        }
+
+        return merged
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static string? GetMetadataString(IReadOnlyDictionary<string, object?> metadata, string key)
+    {
+        return metadata.TryGetValue(key, out var value) && value is not null
+            ? value.ToString()
+            : null;
     }
 
     private sealed record PlanningPass(CampaignPlanningRequest Request, IReadOnlyCollection<string> FallbackFlags);

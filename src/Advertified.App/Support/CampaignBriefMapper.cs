@@ -22,6 +22,7 @@ public static class CampaignBriefMapper
         brief.StartDate = request.StartDate;
         brief.EndDate = request.EndDate;
         brief.DurationWeeks = request.DurationWeeks;
+        brief.ChannelFlightsJson = Serialize(CampaignFlightingSupport.Normalize(request.ChannelFlights, request.StartDate, request.EndDate, request.DurationWeeks));
         brief.GeographyScope = normalizedGeography.Scope;
         brief.ProvincesJson = Serialize(normalizedGeography.Provinces);
         brief.CitiesJson = Serialize(normalizedGeography.Cities);

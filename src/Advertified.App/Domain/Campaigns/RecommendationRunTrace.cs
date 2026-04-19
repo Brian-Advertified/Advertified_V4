@@ -22,6 +22,10 @@ public sealed class CampaignPlanningRequestSnapshot
     public string? BusinessStage { get; set; }
     public string? MonthlyRevenueBand { get; set; }
     public string? SalesModel { get; set; }
+    public DateOnly? StartDate { get; set; }
+    public DateOnly? EndDate { get; set; }
+    public int? DurationWeeks { get; set; }
+    public List<CampaignChannelFlightSnapshot> ChannelFlights { get; set; } = new();
     public string? GeographyScope { get; set; }
     public List<string> Provinces { get; set; } = new();
     public List<string> Cities { get; set; } = new();
@@ -93,6 +97,17 @@ public sealed class CampaignTargetingProfileSnapshot
     public List<string> Areas { get; set; } = new();
     public List<string> PriorityAreas { get; set; } = new();
     public List<string> Exclusions { get; set; } = new();
+}
+
+public sealed class CampaignChannelFlightSnapshot
+{
+    public string Channel { get; set; } = string.Empty;
+    public DateOnly? StartDate { get; set; }
+    public DateOnly? EndDate { get; set; }
+    public int? DurationWeeks { get; set; }
+    public int? DurationMonths { get; set; }
+    public int? Priority { get; set; }
+    public string? Notes { get; set; }
 }
 
 public sealed class PlanningBudgetAllocationSnapshot

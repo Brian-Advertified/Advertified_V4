@@ -131,6 +131,40 @@ public sealed class SaveCampaignBriefRequestValidator : AbstractValidator<SaveCa
             .Must(x => !x.StartDate.HasValue || !x.EndDate.HasValue || x.EndDate >= x.StartDate)
             .WithMessage("Campaign end date must be after the start date.");
 
+        RuleForEach(x => x.ChannelFlights)
+            .ChildRules(flight =>
+            {
+                flight.RuleFor(x => x.Channel)
+                    .NotEmpty()
+                    .Must(channel =>
+                    {
+                        var normalized = CampaignFlightingSupport.NormalizeChannel(channel);
+                        return normalized is PlanningChannelSupport.OohAlias or PlanningChannelSupport.Radio or PlanningChannelSupport.Tv or PlanningChannelSupport.Digital;
+                    })
+                    .WithMessage("Select a valid channel flight.");
+
+                flight.RuleFor(x => x.DurationWeeks)
+                    .GreaterThan(0)
+                    .When(x => x.DurationWeeks.HasValue);
+
+                flight.RuleFor(x => x.DurationMonths)
+                    .GreaterThan(0)
+                    .When(x => x.DurationMonths.HasValue);
+
+                flight.RuleFor(x => x)
+                    .Must(x => !x.StartDate.HasValue || !x.EndDate.HasValue || x.EndDate >= x.StartDate)
+                    .WithMessage("Channel flight end date must be after the start date.");
+            });
+
+        RuleFor(x => x)
+            .Must(x => x.ChannelFlights is null
+                || x.ChannelFlights
+                    .Where(flight => !string.IsNullOrWhiteSpace(flight.Channel))
+                    .Select(flight => CampaignFlightingSupport.NormalizeChannel(flight.Channel))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Count() == x.ChannelFlights.Count(flight => !string.IsNullOrWhiteSpace(flight.Channel)))
+            .WithMessage("Each channel can only have one active flight.");
+
         RuleFor(x => x.PreferredVideoAspectRatio)
             .Must(value => string.IsNullOrWhiteSpace(value) || AllowedVideoAspectRatios.Contains(value))
             .WithMessage("Select a valid video aspect ratio.");
