@@ -686,12 +686,7 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
 
     private static bool MatchesChannel(string? mediaType, string requestedChannel)
     {
-        if (string.IsNullOrWhiteSpace(mediaType))
-        {
-            return false;
-        }
-
-        return string.Equals(mediaType.Trim(), requestedChannel.Trim(), StringComparison.OrdinalIgnoreCase);
+        return PlanningChannelSupport.MatchesRequestedChannel(mediaType, requestedChannel);
     }
 
     private InventoryCandidate? SelectAllocationCandidate(
@@ -901,7 +896,7 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
 
     private static bool HasMatchingOohSite(IReadOnlyList<PlannedItem> currentPlan, InventoryCandidate candidate)
     {
-        if (!string.Equals(candidate.MediaType?.Trim(), "OOH", StringComparison.OrdinalIgnoreCase))
+        if (!PlanningChannelSupport.IsOohFamilyChannel(candidate.MediaType))
         {
             return false;
         }
@@ -913,7 +908,7 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
         }
 
         return currentPlan
-            .Where(item => string.Equals(item.MediaType?.Trim(), "OOH", StringComparison.OrdinalIgnoreCase))
+            .Where(item => PlanningChannelSupport.IsOohFamilyChannel(item.MediaType))
             .Select(item => GetOohSiteKey(
                 item.DisplayName,
                 GetMetadataString(item.Metadata, "area"),

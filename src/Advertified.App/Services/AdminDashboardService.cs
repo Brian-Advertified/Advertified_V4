@@ -643,6 +643,7 @@ public sealed class AdminDashboardService : IAdminDashboardService
                     Min = band.Min,
                     Max = band.Max,
                     OohTarget = band.OohTarget,
+                    BillboardShareOfOoh = band.BillboardShareOfOoh,
                     TvMin = band.TvMin,
                     TvEligible = band.TvEligible,
                     RadioRange = band.RadioRange.ToArray(),

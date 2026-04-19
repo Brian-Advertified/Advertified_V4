@@ -16,6 +16,7 @@ const defaultBudgetBand = (): AdminPlanningBudgetBand => ({
   min: 0,
   max: 0,
   oohTarget: 0.4,
+  billboardShareOfOoh: 0.65,
   tvMin: 0,
   tvEligible: false,
   radioRange: [0.25, 0.3],
@@ -107,7 +108,7 @@ export function AdminEnginePage() {
         };
 
         return (
-          <AdminPageShell title="Engine settings" description="Manage persisted planning policy thresholds and the live budget-band allocation rules that drive channel mix.">
+          <AdminPageShell title="Engine settings" description="Manage persisted planning policy thresholds and the live budget-band allocation rules that drive billboard, digital screen, radio, TV, and digital mix.">
             <div className="space-y-8">
               <section className="space-y-4">
                 <div className="flex items-center justify-between gap-4">
@@ -146,7 +147,7 @@ export function AdminEnginePage() {
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <h2 className="text-lg font-semibold text-ink">Planning allocation bands</h2>
-                    <p className="mt-1 text-sm text-ink-soft">These bands are the single source of truth for OOH priority, TV floor eligibility, and radio/digital distribution by budget.</p>
+                    <p className="mt-1 text-sm text-ink-soft">These bands are the single source of truth for billboard versus digital screen split, TV floor eligibility, and radio/digital distribution by budget.</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <ActionButton label="View planning allocation settings" icon={Eye} onClick={() => openAllocationDialog('view')} />
@@ -165,7 +166,8 @@ export function AdminEnginePage() {
                         <span className="pill">{band.tvEligible ? 'TV eligible' : 'TV not eligible'}</span>
                       </div>
                       <div className="mt-5 grid gap-2 text-sm text-ink-soft sm:grid-cols-2">
-                        <div><span className="font-semibold text-ink">OOH target:</span> {formatRatio(band.oohTarget)}</div>
+                        <div><span className="font-semibold text-ink">Billboards or Digital Screens target:</span> {formatRatio(band.oohTarget)}</div>
+                        <div><span className="font-semibold text-ink">Billboard share of that target:</span> {formatRatio(band.billboardShareOfOoh)}</div>
                         <div><span className="font-semibold text-ink">TV minimum:</span> {formatRatio(band.tvMin)}</div>
                         <div><span className="font-semibold text-ink">Radio range:</span> {formatRatio(band.radioRange[0])} to {formatRatio(band.radioRange[1])}</div>
                         <div><span className="font-semibold text-ink">Digital range:</span> {formatRatio(band.digitalRange[0])} to {formatRatio(band.digitalRange[1])}</div>
@@ -177,7 +179,7 @@ export function AdminEnginePage() {
                 <div className="panel p-6">
                   <p className="text-xs font-semibold uppercase tracking-[0.24em] text-ink-soft">Global rules</p>
                   <div className="mt-4 grid gap-2 text-sm text-ink-soft sm:grid-cols-3">
-                    <div><span className="font-semibold text-ink">Max OOH:</span> {formatRatio(dashboard.planningAllocationSettings.globalRules.maxOoh)}</div>
+                    <div><span className="font-semibold text-ink">Max Billboards or Digital Screens:</span> {formatRatio(dashboard.planningAllocationSettings.globalRules.maxOoh)}</div>
                     <div><span className="font-semibold text-ink">Min digital:</span> {formatRatio(dashboard.planningAllocationSettings.globalRules.minDigital)}</div>
                     <div><span className="font-semibold text-ink">TV floor if preferred:</span> {dashboard.planningAllocationSettings.globalRules.enforceTvFloorIfPreferred ? 'Yes' : 'No'}</div>
                   </div>
@@ -239,7 +241,7 @@ export function AdminEnginePage() {
                   <div className="mt-6 space-y-6">
                     <div className="grid gap-4 md:grid-cols-3">
                       <label className="text-sm text-ink-soft">
-                        <span className="font-semibold text-ink">Max OOH</span>
+                        <span className="font-semibold text-ink">Max Billboards or Digital Screens</span>
                         <input
                           disabled={allocationDialogMode === 'view'}
                           className="input-base mt-2 disabled:bg-slate-50"
@@ -331,8 +333,12 @@ export function AdminEnginePage() {
                               <input disabled={allocationDialogMode === 'view'} className="input-base mt-2 disabled:bg-slate-50" type="number" value={band.max} onChange={(event) => updateBudgetBand(index, (current) => ({ ...current, max: Number(event.target.value) }))} />
                             </label>
                             <label className="text-sm text-ink-soft">
-                              <span className="font-semibold text-ink">OOH target</span>
+                              <span className="font-semibold text-ink">Billboards or Digital Screens target</span>
                               <input disabled={allocationDialogMode === 'view'} className="input-base mt-2 disabled:bg-slate-50" type="number" step="0.01" value={band.oohTarget} onChange={(event) => updateBudgetBand(index, (current) => ({ ...current, oohTarget: Number(event.target.value) }))} />
+                            </label>
+                            <label className="text-sm text-ink-soft">
+                              <span className="font-semibold text-ink">Billboard share</span>
+                              <input disabled={allocationDialogMode === 'view'} className="input-base mt-2 disabled:bg-slate-50" type="number" step="0.01" value={band.billboardShareOfOoh} onChange={(event) => updateBudgetBand(index, (current) => ({ ...current, billboardShareOfOoh: Number(event.target.value) }))} />
                             </label>
                             <label className="text-sm text-ink-soft">
                               <span className="font-semibold text-ink">TV minimum</span>

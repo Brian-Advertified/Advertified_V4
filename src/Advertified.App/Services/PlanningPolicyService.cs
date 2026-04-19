@@ -2,6 +2,7 @@ using Advertified.App.Configuration;
 using Advertified.App.Contracts.Campaigns;
 using Advertified.App.Domain.Campaigns;
 using Advertified.App.Services.Abstractions;
+using Advertified.App.Support;
 namespace Advertified.App.Services;
 
 public sealed class PlanningPolicyService : IPlanningPolicyService
@@ -158,18 +159,12 @@ public sealed class PlanningPolicyService : IPlanningPolicyService
     {
         var shares = new List<RequestedChannelShare>();
         AddRequestedShare(shares, "radio", request.TargetRadioShare);
-        AddRequestedShare(shares, "ooh", request.TargetOohShare);
         AddRequestedShare(shares, "digital", request.TargetDigitalShare);
         AddRequestedShare(shares, "tv", request.TargetTvShare);
 
-        if (shares.Count > 0)
-        {
-            return shares;
-        }
-
         if (request.BudgetAllocation?.ChannelAllocations.Count > 0)
         {
-            return request.BudgetAllocation.ChannelAllocations
+            var allocationShares = request.BudgetAllocation.ChannelAllocations
                 .Where(allocation => allocation.Weight > 0m)
                 .Select(allocation => new RequestedChannelShare
                 {
@@ -179,6 +174,16 @@ public sealed class PlanningPolicyService : IPlanningPolicyService
                 .Where(allocation => allocation.Share > 0)
                 .OrderByDescending(allocation => allocation.Share)
                 .ToArray();
+            if (allocationShares.Length > 0)
+            {
+                return allocationShares;
+            }
+        }
+
+        AddRequestedShare(shares, PlanningChannelSupport.OohAlias, request.TargetOohShare);
+        if (shares.Count > 0)
+        {
+            return shares;
         }
 
         return Array.Empty<RequestedChannelShare>();
@@ -191,6 +196,8 @@ public sealed class PlanningPolicyService : IPlanningPolicyService
         {
             "radio" => request.TargetRadioShare,
             "ooh" => request.TargetOohShare,
+            "billboard" => request.TargetOohShare,
+            "digital_screen" => request.TargetOohShare,
             "tv" => request.TargetTvShare,
             "digital" => request.TargetDigitalShare,
             _ => null
@@ -220,7 +227,9 @@ public sealed class PlanningPolicyService : IPlanningPolicyService
             .Select(share => share.Channel switch
             {
                 "radio" => $"Radio {share.Share}%",
-                "ooh" => $"Billboards and Digital Screens {share.Share}%",
+                "billboard" => $"Billboards {share.Share}%",
+                "digital_screen" => $"Digital Screens {share.Share}%",
+                "ooh" => $"Billboards or Digital Screens {share.Share}%",
                 "tv" => $"TV {share.Share}%",
                 "digital" => $"Digital {share.Share}%",
                 _ => $"{share.Channel} {share.Share}%"
@@ -253,8 +262,9 @@ public sealed class PlanningPolicyService : IPlanningPolicyService
         return (value ?? string.Empty).Trim().ToLowerInvariant() switch
         {
             "television" => "tv",
-            "billboards and digital screens" => "ooh",
-            _ => (value ?? string.Empty).Trim().ToLowerInvariant()
+            "billboards and digital screens" => PlanningChannelSupport.OohAlias,
+            "billboards or digital screens" => PlanningChannelSupport.OohAlias,
+            _ => PlanningChannelSupport.NormalizeChannel(value)
         };
     }
 

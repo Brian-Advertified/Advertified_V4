@@ -62,7 +62,7 @@ public sealed class AgentInventoryController : ControllerBase
         const int maxTvItems = 20;
 
         var oohLike = filtered
-            .Where(candidate => candidate.MediaType.Equals("ooh", StringComparison.OrdinalIgnoreCase)
+            .Where(candidate => PlanningChannelSupport.IsOohFamilyChannel(candidate.MediaType)
                                 || candidate.MediaType.Equals("digital", StringComparison.OrdinalIgnoreCase))
             .Take(maxOohLikeItems);
         var radio = filtered
@@ -187,14 +187,7 @@ public sealed class AgentInventoryController : ControllerBase
 
     private static string NormalizeType(string mediaType)
     {
-        var normalized = mediaType.Trim().ToLowerInvariant();
-        return normalized switch
-        {
-            "radio" => "radio",
-            "ooh" => "ooh",
-            "tv" => "tv",
-            _ => normalized
-        };
+        return PlanningChannelSupport.NormalizeChannel(mediaType);
     }
 
     private static string BuildRegion(InventoryCandidate candidate)
@@ -238,8 +231,7 @@ public sealed class AgentInventoryController : ControllerBase
             return true;
         }
 
-        var mediaType = candidate.MediaType.Trim().ToLowerInvariant();
-        return request.PreferredMediaTypes.Any(value => value.Equals(mediaType, StringComparison.OrdinalIgnoreCase));
+        return request.PreferredMediaTypes.Any(value => PlanningChannelSupport.MatchesRequestedChannel(candidate.MediaType, value));
     }
 
     private static bool MatchesRequestedGeography(InventoryCandidate candidate, CampaignPlanningRequest request)
@@ -250,10 +242,9 @@ public sealed class AgentInventoryController : ControllerBase
             return true;
         }
 
-        var isBroadcast = candidate.MediaType.Equals("radio", StringComparison.OrdinalIgnoreCase)
-            || candidate.MediaType.Equals("tv", StringComparison.OrdinalIgnoreCase);
-        var isOohLike = candidate.MediaType.Equals("ooh", StringComparison.OrdinalIgnoreCase)
-            || candidate.MediaType.Equals("digital", StringComparison.OrdinalIgnoreCase);
+        var normalizedChannel = PlanningChannelSupport.NormalizeChannel(candidate.MediaType);
+        var isBroadcast = normalizedChannel is PlanningChannelSupport.Radio or PlanningChannelSupport.Tv;
+        var isOohLike = PlanningChannelSupport.IsOohFamilyChannel(normalizedChannel) || normalizedChannel == PlanningChannelSupport.Digital;
 
         var requestedTerms = (normalizedScope == "local"
                 ? (request.Suburbs.Count > 0
@@ -325,7 +316,8 @@ public sealed class AgentInventoryController : ControllerBase
     {
         return mediaType.Trim().ToLowerInvariant() switch
         {
-            "ooh" => 0,
+            "billboard" => 0,
+            "digital_screen" => 1,
             "radio" => 1,
             "tv" => 2,
             _ => 3

@@ -1,6 +1,7 @@
 using Advertified.App.Contracts.Campaigns;
 using Advertified.App.Domain.Campaigns;
 using Advertified.App.Services.Abstractions;
+using Advertified.App.Support;
 
 namespace Advertified.App.Services;
 
@@ -47,11 +48,11 @@ public sealed class RecommendationExplainabilityService : IRecommendationExplain
         }
 
         var selectedMedia = recommendedPlan
-            .Select(item => item.MediaType.Trim().ToLowerInvariant())
+            .Select(item => PlanningChannelSupport.NormalizeChannel(item.MediaType))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         return request.PreferredMediaTypes
-            .Select(preferred => preferred.Trim().ToLowerInvariant())
+            .SelectMany(PlanningChannelSupport.ExpandRequestedChannel)
             .Where(preferred => !string.IsNullOrWhiteSpace(preferred))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Where(preferred => _policyService.GetTargetShare(preferred, request).GetValueOrDefault() > 0)
@@ -89,8 +90,8 @@ public sealed class RecommendationExplainabilityService : IRecommendationExplain
         reasons.AddRange(GetBriefIntentReasons(candidate));
 
         var strategySignals = CampaignStrategySupport.BuildSignals(request);
-        var mediaType = candidate.MediaType.Trim().ToLowerInvariant();
-        if (strategySignals.PremiumAudience && mediaType is "ooh" or "tv")
+        var mediaType = PlanningChannelSupport.NormalizeChannel(candidate.MediaType);
+        if (strategySignals.PremiumAudience && (PlanningChannelSupport.IsOohFamilyChannel(mediaType) || mediaType == "tv"))
         {
             reasons.Add("Supports premium positioning");
         }
@@ -100,12 +101,12 @@ public sealed class RecommendationExplainabilityService : IRecommendationExplain
             reasons.Add("Useful for faster buying cycles");
         }
 
-        if (strategySignals.WalkInDriven && mediaType == "ooh")
+        if (strategySignals.WalkInDriven && mediaType == PlanningChannelSupport.DigitalScreen)
         {
             reasons.Add("Supports walk-in footfall");
         }
 
-        if (strategySignals.AudienceNeedsBroadReach && mediaType is "ooh" or "tv")
+        if (strategySignals.AudienceNeedsBroadReach && (mediaType is PlanningChannelSupport.Billboard or "tv"))
         {
             reasons.Add("Useful for broad audience discovery");
         }
@@ -136,10 +137,16 @@ public sealed class RecommendationExplainabilityService : IRecommendationExplain
             }
         }
 
-        if (candidate.MediaType.Equals("OOH", StringComparison.OrdinalIgnoreCase))
+        if (mediaType == PlanningChannelSupport.Billboard)
         {
-            reasons.Add("Billboards and Digital Screens prioritized for visibility");
-            reasons.Add("Adds visible market presence");
+            reasons.Add("Builds broad visual reach");
+            reasons.Add("Adds strong in-market visibility");
+        }
+
+        if (mediaType == PlanningChannelSupport.DigitalScreen)
+        {
+            reasons.Add("Supports premium screen presence");
+            reasons.Add("Adds contextual retail visibility");
 
             if (MatchesMetadataToken(candidate, "premium", "premiumMassFit", "premium_mass_fit"))
             {
@@ -203,7 +210,7 @@ public sealed class RecommendationExplainabilityService : IRecommendationExplain
 
         flags.Add(_policyService.GetPricingModel(candidate));
 
-        if (candidate.MediaType.Equals("OOH", StringComparison.OrdinalIgnoreCase)) flags.Add("ooh_priority");
+        if (PlanningChannelSupport.IsOohFamilyChannel(candidate.MediaType)) flags.Add("billboards_or_digital_screens_priority");
         if (candidate.Metadata.TryGetValue("briefIntentPolicyFlags", out var briefIntentFlags)
             && briefIntentFlags is IEnumerable<string> values)
         {
@@ -438,9 +445,7 @@ public sealed class RecommendationExplainabilityService : IRecommendationExplain
             return string.Empty;
         }
 
-        return mediaType.Equals("OOH", StringComparison.OrdinalIgnoreCase)
-            ? "Billboards and Digital Screens"
-            : mediaType;
+        return PlanningChannelSupport.GetDisplayLabel(mediaType);
     }
 
     private static bool SupportsObjective(InventoryCandidate candidate, CampaignPlanningRequest request)
@@ -454,11 +459,11 @@ public sealed class RecommendationExplainabilityService : IRecommendationExplain
         var mediaType = candidate.MediaType.Trim().ToLowerInvariant();
         return objective switch
         {
-            "awareness" or "brand_presence" => mediaType is "ooh" or "tv" or "radio",
-            "launch" => mediaType is "ooh" or "tv" or "radio",
-            "promotion" => mediaType is "radio" or "ooh" or "digital",
+            "awareness" or "brand_presence" => mediaType is PlanningChannelSupport.Billboard or PlanningChannelSupport.DigitalScreen or "tv" or "radio",
+            "launch" => mediaType is PlanningChannelSupport.Billboard or PlanningChannelSupport.DigitalScreen or "tv" or "radio",
+            "promotion" => mediaType is "radio" or PlanningChannelSupport.Billboard or PlanningChannelSupport.DigitalScreen or "digital",
             "leads" => mediaType is "digital" or "radio",
-            "foot_traffic" => mediaType is "ooh" or "radio",
+            "foot_traffic" => mediaType is PlanningChannelSupport.Billboard or PlanningChannelSupport.DigitalScreen or "radio",
             _ => false
         };
     }

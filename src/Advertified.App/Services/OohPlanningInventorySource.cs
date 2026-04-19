@@ -264,6 +264,7 @@ where lower(mo.media_type) = 'ooh'
                     row.Suburb,
                     row.Province);
                 row.SlotType = OohInventoryNormalizer.NormalizeSlotType(row.SlotType, row.Subtype);
+                row.MediaType = PlanningChannelSupport.ClassifyOohChannel(row.Subtype, row.SlotType, row.DisplayName);
 
                 var rawCost = row.Cost;
                 row.Cost = PricingPolicy.ApplyMarkup(rawCost, row.MediaType, row.Subtype, pricingSettings);

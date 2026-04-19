@@ -350,9 +350,9 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
     private static IReadOnlyList<string> ResolveActiveChannels(CampaignPlanningRequest request)
     {
         var preferred = request.PreferredMediaTypes
-            .Select(channel => channel.Trim().ToLowerInvariant())
-            .Where(channel => channel is "radio" or "ooh" or "digital" or "tv" or "television")
-            .Select(channel => channel is "television" ? "tv" : channel)
+            .Select(channel => PlanningChannelSupport.NormalizeChannel(channel))
+            .Where(channel => channel is "radio" or "ooh" or "digital" or "tv" or "television" or "billboard" or "digital_screen")
+            .Select(channel => channel is "billboard" or "digital_screen" ? "ooh" : channel is "television" ? "tv" : channel)
             .Distinct()
             .ToArray();
 
@@ -363,9 +363,10 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
     {
         var allocationTargets = request.BudgetAllocation?.ChannelAllocations
             .Where(entry => entry.Weight > 0m)
+            .GroupBy(entry => PlanningChannelSupport.IsOohFamilyChannel(entry.Channel) ? PlanningChannelSupport.OohAlias : PlanningChannelSupport.NormalizeChannel(entry.Channel), StringComparer.OrdinalIgnoreCase)
             .ToDictionary(
-                entry => entry.Channel,
-                entry => (int)Math.Round(entry.Weight * 100m, MidpointRounding.AwayFromZero),
+                group => group.Key,
+                group => (int)Math.Round(group.Sum(entry => entry.Weight) * 100m, MidpointRounding.AwayFromZero),
                 StringComparer.OrdinalIgnoreCase);
         if (allocationTargets is not null && allocationTargets.Count > 0)
         {
@@ -453,9 +454,9 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
     private static string ResolveUpperTierFocusChannel(CampaignPlanningRequest request, IReadOnlyList<string> activeChannels)
     {
         var preferred = request.PreferredMediaTypes
-            .Select(channel => channel.Trim().ToLowerInvariant())
-            .Where(channel => channel is "radio" or "ooh" or "digital" or "tv" or "television")
-            .Select(channel => channel is "television" ? "tv" : channel)
+            .Select(channel => PlanningChannelSupport.NormalizeChannel(channel))
+            .Where(channel => channel is "radio" or "ooh" or "digital" or "tv" or "television" or "billboard" or "digital_screen")
+            .Select(channel => channel is "billboard" or "digital_screen" ? "ooh" : channel is "television" ? "tv" : channel)
             .Distinct()
             .ToArray();
 
@@ -769,32 +770,20 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
                     allocation => (int)Math.Round(allocation.Weight * 100m, MidpointRounding.AwayFromZero),
                     StringComparer.OrdinalIgnoreCase);
 
-            return $"Radio {shareByChannel.GetValueOrDefault("radio")}% | Billboards and Digital Screens {shareByChannel.GetValueOrDefault("ooh")}% | TV {shareByChannel.GetValueOrDefault("tv")}% | Digital {shareByChannel.GetValueOrDefault("digital")}%";
+            return $"Radio {shareByChannel.GetValueOrDefault("radio")}% | Billboards {shareByChannel.GetValueOrDefault("billboard")}% | Digital Screens {shareByChannel.GetValueOrDefault("digital_screen")}% | TV {shareByChannel.GetValueOrDefault("tv")}% | Digital {shareByChannel.GetValueOrDefault("digital")}%";
         }
 
-        return $"Radio {request.TargetRadioShare ?? 0}% | Billboards and Digital Screens {request.TargetOohShare ?? 0}% | TV {request.TargetTvShare ?? 0}% | Digital {request.TargetDigitalShare ?? 0}%";
+        return $"Radio {request.TargetRadioShare ?? 0}% | Billboards or Digital Screens {request.TargetOohShare ?? 0}% | TV {request.TargetTvShare ?? 0}% | Digital {request.TargetDigitalShare ?? 0}%";
     }
 
     private static string FormatSummaryChannelLabel(string? mediaType)
     {
-        return (mediaType ?? string.Empty).Trim().ToLowerInvariant() switch
-        {
-            "ooh" => "Billboards and Digital Screens",
-            "radio" => "Radio",
-            "tv" => "TV",
-            "digital" => "Digital",
-            _ => mediaType ?? string.Empty
-        };
+        return PlanningChannelSupport.GetDisplayLabel(mediaType);
     }
 
     private static string NormalizeSummaryChannelKey(string? mediaType)
     {
-        return (mediaType ?? string.Empty).Trim().ToLowerInvariant() switch
-        {
-            "billboards and digital screens" => "ooh",
-            "television" => "tv",
-            _ => (mediaType ?? string.Empty).Trim().ToLowerInvariant()
-        };
+        return PlanningChannelSupport.NormalizeChannel(mediaType);
     }
 
     private static IEnumerable<TierRecoveryRequest> BuildTierRecoveryRequests(CampaignPlanningRequest request)
@@ -1137,20 +1126,32 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         var channelWeights = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase)
         {
             ["radio"] = targets.Radio / 100m,
-            ["ooh"] = targets.Ooh / 100m,
             ["tv"] = targets.Tv / 100m,
             ["digital"] = targets.Digital / 100m
+        };
+        var oohWeight = targets.Ooh / 100m;
+        if (oohWeight > 0m)
+        {
+            var currentOohWeights = request.BudgetAllocation.ChannelAllocations
+                .Where(entry => PlanningChannelSupport.IsOohFamilyChannel(entry.Channel))
+                .ToArray();
+            var billboardShare = currentOohWeights.Sum(entry =>
+                PlanningChannelSupport.NormalizeChannel(entry.Channel) == PlanningChannelSupport.Billboard ? entry.Weight : 0m);
+            var normalizedBillboardShare = billboardShare <= 0m || billboardShare >= 1m ? 0.65m : billboardShare;
+            channelWeights[PlanningChannelSupport.Billboard] = decimal.Round(oohWeight * normalizedBillboardShare, 4, MidpointRounding.AwayFromZero);
+            channelWeights[PlanningChannelSupport.DigitalScreen] = decimal.Round(oohWeight * (1m - normalizedBillboardShare), 4, MidpointRounding.AwayFromZero);
         }
-        .Where(entry => entry.Value > 0m)
-        .ToDictionary(entry => entry.Key, entry => entry.Value, StringComparer.OrdinalIgnoreCase);
+        var activeChannelWeights = channelWeights
+            .Where(entry => entry.Value > 0m)
+            .ToDictionary(entry => entry.Key, entry => entry.Value, StringComparer.OrdinalIgnoreCase);
 
-        var totalWeight = channelWeights.Sum(entry => entry.Value);
+        var totalWeight = activeChannelWeights.Sum(entry => entry.Value);
         if (totalWeight <= 0m)
         {
             totalWeight = 1m;
         }
 
-        var normalizedChannels = channelWeights.ToDictionary(
+        var normalizedChannels = activeChannelWeights.ToDictionary(
             entry => entry.Key,
             entry => decimal.Round(entry.Value / totalWeight, 4, MidpointRounding.AwayFromZero),
             StringComparer.OrdinalIgnoreCase);

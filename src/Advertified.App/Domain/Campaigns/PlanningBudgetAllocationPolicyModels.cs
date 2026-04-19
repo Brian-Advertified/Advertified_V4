@@ -13,6 +13,7 @@ public sealed class BudgetBandAllocationPolicyRule
     public decimal Min { get; init; }
     public decimal Max { get; init; }
     public decimal OohTarget { get; init; }
+    public decimal BillboardShareOfOoh { get; init; } = 0.65m;
     public decimal TvMin { get; init; }
     public bool TvEligible { get; init; }
     public decimal[] RadioRange { get; init; } = Array.Empty<decimal>();

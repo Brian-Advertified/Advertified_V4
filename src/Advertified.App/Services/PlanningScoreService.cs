@@ -64,8 +64,8 @@ public sealed class PlanningScoreService : IPlanningScoreService
     {
         var scope = NormalizeScope(request.GeographyScope);
         var candidateCoverage = ResolveCandidateCoverage(candidate);
-        var isBroadcast = candidate.MediaType.Equals("Radio", StringComparison.OrdinalIgnoreCase)
-            || candidate.MediaType.Equals("TV", StringComparison.OrdinalIgnoreCase);
+        var normalizedCandidateChannel = PlanningChannelSupport.NormalizeChannel(candidate.MediaType);
+        var isBroadcast = normalizedCandidateChannel is PlanningChannelSupport.Radio or PlanningChannelSupport.Tv;
 
         var score = scope switch
         {
@@ -295,7 +295,9 @@ public sealed class PlanningScoreService : IPlanningScoreService
     public decimal MediaPreferenceScore(InventoryCandidate candidate, CampaignPlanningRequest request)
     {
         if (request.PreferredMediaTypes.Count == 0) return 6m;
-        return request.PreferredMediaTypes.Any(x => Matches(x, candidate.MediaType) || Matches(x, candidate.Subtype))
+        return request.PreferredMediaTypes.Any(x =>
+            PlanningChannelSupport.MatchesRequestedChannel(candidate.MediaType, x)
+            || Matches(x, candidate.Subtype))
             ? 15m
             : 0m;
     }
@@ -923,15 +925,22 @@ public sealed class PlanningScoreService : IPlanningScoreService
 
     private static decimal OohPriorityScore(InventoryCandidate candidate, CampaignPlanningRequest request)
     {
-        if (!candidate.MediaType.Equals("OOH", StringComparison.OrdinalIgnoreCase))
+        var normalizedMediaType = PlanningChannelSupport.NormalizeChannel(candidate.MediaType);
+        if (!PlanningChannelSupport.IsOohFamilyChannel(normalizedMediaType))
         {
             return 0m;
         }
 
         var preferredOoh = request.PreferredMediaTypes.Any(preferred =>
-            Matches(preferred, "ooh") || Matches(preferred, candidate.MediaType) || Matches(preferred, candidate.Subtype));
+            PlanningChannelSupport.MatchesRequestedChannel(normalizedMediaType, preferred)
+            || Matches(preferred, candidate.Subtype));
 
-        return preferredOoh ? 30m : 18m;
+        if (normalizedMediaType == PlanningChannelSupport.Billboard)
+        {
+            return preferredOoh ? 30m : 22m;
+        }
+
+        return preferredOoh ? 24m : 14m;
     }
 
     private decimal PriorityAreaScore(InventoryCandidate candidate, CampaignPlanningRequest request)
@@ -990,7 +999,8 @@ public sealed class PlanningScoreService : IPlanningScoreService
 
     private static decimal OohIntelligenceFitScore(InventoryCandidate candidate, CampaignPlanningRequest request)
     {
-        if (!candidate.MediaType.Equals("OOH", StringComparison.OrdinalIgnoreCase))
+        var normalizedMediaType = PlanningChannelSupport.NormalizeChannel(candidate.MediaType);
+        if (!PlanningChannelSupport.IsOohFamilyChannel(normalizedMediaType))
         {
             return 0m;
         }
@@ -1055,6 +1065,27 @@ public sealed class PlanningScoreService : IPlanningScoreService
             score += ScoreMetadataMatch(candidate, "premium_mall", "venueType", "venue_type", exact: 2m);
             score += ScoreMetadataMatch(candidate, "lifestyle_centre", "venueType", "venue_type", exact: 2m);
             score += ScoreFitBand(candidate, "dwellTimeScore", "dwell_time_score", high: 3m, medium: 1m);
+        }
+
+        if (normalizedMediaType == PlanningChannelSupport.Billboard)
+        {
+            score += 4m;
+            if (MatchesMetadataToken(candidate, "roadside", "environmentType", "environment_type")
+                || MatchesMetadataToken(candidate, "outdoor", "environmentType", "environment_type"))
+            {
+                score += 3m;
+            }
+        }
+        else if (normalizedMediaType == PlanningChannelSupport.DigitalScreen)
+        {
+            if ((request.Objective ?? string.Empty).Trim().Equals("foot_traffic", StringComparison.OrdinalIgnoreCase))
+            {
+                score += 3m;
+            }
+            else
+            {
+                score -= 2m;
+            }
         }
 
         return Math.Min(16m, Math.Max(0m, score));

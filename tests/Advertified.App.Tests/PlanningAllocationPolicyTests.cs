@@ -22,7 +22,8 @@ public sealed class PlanningAllocationPolicyTests
             {
                 ChannelAllocations =
                 {
-                    new PlanningChannelAllocation { Channel = "ooh", Weight = 0.42m },
+                    new PlanningChannelAllocation { Channel = "billboard", Weight = 0.27m },
+                    new PlanningChannelAllocation { Channel = "digital_screen", Weight = 0.15m },
                     new PlanningChannelAllocation { Channel = "radio", Weight = 0.28m },
                     new PlanningChannelAllocation { Channel = "digital", Weight = 0.22m },
                     new PlanningChannelAllocation { Channel = "tv", Weight = 0.08m },
@@ -30,9 +31,9 @@ public sealed class PlanningAllocationPolicyTests
             }
         };
 
-        service.BuildRequestedMixLabel(request).Should().Be("Billboards and Digital Screens 42% | Radio 28% | Digital 22% | TV 8%");
+        service.BuildRequestedMixLabel(request).Should().Be("Radio 28% | Billboards 27% | Digital 22% | Digital Screens 15% | TV 8%");
         service.GetTargetShare("tv", request).Should().Be(8);
-        service.GetRequiredChannels(request).Should().Contain(new[] { "ooh", "radio", "digital", "tv" });
+        service.GetRequiredChannels(request).Should().Contain(new[] { "billboard", "digital_screen", "radio", "digital", "tv" });
     }
 
     [Fact]
@@ -49,7 +50,8 @@ public sealed class PlanningAllocationPolicyTests
                 {
                     ChannelAllocations =
                     {
-                        new PlanningChannelAllocation { Channel = "ooh", Weight = 0.45m },
+                        new PlanningChannelAllocation { Channel = "billboard", Weight = 0.30m },
+                        new PlanningChannelAllocation { Channel = "digital_screen", Weight = 0.15m },
                         new PlanningChannelAllocation { Channel = "radio", Weight = 0.32m },
                         new PlanningChannelAllocation { Channel = "digital", Weight = 0.23m }
                     }
@@ -57,7 +59,8 @@ public sealed class PlanningAllocationPolicyTests
             },
             new List<PlannedItem>
             {
-                new() { MediaType = "OOH" },
+                new() { MediaType = "billboard" },
+                new() { MediaType = "digital_screen" },
                 new() { MediaType = "Radio" },
                 new() { MediaType = "Digital" }
             },
@@ -80,7 +83,8 @@ public sealed class PlanningAllocationPolicyTests
                 {
                     ChannelAllocations =
                     {
-                        new PlanningChannelAllocation { Channel = "ooh", Weight = 0.42m },
+                        new PlanningChannelAllocation { Channel = "billboard", Weight = 0.27m },
+                        new PlanningChannelAllocation { Channel = "digital_screen", Weight = 0.15m },
                         new PlanningChannelAllocation { Channel = "radio", Weight = 0.28m },
                         new PlanningChannelAllocation { Channel = "digital", Weight = 0.22m },
                         new PlanningChannelAllocation { Channel = "tv", Weight = 0.08m }
@@ -89,7 +93,8 @@ public sealed class PlanningAllocationPolicyTests
             },
             new List<PlannedItem>
             {
-                new() { MediaType = "OOH" },
+                new() { MediaType = "billboard" },
+                new() { MediaType = "digital_screen" },
                 new() { MediaType = "Radio" },
                 new() { MediaType = "Digital" }
             },

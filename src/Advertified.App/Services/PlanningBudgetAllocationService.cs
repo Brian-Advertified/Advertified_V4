@@ -1,6 +1,7 @@
 using Advertified.App.Contracts.Campaigns;
 using Advertified.App.Domain.Campaigns;
 using Advertified.App.Services.Abstractions;
+using Advertified.App.Support;
 
 namespace Advertified.App.Services;
 
@@ -114,13 +115,14 @@ public sealed class PlanningBudgetAllocationService : IPlanningBudgetAllocationS
     {
         if (HasExplicitTargetMix(request))
         {
-            return ("explicit_request", NormalizeWeights(new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase)
+            var explicitWeights = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase)
             {
                 ["radio"] = ToWeight(request.TargetRadioShare),
-                ["ooh"] = ToWeight(request.TargetOohShare),
                 ["digital"] = ToWeight(request.TargetDigitalShare),
                 ["tv"] = ToWeight(request.TargetTvShare)
-            }, GetExplicitRequestFallbackWeights()));
+            };
+            MergeOohSplitWeights(explicitWeights, ToWeight(request.TargetOohShare), ResolveBudgetBand(snapshot.BudgetBands, request.SelectedBudget));
+            return ("explicit_request", NormalizeWeights(explicitWeights, GetExplicitRequestFallbackWeights(request, snapshot.BudgetBands, request.SelectedBudget)));
         }
 
         var matchedBand = ResolveBudgetBand(snapshot.BudgetBands, request.SelectedBudget);
@@ -149,14 +151,18 @@ public sealed class PlanningBudgetAllocationService : IPlanningBudgetAllocationS
             .FirstOrDefault();
     }
 
-    private static IReadOnlyDictionary<string, decimal> GetExplicitRequestFallbackWeights()
+    private static IReadOnlyDictionary<string, decimal> GetExplicitRequestFallbackWeights(
+        CampaignPlanningRequest request,
+        IReadOnlyList<BudgetBandAllocationPolicyRule> budgetBands,
+        decimal selectedBudget)
     {
-        return new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase)
+        var fallback = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase)
         {
-            ["ooh"] = 0.35m,
             ["radio"] = 0.30m,
             ["digital"] = 0.35m
         };
+        MergeOohSplitWeights(fallback, ToWeight(request.TargetOohShare), ResolveBudgetBand(budgetBands, selectedBudget));
+        return fallback;
     }
 
     private static IReadOnlyDictionary<string, decimal> GetGeoFallbackWeights(CampaignPlanningRequest request)
@@ -259,7 +265,8 @@ public sealed class PlanningBudgetAllocationService : IPlanningBudgetAllocationS
         return (value ?? string.Empty).Trim().ToLowerInvariant() switch
         {
             "television" => "tv",
-            "billboards and digital screens" => "ooh",
+            "billboards or digital screens" => PlanningChannelSupport.OohAlias,
+            "billboards and digital screens" => PlanningChannelSupport.OohAlias,
             _ => (value ?? string.Empty).Trim().ToLowerInvariant()
         };
     }
@@ -356,19 +363,31 @@ public sealed class PlanningBudgetAllocationService : IPlanningBudgetAllocationS
             radio = Math.Max(0m, remaining - digital);
         }
 
-        return NormalizeWeights(new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase)
+        var weights = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase)
         {
-            ["ooh"] = ooh,
             ["tv"] = tv,
             ["radio"] = radio,
             ["digital"] = digital
-        }, new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase)
+        };
+        MergeOohSplitWeights(weights, ooh, budgetBand);
+
+        return NormalizeWeights(weights, new Dictionary<string, decimal>(weights, StringComparer.OrdinalIgnoreCase));
+    }
+
+    private static void MergeOohSplitWeights(
+        IDictionary<string, decimal> weights,
+        decimal oohWeight,
+        BudgetBandAllocationPolicyRule? budgetBand)
+    {
+        if (oohWeight <= 0m)
         {
-            ["ooh"] = ooh,
-            ["tv"] = tv,
-            ["radio"] = radio,
-            ["digital"] = digital
-        });
+            return;
+        }
+
+        var billboardShare = ClampRatio(budgetBand?.BillboardShareOfOoh ?? 0.65m);
+        var digitalScreenShare = Math.Max(0m, 1m - billboardShare);
+        weights[PlanningChannelSupport.Billboard] = decimal.Round(oohWeight * billboardShare, 4, MidpointRounding.AwayFromZero);
+        weights[PlanningChannelSupport.DigitalScreen] = decimal.Round(oohWeight * digitalScreenShare, 4, MidpointRounding.AwayFromZero);
     }
 
     private static decimal ResolveMidpoint(IReadOnlyList<decimal> range)
@@ -395,6 +414,7 @@ public sealed class PlanningBudgetAllocationService : IPlanningBudgetAllocationS
     {
         return request.PreferredMediaTypes
             .Select(NormalizeChannel)
+            .SelectMany(PlanningChannelSupport.ExpandRequestedChannel)
             .Any(preferred => string.Equals(preferred, channel, StringComparison.OrdinalIgnoreCase));
     }
 

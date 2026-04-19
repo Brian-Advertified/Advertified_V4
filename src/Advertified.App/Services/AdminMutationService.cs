@@ -1223,6 +1223,7 @@ public sealed class AdminMutationService : IAdminMutationService
                     min = band.Min,
                     max = band.Max,
                     oohTarget = band.OohTarget,
+                    billboardShareOfOoh = band.BillboardShareOfOoh,
                     tvMin = band.TvMin,
                     tvEligible = band.TvEligible,
                     radioRange = band.RadioRange,
@@ -1241,8 +1242,8 @@ public sealed class AdminMutationService : IAdminMutationService
             @"
             insert into planning_engine_settings (setting_key, setting_value, description)
             values
-                (@BudgetBandsKey, @BudgetBandsJson, 'Planning allocation budget bands. Operators can tune OOH, TV floor, and radio/digital ranges by budget band without a deployment.'),
-                (@GlobalRulesKey, @GlobalRulesJson, 'Planning allocation global rules. Operators can cap OOH, set a digital floor, and require a TV floor when TV is preferred.')
+                (@BudgetBandsKey, @BudgetBandsJson, 'Planning allocation budget bands. Operators can tune Billboard, Digital Screen, TV, radio, and digital distribution by budget band without a deployment.'),
+                (@GlobalRulesKey, @GlobalRulesJson, 'Planning allocation global rules. Operators can cap billboard and digital screen share together, set a digital floor, and require a TV floor when TV is preferred.')
             on conflict (setting_key) do update
             set
                 setting_value = excluded.setting_value,
@@ -1794,7 +1795,7 @@ public sealed class AdminMutationService : IAdminMutationService
             throw new InvalidOperationException("At least one planning allocation budget band is required.");
         }
 
-        ValidatePercentage(request.GlobalRules.MaxOoh, "Max OOH");
+        ValidatePercentage(request.GlobalRules.MaxOoh, "Max billboards and digital screens");
         ValidatePercentage(request.GlobalRules.MinDigital, "Minimum digital");
 
         var orderedBands = request.BudgetBands
@@ -1815,7 +1816,8 @@ public sealed class AdminMutationService : IAdminMutationService
                 throw new InvalidOperationException($"Budget band '{band.Name}' must have a valid min/max range.");
             }
 
-            ValidatePercentage(band.OohTarget, $"OOH target for {band.Name}");
+            ValidatePercentage(band.OohTarget, $"Billboards and Digital Screens target for {band.Name}");
+            ValidatePercentage(band.BillboardShareOfOoh, $"Billboard share for {band.Name}");
             ValidatePercentage(band.TvMin, $"TV minimum for {band.Name}");
 
             if (band.RadioRange.Length != 2 || band.DigitalRange.Length != 2)
@@ -1828,7 +1830,7 @@ public sealed class AdminMutationService : IAdminMutationService
 
             if (band.OohTarget + band.TvMin > 1m)
             {
-                throw new InvalidOperationException($"Budget band '{band.Name}' cannot allocate more than 100% across OOH and TV.");
+                throw new InvalidOperationException($"Budget band '{band.Name}' cannot allocate more than 100% across Billboards or Digital Screens and TV.");
             }
 
             if (index > 0 && band.Min < orderedBands[index - 1].Max)

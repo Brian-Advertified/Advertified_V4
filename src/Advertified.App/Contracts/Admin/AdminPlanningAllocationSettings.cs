@@ -12,6 +12,7 @@ public sealed class AdminPlanningBudgetBandResponse
     public decimal Min { get; set; }
     public decimal Max { get; set; }
     public decimal OohTarget { get; set; }
+    public decimal BillboardShareOfOoh { get; set; }
     public decimal TvMin { get; set; }
     public bool TvEligible { get; set; }
     public decimal[] RadioRange { get; set; } = Array.Empty<decimal>();
@@ -37,6 +38,7 @@ public sealed class AdminPlanningBudgetBandInput
     public decimal Min { get; set; }
     public decimal Max { get; set; }
     public decimal OohTarget { get; set; }
+    public decimal BillboardShareOfOoh { get; set; }
     public decimal TvMin { get; set; }
     public bool TvEligible { get; set; }
     public decimal[] RadioRange { get; set; } = Array.Empty<decimal>();

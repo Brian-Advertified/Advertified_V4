@@ -1071,7 +1071,8 @@ public class PlanningPolicyServiceTests
                 ChannelAllocations =
                 {
                     new PlanningChannelAllocation { Channel = "radio", Weight = 0.40m },
-                    new PlanningChannelAllocation { Channel = "ooh", Weight = 0.30m },
+                    new PlanningChannelAllocation { Channel = "billboard", Weight = 0.20m },
+                    new PlanningChannelAllocation { Channel = "digital_screen", Weight = 0.10m },
                     new PlanningChannelAllocation { Channel = "digital", Weight = 0.20m },
                     new PlanningChannelAllocation { Channel = "tv", Weight = 0.10m }
                 }
@@ -1079,9 +1080,9 @@ public class PlanningPolicyServiceTests
         });
 
         context.PackagePolicyCode.Should().Be("dominance");
-        context.RequestedMixLabel.Should().Be("Radio 40% | Billboards and Digital Screens 30% | Digital 20% | TV 10%");
+        context.RequestedMixLabel.Should().Be("Radio 40% | Billboards 20% | Digital 20% | Digital Screens 10% | TV 10%");
         context.RequestedChannelShares.Should().ContainSingle(x => x.Channel == "tv" && x.Share == 10);
-        context.RequiredChannels.Should().Contain(new[] { "radio", "ooh", "digital", "tv" });
+        context.RequiredChannels.Should().Contain(new[] { "radio", "billboard", "digital_screen", "digital", "tv" });
     }
 }
 

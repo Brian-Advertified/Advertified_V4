@@ -1,6 +1,7 @@
 using Advertified.App.Contracts.Campaigns;
 using Advertified.App.Domain.Campaigns;
 using Advertified.App.Services.Abstractions;
+using Advertified.App.Support;
 
 namespace Advertified.App.Services;
 
@@ -73,7 +74,7 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
     private static List<string> NormalizeChannels(IEnumerable<string> channels)
     {
         return channels
-            .Select(NormalizeChannel)
+            .SelectMany(PlanningChannelSupport.ExpandRequestedChannel)
             .Where(channel => !string.IsNullOrWhiteSpace(channel))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
@@ -381,11 +382,7 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
         }
 
         var normalized = raw.Trim().ToLowerInvariant();
-        return normalized switch
-        {
-            "television" => "tv",
-            _ => normalized
-        };
+        return PlanningChannelSupport.NormalizeChannel(normalized);
     }
 
     private static RecommendationRunTrace BuildRunTrace(

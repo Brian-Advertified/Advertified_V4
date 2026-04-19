@@ -1229,6 +1229,7 @@ export interface AdminPlanningBudgetBand {
   min: number;
   max: number;
   oohTarget: number;
+  billboardShareOfOoh: number;
   tvMin: number;
   tvEligible: boolean;
   radioRange: [number, number];
@@ -1560,7 +1561,7 @@ export interface AdminUpdateUserInput {
 
 export interface InventoryRow {
   id: string;
-  type: 'radio' | 'ooh' | 'digital' | 'tv';
+  type: 'radio' | 'billboard' | 'digital_screen' | 'digital' | 'tv';
   station: string;
   region: string;
   language: string;

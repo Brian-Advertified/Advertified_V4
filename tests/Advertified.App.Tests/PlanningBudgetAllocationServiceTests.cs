@@ -21,6 +21,7 @@ public sealed class PlanningBudgetAllocationServiceTests
                         Min = 100000m,
                         Max = 500000m,
                         OohTarget = 0.42m,
+                        BillboardShareOfOoh = 0.65m,
                         TvMin = 0.08m,
                         TvEligible = true,
                         RadioRange = new[] { 0.25m, 0.30m },
@@ -60,7 +61,8 @@ public sealed class PlanningBudgetAllocationServiceTests
         });
 
         allocation.ChannelPolicyKey.Should().Be("budget_band_100k_500k");
-        allocation.ChannelAllocations.Should().ContainSingle(x => x.Channel == "ooh" && x.Weight == 0.42m);
+        allocation.ChannelAllocations.Should().ContainSingle(x => x.Channel == "billboard" && x.Weight == 0.273m);
+        allocation.ChannelAllocations.Should().ContainSingle(x => x.Channel == "digital_screen" && x.Weight == 0.147m);
         allocation.ChannelAllocations.Should().ContainSingle(x => x.Channel == "tv" && x.Weight == 0.08m);
         allocation.ChannelAllocations.Should().ContainSingle(x => x.Channel == "radio" && x.Weight == 0.275m);
         allocation.ChannelAllocations.Should().ContainSingle(x => x.Channel == "digital" && x.Weight == 0.225m);
@@ -80,6 +82,7 @@ public sealed class PlanningBudgetAllocationServiceTests
                         Min = 20000m,
                         Max = 100000m,
                         OohTarget = 0.45m,
+                        BillboardShareOfOoh = 0.70m,
                         TvMin = 0m,
                         TvEligible = false,
                         RadioRange = new[] { 0.30m, 0.35m },
@@ -103,7 +106,8 @@ public sealed class PlanningBudgetAllocationServiceTests
         });
 
         allocation.ChannelAllocations.Should().NotContain(x => x.Channel == "tv" && x.Weight > 0m);
-        allocation.ChannelAllocations.Should().ContainSingle(x => x.Channel == "ooh" && x.Weight == 0.45m);
+        allocation.ChannelAllocations.Should().ContainSingle(x => x.Channel == "billboard" && x.Weight == 0.315m);
+        allocation.ChannelAllocations.Should().ContainSingle(x => x.Channel == "digital_screen" && x.Weight == 0.135m);
     }
 
     [Fact]
@@ -123,7 +127,8 @@ public sealed class PlanningBudgetAllocationServiceTests
         });
 
         allocation.ChannelPolicyKey.Should().Be("explicit_request");
-        allocation.ChannelAllocations.Should().ContainSingle(x => x.Channel == "ooh" && x.Weight == 0.5m);
+        allocation.ChannelAllocations.Should().ContainSingle(x => x.Channel == "billboard" && x.Weight == 0.325m);
+        allocation.ChannelAllocations.Should().ContainSingle(x => x.Channel == "digital_screen" && x.Weight == 0.175m);
         allocation.ChannelAllocations.Should().ContainSingle(x => x.Channel == "radio" && x.Weight == 0.3m);
         allocation.ChannelAllocations.Should().ContainSingle(x => x.Channel == "digital" && x.Weight == 0.2m);
         allocation.ChannelAllocations.Should().NotContain(x => x.Channel == "tv" && x.Weight > 0m);
