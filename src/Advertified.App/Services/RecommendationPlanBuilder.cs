@@ -90,6 +90,7 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
         var result = new List<PlannedItem>();
         var usedSourceIds = new HashSet<Guid>();
         var spentTotal = 0m;
+        var channelSpendTargets = BuildChannelSpendTargets(request);
         var allocationTargets = allocation.CompositeAllocations
             .Where(entry => entry.Amount > 0m)
             .OrderByDescending(entry => entry.Amount)
@@ -107,8 +108,8 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
                 continue;
             }
 
-            var seedCandidate = SelectAllocationCandidate(candidates, result, request, target, usedSourceIds, spentTotal, requireBucketMatch: true)
-                ?? SelectAllocationCandidate(candidates, result, request, target, usedSourceIds, spentTotal, requireBucketMatch: false);
+            var seedCandidate = SelectAllocationCandidate(candidates, result, request, target, usedSourceIds, spentTotal, channelSpendTargets, requireBucketMatch: true)
+                ?? SelectAllocationCandidate(candidates, result, request, target, usedSourceIds, spentTotal, channelSpendTargets, requireBucketMatch: false);
             if (seedCandidate is null)
             {
                 continue;
@@ -140,8 +141,8 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
                     continue;
                 }
 
-                var nextCandidate = SelectAllocationCandidate(candidates, result, request, target, usedSourceIds, spentTotal, requireBucketMatch: true)
-                    ?? SelectAllocationCandidate(candidates, result, request, target, usedSourceIds, spentTotal, requireBucketMatch: false);
+                var nextCandidate = SelectAllocationCandidate(candidates, result, request, target, usedSourceIds, spentTotal, channelSpendTargets, requireBucketMatch: true)
+                    ?? SelectAllocationCandidate(candidates, result, request, target, usedSourceIds, spentTotal, channelSpendTargets, requireBucketMatch: false);
                 if (nextCandidate is null)
                 {
                     continue;
@@ -154,7 +155,7 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
             }
         }
 
-        FillBudgetGap(result, candidates, request, request.SelectedBudget, request.MaxMediaItems);
+        FillBudgetGap(result, candidates, request, request.SelectedBudget, request.MaxMediaItems, channelSpendTargets);
 
         if (result.Count == 0)
         {
@@ -179,6 +180,10 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
         var requestedShares = _policyService.GetRequestedChannelShares(request)
             .Select(share => (share.Channel, share.Share))
             .ToList();
+        var channelSpendTargets = requestedShares.ToDictionary(
+            entry => entry.Channel,
+            entry => decimal.Round(request.SelectedBudget * entry.Share / 100m, 2, MidpointRounding.AwayFromZero),
+            StringComparer.OrdinalIgnoreCase);
 
         // First ensure at least one item for each requested channel when inventory allows.
         foreach (var shareTarget in requestedShares.OrderByDescending(entry => entry.Share))
@@ -188,12 +193,13 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
                 break;
             }
 
-            var channelCandidates = candidates
-                .Where(candidate => MatchesChannel(candidate.MediaType, shareTarget.Channel))
-                .Where(candidate => candidate.Cost > 0m)
-                .Where(candidate => !usedSourceIds.Contains(candidate.SourceId))
-                .Where(candidate => spentTotal + candidate.Cost <= request.SelectedBudget)
-                .Where(candidate => !ExceedsStationDiversityCap(result, candidate));
+                var channelCandidates = candidates
+                    .Where(candidate => MatchesChannel(candidate.MediaType, shareTarget.Channel))
+                    .Where(candidate => candidate.Cost > 0m)
+                    .Where(candidate => !usedSourceIds.Contains(candidate.SourceId))
+                    .Where(candidate => spentTotal + candidate.Cost <= request.SelectedBudget)
+                    .Where(candidate => !ExceedsStationDiversityCap(result, candidate))
+                    .Where(candidate => CanSpendInChannel(result, candidate, channelSpendTargets));
 
             // If the user selected a suburb, try to anchor radio/TV with a station whose
             // broadcast geo labels include that suburb token (e.g. "Soweto"). If none match,
@@ -208,6 +214,8 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
                         .Where(candidate => MatchesAnyBroadcastGeoToken(candidate, suburbTokens))
                         .OrderByDescending(candidate => ScoreRequestedLanguageCoverage(candidate, result, request))
                         .ThenByDescending(candidate => HasMatchingOohSite(result, candidate))
+                        .ThenByDescending(candidate => FitsChannelTarget(result, candidate, channelSpendTargets))
+                        .ThenBy(candidate => ChannelOvershootAmount(result, candidate, channelSpendTargets))
                         .ThenBy(candidate => GetSelectionPriority(candidate))
                         .ThenBy(candidate => GetStationSelectionCount(result, candidate, shareTarget.Channel))
                         .ThenByDescending(candidate => candidate.Score)
@@ -227,6 +235,8 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
             var channelCandidate = channelCandidates
                 .OrderByDescending(candidate => ScoreRequestedLanguageCoverage(candidate, result, request))
                 .ThenByDescending(candidate => HasMatchingOohSite(result, candidate))
+                .ThenByDescending(candidate => FitsChannelTarget(result, candidate, channelSpendTargets))
+                .ThenBy(candidate => ChannelOvershootAmount(result, candidate, channelSpendTargets))
                 .ThenBy(candidate => GetSelectionPriority(candidate))
                 .ThenBy(candidate => GetStationSelectionCount(result, candidate, shareTarget.Channel))
                 .ThenByDescending(candidate => candidate.Score)
@@ -244,11 +254,6 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
         }
 
         // Then keep filling each requested channel toward its budget share target.
-        var channelTargetSpend = requestedShares.ToDictionary(
-            entry => entry.Channel,
-            entry => decimal.Round(request.SelectedBudget * entry.Share / 100m, 2),
-            StringComparer.OrdinalIgnoreCase);
-
         var progressed = true;
         while (progressed)
         {
@@ -264,7 +269,7 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
                 var alreadySpentForChannel = result
                     .Where(item => MatchesChannel(item.MediaType, shareTarget.Channel))
                     .Sum(item => item.TotalCost);
-                if (alreadySpentForChannel >= channelTargetSpend[shareTarget.Channel])
+                if (alreadySpentForChannel >= channelSpendTargets[shareTarget.Channel])
                 {
                     continue;
                 }
@@ -275,8 +280,11 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
                     .Where(candidate => !usedSourceIds.Contains(candidate.SourceId))
                     .Where(candidate => spentTotal + candidate.Cost <= request.SelectedBudget)
                     .Where(candidate => !ExceedsStationDiversityCap(result, candidate))
+                    .Where(candidate => CanSpendInChannel(result, candidate, channelSpendTargets))
                     .OrderByDescending(candidate => ScoreRequestedLanguageCoverage(candidate, result, request))
                     .ThenByDescending(candidate => HasMatchingOohSite(result, candidate))
+                    .ThenByDescending(candidate => FitsChannelTarget(result, candidate, channelSpendTargets))
+                    .ThenBy(candidate => ChannelOvershootAmount(result, candidate, channelSpendTargets))
                     .ThenBy(candidate => GetSelectionPriority(candidate))
                     .ThenBy(candidate => GetStationSelectionCount(result, candidate, shareTarget.Channel))
                     .ThenByDescending(candidate => candidate.Score)
@@ -295,7 +303,7 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
             }
         }
 
-        FillBudgetGap(result, candidates, request, request.SelectedBudget, request.MaxMediaItems);
+        FillBudgetGap(result, candidates, request, request.SelectedBudget, request.MaxMediaItems, channelSpendTargets);
 
         if (result.Count == 0)
         {
@@ -336,7 +344,13 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
         return result;
     }
 
-    private void FillBudgetGap(List<PlannedItem> result, List<InventoryCandidate> candidates, CampaignPlanningRequest request, decimal budget, int? maxItems)
+    private void FillBudgetGap(
+        List<PlannedItem> result,
+        List<InventoryCandidate> candidates,
+        CampaignPlanningRequest request,
+        decimal budget,
+        int? maxItems,
+        IReadOnlyDictionary<string, decimal>? channelSpendTargets = null)
     {
         if (result.Count == 0)
         {
@@ -370,7 +384,7 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
             ? Math.Min(4, Math.Max(2, maxItems.GetValueOrDefault(result.Count + 2)))
             : 0;
         var exactFill = shouldAttemptExactFill
-            ? TryBuildExactFill(fillCandidates, remaining, maxDepth, maxItems, result)
+            ? TryBuildExactFill(fillCandidates, remaining, maxDepth, maxItems, result, channelSpendTargets)
             : Array.Empty<InventoryCandidate>();
 
         if (exactFill.Count > 0)
@@ -390,11 +404,14 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
                 .Where(x =>
                     x.Cost <= remaining &&
                     !ExceedsStationDiversityCap(result, x) &&
+                    CanSpendInChannel(result, x, channelSpendTargets) &&
                     ((result.Any(item => item.SourceId == x.SourceId) && _policyService.IsRepeatableCandidate(x))
                         || !maxItems.HasValue
                         || result.Count < maxItems.Value))
                 .OrderByDescending(x => ScoreRequestedLanguageCoverage(x, result, request))
                 .ThenByDescending(x => HasMatchingOohSite(result, x))
+                .ThenByDescending(x => FitsChannelTarget(result, x, channelSpendTargets))
+                .ThenBy(x => ChannelOvershootAmount(result, x, channelSpendTargets))
                 .ThenBy(x => GetSelectionPriority(x))
                 .ThenBy(x => GetStationSelectionCount(result, x, x.MediaType))
                 .ThenByDescending(x => x.Score)
@@ -417,7 +434,8 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
         decimal remaining,
         int depthRemaining,
         int? maxItems,
-        IReadOnlyList<PlannedItem> currentPlan)
+        IReadOnlyList<PlannedItem> currentPlan,
+        IReadOnlyDictionary<string, decimal>? channelSpendTargets)
     {
         if (remaining == 0m)
         {
@@ -431,7 +449,10 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
 
         foreach (var candidate in candidates
                      .Where(x => x.Cost <= remaining)
+                     .Where(x => CanSpendInChannel(currentPlan, x, channelSpendTargets))
                      .OrderBy(x => GetSelectionPriority(x))
+                     .ThenByDescending(x => FitsChannelTarget(currentPlan, x, channelSpendTargets))
+                     .ThenBy(x => ChannelOvershootAmount(currentPlan, x, channelSpendTargets))
                      .ThenByDescending(x => x.Score)
                      .ThenByDescending(x => x.Cost))
         {
@@ -461,7 +482,7 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
             var simulatedPlan = wouldAddNewLine
                 ? currentPlan.Concat(new[] { ToPlannedItem(candidate) }).ToArray()
                 : currentPlan;
-            var tail = TryBuildExactFill(candidates, remaining - candidate.Cost, depthRemaining - 1, maxItems, simulatedPlan);
+            var tail = TryBuildExactFill(candidates, remaining - candidate.Cost, depthRemaining - 1, maxItems, simulatedPlan, channelSpendTargets);
             if (tail.Count > 0 || remaining - candidate.Cost == 0m)
             {
                 return new[] { candidate }.Concat(tail).ToArray();
@@ -544,6 +565,99 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
             PlanningChannelSupport.DigitalScreen => 1,
             _ => 0
         };
+    }
+
+    private static IReadOnlyDictionary<string, decimal>? BuildChannelSpendTargets(CampaignPlanningRequest request)
+    {
+        if (request.BudgetAllocation?.ChannelAllocations.Count > 0)
+        {
+            return request.BudgetAllocation.ChannelAllocations
+                .Where(entry => entry.Amount > 0m)
+                .ToDictionary(
+                    entry => PlanningChannelSupport.NormalizeChannel(entry.Channel),
+                    entry => entry.Amount,
+                    StringComparer.OrdinalIgnoreCase);
+        }
+
+        return null;
+    }
+
+    private static bool CanSpendInChannel(
+        IReadOnlyList<PlannedItem> currentPlan,
+        InventoryCandidate candidate,
+        IReadOnlyDictionary<string, decimal>? channelSpendTargets)
+    {
+        if (channelSpendTargets is null || channelSpendTargets.Count == 0)
+        {
+            return true;
+        }
+
+        var channelKey = PlanningChannelSupport.NormalizeChannel(candidate.MediaType);
+        if (!channelSpendTargets.TryGetValue(channelKey, out var targetAmount) || targetAmount <= 0m)
+        {
+            return true;
+        }
+
+        var currentSpend = GetChannelSpend(currentPlan, channelKey);
+        var maxAllowed = targetAmount + GetChannelOvershootTolerance(targetAmount);
+        if (currentSpend + candidate.Cost <= maxAllowed)
+        {
+            return true;
+        }
+
+        return currentSpend <= 0m && candidate.Cost <= maxAllowed;
+    }
+
+    private static bool FitsChannelTarget(
+        IReadOnlyList<PlannedItem> currentPlan,
+        InventoryCandidate candidate,
+        IReadOnlyDictionary<string, decimal>? channelSpendTargets)
+    {
+        if (channelSpendTargets is null || channelSpendTargets.Count == 0)
+        {
+            return true;
+        }
+
+        var channelKey = PlanningChannelSupport.NormalizeChannel(candidate.MediaType);
+        if (!channelSpendTargets.TryGetValue(channelKey, out var targetAmount) || targetAmount <= 0m)
+        {
+            return true;
+        }
+
+        var currentSpend = GetChannelSpend(currentPlan, channelKey);
+        return currentSpend + candidate.Cost <= targetAmount;
+    }
+
+    private static decimal ChannelOvershootAmount(
+        IReadOnlyList<PlannedItem> currentPlan,
+        InventoryCandidate candidate,
+        IReadOnlyDictionary<string, decimal>? channelSpendTargets)
+    {
+        if (channelSpendTargets is null || channelSpendTargets.Count == 0)
+        {
+            return 0m;
+        }
+
+        var channelKey = PlanningChannelSupport.NormalizeChannel(candidate.MediaType);
+        if (!channelSpendTargets.TryGetValue(channelKey, out var targetAmount) || targetAmount <= 0m)
+        {
+            return 0m;
+        }
+
+        var currentSpend = GetChannelSpend(currentPlan, channelKey);
+        return Math.Max(0m, currentSpend + candidate.Cost - targetAmount);
+    }
+
+    private static decimal GetChannelSpend(IReadOnlyList<PlannedItem> currentPlan, string channelKey)
+    {
+        return currentPlan
+            .Where(item => MatchesChannel(item.MediaType, channelKey))
+            .Sum(item => item.TotalCost);
+    }
+
+    private static decimal GetChannelOvershootTolerance(decimal targetAmount)
+    {
+        return Math.Max(5000m, decimal.Round(targetAmount * 0.10m, 2, MidpointRounding.AwayFromZero));
     }
 
     private decimal ScoreRequestedLanguageCoverage(
@@ -719,6 +833,7 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
         PlanningAllocationLine target,
         ISet<Guid> usedSourceIds,
         decimal spentTotal,
+        IReadOnlyDictionary<string, decimal>? channelSpendTargets,
         bool requireBucketMatch)
     {
         return candidates
@@ -727,6 +842,7 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
             .Where(candidate => !usedSourceIds.Contains(candidate.SourceId))
             .Where(candidate => spentTotal + candidate.Cost <= request.SelectedBudget)
             .Where(candidate => !ExceedsStationDiversityCap(currentPlan, candidate))
+            .Where(candidate => CanSpendInChannel(currentPlan, candidate, channelSpendTargets))
             .Select(candidate => new
             {
                 Candidate = candidate,
@@ -736,6 +852,8 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
             .OrderByDescending(entry => string.Equals(entry.GeoBucket, target.Bucket, StringComparison.OrdinalIgnoreCase))
             .ThenByDescending(entry => ScoreRequestedLanguageCoverage(entry.Candidate, currentPlan, request))
             .ThenByDescending(entry => HasMatchingOohSite(currentPlan, entry.Candidate))
+            .ThenByDescending(entry => FitsChannelTarget(currentPlan, entry.Candidate, channelSpendTargets))
+            .ThenBy(entry => ChannelOvershootAmount(currentPlan, entry.Candidate, channelSpendTargets))
             .ThenBy(entry => GetSelectionPriority(entry.Candidate))
             .ThenBy(entry => GetStationSelectionCount(currentPlan, entry.Candidate, target.Channel))
             .ThenByDescending(entry => entry.Candidate.Score)
