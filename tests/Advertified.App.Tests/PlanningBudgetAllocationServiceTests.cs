@@ -8,38 +8,38 @@ namespace Advertified.App.Tests;
 public sealed class PlanningBudgetAllocationServiceTests
 {
     [Fact]
-    public void Resolve_UsesMatchingPolicyRules_ForPremiumProvincialAwareness()
+    public void Resolve_UsesBudgetBandRules_AndAppliesTvFloorWhenPreferred()
     {
         var service = new PlanningBudgetAllocationService(new PlanningBudgetAllocationSnapshotProvider(
             new PlanningBudgetAllocationPolicySnapshot
             {
-                ChannelRules = new[]
+                BudgetBands = new[]
                 {
-                    new ChannelAllocationPolicyRule
+                    new BudgetBandAllocationPolicyRule
                     {
-                        PolicyKey = "premium-awareness-sub50k",
-                        Priority = 100,
-                        Objective = "awareness",
-                        AudienceSegment = "premium",
-                        MinBudget = 0,
-                        MaxBudget = 49999.99m,
-                        Weights = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase)
-                        {
-                            ["ooh"] = 0.35m,
-                            ["radio"] = 0.25m,
-                            ["digital"] = 0.40m
-                        }
+                        Name = "100k-500k",
+                        Min = 100000m,
+                        Max = 500000m,
+                        OohTarget = 0.42m,
+                        TvMin = 0.08m,
+                        TvEligible = true,
+                        RadioRange = new[] { 0.25m, 0.30m },
+                        DigitalRange = new[] { 0.20m, 0.25m }
                     }
+                },
+                GlobalRules = new PlanningAllocationGlobalRules
+                {
+                    MaxOoh = 0.50m,
+                    MinDigital = 0.15m,
+                    EnforceTvFloorIfPreferred = true
                 },
                 GeoRules = new[]
                 {
                     new GeoAllocationPolicyRule
                     {
-                        PolicyKey = "premium-provincial-awareness",
+                        PolicyKey = "geo_default",
                         Priority = 100,
-                        Objective = "awareness",
-                        AudienceSegment = "premium",
-                        GeographyScope = "provincial",
+                        GeographyScope = "national",
                         NearbyRadiusKm = 20,
                         Weights = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase)
                         {
@@ -53,16 +53,57 @@ public sealed class PlanningBudgetAllocationServiceTests
 
         var allocation = service.Resolve(new CampaignPlanningRequest
         {
-            SelectedBudget = 40000m,
+            SelectedBudget = 300000m,
             Objective = "awareness",
-            GeographyScope = "provincial",
-            PricePositioning = "premium"
+            GeographyScope = "national",
+            PreferredMediaTypes = new List<string> { "ooh", "radio", "tv", "digital" }
         });
 
-        allocation.ChannelPolicyKey.Should().Be("premium-awareness-sub50k");
-        allocation.GeoPolicyKey.Should().Be("premium-provincial-awareness");
-        allocation.ChannelAllocations.Should().ContainSingle(x => x.Channel == "digital" && x.Weight == 0.40m);
-        allocation.GeoAllocations.Should().ContainSingle(x => x.Bucket == "origin" && x.Weight == 0.50m);
+        allocation.ChannelPolicyKey.Should().Be("budget_band_100k_500k");
+        allocation.ChannelAllocations.Should().ContainSingle(x => x.Channel == "ooh" && x.Weight == 0.42m);
+        allocation.ChannelAllocations.Should().ContainSingle(x => x.Channel == "tv" && x.Weight == 0.08m);
+        allocation.ChannelAllocations.Should().ContainSingle(x => x.Channel == "radio" && x.Weight == 0.275m);
+        allocation.ChannelAllocations.Should().ContainSingle(x => x.Channel == "digital" && x.Weight == 0.225m);
+    }
+
+    [Fact]
+    public void Resolve_DoesNotForceTvWhenBandIsNotEligible()
+    {
+        var service = new PlanningBudgetAllocationService(new PlanningBudgetAllocationSnapshotProvider(
+            new PlanningBudgetAllocationPolicySnapshot
+            {
+                BudgetBands = new[]
+                {
+                    new BudgetBandAllocationPolicyRule
+                    {
+                        Name = "20k-100k",
+                        Min = 20000m,
+                        Max = 100000m,
+                        OohTarget = 0.45m,
+                        TvMin = 0m,
+                        TvEligible = false,
+                        RadioRange = new[] { 0.30m, 0.35m },
+                        DigitalRange = new[] { 0.20m, 0.25m }
+                    }
+                },
+                GlobalRules = new PlanningAllocationGlobalRules
+                {
+                    MaxOoh = 0.50m,
+                    MinDigital = 0.15m,
+                    EnforceTvFloorIfPreferred = true
+                }
+            }));
+
+        var allocation = service.Resolve(new CampaignPlanningRequest
+        {
+            SelectedBudget = 50000m,
+            Objective = "awareness",
+            GeographyScope = "provincial",
+            PreferredMediaTypes = new List<string> { "tv", "ooh", "radio", "digital" }
+        });
+
+        allocation.ChannelAllocations.Should().NotContain(x => x.Channel == "tv" && x.Weight > 0m);
+        allocation.ChannelAllocations.Should().ContainSingle(x => x.Channel == "ooh" && x.Weight == 0.45m);
     }
 
     [Fact]
@@ -85,5 +126,6 @@ public sealed class PlanningBudgetAllocationServiceTests
         allocation.ChannelAllocations.Should().ContainSingle(x => x.Channel == "ooh" && x.Weight == 0.5m);
         allocation.ChannelAllocations.Should().ContainSingle(x => x.Channel == "radio" && x.Weight == 0.3m);
         allocation.ChannelAllocations.Should().ContainSingle(x => x.Channel == "digital" && x.Weight == 0.2m);
+        allocation.ChannelAllocations.Should().NotContain(x => x.Channel == "tv" && x.Weight > 0m);
     }
 }

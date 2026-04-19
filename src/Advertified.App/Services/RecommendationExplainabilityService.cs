@@ -54,6 +54,7 @@ public sealed class RecommendationExplainabilityService : IRecommendationExplain
             .Select(preferred => preferred.Trim().ToLowerInvariant())
             .Where(preferred => !string.IsNullOrWhiteSpace(preferred))
             .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Where(preferred => _policyService.GetTargetShare(preferred, request).GetValueOrDefault() > 0)
             .Where(preferred => !selectedMedia.Contains(preferred))
             .Select(preferred => $"preferred_media_unfulfilled:{preferred}")
             .ToArray();

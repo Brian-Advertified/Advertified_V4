@@ -1,130 +1,62 @@
+delete from planning_engine_settings
+where setting_key = 'allocation_channel_rules_json';
+
 insert into planning_engine_settings (setting_key, setting_value, description)
 values
 (
-    'allocation_channel_rules_json',
+    'allocation_budget_band_rules_json',
     $$[
       {
-        "policyKey": "channel_awareness_premium_sub50k",
-        "priority": 200,
-        "objective": "awareness",
-        "audienceSegment": "premium",
-        "geographyScope": null,
-        "minBudget": 0,
-        "maxBudget": 49999.99,
-        "weights": {
-          "ooh": 0.35,
-          "radio": 0.25,
-          "digital": 0.40,
-          "tv": 0.00
-        }
+        "name": "20k-100k",
+        "min": 20000,
+        "max": 100000,
+        "oohTarget": 0.45,
+        "tvMin": 0.0,
+        "tvEligible": false,
+        "radioRange": [0.30, 0.35],
+        "digitalRange": [0.20, 0.25]
       },
       {
-        "policyKey": "channel_awareness_premium_50k_plus",
-        "priority": 190,
-        "objective": "awareness",
-        "audienceSegment": "premium",
-        "geographyScope": null,
-        "minBudget": 50000,
-        "maxBudget": null,
-        "weights": {
-          "ooh": 0.45,
-          "radio": 0.30,
-          "digital": 0.25,
-          "tv": 0.00
-        }
+        "name": "100k-500k",
+        "min": 100000,
+        "max": 500000,
+        "oohTarget": 0.42,
+        "tvMin": 0.08,
+        "tvEligible": true,
+        "radioRange": [0.25, 0.30],
+        "digitalRange": [0.20, 0.25]
       },
       {
-        "policyKey": "channel_awareness_general_sub50k",
-        "priority": 180,
-        "objective": "awareness",
-        "audienceSegment": "general",
-        "geographyScope": null,
-        "minBudget": 0,
-        "maxBudget": 49999.99,
-        "weights": {
-          "ooh": 0.30,
-          "radio": 0.25,
-          "digital": 0.45,
-          "tv": 0.00
-        }
+        "name": "500k-1M",
+        "min": 500000,
+        "max": 1000000,
+        "oohTarget": 0.38,
+        "tvMin": 0.20,
+        "tvEligible": true,
+        "radioRange": [0.20, 0.25],
+        "digitalRange": [0.15, 0.20]
       },
       {
-        "policyKey": "channel_awareness_general_50k_plus",
-        "priority": 170,
-        "objective": "awareness",
-        "audienceSegment": "general",
-        "geographyScope": null,
-        "minBudget": 50000,
-        "maxBudget": null,
-        "weights": {
-          "ooh": 0.40,
-          "radio": 0.30,
-          "digital": 0.30,
-          "tv": 0.00
-        }
-      },
-      {
-        "policyKey": "channel_launch_default",
-        "priority": 160,
-        "objective": "launch",
-        "audienceSegment": null,
-        "geographyScope": null,
-        "minBudget": 0,
-        "maxBudget": null,
-        "weights": {
-          "ooh": 0.40,
-          "radio": 0.35,
-          "digital": 0.25,
-          "tv": 0.00
-        }
-      },
-      {
-        "policyKey": "channel_leads_default",
-        "priority": 150,
-        "objective": "leads",
-        "audienceSegment": null,
-        "geographyScope": null,
-        "minBudget": 0,
-        "maxBudget": null,
-        "weights": {
-          "ooh": 0.15,
-          "radio": 0.25,
-          "digital": 0.60,
-          "tv": 0.00
-        }
-      },
-      {
-        "policyKey": "channel_foot_traffic_default",
-        "priority": 140,
-        "objective": "foot_traffic",
-        "audienceSegment": null,
-        "geographyScope": null,
-        "minBudget": 0,
-        "maxBudget": null,
-        "weights": {
-          "ooh": 0.50,
-          "radio": 0.25,
-          "digital": 0.25,
-          "tv": 0.00
-        }
-      },
-      {
-        "policyKey": "channel_default",
-        "priority": 100,
-        "objective": null,
-        "audienceSegment": null,
-        "geographyScope": null,
-        "minBudget": 0,
-        "maxBudget": null,
-        "weights": {
-          "ooh": 0.35,
-          "radio": 0.30,
-          "digital": 0.35,
-          "tv": 0.00
-        }
+        "name": "1M-5M",
+        "min": 1000000,
+        "max": 5000000,
+        "oohTarget": 0.35,
+        "tvMin": 0.28,
+        "tvEligible": true,
+        "radioRange": [0.15, 0.20],
+        "digitalRange": [0.15, 0.20]
       }
     ]$$,
-    'Planning allocation channel rules. Operators can tune weights by objective, audience segment, scope, and budget band without a deployment.'
+    'Planning allocation budget bands. Operators can tune OOH, TV floor, and radio/digital ranges by budget band without a deployment.'
+),
+(
+    'allocation_global_rules_json',
+    $${
+      "maxOoh": 0.50,
+      "minDigital": 0.15,
+      "enforceTvFloorIfPreferred": true
+    }$$,
+    'Planning allocation global rules. Operators can cap OOH, set a digital floor, and require a TV floor when TV is preferred.'
 ),
 (
     'allocation_geo_rules_json',

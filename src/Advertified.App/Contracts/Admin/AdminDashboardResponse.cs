@@ -12,6 +12,7 @@ public sealed class AdminDashboardResponse
     public IReadOnlyList<AdminPackageSettingResponse> PackageSettings { get; set; } = Array.Empty<AdminPackageSettingResponse>();
     public AdminPricingSettingsResponse PricingSettings { get; set; } = new();
     public IReadOnlyList<AdminEnginePolicyResponse> EnginePolicies { get; set; } = Array.Empty<AdminEnginePolicyResponse>();
+    public AdminPlanningAllocationSettingsResponse PlanningAllocationSettings { get; set; } = new();
     public IReadOnlyList<AdminLeadIndustryPolicyResponse> LeadIndustryPolicies { get; set; } = Array.Empty<AdminLeadIndustryPolicyResponse>();
     public IReadOnlyList<AdminPreviewRuleResponse> PreviewRules { get; set; } = Array.Empty<AdminPreviewRuleResponse>();
     public AdminMonitoringResponse Monitoring { get; set; } = new();

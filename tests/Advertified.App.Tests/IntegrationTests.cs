@@ -2664,6 +2664,7 @@ internal sealed class StubAdminMutationService : IAdminMutationService
     public Task DeletePackageSettingAsync(Guid packageSettingId, CancellationToken cancellationToken) => throw new NotSupportedException();
     public Task UpdatePricingSettingsAsync(UpdateAdminPricingSettingsRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
     public Task UpdateEnginePolicyAsync(string packageCode, UpdateAdminEnginePolicyRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task UpdatePlanningAllocationSettingsAsync(UpdateAdminPlanningAllocationSettingsRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
     public Task UpdatePreviewRuleAsync(string packageCode, string tierCode, UpdateAdminPreviewRuleRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
 }
 

@@ -6,7 +6,6 @@ namespace Advertified.App.Services;
 
 public sealed class PlanningBudgetAllocationService : IPlanningBudgetAllocationService
 {
-    private static readonly string[] DefaultChannels = { "ooh", "radio", "digital", "tv" };
     private readonly PlanningBudgetAllocationSnapshotProvider _snapshotProvider;
 
     public PlanningBudgetAllocationService(PlanningBudgetAllocationSnapshotProvider snapshotProvider)
@@ -20,7 +19,7 @@ public sealed class PlanningBudgetAllocationService : IPlanningBudgetAllocationS
 
         var snapshot = _snapshotProvider.GetCurrent();
         var audienceSegment = ResolveAudienceSegment(request);
-        var channelWeights = ResolveChannelWeights(snapshot.ChannelRules, request, audienceSegment);
+        var channelWeights = ResolveChannelWeights(snapshot, request);
         var geoRule = ResolveGeoRule(snapshot.GeoRules, request, audienceSegment);
         var geoWeights = NormalizeWeights(geoRule?.Weights, GetGeoFallbackWeights(request));
 
@@ -44,7 +43,7 @@ public sealed class PlanningBudgetAllocationService : IPlanningBudgetAllocationS
                 entry => entry.Key,
                 entry => decimal.Round(entry.Value / 100m, 4, MidpointRounding.AwayFromZero),
                 StringComparer.OrdinalIgnoreCase),
-            GetChannelFallbackWeights(request));
+            current.ChannelAllocations.ToDictionary(entry => entry.Channel, entry => entry.Weight, StringComparer.OrdinalIgnoreCase));
 
         return BuildAllocation(
             request.SelectedBudget,
@@ -110,9 +109,8 @@ public sealed class PlanningBudgetAllocationService : IPlanningBudgetAllocationS
     }
 
     private static (string PolicyKey, IReadOnlyDictionary<string, decimal> Weights) ResolveChannelWeights(
-        IReadOnlyList<ChannelAllocationPolicyRule> rules,
-        CampaignPlanningRequest request,
-        string audienceSegment)
+        PlanningBudgetAllocationPolicySnapshot snapshot,
+        CampaignPlanningRequest request)
     {
         if (HasExplicitTargetMix(request))
         {
@@ -122,21 +120,18 @@ public sealed class PlanningBudgetAllocationService : IPlanningBudgetAllocationS
                 ["ooh"] = ToWeight(request.TargetOohShare),
                 ["digital"] = ToWeight(request.TargetDigitalShare),
                 ["tv"] = ToWeight(request.TargetTvShare)
-            }, GetChannelFallbackWeights(request)));
+            }, GetExplicitRequestFallbackWeights()));
         }
 
-        var matchedRule = rules
-            .Where(rule => IsMatch(rule.Objective, request.Objective))
-            .Where(rule => IsMatch(rule.AudienceSegment, audienceSegment))
-            .Where(rule => IsMatch(rule.GeographyScope, request.GeographyScope))
-            .Where(rule => IsBudgetMatch(rule.MinBudget, rule.MaxBudget, request.SelectedBudget))
-            .OrderByDescending(rule => GetSpecificity(rule.Objective, rule.AudienceSegment, rule.GeographyScope, rule.MinBudget, rule.MaxBudget))
-            .ThenByDescending(rule => rule.Priority)
-            .FirstOrDefault();
+        var matchedBand = ResolveBudgetBand(snapshot.BudgetBands, request.SelectedBudget);
+        if (matchedBand is null)
+        {
+            throw new InvalidOperationException("Planning allocation budget bands are not configured.");
+        }
 
         return (
-            matchedRule?.PolicyKey ?? "fallback",
-            NormalizeWeights(matchedRule?.Weights, GetChannelFallbackWeights(request)));
+            BuildBudgetBandPolicyKey(matchedBand.Name),
+            BuildBudgetBandWeights(matchedBand, snapshot.GlobalRules, request));
     }
 
     private static GeoAllocationPolicyRule? ResolveGeoRule(
@@ -154,26 +149,14 @@ public sealed class PlanningBudgetAllocationService : IPlanningBudgetAllocationS
             .FirstOrDefault();
     }
 
-    private static IReadOnlyDictionary<string, decimal> GetChannelFallbackWeights(CampaignPlanningRequest request)
+    private static IReadOnlyDictionary<string, decimal> GetExplicitRequestFallbackWeights()
     {
-        var preferredChannels = request.PreferredMediaTypes
-            .Select(NormalizeChannel)
-            .Where(static channel => !string.IsNullOrWhiteSpace(channel))
-            .Except(request.ExcludedMediaTypes.Select(NormalizeChannel), StringComparer.OrdinalIgnoreCase)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
-        var eligibleChannels = preferredChannels.Length > 0 ? preferredChannels : DefaultChannels
-            .Except(request.ExcludedMediaTypes.Select(NormalizeChannel), StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
-        if (eligibleChannels.Length == 0)
+        return new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase)
         {
-            eligibleChannels = DefaultChannels;
-        }
-
-        var equalWeight = decimal.Round(1m / eligibleChannels.Length, 4, MidpointRounding.AwayFromZero);
-        return eligibleChannels.ToDictionary(channel => channel, _ => equalWeight, StringComparer.OrdinalIgnoreCase);
+            ["ooh"] = 0.35m,
+            ["radio"] = 0.30m,
+            ["digital"] = 0.35m
+        };
     }
 
     private static IReadOnlyDictionary<string, decimal> GetGeoFallbackWeights(CampaignPlanningRequest request)
@@ -303,5 +286,132 @@ public sealed class PlanningBudgetAllocationService : IPlanningBudgetAllocationS
             "broader_coverage" => "wider",
             _ => normalized
         };
+    }
+
+    private static BudgetBandAllocationPolicyRule? ResolveBudgetBand(
+        IReadOnlyList<BudgetBandAllocationPolicyRule> budgetBands,
+        decimal budget)
+    {
+        if (budgetBands.Count == 0)
+        {
+            return null;
+        }
+
+        var orderedBands = budgetBands
+            .OrderBy(rule => rule.Min)
+            .ThenBy(rule => rule.Max)
+            .ToArray();
+
+        return orderedBands.FirstOrDefault(rule => budget >= rule.Min && budget <= rule.Max)
+            ?? orderedBands.LastOrDefault(rule => budget >= rule.Min)
+            ?? orderedBands[0];
+    }
+
+    private static IReadOnlyDictionary<string, decimal> BuildBudgetBandWeights(
+        BudgetBandAllocationPolicyRule budgetBand,
+        PlanningAllocationGlobalRules globalRules,
+        CampaignPlanningRequest request)
+    {
+        var ooh = ClampRatio(budgetBand.OohTarget);
+        if (globalRules.MaxOoh > 0m)
+        {
+            ooh = Math.Min(ooh, ClampRatio(globalRules.MaxOoh));
+        }
+
+        var tv = 0m;
+        if (budgetBand.TvEligible
+            && globalRules.EnforceTvFloorIfPreferred
+            && IsPreferredChannel(request, "tv"))
+        {
+            tv = ClampRatio(budgetBand.TvMin);
+        }
+
+        if (ooh + tv > 1m)
+        {
+            tv = Math.Max(0m, 1m - ooh);
+        }
+
+        var remaining = Math.Max(0m, 1m - ooh - tv);
+        var radioMid = ResolveMidpoint(budgetBand.RadioRange);
+        var digitalMid = ResolveMidpoint(budgetBand.DigitalRange);
+
+        var radio = 0m;
+        var digital = 0m;
+        var totalMid = radioMid + digitalMid;
+        if (remaining > 0m && totalMid > 0m)
+        {
+            radio = decimal.Round(remaining * (radioMid / totalMid), 4, MidpointRounding.AwayFromZero);
+            digital = Math.Max(0m, remaining - radio);
+        }
+        else if (remaining > 0m)
+        {
+            radio = decimal.Round(remaining / 2m, 4, MidpointRounding.AwayFromZero);
+            digital = Math.Max(0m, remaining - radio);
+        }
+
+        var minDigital = ClampRatio(globalRules.MinDigital);
+        if (minDigital > 0m && digital < minDigital)
+        {
+            digital = Math.Min(minDigital, remaining);
+            radio = Math.Max(0m, remaining - digital);
+        }
+
+        return NormalizeWeights(new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["ooh"] = ooh,
+            ["tv"] = tv,
+            ["radio"] = radio,
+            ["digital"] = digital
+        }, new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["ooh"] = ooh,
+            ["tv"] = tv,
+            ["radio"] = radio,
+            ["digital"] = digital
+        });
+    }
+
+    private static decimal ResolveMidpoint(IReadOnlyList<decimal> range)
+    {
+        if (range.Count == 0)
+        {
+            return 0m;
+        }
+
+        if (range.Count == 1)
+        {
+            return ClampRatio(range[0]);
+        }
+
+        return decimal.Round((ClampRatio(range[0]) + ClampRatio(range[1])) / 2m, 4, MidpointRounding.AwayFromZero);
+    }
+
+    private static decimal ClampRatio(decimal value)
+    {
+        return Math.Min(1m, Math.Max(0m, value));
+    }
+
+    private static bool IsPreferredChannel(CampaignPlanningRequest request, string channel)
+    {
+        return request.PreferredMediaTypes
+            .Select(NormalizeChannel)
+            .Any(preferred => string.Equals(preferred, channel, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string BuildBudgetBandPolicyKey(string name)
+    {
+        var trimmed = (name ?? string.Empty).Trim().ToLowerInvariant();
+        if (trimmed.Length == 0)
+        {
+            return "budget_band";
+        }
+
+        var normalized = string.Concat(trimmed.Select(ch => char.IsLetterOrDigit(ch) ? ch : '_'));
+        while (normalized.Contains("__", StringComparison.Ordinal))
+        {
+            normalized = normalized.Replace("__", "_", StringComparison.Ordinal);
+        }
+
+        return $"budget_band_{normalized.Trim('_')}";
     }
 }

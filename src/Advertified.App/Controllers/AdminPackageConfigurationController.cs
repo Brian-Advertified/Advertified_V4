@@ -150,6 +150,36 @@ public sealed class AdminPackageConfigurationController : BaseAdminController
         }
     }
 
+    [HttpPut("planning-allocation-settings")]
+    public async Task<IActionResult> UpdatePlanningAllocationSettings(
+        [FromBody] UpdateAdminPlanningAllocationSettingsRequest request,
+        CancellationToken cancellationToken)
+    {
+        var gateResult = await EnsureAdminAsync(cancellationToken);
+        if (gateResult is not null)
+        {
+            return gateResult;
+        }
+
+        try
+        {
+            await _adminMutationService.UpdatePlanningAllocationSettingsAsync(request, cancellationToken);
+            await WriteChangeAuditAsync(
+                "update",
+                "planning_allocation_settings",
+                "planning_allocation_settings",
+                "Planning allocation settings",
+                "Updated planning allocation budget bands and global rules.",
+                request,
+                cancellationToken);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpPut("preview-rules/{packageCode}/{tierCode}")]
     public async Task<IActionResult> UpdatePreviewRule(
         string packageCode,

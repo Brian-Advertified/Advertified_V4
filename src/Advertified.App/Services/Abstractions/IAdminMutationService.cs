@@ -30,5 +30,6 @@ public interface IAdminMutationService
     Task DeletePackageSettingAsync(Guid packageSettingId, CancellationToken cancellationToken);
     Task UpdatePricingSettingsAsync(UpdateAdminPricingSettingsRequest request, CancellationToken cancellationToken);
     Task UpdateEnginePolicyAsync(string packageCode, UpdateAdminEnginePolicyRequest request, CancellationToken cancellationToken);
+    Task UpdatePlanningAllocationSettingsAsync(UpdateAdminPlanningAllocationSettingsRequest request, CancellationToken cancellationToken);
     Task UpdatePreviewRuleAsync(string packageCode, string tierCode, UpdateAdminPreviewRuleRequest request, CancellationToken cancellationToken);
 }

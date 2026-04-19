@@ -1369,6 +1369,17 @@ internal static class ControllerMappings
         if (request.TargetRadioShare.GetValueOrDefault() > 0) parts.Add($"Radio {request.TargetRadioShare.GetValueOrDefault()}%");
         if (request.TargetTvShare.GetValueOrDefault() > 0) parts.Add($"TV {request.TargetTvShare.GetValueOrDefault()}%");
         if (request.TargetDigitalShare.GetValueOrDefault() > 0) parts.Add($"Digital {request.TargetDigitalShare.GetValueOrDefault()}%");
+
+        if (parts.Count == 0 && request.BudgetAllocation?.ChannelAllocations.Count > 0)
+        {
+            foreach (var allocation in request.BudgetAllocation.ChannelAllocations
+                .Where(entry => entry.Weight > 0m)
+                .OrderByDescending(entry => entry.Weight))
+            {
+                parts.Add($"{FormatAuditChannelLabel(allocation.Channel)} {allocation.Weight:P0}");
+            }
+        }
+
         return parts.Count > 0 ? string.Join(" | ", parts) : "not specified";
     }
 

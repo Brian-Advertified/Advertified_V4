@@ -144,6 +144,7 @@ builder.Services.AddScoped<IAdminDashboardService>(_ => new AdminDashboardServic
     _.GetRequiredService<AppDbContext>(),
     _.GetRequiredService<IBroadcastInventoryCatalog>(),
     _.GetRequiredService<PlanningPolicySnapshotProvider>(),
+    _.GetRequiredService<PlanningBudgetAllocationSnapshotProvider>(),
     _.GetRequiredService<Npgsql.NpgsqlDataSource>(),
     _.GetRequiredService<IBroadcastMasterDataService>()));
 builder.Services.AddScoped<IAdminMutationService>(_ => new AdminMutationService(

@@ -14,6 +14,7 @@ import type {
   AdminOutletMasterData,
   AdminOutletPricing,
   AdminPackageOrder,
+  AdminUpdatePlanningAllocationSettingsInput,
   CampaignPerformanceSnapshot,
   AdminPreviewRuleUpdateInput,
   AdminRateCardUpdateInput,
@@ -375,6 +376,13 @@ export function createAdminApi({ mapAdminPackageOrder }: AdminApiDependencies) {
 
     async updateAdminEnginePolicy(packageCode: string, input: AdminUpdateEnginePolicyInput) {
       return apiRequest(`/admin/engine-settings/${encodeURIComponent(packageCode)}`, {
+        method: 'PUT',
+        body: JSON.stringify(input),
+      });
+    },
+
+    async updateAdminPlanningAllocationSettings(input: AdminUpdatePlanningAllocationSettingsInput) {
+      return apiRequest('/admin/planning-allocation-settings', {
         method: 'PUT',
         body: JSON.stringify(input),
       });

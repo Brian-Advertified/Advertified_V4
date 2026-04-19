@@ -8,6 +8,8 @@ namespace Advertified.App.Services;
 
 public sealed class AdminMutationService : IAdminMutationService
 {
+    private const string AllocationBudgetBandsKey = "allocation_budget_band_rules_json";
+    private const string AllocationGlobalRulesKey = "allocation_global_rules_json";
     private readonly Npgsql.NpgsqlDataSource _dataSource;
     private readonly IWebHostEnvironment _environment;
     private readonly IBroadcastInventoryCatalog _broadcastInventoryCatalog;
@@ -1206,6 +1208,56 @@ public sealed class AdminMutationService : IAdminMutationService
             cancellationToken: cancellationToken));
     }
 
+    public async Task UpdatePlanningAllocationSettingsAsync(UpdateAdminPlanningAllocationSettingsRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ValidatePlanningAllocationSettingsRequest(request);
+
+        var budgetBandsJson = JsonSerializer.Serialize(
+            request.BudgetBands
+                .OrderBy(band => band.Min)
+                .ThenBy(band => band.Max)
+                .Select(band => new
+                {
+                    name = band.Name.Trim(),
+                    min = band.Min,
+                    max = band.Max,
+                    oohTarget = band.OohTarget,
+                    tvMin = band.TvMin,
+                    tvEligible = band.TvEligible,
+                    radioRange = band.RadioRange,
+                    digitalRange = band.DigitalRange
+                })
+                .ToArray());
+        var globalRulesJson = JsonSerializer.Serialize(new
+        {
+            maxOoh = request.GlobalRules.MaxOoh,
+            minDigital = request.GlobalRules.MinDigital,
+            enforceTvFloorIfPreferred = request.GlobalRules.EnforceTvFloorIfPreferred
+        });
+
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await connection.ExecuteAsync(new CommandDefinition(
+            @"
+            insert into planning_engine_settings (setting_key, setting_value, description)
+            values
+                (@BudgetBandsKey, @BudgetBandsJson, 'Planning allocation budget bands. Operators can tune OOH, TV floor, and radio/digital ranges by budget band without a deployment.'),
+                (@GlobalRulesKey, @GlobalRulesJson, 'Planning allocation global rules. Operators can cap OOH, set a digital floor, and require a TV floor when TV is preferred.')
+            on conflict (setting_key) do update
+            set
+                setting_value = excluded.setting_value,
+                description = excluded.description,
+                updated_at = now();",
+            new
+            {
+                BudgetBandsKey = AllocationBudgetBandsKey,
+                BudgetBandsJson = budgetBandsJson,
+                GlobalRulesKey = AllocationGlobalRulesKey,
+                GlobalRulesJson = globalRulesJson
+            },
+            cancellationToken: cancellationToken));
+    }
+
     public async Task UpdatePreviewRuleAsync(string packageCode, string tierCode, UpdateAdminPreviewRuleRequest request, CancellationToken cancellationToken)
     {
         var normalizedPackageCode = packageCode.Trim().ToLowerInvariant();
@@ -1732,6 +1784,67 @@ public sealed class AdminMutationService : IAdminMutationService
         if (value < 0m || value > 1m)
         {
             throw new InvalidOperationException($"{label} must be between 0 and 1.");
+        }
+    }
+
+    private static void ValidatePlanningAllocationSettingsRequest(UpdateAdminPlanningAllocationSettingsRequest request)
+    {
+        if (request.BudgetBands.Count == 0)
+        {
+            throw new InvalidOperationException("At least one planning allocation budget band is required.");
+        }
+
+        ValidatePercentage(request.GlobalRules.MaxOoh, "Max OOH");
+        ValidatePercentage(request.GlobalRules.MinDigital, "Minimum digital");
+
+        var orderedBands = request.BudgetBands
+            .OrderBy(band => band.Min)
+            .ThenBy(band => band.Max)
+            .ToArray();
+
+        for (var index = 0; index < orderedBands.Length; index++)
+        {
+            var band = orderedBands[index];
+            if (string.IsNullOrWhiteSpace(TrimToNull(band.Name)))
+            {
+                throw new InvalidOperationException("Each planning allocation budget band needs a name.");
+            }
+
+            if (band.Min < 0m || band.Max <= band.Min)
+            {
+                throw new InvalidOperationException($"Budget band '{band.Name}' must have a valid min/max range.");
+            }
+
+            ValidatePercentage(band.OohTarget, $"OOH target for {band.Name}");
+            ValidatePercentage(band.TvMin, $"TV minimum for {band.Name}");
+
+            if (band.RadioRange.Length != 2 || band.DigitalRange.Length != 2)
+            {
+                throw new InvalidOperationException($"Budget band '{band.Name}' must include exactly two values for both radio and digital ranges.");
+            }
+
+            ValidateRange(band.RadioRange, $"Radio range for {band.Name}");
+            ValidateRange(band.DigitalRange, $"Digital range for {band.Name}");
+
+            if (band.OohTarget + band.TvMin > 1m)
+            {
+                throw new InvalidOperationException($"Budget band '{band.Name}' cannot allocate more than 100% across OOH and TV.");
+            }
+
+            if (index > 0 && band.Min < orderedBands[index - 1].Max)
+            {
+                throw new InvalidOperationException($"Budget band '{band.Name}' overlaps with another band. Keep band ranges ordered and non-overlapping.");
+            }
+        }
+    }
+
+    private static void ValidateRange(decimal[] range, string label)
+    {
+        ValidatePercentage(range[0], $"{label} minimum");
+        ValidatePercentage(range[1], $"{label} maximum");
+        if (range[1] < range[0])
+        {
+            throw new InvalidOperationException($"{label} must have a maximum greater than or equal to its minimum.");
         }
     }
 

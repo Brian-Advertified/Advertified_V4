@@ -162,28 +162,32 @@ public sealed class PlanningPolicyService : IPlanningPolicyService
         AddRequestedShare(shares, "digital", request.TargetDigitalShare);
         AddRequestedShare(shares, "tv", request.TargetTvShare);
 
-        var explicitTotal = shares.Sum(entry => entry.Share);
-        var hasExplicitTvShare = request.TargetTvShare.GetValueOrDefault() > 0;
-        var includeTv = request.PreferredMediaTypes
-            .Any(media => string.Equals(media?.Trim(), "tv", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(media?.Trim(), "television", StringComparison.OrdinalIgnoreCase));
-        var tvShare = Math.Max(0, 100 - explicitTotal);
-        if (!hasExplicitTvShare && includeTv && tvShare > 0)
+        if (shares.Count > 0)
         {
-            shares.Add(new RequestedChannelShare
-            {
-                Channel = "tv",
-                Share = tvShare
-            });
+            return shares;
         }
 
-        return shares;
+        if (request.BudgetAllocation?.ChannelAllocations.Count > 0)
+        {
+            return request.BudgetAllocation.ChannelAllocations
+                .Where(allocation => allocation.Weight > 0m)
+                .Select(allocation => new RequestedChannelShare
+                {
+                    Channel = NormalizeChannel(allocation.Channel),
+                    Share = (int)Math.Round(allocation.Weight * 100m, MidpointRounding.AwayFromZero)
+                })
+                .Where(allocation => allocation.Share > 0)
+                .OrderByDescending(allocation => allocation.Share)
+                .ToArray();
+        }
+
+        return Array.Empty<RequestedChannelShare>();
     }
 
     public int? GetTargetShare(string? mediaType, CampaignPlanningRequest request)
     {
         var normalized = mediaType?.Trim().ToLowerInvariant();
-        return normalized switch
+        var explicitShare = normalized switch
         {
             "radio" => request.TargetRadioShare,
             "ooh" => request.TargetOohShare,
@@ -191,15 +195,37 @@ public sealed class PlanningPolicyService : IPlanningPolicyService
             "digital" => request.TargetDigitalShare,
             _ => null
         };
+
+        if (explicitShare.GetValueOrDefault() > 0)
+        {
+            return explicitShare;
+        }
+
+        if (request.BudgetAllocation?.ChannelAllocations.Count > 0 && !string.IsNullOrWhiteSpace(normalized))
+        {
+            var allocation = request.BudgetAllocation.ChannelAllocations
+                .FirstOrDefault(entry => string.Equals(NormalizeChannel(entry.Channel), normalized, StringComparison.OrdinalIgnoreCase));
+            if (allocation is not null && allocation.Weight > 0m)
+            {
+                return (int)Math.Round(allocation.Weight * 100m, MidpointRounding.AwayFromZero);
+            }
+        }
+
+        return explicitShare;
     }
 
     public string? BuildRequestedMixLabel(CampaignPlanningRequest request)
     {
-        var parts = new List<string>();
-        if (request.TargetRadioShare.HasValue) parts.Add($"Radio {request.TargetRadioShare.Value}%");
-        if (request.TargetOohShare.HasValue) parts.Add($"Billboards and Digital Screens {request.TargetOohShare.Value}%");
-        if (request.TargetTvShare.HasValue) parts.Add($"TV {request.TargetTvShare.Value}%");
-        if (request.TargetDigitalShare.HasValue) parts.Add($"Digital {request.TargetDigitalShare.Value}%");
+        var parts = GetRequestedChannelShares(request)
+            .Select(share => share.Channel switch
+            {
+                "radio" => $"Radio {share.Share}%",
+                "ooh" => $"Billboards and Digital Screens {share.Share}%",
+                "tv" => $"TV {share.Share}%",
+                "digital" => $"Digital {share.Share}%",
+                _ => $"{share.Channel} {share.Share}%"
+            })
+            .ToList();
         return parts.Count > 0 ? string.Join(" | ", parts) : null;
     }
 
@@ -220,6 +246,16 @@ public sealed class PlanningPolicyService : IPlanningPolicyService
                 Share = share!.Value
             });
         }
+    }
+
+    private static string NormalizeChannel(string? value)
+    {
+        return (value ?? string.Empty).Trim().ToLowerInvariant() switch
+        {
+            "television" => "tv",
+            "billboards and digital screens" => "ooh",
+            _ => (value ?? string.Empty).Trim().ToLowerInvariant()
+        };
     }
 
     private static bool IsRegionalOrProvincialRadioCandidate(InventoryCandidate candidate)

@@ -1224,6 +1224,28 @@ export interface AdminEnginePolicy {
   regionalRadioPenalty: number;
 }
 
+export interface AdminPlanningBudgetBand {
+  name: string;
+  min: number;
+  max: number;
+  oohTarget: number;
+  tvMin: number;
+  tvEligible: boolean;
+  radioRange: [number, number];
+  digitalRange: [number, number];
+}
+
+export interface AdminPlanningAllocationGlobalRules {
+  maxOoh: number;
+  minDigital: number;
+  enforceTvFloorIfPreferred: boolean;
+}
+
+export interface AdminPlanningAllocationSettings {
+  budgetBands: AdminPlanningBudgetBand[];
+  globalRules: AdminPlanningAllocationGlobalRules;
+}
+
 export interface AdminLeadIndustryPolicy {
   key: string;
   name: string;
@@ -1271,6 +1293,11 @@ export interface AdminUpdateEnginePolicyInput {
   nationalRadioBonus: number;
   nonNationalRadioPenalty: number;
   regionalRadioPenalty: number;
+}
+
+export interface AdminUpdatePlanningAllocationSettingsInput {
+  budgetBands: AdminPlanningBudgetBand[];
+  globalRules: AdminPlanningAllocationGlobalRules;
 }
 
 export interface AdminUpsertLeadIndustryPolicyInput {
@@ -1340,6 +1367,7 @@ export interface AdminDashboard {
   packageSettings: AdminPackageSetting[];
   pricingSettings: AdminPricingSettings;
   enginePolicies: AdminEnginePolicy[];
+  planningAllocationSettings: AdminPlanningAllocationSettings;
   leadIndustryPolicies: AdminLeadIndustryPolicy[];
   previewRules: AdminPreviewRule[];
   monitoring: AdminMonitoring;

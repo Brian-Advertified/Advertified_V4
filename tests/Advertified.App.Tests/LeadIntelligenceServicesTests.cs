@@ -1066,13 +1066,20 @@ public class PlanningPolicyServiceTests
             CampaignId = Guid.NewGuid(),
             SelectedBudget = 150_000m,
             PreferredMediaTypes = new List<string> { "radio", "tv" },
-            TargetRadioShare = 40,
-            TargetOohShare = 30,
-            TargetDigitalShare = 20
+            BudgetAllocation = new PlanningBudgetAllocation
+            {
+                ChannelAllocations =
+                {
+                    new PlanningChannelAllocation { Channel = "radio", Weight = 0.40m },
+                    new PlanningChannelAllocation { Channel = "ooh", Weight = 0.30m },
+                    new PlanningChannelAllocation { Channel = "digital", Weight = 0.20m },
+                    new PlanningChannelAllocation { Channel = "tv", Weight = 0.10m }
+                }
+            }
         });
 
         context.PackagePolicyCode.Should().Be("dominance");
-        context.RequestedMixLabel.Should().Be("Radio 40% | Billboards and Digital Screens 30% | Digital 20%");
+        context.RequestedMixLabel.Should().Be("Radio 40% | Billboards and Digital Screens 30% | Digital 20% | TV 10%");
         context.RequestedChannelShares.Should().ContainSingle(x => x.Channel == "tv" && x.Share == 10);
         context.RequiredChannels.Should().Contain(new[] { "radio", "ooh", "digital", "tv" });
     }

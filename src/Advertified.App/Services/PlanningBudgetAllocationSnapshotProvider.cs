@@ -7,7 +7,8 @@ namespace Advertified.App.Services;
 
 public sealed class PlanningBudgetAllocationSnapshotProvider
 {
-    private const string ChannelRulesKey = "allocation_channel_rules_json";
+    private const string BudgetBandRulesKey = "allocation_budget_band_rules_json";
+    private const string GlobalRulesKey = "allocation_global_rules_json";
     private const string GeoRulesKey = "allocation_geo_rules_json";
 
     private readonly NpgsqlDataSource? _dataSource;
@@ -44,14 +45,16 @@ public sealed class PlanningBudgetAllocationSnapshotProvider
                     setting_key as SettingKey,
                     setting_value as SettingValue
                 from planning_engine_settings
-                where setting_key in (@ChannelRulesKey, @GeoRulesKey);",
-                new { ChannelRulesKey, GeoRulesKey })
+                where setting_key in (@BudgetBandRulesKey, @GlobalRulesKey, @GeoRulesKey);",
+                new { BudgetBandRulesKey, GlobalRulesKey, GeoRulesKey })
             .ToDictionary(row => row.SettingKey, row => row.SettingValue, StringComparer.OrdinalIgnoreCase);
 
         return new PlanningBudgetAllocationPolicySnapshot
         {
-            ChannelRules = Deserialize<List<ChannelAllocationPolicyRule>>(rows, ChannelRulesKey)
-                ?? _fallback.ChannelRules,
+            BudgetBands = Deserialize<List<BudgetBandAllocationPolicyRule>>(rows, BudgetBandRulesKey)
+                ?? _fallback.BudgetBands,
+            GlobalRules = Deserialize<PlanningAllocationGlobalRules>(rows, GlobalRulesKey)
+                ?? _fallback.GlobalRules,
             GeoRules = Deserialize<List<GeoAllocationPolicyRule>>(rows, GeoRulesKey)
                 ?? _fallback.GeoRules
         };

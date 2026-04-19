@@ -755,8 +755,24 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         var mediaMix = string.Join(", ", result.RecommendedPlan
             .Select(x => FormatSummaryChannelLabel(x.MediaType))
             .Distinct(StringComparer.OrdinalIgnoreCase));
-        var mixSummary = $"Radio {request.TargetRadioShare ?? 0}% | Billboards and Digital Screens {request.TargetOohShare ?? 0}% | TV {request.TargetTvShare ?? 0}% | Digital {request.TargetDigitalShare ?? 0}%";
+        var mixSummary = BuildMixSummary(request);
         return $"Recommended {result.RecommendedPlan.Count} planned item(s) across {mediaMix}. Budget split target: {mixSummary}.";
+    }
+
+    private static string BuildMixSummary(CampaignPlanningRequest request)
+    {
+        if (request.BudgetAllocation?.ChannelAllocations.Count > 0)
+        {
+            var shareByChannel = request.BudgetAllocation.ChannelAllocations
+                .ToDictionary(
+                    allocation => NormalizeSummaryChannelKey(allocation.Channel),
+                    allocation => (int)Math.Round(allocation.Weight * 100m, MidpointRounding.AwayFromZero),
+                    StringComparer.OrdinalIgnoreCase);
+
+            return $"Radio {shareByChannel.GetValueOrDefault("radio")}% | Billboards and Digital Screens {shareByChannel.GetValueOrDefault("ooh")}% | TV {shareByChannel.GetValueOrDefault("tv")}% | Digital {shareByChannel.GetValueOrDefault("digital")}%";
+        }
+
+        return $"Radio {request.TargetRadioShare ?? 0}% | Billboards and Digital Screens {request.TargetOohShare ?? 0}% | TV {request.TargetTvShare ?? 0}% | Digital {request.TargetDigitalShare ?? 0}%";
     }
 
     private static string FormatSummaryChannelLabel(string? mediaType)
@@ -768,6 +784,16 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             "tv" => "TV",
             "digital" => "Digital",
             _ => mediaType ?? string.Empty
+        };
+    }
+
+    private static string NormalizeSummaryChannelKey(string? mediaType)
+    {
+        return (mediaType ?? string.Empty).Trim().ToLowerInvariant() switch
+        {
+            "billboards and digital screens" => "ooh",
+            "television" => "tv",
+            _ => (mediaType ?? string.Empty).Trim().ToLowerInvariant()
         };
     }
 

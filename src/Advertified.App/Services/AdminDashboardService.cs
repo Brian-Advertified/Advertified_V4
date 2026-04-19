@@ -17,6 +17,7 @@ public sealed class AdminDashboardService : IAdminDashboardService
     private readonly AppDbContext _db;
     private readonly IBroadcastInventoryCatalog _broadcastInventoryCatalog;
     private readonly PlanningPolicySnapshotProvider _planningPolicySnapshotProvider;
+    private readonly PlanningBudgetAllocationSnapshotProvider _planningBudgetAllocationSnapshotProvider;
     private readonly Npgsql.NpgsqlDataSource _dataSource;
     private readonly IBroadcastMasterDataService _broadcastMasterDataService;
 
@@ -24,12 +25,14 @@ public sealed class AdminDashboardService : IAdminDashboardService
         AppDbContext db,
         IBroadcastInventoryCatalog broadcastInventoryCatalog,
         PlanningPolicySnapshotProvider planningPolicySnapshotProvider,
+        PlanningBudgetAllocationSnapshotProvider planningBudgetAllocationSnapshotProvider,
         Npgsql.NpgsqlDataSource dataSource,
         IBroadcastMasterDataService broadcastMasterDataService)
     {
         _db = db;
         _broadcastInventoryCatalog = broadcastInventoryCatalog;
         _planningPolicySnapshotProvider = planningPolicySnapshotProvider;
+        _planningBudgetAllocationSnapshotProvider = planningBudgetAllocationSnapshotProvider;
         _dataSource = dataSource;
         _broadcastMasterDataService = broadcastMasterDataService;
     }
@@ -115,6 +118,7 @@ public sealed class AdminDashboardService : IAdminDashboardService
             PackageSettings = packageSettings,
             PricingSettings = pricingSettings,
             EnginePolicies = BuildEnginePolicies(),
+            PlanningAllocationSettings = BuildPlanningAllocationSettings(),
             LeadIndustryPolicies = leadIndustryPolicies,
             PreviewRules = previewRules,
             Monitoring = monitoring,
@@ -621,6 +625,35 @@ public sealed class AdminDashboardService : IAdminDashboardService
                 NationalRadioBonus = planningPolicyOptions.Dominance.NationalRadioBonus,
                 NonNationalRadioPenalty = planningPolicyOptions.Dominance.NonNationalRadioPenalty,
                 RegionalRadioPenalty = planningPolicyOptions.Dominance.RegionalRadioPenalty
+            }
+        };
+    }
+
+    private AdminPlanningAllocationSettingsResponse BuildPlanningAllocationSettings()
+    {
+        var snapshot = _planningBudgetAllocationSnapshotProvider.GetCurrent();
+        return new AdminPlanningAllocationSettingsResponse
+        {
+            BudgetBands = snapshot.BudgetBands
+                .OrderBy(band => band.Min)
+                .ThenBy(band => band.Max)
+                .Select(band => new AdminPlanningBudgetBandResponse
+                {
+                    Name = band.Name,
+                    Min = band.Min,
+                    Max = band.Max,
+                    OohTarget = band.OohTarget,
+                    TvMin = band.TvMin,
+                    TvEligible = band.TvEligible,
+                    RadioRange = band.RadioRange.ToArray(),
+                    DigitalRange = band.DigitalRange.ToArray()
+                })
+                .ToArray(),
+            GlobalRules = new AdminPlanningAllocationGlobalRulesResponse
+            {
+                MaxOoh = snapshot.GlobalRules.MaxOoh,
+                MinDigital = snapshot.GlobalRules.MinDigital,
+                EnforceTvFloorIfPreferred = snapshot.GlobalRules.EnforceTvFloorIfPreferred
             }
         };
     }
