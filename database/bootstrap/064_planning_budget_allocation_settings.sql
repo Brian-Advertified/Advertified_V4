@@ -10,45 +10,45 @@ values
         "name": "20k-100k",
         "min": 20000,
         "max": 100000,
-        "oohTarget": 0.45,
-        "billboardShareOfOoh": 0.70,
-        "tvMin": 0.0,
-        "tvEligible": false,
-        "radioRange": [0.30, 0.35],
-        "digitalRange": [0.20, 0.25]
+        "oohTarget": 0.60,
+        "billboardShareOfOoh": 0.75,
+        "tvMin": 0.15,
+        "tvEligible": true,
+        "radioRange": [0.20, 0.20],
+        "digitalRange": [0.05, 0.05]
       },
       {
         "name": "100k-500k",
         "min": 100000,
         "max": 500000,
-        "oohTarget": 0.42,
-        "billboardShareOfOoh": 0.65,
-        "tvMin": 0.08,
+        "oohTarget": 0.60,
+        "billboardShareOfOoh": 0.75,
+        "tvMin": 0.15,
         "tvEligible": true,
-        "radioRange": [0.25, 0.30],
-        "digitalRange": [0.20, 0.25]
+        "radioRange": [0.20, 0.20],
+        "digitalRange": [0.05, 0.05]
       },
       {
         "name": "500k-1M",
         "min": 500000,
         "max": 1000000,
-        "oohTarget": 0.38,
-        "billboardShareOfOoh": 0.60,
-        "tvMin": 0.20,
+        "oohTarget": 0.60,
+        "billboardShareOfOoh": 0.75,
+        "tvMin": 0.15,
         "tvEligible": true,
-        "radioRange": [0.20, 0.25],
-        "digitalRange": [0.15, 0.20]
+        "radioRange": [0.20, 0.20],
+        "digitalRange": [0.05, 0.05]
       },
       {
         "name": "1M-5M",
         "min": 1000000,
         "max": 5000000,
-        "oohTarget": 0.35,
-        "billboardShareOfOoh": 0.55,
-        "tvMin": 0.28,
+        "oohTarget": 0.60,
+        "billboardShareOfOoh": 0.75,
+        "tvMin": 0.15,
         "tvEligible": true,
-        "radioRange": [0.15, 0.20],
-        "digitalRange": [0.15, 0.20]
+        "radioRange": [0.20, 0.20],
+        "digitalRange": [0.05, 0.05]
       }
     ]$$,
     'Planning allocation budget bands. Operators can tune Billboard, Digital Screen, TV, radio, and digital distribution by budget band without a deployment.'
@@ -56,8 +56,8 @@ values
 (
     'allocation_global_rules_json',
     $${
-      "maxOoh": 0.50,
-      "minDigital": 0.15,
+      "maxOoh": 0.60,
+      "minDigital": 0.05,
       "enforceTvFloorIfPreferred": true
     }$$,
     'Planning allocation global rules. Operators can cap billboard and digital screen share together, set a digital floor, and require a TV floor when TV is preferred.'
