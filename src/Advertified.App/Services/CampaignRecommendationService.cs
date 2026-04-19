@@ -21,6 +21,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
     private const string FallbackFlagsMarker = "Fallback flags:";
     private const string ManualReviewMarker = "Manual review required:";
     private const string TierBoundaryToleranceFlag = "tier_boundary_tolerance_used";
+    private const string TierGuidanceOutOfRangeFlag = "tier_guidance_out_of_range";
     private const string TierRecoveryUsedFlag = "tier_recovery_used";
     private const string TierRecoveryRelaxedMaxItemsFlag = "tier_recovery_relaxed_max_media_items";
     private const string TierRecoveryRelaxedMixFlag = "tier_recovery_relaxed_channel_mix";
@@ -870,26 +871,29 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             return;
         }
 
+        ApplyProposalTierGuidance(
+            recommendationResult,
+            variant.BudgetBand.MinBudget,
+            variant.BudgetBand.MaxBudget);
+    }
+
+    internal static void ApplyProposalTierGuidance(RecommendationResult recommendationResult, decimal minBudget, decimal maxBudget)
+    {
         var total = recommendationResult.RecommendedPlanTotal;
-        if (IsWithinProposalTier(total, variant.BudgetBand.MinBudget, variant.BudgetBand.MaxBudget))
+        if (IsWithinProposalTier(total, minBudget, maxBudget))
         {
             return;
         }
 
-        if (IsWithinProposalTierTolerance(total, variant.BudgetBand.MinBudget, variant.BudgetBand.MaxBudget))
+        if (IsWithinProposalTierTolerance(total, minBudget, maxBudget))
         {
-            if (!recommendationResult.FallbackFlags.Contains(TierBoundaryToleranceFlag, StringComparer.OrdinalIgnoreCase))
-            {
-                recommendationResult.FallbackFlags.Add(TierBoundaryToleranceFlag);
-            }
-
+            AddFallbackFlag(recommendationResult, TierBoundaryToleranceFlag);
             recommendationResult.ManualReviewRequired = true;
             return;
         }
 
-        throw new InvalidOperationException(
-            $"Could not generate {GetProposalDisplayLabel(variant.Key)} within its required tier of {FormatCurrency(variant.BudgetBand.MinBudget)} to {FormatCurrency(variant.BudgetBand.MaxBudget)}. " +
-            $"The generated total was {FormatCurrency(total)}.");
+        AddFallbackFlag(recommendationResult, TierGuidanceOutOfRangeFlag);
+        recommendationResult.ManualReviewRequired = true;
     }
 
     internal static bool IsWithinProposalTier(decimal total, decimal minBudget, decimal maxBudget)

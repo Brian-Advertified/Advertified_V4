@@ -2537,4 +2537,32 @@ public class CampaignRecommendationServiceTests
 
         withinTolerance.Should().BeTrue();
     }
+
+    [Fact]
+    public void ApplyProposalTierGuidance_AllowsLargeTierMissWithManualReview()
+    {
+        var recommendationResult = new RecommendationResult
+        {
+            RecommendedPlan =
+            {
+                new PlannedItem
+                {
+                    SourceId = Guid.NewGuid(),
+                    SourceType = "ooh",
+                    DisplayName = "Test placement",
+                    MediaType = "billboard",
+                    UnitCost = 2236189.70m,
+                    Quantity = 1
+                }
+            }
+        };
+
+        CampaignRecommendationService.ApplyProposalTierGuidance(
+            recommendationResult,
+            2333333.33m,
+            3666666.67m);
+
+        recommendationResult.ManualReviewRequired.Should().BeTrue();
+        recommendationResult.FallbackFlags.Should().Contain("tier_guidance_out_of_range");
+    }
 }
