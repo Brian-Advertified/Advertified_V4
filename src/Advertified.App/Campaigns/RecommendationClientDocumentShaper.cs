@@ -163,9 +163,9 @@ internal static class RecommendationClientDocumentShaper
         return new RecommendationLineDocumentModel
         {
             Channel = items[0].Channel,
-            Title = $"{totalPlacements} mall screen placement{(totalPlacements == 1 ? string.Empty : "s")} at {venue}",
+            Title = $"{totalPlacements} indoor mall placement{(totalPlacements == 1 ? string.Empty : "s")} at {venue}",
             Rationale = string.IsNullOrWhiteSpace(rationale)
-                ? "Grouped mall screen placements to show the full in-mall screen presence at this venue."
+                ? "Grouped indoor mall placements to show the full in-mall presence at this venue."
                 : rationale,
             TotalCost = items.Sum(item => item.TotalCost),
             Quantity = totalPlacements,
@@ -281,21 +281,13 @@ internal static class RecommendationClientDocumentShaper
             return false;
         }
 
-        return IsMallScreenPlacement(item)
+        return IsIndoorMallPlacement(item)
             && !string.IsNullOrWhiteSpace(ExtractOohVenue(item.Title));
     }
 
-    private static bool IsMallScreenPlacement(RecommendationLineDocumentModel item)
+    private static bool IsIndoorMallPlacement(RecommendationLineDocumentModel item)
     {
-        return IsDigitalScreenPlacement(item) && IsMallPlacement(item);
-    }
-
-    private static bool IsDigitalScreenPlacement(RecommendationLineDocumentModel item)
-    {
-        return ContainsToken(item.Title, "digital screen")
-            || ContainsToken(item.Title, "screen")
-            || ContainsToken(item.SlotType, "digital screen")
-            || ContainsToken(item.SlotType, "screen");
+        return IsMallPlacement(item) && IsIndoorPlacement(item);
     }
 
     private static bool IsMallPlacement(RecommendationLineDocumentModel item)
@@ -334,6 +326,30 @@ internal static class RecommendationClientDocumentShaper
             || normalized.Contains("corner", StringComparison.OrdinalIgnoreCase)
             || normalized.Contains("centre", StringComparison.OrdinalIgnoreCase)
             || normalized.Contains("center", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsIndoorPlacement(RecommendationLineDocumentModel item)
+    {
+        if (ContainsToken(item.EnvironmentType, "indoor")
+            || ContainsToken(item.EnvironmentType, "mall_interior")
+            || ContainsToken(item.EnvironmentType, "food_court"))
+        {
+            return true;
+        }
+
+        if (ContainsToken(item.SlotType, "indoor"))
+        {
+            return true;
+        }
+
+        if (ContainsToken(item.SlotType, "outdoor")
+            || ContainsToken(item.EnvironmentType, "outdoor")
+            || ContainsToken(item.EnvironmentType, "roadside"))
+        {
+            return false;
+        }
+
+        return false;
     }
 
     private static bool ContainsToken(string? value, string token)
