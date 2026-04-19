@@ -10,6 +10,8 @@ internal static class RecommendationPdfCopy
         var normalized = (channel ?? string.Empty).Trim().ToLowerInvariant();
         if (normalized.Contains("ooh", StringComparison.OrdinalIgnoreCase)
             || normalized.Contains("billboard", StringComparison.OrdinalIgnoreCase)
+            || normalized.Contains("digital_screen", StringComparison.OrdinalIgnoreCase)
+            || normalized.Contains("digitalscreen", StringComparison.OrdinalIgnoreCase)
             || normalized.Contains("digital screen", StringComparison.OrdinalIgnoreCase)
             || normalized.Contains("digital screens", StringComparison.OrdinalIgnoreCase)
             || normalized.Contains("out of home", StringComparison.OrdinalIgnoreCase))

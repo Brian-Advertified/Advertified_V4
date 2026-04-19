@@ -263,18 +263,21 @@ builder.Services.AddScoped<LeadIntelligenceAutomationSnapshotProvider>(_ => new 
     _.GetRequiredService<Microsoft.Extensions.Options.IOptions<LeadIntelligenceAutomationOptions>>().Value));
 builder.Services.AddScoped<IPlanningEligibilityService, PlanningEligibilityService>();
 builder.Services.AddScoped<IPlanningScoreService, PlanningScoreService>();
+builder.Services.AddScoped<ICommercialFlightPricingResolver, CommercialFlightPricingResolver>();
 builder.Services.AddScoped<IRecommendationPlanBuilder>(_ => new RecommendationPlanBuilder(
     _.GetRequiredService<IPlanningPolicyService>(),
     _.GetRequiredService<IBroadcastMasterDataService>()));
 builder.Services.AddScoped<IRecommendationExplainabilityService, RecommendationExplainabilityService>();
 builder.Services.AddScoped<IOohPlanningInventorySource>(_ => new OohPlanningInventorySource(
     _.GetRequiredService<Npgsql.NpgsqlDataSource>(),
-    _.GetRequiredService<IPricingSettingsProvider>()));
+    _.GetRequiredService<IPricingSettingsProvider>(),
+    _.GetRequiredService<ICommercialFlightPricingResolver>()));
 builder.Services.AddScoped<IBroadcastPlanningInventorySource>(_ => new BroadcastPlanningInventorySource(
     _.GetRequiredService<IBroadcastInventoryCatalog>(),
     _.GetRequiredService<IBroadcastCostNormalizer>(),
     _.GetRequiredService<IPricingSettingsProvider>(),
-    _.GetRequiredService<IBroadcastInventoryIntelligenceService>()));
+    _.GetRequiredService<IBroadcastInventoryIntelligenceService>(),
+    _.GetRequiredService<ICommercialFlightPricingResolver>()));
 builder.Services.AddScoped<ISocialPlanningInventorySource, SocialPlanningInventorySource>();
 builder.Services.AddScoped<IPlanningInventoryCandidateMapper, PlanningInventoryCandidateMapper>();
 builder.Services.AddScoped<IMediaPlanningEngine>(_ => new MediaPlanningEngine(
