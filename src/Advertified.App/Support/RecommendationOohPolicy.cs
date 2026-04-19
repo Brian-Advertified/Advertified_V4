@@ -34,19 +34,6 @@ internal static class RecommendationOohPolicy
 
     public static bool ContainsOoh(IEnumerable<string?> channels)
     {
-        return channels.Any(channel => NormalizeChannel(channel).Equals("OOH", StringComparison.OrdinalIgnoreCase));
-    }
-
-    private static string NormalizeChannel(string? channel)
-    {
-        var normalized = channel?.Trim().ToLowerInvariant() ?? string.Empty;
-        if (normalized.Contains("ooh", StringComparison.OrdinalIgnoreCase)
-            || normalized.Contains("billboard", StringComparison.OrdinalIgnoreCase)
-            || normalized.Contains("out of home", StringComparison.OrdinalIgnoreCase))
-        {
-            return "OOH";
-        }
-
-        return normalized;
+        return channels.Any(channel => PlanningChannelSupport.IsOohFamilyChannel(channel));
     }
 }

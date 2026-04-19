@@ -12,6 +12,7 @@ import {
 } from './agentWorkspace';
 import { ActionIconButton } from './agentSectionShared';
 import { pushAgentMutationError } from './agentMutationToast';
+import { normalizeChannelKey } from '../../features/channels/channelUtils';
 
 export function AgentReviewSendPage() {
   const campaignsQuery = useAgentCampaignsQuery();
@@ -47,7 +48,7 @@ export function AgentReviewSendPage() {
       <AgentPageShell title="Send to Client" description="Review draft recommendations, check the client PDF, and send ready recommendations to the client.">
         {(() => {
           const recommendationHasOoh = (recommendation: NonNullable<(typeof campaignsQuery.data)>[number]['recommendations'][number] | undefined) =>
-            (recommendation?.items ?? []).some((item) => item.channel.trim().toLowerCase().includes('ooh') || item.channel.trim().toLowerCase().includes('billboard'));
+            (recommendation?.items ?? []).some((item) => normalizeChannelKey(item.channel) === 'OOH');
           const rows = (campaignsQuery.data ?? [])
             .filter((campaign) => campaign.recommendations.some((item) => item.status === 'draft' || item.status === 'sent_to_client'))
             .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime());

@@ -66,10 +66,11 @@ public static class PricingPolicy
 
     public static decimal ResolveMarkupPercent(string mediaType, string? subtype, PricingSettingsSnapshot settings)
     {
-        var normalizedMediaType = mediaType.Trim().ToLowerInvariant();
+        var normalizedMediaType = PlanningChannelSupport.NormalizeChannel(mediaType);
         var normalizedSubtype = subtype?.Trim().ToLowerInvariant() ?? string.Empty;
 
-        if (normalizedMediaType == "ooh" || normalizedSubtype.Contains("billboard", StringComparison.OrdinalIgnoreCase))
+        if (PlanningChannelSupport.IsOohFamilyChannel(normalizedMediaType)
+            || normalizedSubtype.Contains("billboard", StringComparison.OrdinalIgnoreCase))
         {
             return Math.Max(0m, settings.OohMarkupPercent);
         }

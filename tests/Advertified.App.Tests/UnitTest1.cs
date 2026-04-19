@@ -1341,6 +1341,8 @@ public class PricingPolicyTests
         var settings = new Advertified.App.Support.PricingSettingsSnapshot(0.10m, 0.05m, 0.10m, 0.10m, 0.15m);
 
         Advertified.App.Support.PricingPolicy.ApplyMarkup(1000m, "OOH", "billboard", settings).Should().Be(1050m);
+        Advertified.App.Support.PricingPolicy.ApplyMarkup(1000m, "billboard", "Static Wall Wrap | Outdoor", settings).Should().Be(1050m);
+        Advertified.App.Support.PricingPolicy.ApplyMarkup(1000m, "digital_screen", "Digital Screen | Indoor", settings).Should().Be(1050m);
         Advertified.App.Support.PricingPolicy.ApplyMarkup(1000m, "radio", null, settings).Should().Be(1100m);
         Advertified.App.Support.PricingPolicy.ApplyMarkup(1000m, "tv", null, settings).Should().Be(1100m);
         Advertified.App.Support.PricingPolicy.ApplyMarkup(1000m, "digital", null, settings).Should().Be(1150m);
