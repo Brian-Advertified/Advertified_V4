@@ -365,7 +365,7 @@ internal static class RecommendationPdfGenerator
                     });
                 }
 
-                foreach (var line in clientSummary.Take(1))
+                foreach (var line in clientSummary.Take(2))
                 {
                     col.Item().Text(line).FontSize(8).FontColor(ColorMuted);
                 }

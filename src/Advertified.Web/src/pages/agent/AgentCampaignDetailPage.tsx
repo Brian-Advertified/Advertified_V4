@@ -494,10 +494,6 @@ export function AgentCampaignDetailPage() {
 
   function handleSendToClient() {
     if (recommendationWorkflowLocked) {
-      pushToast({
-        title: 'Recommendation stage is complete.',
-        description: 'This campaign has already moved past recommendation sending and is now in production or activation.',
-      }, 'info');
       return;
     }
 
@@ -746,10 +742,6 @@ export function AgentCampaignDetailPage() {
 
   function handleRegenerate() {
     if (recommendationWorkflowLocked) {
-      pushToast({
-        title: 'Recommendation stage is complete.',
-        description: 'Approved campaigns can no longer be regenerated from this workspace.',
-      }, 'info');
       return;
     }
 
@@ -758,10 +750,6 @@ export function AgentCampaignDetailPage() {
 
   function handleAdjustMix() {
     if (recommendationWorkflowLocked) {
-      pushToast({
-        title: 'Recommendation stage is complete.',
-        description: 'Approved campaigns can no longer be adjusted from this workspace.',
-      }, 'info');
       return;
     }
 

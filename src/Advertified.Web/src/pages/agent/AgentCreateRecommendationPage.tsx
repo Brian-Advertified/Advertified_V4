@@ -1232,20 +1232,6 @@ export function AgentCreateRecommendationPage() {
                 </label>
               </div>
             ) : null}
-            {selectedCampaignDetailsQuery.isSuccess && questionnaireSummary.length > 0 ? (
-              <div className="mt-4 rounded-2xl border border-line bg-slate-50 p-4">
-                <p className="text-sm font-semibold text-ink">Captured questionnaire</p>
-                <p className="mt-1 text-xs text-ink-soft">This is the brief information already captured. Use it as the starting point for the recommendation.</p>
-                <div className="mt-4 grid gap-3 md:grid-cols-2">
-                  {questionnaireSummary.map((item) => (
-                    <div key={item.label} className="rounded-xl border border-white bg-white px-3 py-3">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-soft">{item.label}</p>
-                      <p className="mt-1 text-sm leading-6 text-ink">{item.value}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : null}
             <div className="mt-4">
               <div className="flex flex-wrap gap-3">
                 <button

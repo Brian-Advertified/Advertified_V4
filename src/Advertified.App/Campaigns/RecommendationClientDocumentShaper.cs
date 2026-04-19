@@ -50,41 +50,52 @@ internal static class RecommendationClientDocumentShaper
 
         var collapsed = new List<RecommendationLineDocumentModel>();
         var venueGroups = materialized
-            .Where(IsGroupableOohPlacement)
             .Select(item => new
             {
                 Item = item,
-                Venue = ExtractOohVenue(item.Title)
+                Grouping = GetMallPlacementGrouping(item)
+            })
+            .Where(entry => entry.Grouping is not null)
+            .Select(item => new
+            {
+                item.Item,
+                Grouping = item.Grouping!,
+                Venue = ExtractOohVenue(item.Item.Title)
             })
             .Where(entry => !string.IsNullOrWhiteSpace(entry.Venue))
-            .GroupBy(entry => entry.Venue!, StringComparer.OrdinalIgnoreCase)
+            .GroupBy(
+                entry => $"{entry.Grouping}|{entry.Venue}",
+                StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.Select(entry => entry.Item).ToArray(), StringComparer.OrdinalIgnoreCase);
 
         var consumedVenueKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var item in materialized)
         {
-            if (!IsGroupableOohPlacement(item))
+            var grouping = GetMallPlacementGrouping(item);
+            if (grouping is null)
             {
                 collapsed.Add(item);
                 continue;
             }
 
             var venue = ExtractOohVenue(item.Title);
+            var groupingKey = string.IsNullOrWhiteSpace(venue) ? null : $"{grouping}|{venue}";
             if (string.IsNullOrWhiteSpace(venue)
-                || !venueGroups.TryGetValue(venue, out var groupedItems)
+                || groupingKey is null
+                || !venueGroups.TryGetValue(groupingKey, out var groupedItems)
                 || groupedItems.Length <= 1)
             {
                 collapsed.Add(item);
                 continue;
             }
 
-            if (!consumedVenueKeys.Add(venue))
+            if (!consumedVenueKeys.Add(groupingKey))
             {
                 continue;
             }
 
-            collapsed.Add(BuildCollapsedOohPlacement(venue!, groupedItems));
+            collapsed.Add(BuildCollapsedOohPlacement(venue!, groupedItems, grouping));
         }
 
         return collapsed;
@@ -140,7 +151,10 @@ internal static class RecommendationClientDocumentShaper
         return collapsed;
     }
 
-    private static RecommendationLineDocumentModel BuildCollapsedOohPlacement(string venue, IReadOnlyList<RecommendationLineDocumentModel> items)
+    private static RecommendationLineDocumentModel BuildCollapsedOohPlacement(
+        string venue,
+        IReadOnlyList<RecommendationLineDocumentModel> items,
+        string grouping)
     {
         var totalPlacements = items.Sum(item => Math.Max(1, item.Quantity));
         var region = items
@@ -159,13 +173,19 @@ internal static class RecommendationClientDocumentShaper
             .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))
             ?? string.Empty;
         var aggregatedTraffic = SumWholeNumbers(items.Select(item => item.TrafficCount));
+        var (titlePrefix, fallbackRationale) = grouping switch
+        {
+            "mall_screen" => ("mall screen placement", "Grouped mall screens to show the full screen presence at this venue."),
+            "mall_outdoor" => ("outdoor mall placement", "Grouped outdoor mall placements to show the full venue presence around this site."),
+            _ => ("indoor mall placement", "Grouped indoor mall placements to show the full in-mall presence at this venue.")
+        };
 
         return new RecommendationLineDocumentModel
         {
             Channel = items[0].Channel,
-            Title = $"{totalPlacements} indoor mall placement{(totalPlacements == 1 ? string.Empty : "s")} at {venue}",
+            Title = $"{totalPlacements} {titlePrefix}{(totalPlacements == 1 ? string.Empty : "s")} at {venue}",
             Rationale = string.IsNullOrWhiteSpace(rationale)
-                ? "Grouped indoor mall placements to show the full in-mall presence at this venue."
+                ? fallbackRationale
                 : rationale,
             TotalCost = items.Sum(item => item.TotalCost),
             Quantity = totalPlacements,
@@ -273,21 +293,42 @@ internal static class RecommendationClientDocumentShaper
         return title[..separatorIndex].Trim();
     }
 
-    private static bool IsGroupableOohPlacement(RecommendationLineDocumentModel item)
+    private static string? GetMallPlacementGrouping(RecommendationLineDocumentModel item)
     {
         if (!string.Equals(NormalizeChannel(item.Channel), "ooh", StringComparison.OrdinalIgnoreCase)
             || string.IsNullOrWhiteSpace(item.Title))
         {
-            return false;
+            return null;
         }
 
-        return IsIndoorMallPlacement(item)
-            && !string.IsNullOrWhiteSpace(ExtractOohVenue(item.Title));
+        if (string.IsNullOrWhiteSpace(ExtractOohVenue(item.Title)) || !IsMallPlacement(item))
+        {
+            return null;
+        }
+
+        if (IsMallScreenPlacement(item))
+        {
+            return "mall_screen";
+        }
+
+        if (IsIndoorPlacement(item))
+        {
+            return "mall_indoor";
+        }
+
+        if (IsOutdoorStaticPlacement(item))
+        {
+            return "mall_outdoor";
+        }
+
+        return null;
     }
 
-    private static bool IsIndoorMallPlacement(RecommendationLineDocumentModel item)
+    private static bool IsMallScreenPlacement(RecommendationLineDocumentModel item)
     {
-        return IsMallPlacement(item) && IsIndoorPlacement(item);
+        return ContainsToken(item.Channel, "digital_screen")
+            || ContainsToken(item.Channel, "digital screen")
+            || ContainsToken(item.SlotType, "digital screen");
     }
 
     private static bool IsMallPlacement(RecommendationLineDocumentModel item)
@@ -332,7 +373,8 @@ internal static class RecommendationClientDocumentShaper
     {
         if (ContainsToken(item.EnvironmentType, "indoor")
             || ContainsToken(item.EnvironmentType, "mall_interior")
-            || ContainsToken(item.EnvironmentType, "food_court"))
+            || ContainsToken(item.EnvironmentType, "food_court")
+            || ContainsToken(item.Title, "indoor"))
         {
             return true;
         }
@@ -344,12 +386,26 @@ internal static class RecommendationClientDocumentShaper
 
         if (ContainsToken(item.SlotType, "outdoor")
             || ContainsToken(item.EnvironmentType, "outdoor")
-            || ContainsToken(item.EnvironmentType, "roadside"))
+            || ContainsToken(item.EnvironmentType, "roadside")
+            || ContainsToken(item.Title, "outdoor")
+            || ContainsToken(item.Title, "roadside"))
         {
             return false;
         }
 
         return false;
+    }
+
+    private static bool IsOutdoorStaticPlacement(RecommendationLineDocumentModel item)
+    {
+        if (IsMallScreenPlacement(item))
+        {
+            return false;
+        }
+
+        return ContainsToken(item.SlotType, "outdoor")
+            || ContainsToken(item.EnvironmentType, "outdoor")
+            || ContainsToken(item.Title, "outdoor");
     }
 
     private static bool ContainsToken(string? value, string token)

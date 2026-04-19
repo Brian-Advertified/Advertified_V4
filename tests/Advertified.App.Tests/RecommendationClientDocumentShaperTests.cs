@@ -6,12 +6,12 @@ namespace Advertified.App.Tests;
 public sealed class RecommendationClientDocumentShaperTests
 {
     [Fact]
-    public void ShapeProposal_CollapsesIndoorMallPlacementsButLeavesOutdoorPlacementsSeparate()
+    public void ShapeProposal_CollapsesIndoorMallPlacementsAndGroupsOutdoorStaticPlacementsSeparately()
     {
         var proposal = new RecommendationProposalDocumentModel
         {
             Label = "Proposal A",
-            TotalCost = 30000m,
+            TotalCost = 40000m,
             Items = new[]
             {
                 new RecommendationLineDocumentModel
@@ -41,11 +41,20 @@ public sealed class RecommendationClientDocumentShaperTests
                 new RecommendationLineDocumentModel
                 {
                     Channel = "OOH",
-                    Title = "Rosebank Mall - Billboard",
+                    Title = "Rosebank Mall - Static Entrance Wall | Outdoor",
                     TotalCost = 10000m,
                     Quantity = 1,
                     Region = "Johannesburg",
                     SelectionReasons = new[] { "Commuter reach" }
+                },
+                new RecommendationLineDocumentModel
+                {
+                    Channel = "OOH",
+                    Title = "Rosebank Mall - Static Parking Wall | Outdoor",
+                    TotalCost = 10000m,
+                    Quantity = 1,
+                    Region = "Johannesburg",
+                    SelectionReasons = new[] { "Arrival visibility" }
                 }
             }
         };
@@ -61,8 +70,8 @@ public sealed class RecommendationClientDocumentShaperTests
             "High foot traffic",
             "Premium retail context"
         });
-        shaped.Items[1].Title.Should().Be("Rosebank Mall - Billboard");
-        shaped.Items[1].TotalCost.Should().Be(10000m);
+        shaped.Items[1].Title.Should().Be("2 outdoor mall placements at Rosebank Mall");
+        shaped.Items[1].TotalCost.Should().Be(20000m);
     }
 
     [Fact]
@@ -141,7 +150,7 @@ public sealed class RecommendationClientDocumentShaperTests
     }
 
     [Fact]
-    public void ShapeProposal_DoesNotCollapseOutdoorMallPlacements()
+    public void ShapeProposal_CollapsesOutdoorMallPlacementsSeparately()
     {
         var proposal = new RecommendationProposalDocumentModel
         {
@@ -174,10 +183,223 @@ public sealed class RecommendationClientDocumentShaperTests
 
         var shaped = RecommendationClientDocumentShaper.ShapeProposal(proposal);
 
+        shaped.Items.Should().HaveCount(1);
+        shaped.Items[0].Title.Should().Be("2 outdoor mall placements at Sunnypark Shopping Centre, Pretoria");
+        shaped.Items[0].TotalCost.Should().Be(21000m);
+    }
+
+    [Fact]
+    public void ShapeProposal_KeepsMallScreensSeparateFromGroupedStaticPlacements()
+    {
+        var proposal = new RecommendationProposalDocumentModel
+        {
+            Label = "Proposal F",
+            TotalCost = 31000m,
+            Items = new[]
+            {
+                new RecommendationLineDocumentModel
+                {
+                    Channel = "billboard",
+                    Title = "Sunnypark Shopping Centre, Pretoria",
+                    SlotType = "Static Escalator Wrap | Indoor",
+                    TotalCost = 9000m,
+                    Quantity = 1,
+                    Region = "Pretoria",
+                    VenueType = "community_mall"
+                },
+                new RecommendationLineDocumentModel
+                {
+                    Channel = "billboard",
+                    Title = "Sunnypark Shopping Centre, Pretoria",
+                    SlotType = "Static Lift Panels | Indoor",
+                    TotalCost = 9500m,
+                    Quantity = 1,
+                    Region = "Pretoria",
+                    VenueType = "community_mall"
+                },
+                new RecommendationLineDocumentModel
+                {
+                    Channel = "digital_screen",
+                    Title = "Sunnypark Shopping Centre, Pretoria",
+                    SlotType = "Digital Screen | Outdoor",
+                    TotalCost = 12500m,
+                    Quantity = 1,
+                    Region = "Pretoria",
+                    VenueType = "community_mall"
+                }
+            }
+        };
+
+        var shaped = RecommendationClientDocumentShaper.ShapeProposal(proposal);
+
         shaped.Items.Should().HaveCount(2);
+        shaped.Items[0].Title.Should().Be("2 indoor mall placements at Sunnypark Shopping Centre, Pretoria");
+        shaped.Items[1].Title.Should().Be("Sunnypark Shopping Centre, Pretoria");
+    }
+
+    [Fact]
+    public void ShapeProposal_GroupsSunnyparkLikeCurrentDevRecommendation()
+    {
+        var proposal = new RecommendationProposalDocumentModel
+        {
+            Label = "Proposal G",
+            TotalCost = 139650m,
+            Items = new[]
+            {
+                new RecommendationLineDocumentModel
+                {
+                    Channel = "billboard",
+                    Title = "Sunnypark Shopping Centre, Pretoria",
+                    SlotType = "Static Elevator Wrap | Indoor",
+                    TotalCost = 19425m,
+                    Quantity = 1,
+                    Region = "Pretoria",
+                    VenueType = "community_mall"
+                },
+                new RecommendationLineDocumentModel
+                {
+                    Channel = "billboard",
+                    Title = "Sunnypark Shopping Centre, Pretoria",
+                    SlotType = "Static Escalator Wrap | Indoor",
+                    TotalCost = 8925m,
+                    Quantity = 1,
+                    Region = "Pretoria",
+                    VenueType = "community_mall"
+                },
+                new RecommendationLineDocumentModel
+                {
+                    Channel = "billboard",
+                    Title = "Sunnypark Shopping Centre, Pretoria",
+                    SlotType = "Static Glass Balustrades | Indoor",
+                    TotalCost = 5775m,
+                    Quantity = 1,
+                    Region = "Pretoria",
+                    VenueType = "community_mall"
+                },
+                new RecommendationLineDocumentModel
+                {
+                    Channel = "billboard",
+                    Title = "Sunnypark Shopping Centre, Pretoria",
+                    SlotType = "Static Hanging Banner | Indoor",
+                    TotalCost = 5250m,
+                    Quantity = 1,
+                    Region = "Pretoria",
+                    VenueType = "community_mall"
+                },
+                new RecommendationLineDocumentModel
+                {
+                    Channel = "billboard",
+                    Title = "Sunnypark Shopping Centre, Pretoria",
+                    SlotType = "Static Lift Door Wrap | Indoor",
+                    TotalCost = 5775m,
+                    Quantity = 1,
+                    Region = "Pretoria",
+                    VenueType = "community_mall"
+                },
+                new RecommendationLineDocumentModel
+                {
+                    Channel = "billboard",
+                    Title = "Sunnypark Shopping Centre, Pretoria",
+                    SlotType = "Static Lift Panels | Indoor",
+                    TotalCost = 8925m,
+                    Quantity = 1,
+                    Region = "Pretoria",
+                    VenueType = "community_mall"
+                },
+                new RecommendationLineDocumentModel
+                {
+                    Channel = "billboard",
+                    Title = "Sunnypark Shopping Centre, Pretoria",
+                    SlotType = "Static Overhead Banner | Indoor",
+                    TotalCost = 4725m,
+                    Quantity = 1,
+                    Region = "Pretoria",
+                    VenueType = "community_mall"
+                },
+                new RecommendationLineDocumentModel
+                {
+                    Channel = "billboard",
+                    Title = "Sunnypark Shopping Centre, Pretoria",
+                    SlotType = "Static Pillar Wrap | Indoor",
+                    TotalCost = 4725m,
+                    Quantity = 1,
+                    Region = "Pretoria",
+                    VenueType = "community_mall"
+                },
+                new RecommendationLineDocumentModel
+                {
+                    Channel = "billboard",
+                    Title = "Sunnypark Shopping Centre, Pretoria",
+                    SlotType = "Static Wall Banner | Indoor",
+                    TotalCost = 4725m,
+                    Quantity = 1,
+                    Region = "Pretoria",
+                    VenueType = "community_mall"
+                },
+                new RecommendationLineDocumentModel
+                {
+                    Channel = "billboard",
+                    Title = "Sunnypark Shopping Centre, Pretoria",
+                    SlotType = "Static Entrance Wall | Outdoor",
+                    TotalCost = 44100m,
+                    Quantity = 1,
+                    Region = "Pretoria",
+                    VenueType = "community_mall"
+                },
+                new RecommendationLineDocumentModel
+                {
+                    Channel = "billboard",
+                    Title = "Sunnypark Shopping Centre, Pretoria",
+                    SlotType = "Static Parking Gantry | Outdoor",
+                    TotalCost = 5250m,
+                    Quantity = 1,
+                    Region = "Pretoria",
+                    VenueType = "community_mall"
+                },
+                new RecommendationLineDocumentModel
+                {
+                    Channel = "billboard",
+                    Title = "Sunnypark Shopping Centre, Pretoria",
+                    SlotType = "Static Parking Wall | Outdoor",
+                    TotalCost = 6300m,
+                    Quantity = 1,
+                    Region = "Pretoria",
+                    VenueType = "community_mall"
+                },
+                new RecommendationLineDocumentModel
+                {
+                    Channel = "billboard",
+                    Title = "Sunnypark Shopping Centre, Pretoria",
+                    SlotType = "Static Parking Wall | Outdoor",
+                    TotalCost = 5250m,
+                    Quantity = 1,
+                    Region = "Pretoria",
+                    VenueType = "community_mall"
+                },
+                new RecommendationLineDocumentModel
+                {
+                    Channel = "digital_screen",
+                    Title = "Sunnypark Shopping Centre, Pretoria",
+                    SlotType = "Digital Screen | Outdoor",
+                    TotalCost = 10500m,
+                    Quantity = 1,
+                    Region = "Pretoria",
+                    VenueType = "community_mall"
+                }
+            }
+        };
+
+        var shaped = RecommendationClientDocumentShaper.ShapeProposal(proposal);
+
+        shaped.Items.Should().HaveCount(3);
         shaped.Items.Select(item => item.Title).Should().Equal(
-            "Sunnypark Shopping Centre, Pretoria - Static Parking Wall | Outdoor",
-            "Sunnypark Shopping Centre, Pretoria - Static Entrance Wall | Outdoor");
+            "9 indoor mall placements at Sunnypark Shopping Centre, Pretoria",
+            "4 outdoor mall placements at Sunnypark Shopping Centre, Pretoria",
+            "Sunnypark Shopping Centre, Pretoria");
+        shaped.Items.Select(item => item.TotalCost).Should().Equal(
+            68250m,
+            60900m,
+            10500m);
     }
 
     [Fact]

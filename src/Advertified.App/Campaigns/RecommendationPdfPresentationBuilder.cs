@@ -272,11 +272,6 @@ internal static class RecommendationPdfPresentationBuilder
         }
 
         var qualifiers = new List<string>();
-        if (!string.IsNullOrWhiteSpace(item.Region))
-        {
-            qualifiers.Add(item.Region.Trim());
-        }
-
         if (!string.IsNullOrWhiteSpace(item.Language))
         {
             qualifiers.Add($"{item.Language.Trim()} speakers");
