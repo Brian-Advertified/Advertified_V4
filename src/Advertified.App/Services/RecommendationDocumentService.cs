@@ -182,7 +182,7 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
             Restrictions = "Included service line item."
         });
 
-        return new RecommendationProposalDocumentModel
+        var proposal = new RecommendationProposalDocumentModel
         {
             Label = label,
             Strategy = strategy,
@@ -192,6 +192,8 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
             TotalCost = recommendation.TotalCost,
             Items = lines.ToArray()
         };
+
+        return RecommendationClientDocumentShaper.ShapeProposal(proposal);
     }
 
     private static RecommendationLineDocumentModel MapLine(RecommendationItem item)

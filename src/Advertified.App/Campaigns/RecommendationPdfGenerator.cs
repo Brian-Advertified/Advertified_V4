@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Linq;
-using System.Text.RegularExpressions;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -111,8 +110,8 @@ internal static class RecommendationPdfGenerator
             column.Item().Text(model.CampaignName).FontSize(28).SemiBold();
             column.Item().Text(
                     !string.IsNullOrWhiteSpace(model.CampaignObjective)
-                        ? $"Prepared for {ResolveBusinessReference(model)} - {ToClientCopy(model.CampaignObjective)}."
-                        : $"Prepared for {ResolveBusinessReference(model)}.")
+                        ? $"Prepared for {RecommendationPdfCopy.ResolveBusinessReference(model)} - {RecommendationPdfCopy.ToClientCopy(model.CampaignObjective)}."
+                        : $"Prepared for {RecommendationPdfCopy.ResolveBusinessReference(model)}.")
                 .FontSize(11)
                 .FontColor(ColorMuted);
         });
@@ -124,12 +123,12 @@ internal static class RecommendationPdfGenerator
         {
             column.Spacing(6);
             column.Item().Text("Growth opportunity snapshot").FontSize(11).SemiBold();
-            column.Item().Text($"We found where {ResolveBusinessReference(model)} is losing customers, and built the campaign to fix it.").FontColor(ColorMuted);
+            column.Item().Text($"We found where {RecommendationPdfCopy.ResolveBusinessReference(model)} is losing customers, and built the campaign to fix it.").FontColor(ColorMuted);
 
             var topGaps = model.OpportunityContext!.DetectedGaps
                 .Where(static gap => !string.IsNullOrWhiteSpace(gap))
                 .Take(3)
-                .Select(gap => TruncateClientCopy(gap, 150))
+                .Select(gap => RecommendationPdfCopy.TruncateClientCopy(gap, 150))
                 .ToArray();
             foreach (var gap in topGaps)
             {
@@ -138,7 +137,7 @@ internal static class RecommendationPdfGenerator
 
             if (!string.IsNullOrWhiteSpace(model.OpportunityContext.ExpectedOutcome))
             {
-                column.Item().Text(TruncateClientCopy(model.OpportunityContext.ExpectedOutcome, 220)).FontColor(ColorMuted);
+                column.Item().Text(RecommendationPdfCopy.TruncateClientCopy(model.OpportunityContext.ExpectedOutcome, 220)).FontColor(ColorMuted);
             }
         });
     }
@@ -147,10 +146,10 @@ internal static class RecommendationPdfGenerator
     {
         var overviewItems = new List<(string Label, string Value)>
         {
-            ("Client", ResolveBusinessReference(model)),
-            ("Objective", ToClientCopy(model.CampaignObjective) is { Length: > 0 } objective ? objective : "Campaign growth"),
-            ("Region", model.TargetAreas.Count > 0 ? string.Join(", ", model.TargetAreas.Select(ToClientCopy)) : "South Africa"),
-            ("Target audience", !string.IsNullOrWhiteSpace(model.TargetAudienceSummary) ? ToClientCopy(model.TargetAudienceSummary) : "Audience not specified")
+            ("Client", RecommendationPdfCopy.ResolveBusinessReference(model)),
+            ("Objective", RecommendationPdfCopy.ToClientCopy(model.CampaignObjective) is { Length: > 0 } objective ? objective : "Campaign growth"),
+            ("Region", model.TargetAreas.Count > 0 ? string.Join(", ", model.TargetAreas.Select(RecommendationPdfCopy.ToClientCopy)) : "South Africa"),
+            ("Target audience", !string.IsNullOrWhiteSpace(model.TargetAudienceSummary) ? RecommendationPdfCopy.ToClientCopy(model.TargetAudienceSummary) : "Audience not specified")
         };
 
         container.Column(column =>
@@ -199,7 +198,7 @@ internal static class RecommendationPdfGenerator
 
     private static void ComposeProposalCard(IContainer container, RecommendationProposalDocumentModel proposal, bool featured)
     {
-        var mediaCounts = BuildProposalMediaCounts(proposal);
+        var mediaCounts = RecommendationPdfPresentationBuilder.BuildProposalMediaCounts(proposal);
 
         container.Border(1.5f).BorderColor(featured ? ColorGreen : ColorBorder).Background(ColorWhite).Column(column =>
         {
@@ -212,14 +211,14 @@ internal static class RecommendationPdfGenerator
             {
                 header.Spacing(3);
                 header.Item().Text(proposal.Label).FontSize(8).SemiBold().FontColor(featured ? ColorWhite : ColorMuted);
-                header.Item().Text(ToClientCopy(proposal.Strategy ?? "Recommendation option")).FontSize(11).SemiBold().FontColor(featured ? ColorWhite : ColorInk);
+                header.Item().Text(RecommendationPdfCopy.ToClientCopy(proposal.Strategy ?? "Recommendation option")).FontSize(11).SemiBold().FontColor(featured ? ColorWhite : ColorInk);
             });
 
             column.Item().Padding(14).Column(body =>
             {
                 body.Spacing(8);
                 body.Item().Text("Campaign total").FontSize(8).SemiBold().FontColor(ColorMuted);
-                body.Item().Text(FormatCurrency(proposal.TotalCost)).FontSize(18).SemiBold();
+                body.Item().Text(RecommendationPdfCopy.FormatCurrency(proposal.TotalCost)).FontSize(18).SemiBold();
 
                 foreach (var count in mediaCounts)
                 {
@@ -260,19 +259,19 @@ internal static class RecommendationPdfGenerator
                 {
                     col.Spacing(3);
                     col.Item().Text(proposal.Label).FontSize(10).SemiBold().FontColor(ColorMuted);
-                    col.Item().Text(ToClientCopy(proposal.Strategy ?? "Recommendation option")).FontSize(18).SemiBold();
-                    col.Item().Text(BuildProposalSubheading(model, proposal)).FontSize(10).FontColor(ColorMuted);
+                    col.Item().Text(RecommendationPdfCopy.ToClientCopy(proposal.Strategy ?? "Recommendation option")).FontSize(18).SemiBold();
+                    col.Item().Text(RecommendationPdfPresentationBuilder.BuildProposalSubheading(model, proposal)).FontSize(10).FontColor(ColorMuted);
                 });
-                row.ConstantItem(130).AlignRight().Text(FormatCurrency(proposal.TotalCost)).FontSize(18).SemiBold().FontColor(ColorGreen);
+                row.ConstantItem(130).AlignRight().Text(RecommendationPdfCopy.FormatCurrency(proposal.TotalCost)).FontSize(18).SemiBold().FontColor(ColorGreen);
             });
 
-            section.Item().Background(ColorGreenLight).Padding(12).BorderLeft(3).BorderColor(ColorGreen).Text(ToClientCopy(!string.IsNullOrWhiteSpace(proposal.Rationale) ? proposal.Rationale : proposal.Summary))
+            section.Item().Background(ColorGreenLight).Padding(12).BorderLeft(3).BorderColor(ColorGreen).Text(RecommendationPdfCopy.ToClientCopy(!string.IsNullOrWhiteSpace(proposal.Rationale) ? proposal.Rationale : proposal.Summary))
                 .FontSize(10)
                 .FontColor(ColorGreenDark);
 
             section.Item().Element(item => ComposeBudgetSplit(item, proposal));
 
-            var groupedPlacements = BuildPlacementSections(proposal);
+            var groupedPlacements = RecommendationPdfPresentationBuilder.BuildPlacementSections(proposal);
             if (groupedPlacements.Count > 0)
             {
                 section.Item().Text("Recommended placements").FontSize(9).SemiBold().FontColor(ColorMuted);
@@ -289,7 +288,7 @@ internal static class RecommendationPdfGenerator
                     row.RelativeItem().Column(col =>
                     {
                         col.Item().Text($"Accept {proposal.Label}").FontSize(12).SemiBold().FontColor(ColorWhite);
-                        col.Item().Text($"{FormatCurrency(proposal.TotalCost)} | Buy now, pay later available").FontSize(9).FontColor("#D1D5DB");
+                        col.Item().Text($"{RecommendationPdfCopy.FormatCurrency(proposal.TotalCost)} | Buy now, pay later available").FontSize(9).FontColor("#D1D5DB");
                     });
                     row.ConstantItem(140).AlignRight().Background(ColorGreen).PaddingVertical(10).PaddingHorizontal(12).AlignCenter().Text("Accept this proposal")
                         .FontSize(9)
@@ -307,7 +306,7 @@ internal static class RecommendationPdfGenerator
 
     private static void ComposeBudgetSplit(IContainer container, RecommendationProposalDocumentModel proposal)
     {
-        var split = BuildChannelSpendSplit(proposal);
+        var split = RecommendationPdfPresentationBuilder.BuildChannelSpendSplit(proposal);
         if (split.Count == 0)
         {
             return;
@@ -330,7 +329,7 @@ internal static class RecommendationPdfGenerator
                             columns.RelativeColumn();
                         });
 
-                        table.Cell().Height(8).Background(entry.Color);
+                        table.Cell().Height(8).Background(ResolveSpendColor(entry.Key));
                         table.Cell().Height(8).Background(ColorBorder);
                     });
                     row.ConstantItem(34).AlignRight().Text($"{entry.Percent}%").FontSize(9).SemiBold();
@@ -341,8 +340,8 @@ internal static class RecommendationPdfGenerator
 
     private static void ComposePlacementCard(IContainer container, RecommendationDocumentModel model, RecommendationLineDocumentModel item)
     {
-        var details = BuildPlacementTags(item);
-        var clientSummary = BuildClientSelectionSummary(model, item);
+        var details = RecommendationPdfPresentationBuilder.BuildPlacementTags(item);
+        var clientSummary = RecommendationPdfPresentationBuilder.BuildClientSelectionSummary(model, item);
         var badge = BuildChannelBadge(item.Channel);
 
         container.Border(1).BorderColor(ColorBorder).Background(ColorSurface).Padding(12).Row(row =>
@@ -352,8 +351,8 @@ internal static class RecommendationPdfGenerator
             row.RelativeItem().Column(col =>
             {
                 col.Spacing(4);
-                col.Item().Text(ToClientCopy(item.Title)).FontSize(11).SemiBold();
-                col.Item().Text(BuildPlacementLocation(item)).FontSize(9).FontColor(ColorMuted);
+                col.Item().Text(RecommendationPdfCopy.ToClientCopy(item.Title)).FontSize(11).SemiBold();
+                col.Item().Text(RecommendationPdfPresentationBuilder.BuildPlacementLocation(item)).FontSize(9).FontColor(ColorMuted);
                 if (details.Count > 0)
                 {
                     col.Item().Row(tagRow =>
@@ -439,305 +438,19 @@ internal static class RecommendationPdfGenerator
         }
 
         table.Cell().PaddingVertical(2).Text(label).SemiBold().FontColor("#4B5563");
-        table.Cell().PaddingVertical(2).Text(ToClientCopy(value));
+        table.Cell().PaddingVertical(2).Text(RecommendationPdfCopy.ToClientCopy(value));
     }
 
-    private static IReadOnlyList<(string Channel, int Quantity)> BuildProposalMediaCounts(RecommendationProposalDocumentModel proposal)
+    private static string ResolveSpendColor(string channelKey)
     {
-        return proposal.Items
-            .Where(item => !string.IsNullOrWhiteSpace(item.Channel) && !string.Equals(item.Channel, "Studio", StringComparison.OrdinalIgnoreCase))
-            .GroupBy(item => FormatChannelLabel(item.Channel))
-            .Select(group =>
-            {
-                var quantity = group.Sum(item => item.Quantity > 0 ? item.Quantity : 1);
-                return (Channel: group.Key, Quantity: quantity);
-            })
-            .OrderBy(item => item.Channel, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-    }
-
-    private static IReadOnlyList<(string Label, decimal Percent, string Color)> BuildChannelSpendSplit(RecommendationProposalDocumentModel proposal)
-    {
-        var channelSpend = proposal.Items
-            .Where(item => item.TotalCost > 0 && !string.Equals(item.Channel, "Studio", StringComparison.OrdinalIgnoreCase))
-            .GroupBy(item => NormalizeSpendChannel(item.Channel))
-            .Select(group => new
-            {
-                Key = group.Key,
-                Total = group.Sum(item => item.TotalCost)
-            })
-            .Where(entry => entry.Total > 0)
-            .ToArray();
-
-        var total = channelSpend.Sum(entry => entry.Total);
-        if (total <= 0)
+        return channelKey switch
         {
-            return Array.Empty<(string Label, decimal Percent, string Color)>();
-        }
-
-        return channelSpend
-            .Select(entry =>
-            {
-                var label = entry.Key switch
-                {
-                    "ooh" => "Billboards and Digital Screens",
-                    "radio" => "Radio",
-                    "digital" => "Digital (online)",
-                    "tv" => "TV",
-                    _ => ToClientCopy(entry.Key)
-                };
-                var color = entry.Key switch
-                {
-                    "ooh" => ColorGreen,
-                    "radio" => ColorAmber,
-                    "digital" => ColorBlue,
-                    "tv" => "#6D5BD0",
-                    _ => ColorGreenDark
-                };
-                var percent = Math.Round((entry.Total / total) * 100m, 0, MidpointRounding.AwayFromZero);
-                return (Label: label, Percent: percent, Color: color);
-            })
-            .OrderByDescending(entry => entry.Percent)
-            .ToArray();
-    }
-
-    private static string NormalizeSpendChannel(string? channel)
-    {
-        var normalized = NormalizeRecommendationChannel(channel);
-        return normalized switch
-        {
-            "ooh" => "ooh",
-            "radio" => "radio",
-            "digital" => "digital",
-            "tv" => "tv",
-            _ => normalized
+            "ooh" => ColorGreen,
+            "radio" => ColorAmber,
+            "digital" => ColorBlue,
+            "tv" => "#6D5BD0",
+            _ => ColorGreenDark
         };
-    }
-
-    private static string BuildProposalSubheading(RecommendationDocumentModel model, RecommendationProposalDocumentModel proposal)
-    {
-        var placements = proposal.Items.Count(item => !string.Equals(item.Channel, "Studio", StringComparison.OrdinalIgnoreCase));
-        var channels = proposal.Items
-            .Where(item => !string.Equals(item.Channel, "Studio", StringComparison.OrdinalIgnoreCase))
-            .Select(item => FormatChannelLabel(item.Channel))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-        var areas = proposal.Items
-            .Select(item => item.Region)
-            .Where(area => !string.IsNullOrWhiteSpace(area))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Take(2)
-            .Select(area => ToClientCopy(area!))
-            .ToArray();
-
-        var areaText = areas.Length > 0
-            ? string.Join(" and ", areas)
-            : (model.TargetAreas.Count > 0 ? string.Join(", ", model.TargetAreas.Select(ToClientCopy)) : "South Africa");
-
-        return $"{placements} placements across {string.Join(", ", channels)} | {areaText}";
-    }
-
-    private static IReadOnlyList<PlacementSectionDocumentModel> BuildPlacementSections(RecommendationProposalDocumentModel proposal)
-    {
-        return proposal.Items
-            .Where(item => !string.Equals(item.Channel, "Studio", StringComparison.OrdinalIgnoreCase))
-            .GroupBy(item => NormalizeRecommendationChannel(item.Channel))
-            .OrderBy(group => GetChannelSortOrder(group.Key))
-            .Select(group =>
-            {
-                var items = CollapseMallScreenDuplicates(group)
-                    .OrderBy(item => GetPlacementPriority(item))
-                    .ThenBy(item => ToClientCopy(item.Title), StringComparer.OrdinalIgnoreCase)
-                    .ToArray();
-                var total = items.Sum(item => item.TotalCost);
-                return new PlacementSectionDocumentModel(
-                    GetPlacementSectionLabel(group.Key),
-                    total > 0 ? FormatCurrency(total) : "Included",
-                    items);
-            })
-            .ToArray();
-    }
-
-    private static IEnumerable<RecommendationLineDocumentModel> CollapseMallScreenDuplicates(IEnumerable<RecommendationLineDocumentModel> items)
-    {
-        var materialized = items.ToArray();
-        if (materialized.Length <= 1)
-        {
-            return materialized;
-        }
-
-        var collapsed = new List<RecommendationLineDocumentModel>();
-        var mallOohGroups = materialized
-            .Where(IsMallOohPlacement)
-            .Select(item => new
-            {
-                Item = item,
-                Venue = ExtractMallVenue(item.Title)
-            })
-            .Where(entry => !string.IsNullOrWhiteSpace(entry.Venue))
-            .GroupBy(entry => entry.Venue!, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(group => group.Key, group => group.Select(entry => entry.Item).ToArray(), StringComparer.OrdinalIgnoreCase);
-
-        var consumedVenueKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var item in materialized)
-        {
-            if (!IsMallOohPlacement(item))
-            {
-                collapsed.Add(item);
-                continue;
-            }
-
-            var venue = ExtractMallVenue(item.Title);
-            if (string.IsNullOrWhiteSpace(venue)
-                || !mallOohGroups.TryGetValue(venue, out var groupedItems)
-                || groupedItems.Length <= 1)
-            {
-                collapsed.Add(item);
-                continue;
-            }
-
-            if (!consumedVenueKeys.Add(venue))
-            {
-                continue;
-            }
-
-            collapsed.Add(BuildCollapsedMallScreenPlacement(venue, groupedItems));
-        }
-
-        return collapsed;
-    }
-
-    private static RecommendationLineDocumentModel BuildCollapsedMallScreenPlacement(string venue, IReadOnlyList<RecommendationLineDocumentModel> items)
-    {
-        var totalPlacements = items.Sum(item => Math.Max(1, item.Quantity));
-        var region = items
-            .Select(item => item.Region)
-            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
-        var duration = items
-            .Select(item => item.Duration)
-            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
-        var reasons = items
-            .SelectMany(item => item.SelectionReasons)
-            .Where(reason => !string.IsNullOrWhiteSpace(reason))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-        var rationale = items
-            .Select(item => item.Rationale)
-            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))
-            ?? string.Empty;
-
-        return new RecommendationLineDocumentModel
-        {
-            Channel = items[0].Channel,
-            Title = $"{totalPlacements} {BuildCombinedMallPlacementLabel(items)} at {venue}",
-            Rationale = rationale,
-            TotalCost = items.Sum(item => item.TotalCost),
-            Quantity = totalPlacements,
-            Region = region,
-            Duration = duration,
-            SelectionReasons = reasons
-        };
-    }
-
-    private static int GetChannelSortOrder(string? channel)
-    {
-        return NormalizeRecommendationChannel(channel) switch
-        {
-            "ooh" => 0,
-            "radio" => 1,
-            "tv" => 2,
-            "digital" => 3,
-            _ => 9
-        };
-    }
-
-    private static string GetPlacementSectionLabel(string? channel)
-    {
-        return NormalizeRecommendationChannel(channel) switch
-        {
-            "ooh" => "Billboards and Digital Screens",
-            "radio" => "Radio",
-            "tv" => "TV",
-            "digital" => "Digital",
-            _ => ToClientCopy(channel)
-        };
-    }
-
-    private static int GetPlacementPriority(RecommendationLineDocumentModel item)
-    {
-        var normalizedChannel = NormalizeRecommendationChannel(item.Channel);
-        if (!string.Equals(normalizedChannel, "ooh", StringComparison.OrdinalIgnoreCase))
-        {
-            return 0;
-        }
-
-        var title = (item.Title ?? string.Empty).Trim();
-        if (title.Contains("billboard", StringComparison.OrdinalIgnoreCase))
-        {
-            return 0;
-        }
-
-        if (title.Contains("digital screen", StringComparison.OrdinalIgnoreCase)
-            || title.Contains("digital screens", StringComparison.OrdinalIgnoreCase)
-            || title.Contains("screen", StringComparison.OrdinalIgnoreCase))
-        {
-            return 1;
-        }
-
-        return 2;
-    }
-
-    private static bool IsMallOohPlacement(RecommendationLineDocumentModel item)
-    {
-        if (NormalizeRecommendationChannel(item.Channel) != "ooh"
-            || string.IsNullOrWhiteSpace(item.Title))
-        {
-            return false;
-        }
-
-        var title = item.Title.Trim();
-        return title.Contains("digital screen", StringComparison.OrdinalIgnoreCase)
-            || title.Contains("billboard", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static string? ExtractMallVenue(string? title)
-    {
-        if (string.IsNullOrWhiteSpace(title))
-        {
-            return null;
-        }
-
-        var normalized = ToClientCopy(title).Trim();
-        if (normalized.EndsWith("digital screen", StringComparison.OrdinalIgnoreCase))
-        {
-            normalized = normalized[..^"digital screen".Length].Trim();
-        }
-        else if (normalized.EndsWith("billboard", StringComparison.OrdinalIgnoreCase))
-        {
-            normalized = normalized[..^"billboard".Length].Trim();
-        }
-
-        normalized = normalized.TrimEnd('-', '|', ',', ' ');
-        return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
-    }
-
-    private static string BuildCombinedMallPlacementLabel(IReadOnlyList<RecommendationLineDocumentModel> items)
-    {
-        var hasBillboards = items.Any(item => item.Title.Contains("billboard", StringComparison.OrdinalIgnoreCase));
-        var hasScreens = items.Any(item => item.Title.Contains("digital screen", StringComparison.OrdinalIgnoreCase));
-
-        if (hasBillboards && hasScreens)
-        {
-            return "billboards and digital screens";
-        }
-
-        if (hasBillboards)
-        {
-            return "billboard" + (items.Sum(item => Math.Max(1, item.Quantity)) == 1 ? string.Empty : "s");
-        }
-
-        return "digital screen" + (items.Sum(item => Math.Max(1, item.Quantity)) == 1 ? string.Empty : "s");
     }
 
     private static int GetFeaturedProposalIndex(int count)
@@ -752,7 +465,7 @@ internal static class RecommendationPdfGenerator
 
     private static (string Text, string Background) BuildChannelBadge(string? channel)
     {
-        var normalized = NormalizeRecommendationChannel(channel);
+        var normalized = RecommendationPdfCopy.NormalizeRecommendationChannel(channel);
         return normalized switch
         {
             "ooh" => ("BDS", "#E6F1FB"),
@@ -761,309 +474,6 @@ internal static class RecommendationPdfGenerator
             "tv" => ("TV", "#EEE9FF"),
             _ => ("AI", ColorGreenLight)
         };
-    }
-
-    private static string BuildPlacementLocation(RecommendationLineDocumentModel item)
-    {
-        var parts = new[]
-        {
-            item.Region,
-            item.TimeBand,
-            item.Duration
-        }
-            .Where(static value => !string.IsNullOrWhiteSpace(value))
-            .Select(value => ToClientCopy(value!))
-            .ToArray();
-
-        return parts.Length > 0 ? string.Join(" | ", parts) : ToClientCopy(item.Rationale);
-    }
-
-    private static IReadOnlyList<string> BuildPlacementTags(RecommendationLineDocumentModel item)
-    {
-        var tags = new List<string>();
-        tags.AddRange(item.SelectionReasons.Select(ToClientCopy));
-
-        if (!string.IsNullOrWhiteSpace(item.Language))
-        {
-            tags.Add(ToClientCopy(item.Language));
-        }
-
-        if (!string.IsNullOrWhiteSpace(item.ShowDaypart))
-        {
-            tags.Add(ToClientCopy(item.ShowDaypart));
-        }
-
-        return tags
-            .Where(static tag => !string.IsNullOrWhiteSpace(tag))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Take(4)
-            .ToArray();
-    }
-
-    private static string NormalizeRecommendationChannel(string? channel)
-    {
-        var normalized = (channel ?? string.Empty).Trim().ToLowerInvariant();
-        if (normalized.Contains("ooh", StringComparison.OrdinalIgnoreCase)
-            || normalized.Contains("billboard", StringComparison.OrdinalIgnoreCase)
-            || normalized.Contains("digital screen", StringComparison.OrdinalIgnoreCase)
-            || normalized.Contains("digital screens", StringComparison.OrdinalIgnoreCase)
-            || normalized.Contains("out of home", StringComparison.OrdinalIgnoreCase))
-        {
-            return "ooh";
-        }
-
-        if (normalized.Contains("radio", StringComparison.OrdinalIgnoreCase))
-        {
-            return "radio";
-        }
-
-        if (normalized.Contains("tv", StringComparison.OrdinalIgnoreCase)
-            || normalized.Contains("television", StringComparison.OrdinalIgnoreCase))
-        {
-            return "tv";
-        }
-
-        if (normalized.Contains("digital", StringComparison.OrdinalIgnoreCase))
-        {
-            return "digital";
-        }
-
-        return normalized;
-    }
-
-    private static string FormatCurrency(decimal amount)
-    {
-        return $"R {amount.ToString("N2", CultureInfo.GetCultureInfo("en-ZA"))}";
-    }
-
-    private static string ResolveBusinessReference(RecommendationDocumentModel model)
-    {
-        return !string.IsNullOrWhiteSpace(model.BusinessName)
-            ? model.BusinessName.Trim()
-            : (!string.IsNullOrWhiteSpace(model.ClientName) ? model.ClientName.Trim() : "this business");
-    }
-
-    private static string FormatChannelLabel(string? channel)
-    {
-        if (string.IsNullOrWhiteSpace(channel))
-        {
-            return string.Empty;
-        }
-
-        return string.Equals(channel.Trim(), "OOH", StringComparison.OrdinalIgnoreCase)
-            ? "Billboards and Digital Screens"
-            : ToClientCopy(channel.Trim());
-    }
-
-    private static string ToClientCopy(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return string.Empty;
-        }
-
-        var normalized = value
-            .Replace("â€™", "'")
-            .Replace("â€˜", "'")
-            .Replace("â€œ", "\"")
-            .Replace("â€", "\"")
-            .Replace("â€“", "-")
-            .Replace("â€”", "-")
-            .Replace("\u00A0", " ");
-        normalized = Regex.Replace(normalized, "\\s+", " ").Trim();
-
-        return Regex.Replace(normalized, "\\booh\\b", "Billboards and Digital Screens", RegexOptions.IgnoreCase);
-    }
-
-    private static string TruncateClientCopy(string? value, int maxLength)
-    {
-        var clean = ToClientCopy(value);
-        if (clean.Length <= maxLength)
-        {
-            return clean;
-        }
-
-        return clean[..Math.Max(0, maxLength - 3)].TrimEnd() + "...";
-    }
-
-    private static IReadOnlyList<string> BuildClientSelectionSummary(RecommendationDocumentModel model, RecommendationLineDocumentModel item)
-    {
-        var lines = new List<string>();
-
-        var audience = BuildAudienceFocus(model, item);
-        if (!string.IsNullOrWhiteSpace(audience))
-        {
-            lines.Add($"Who we are targeting: {ToClientCopy(audience)}");
-        }
-
-        var scale = BuildAudienceScale(item);
-        if (!string.IsNullOrWhiteSpace(scale))
-        {
-            lines.Add($"Estimated audience size: {ToClientCopy(scale)}");
-        }
-
-        var fit = BuildFitNarrative(model, item);
-        if (!string.IsNullOrWhiteSpace(fit))
-        {
-            lines.Add($"Why this fits: {ToClientCopy(fit)}");
-        }
-
-        return lines;
-    }
-
-    private static string? BuildAudienceFocus(RecommendationDocumentModel model, RecommendationLineDocumentModel item)
-    {
-        var parts = new List<string>();
-
-        if (!string.IsNullOrWhiteSpace(item.TargetAudience))
-        {
-            parts.Add(item.TargetAudience.Trim());
-        }
-        else if (!string.IsNullOrWhiteSpace(model.TargetAudienceSummary))
-        {
-            parts.Add(model.TargetAudienceSummary.Trim());
-        }
-
-        var qualifiers = new List<string>();
-        if (!string.IsNullOrWhiteSpace(item.Region))
-        {
-            qualifiers.Add(item.Region.Trim());
-        }
-
-        if (!string.IsNullOrWhiteSpace(item.Language))
-        {
-            qualifiers.Add($"{item.Language.Trim()} speakers");
-        }
-
-        if (!string.IsNullOrWhiteSpace(item.AudienceAgeSkew))
-        {
-            qualifiers.Add(item.AudienceAgeSkew.Trim());
-        }
-
-        if (!string.IsNullOrWhiteSpace(item.AudienceLsmRange))
-        {
-            qualifiers.Add($"LSM {item.AudienceLsmRange.Trim()}");
-        }
-
-        if (!string.IsNullOrWhiteSpace(item.AudienceGenderSkew))
-        {
-            qualifiers.Add(item.AudienceGenderSkew.Trim());
-        }
-
-        if (parts.Count == 0 && qualifiers.Count == 0)
-        {
-            return null;
-        }
-
-        if (parts.Count == 0)
-        {
-            return string.Join(" | ", qualifiers);
-        }
-
-        if (qualifiers.Count == 0)
-        {
-            return string.Join(" | ", parts);
-        }
-
-        return $"{string.Join(" | ", parts)} | {string.Join(" | ", qualifiers)}";
-    }
-
-    private static string? BuildAudienceScale(RecommendationLineDocumentModel item)
-    {
-        if (TryFormatWholeNumber(item.ListenershipWeekly, out var weekly))
-        {
-            var period = !string.IsNullOrWhiteSpace(item.ListenershipPeriod)
-                ? $" {item.ListenershipPeriod.Trim().ToLowerInvariant()}"
-                : " weekly";
-            return $"Approximately {weekly} listeners{period}.";
-        }
-
-        if (TryFormatWholeNumber(item.ListenershipDaily, out var daily))
-        {
-            return $"Approximately {daily} listeners per day.";
-        }
-
-        if (TryFormatWholeNumber(item.TrafficCount, out var traffic))
-        {
-            return $"Approximately {traffic} people pass this site.";
-        }
-
-        return null;
-    }
-
-    private static string? BuildFitNarrative(RecommendationDocumentModel model, RecommendationLineDocumentModel item)
-    {
-        var fitParts = new List<string>();
-
-        if (!string.IsNullOrWhiteSpace(item.Region) && model.TargetAreas.Count > 0)
-        {
-            fitParts.Add("It gives us visibility in one of the campaign's target areas");
-        }
-
-        if (!string.IsNullOrWhiteSpace(item.Language) && model.TargetLanguages.Count > 0)
-        {
-            fitParts.Add("It supports the language mix requested for the campaign");
-        }
-
-        if (!string.IsNullOrWhiteSpace(item.TimeBand))
-        {
-            fitParts.Add($"It places the campaign in the {item.TimeBand.Trim()} window");
-        }
-
-        if (!string.IsNullOrWhiteSpace(item.SelectionReasons.FirstOrDefault()))
-        {
-            fitParts.Add(RewriteSelectionReason(item.SelectionReasons.First()));
-        }
-        else if (!string.IsNullOrWhiteSpace(item.Rationale))
-        {
-            fitParts.Add(item.Rationale.Trim());
-        }
-
-        var cleaned = fitParts
-            .Where(static part => !string.IsNullOrWhiteSpace(part))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
-        return cleaned.Length == 0 ? null : string.Join(". ", cleaned) + ".";
-    }
-
-    private static string RewriteSelectionReason(string reason)
-    {
-        return reason.Trim() switch
-        {
-            "Strong geography match" => "The location matches the market we want to reach",
-            "Good regional alignment" => "The placement lines up well with the target region",
-            "Audience profile overlap" => "The audience profile matches the people this campaign is trying to reach",
-            "Language or audience fit" => "The audience and language fit the brief",
-            "Matches requested channel mix" => "It strengthens the channel mix chosen for this campaign",
-            "Supports requested mix target" => "It helps keep the campaign balanced across the selected channels",
-            "Fits comfortably within budget" => "It stays comfortably within the approved budget",
-            "Fixed supplier package investment" => "It comes as a bundled media package that keeps planning simple",
-            "Per-spot rate card pricing" => "It uses standard spot pricing for flexible scheduling",
-            "High-impact radio daypart" => "It runs in a high-attention radio slot",
-            "Supports higher-band radio policy" => "It supports broader radio reach at this budget level",
-            "Billboards and Digital Screens prioritized for visibility" => "It adds strong visual presence in-market",
-            "Adds visible market presence" => "It helps the brand stay visible in the target area",
-            _ => reason.Trim()
-        };
-    }
-
-    private static bool TryFormatWholeNumber(string? value, out string formatted)
-    {
-        formatted = string.Empty;
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return false;
-        }
-
-        var digits = Regex.Replace(value, "[^0-9]", string.Empty);
-        if (!long.TryParse(digits, out var number) || number <= 0)
-        {
-            return false;
-        }
-
-        formatted = number.ToString("N0", CultureInfo.GetCultureInfo("en-ZA"));
-        return true;
     }
 
     private static string[] BuildTermsSummary()
