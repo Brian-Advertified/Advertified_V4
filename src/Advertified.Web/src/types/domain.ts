@@ -264,6 +264,12 @@ export interface RecommendationItem {
   siteNumber?: string;
   startDate?: string;
   endDate?: string;
+  requestedStartDate?: string;
+  requestedEndDate?: string;
+  resolvedStartDate?: string;
+  resolvedEndDate?: string;
+  appliedDuration?: string;
+  commercialExplanation?: string;
   title: string;
   channel: string;
   rationale: string;
@@ -1579,6 +1585,12 @@ export interface SelectedPlanInventoryItem extends InventoryRow {
   notes?: string;
   startDate?: string;
   endDate?: string;
+  requestedStartDate?: string;
+  requestedEndDate?: string;
+  resolvedStartDate?: string;
+  resolvedEndDate?: string;
+  appliedDuration?: string;
+  commercialExplanation?: string;
 }
 
 export interface RegistrationInput {

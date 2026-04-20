@@ -9,7 +9,7 @@ import {
   hasRecommendationApprovalCompleted,
   isCampaignInSet,
 } from '../../lib/campaignStatus';
-import { cn, formatCurrency, formatDate, titleCase } from '../../lib/utils';
+import { buildRecommendationTimingLabel, cn, formatCurrency, formatDate, titleCase } from '../../lib/utils';
 import type { Campaign, CampaignRecommendation, PackageBand, PackageOrder } from '../../types/domain';
 
 function formatChannelLabel(value: string) {
@@ -149,7 +149,7 @@ export function buildRecommendationRows(campaign: Campaign) {
   return (recommendation?.items ?? []).map((item) => ({
     channel: formatChannelLabel(item.channel),
     placement: item.title,
-    flight: item.flighting ?? item.duration ?? item.startDate ?? 'In current plan',
+    flight: buildRecommendationTimingLabel(item) ?? 'In current plan',
     reason: item.selectionReasons[0] ?? item.rationale,
   }));
 }

@@ -243,6 +243,12 @@ export function AgentCampaignDetailPage() {
             notes: item.itemNotes,
             startDate: item.startDate,
             endDate: item.endDate,
+            requestedStartDate: item.requestedStartDate,
+            requestedEndDate: item.requestedEndDate,
+            resolvedStartDate: item.resolvedStartDate,
+            resolvedEndDate: item.resolvedEndDate,
+            appliedDuration: item.appliedDuration,
+            commercialExplanation: item.commercialExplanation,
           } as SelectedPlanInventoryItem;
         }
 
@@ -273,6 +279,12 @@ export function AgentCampaignDetailPage() {
           notes: item.itemNotes,
           startDate: item.startDate,
           endDate: item.endDate,
+          requestedStartDate: item.requestedStartDate,
+          requestedEndDate: item.requestedEndDate,
+          resolvedStartDate: item.resolvedStartDate,
+          resolvedEndDate: item.resolvedEndDate,
+          appliedDuration: item.appliedDuration,
+          commercialExplanation: item.commercialExplanation,
         } as SelectedPlanInventoryItem;
       })
       .filter((item): item is SelectedPlanInventoryItem => item !== null);
@@ -671,6 +683,12 @@ export function AgentCampaignDetailPage() {
                 notes: currentItem.notes,
                 startDate: currentItem.startDate,
                 endDate: currentItem.endDate,
+                requestedStartDate: currentItem.requestedStartDate,
+                requestedEndDate: currentItem.requestedEndDate,
+                resolvedStartDate: currentItem.resolvedStartDate,
+                resolvedEndDate: currentItem.resolvedEndDate,
+                appliedDuration: currentItem.appliedDuration,
+                commercialExplanation: currentItem.commercialExplanation,
               }
               : value
           ));
@@ -683,6 +701,12 @@ export function AgentCampaignDetailPage() {
             notes: currentItem.notes,
             startDate: currentItem.startDate,
             endDate: currentItem.endDate,
+            requestedStartDate: currentItem.requestedStartDate,
+            requestedEndDate: currentItem.requestedEndDate,
+            resolvedStartDate: currentItem.resolvedStartDate,
+            resolvedEndDate: currentItem.resolvedEndDate,
+            appliedDuration: currentItem.appliedDuration,
+            commercialExplanation: currentItem.commercialExplanation,
           });
         }
 

@@ -1,5 +1,5 @@
 import { Download } from 'lucide-react';
-import { titleCase, formatCurrency } from '../../../lib/utils';
+import { buildRecommendationTimingLabel, titleCase, formatCurrency } from '../../../lib/utils';
 import type { CampaignRecommendation } from '../../../types/domain';
 import { StatusBadge } from '../../../components/ui/StatusBadge';
 import type { CampaignOpportunityContext } from '../briefModel';
@@ -111,52 +111,55 @@ export function RecommendationViewer({
         </div>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
-        {recommendation.items.map((item) => (
-          <div key={item.id} className="rounded-[24px] border border-line bg-slate-50 px-5 py-5">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <div className="pill bg-white text-ink-soft">{formatClientChannelLabel(item.channel)}</div>
-                <p className="mt-3 text-lg font-semibold text-ink">{item.title}</p>
-                <p className="mt-2 text-sm leading-7 text-ink-soft">{item.rationale}</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {item.region ? (
-                    <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-ink-soft ring-1 ring-line">
-                      {item.region}
-                    </span>
+        {recommendation.items.map((item) => {
+          const timingLabel = buildRecommendationTimingLabel(item);
+          return (
+            <div key={item.id} className="rounded-[24px] border border-line bg-slate-50 px-5 py-5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <div className="pill bg-white text-ink-soft">{formatClientChannelLabel(item.channel)}</div>
+                  <p className="mt-3 text-lg font-semibold text-ink">{item.title}</p>
+                  <p className="mt-2 text-sm leading-7 text-ink-soft">{item.rationale}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {item.region ? (
+                      <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-ink-soft ring-1 ring-line">
+                        {item.region}
+                      </span>
+                    ) : null}
+                    {item.timeBand ? (
+                      <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-ink-soft ring-1 ring-line">
+                        {item.timeBand}
+                      </span>
+                    ) : null}
+                    {timingLabel ? (
+                      <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-ink-soft ring-1 ring-line">
+                        {timingLabel}
+                      </span>
+                    ) : null}
+                  </div>
+                  {item.selectionReasons.length > 0 ? (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {item.selectionReasons.slice(0, 3).map((reason) => (
+                        <span key={reason} className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-ink-soft ring-1 ring-line">
+                          {reason}
+                        </span>
+                      ))}
+                    </div>
                   ) : null}
-                  {item.timeBand ? (
-                    <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-ink-soft ring-1 ring-line">
-                      {item.timeBand}
-                    </span>
-                  ) : null}
-                  {item.duration ? (
-                    <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-ink-soft ring-1 ring-line">
-                      {item.duration}
-                    </span>
+                  {item.restrictions ? (
+                    <p className="mt-3 text-sm leading-7 text-ink-soft">
+                      <span className="font-semibold text-ink">Booking note:</span> {toClientFriendlyCopy(item.restrictions)}
+                    </p>
                   ) : null}
                 </div>
-                {item.selectionReasons.length > 0 ? (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {item.selectionReasons.slice(0, 3).map((reason) => (
-                      <span key={reason} className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-ink-soft ring-1 ring-line">
-                        {reason}
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
-                {item.restrictions ? (
-                  <p className="mt-3 text-sm leading-7 text-ink-soft">
-                    <span className="font-semibold text-ink">Booking note:</span> {toClientFriendlyCopy(item.restrictions)}
-                  </p>
-                ) : null}
-              </div>
-              <div className="text-right">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">{titleCase(item.type)}</p>
-                <p className="mt-2 text-sm font-semibold text-ink">{item.quantity} placement{item.quantity === 1 ? '' : 's'}</p>
+                <div className="text-right">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">{titleCase(item.type)}</p>
+                  <p className="mt-2 text-sm font-semibold text-ink">{item.quantity} placement{item.quantity === 1 ? '' : 's'}</p>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

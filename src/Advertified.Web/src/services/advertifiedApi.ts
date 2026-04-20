@@ -252,6 +252,12 @@ type RecommendationItemResponse = {
   siteNumber?: string | null;
   startDate?: string | null;
   endDate?: string | null;
+  requestedStartDate?: string | null;
+  requestedEndDate?: string | null;
+  resolvedStartDate?: string | null;
+  resolvedEndDate?: string | null;
+  appliedDuration?: string | null;
+  commercialExplanation?: string | null;
   title: string;
   channel: string;
   rationale: string;
@@ -1349,6 +1355,12 @@ function mapRecommendation(response?: CampaignRecommendationResponse | null): Ca
         siteNumber: item.siteNumber ?? undefined,
         startDate: item.startDate ?? undefined,
         endDate: item.endDate ?? undefined,
+        requestedStartDate: item.requestedStartDate ?? undefined,
+        requestedEndDate: item.requestedEndDate ?? undefined,
+        resolvedStartDate: item.resolvedStartDate ?? undefined,
+        resolvedEndDate: item.resolvedEndDate ?? undefined,
+        appliedDuration: item.appliedDuration ?? undefined,
+        commercialExplanation: item.commercialExplanation ?? undefined,
       })),
   };
 }

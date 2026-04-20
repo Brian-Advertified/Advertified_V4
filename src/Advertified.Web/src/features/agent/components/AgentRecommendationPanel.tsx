@@ -1,6 +1,7 @@
 import { ArrowRightLeft, CircleAlert, CircleCheckBig, Mail, RefreshCcw, SlidersHorizontal } from 'lucide-react';
 import { EmptyState } from '../../../components/ui/EmptyState';
 import type { RefObject } from 'react';
+import { buildRecommendationTimingLabel } from '../../../lib/utils';
 import type { CampaignRecommendation, RecommendationItem, SelectedPlanInventoryItem } from '../../../types/domain';
 
 type DisplayPlanItem = SelectedPlanInventoryItem | RecommendationItem;
@@ -252,7 +253,9 @@ export function AgentRecommendationPanel({
             <div key={channel}>
               <p className="mb-3 text-sm font-semibold text-ink">{formatChannelLabel(channel)}</p>
               <div className="grid gap-2.5 md:grid-cols-2">
-                {items.map((item) => (
+                {items.map((item) => {
+                  const timingLabel = buildRecommendationTimingLabel(item);
+                  return (
                   <div key={item.id} className="group min-w-[210px] rounded-[16px] border border-line bg-slate-50 px-3.5 py-3">
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -269,6 +272,11 @@ export function AgentRecommendationPanel({
                         ) : null}
                         {!('station' in item) ? (
                           <>
+                            {timingLabel ? (
+                              <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.12em] text-ink-soft">
+                                Booking window: {timingLabel}
+                              </p>
+                            ) : null}
                             <p className="mt-1 text-xs text-ink-soft line-clamp-2">{item.rationale}</p>
                             {item.selectionReasons.length > 0 ? (
                               <div className="mt-2 flex flex-wrap gap-1.5">
@@ -300,7 +308,8 @@ export function AgentRecommendationPanel({
                       )}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )) : (

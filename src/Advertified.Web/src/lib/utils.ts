@@ -42,3 +42,50 @@ export function titleCase(value: string) {
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
 }
+
+type RecommendationTimingLike = {
+  flighting?: string;
+  duration?: string;
+  startDate?: string;
+  endDate?: string;
+  requestedStartDate?: string;
+  requestedEndDate?: string;
+  resolvedStartDate?: string;
+  resolvedEndDate?: string;
+  appliedDuration?: string;
+};
+
+function formatDateRangeLabel(start?: string, end?: string) {
+  if (start && end) {
+    return `${formatDate(start)} to ${formatDate(end)}`;
+  }
+
+  if (start) {
+    return `From ${formatDate(start)}`;
+  }
+
+  if (end) {
+    return `Until ${formatDate(end)}`;
+  }
+
+  return undefined;
+}
+
+export function buildRecommendationTimingLabel(item: RecommendationTimingLike) {
+  const resolvedRange = formatDateRangeLabel(item.resolvedStartDate, item.resolvedEndDate);
+  if (resolvedRange) {
+    return resolvedRange;
+  }
+
+  const requestedRange = formatDateRangeLabel(item.requestedStartDate, item.requestedEndDate);
+  if (requestedRange) {
+    return requestedRange;
+  }
+
+  const legacyRange = formatDateRangeLabel(item.startDate, item.endDate);
+  if (legacyRange) {
+    return legacyRange;
+  }
+
+  return item.flighting ?? item.appliedDuration ?? item.duration ?? undefined;
+}
