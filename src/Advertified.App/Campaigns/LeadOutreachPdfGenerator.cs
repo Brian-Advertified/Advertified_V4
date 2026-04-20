@@ -136,15 +136,6 @@ internal static class LeadOutreachPdfGenerator
                                 ? proposal.Strategy
                                 : proposal.Summary;
                             card.Item().Text(ToClientCopy(outcome)).SemiBold();
-                            if (!string.IsNullOrWhiteSpace(proposal.Summary))
-                            {
-                                card.Item().Text(ToClientCopy(proposal.Summary)).FontColor("#3D4F45");
-                            }
-
-                            if (channels.Length > 0)
-                            {
-                                card.Item().Text($"Channels: {string.Join(" | ", channels)}").FontColor("#0F6E56");
-                            }
 
                             if (!string.IsNullOrWhiteSpace(whatYouGet))
                             {
@@ -207,7 +198,16 @@ internal static class LeadOutreachPdfGenerator
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-        return $"{totalQuantity} placement{(totalQuantity == 1 ? string.Empty : "s")} across {string.Join(", ", channels)}";
+        if (channels.Length == 1)
+        {
+            return $"{totalQuantity} planned media placement{(totalQuantity == 1 ? string.Empty : "s")} using {channels[0].ToLowerInvariant()}.";
+        }
+
+        var channelSummary = channels.Length == 2
+            ? $"{channels[0].ToLowerInvariant()} and {channels[1].ToLowerInvariant()}"
+            : $"{string.Join(", ", channels.Take(channels.Length - 1).Select(static value => value.ToLowerInvariant()))}, and {channels[^1].ToLowerInvariant()}";
+
+        return $"{totalQuantity} planned media placement{(totalQuantity == 1 ? string.Empty : "s")} using {channelSummary}.";
     }
 
     private static string BuildWhereItRunsSummary(RecommendationProposalDocumentModel proposal)
@@ -247,12 +247,18 @@ internal static class LeadOutreachPdfGenerator
             return string.Empty;
         }
 
-        if (string.Equals(channel.Trim(), "OOH", StringComparison.OrdinalIgnoreCase))
+        return channel.Trim().ToLowerInvariant() switch
         {
-            return "Billboards and Digital Screens";
-        }
-
-        return ToClientCopy(channel.Trim());
+            "ooh" => "Billboards and Digital Screens",
+            "billboard" => "Billboards",
+            "digital_screen" => "Digital Screens",
+            "digitalscreen" => "Digital Screens",
+            "radio" => "Radio",
+            "digital" => "Digital",
+            "tv" => "TV",
+            "studio" => "Creative and studio support",
+            _ => ToClientCopy(channel.Trim().Replace("_", " "))
+        };
     }
 
     private static string ToClientCopy(string? value)
