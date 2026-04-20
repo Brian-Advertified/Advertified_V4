@@ -54,15 +54,16 @@ public sealed class PaymentsController : ControllerBase
 
     [HttpPost("webhook/vodapay")]
     [AllowAnonymous]
-    public async Task<IActionResult> VodaPayWebhook([FromBody] VodaPayWebhookRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> VodaPayWebhook([FromBody] JsonElement payload, CancellationToken cancellationToken)
     {
+        var request = ParseVodaPayWebhookRequest(payload);
         var packageOrderId = ResolvePackageOrderId(request);
         var webhookAuditId = await _paymentAuditService.CreateWebhookAsync(
             packageOrderId,
             "vodapay",
             HttpContext.Request.Path,
             SerializeHeaders(Request.Headers),
-            JsonSerializer.Serialize(request),
+            payload.GetRawText(),
             "received",
             null,
             cancellationToken);
@@ -173,7 +174,10 @@ public sealed class PaymentsController : ControllerBase
             request.EchoData,
             request.PaymentReference,
             request.TransactionId,
-            request.PaymentToken
+            request.PaymentToken,
+            request.SessionId,
+            request.RetrievalReferenceNumberExtended,
+            request.RetrievalReferenceNumber
         };
 
         foreach (var candidate in candidates)
@@ -185,6 +189,28 @@ public sealed class PaymentsController : ControllerBase
         }
 
         return null;
+    }
+
+    private static VodaPayWebhookRequest ParseVodaPayWebhookRequest(JsonElement payload)
+    {
+        return new VodaPayWebhookRequest
+        {
+            EchoData = FindFirstString(payload, "echoData"),
+            TransmissionDateTime = FindFirstDateTimeOffset(payload, "transmissionDateTime"),
+            PaymentToken = FindFirstString(payload, "paymentToken"),
+            PaymentReference = FindFirstString(payload, "paymentReference", "merchantTransactionId", "transactionReference"),
+            SessionId = FindFirstString(payload, "sessionId"),
+            ResponseCode = FindFirstString(payload, "responseCode", "statusCode"),
+            ResponseMessage = FindFirstString(payload, "responseMessage", "statusMessage", "message"),
+            RetrievalReferenceNumber = FindFirstString(payload, "retrievalReferenceNumber", "rrn"),
+            RetrievalReferenceNumberExtended = FindFirstString(payload, "retrievalReferenceNumberExtended"),
+            MerchantId = FindFirstString(payload, "merchantId"),
+            MerchantName = FindFirstString(payload, "merchantName"),
+            TransactionAmount = FindFirstDecimal(payload, "transactionAmount", "amount"),
+            CurrencyCode = FindFirstString(payload, "currencyCode", "currency"),
+            TransactionId = FindFirstString(payload, "transactionId"),
+            TransactionInfo = FindFirstStringDictionary(payload, "transactionInfo")
+        };
     }
 
     private static string? ResolvePaymentReference(VodaPayWebhookRequest request)
@@ -352,6 +378,117 @@ public sealed class PaymentsController : ControllerBase
         }
 
         return value.ValueKind == JsonValueKind.String ? value.GetString() : value.ToString();
+    }
+
+    private static string? FindFirstString(JsonElement element, params string[] propertyNames)
+    {
+        var match = FindFirstPropertyValue(element, propertyNames);
+        if (match is null)
+        {
+            return null;
+        }
+
+        var value = match.Value.Value;
+        return value.ValueKind == JsonValueKind.String
+            ? value.GetString()
+            : value.ToString();
+    }
+
+    private static DateTimeOffset? FindFirstDateTimeOffset(JsonElement element, params string[] propertyNames)
+    {
+        var value = FindFirstString(element, propertyNames);
+        return DateTimeOffset.TryParse(value, out var parsed) ? parsed : null;
+    }
+
+    private static decimal? FindFirstDecimal(JsonElement element, params string[] propertyNames)
+    {
+        var match = FindFirstPropertyValue(element, propertyNames);
+        if (match is null)
+        {
+            return null;
+        }
+
+        var value = match.Value.Value;
+        return value.ValueKind switch
+        {
+            JsonValueKind.Number when value.TryGetDecimal(out var decimalValue) => decimalValue,
+            JsonValueKind.String when decimal.TryParse(
+                value.GetString(),
+                System.Globalization.NumberStyles.Any,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var parsed) => parsed,
+            _ => null
+        };
+    }
+
+    private static Dictionary<string, string?>? FindFirstStringDictionary(JsonElement element, params string[] propertyNames)
+    {
+        var match = FindFirstPropertyValue(element, propertyNames);
+        if (match is null)
+        {
+            return null;
+        }
+
+        var value = match.Value.Value;
+        if (value.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        var dictionary = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+        foreach (var property in value.EnumerateObject())
+        {
+            dictionary[property.Name] = property.Value.ValueKind == JsonValueKind.Null
+                ? null
+                : property.Value.ValueKind == JsonValueKind.String
+                    ? property.Value.GetString()
+                    : property.Value.ToString();
+        }
+
+        return dictionary;
+    }
+
+    private static KeyValuePair<string, JsonElement>? FindFirstPropertyValue(JsonElement element, params string[] propertyNames)
+    {
+        if (propertyNames.Length == 0)
+        {
+            return null;
+        }
+
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            var properties = element.EnumerateObject().ToArray();
+            foreach (var propertyName in propertyNames)
+            {
+                var exactMatch = properties.FirstOrDefault(property => string.Equals(property.Name, propertyName, StringComparison.OrdinalIgnoreCase));
+                if (!string.IsNullOrWhiteSpace(exactMatch.Name))
+                {
+                    return new KeyValuePair<string, JsonElement>(exactMatch.Name, exactMatch.Value);
+                }
+            }
+
+            foreach (var property in properties)
+            {
+                var nested = FindFirstPropertyValue(property.Value, propertyNames);
+                if (nested is not null)
+                {
+                    return nested;
+                }
+            }
+        }
+        else if (element.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in element.EnumerateArray())
+            {
+                var nested = FindFirstPropertyValue(item, propertyNames);
+                if (nested is not null)
+                {
+                    return nested;
+                }
+            }
+        }
+
+        return null;
     }
 
     private static bool TryExtractGuid(string? input, out Guid id)
