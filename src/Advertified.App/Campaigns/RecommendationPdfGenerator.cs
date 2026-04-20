@@ -388,7 +388,6 @@ internal static class RecommendationPdfGenerator
                     col.Item().Text(sectionModel.Label).FontSize(10).SemiBold();
                     col.Item().Text($"{placementCount} placement{(placementCount == 1 ? string.Empty : "s")}").FontSize(8).FontColor(ColorMuted);
                 });
-                row.ConstantItem(120).AlignRight().Text(sectionModel.TotalLabel).FontSize(10).SemiBold().FontColor(ColorGreen);
             });
 
             foreach (var placement in sectionModel.Placements)
@@ -496,7 +495,6 @@ internal static class RecommendationPdfGenerator
 
 internal sealed record PlacementSectionDocumentModel(
     string Label,
-    string TotalLabel,
     IReadOnlyList<RecommendationLineDocumentModel> Placements);
 
 public static class RecommendationPdfPreviewFactory

@@ -92,10 +92,8 @@ internal static class RecommendationPdfPresentationBuilder
                     .OrderBy(GetPlacementPriority)
                     .ThenBy(item => RecommendationPdfCopy.ToClientCopy(item.Title), StringComparer.OrdinalIgnoreCase)
                     .ToArray();
-                var total = items.Sum(item => item.TotalCost);
                 return new PlacementSectionDocumentModel(
                     GetPlacementSectionLabel(group.Key),
-                    total > 0 ? RecommendationPdfCopy.FormatCurrency(total) : "Included",
                     items);
             })
             .ToArray();

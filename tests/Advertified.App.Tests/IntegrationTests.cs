@@ -1892,6 +1892,104 @@ public class HttpWorkflowIntegrationTests
     }
 
     [Fact]
+    public async Task AgentGenerateRecommendation_WithExplicitTargetMix_StillCreatesThreeProposalVariants()
+    {
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var clientUser = TestSeed.CreateUser();
+                var agentUser = TestSeed.CreateAgent();
+                var band = new PackageBand
+                {
+                    Id = Guid.NewGuid(),
+                    Code = "launch",
+                    Name = "Launch",
+                    MinBudget = 25000m,
+                    MaxBudget = 100000m,
+                    SortOrder = 1,
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                };
+                var order = new PackageOrder
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = clientUser.Id,
+                    PackageBandId = band.Id,
+                    Amount = 25000m,
+                    SelectedBudget = 25000m,
+                    Currency = "ZAR",
+                    PaymentStatus = "paid",
+                    RefundStatus = "none",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                var campaign = new Campaign
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = clientUser.Id,
+                    PackageOrderId = order.Id,
+                    PackageBandId = band.Id,
+                    CampaignName = "Explicit target mix campaign",
+                    Status = "planning_in_progress",
+                    AiUnlocked = true,
+                    AgentAssistanceRequested = true,
+                    AssignedAgentUserId = agentUser.Id,
+                    AssignedAt = DateTime.UtcNow,
+                    PlanningMode = "hybrid",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow,
+                    CampaignBrief = new CampaignBrief
+                    {
+                        Id = Guid.NewGuid(),
+                        Objective = "launch",
+                        GeographyScope = "regional",
+                        ProvincesJson = "[\"Gauteng\"]",
+                        PreferredMediaTypesJson = "[\"radio\",\"ooh\",\"digital\"]",
+                        OpenToUpsell = false,
+                        SubmittedAt = DateTime.UtcNow,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    }
+                };
+                campaign.CampaignBrief.CampaignId = campaign.Id;
+
+                db.UserAccounts.AddRange(clientUser, agentUser);
+                db.PackageBands.Add(band);
+                db.PackageOrders.Add(order);
+                db.Campaigns.Add(campaign);
+                db.SaveChanges();
+            });
+
+        var campaignId = await harness.ExecuteDbAsync(db => db.Campaigns.Select(x => x.Id).SingleAsync());
+        var agentUserId = await harness.ExecuteDbAsync(db => db.UserAccounts.Where(x => x.Role == UserRole.Agent).Select(x => x.Id).SingleAsync());
+        harness.Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await harness.CreateSessionTokenAsync(agentUserId));
+
+        var response = await harness.Client.PostAsJsonAsync($"/agent/campaigns/{campaignId}/generate-recommendation", new
+        {
+            targetRadioShare = 20,
+            targetOohShare = 30,
+            targetTvShare = 0,
+            targetDigitalShare = 50
+        });
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var recommendations = await harness.ExecuteDbAsync(db => db.CampaignRecommendations
+            .Where(x => x.CampaignId == campaignId)
+            .OrderBy(x => x.CreatedAt)
+            .Select(x => x.RecommendationType)
+            .ToListAsync());
+
+        recommendations.Should().HaveCount(3);
+        recommendations.Should().Contain(new[]
+        {
+            "hybrid:balanced",
+            "hybrid:ooh_focus",
+            "hybrid:radio_focus"
+        });
+        recommendations.Should().NotContain(type => type.EndsWith(":requested_mix"));
+    }
+
+    [Fact]
     public async Task AgentCanCreateDraftRecommendation_BeforePayment()
     {
         await using var harness = await TestApiHarness.CreateAsync(

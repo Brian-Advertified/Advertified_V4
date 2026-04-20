@@ -302,11 +302,6 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
 
     private static IReadOnlyList<ProposalVariant> BuildProposalVariants(CampaignPlanningRequest request, Advertified.App.Data.Entities.PackageBand packageBand)
     {
-        if (HasExplicitTargetMix(request))
-        {
-            return new[] { new ProposalVariant("requested_mix", request, null) };
-        }
-
         var activeChannels = ResolveActiveChannels(request);
         var secondaryFocusChannel = ResolveUpperTierFocusChannel(request, activeChannels);
         var secondaryFocusLabel = secondaryFocusChannel switch
@@ -326,14 +321,6 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         };
 
         return proposals;
-    }
-
-    private static bool HasExplicitTargetMix(CampaignPlanningRequest request)
-    {
-        return request.TargetRadioShare.HasValue
-            || request.TargetOohShare.HasValue
-            || request.TargetTvShare.HasValue
-            || request.TargetDigitalShare.HasValue;
     }
 
     private static CampaignPlanningRequest ApplyChannelTargets(CampaignPlanningRequest source, ChannelTargets targets, decimal selectedBudget)
