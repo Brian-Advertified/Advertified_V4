@@ -59,25 +59,60 @@ internal static class RecommendationPdfPresentationBuilder
 
     internal static string BuildProposalSubheading(RecommendationDocumentModel model, RecommendationProposalDocumentModel proposal)
     {
-        var placements = proposal.Items.Count(item => !string.Equals(item.Channel, "Studio", StringComparison.OrdinalIgnoreCase));
-        var channels = proposal.Items
+        return BuildProposalAreaSummary(model, proposal);
+    }
+
+    internal static string BuildProposalDeliverableSummary(RecommendationProposalDocumentModel proposal)
+    {
+        var placements = proposal.Items
             .Where(item => !string.Equals(item.Channel, "Studio", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        if (placements.Length == 0)
+        {
+            return "Proposal details are being prepared.";
+        }
+
+        var totalQuantity = placements.Sum(item => Math.Max(1, item.Quantity));
+        var channels = placements
             .Select(item => RecommendationPdfCopy.FormatChannelLabel(item.Channel))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
+
+        if (channels.Length == 1)
+        {
+            return $"{totalQuantity} planned media placement{(totalQuantity == 1 ? string.Empty : "s")} using {channels[0].ToLowerInvariant()}.";
+        }
+
+        var channelSummary = channels.Length == 2
+            ? $"{channels[0].ToLowerInvariant()} and {channels[1].ToLowerInvariant()}"
+            : $"{string.Join(", ", channels.Take(channels.Length - 1).Select(static value => value.ToLowerInvariant()))}, and {channels[^1].ToLowerInvariant()}";
+
+        return $"{totalQuantity} planned media placement{(totalQuantity == 1 ? string.Empty : "s")} using {channelSummary}.";
+    }
+
+    internal static string BuildProposalAreaSummary(RecommendationDocumentModel model, RecommendationProposalDocumentModel proposal)
+    {
         var areas = proposal.Items
             .Select(item => item.Region)
             .Where(area => !string.IsNullOrWhiteSpace(area))
             .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Take(2)
+            .Take(3)
             .Select(area => RecommendationPdfCopy.ToClientCopy(area!))
             .ToArray();
 
-        var areaText = areas.Length > 0
-            ? string.Join(" and ", areas)
+        return areas.Length > 0
+            ? string.Join(" | ", areas)
             : (model.TargetAreas.Count > 0 ? string.Join(", ", model.TargetAreas.Select(RecommendationPdfCopy.ToClientCopy)) : "South Africa");
+    }
 
-        return $"{placements} placements across {string.Join(", ", channels)} | {areaText}";
+    internal static IReadOnlyList<string> BuildProposalPlacementHighlights(RecommendationProposalDocumentModel proposal)
+    {
+        return proposal.Items
+            .Where(item => !string.Equals(item.Channel, "Studio", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(item.Title))
+            .Select(item => RecommendationPdfCopy.ToClientCopy(item.Title))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(3)
+            .ToArray();
     }
 
     internal static IReadOnlyList<PlacementSectionDocumentModel> BuildPlacementSections(RecommendationProposalDocumentModel proposal)

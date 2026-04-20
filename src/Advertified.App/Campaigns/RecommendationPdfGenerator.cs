@@ -199,6 +199,7 @@ internal static class RecommendationPdfGenerator
     private static void ComposeProposalCard(IContainer container, RecommendationProposalDocumentModel proposal, bool featured)
     {
         var mediaCounts = RecommendationPdfPresentationBuilder.BuildProposalMediaCounts(proposal);
+        var deliverableSummary = RecommendationPdfPresentationBuilder.BuildProposalDeliverableSummary(proposal);
 
         container.Border(1.5f).BorderColor(featured ? ColorGreen : ColorBorder).Background(ColorWhite).Column(column =>
         {
@@ -219,6 +220,7 @@ internal static class RecommendationPdfGenerator
                 body.Spacing(8);
                 body.Item().Text("Campaign total").FontSize(8).SemiBold().FontColor(ColorMuted);
                 body.Item().Text(RecommendationPdfCopy.FormatCurrency(proposal.TotalCost)).FontSize(18).SemiBold();
+                body.Item().Text($"What you get: {deliverableSummary}").FontSize(9).FontColor(ColorMuted);
 
                 foreach (var count in mediaCounts)
                 {
@@ -249,6 +251,10 @@ internal static class RecommendationPdfGenerator
 
     private static void ComposeProposalSection(IContainer container, RecommendationDocumentModel model, RecommendationProposalDocumentModel proposal, int proposalIndex, int totalProposals)
     {
+        var deliverableSummary = RecommendationPdfPresentationBuilder.BuildProposalDeliverableSummary(proposal);
+        var areaSummary = RecommendationPdfPresentationBuilder.BuildProposalAreaSummary(model, proposal);
+        var placementHighlights = RecommendationPdfPresentationBuilder.BuildProposalPlacementHighlights(proposal);
+
         container.Column(section =>
         {
             section.Spacing(12);
@@ -260,7 +266,7 @@ internal static class RecommendationPdfGenerator
                     col.Spacing(3);
                     col.Item().Text(proposal.Label).FontSize(10).SemiBold().FontColor(ColorMuted);
                     col.Item().Text(RecommendationPdfCopy.ToClientCopy(proposal.Strategy ?? "Recommendation option")).FontSize(18).SemiBold();
-                    col.Item().Text(RecommendationPdfPresentationBuilder.BuildProposalSubheading(model, proposal)).FontSize(10).FontColor(ColorMuted);
+                    col.Item().Text($"Where it runs: {areaSummary}").FontSize(10).FontColor(ColorMuted);
                 });
                 row.ConstantItem(130).AlignRight().Text(RecommendationPdfCopy.FormatCurrency(proposal.TotalCost)).FontSize(18).SemiBold().FontColor(ColorGreen);
             });
@@ -268,8 +274,15 @@ internal static class RecommendationPdfGenerator
             section.Item().Background(ColorGreenLight).Padding(12).BorderLeft(3).BorderColor(ColorGreen).Text(RecommendationPdfCopy.ToClientCopy(!string.IsNullOrWhiteSpace(proposal.Rationale) ? proposal.Rationale : proposal.Summary))
                 .FontSize(10)
                 .FontColor(ColorGreenDark);
-
-            section.Item().Element(item => ComposeBudgetSplit(item, proposal));
+            section.Item().Column(body =>
+            {
+                body.Spacing(5);
+                body.Item().Text($"What you get: {deliverableSummary}").FontSize(10).FontColor(ColorMuted);
+                if (placementHighlights.Count > 0)
+                {
+                    body.Item().Text($"Included placements: {string.Join(" | ", placementHighlights)}").FontSize(10).FontColor(ColorMuted);
+                }
+            });
 
             var groupedPlacements = RecommendationPdfPresentationBuilder.BuildPlacementSections(proposal);
             if (groupedPlacements.Count > 0)
