@@ -1,5 +1,6 @@
 using Advertified.App.Contracts.Payments;
 using Advertified.App.Services.Abstractions;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -26,6 +27,7 @@ public sealed class PaymentsController : ControllerBase
     }
 
     [HttpPost("webhook")]
+    [AllowAnonymous]
     public async Task<IActionResult> Webhook([FromBody] PaymentWebhookRequest request, CancellationToken cancellationToken)
     {
         var webhookAuditId = await _paymentAuditService.CreateWebhookAsync(
@@ -51,6 +53,7 @@ public sealed class PaymentsController : ControllerBase
     }
 
     [HttpPost("webhook/vodapay")]
+    [AllowAnonymous]
     public async Task<IActionResult> VodaPayWebhook([FromBody] VodaPayWebhookRequest request, CancellationToken cancellationToken)
     {
         var packageOrderId = ResolvePackageOrderId(request);
@@ -87,6 +90,7 @@ public sealed class PaymentsController : ControllerBase
     }
 
     [HttpPost("jobs/vodapay-webhook")]
+    [AllowAnonymous]
     public async Task<IActionResult> ProcessQueuedVodaPayWebhook([FromBody] QueuedVodaPayWebhookJob job, CancellationToken cancellationToken)
     {
         await ProcessVodaPayWebhookInternalAsync(job.WebhookAuditId, job.Request, cancellationToken);
