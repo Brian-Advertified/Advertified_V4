@@ -237,6 +237,8 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
                 .ThenByDescending(candidate => HasMatchingOohSite(result, candidate))
                 .ThenByDescending(candidate => FitsChannelTarget(result, candidate, channelSpendTargets))
                 .ThenBy(candidate => ChannelOvershootAmount(result, candidate, channelSpendTargets))
+                .ThenByDescending(candidate => GetOohValuePreference(candidate, request))
+                .ThenBy(candidate => GetOohFormatSelectionCount(result, candidate))
                 .ThenBy(candidate => GetSelectionPriority(candidate))
                 .ThenBy(candidate => GetStationSelectionCount(result, candidate, shareTarget.Channel))
                 .ThenByDescending(candidate => candidate.Score)
@@ -285,6 +287,8 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
                     .ThenByDescending(candidate => HasMatchingOohSite(result, candidate))
                     .ThenByDescending(candidate => FitsChannelTarget(result, candidate, channelSpendTargets))
                     .ThenBy(candidate => ChannelOvershootAmount(result, candidate, channelSpendTargets))
+                    .ThenByDescending(candidate => GetOohValuePreference(candidate, request))
+                    .ThenBy(candidate => GetOohFormatSelectionCount(result, candidate))
                     .ThenBy(candidate => GetSelectionPriority(candidate))
                     .ThenBy(candidate => GetStationSelectionCount(result, candidate, shareTarget.Channel))
                     .ThenByDescending(candidate => candidate.Score)
@@ -412,6 +416,8 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
                 .ThenByDescending(x => HasMatchingOohSite(result, x))
                 .ThenByDescending(x => FitsChannelTarget(result, x, channelSpendTargets))
                 .ThenBy(x => ChannelOvershootAmount(result, x, channelSpendTargets))
+                .ThenByDescending(x => GetOohValuePreference(x, request))
+                .ThenBy(x => GetOohFormatSelectionCount(result, x))
                 .ThenBy(x => GetSelectionPriority(x))
                 .ThenBy(x => GetStationSelectionCount(result, x, x.MediaType))
                 .ThenByDescending(x => x.Score)
@@ -552,6 +558,8 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
         return candidates
             .OrderByDescending(candidate => ScoreRequestedLanguageCoverage(candidate, currentPlan, request))
             .ThenByDescending(candidate => HasMatchingOohSite(currentPlan, candidate))
+            .ThenByDescending(candidate => GetOohValuePreference(candidate, request))
+            .ThenBy(candidate => GetOohFormatSelectionCount(currentPlan, candidate))
             .ThenBy(candidate => GetSelectionPriority(candidate))
             .ThenByDescending(candidate => candidate.Score)
             .ThenByDescending(candidate => candidate.Cost);
@@ -562,9 +570,77 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
         return PlanningChannelSupport.NormalizeChannel(candidate.MediaType) switch
         {
             PlanningChannelSupport.Billboard => 0,
-            PlanningChannelSupport.DigitalScreen => 1,
+            PlanningChannelSupport.DigitalScreen => 0,
             _ => 0
         };
+    }
+
+    private static decimal GetOohValuePreference(InventoryCandidate candidate, CampaignPlanningRequest request)
+    {
+        if (!PlanningChannelSupport.IsOohFamilyChannel(candidate.MediaType))
+        {
+            return 0m;
+        }
+
+        decimal score = 0m;
+        var budget = Math.Max(1m, request.SelectedBudget);
+        var costRatio = candidate.Cost / budget;
+
+        score += costRatio switch
+        {
+            >= 0.18m => 8m,
+            >= 0.12m => 6m,
+            >= 0.08m => 4m,
+            >= 0.05m => 2m,
+            _ => 0m
+        };
+
+        if (MatchesMetadataToken(candidate, "premium_mall", "venueType", "venue_type"))
+        {
+            score += 5m;
+        }
+        else if (MatchesMetadataToken(candidate, "lifestyle_centre", "venueType", "venue_type"))
+        {
+            score += 3m;
+        }
+        else if (MatchesMetadataToken(candidate, "community_mall", "venueType", "venue_type"))
+        {
+            score += 2m;
+        }
+
+        if (MatchesMetadataToken(candidate, "mall_interior", "environmentType", "environment_type")
+            || MatchesMetadataToken(candidate, "food_court", "environmentType", "environment_type"))
+        {
+            score += 4m;
+        }
+
+        score += ScoreFitBand(candidate, "highValueShopperFit", "high_value_shopper_fit", high: 5m, medium: 2m);
+        score += ScoreFitBand(candidate, "dwellTimeScore", "dwell_time_score", high: 4m, medium: 2m);
+
+        if (PlanningChannelSupport.NormalizeChannel(candidate.MediaType) == PlanningChannelSupport.DigitalScreen)
+        {
+            score += 2m;
+        }
+        else if (MatchesMetadataToken(candidate, "roadside", "environmentType", "environment_type")
+            || MatchesMetadataToken(candidate, "outdoor", "environmentType", "environment_type"))
+        {
+            score -= costRatio < 0.05m ? 4m : 1m;
+        }
+
+        return score;
+    }
+
+    private static int GetOohFormatSelectionCount(
+        IReadOnlyList<PlannedItem> currentPlan,
+        InventoryCandidate candidate)
+    {
+        if (!PlanningChannelSupport.IsOohFamilyChannel(candidate.MediaType))
+        {
+            return 0;
+        }
+
+        var candidateFormat = PlanningChannelSupport.NormalizeChannel(candidate.MediaType);
+        return currentPlan.Count(item => PlanningChannelSupport.NormalizeChannel(item.MediaType) == candidateFormat);
     }
 
     private static IReadOnlyDictionary<string, decimal>? BuildChannelSpendTargets(CampaignPlanningRequest request)
@@ -1100,6 +1176,48 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
     private static string? FirstNonEmpty(params string?[] values)
     {
         return values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+    }
+
+    private static bool MatchesMetadataToken(InventoryCandidate candidate, string expected, params string[] keys)
+    {
+        var expectedValue = expected.Trim();
+        if (string.IsNullOrWhiteSpace(expectedValue))
+        {
+            return false;
+        }
+
+        foreach (var key in keys)
+        {
+            if (!candidate.Metadata.TryGetValue(key, out var raw) || raw is null)
+            {
+                continue;
+            }
+
+            var value = raw.ToString();
+            if (!string.IsNullOrWhiteSpace(value)
+                && string.Equals(value.Trim(), expectedValue, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static decimal ScoreFitBand(InventoryCandidate candidate, string camelKey, string snakeKey, decimal high, decimal medium)
+    {
+        var value = FirstNonEmpty(GetMetadataString(candidate.Metadata, camelKey), GetMetadataString(candidate.Metadata, snakeKey));
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return 0m;
+        }
+
+        return value.Trim().ToLowerInvariant() switch
+        {
+            "high" => high,
+            "medium" => medium,
+            _ => 0m
+        };
     }
 
     private static void SetMetadataIfMissing(IDictionary<string, object?> metadata, string key, string? value)

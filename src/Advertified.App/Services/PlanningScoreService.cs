@@ -1067,13 +1067,15 @@ public sealed class PlanningScoreService : IPlanningScoreService
             score += ScoreFitBand(candidate, "dwellTimeScore", "dwell_time_score", high: 3m, medium: 1m);
         }
 
-        if (normalizedMediaType == PlanningChannelSupport.Billboard)
+        if (normalizedMediaType == PlanningChannelSupport.Billboard
+            && ((request.Objective ?? string.Empty).Trim().Equals("awareness", StringComparison.OrdinalIgnoreCase)
+                || (request.Objective ?? string.Empty).Trim().Equals("brand_presence", StringComparison.OrdinalIgnoreCase)
+                || (request.Objective ?? string.Empty).Trim().Equals("launch", StringComparison.OrdinalIgnoreCase)))
         {
-            score += 4m;
             if (MatchesMetadataToken(candidate, "roadside", "environmentType", "environment_type")
                 || MatchesMetadataToken(candidate, "outdoor", "environmentType", "environment_type"))
             {
-                score += 3m;
+                score += 2m;
             }
         }
         else if (normalizedMediaType == PlanningChannelSupport.DigitalScreen)
@@ -1082,9 +1084,11 @@ public sealed class PlanningScoreService : IPlanningScoreService
             {
                 score += 3m;
             }
-            else
+            else if (MatchesMetadataToken(candidate, "mall_interior", "environmentType", "environment_type")
+                || MatchesMetadataToken(candidate, "food_court", "environmentType", "environment_type")
+                || MatchesMetadataToken(candidate, "premium_mall", "venueType", "venue_type"))
             {
-                score -= 2m;
+                score += 2m;
             }
         }
 

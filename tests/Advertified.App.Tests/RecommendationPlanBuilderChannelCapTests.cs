@@ -57,7 +57,66 @@ public sealed class RecommendationPlanBuilderChannelCapTests
         digitalSpend.Should().BeLessThanOrEqualTo(55000m);
     }
 
-    private static InventoryCandidate CreateCandidate(string mediaType, decimal cost, decimal score)
+    [Fact]
+    public void BuildPlan_WithOohHeavyMix_PrefersHigherValueOohBeforeCheapBillboardFillers()
+    {
+        var policyService = new PlanningPolicyService(new PlanningPolicySnapshotProvider(new PlanningPolicyOptions
+        {
+            Scale = new PackagePlanningPolicy { BudgetFloor = 500000m, MinimumNationalRadioCandidates = 1, RequireNationalCapableRadio = true },
+            Dominance = new PackagePlanningPolicy { BudgetFloor = 1000000m, MinimumNationalRadioCandidates = 2, RequireNationalCapableRadio = true }
+        }));
+        var builder = new RecommendationPlanBuilder(policyService, new TestBroadcastMasterDataService());
+
+        var request = new CampaignPlanningRequest
+        {
+            SelectedBudget = 400000m,
+            GeographyScope = "national",
+            TargetOohShare = 100
+        };
+
+        var premiumMallBillboard = CreateCandidate(
+            "billboard",
+            180000m,
+            88m,
+            metadata: new Dictionary<string, object?>
+            {
+                ["venueType"] = "premium_mall",
+                ["environmentType"] = "mall_interior",
+                ["highValueShopperFit"] = "high",
+                ["dwellTimeScore"] = "high"
+            });
+        var premiumMallScreen = CreateCandidate(
+            "digital_screen",
+            170000m,
+            88m,
+            metadata: new Dictionary<string, object?>
+            {
+                ["venueType"] = "premium_mall",
+                ["environmentType"] = "mall_interior",
+                ["highValueShopperFit"] = "high",
+                ["dwellTimeScore"] = "high"
+            });
+        var candidates = new List<InventoryCandidate>
+        {
+            premiumMallBillboard,
+            premiumMallScreen,
+            CreateCandidate("billboard", 50000m, 92m, metadata: new Dictionary<string, object?> { ["environmentType"] = "roadside" }),
+            CreateCandidate("billboard", 50000m, 91m, metadata: new Dictionary<string, object?> { ["environmentType"] = "roadside" }),
+            CreateCandidate("billboard", 50000m, 90m, metadata: new Dictionary<string, object?> { ["environmentType"] = "roadside" }),
+            CreateCandidate("billboard", 50000m, 89m, metadata: new Dictionary<string, object?> { ["environmentType"] = "roadside" })
+        };
+
+        var plan = builder.BuildPlan(candidates, request, diversify: false);
+
+        plan.Select(item => item.SourceId).Should().Contain(new[] { premiumMallBillboard.SourceId, premiumMallScreen.SourceId });
+        plan.Count(item => item.MediaType == "billboard" && item.TotalCost == 50000m).Should().BeLessThanOrEqualTo(1);
+    }
+
+    private static InventoryCandidate CreateCandidate(
+        string mediaType,
+        decimal cost,
+        decimal score,
+        Dictionary<string, object?>? metadata = null)
     {
         return new InventoryCandidate
         {
@@ -67,7 +126,8 @@ public sealed class RecommendationPlanBuilderChannelCapTests
             MediaType = mediaType,
             Cost = cost,
             IsAvailable = true,
-            Score = score
+            Score = score,
+            Metadata = metadata ?? new Dictionary<string, object?>()
         };
     }
 }
