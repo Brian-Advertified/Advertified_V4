@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { DeferredVideo } from '../../components/marketing/DeferredVideo';
 import { advertifiedVideoPoster, loadAdvertifiedVideo } from '../../components/marketing/marketingMedia';
 import { PageHero } from '../../components/marketing/PageHero';
+import { Seo } from '../../components/seo/Seo';
 
 const steps = [
   {
@@ -67,6 +68,12 @@ const highlights = [
 export function HowItWorksPage() {
   return (
     <div className="page-shell space-y-8 pb-10">
+      <Seo
+        title="How Advertified Works | Guided Advertising Planning"
+        description="See how Advertified takes businesses from package purchase to campaign recommendation, approval, creative production, and launch."
+        path="/how-it-works"
+        type="website"
+      />
       <PageHero
         kicker="How it works"
         title="From package purchase to campaign recommendation in a clear, guided flow."

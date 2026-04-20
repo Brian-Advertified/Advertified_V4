@@ -1,8 +1,9 @@
-import { Suspense, useLayoutEffect } from 'react';
+import { Suspense, useEffect, useLayoutEffect } from 'react';
 import { Route, Routes, useLocation } from 'react-router-dom';
 import { Footer } from '../components/layout/Footer';
 import { Navbar } from '../components/layout/Navbar';
 import { LoadingState } from '../components/ui/LoadingState';
+import { clearManagedStructuredData, applySeo, getRouteSeo } from '../lib/seo';
 import { appRoutes } from './routeRegistry';
 
 export function App() {
@@ -17,6 +18,11 @@ export function App() {
 
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
   }, [location.pathname, location.search]);
+
+  useEffect(() => {
+    clearManagedStructuredData();
+    applySeo(getRouteSeo(location.pathname));
+  }, [location.pathname]);
 
   return (
     <div className="min-h-screen">

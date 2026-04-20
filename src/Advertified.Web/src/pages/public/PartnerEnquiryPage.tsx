@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ArrowRight, Building2, Handshake, Mail, Phone } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { PageHero } from '../../components/marketing/PageHero';
+import { Seo } from '../../components/seo/Seo';
 import { ProcessingOverlay } from '../../components/ui/ProcessingOverlay';
 import { useToast } from '../../components/ui/toast';
 import { advertifiedApi } from '../../services/advertifiedApi';
@@ -60,6 +61,12 @@ export function PartnerEnquiryPage() {
 
   return (
     <div className="page-shell space-y-8 pb-10">
+      <Seo
+        title="Become a Media Partner | Advertified"
+        description="Submit a partner enquiry to Advertified and tell us about your media inventory, venue network, or channel footprint."
+        path="/partner-enquiry"
+        type="website"
+      />
       {submitting ? <ProcessingOverlay label="Sending your partner enquiry..." /> : null}
 
       <PageHero

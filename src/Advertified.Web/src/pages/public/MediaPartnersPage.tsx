@@ -1,6 +1,7 @@
 import { ArrowRight, Landmark, Megaphone, Newspaper, Radio, SearchCheck, Tv, Workflow } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { PageHero } from '../../components/marketing/PageHero';
+import { Seo } from '../../components/seo/Seo';
 
 const partnerTypes = [
   'Billboard Media Owners',
@@ -40,6 +41,12 @@ const partnerCards = [
 export function MediaPartnersPage() {
   return (
     <div className="page-shell space-y-8 pb-10">
+      <Seo
+        title="Media Partners | Advertified"
+        description="Partner with Advertified to connect premium billboard, radio, TV, press, and venue inventory to structured advertiser demand."
+        path="/media-partners"
+        type="website"
+      />
       <PageHero
         kicker="Media partners"
         title="Partner with Advertified to turn premium inventory into structured demand."

@@ -1,6 +1,7 @@
 import { ArrowRight, CircleCheckBig, Orbit, RadioTower, RectangleHorizontal, Smartphone, Tv } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { PageHero } from '../../components/marketing/PageHero';
+import { Seo } from '../../components/seo/Seo';
 
 const processPoints = [
   'Choose a package that fits your budget',
@@ -32,6 +33,12 @@ const audienceCards = [
 export function AboutUsPage() {
   return (
     <div className="page-shell space-y-8 pb-10">
+      <Seo
+        title="About Advertified | Advertising Platform for South African Businesses"
+        description="Learn how Advertified helps businesses in South Africa buy advertising with more clarity through package-led planning, campaign workflows, and multi-channel execution."
+        path="/about"
+        type="website"
+      />
       <PageHero
         kicker="Advertise Now. Pay Later."
         title="A clearer way to buy and run advertising."

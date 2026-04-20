@@ -9,6 +9,7 @@ import { SpendPreviewPanel } from '../../features/packages/components/SpendPrevi
 import { LoadingState } from '../../components/ui/LoadingState';
 import { useAuth } from '../../features/auth/auth-context';
 import { catalogQueryOptions } from '../../lib/catalogQueryOptions';
+import { Seo } from '../../components/seo/Seo';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import { formatCompactBudget } from '../../lib/utils';
 
@@ -73,6 +74,12 @@ export function PackagesPage() {
 
   return (
     <section className="page-shell space-y-8 pb-36">
+      <Seo
+        title="Advertising Packages in South Africa | Advertified"
+        description="Browse Advertified package bands, choose the budget that fits your campaign, and move into guided advertising planning with clearer pricing."
+        path="/packages"
+        type="website"
+      />
       <PageHero
         kicker="Packages"
         title="Choose your package, then set the exact spend that fits your campaign."

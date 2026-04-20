@@ -11,6 +11,20 @@ node_modules
 dist
 dist-ssr
 *.local
+.prerender/
+about/
+packages/
+faq/
+privacy/
+how-it-works/
+media-partners/
+partner-enquiry/
+cookie-policy/
+terms-of-service/
+billboard-advertising-south-africa/
+radio-advertising-south-africa/
+tv-advertising-south-africa/
+digital-advertising-south-africa/
 
 # Editor directories and files
 .vscode/*

@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+import path from 'node:path';
 
 function manualChunks(id: string) {
   if (!id.includes('node_modules')) {
@@ -44,6 +45,22 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   build: {
     rollupOptions: {
+      input: {
+        index: path.resolve(__dirname, 'index.html'),
+        'packages/index': path.resolve(__dirname, 'packages/index.html'),
+        'how-it-works/index': path.resolve(__dirname, 'how-it-works/index.html'),
+        'about/index': path.resolve(__dirname, 'about/index.html'),
+        'faq/index': path.resolve(__dirname, 'faq/index.html'),
+        'billboard-advertising-south-africa/index': path.resolve(__dirname, 'billboard-advertising-south-africa/index.html'),
+        'radio-advertising-south-africa/index': path.resolve(__dirname, 'radio-advertising-south-africa/index.html'),
+        'tv-advertising-south-africa/index': path.resolve(__dirname, 'tv-advertising-south-africa/index.html'),
+        'digital-advertising-south-africa/index': path.resolve(__dirname, 'digital-advertising-south-africa/index.html'),
+        'media-partners/index': path.resolve(__dirname, 'media-partners/index.html'),
+        'partner-enquiry/index': path.resolve(__dirname, 'partner-enquiry/index.html'),
+        'privacy/index': path.resolve(__dirname, 'privacy/index.html'),
+        'cookie-policy/index': path.resolve(__dirname, 'cookie-policy/index.html'),
+        'terms-of-service/index': path.resolve(__dirname, 'terms-of-service/index.html'),
+      },
       output: {
         manualChunks,
       },

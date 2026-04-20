@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { PageHero } from '../../components/marketing/PageHero';
+import { Seo } from '../../components/seo/Seo';
 
 const faqSections = [
   {
@@ -83,6 +84,26 @@ const faqSections = [
 export function FaqPage() {
   return (
     <div className="page-shell space-y-8 pb-16">
+      <Seo
+        title="Advertified FAQ | Packages, Payments, Campaigns, and Launch"
+        description="Read common questions about Advertified packages, payment timing, campaign approvals, creative production, launch workflows, and platform support."
+        path="/faq"
+        type="website"
+        jsonLd={{
+          '@context': 'https://schema.org',
+          '@type': 'FAQPage',
+          mainEntity: faqSections.flatMap((section) => (
+            section.items.map((item) => ({
+              '@type': 'Question',
+              name: item.question,
+              acceptedAnswer: {
+                '@type': 'Answer',
+                text: item.answer,
+              },
+            }))
+          )),
+        }}
+      />
       <PageHero
         kicker="FAQ"
         title="Questions businesses usually ask before they launch"

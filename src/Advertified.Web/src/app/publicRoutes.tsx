@@ -15,6 +15,10 @@ const AiStudioPage = lazyPage(() => import('../pages/public/AiStudioPage'), 'AiS
 const FaqPage = lazyPage(() => import('../pages/public/FaqPage'), 'FaqPage');
 const MediaPartnersPage = lazyPage(() => import('../pages/public/MediaPartnersPage'), 'MediaPartnersPage');
 const PartnerEnquiryPage = lazyPage(() => import('../pages/public/PartnerEnquiryPage'), 'PartnerEnquiryPage');
+const BillboardAdvertisingPage = lazyPage(() => import('../pages/public/ChannelLandingPages'), 'BillboardAdvertisingPage');
+const RadioAdvertisingPage = lazyPage(() => import('../pages/public/ChannelLandingPages'), 'RadioAdvertisingPage');
+const TelevisionAdvertisingPage = lazyPage(() => import('../pages/public/ChannelLandingPages'), 'TelevisionAdvertisingPage');
+const DigitalAdvertisingPage = lazyPage(() => import('../pages/public/ChannelLandingPages'), 'DigitalAdvertisingPage');
 const PaymentSelectionPage = lazyPage(() => import('../pages/public/PaymentSelectionPage'), 'PaymentSelectionPage');
 const CheckoutConfirmationPage = lazyPage(() => import('../pages/public/CheckoutConfirmationPage'), 'CheckoutConfirmationPage');
 const ProposalEntryPage = lazyPage(() => import('../pages/public/ProposalEntryPage'), 'ProposalEntryPage');
@@ -34,6 +38,10 @@ export const publicRoutes: AppRoute[] = [
   { path: '/about', element: <AboutUsPage /> },
   { path: '/ai-studio', element: publicAiStudioEnabled ? <AiStudioPage /> : <Navigate to="/" replace /> },
   { path: '/faq', element: <FaqPage /> },
+  { path: '/billboard-advertising-south-africa', element: <BillboardAdvertisingPage /> },
+  { path: '/radio-advertising-south-africa', element: <RadioAdvertisingPage /> },
+  { path: '/tv-advertising-south-africa', element: <TelevisionAdvertisingPage /> },
+  { path: '/digital-advertising-south-africa', element: <DigitalAdvertisingPage /> },
   { path: '/media-partners', element: <MediaPartnersPage /> },
   { path: '/partner-enquiry', element: <PartnerEnquiryPage /> },
   { path: '/start-campaign', element: <ProspectQuestionnairePage /> },

@@ -11,6 +11,7 @@ import { useNearViewport } from '../../lib/useNearViewport';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import { useQuery } from '@tanstack/react-query';
 import { LoadingState } from '../../components/ui/LoadingState';
+import { Seo } from '../../components/seo/Seo';
 
 export function HomePage() {
   const navigate = useNavigate();
@@ -25,6 +26,36 @@ export function HomePage() {
 
   return (
     <div className="space-y-16">
+      <Seo
+        title="Advertified | Advertising Packages and Media Buying in South Africa"
+        description="Start advertising with clearer package-led media buying in South Africa. Explore packages, guided campaign planning, and multi-channel execution with Advertified."
+        path="/"
+        type="website"
+        jsonLd={[
+          {
+            '@context': 'https://schema.org',
+            '@type': 'Organization',
+            name: 'Advertified',
+            url: 'https://advertified.com',
+            email: 'ad@advertified.com',
+            telephone: '+27 11 040 1195',
+            address: {
+              '@type': 'PostalAddress',
+              streetAddress: 'Office 301, 3rd Floor, 43 Andringa Street',
+              addressLocality: 'Stellenbosch',
+              postalCode: '7559',
+              addressCountry: 'ZA',
+            },
+          },
+          {
+            '@context': 'https://schema.org',
+            '@type': 'WebSite',
+            name: 'Advertified',
+            url: 'https://advertified.com',
+            description: 'Advertising packages and guided media buying in South Africa.',
+          },
+        ]}
+      />
       <HeroSection />
       <ChannelShowcaseSection />
 

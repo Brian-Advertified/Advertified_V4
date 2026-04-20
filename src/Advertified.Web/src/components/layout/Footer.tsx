@@ -26,6 +26,8 @@ export function Footer() {
               <Link to="/packages" className="transition hover:text-brand">Packages</Link>
               <Link to="/how-it-works" className="transition hover:text-brand">How It Works</Link>
               <Link id="footer-faq" to="/faq" className="transition hover:text-brand">FAQ</Link>
+              <Link to="/billboard-advertising-south-africa" className="transition hover:text-brand">Billboard Advertising</Link>
+              <Link to="/radio-advertising-south-africa" className="transition hover:text-brand">Radio Advertising</Link>
             </div>
           </div>
 
@@ -34,6 +36,8 @@ export function Footer() {
             <div className="mt-4 flex flex-col gap-2.5 text-sm text-ink-soft">
               <Link to="/about" className="transition hover:text-brand">About Us</Link>
               <Link id="footer-media-partners" to="/media-partners" className="transition hover:text-brand">Media Partners</Link>
+              <Link to="/tv-advertising-south-africa" className="transition hover:text-brand">TV Advertising</Link>
+              <Link to="/digital-advertising-south-africa" className="transition hover:text-brand">Digital Advertising</Link>
             </div>
           </div>
 

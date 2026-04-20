@@ -1,0 +1,16 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /agent
+Disallow: /dashboard
+Disallow: /login
+Disallow: /register
+Disallow: /verify-email
+Disallow: /set-password
+Disallow: /checkout
+Disallow: /proposal
+Disallow: /lead-proposal
+Disallow: /start-campaign
+Disallow: /ai-studio
+
+Sitemap: https://advertified.com/sitemap.xml
