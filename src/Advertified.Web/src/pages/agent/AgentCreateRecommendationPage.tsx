@@ -338,6 +338,9 @@ function inferInitialForm(campaign: {
     audience: 'retail',
     scope: campaign.selectedBudget >= 500000 ? 'national' : 'provincial',
     geography: campaign.selectedBudget >= 500000 ? '' : 'gauteng',
+    startDate: '',
+    endDate: '',
+    durationWeeks: '',
     targetLocationLabel: undefined,
     targetLocationCity: undefined,
     targetLocationProvince: undefined,
@@ -394,6 +397,9 @@ function inferFormFromCampaign(
     audience: inferRecommendationAudienceFromBrief(brief),
     scope: normalizeOption(brief.geographyScope, SCOPE_OPTIONS) || fallback.scope,
     geography: inferRecommendationGeographyFromBrief(brief) || fallback.geography,
+    startDate: brief.startDate ?? fallback.startDate,
+    endDate: brief.endDate ?? fallback.endDate,
+    durationWeeks: brief.durationWeeks?.toString() ?? fallback.durationWeeks,
     targetLocationLabel: brief.targetLocationLabel,
     targetLocationCity: brief.targetLocationCity,
     targetLocationProvince: brief.targetLocationProvince,
@@ -460,6 +466,9 @@ export function AgentCreateRecommendationPage() {
     audience: '',
     scope: '',
     geography: '',
+    startDate: '',
+    endDate: '',
+    durationWeeks: '',
     targetLocationLabel: undefined,
     targetLocationCity: undefined,
     targetLocationProvince: undefined,
@@ -1450,6 +1459,18 @@ export function AgentCreateRecommendationPage() {
                     </div>
                   </div>
                   <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Start date</p>
+                    <p className="mt-2 text-sm font-medium text-ink">{form.startDate || 'Not set'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">End date</p>
+                    <p className="mt-2 text-sm font-medium text-ink">{form.endDate || 'Not set'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Duration</p>
+                    <p className="mt-2 text-sm font-medium text-ink">{form.durationWeeks ? `${form.durationWeeks} week${form.durationWeeks === '1' ? '' : 's'}` : 'Not set'}</p>
+                  </div>
+                  <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Sales model</p>
                     <p className="mt-2 text-sm font-medium text-ink">{form.salesModel || 'Not set'}</p>
                   </div>
@@ -1562,6 +1583,38 @@ export function AgentCreateRecommendationPage() {
                   <FieldErrorText message={draftValidationErrors.geography} />
                 </label>
               )}
+
+              <label className="block">
+                <span className="label-base">Start date</span>
+                <input
+                  value={form.startDate}
+                  onChange={(event) => handleFormChange('startDate', event.target.value)}
+                  type="date"
+                  className="input-base"
+                />
+              </label>
+
+              <label className="block">
+                <span className="label-base">End date</span>
+                <input
+                  value={form.endDate}
+                  onChange={(event) => handleFormChange('endDate', event.target.value)}
+                  type="date"
+                  className="input-base"
+                />
+              </label>
+
+              <label className="block">
+                <span className="label-base">Duration weeks</span>
+                <input
+                  value={form.durationWeeks}
+                  onChange={(event) => handleFormChange('durationWeeks', event.target.value)}
+                  type="number"
+                  min="1"
+                  className="input-base"
+                  placeholder="4"
+                />
+              </label>
 
             </div>
 

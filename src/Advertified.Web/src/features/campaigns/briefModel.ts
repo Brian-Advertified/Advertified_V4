@@ -32,6 +32,9 @@ export type RecommendationDraftFormState = {
   audience: string;
   scope: string;
   geography: string;
+  startDate: string;
+  endDate: string;
+  durationWeeks: string;
   targetLocationLabel?: string;
   targetLocationCity?: string;
   targetLocationProvince?: string;
@@ -421,6 +424,9 @@ export function buildRecommendationDraftBrief(
 
   return {
     objective: form.objective || 'awareness',
+    startDate: form.startDate || undefined,
+    endDate: form.endDate || undefined,
+    durationWeeks: optionalNumber(form.durationWeeks),
     geographyScope: normalizedScope,
     provinces,
     cities,

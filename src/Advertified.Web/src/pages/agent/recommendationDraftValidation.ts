@@ -7,6 +7,9 @@ export type RecommendationDraftValidationInput = {
   audience?: string;
   scope?: string;
   geography?: string;
+  startDate?: string;
+  endDate?: string;
+  durationWeeks?: string;
   brief?: string;
   channels?: string[];
   salesModel?: string;
@@ -24,6 +27,9 @@ export type RecommendationDraftField =
   | 'audience'
   | 'scope'
   | 'geography'
+  | 'startDate'
+  | 'endDate'
+  | 'durationWeeks'
   | 'brief'
   | 'channels'
   | 'salesModel'
@@ -45,12 +51,41 @@ const requiredText = (fieldLabel: string) => z
 const applyGeographyValidation = <TSchema extends z.ZodObject>(schema: TSchema) => schema.superRefine((value, context) => {
   const geography = 'geography' in value ? value.geography : undefined;
   const scope = 'scope' in value ? value.scope : undefined;
+  const startDate = 'startDate' in value ? value.startDate : undefined;
+  const endDate = 'endDate' in value ? value.endDate : undefined;
+  const durationWeeks = 'durationWeeks' in value ? value.durationWeeks : undefined;
 
   if (scope !== 'national' && (typeof geography !== 'string' || geography.trim().length === 0)) {
     context.addIssue({
       code: z.ZodIssueCode.custom,
       path: ['geography'],
       message: scope === 'local' ? 'Main area is required.' : 'Main province is required.',
+    });
+  }
+
+  if (
+    typeof startDate === 'string'
+    && typeof endDate === 'string'
+    && startDate.trim().length > 0
+    && endDate.trim().length > 0
+    && new Date(endDate) < new Date(startDate)
+  ) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['endDate'],
+      message: 'End date cannot be earlier than the start date.',
+    });
+  }
+
+  if (
+    typeof durationWeeks === 'string'
+    && durationWeeks.trim().length > 0
+    && (!Number.isFinite(Number(durationWeeks)) || Number(durationWeeks) <= 0)
+  ) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['durationWeeks'],
+      message: 'Duration weeks must be greater than 0.',
     });
   }
 });
@@ -60,6 +95,9 @@ const baseObjectSchema = z.object({
   audience: requiredText('Audience'),
   scope: requiredText('Coverage'),
   geography: z.string().optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  durationWeeks: z.string().optional(),
   brief: requiredText('Client brief'),
   channels: z.array(z.string().trim().min(1)).min(1, 'Select at least one channel.'),
   salesModel: z.string().optional(),
@@ -110,6 +148,9 @@ export function validateRecommendationDraftForm(
     audience: 'audience',
     scope: 'coverage',
     geography: 'target geography',
+    startDate: 'start date',
+    endDate: 'end date',
+    durationWeeks: 'duration weeks',
     brief: 'client brief',
     channels: 'channel selection',
     salesModel: 'sales model',
