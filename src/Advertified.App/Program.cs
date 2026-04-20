@@ -161,6 +161,7 @@ builder.Services.AddScoped<ICampaignBriefService, CampaignBriefService>();
 builder.Services.AddScoped<ICampaignRecommendationService, CampaignRecommendationService>();
 builder.Services.AddScoped<IRecommendationDocumentService, RecommendationDocumentService>();
 builder.Services.AddScoped<IRecommendationApprovalWorkflowService, RecommendationApprovalWorkflowService>();
+builder.Services.AddScoped<ICampaignStatusTransitionService, CampaignStatusTransitionService>();
 builder.Services.AddScoped<ICampaignExecutionTaskService, CampaignExecutionTaskService>();
 builder.Services.AddScoped<IProspectDispositionService, ProspectDispositionService>();
 // Legacy template-based creative endpoints still depend on this registration.

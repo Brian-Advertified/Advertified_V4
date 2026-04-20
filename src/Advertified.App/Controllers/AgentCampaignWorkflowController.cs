@@ -40,6 +40,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
     private readonly ILeadProposalConfidenceGateService _leadProposalConfidenceGateService;
     private readonly IProposalAccessTokenService _proposalAccessTokenService;
     private readonly ICampaignExecutionTaskService _campaignExecutionTaskService;
+    private readonly ICampaignStatusTransitionService _campaignStatusTransitionService;
     private readonly IProspectDispositionService _prospectDispositionService;
     private readonly IRecommendationApprovalWorkflowService _recommendationApprovalWorkflowService;
     private readonly IAgentCampaignOwnershipService _ownershipService;
@@ -58,6 +59,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
         ILeadProposalConfidenceGateService leadProposalConfidenceGateService,
         IProposalAccessTokenService proposalAccessTokenService,
         ICampaignExecutionTaskService campaignExecutionTaskService,
+        ICampaignStatusTransitionService campaignStatusTransitionService,
         IProspectDispositionService prospectDispositionService,
         IRecommendationApprovalWorkflowService recommendationApprovalWorkflowService,
         IAgentCampaignOwnershipService ownershipService,
@@ -75,6 +77,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
         _leadProposalConfidenceGateService = leadProposalConfidenceGateService;
         _proposalAccessTokenService = proposalAccessTokenService;
         _campaignExecutionTaskService = campaignExecutionTaskService;
+        _campaignStatusTransitionService = campaignStatusTransitionService;
         _prospectDispositionService = prospectDispositionService;
         _recommendationApprovalWorkflowService = recommendationApprovalWorkflowService;
         _ownershipService = ownershipService;
@@ -250,15 +253,6 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
                 .Include(x => x.CampaignRecommendations),
             cancellationToken);
 
-        if (campaign.Status is CampaignStatuses.Approved
-            or CampaignStatuses.CreativeChangesRequested
-            or CampaignStatuses.CreativeSentToClientForApproval
-            or CampaignStatuses.Launched
-            || campaign.CampaignRecommendations.Any(x => string.Equals(x.Status, RecommendationStatuses.Approved, StringComparison.OrdinalIgnoreCase)))
-        {
-            return BadRequest(new { Message = "This campaign has already been approved and can no longer be regenerated from the recommendation workspace." });
-        }
-
         if (!string.Equals(campaign.Status, CampaignStatuses.CreativeApproved, StringComparison.OrdinalIgnoreCase)
             && !string.Equals(campaign.Status, CampaignStatuses.BookingInProgress, StringComparison.OrdinalIgnoreCase))
         {
@@ -270,8 +264,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
             });
         }
 
-        campaign.Status = CampaignStatuses.Launched;
-        campaign.UpdatedAt = DateTime.UtcNow;
+        _campaignStatusTransitionService.MoveCampaignToLaunched(campaign, DateTime.UtcNow);
         await _db.SaveChangesAsync(cancellationToken);
         await _campaignExecutionTaskService.MarkTaskCompletedAsync(campaign.Id, "booking_confirmation", cancellationToken);
         await _campaignExecutionTaskService.MarkTaskCompletedAsync(campaign.Id, "tracking_links", cancellationToken);
@@ -348,15 +341,7 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
             return BadRequest(new { Message = "Recommendation PDFs are not ready to send yet." });
         }
 
-        foreach (var recommendation in currentRecommendations)
-        {
-            recommendation.Status = RecommendationStatuses.SentToClient;
-            recommendation.SentToClientAt = DateTime.UtcNow;
-            recommendation.UpdatedAt = DateTime.UtcNow;
-        }
-
-        campaign.Status = CampaignStatuses.ReviewReady;
-        campaign.UpdatedAt = DateTime.UtcNow;
+        _campaignStatusTransitionService.MoveRecommendationSetToReviewReady(campaign, currentRecommendations, DateTime.UtcNow);
 
         await _db.SaveChangesAsync(cancellationToken);
         await WriteChangeAuditAsync(

@@ -24,6 +24,7 @@ public sealed class AgentCampaignBookingsController : ControllerBase
     private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly IAgentCampaignOwnershipService _ownershipService;
     private readonly ITemplatedEmailService _emailService;
+    private readonly ICampaignStatusTransitionService _campaignStatusTransitionService;
     private readonly IChangeAuditService _changeAuditService;
     private readonly ILogger<AgentCampaignBookingsController> _logger;
 
@@ -32,6 +33,7 @@ public sealed class AgentCampaignBookingsController : ControllerBase
         ICurrentUserAccessor currentUserAccessor,
         IAgentCampaignOwnershipService ownershipService,
         ITemplatedEmailService emailService,
+        ICampaignStatusTransitionService campaignStatusTransitionService,
         IChangeAuditService changeAuditService,
         ILogger<AgentCampaignBookingsController> logger)
     {
@@ -39,6 +41,7 @@ public sealed class AgentCampaignBookingsController : ControllerBase
         _currentUserAccessor = currentUserAccessor;
         _ownershipService = ownershipService;
         _emailService = emailService;
+        _campaignStatusTransitionService = campaignStatusTransitionService;
         _changeAuditService = changeAuditService;
         _logger = logger;
     }
@@ -81,8 +84,10 @@ public sealed class AgentCampaignBookingsController : ControllerBase
         };
 
         _db.CampaignSupplierBookings.Add(booking);
-        CampaignStatusTransitionPolicy.TryAdvanceToBookingInProgress(campaign);
-        campaign.UpdatedAt = now;
+        if (!_campaignStatusTransitionService.TryMoveToBookingInProgress(campaign, now))
+        {
+            campaign.UpdatedAt = now;
+        }
         await _db.SaveChangesAsync(cancellationToken);
 
         await WriteChangeAuditAsync(

@@ -31,6 +31,7 @@ public sealed class CampaignsController : ControllerBase
     private readonly ICampaignPlanningTargetResolver _planningTargetResolver;
     private readonly ICampaignBusinessLocationResolver _businessLocationResolver;
     private readonly ICampaignExecutionTaskService _campaignExecutionTaskService;
+    private readonly ICampaignStatusTransitionService _campaignStatusTransitionService;
     private readonly IPackagePurchaseService _packagePurchaseService;
     private readonly CampaignPlanningRequestValidator _campaignPlanningRequestValidator;
     private readonly ITemplatedEmailService _emailService;
@@ -48,6 +49,7 @@ public sealed class CampaignsController : ControllerBase
         ICampaignPlanningTargetResolver planningTargetResolver,
         ICampaignBusinessLocationResolver businessLocationResolver,
         ICampaignExecutionTaskService campaignExecutionTaskService,
+        ICampaignStatusTransitionService campaignStatusTransitionService,
         IPackagePurchaseService packagePurchaseService,
         CampaignPlanningRequestValidator campaignPlanningRequestValidator,
         ITemplatedEmailService emailService,
@@ -64,6 +66,7 @@ public sealed class CampaignsController : ControllerBase
         _planningTargetResolver = planningTargetResolver;
         _businessLocationResolver = businessLocationResolver;
         _campaignExecutionTaskService = campaignExecutionTaskService;
+        _campaignStatusTransitionService = campaignStatusTransitionService;
         _packagePurchaseService = packagePurchaseService;
         _campaignPlanningRequestValidator = campaignPlanningRequestValidator;
         _emailService = emailService;
@@ -409,8 +412,7 @@ public sealed class CampaignsController : ControllerBase
             });
         }
 
-        CampaignStatusTransitionPolicy.TryAdvanceToBookingInProgress(campaign);
-        campaign.UpdatedAt = DateTime.UtcNow;
+        _campaignStatusTransitionService.MoveCreativeToApproved(campaign, DateTime.UtcNow);
         await _db.SaveChangesAsync(cancellationToken);
         await _campaignExecutionTaskService.MarkTaskCompletedAsync(campaign.Id, "creative_handoff", cancellationToken);
         await _campaignExecutionTaskService.MarkTaskOpenAsync(campaign.Id, "booking_confirmation", cancellationToken);
@@ -454,8 +456,7 @@ public sealed class CampaignsController : ControllerBase
         }
 
         var now = DateTime.UtcNow;
-        campaign.Status = CampaignStatuses.CreativeChangesRequested;
-        campaign.UpdatedAt = now;
+        _campaignStatusTransitionService.MoveCreativeBackForChanges(campaign, now);
 
         if (!string.IsNullOrWhiteSpace(request.Notes))
         {

@@ -23,19 +23,22 @@ public sealed class CreativeCampaignsController : ControllerBase
     private readonly IChangeAuditService _changeAuditService;
     private readonly IPublicAssetStorage _assetStorage;
     private readonly ICreativeStudioIntelligenceService _creativeStudioIntelligenceService;
+    private readonly ICampaignStatusTransitionService _campaignStatusTransitionService;
 
     public CreativeCampaignsController(
         AppDbContext db,
         ICurrentUserAccessor currentUserAccessor,
         IChangeAuditService changeAuditService,
         IPublicAssetStorage assetStorage,
-        ICreativeStudioIntelligenceService creativeStudioIntelligenceService)
+        ICreativeStudioIntelligenceService creativeStudioIntelligenceService,
+        ICampaignStatusTransitionService campaignStatusTransitionService)
     {
         _db = db;
         _currentUserAccessor = currentUserAccessor;
         _changeAuditService = changeAuditService;
         _assetStorage = assetStorage;
         _creativeStudioIntelligenceService = creativeStudioIntelligenceService;
+        _campaignStatusTransitionService = campaignStatusTransitionService;
     }
 
     [HttpGet("inbox")]
@@ -249,19 +252,20 @@ public sealed class CreativeCampaignsController : ControllerBase
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw new InvalidOperationException("Campaign not found.");
 
-        if (!string.Equals(campaign.Status, CampaignStatuses.Approved, StringComparison.OrdinalIgnoreCase)
-            && !string.Equals(campaign.Status, CampaignStatuses.CreativeChangesRequested, StringComparison.OrdinalIgnoreCase))
+        try
+        {
+            _campaignStatusTransitionService.MoveCreativeToClientApproval(campaign, DateTime.UtcNow);
+        }
+        catch (InvalidOperationException ex)
         {
             return BadRequest(new ProblemDetails
             {
                 Title = "Campaign is not ready for creative approval handoff.",
-                Detail = "Finished media can only be sent to the client after the recommendation has been approved and while creative production or creative revision is active.",
+                Detail = ex.Message,
                 Status = StatusCodes.Status400BadRequest
             });
         }
 
-        campaign.Status = CampaignStatuses.CreativeSentToClientForApproval;
-        campaign.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
 
         await WriteChangeAuditAsync(

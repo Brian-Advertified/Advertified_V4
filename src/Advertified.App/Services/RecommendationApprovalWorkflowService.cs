@@ -16,6 +16,7 @@ public sealed class RecommendationApprovalWorkflowService : IRecommendationAppro
     private readonly AppDbContext _db;
     private readonly ITemplatedEmailService _emailService;
     private readonly ICampaignExecutionTaskService _campaignExecutionTaskService;
+    private readonly ICampaignStatusTransitionService _campaignStatusTransitionService;
     private readonly FrontendOptions _frontendOptions;
     private readonly ILogger<RecommendationApprovalWorkflowService> _logger;
 
@@ -23,12 +24,14 @@ public sealed class RecommendationApprovalWorkflowService : IRecommendationAppro
         AppDbContext db,
         ITemplatedEmailService emailService,
         ICampaignExecutionTaskService campaignExecutionTaskService,
+        ICampaignStatusTransitionService campaignStatusTransitionService,
         IOptions<FrontendOptions> frontendOptions,
         ILogger<RecommendationApprovalWorkflowService> logger)
     {
         _db = db;
         _emailService = emailService;
         _campaignExecutionTaskService = campaignExecutionTaskService;
+        _campaignStatusTransitionService = campaignStatusTransitionService;
         _frontendOptions = frontendOptions.Value;
         _logger = logger;
     }
@@ -59,11 +62,7 @@ public sealed class RecommendationApprovalWorkflowService : IRecommendationAppro
         }
 
         var now = DateTime.UtcNow;
-        recommendation.Status = RecommendationStatuses.Approved;
-        recommendation.ApprovedAt = now;
-        recommendation.UpdatedAt = now;
-        campaign.Status = CampaignStatuses.Approved;
-        campaign.UpdatedAt = now;
+        _campaignStatusTransitionService.MoveRecommendationToApproved(campaign, recommendation, now);
         var responseMessage = AddClientResponseMessage(
             campaign,
             "Client approved the recommendation and is ready to move into creative production.",
@@ -140,8 +139,7 @@ public sealed class RecommendationApprovalWorkflowService : IRecommendationAppro
         var nextRevisionNumber = RecommendationRevisionSupport.GetNextRevisionNumber(campaign.CampaignRecommendations);
         var clonedRecommendations = RecommendationRevisionSupport.CloneAsDraftRevision(currentRecommendations, nextRevisionNumber, now, notes);
         _db.CampaignRecommendations.AddRange(clonedRecommendations);
-        campaign.Status = CampaignStatuses.PlanningInProgress;
-        campaign.UpdatedAt = now;
+        _campaignStatusTransitionService.MoveRecommendationBackToPlanning(campaign, now);
         var responseSummary = BuildClientResponseSummary(notes, defaultSummary);
         AddClientResponseMessage(campaign, responseSummary, now);
 
