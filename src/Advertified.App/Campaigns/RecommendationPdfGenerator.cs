@@ -343,6 +343,9 @@ internal static class RecommendationPdfGenerator
         var details = RecommendationPdfPresentationBuilder.BuildPlacementTags(item);
         var clientSummary = RecommendationPdfPresentationBuilder.BuildClientSelectionSummary(model, item);
         var badge = BuildChannelBadge(item.Channel);
+        var deliverable = RecommendationPdfPresentationBuilder.BuildPlacementDeliverable(item);
+        var areaSummary = RecommendationPdfPresentationBuilder.BuildPlacementAreaSummary(item);
+        var timingSummary = RecommendationPdfPresentationBuilder.BuildPlacementTimingSummary(item);
 
         container.Border(1).BorderColor(ColorBorder).Background(ColorSurface).Padding(12).Row(row =>
         {
@@ -353,6 +356,12 @@ internal static class RecommendationPdfGenerator
                 col.Spacing(4);
                 col.Item().Text(RecommendationPdfCopy.ToClientCopy(item.Title)).FontSize(11).SemiBold();
                 col.Item().Text(RecommendationPdfPresentationBuilder.BuildPlacementLocation(item)).FontSize(9).FontColor(ColorMuted);
+                col.Item().Text($"What you get: {deliverable}").FontSize(8).FontColor(ColorMuted);
+                col.Item().Text($"Where it runs: {areaSummary}").FontSize(8).FontColor(ColorMuted);
+                if (!string.IsNullOrWhiteSpace(timingSummary))
+                {
+                    col.Item().Text($"When it runs: {timingSummary}").FontSize(8).FontColor(ColorMuted);
+                }
                 if (details.Count > 0)
                 {
                     col.Item().Row(tagRow =>

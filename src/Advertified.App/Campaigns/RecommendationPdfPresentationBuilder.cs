@@ -138,6 +138,58 @@ internal static class RecommendationPdfPresentationBuilder
         return parts.Count > 0 ? string.Join(" | ", parts) : RecommendationPdfCopy.ToClientCopy(item.Rationale);
     }
 
+    internal static string BuildPlacementDeliverable(RecommendationLineDocumentModel item)
+    {
+        if (!string.IsNullOrWhiteSpace(item.Title))
+        {
+            return RecommendationPdfCopy.ToClientCopy(item.Title);
+        }
+
+        if (!string.IsNullOrWhiteSpace(item.SlotType))
+        {
+            return RecommendationPdfCopy.ToClientCopy(item.SlotType);
+        }
+
+        return RecommendationPdfCopy.FormatChannelLabel(item.Channel);
+    }
+
+    internal static string BuildPlacementAreaSummary(RecommendationLineDocumentModel item)
+    {
+        if (!string.IsNullOrWhiteSpace(item.Region))
+        {
+            return RecommendationPdfCopy.ToClientCopy(item.Region);
+        }
+
+        return RecommendationPdfCopy.NormalizeRecommendationChannel(item.Channel) switch
+        {
+            "digital" => "Online delivery",
+            "radio" => "Selected station coverage area",
+            "tv" => "Selected broadcast coverage area",
+            "ooh" => "Site location is reflected in the placement name",
+            _ => "Placement area to be confirmed"
+        };
+    }
+
+    internal static string? BuildPlacementTimingSummary(RecommendationLineDocumentModel item)
+    {
+        static string? BuildDateRange(string? start, string? end)
+        {
+            return (start, end) switch
+            {
+                ({ Length: > 0 } from, { Length: > 0 } to) => $"{RecommendationPdfCopy.ToClientCopy(from)} to {RecommendationPdfCopy.ToClientCopy(to)}",
+                ({ Length: > 0 } from, _) => $"From {RecommendationPdfCopy.ToClientCopy(from)}",
+                (_, { Length: > 0 } to) => $"Until {RecommendationPdfCopy.ToClientCopy(to)}",
+                _ => null
+            };
+        }
+
+        return BuildDateRange(item.ResolvedStartDate, item.ResolvedEndDate)
+            ?? BuildDateRange(item.RequestedStartDate, item.RequestedEndDate)
+            ?? (!string.IsNullOrWhiteSpace(item.AppliedDuration) ? RecommendationPdfCopy.ToClientCopy(item.AppliedDuration) : null)
+            ?? (!string.IsNullOrWhiteSpace(item.Flighting) ? RecommendationPdfCopy.ToClientCopy(item.Flighting) : null)
+            ?? (!string.IsNullOrWhiteSpace(item.Duration) ? RecommendationPdfCopy.ToClientCopy(item.Duration) : null);
+    }
+
     internal static IReadOnlyList<string> BuildPlacementTags(RecommendationLineDocumentModel item)
     {
         var tags = new List<string>();
