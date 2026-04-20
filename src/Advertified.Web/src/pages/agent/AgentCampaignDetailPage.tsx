@@ -906,7 +906,7 @@ export function AgentCampaignDetailPage() {
             showRecommendationEditing={showRecommendationEditing}
             recommendationWorkflowLocked={recommendationWorkflowLocked}
             showAuditSummary={false}
-            showEmailDelivery={false}
+            showEmailDelivery
             recommendationTitle={recommendationTitle}
             lockedNextStep={lockedNextStep}
             activeProposalLabel={activeProposalLabel}

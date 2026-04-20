@@ -112,10 +112,23 @@ export function AgentRecommendationPanel({
               <Mail className="size-4" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-ink">Proposal email delivery</p>
-              <p className="mt-2 text-sm text-ink-soft">
-                {describeLatestDelivery(activeRecommendation.emailDeliveries[0])}
-              </p>
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-ink">Proposal email delivery</p>
+                  <p className="mt-2 text-sm text-ink-soft">
+                    {describeLatestDelivery(activeRecommendation.emailDeliveries[0])}
+                  </p>
+                </div>
+                <div className="rounded-[16px] border border-brand/10 bg-brand-soft px-4 py-3 lg:max-w-[320px]">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-brand">Agent follow-up</p>
+                  <p className="mt-2 text-sm font-semibold text-ink">
+                    {getDeliveryPriorityLabel(activeRecommendation.emailDeliveries[0])}
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-ink-soft">
+                    {getDeliveryFollowUpGuidance(activeRecommendation.emailDeliveries[0])}
+                  </p>
+                </div>
+              </div>
               <div className="mt-4 space-y-2">
                 {activeRecommendation.emailDeliveries.slice(0, 3).map((delivery) => (
                   <div key={delivery.id} className="rounded-[14px] border border-line bg-slate-50 px-4 py-3">
@@ -128,7 +141,22 @@ export function AgentRecommendationPanel({
                         {formatDeliveryStatus(delivery.status)}
                       </span>
                     </div>
-                    <p className="mt-2 text-sm text-ink-soft">{describeDeliveryMoments(delivery)}</p>
+                    <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+                      <div>
+                        <p className="text-sm text-ink-soft">{describeDeliveryMoments(delivery)}</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <DeliveryMomentChip label="Sent" value={delivery.acceptedAt} tone="brand" />
+                          <DeliveryMomentChip label="Delivered" value={delivery.deliveredAt} tone="success" />
+                          <DeliveryMomentChip label="Opened" value={delivery.openedAt} tone="info" />
+                          <DeliveryMomentChip label="Clicked" value={delivery.clickedAt} tone="success" />
+                        </div>
+                      </div>
+                      <div className="rounded-[14px] border border-line bg-white px-3 py-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-soft">Recommended action</p>
+                        <p className="mt-2 text-sm font-semibold text-ink">{getDeliveryPriorityLabel(delivery)}</p>
+                        <p className="mt-1 text-sm leading-6 text-ink-soft">{getDeliveryFollowUpGuidance(delivery)}</p>
+                      </div>
+                    </div>
                     {delivery.lastError ? <p className="mt-2 text-sm text-rose-700">{delivery.lastError}</p> : null}
                   </div>
                 ))}
@@ -403,6 +431,14 @@ function getProposalStageLabel(status?: CampaignRecommendation['status']) {
 }
 
 function describeLatestDelivery(delivery: EmailDelivery) {
+  if (delivery.clickedAt) {
+    return `Clicked by ${delivery.recipientEmail} on ${formatTimestamp(delivery.clickedAt)}. This lead is showing active intent.`;
+  }
+
+  if (delivery.openedAt) {
+    return `Opened by ${delivery.recipientEmail} on ${formatTimestamp(delivery.openedAt)}. Consider following up while the proposal is fresh.`;
+  }
+
   if (delivery.deliveredAt) {
     return `Delivered to ${delivery.recipientEmail} on ${formatTimestamp(delivery.deliveredAt)}.`;
   }
@@ -419,6 +455,14 @@ function describeLatestDelivery(delivery: EmailDelivery) {
 }
 
 function describeDeliveryMoments(delivery: EmailDelivery) {
+  if (delivery.clickedAt) {
+    return `Delivered ${formatTimestamp(delivery.deliveredAt)}. Opened ${formatTimestamp(delivery.openedAt)}. Clicked ${formatTimestamp(delivery.clickedAt)}.`;
+  }
+
+  if (delivery.openedAt) {
+    return `Accepted ${formatTimestamp(delivery.acceptedAt)}. Delivered ${formatTimestamp(delivery.deliveredAt)}. Opened ${formatTimestamp(delivery.openedAt)}.`;
+  }
+
   if (delivery.deliveredAt) {
     return `Accepted ${formatTimestamp(delivery.acceptedAt)}. Delivered ${formatTimestamp(delivery.deliveredAt)}.`;
   }
@@ -440,6 +484,70 @@ function describeDeliveryMoments(delivery: EmailDelivery) {
 
 function formatTimestamp(value?: string) {
   return value ? new Date(value).toLocaleString() : 'not recorded';
+}
+
+function getDeliveryPriorityLabel(delivery: EmailDelivery) {
+  if (delivery.clickedAt) {
+    return 'High-intent follow-up';
+  }
+
+  if (delivery.openedAt) {
+    return 'Warm lead follow-up';
+  }
+
+  if (delivery.deliveredAt) {
+    return 'Waiting for engagement';
+  }
+
+  if (delivery.failedAt || delivery.bouncedAt || delivery.status === 'failed' || delivery.status === 'bounced') {
+    return 'Delivery issue';
+  }
+
+  return 'Monitor send progress';
+}
+
+function getDeliveryFollowUpGuidance(delivery: EmailDelivery) {
+  if (delivery.clickedAt) {
+    return 'The client clicked through. Reach out now while interest is active and confirm the next commercial step.';
+  }
+
+  if (delivery.openedAt) {
+    return 'The client has opened the proposal. Follow up with a call or short email to answer questions and move the decision forward.';
+  }
+
+  if (delivery.deliveredAt) {
+    return 'The proposal reached the inbox, but there is no open or click yet. Give it a little time, then send a reminder if nothing changes.';
+  }
+
+  if (delivery.failedAt || delivery.bouncedAt || delivery.status === 'failed' || delivery.status === 'bounced') {
+    return 'The email did not land successfully. Confirm the address before resending so the prospect does not go cold.';
+  }
+
+  return 'The provider accepted the send. Keep an eye on the next delivery event before you follow up.';
+}
+
+function DeliveryMomentChip({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value?: string;
+  tone: 'brand' | 'success' | 'info';
+}) {
+  const palette = value
+    ? tone === 'success'
+      ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+      : tone === 'info'
+        ? 'bg-sky-50 text-sky-700 ring-sky-200'
+        : 'bg-brand-soft text-brand ring-brand/10'
+    : 'bg-slate-100 text-ink-soft ring-slate-200';
+
+  return (
+    <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ring-1 ${palette}`}>
+      {label}: {value ? formatTimestamp(value) : 'Not yet'}
+    </span>
+  );
 }
 
 function AuditLine({ label, value }: { label: string; value: string }) {
