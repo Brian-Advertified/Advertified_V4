@@ -119,6 +119,9 @@ internal static class LeadOutreachPdfGenerator
                             .Distinct(StringComparer.OrdinalIgnoreCase)
                             .Take(4)
                             .ToArray();
+                        var whatYouGet = BuildWhatYouGetSummary(proposal);
+                        var whereItRuns = BuildWhereItRunsSummary(proposal);
+                        var highlightedPlacements = BuildHighlightedPlacements(proposal);
 
                         column.Item().Border(1).BorderColor(index == 1 ? "#0F6E56" : "#DDE8E3").Background("#FFFFFF").Padding(12).Column(card =>
                         {
@@ -141,6 +144,21 @@ internal static class LeadOutreachPdfGenerator
                             if (channels.Length > 0)
                             {
                                 card.Item().Text($"Channels: {string.Join(" | ", channels)}").FontColor("#0F6E56");
+                            }
+
+                            if (!string.IsNullOrWhiteSpace(whatYouGet))
+                            {
+                                card.Item().Text($"What you get: {whatYouGet}").FontColor("#3D4F45");
+                            }
+
+                            if (!string.IsNullOrWhiteSpace(whereItRuns))
+                            {
+                                card.Item().Text($"Where it runs: {whereItRuns}").FontColor("#3D4F45");
+                            }
+
+                            if (highlightedPlacements.Length > 0)
+                            {
+                                card.Item().Text($"Included placements: {string.Join(" | ", highlightedPlacements)}").FontColor("#3D4F45");
                             }
 
                             if (!string.IsNullOrWhiteSpace(proposal.AcceptUrl))
@@ -171,6 +189,48 @@ internal static class LeadOutreachPdfGenerator
     private static string FormatCurrency(decimal amount)
     {
         return $"R {amount.ToString("N2", CultureInfo.GetCultureInfo("en-ZA"))}";
+    }
+
+    private static string BuildWhatYouGetSummary(RecommendationProposalDocumentModel proposal)
+    {
+        var placements = proposal.Items
+            .Where(item => !string.IsNullOrWhiteSpace(item.Channel) && !string.Equals(item.Channel, "Studio", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        if (placements.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        var totalQuantity = placements.Sum(item => Math.Max(1, item.Quantity));
+        var channels = placements
+            .Select(item => FormatChannelLabel(item.Channel))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return $"{totalQuantity} placement{(totalQuantity == 1 ? string.Empty : "s")} across {string.Join(", ", channels)}";
+    }
+
+    private static string BuildWhereItRunsSummary(RecommendationProposalDocumentModel proposal)
+    {
+        var regions = proposal.Items
+            .Select(item => item.Region)
+            .Where(region => !string.IsNullOrWhiteSpace(region))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(3)
+            .Select(region => ToClientCopy(region))
+            .ToArray();
+
+        return regions.Length == 0 ? string.Empty : string.Join(" | ", regions);
+    }
+
+    private static string[] BuildHighlightedPlacements(RecommendationProposalDocumentModel proposal)
+    {
+        return proposal.Items
+            .Where(item => !string.IsNullOrWhiteSpace(item.Title) && !string.Equals(item.Channel, "Studio", StringComparison.OrdinalIgnoreCase))
+            .Select(item => ToClientCopy(item.Title))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(3)
+            .ToArray();
     }
 
     private static string ResolveBusinessReference(RecommendationDocumentModel model)
