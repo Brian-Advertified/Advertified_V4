@@ -7,7 +7,7 @@ export type SeoMeta = {
 };
 
 export const SITE_NAME = 'Advertified';
-export const SITE_URL = 'https://advertified.com';
+export const SITE_URL = 'https://www.advertified.com';
 export const DEFAULT_TITLE = 'Advertified | Advertising Packages and Media Buying in South Africa';
 export const DEFAULT_DESCRIPTION = 'Advertified helps businesses in South Africa start advertising with clear packages, guided campaign planning, and multi-channel media buying support.';
 
@@ -21,79 +21,79 @@ const routeSeo: Record<string, SeoMeta> = {
   '/packages': {
     title: 'Advertising Packages in South Africa | Advertified',
     description: 'Browse Advertified package bands, choose the budget that fits your campaign, and move into guided advertising planning with clearer pricing.',
-    path: '/packages',
+    path: '/packages/',
     type: 'website',
   },
   '/how-it-works': {
     title: 'How Advertified Works | Guided Advertising Planning',
     description: 'See how Advertified takes businesses from package purchase to campaign recommendation, approval, creative production, and launch.',
-    path: '/how-it-works',
+    path: '/how-it-works/',
     type: 'website',
   },
   '/about': {
     title: 'About Advertified | Advertising Platform for South African Businesses',
     description: 'Learn how Advertified helps businesses buy advertising with more clarity through package-led planning, campaign workflows, and multi-channel execution.',
-    path: '/about',
+    path: '/about/',
     type: 'website',
   },
   '/faq': {
     title: 'Advertified FAQ | Packages, Payments, Campaigns, and Launch',
     description: 'Read common questions about Advertified packages, payment, campaign approvals, creative production, launch workflows, and support.',
-    path: '/faq',
+    path: '/faq/',
     type: 'website',
   },
   '/billboard-advertising-south-africa': {
     title: 'Billboard Advertising in South Africa | Advertified',
     description: 'Explore billboard advertising in South Africa with Advertified, including budget-led planning, package-led campaign setup, and support across OOH and digital screens.',
-    path: '/billboard-advertising-south-africa',
+    path: '/billboard-advertising-south-africa/',
     type: 'website',
   },
   '/radio-advertising-south-africa': {
     title: 'Radio Advertising in South Africa | Advertified',
     description: 'Learn how Advertified helps businesses approach radio advertising in South Africa through budget-led campaign planning, guided recommendations, and structured activation.',
-    path: '/radio-advertising-south-africa',
+    path: '/radio-advertising-south-africa/',
     type: 'website',
   },
   '/tv-advertising-south-africa': {
     title: 'TV Advertising in South Africa | Advertified',
     description: 'Discover a clearer route into TV advertising in South Africa with Advertified, including package-led campaign planning and structured support across the approval and launch journey.',
-    path: '/tv-advertising-south-africa',
+    path: '/tv-advertising-south-africa/',
     type: 'website',
   },
   '/digital-advertising-south-africa': {
     title: 'Digital Advertising in South Africa | Advertified',
     description: 'See how Advertified supports digital advertising in South Africa with package-led planning, guided campaign setup, and multi-channel support across social, SMS, and digital touchpoints.',
-    path: '/digital-advertising-south-africa',
+    path: '/digital-advertising-south-africa/',
     type: 'website',
   },
   '/media-partners': {
     title: 'Media Partners | Advertified',
     description: 'Partner with Advertified to connect premium billboard, radio, TV, press, and venue inventory to structured advertiser demand.',
-    path: '/media-partners',
+    path: '/media-partners/',
     type: 'website',
   },
   '/partner-enquiry': {
     title: 'Become a Media Partner | Advertified',
     description: 'Submit a partner enquiry to Advertified and tell us about your media inventory, venue network, or channel footprint.',
-    path: '/partner-enquiry',
+    path: '/partner-enquiry/',
     type: 'website',
   },
   '/privacy': {
     title: 'Privacy Policy | Advertified',
     description: 'Read how Advertified collects, uses, stores, and protects personal and business information.',
-    path: '/privacy',
+    path: '/privacy/',
     type: 'website',
   },
   '/cookie-policy': {
     title: 'Cookie Policy | Advertified',
     description: 'Learn how Advertified uses cookies and manages necessary, analytics, and marketing consent preferences.',
-    path: '/cookie-policy',
+    path: '/cookie-policy/',
     type: 'website',
   },
   '/terms-of-service': {
     title: 'Terms and Conditions | Advertified',
     description: 'Review Advertified commercial terms covering proposals, bookings, payments, campaign execution, and related obligations.',
-    path: '/terms-of-service',
+    path: '/terms-of-service/',
     type: 'website',
   },
   '/login': {

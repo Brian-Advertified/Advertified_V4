@@ -7,7 +7,7 @@ const appRoot = path.resolve(__dirname, '..');
 const prerenderRoot = path.join(appRoot, '.prerender');
 
 const siteName = 'Advertified';
-const siteUrl = 'https://advertified.com';
+const siteUrl = 'https://www.advertified.com';
 const defaultDescription = 'Advertified helps businesses in South Africa start advertising with clear packages, guided campaign planning, and multi-channel media buying support.';
 
 const routes = [
@@ -218,7 +218,7 @@ function escapeHtml(value) {
 }
 
 function buildUrl(slug) {
-  return `${siteUrl}/${slug}`;
+  return `${siteUrl}/${slug}/`;
 }
 
 function renderPage(route) {

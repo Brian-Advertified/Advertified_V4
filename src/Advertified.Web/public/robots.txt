@@ -13,4 +13,4 @@ Disallow: /lead-proposal
 Disallow: /start-campaign
 Disallow: /ai-studio
 
-Sitemap: https://advertified.com/sitemap.xml
+Sitemap: https://www.advertified.com/sitemap.xml

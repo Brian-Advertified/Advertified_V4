@@ -36,7 +36,7 @@ export function HomePage() {
             '@context': 'https://schema.org',
             '@type': 'Organization',
             name: 'Advertified',
-            url: 'https://advertified.com',
+            url: 'https://www.advertified.com',
             email: 'ad@advertified.com',
             telephone: '+27 11 040 1195',
             address: {
@@ -51,7 +51,7 @@ export function HomePage() {
             '@context': 'https://schema.org',
             '@type': 'WebSite',
             name: 'Advertified',
-            url: 'https://advertified.com',
+            url: 'https://www.advertified.com',
             description: 'Advertising packages and guided media buying in South Africa.',
           },
         ]}
