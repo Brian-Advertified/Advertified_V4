@@ -60,6 +60,13 @@ export default defineConfig({
         'privacy/index': path.resolve(__dirname, 'privacy/index.html'),
         'cookie-policy/index': path.resolve(__dirname, 'cookie-policy/index.html'),
         'terms-of-service/index': path.resolve(__dirname, 'terms-of-service/index.html'),
+        'register/index': path.resolve(__dirname, 'register/index.html'),
+        'login/index': path.resolve(__dirname, 'login/index.html'),
+        'verify-email/index': path.resolve(__dirname, 'verify-email/index.html'),
+        'set-password/index': path.resolve(__dirname, 'set-password/index.html'),
+        'start-campaign/index': path.resolve(__dirname, 'start-campaign/index.html'),
+        'checkout/payment/index': path.resolve(__dirname, 'checkout/payment/index.html'),
+        'checkout/confirmation/index': path.resolve(__dirname, 'checkout/confirmation/index.html'),
       },
       output: {
         manualChunks,

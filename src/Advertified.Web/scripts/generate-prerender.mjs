@@ -206,6 +206,118 @@ const routes = [
       { href: '/cookie-policy', label: 'Cookie Policy' },
     ],
   },
+  {
+    slug: 'register',
+    title: 'Create Your Advertified Account',
+    description: 'Create your Advertified account to start your campaign journey.',
+    heading: 'Create your Advertified account',
+    lead: 'Register once, then continue into packages, payment, and campaign planning.',
+    body: [
+      'This page supports account creation for businesses starting or continuing their Advertified journey.',
+      'It should not appear in search results because it is part of the account access flow rather than public marketing content.',
+    ],
+    links: [
+      { href: '/', label: 'Back to home' },
+      { href: '/packages', label: 'Browse packages' },
+    ],
+    noindex: true,
+  },
+  {
+    slug: 'login',
+    title: 'Log In | Advertified',
+    description: 'Log in to your Advertified workspace.',
+    heading: 'Log in to Advertified',
+    lead: 'Access your Advertified workspace to manage campaigns, approvals, and account activity.',
+    body: [
+      'This page is intended for existing users returning to their Advertified workspace.',
+      'It should not appear in search results because it is part of the account access flow rather than public discovery content.',
+    ],
+    links: [
+      { href: '/', label: 'Back to home' },
+      { href: '/register', label: 'Create account' },
+    ],
+    noindex: true,
+  },
+  {
+    slug: 'verify-email',
+    title: 'Verify Email | Advertified',
+    description: 'Verify your email address for Advertified.',
+    heading: 'Verify your email address',
+    lead: 'Email verification is required before continuing through account setup.',
+    body: [
+      'This page is part of the Advertified account security and activation flow.',
+      'It should not appear in search results because it is not a public destination page.',
+    ],
+    links: [
+      { href: '/login', label: 'Log in' },
+      { href: '/register', label: 'Create account' },
+    ],
+    noindex: true,
+  },
+  {
+    slug: 'set-password',
+    title: 'Set Password | Advertified',
+    description: 'Set your Advertified password.',
+    heading: 'Set your password',
+    lead: 'Finish account setup and secure your Advertified workspace.',
+    body: [
+      'This page is part of the Advertified authentication flow and exists for password setup only.',
+      'It should not appear in search results because it is not a public marketing page.',
+    ],
+    links: [
+      { href: '/login', label: 'Log in' },
+      { href: '/', label: 'Back to home' },
+    ],
+    noindex: true,
+  },
+  {
+    slug: 'start-campaign',
+    title: 'Start Your Campaign Brief | Advertified',
+    description: 'Start your Advertified campaign questionnaire.',
+    heading: 'Start your campaign brief',
+    lead: 'Begin the guided questionnaire that shapes the right campaign path.',
+    body: [
+      'This page is part of the in-product campaign flow and is meant for direct user entry, not organic search.',
+      'It should not appear in search results because it is a workflow page rather than a public content destination.',
+    ],
+    links: [
+      { href: '/', label: 'Back to home' },
+      { href: '/how-it-works/', label: 'How it works' },
+    ],
+    noindex: true,
+  },
+  {
+    slug: 'checkout/payment',
+    title: 'Checkout | Advertified',
+    description: 'Complete your Advertified payment.',
+    heading: 'Complete your payment',
+    lead: 'This page is part of the private checkout flow for active users.',
+    body: [
+      'The checkout payment page is used during account and campaign transactions inside Advertified.',
+      'It should not appear in search results because it is a transactional workflow page, not public marketing content.',
+    ],
+    links: [
+      { href: '/packages/', label: 'Browse packages' },
+      { href: '/', label: 'Back to home' },
+    ],
+    noindex: true,
+  },
+  {
+    slug: 'checkout/confirmation',
+    title: 'Checkout Confirmation | Advertified',
+    description: 'Your Advertified order confirmation.',
+    heading: 'Order confirmation',
+    lead: 'This page is part of the private post-checkout workflow.',
+    body: [
+      'Order confirmation is shown after specific checkout events inside Advertified.',
+      'It should not appear in search results because it is tied to user-specific transactions and workflow state.',
+    ],
+    links: [
+      { href: '/packages/', label: 'Browse packages' },
+      { href: '/', label: 'Back to home' },
+    ],
+    noindex: true,
+  },
 ];
 
 function escapeHtml(value) {
@@ -223,6 +335,7 @@ function buildUrl(slug) {
 
 function renderPage(route) {
   const canonical = buildUrl(route.slug);
+  const robots = route.noindex ? 'noindex, nofollow' : 'index, follow';
   const links = route.links
     .map((link) => `<li><a href="${link.href}">${escapeHtml(link.label)}</a></li>`)
     .join('');
@@ -237,7 +350,7 @@ function renderPage(route) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>${escapeHtml(route.title)}</title>
     <meta name="description" content="${escapeHtml(route.description || defaultDescription)}" />
-    <meta name="robots" content="index, follow" />
+    <meta name="robots" content="${robots}" />
     <link rel="canonical" href="${canonical}" />
     <meta property="og:title" content="${escapeHtml(route.title)}" />
     <meta property="og:description" content="${escapeHtml(route.description || defaultDescription)}" />
