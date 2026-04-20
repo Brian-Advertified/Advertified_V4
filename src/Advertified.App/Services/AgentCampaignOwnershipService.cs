@@ -19,7 +19,7 @@ public sealed class AgentCampaignOwnershipService : IAgentCampaignOwnershipServi
     public IQueryable<Campaign> ApplyReadableScope(IQueryable<Campaign> query, UserAccount currentUser)
     {
         return currentUser.Role == UserRole.Agent
-            ? query.Where(x => x.AssignedAgentUserId == currentUser.Id)
+            ? query.Where(x => x.AssignedAgentUserId == currentUser.Id || x.AssignedAgentUserId == null)
             : query;
     }
 
