@@ -467,6 +467,8 @@ public sealed class AdminDashboardService : IAdminDashboardService
     private async Task<AdminMonitoringResponse> GetMonitoringAsync(int activeAreaCount, CancellationToken cancellationToken)
     {
         const int retryAlertThreshold = 3;
+        const int unpaidBacklogDays = 7;
+        const int staleProspectDays = 7;
 
         var totalCampaigns = await _db.Campaigns.CountAsync(cancellationToken);
         var planningReadyCount = await _db.Campaigns.CountAsync(
@@ -549,6 +551,7 @@ public sealed class AdminDashboardService : IAdminDashboardService
             .OrderByDescending(x => x.UpdatedAt)
             .Take(20)
             .ToArray();
+        var lifecycleQueues = await BuildLifecycleQueuesAsync(unpaidBacklogDays, staleProspectDays, cancellationToken);
 
         return new AdminMonitoringResponse
         {
@@ -569,8 +572,135 @@ public sealed class AdminDashboardService : IAdminDashboardService
             PublishSuccessCount = publishSuccessCount,
             PublishFailureCount = publishFailureCount,
             MetricsSyncLagMinutes = metricsSyncLagMinutes,
-            AiJobAlerts = aiJobAlerts
+            UnpaidOrderBacklogCount = lifecycleQueues.FirstOrDefault(x => x.QueueKey == "unpaid_orders")?.Count ?? 0,
+            UnsentProposalBacklogCount = lifecycleQueues.FirstOrDefault(x => x.QueueKey == "unsent_proposals")?.Count ?? 0,
+            UnopenedProposalBacklogCount = lifecycleQueues.FirstOrDefault(x => x.QueueKey == "unopened_proposals")?.Count ?? 0,
+            PaidActivationBacklogCount = lifecycleQueues.FirstOrDefault(x => x.QueueKey == "paid_activation_backlog")?.Count ?? 0,
+            StaleProspectBacklogCount = lifecycleQueues.FirstOrDefault(x => x.QueueKey == "stale_prospects")?.Count ?? 0,
+            AiJobAlerts = aiJobAlerts,
+            LifecycleQueues = lifecycleQueues
         };
+    }
+
+    private async Task<IReadOnlyList<AdminLifecycleQueueItemResponse>> BuildLifecycleQueuesAsync(
+        int unpaidBacklogDays,
+        int staleProspectDays,
+        CancellationToken cancellationToken)
+    {
+        var now = DateTime.UtcNow;
+        var campaigns = await _db.Campaigns
+            .AsNoTracking()
+            .Include(x => x.User!)
+                .ThenInclude(x => x.BusinessProfile)
+            .Include(x => x.ProspectLead)
+            .Include(x => x.PackageBand)
+            .Include(x => x.PackageOrder)
+            .Include(x => x.CampaignRecommendations)
+                .ThenInclude(x => x.RecommendationItems)
+            .Include(x => x.EmailDeliveryMessages)
+            .ToArrayAsync(cancellationToken);
+
+        var queueItems = campaigns
+            .Select(campaign => BuildLifecycleQueueCandidate(campaign, now))
+            .ToArray();
+
+        return new[]
+        {
+            BuildLifecycleQueue(
+                "unpaid_orders",
+                "Unpaid Orders Older Than 7 Days",
+                "Orders still awaiting payment after 7 days.",
+                queueItems.Where(item => item.UnpaidOrderAgeDays >= unpaidBacklogDays)),
+            BuildLifecycleQueue(
+                "unsent_proposals",
+                "Generated Proposals Never Sent",
+                "Campaigns with proposals ready to send but no outbound send recorded.",
+                queueItems.Where(item => item.Lifecycle.CurrentState == "ready_to_send")),
+            BuildLifecycleQueue(
+                "unopened_proposals",
+                "Sent Proposals Never Opened",
+                "Proposal emails were sent or delivered, but no open or click has been recorded yet.",
+                queueItems.Where(item => item.Lifecycle.CurrentState is "sent" or "delivered")),
+            BuildLifecycleQueue(
+                "paid_activation_backlog",
+                "Paid Campaigns Not Progressed To Activation",
+                "Campaigns have payment cleared but are still waiting to move into activation readiness.",
+                queueItems.Where(item => item.Lifecycle.CurrentState == "paid")),
+            BuildLifecycleQueue(
+                "stale_prospects",
+                "Prospects With No Recent Activity",
+                "Prospect opportunities with no meaningful activity in the last 7 days.",
+                queueItems.Where(item => item.Lifecycle.CommercialState == "prospect" && item.LastActivityAgeDays >= staleProspectDays))
+        };
+    }
+
+    private static AdminLifecycleQueueItemResponse BuildLifecycleQueue(
+        string queueKey,
+        string label,
+        string description,
+        IEnumerable<LifecycleQueueCandidate> matches)
+    {
+        var materializedMatches = matches.ToArray();
+        var items = materializedMatches
+            .OrderByDescending(item => item.AgeDays)
+            .ThenBy(item => item.CampaignName, StringComparer.OrdinalIgnoreCase)
+            .Take(8)
+            .Select(item => new AdminLifecycleQueueCampaignResponse
+            {
+                CampaignId = item.CampaignId,
+                CampaignName = item.CampaignName,
+                ClientName = item.ClientName,
+                CurrentState = item.Lifecycle.CurrentState,
+                CommercialState = item.Lifecycle.CommercialState,
+                PaymentState = item.Lifecycle.PaymentState,
+                CommunicationState = item.Lifecycle.CommunicationState,
+                AgeDays = item.AgeDays,
+                LastActivityAt = item.LastActivityAt
+            })
+            .ToArray();
+
+        return new AdminLifecycleQueueItemResponse
+        {
+            QueueKey = queueKey,
+            Label = label,
+            Description = description,
+            Count = materializedMatches.Length,
+            Items = items
+        };
+    }
+
+    private static LifecycleQueueCandidate BuildLifecycleQueueCandidate(Data.Entities.Campaign campaign, DateTime now)
+    {
+        var lifecycle = CampaignLifecycleSupport.Build(campaign);
+        var lastActivityAt = CampaignLifecycleSupport.ResolveLastActivityAt(campaign);
+        var unpaidOrderAgeDays = lifecycle.PaymentState == "payment_pending" && !PackageOrderIntentPolicy.IsProspect(campaign.PackageOrder)
+            ? (int)Math.Max(0, Math.Floor((now - campaign.PackageOrder.CreatedAt).TotalDays))
+            : 0;
+        var ageAnchor = lifecycle.CurrentState switch
+        {
+            "ready_to_send" => campaign.CampaignRecommendations.OrderByDescending(x => x.UpdatedAt).Select(x => x.UpdatedAt).FirstOrDefault(),
+            "sent" or "delivered" => campaign.EmailDeliveryMessages
+                .Where(x => string.Equals(x.DeliveryPurpose, "recommendation_ready", StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(x => x.CreatedAt)
+                .Select(x => x.CreatedAt)
+                .FirstOrDefault(),
+            "paid" => campaign.PackageOrder.UpdatedAt,
+            _ => lastActivityAt
+        };
+        if (ageAnchor == default)
+        {
+            ageAnchor = lastActivityAt;
+        }
+
+        return new LifecycleQueueCandidate(
+            campaign.Id,
+            ResolveCampaignLabel(campaign),
+            campaign.ResolveClientName(),
+            lifecycle,
+            lastActivityAt,
+            Math.Max(0, (int)Math.Floor((now - lastActivityAt).TotalDays)),
+            Math.Max(0, (int)Math.Floor((now - ageAnchor).TotalDays)),
+            unpaidOrderAgeDays);
     }
 
     private async Task<int> GetFallbackRatePercentAsync(CancellationToken cancellationToken)
@@ -934,6 +1064,16 @@ public sealed class AdminDashboardService : IAdminDashboardService
         return record.CoverageType;
     }
 
+    private static string ResolveCampaignLabel(Data.Entities.Campaign campaign)
+    {
+        if (!string.IsNullOrWhiteSpace(campaign.CampaignName))
+        {
+            return campaign.CampaignName.Trim();
+        }
+
+        return $"{campaign.PackageBand.Name} campaign";
+    }
+
     private static List<decimal> ExtractNumericValues(JsonElement element, params string[] keys)
     {
         var values = new List<decimal>();
@@ -1022,4 +1162,14 @@ public sealed class AdminDashboardService : IAdminDashboardService
         var items = JsonSerializer.Deserialize<List<string>>(json);
         return items ?? (IReadOnlyList<string>)Array.Empty<string>();
     }
+
+    private sealed record LifecycleQueueCandidate(
+        Guid CampaignId,
+        string CampaignName,
+        string ClientName,
+        Contracts.Campaigns.CampaignLifecycleResponse Lifecycle,
+        DateTime LastActivityAt,
+        int LastActivityAgeDays,
+        int AgeDays,
+        int UnpaidOrderAgeDays);
 }

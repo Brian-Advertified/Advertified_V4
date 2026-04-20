@@ -6,7 +6,7 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { useToast } from '../../components/ui/toast';
 import { useAuth } from '../../features/auth/auth-context';
-import { canAccessAiStudioForStatus } from '../../features/campaigns/aiStudioAccess';
+import { canAccessAiStudio } from '../../features/campaigns/aiStudioAccess';
 import { CampaignPerformancePanel } from '../../features/campaigns/components/CampaignPerformancePanel';
 import {
   resolveCampaignPerformanceViewState,
@@ -70,7 +70,11 @@ export function CampaignDetailPage() {
   const requestedAction = searchParams.get('action')?.trim() ?? '';
   const showRejectAllFlow = requestedAction === 'reject_all';
   const primaryRecommendation = campaignQuery.data ? getPrimaryRecommendation(campaignQuery.data) : undefined;
-  const recommendationApprovalComplete = hasRecommendationApprovalCompleted(campaignQuery.data?.status, primaryRecommendation, campaignQuery.data?.workflow);
+  const recommendationApprovalComplete = hasRecommendationApprovalCompleted(
+    campaignQuery.data?.status,
+    primaryRecommendation,
+    campaignQuery.data?.lifecycle,
+  );
   const approvedRecommendationId = primaryRecommendation?.status === 'approved' ? primaryRecommendation.id : '';
   const resolvedRecommendationId = resolveRecommendationId(recommendations, {
     currentSelectionId: selectedRecommendationId,
@@ -334,7 +338,7 @@ export function CampaignDetailPage() {
                 <Link to={`${campaignBasePath}/approvals`} className="user-btn-primary w-full sm:w-auto text-center sm:inline-flex justify-center">{hero.primaryAction}</Link>
                 <Link to={`${campaignBasePath}/messages`} className="user-btn-secondary w-full sm:w-auto text-center sm:inline-flex justify-center">Ask a question</Link>
                 <Link to={`/campaigns/${campaign.id}/studio-preview`} className="user-btn-secondary w-full sm:w-auto text-center sm:inline-flex justify-center">Preview studio</Link>
-                {canAccessAiStudioForStatus(campaign.status) ? (
+                {canAccessAiStudio(campaign) ? (
                   <Link to={`/ai-studio?campaignId=${campaign.id}`} className="user-btn-secondary w-full sm:w-auto text-center sm:inline-flex justify-center">Open campaign content</Link>
                 ) : null}
               </div>

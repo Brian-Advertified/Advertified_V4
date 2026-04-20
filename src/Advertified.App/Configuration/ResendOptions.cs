@@ -12,5 +12,13 @@ public sealed class ResendOptions
 
     public string LocalArchiveDirectory { get; set; } = "App_Data/email_outbox";
 
+    public int WorkerBatchSize { get; set; } = 10;
+
+    public int WorkerPollSeconds { get; set; } = 10;
+
+    public int MaxDeliveryAttempts { get; set; } = 5;
+
+    public int BaseRetryDelaySeconds { get; set; } = 30;
+
     public Dictionary<string, string> SenderAddresses { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }

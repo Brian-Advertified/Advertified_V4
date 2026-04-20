@@ -12,6 +12,7 @@ public sealed class CampaignDetailResponse
     public Guid PackageBandId { get; set; }
     public string PackageBandName { get; set; } = string.Empty;
     public decimal SelectedBudget { get; set; }
+    public string OrderIntent { get; set; } = string.Empty;
     public string PaymentProvider { get; set; } = string.Empty;
     public string PaymentStatus { get; set; } = string.Empty;
     public string? CampaignName { get; set; }
@@ -25,7 +26,8 @@ public sealed class CampaignDetailResponse
     public bool IsAssignedToCurrentUser { get; set; }
     public bool IsUnassigned { get; set; }
     public string NextAction { get; set; } = string.Empty;
-    public CampaignWorkflowSummaryResponse Workflow { get; set; } = new();
+    public CampaignLifecycleResponse Lifecycle { get; set; } = new();
+    public CampaignSendValidationResponse SendValidation { get; set; } = new();
     public ProspectDispositionResponse ProspectDisposition { get; set; } = new();
     public CampaignPlanningTargetResponse? BusinessLocation { get; set; }
     public CampaignPlanningTargetResponse? EffectivePlanningTarget { get; set; }

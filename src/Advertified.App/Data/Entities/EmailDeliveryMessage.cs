@@ -11,6 +11,8 @@ public sealed class EmailDeliveryMessage
     public string FromAddress { get; set; } = string.Empty;
     public string RecipientEmail { get; set; } = string.Empty;
     public string Subject { get; set; } = string.Empty;
+    public string BodyHtml { get; set; } = string.Empty;
+    public string? AttachmentsJson { get; set; }
     public Guid? CampaignId { get; set; }
     public Guid? RecommendationId { get; set; }
     public int? RecommendationRevisionNumber { get; set; }
@@ -31,6 +33,11 @@ public sealed class EmailDeliveryMessage
     public string? ArchivedPath { get; set; }
     public string? LastError { get; set; }
     public string? MetadataJson { get; set; }
+    public int AttemptCount { get; set; }
+    public DateTime? LastAttemptAt { get; set; }
+    public DateTime? NextAttemptAt { get; set; }
+    public DateTime? LockedAt { get; set; }
+    public Guid? LockToken { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 

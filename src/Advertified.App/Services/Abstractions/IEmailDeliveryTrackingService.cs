@@ -9,6 +9,8 @@ public interface IEmailDeliveryTrackingService
         string fromAddress,
         string recipientEmail,
         string subject,
+        string bodyHtml,
+        IReadOnlyCollection<EmailAttachment>? attachments,
         EmailTrackingContext? trackingContext,
         CancellationToken cancellationToken);
 
@@ -26,6 +28,7 @@ public interface IEmailDeliveryTrackingService
     Task MarkFailedAsync(
         Guid dispatchId,
         string errorMessage,
+        DateTime? nextAttemptAt,
         CancellationToken cancellationToken);
 
     Task<EmailWebhookProcessResult> ProcessResendWebhookAsync(

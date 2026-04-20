@@ -334,11 +334,14 @@ builder.Services.AddHttpClient<IVodaPayCheckoutService, VodaPayCheckoutService>(
     }
 }).AddHttpMessageHandler<TransientHttpRetryHandler>();
 builder.Services.AddScoped<IRegistrationService, RegistrationService>();
-builder.Services.AddHttpClient<ITemplatedEmailService, ResendEmailService>((serviceProvider, client) =>
+builder.Services.AddScoped<ITemplatedEmailService, ResendEmailService>();
+builder.Services.AddHttpClient<ResendEmailTransport>((serviceProvider, client) =>
 {
     var resendOptions = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ResendOptions>>().Value;
     client.BaseAddress = new Uri(resendOptions.BaseUrl.TrimEnd('/') + "/");
 });
+builder.Services.AddScoped<ResendEmailOutboxDispatcher>();
+builder.Services.AddHostedService<ResendEmailOutboxWorker>();
 builder.Services.AddScoped<CampaignPlanningRequestValidator>();
 builder.Services.AddScoped<RegisterRequestValidator>();
 builder.Services.AddScoped<SaveCampaignBriefRequestValidator>();

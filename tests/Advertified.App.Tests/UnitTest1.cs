@@ -2318,10 +2318,10 @@ public class ControllerMappingsTests
                 Id = Guid.NewGuid(),
                 ProspectLeadId = prospectLeadId,
                 PackageBandId = Guid.NewGuid(),
+                OrderIntent = OrderIntentValues.Prospect,
                 Amount = 185000m,
                 SelectedBudget = 185000m,
                 Currency = "ZAR",
-                PaymentProvider = "prospect",
                 PaymentStatus = "pending",
                 RefundStatus = "none",
                 CreatedAt = now,
@@ -2347,8 +2347,8 @@ public class ControllerMappingsTests
 
         var response = campaign.ToDetail();
 
-        response.Workflow.CurrentStateKey.Should().Be("recommendation_ready");
-        response.Workflow.PaymentRequiredBeforeApproval.Should().BeFalse();
+        response.Lifecycle.CurrentState.Should().Be("sent");
+        response.Lifecycle.PaymentState.Should().Be("not_started");
         response.NextAction.Should().Be("Review your proposal and choose how to proceed");
     }
 

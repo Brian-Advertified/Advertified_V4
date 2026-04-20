@@ -316,6 +316,12 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
             throw new InvalidOperationException("Reopen this prospect before sending a recommendation to the client.");
         }
 
+        var sendValidation = CampaignSendValidationSupport.Build(campaign, currentRecommendations);
+        if (!sendValidation.CanSendRecommendation)
+        {
+            return BadRequest(new { Message = sendValidation.Reasons.FirstOrDefault() ?? "This recommendation set is not ready to send.", Reasons = sendValidation.Reasons });
+        }
+
         var useLeadTemplate = ShouldUseLeadOutreachMessage(campaign);
         if (useLeadTemplate)
         {
@@ -329,27 +335,17 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
             }
         }
 
-        if (campaign.Status is CampaignStatuses.Approved
-            or CampaignStatuses.CreativeChangesRequested
-            or CampaignStatuses.CreativeSentToClientForApproval
-            or CampaignStatuses.CreativeApproved
-            or CampaignStatuses.BookingInProgress
-            or CampaignStatuses.Launched
-            || currentRecommendations.Any(x => string.Equals(x.Status, RecommendationStatuses.Approved, StringComparison.OrdinalIgnoreCase)))
-        {
-            return BadRequest(new { Message = "This campaign is already approved and can no longer be sent back to the client from the recommendation stage." });
-        }
-
         try
         {
             foreach (var recommendation in currentRecommendations)
             {
-                RecommendationOohPolicy.EnsureRecommendationContainsOoh(recommendation.RecommendationItems);
+                await _recommendationDocumentService.GetRecommendationPdfBytesAsync(campaign.Id, recommendation.Id, cancellationToken);
             }
         }
-        catch (ArgumentException ex)
+        catch (Exception ex)
         {
-            return BadRequest(new { Message = ex.Message });
+            _logger.LogError(ex, "Recommendation PDF preflight failed for campaign {CampaignId}.", campaign.Id);
+            return BadRequest(new { Message = "Recommendation PDFs are not ready to send yet." });
         }
 
         foreach (var recommendation in currentRecommendations)
@@ -706,9 +702,13 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
             .Include(x => x.ProspectLead)
             .Include(x => x.PackageBand)
             .Include(x => x.PackageOrder)
+            .Include(x => x.EmailDeliveryMessages)
             .FirstOrDefaultAsync(x => x.Id == campaignId, cancellationToken);
 
-        if (campaign is null || campaign.AssignmentEmailSentAt.HasValue || campaign.AssignedAgentUserId is null || ProspectCampaignPolicy.IsProspectiveCampaign(campaign))
+        if (campaign is null
+            || campaign.AssignedAgentUserId is null
+            || ProspectCampaignPolicy.IsProspectiveCampaign(campaign)
+            || EmailDeliveryPurposePolicy.HasTrackedDelivery(campaign.EmailDeliveryMessages, "campaign_assigned"))
         {
             return;
         }
@@ -728,7 +728,13 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
                     ["CampaignUrl"] = BuildClientCampaignUrl(campaign)
                 },
                 null,
-                null,
+                new EmailTrackingContext
+                {
+                    Purpose = "campaign_assigned",
+                    CampaignId = campaign.Id,
+                    RecipientUserId = campaign.UserId,
+                    ProspectLeadId = campaign.ProspectLeadId
+                },
                 cancellationToken);
         }
         catch (Exception ex)
@@ -736,9 +742,6 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
             _logger.LogError(ex, "Failed to send assignment email for campaign {CampaignId}.", campaign.Id);
             return;
         }
-
-        campaign.AssignmentEmailSentAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync(cancellationToken);
     }
 
     private async Task SendCampaignLaunchedEmailAsync(Campaign campaign, CancellationToken cancellationToken)
@@ -780,16 +783,15 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
             .Include(x => x.AssignedAgentUser)
             .Include(x => x.PackageBand)
             .Include(x => x.PackageOrder)
+            .Include(x => x.EmailDeliveryMessages)
             .FirstOrDefaultAsync(x => x.Id == campaignId, cancellationToken);
 
-        if (campaign is null || campaign.RecommendationReadyEmailSentAt.HasValue)
+        if (campaign is null || EmailDeliveryPurposePolicy.HasTrackedDelivery(campaign.EmailDeliveryMessages, "recommendation_ready"))
         {
             return;
         }
 
         await SendRecommendationReadyEmailAsync(campaign, recommendations, agentMessage, senderUser, campaign.ResolveClientEmail(), cancellationToken);
-        campaign.RecommendationReadyEmailSentAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync(cancellationToken);
     }
 
     private async Task SendRecommendationReadyEmailAsync(

@@ -206,9 +206,9 @@ public sealed class CampaignsController : ControllerBase
             });
         }
 
-        var workflow = CampaignWorkflowPolicy.BuildClientWorkflow(campaign);
-
-        return Ok(new CampaignAccessResponse(workflow.CanOpenBrief, workflow.CanOpenPlanning));
+        return Ok(new CampaignAccessResponse(
+            CampaignWorkflowPolicy.CanOpenBrief(campaign),
+            CampaignWorkflowPolicy.CanOpenPlanning(campaign)));
     }
 
     [HttpGet("{id:guid}/recommendation-pdf")]

@@ -62,6 +62,7 @@ public sealed class PackageOrdersController : ControllerBase
             PackageBandName = response.PackageBandName,
             Amount = response.Amount,
             Currency = response.Currency,
+            OrderIntent = response.OrderIntent,
             PaymentProvider = response.PaymentProvider,
             PaymentStatus = response.PaymentStatus,
             RefundStatus = response.RefundStatus,

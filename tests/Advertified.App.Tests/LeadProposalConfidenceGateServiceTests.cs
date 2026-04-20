@@ -1,6 +1,7 @@
 using Advertified.App.Data;
 using Advertified.App.Data.Entities;
 using Advertified.App.Services;
+using Advertified.App.Support;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 
@@ -163,9 +164,9 @@ public class LeadProposalConfidenceGateServiceTests
         {
             Id = packageOrderId,
             PackageBandId = packageBandId,
+            OrderIntent = OrderIntentValues.Prospect,
             Amount = 50_000m,
             SelectedBudget = 50_000m,
-            PaymentProvider = "prospect",
             PaymentStatus = "pending",
             Currency = "ZAR",
             CreatedAt = DateTime.UtcNow.AddDays(-10),

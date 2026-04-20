@@ -85,6 +85,7 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
             AiStudioReservePercent = aiStudioReserveAmount > 0m ? pricingSettings.AiStudioReservePercent : 0m,
             AiStudioReserveAmount = aiStudioReserveAmount,
             Currency = request.Currency.Trim().ToUpperInvariant(),
+            OrderIntent = OrderIntentValues.Sale,
             PaymentProvider = paymentProvider,
             PaymentStatus = "pending",
             RefundStatus = "none",
@@ -385,6 +386,8 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
                 UpdatedAt = DateTime.UtcNow
             };
 
+            CampaignAiAccessPolicy.Apply(campaign);
+
             _db.Campaigns.Add(campaign);
             await _db.SaveChangesAsync(cancellationToken);
             order.Campaign = campaign;
@@ -392,6 +395,7 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
         else if (string.Equals(order.Campaign.Status, CampaignStatuses.AwaitingPurchase, StringComparison.OrdinalIgnoreCase))
         {
             order.Campaign.Status = CampaignStatuses.Paid;
+            CampaignAiAccessPolicy.Apply(order.Campaign);
             order.Campaign.UpdatedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync(cancellationToken);
         }

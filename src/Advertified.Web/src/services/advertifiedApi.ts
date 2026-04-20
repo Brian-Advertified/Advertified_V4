@@ -118,6 +118,7 @@ type PackageOrderResponse = {
   packageBandName: string;
   amount: number;
   currency: string;
+  orderIntent?: string | null;
   paymentProvider?: string | null;
   paymentStatus: string;
   refundStatus: string;
@@ -317,6 +318,7 @@ type CampaignResponse = {
   packageBandId: string;
   packageBandName: string;
   selectedBudget: number;
+  orderIntent?: string | null;
   paymentProvider: string;
   paymentStatus: string;
   status: Campaign['status'];
@@ -330,6 +332,19 @@ type CampaignResponse = {
   isUnassigned?: boolean;
   campaignName?: string | null;
   nextAction: string;
+  lifecycle?: {
+    currentState: string;
+    proposalState: string;
+    paymentState: string;
+    commercialState: string;
+    communicationState: string;
+    fulfilmentState: string;
+    aiStudioAccessState: string;
+  } | null;
+  sendValidation?: {
+    canSendRecommendation: boolean;
+    reasons?: string[] | null;
+  } | null;
   prospectDisposition?: {
     status: string;
     reasonCode?: string | null;
@@ -347,23 +362,6 @@ type CampaignResponse = {
     source: string;
     precision: string;
   } | null;
-  workflow?: {
-    currentStateKey: string;
-    statusLabel: string;
-    headline: string;
-    description: string;
-    nextStep: string;
-    requiresClientAction: boolean;
-    actionLabel: string;
-    paymentState: 'cleared' | 'manual_review' | 'payment_required';
-    paymentAwaitingManualReview: boolean;
-    paymentRequiredBeforeApproval: boolean;
-    hasClearedPayment: boolean;
-    recommendationAwaitingDecision: boolean;
-    recommendationApprovalCompleted: boolean;
-    canOpenBrief: boolean;
-    canOpenPlanning: boolean;
-  };
   timeline?: Array<{
     key: string;
     label: string;
@@ -1192,7 +1190,8 @@ function mapPackageOrder(response: PackageOrderResponse): PackageOrder {
     packageBandName: response.packageBandName,
     amount: response.amount,
     currency: response.currency,
-    paymentProvider: response.paymentProvider ?? 'vodapay',
+    orderIntent: response.orderIntent ?? 'sale',
+    paymentProvider: response.paymentProvider ?? undefined,
     paymentStatus: response.paymentStatus as PackageOrder['paymentStatus'],
     refundStatus: response.refundStatus as PackageOrder['refundStatus'],
     refundedAmount: response.refundedAmount,
@@ -1527,7 +1526,8 @@ function mapCampaign(response: CampaignResponse): Campaign {
     packageBandId: response.packageBandId,
     packageBandName: response.packageBandName,
     selectedBudget: response.selectedBudget,
-    paymentProvider: response.paymentProvider ?? 'vodapay',
+    orderIntent: response.orderIntent ?? 'sale',
+    paymentProvider: response.paymentProvider ?? undefined,
     paymentStatus: response.paymentStatus as Campaign['paymentStatus'],
     status: response.status,
     planningMode: response.planningMode,
@@ -1540,6 +1540,23 @@ function mapCampaign(response: CampaignResponse): Campaign {
     isUnassigned: response.isUnassigned,
     campaignName: response.campaignName?.trim() || `${response.packageBandName} campaign`,
     nextAction: response.nextAction,
+      lifecycle: response.lifecycle
+        ? {
+            currentState: response.lifecycle.currentState,
+            proposalState: response.lifecycle.proposalState,
+            paymentState: response.lifecycle.paymentState,
+            commercialState: response.lifecycle.commercialState,
+            communicationState: response.lifecycle.communicationState,
+            fulfilmentState: response.lifecycle.fulfilmentState,
+            aiStudioAccessState: response.lifecycle.aiStudioAccessState,
+          }
+      : undefined,
+    sendValidation: response.sendValidation
+      ? {
+          canSendRecommendation: response.sendValidation.canSendRecommendation,
+          reasons: response.sendValidation.reasons ?? [],
+        }
+      : undefined,
     prospectDisposition: response.prospectDisposition
       ? {
           status: response.prospectDisposition.status,
@@ -1551,23 +1568,6 @@ function mapCampaign(response: CampaignResponse): Campaign {
         }
       : undefined,
     effectivePlanningTarget: mapCampaignPlanningTarget(response.effectivePlanningTarget),
-    workflow: response.workflow ?? {
-      currentStateKey: 'recommendation_approved',
-      statusLabel: 'All set for now',
-      headline: 'Your campaign is moving forward',
-      description: response.nextAction,
-      nextStep: response.nextAction,
-      requiresClientAction: false,
-      actionLabel: 'View campaign progress',
-      paymentState: 'cleared',
-      paymentAwaitingManualReview: false,
-      paymentRequiredBeforeApproval: false,
-      hasClearedPayment: true,
-      recommendationAwaitingDecision: false,
-      recommendationApprovalCompleted: true,
-      canOpenBrief: true,
-      canOpenPlanning: Boolean(response.aiUnlocked),
-    },
     timeline: response.timeline ?? [],
     brief: normalizeCampaignBrief(response.brief),
     recommendations,

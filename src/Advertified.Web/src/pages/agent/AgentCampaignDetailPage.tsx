@@ -29,6 +29,7 @@ import { AgentRecommendationPanel } from '../../features/agent/components/AgentR
 import { useAuth } from '../../features/auth/auth-context';
 import { formatChannelLabel } from '../../features/channels/channelUtils';
 import { catalogQueryOptions } from '../../lib/catalogQueryOptions';
+import { hasRecommendationApprovalCompleted } from '../../lib/campaignStatus';
 import { invalidateAgentCampaignQueries, queryKeys } from '../../lib/queryKeys';
 import { formatCurrency } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
@@ -389,14 +390,17 @@ export function AgentCampaignDetailPage() {
   const originalPrompt = buildOriginalPrompt(campaign.brief);
   const recommendationTitle = activeRecommendation?.summary || 'Draft recommendation';
   const recommendationStatus = activeRecommendation?.status?.toLowerCase() ?? '';
-  const recommendationApproved = recommendationStatus === 'approved' || Boolean(campaign.workflow?.recommendationApprovalCompleted);
+  const recommendationApproved = hasRecommendationApprovalCompleted(
+    campaign.status,
+    activeRecommendation,
+    campaign.lifecycle,
+  );
   const recommendationSentToClient = campaign.status === 'review_ready' || recommendationStatus === 'sent_to_client';
   const awaitingClientReview = campaign.status === 'review_ready' || recommendationStatus === 'sent_to_client';
   const recommendationWorkflowLocked = isClosedProspect || campaignPastRecommendationStage || recommendationStatus === 'approved' || awaitingClientReview;
   const showRecommendationEditing = !recommendationWorkflowLocked;
   const canEditDraftRecommendation = !recommendationWorkflowLocked && activeRecommendation?.status?.toLowerCase() === 'draft';
   const canModifyPlan = canEditDraftRecommendation && !draftApprovalCaptured;
-  const hasSendableProposal = !recommendationWorkflowLocked && recommendations.length >= 1;
   const canResendProposalEmail = recommendations.length >= 1;
   const canCloseProspect = isProspectiveCampaign && !isClosedProspect;
   const canRequestRecommendationChanges = awaitingClientReview && !recommendationApproved && !isClosedProspect;
@@ -505,22 +509,19 @@ export function AgentCampaignDetailPage() {
   }
 
   function handleSendToClient() {
+    if (!campaign) {
+      return;
+    }
+
     if (recommendationWorkflowLocked) {
       return;
     }
 
-    if (!hasSendableProposal) {
+    const sendReasons = campaign.sendValidation?.reasons ?? [];
+    if (!(campaign.sendValidation?.canSendRecommendation ?? false)) {
       pushToast({
-        title: 'No proposal available yet.',
-        description: 'Create at least one proposal option before sending to the client.',
-      }, 'info');
-      return;
-    }
-
-    if (!hasOohRecommendation) {
-      pushToast({
-        title: 'Billboards and Digital Screens are required.',
-        description: 'Add at least one Billboards and Digital Screens line before sending this recommendation to the client.',
+        title: 'Recommendation is not ready to send.',
+        description: sendReasons[0] ?? 'Finish the proposal requirements before sending it to the client.',
       }, 'error');
       return;
     }

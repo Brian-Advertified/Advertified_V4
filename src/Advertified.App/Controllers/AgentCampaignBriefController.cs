@@ -111,7 +111,6 @@ public sealed class AgentCampaignBriefController : ControllerBase
 
             campaign.PlanningMode = request.PlanningMode;
             campaign.AgentAssistanceRequested = request.PlanningMode is "agent_assisted" or "hybrid";
-            campaign.AiUnlocked = request.SubmitBrief;
             if (request.SubmitBrief)
             {
                 campaign.Status = CampaignStatuses.PlanningInProgress;
@@ -126,6 +125,8 @@ public sealed class AgentCampaignBriefController : ControllerBase
             {
                 brief.SubmittedAt ??= now;
             }
+
+            CampaignAiAccessPolicy.Apply(campaign, brief);
 
             await _db.SaveChangesAsync(cancellationToken);
         }
@@ -296,9 +297,13 @@ public sealed class AgentCampaignBriefController : ControllerBase
             .Include(x => x.ProspectLead)
             .Include(x => x.PackageBand)
             .Include(x => x.PackageOrder)
+            .Include(x => x.EmailDeliveryMessages)
             .FirstOrDefaultAsync(x => x.Id == campaignId, cancellationToken);
 
-        if (campaign is null || campaign.AssignmentEmailSentAt.HasValue || campaign.AssignedAgentUserId is null || ProspectCampaignPolicy.IsProspectiveCampaign(campaign))
+        if (campaign is null
+            || campaign.AssignedAgentUserId is null
+            || ProspectCampaignPolicy.IsProspectiveCampaign(campaign)
+            || EmailDeliveryPurposePolicy.HasTrackedDelivery(campaign.EmailDeliveryMessages, "campaign_assigned"))
         {
             return;
         }
@@ -318,7 +323,13 @@ public sealed class AgentCampaignBriefController : ControllerBase
                     ["CampaignUrl"] = BuildClientCampaignUrl(campaign)
                 },
                 null,
-                null,
+                new EmailTrackingContext
+                {
+                    Purpose = "campaign_assigned",
+                    CampaignId = campaign.Id,
+                    RecipientUserId = campaign.UserId,
+                    ProspectLeadId = campaign.ProspectLeadId
+                },
                 cancellationToken);
         }
         catch (Exception ex)
@@ -326,9 +337,6 @@ public sealed class AgentCampaignBriefController : ControllerBase
             _logger.LogError(ex, "Failed to send assignment email for campaign {CampaignId}.", campaign.Id);
             return;
         }
-
-        campaign.AssignmentEmailSentAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync(cancellationToken);
     }
 
     private async Task SendAgentWorkStartedEmailIfNeededAsync(Guid campaignId, CancellationToken cancellationToken)
@@ -338,9 +346,12 @@ public sealed class AgentCampaignBriefController : ControllerBase
             .Include(x => x.ProspectLead)
             .Include(x => x.PackageBand)
             .Include(x => x.PackageOrder)
+            .Include(x => x.EmailDeliveryMessages)
             .FirstOrDefaultAsync(x => x.Id == campaignId, cancellationToken);
 
-        if (campaign is null || campaign.AgentWorkStartedEmailSentAt.HasValue || ProspectCampaignPolicy.IsProspectiveCampaign(campaign))
+        if (campaign is null
+            || ProspectCampaignPolicy.IsProspectiveCampaign(campaign)
+            || EmailDeliveryPurposePolicy.HasTrackedDelivery(campaign.EmailDeliveryMessages, "agent_work_started"))
         {
             return;
         }
@@ -360,7 +371,13 @@ public sealed class AgentCampaignBriefController : ControllerBase
                     ["CampaignUrl"] = BuildClientCampaignUrl(campaign)
                 },
                 null,
-                null,
+                new EmailTrackingContext
+                {
+                    Purpose = "agent_work_started",
+                    CampaignId = campaign.Id,
+                    RecipientUserId = campaign.UserId,
+                    ProspectLeadId = campaign.ProspectLeadId
+                },
                 cancellationToken);
         }
         catch (Exception ex)
@@ -368,9 +385,6 @@ public sealed class AgentCampaignBriefController : ControllerBase
             _logger.LogError(ex, "Failed to send agent working email for campaign {CampaignId}.", campaign.Id);
             return;
         }
-
-        campaign.AgentWorkStartedEmailSentAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync(cancellationToken);
     }
 
     private static string FormatCurrency(decimal amount)

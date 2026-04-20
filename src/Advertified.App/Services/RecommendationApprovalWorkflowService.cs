@@ -141,7 +141,6 @@ public sealed class RecommendationApprovalWorkflowService : IRecommendationAppro
         var clonedRecommendations = RecommendationRevisionSupport.CloneAsDraftRevision(currentRecommendations, nextRevisionNumber, now, notes);
         _db.CampaignRecommendations.AddRange(clonedRecommendations);
         campaign.Status = CampaignStatuses.PlanningInProgress;
-        campaign.RecommendationReadyEmailSentAt = null;
         campaign.UpdatedAt = now;
         var responseSummary = BuildClientResponseSummary(notes, defaultSummary);
         AddClientResponseMessage(campaign, responseSummary, now);

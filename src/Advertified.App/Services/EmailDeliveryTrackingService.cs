@@ -34,6 +34,8 @@ public sealed class EmailDeliveryTrackingService : IEmailDeliveryTrackingService
         string fromAddress,
         string recipientEmail,
         string subject,
+        string bodyHtml,
+        IReadOnlyCollection<EmailAttachment>? attachments,
         EmailTrackingContext? trackingContext,
         CancellationToken cancellationToken)
     {
@@ -49,12 +51,15 @@ public sealed class EmailDeliveryTrackingService : IEmailDeliveryTrackingService
             FromAddress = fromAddress.Trim(),
             RecipientEmail = recipientEmail.Trim(),
             Subject = subject.Trim(),
+            BodyHtml = bodyHtml,
+            AttachmentsJson = EmailOutboxPayload.SerializeAttachments(attachments),
             CampaignId = trackingContext?.CampaignId,
             RecommendationId = trackingContext?.RecommendationId,
             RecommendationRevisionNumber = trackingContext?.RecommendationRevisionNumber,
             RecipientUserId = trackingContext?.RecipientUserId,
             ProspectLeadId = trackingContext?.ProspectLeadId,
             MetadataJson = SerializeMetadata(trackingContext?.Metadata),
+            NextAttemptAt = now,
             CreatedAt = now,
             UpdatedAt = now
         };
@@ -86,6 +91,9 @@ public sealed class EmailDeliveryTrackingService : IEmailDeliveryTrackingService
         message.LatestEventType ??= "email.sent";
         message.LatestEventAt ??= now;
         message.LastError = null;
+        message.NextAttemptAt = null;
+        message.LockedAt = null;
+        message.LockToken = null;
         message.UpdatedAt = now;
 
         await _db.SaveChangesAsync(cancellationToken);
@@ -102,12 +110,15 @@ public sealed class EmailDeliveryTrackingService : IEmailDeliveryTrackingService
         message.ArchivedPath = archivePath;
         message.LatestEventType = "archived";
         message.LatestEventAt = now;
+        message.NextAttemptAt = null;
+        message.LockedAt = null;
+        message.LockToken = null;
         message.UpdatedAt = now;
 
         await _db.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task MarkFailedAsync(Guid dispatchId, string errorMessage, CancellationToken cancellationToken)
+    public async Task MarkFailedAsync(Guid dispatchId, string errorMessage, DateTime? nextAttemptAt, CancellationToken cancellationToken)
     {
         var message = await _db.EmailDeliveryMessages.FirstOrDefaultAsync(x => x.Id == dispatchId, cancellationToken)
             ?? throw new InvalidOperationException("Email delivery dispatch not found.");
@@ -118,6 +129,9 @@ public sealed class EmailDeliveryTrackingService : IEmailDeliveryTrackingService
         message.LatestEventType = "failed";
         message.LatestEventAt = now;
         message.LastError = errorMessage;
+        message.NextAttemptAt = nextAttemptAt;
+        message.LockedAt = null;
+        message.LockToken = null;
         message.UpdatedAt = now;
 
         await _db.SaveChangesAsync(cancellationToken);

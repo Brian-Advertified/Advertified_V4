@@ -1,4 +1,5 @@
 using Advertified.App.Data.Entities;
+using Advertified.App.Support;
 using Microsoft.EntityFrameworkCore;
 
 namespace Advertified.App.Data;
@@ -355,8 +356,6 @@ public partial class AppDbContext
 
             entity.Property(e => e.AssignedAgentUserId).HasColumnName("assigned_agent_user_id");
             entity.Property(e => e.AssignedAt).HasColumnName("assigned_at");
-            entity.Property(e => e.AssignmentEmailSentAt).HasColumnName("assignment_email_sent_at");
-            entity.Property(e => e.AgentWorkStartedEmailSentAt).HasColumnName("agent_work_started_email_sent_at");
             entity.Property(e => e.ProspectLeadId).HasColumnName("prospect_lead_id");
             entity.Property(e => e.ProspectDispositionClosedAt).HasColumnName("prospect_disposition_closed_at");
             entity.Property(e => e.ProspectDispositionClosedByUserId).HasColumnName("prospect_disposition_closed_by_user_id");
@@ -367,7 +366,6 @@ public partial class AppDbContext
             entity.Property(e => e.ProspectDispositionStatus)
                 .HasMaxLength(20)
                 .HasColumnName("prospect_disposition_status");
-            entity.Property(e => e.RecommendationReadyEmailSentAt).HasColumnName("recommendation_ready_email_sent_at");
 
             entity.HasOne(e => e.AssignedAgentUser)
                 .WithMany()
@@ -391,6 +389,13 @@ public partial class AppDbContext
         modelBuilder.Entity<PackageOrder>(entity =>
         {
             entity.HasIndex(e => e.ProspectLeadId, "ix_package_orders_prospect_lead_id");
+            entity.HasIndex(e => e.OrderIntent, "ix_package_orders_order_intent");
+            entity.HasIndex(e => new { e.OrderIntent, e.PaymentStatus }, "ix_package_orders_order_intent_payment_status");
+
+            entity.Property(e => e.OrderIntent)
+                .HasMaxLength(20)
+                .HasDefaultValue(OrderIntentValues.Sale)
+                .HasColumnName("order_intent");
             entity.Property(e => e.ProspectLeadId).HasColumnName("prospect_lead_id");
 
             entity.HasOne(e => e.ProspectLead)
@@ -1272,13 +1277,17 @@ public partial class AppDbContext
             entity.Property(e => e.FromAddress)
                 .HasMaxLength(255)
                 .HasColumnName("from_address");
-            entity.Property(e => e.RecipientEmail)
-                .HasMaxLength(255)
-                .HasColumnName("recipient_email");
-            entity.Property(e => e.Subject)
-                .HasMaxLength(500)
-                .HasColumnName("subject");
-            entity.Property(e => e.CampaignId).HasColumnName("campaign_id");
+              entity.Property(e => e.RecipientEmail)
+                  .HasMaxLength(255)
+                  .HasColumnName("recipient_email");
+              entity.Property(e => e.Subject)
+                  .HasMaxLength(500)
+                  .HasColumnName("subject");
+              entity.Property(e => e.BodyHtml).HasColumnName("body_html");
+              entity.Property(e => e.AttachmentsJson)
+                  .HasColumnType("jsonb")
+                  .HasColumnName("attachments_json");
+              entity.Property(e => e.CampaignId).HasColumnName("campaign_id");
             entity.Property(e => e.RecommendationId).HasColumnName("recommendation_id");
             entity.Property(e => e.RecommendationRevisionNumber).HasColumnName("recommendation_revision_number");
             entity.Property(e => e.RecipientUserId).HasColumnName("recipient_user_id");
@@ -1306,6 +1315,11 @@ public partial class AppDbContext
             entity.Property(e => e.MetadataJson)
                 .HasColumnType("jsonb")
                 .HasColumnName("metadata_json");
+            entity.Property(e => e.AttemptCount).HasColumnName("attempt_count");
+            entity.Property(e => e.LastAttemptAt).HasColumnName("last_attempt_at");
+            entity.Property(e => e.NextAttemptAt).HasColumnName("next_attempt_at");
+            entity.Property(e => e.LockedAt).HasColumnName("locked_at");
+            entity.Property(e => e.LockToken).HasColumnName("lock_token");
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("created_at");

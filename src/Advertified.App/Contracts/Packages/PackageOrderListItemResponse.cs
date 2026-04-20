@@ -8,6 +8,7 @@ public sealed class PackageOrderListItemResponse
     public string PackageBandName { get; set; } = string.Empty;
     public decimal Amount { get; set; }
     public string Currency { get; set; } = "ZAR";
+    public string OrderIntent { get; set; } = string.Empty;
     public string PaymentProvider { get; set; } = string.Empty;
     public string PaymentStatus { get; set; } = string.Empty;
     public string RefundStatus { get; set; } = string.Empty;

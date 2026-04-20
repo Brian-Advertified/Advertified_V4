@@ -6,7 +6,7 @@ namespace Advertified.App.Tests;
 public sealed class CampaignWorkflowPolicyTests
 {
     [Fact]
-    public void BuildClientWorkflow_ReturnsPaymentRequired_WhenRecommendationAwaitsDecisionButPaymentIsOutstanding()
+    public void CampaignLifecycleSupport_ReturnsPaymentPending_WhenRecommendationAwaitsDecisionButPaymentIsOutstanding()
     {
         var campaign = new Campaign
         {
@@ -27,15 +27,15 @@ public sealed class CampaignWorkflowPolicyTests
             }
         };
 
-        var workflow = CampaignWorkflowPolicy.BuildClientWorkflow(campaign);
+        var lifecycle = CampaignLifecycleSupport.Build(campaign);
 
-        Assert.Equal("payment_required", workflow.CurrentStateKey);
-        Assert.True(workflow.PaymentRequiredBeforeApproval);
-        Assert.False(workflow.RecommendationApprovalCompleted);
+        Assert.Equal("payment_pending", lifecycle.CurrentState);
+        Assert.Equal("payment_pending", lifecycle.PaymentState);
+        Assert.Equal("sent", lifecycle.ProposalState);
     }
 
     [Fact]
-    public void BuildClientWorkflow_ReturnsManualReview_WhenLulaPaymentIsPending()
+    public void CampaignLifecycleSupport_ReturnsUnderReview_WhenLulaPaymentIsPending()
     {
         var campaign = new Campaign
         {
@@ -56,11 +56,11 @@ public sealed class CampaignWorkflowPolicyTests
             }
         };
 
-        var workflow = CampaignWorkflowPolicy.BuildClientWorkflow(campaign);
+        var lifecycle = CampaignLifecycleSupport.Build(campaign);
 
-        Assert.Equal("payment_under_review", workflow.CurrentStateKey);
-        Assert.True(workflow.PaymentAwaitingManualReview);
-        Assert.False(workflow.RequiresClientAction);
+        Assert.Equal("payment_pending", lifecycle.CurrentState);
+        Assert.Equal("under_review", lifecycle.PaymentState);
+        Assert.Equal("sent", lifecycle.ProposalState);
     }
 
     [Fact]
@@ -87,7 +87,7 @@ public sealed class CampaignWorkflowPolicyTests
             ProspectDispositionStatus = ProspectDispositionStatuses.Closed,
             PackageOrder = new PackageOrder
             {
-                PaymentProvider = "prospect",
+                OrderIntent = OrderIntentValues.Prospect,
                 PaymentStatus = "pending"
             }
         };
@@ -112,7 +112,7 @@ public sealed class CampaignWorkflowPolicyTests
             },
             PackageOrder = new PackageOrder
             {
-                PaymentProvider = "prospect",
+                OrderIntent = OrderIntentValues.Prospect,
                 PaymentStatus = "pending",
                 Amount = 50000m
             }
@@ -124,7 +124,7 @@ public sealed class CampaignWorkflowPolicyTests
     }
 
     [Fact]
-    public void BuildClientWorkflow_AllowsProspectProposalReviewBeforePayment()
+    public void CampaignLifecycleSupport_AllowsProspectProposalReviewBeforePayment()
     {
         var campaign = CreateProspectCampaign();
         campaign.CampaignRecommendations = new[]
@@ -140,12 +140,12 @@ public sealed class CampaignWorkflowPolicyTests
             }
         };
 
-        var workflow = CampaignWorkflowPolicy.BuildClientWorkflow(campaign);
+        var lifecycle = CampaignLifecycleSupport.Build(campaign);
 
-        Assert.Equal("recommendation_ready", workflow.CurrentStateKey);
-        Assert.False(workflow.PaymentRequiredBeforeApproval);
-        Assert.True(workflow.RecommendationAwaitingDecision);
-        Assert.Equal("Review proposal", workflow.ActionLabel);
+        Assert.Equal("sent", lifecycle.CurrentState);
+        Assert.Equal("not_started", lifecycle.PaymentState);
+        Assert.Equal("proposal_sent", lifecycle.CommercialState);
+        Assert.Equal("sent", lifecycle.ProposalState);
     }
 
     [Fact]
@@ -213,7 +213,7 @@ public sealed class CampaignWorkflowPolicyTests
             },
             PackageOrder = new PackageOrder
             {
-                PaymentProvider = "prospect",
+                OrderIntent = OrderIntentValues.Prospect,
                 PaymentStatus = "pending",
                 Amount = 185000m,
                 SelectedBudget = 185000m
@@ -226,6 +226,139 @@ public sealed class CampaignWorkflowPolicyTests
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             }
+        };
+    }
+
+    [Fact]
+    public void ProspectCampaignPolicy_UsesOrderIntentAsPrimarySignal()
+    {
+        var campaign = new Campaign
+        {
+            Status = CampaignStatuses.AwaitingPurchase,
+            PackageOrder = new PackageOrder
+            {
+                OrderIntent = OrderIntentValues.Prospect,
+                PaymentProvider = "vodapay",
+                PaymentStatus = "pending"
+            }
+        };
+
+        var result = ProspectCampaignPolicy.IsProspectiveCampaign(campaign);
+
+        Assert.True(result);
+    }
+
+    [Fact]
+    public void CampaignSendValidationSupport_RequiresThreeOohBackedRecommendations()
+    {
+        var campaign = new Campaign
+        {
+            Status = CampaignStatuses.PlanningInProgress,
+            ProspectLead = new ProspectLead
+            {
+                FullName = "Brian Prospect",
+                Email = "prospect@example.com"
+            },
+            CampaignRecommendations = new[]
+            {
+                CreateRecommendation("hybrid:balanced", includeOoh: true),
+                CreateRecommendation("hybrid:ooh_focus", includeOoh: false)
+            }
+        };
+
+        var validation = CampaignSendValidationSupport.Build(campaign);
+
+        Assert.False(validation.CanSendRecommendation);
+        Assert.Contains(validation.Reasons, reason => reason.Contains("Three proposal options", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(validation.Reasons, reason => reason.Contains("Proposal 2", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void CampaignSendValidationSupport_RequiresValidContactEmail()
+    {
+        var campaign = new Campaign
+        {
+            Status = CampaignStatuses.PlanningInProgress,
+            ProspectLead = new ProspectLead
+            {
+                FullName = "Brian Prospect",
+                Email = "not-an-email"
+            },
+            CampaignRecommendations = new[]
+            {
+                CreateRecommendation("hybrid:balanced", includeOoh: true),
+                CreateRecommendation("hybrid:ooh_focus", includeOoh: true),
+                CreateRecommendation("hybrid:radio_focus", includeOoh: true)
+            }
+        };
+
+        var validation = CampaignSendValidationSupport.Build(campaign);
+
+        Assert.False(validation.CanSendRecommendation);
+        Assert.Contains(validation.Reasons, reason => reason.Contains("email address", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void CampaignLifecycleSupport_UsesCanonicalCurrentStateForPaidApprovedCampaign()
+    {
+        var campaign = new Campaign
+        {
+            Status = CampaignStatuses.Approved,
+            PackageOrder = new PackageOrder
+            {
+                OrderIntent = OrderIntentValues.Sale,
+                PaymentStatus = "paid",
+                UpdatedAt = DateTime.UtcNow
+            },
+            CampaignRecommendations = new[]
+            {
+                new CampaignRecommendation
+                {
+                    Status = RecommendationStatuses.Approved,
+                    RecommendationType = "hybrid:balanced",
+                    RevisionNumber = 1,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                }
+            }
+        };
+
+        var lifecycle = CampaignLifecycleSupport.Build(campaign);
+
+        Assert.Equal("activation_ready", lifecycle.CurrentState);
+        Assert.Equal("paid", lifecycle.PaymentState);
+        Assert.Equal("converted", lifecycle.CommercialState);
+    }
+
+    private static CampaignRecommendation CreateRecommendation(string recommendationType, bool includeOoh)
+    {
+        return new CampaignRecommendation
+        {
+            Id = Guid.NewGuid(),
+            RecommendationType = recommendationType,
+            Status = RecommendationStatuses.Draft,
+            RevisionNumber = 1,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            RecommendationItems = includeOoh
+                ? new[]
+                {
+                    new RecommendationItem
+                    {
+                        Id = Guid.NewGuid(),
+                        InventoryType = "billboard",
+                        DisplayName = "OOH line"
+                    }
+                }
+                : new[]
+                {
+                    new RecommendationItem
+                    {
+                        Id = Guid.NewGuid(),
+                        InventoryType = "radio",
+                        DisplayName = "Radio line"
+                    }
+                }
         };
     }
 }

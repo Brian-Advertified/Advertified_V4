@@ -124,7 +124,7 @@ public sealed class CampaignBriefService : ICampaignBriefService
         brief.SubmittedAt = DateTime.UtcNow;
         brief.UpdatedAt = DateTime.UtcNow;
         campaign.Status = CampaignStatuses.BriefSubmitted;
-        campaign.AiUnlocked = true;
+        CampaignAiAccessPolicy.Apply(campaign, brief);
         campaign.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
         await _agentAreaRoutingService.TryAssignCampaignAsync(campaignId, "brief_submitted", cancellationToken);
@@ -172,6 +172,7 @@ public sealed class CampaignBriefService : ICampaignBriefService
         campaign.PlanningMode = planningMode;
         campaign.AgentAssistanceRequested = planningMode is "agent_assisted" or "hybrid";
         campaign.Status = CampaignStatuses.PlanningInProgress;
+        CampaignAiAccessPolicy.Apply(campaign);
         campaign.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
     }

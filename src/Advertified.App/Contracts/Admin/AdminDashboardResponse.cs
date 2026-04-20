@@ -178,7 +178,13 @@ public sealed class AdminMonitoringResponse
     public int PublishSuccessCount { get; set; }
     public int PublishFailureCount { get; set; }
     public int MetricsSyncLagMinutes { get; set; }
+    public int UnpaidOrderBacklogCount { get; set; }
+    public int UnsentProposalBacklogCount { get; set; }
+    public int UnopenedProposalBacklogCount { get; set; }
+    public int PaidActivationBacklogCount { get; set; }
+    public int StaleProspectBacklogCount { get; set; }
     public IReadOnlyList<AdminAiJobAlertResponse> AiJobAlerts { get; set; } = Array.Empty<AdminAiJobAlertResponse>();
+    public IReadOnlyList<AdminLifecycleQueueItemResponse> LifecycleQueues { get; set; } = Array.Empty<AdminLifecycleQueueItemResponse>();
 }
 
 public sealed class AdminAiJobAlertResponse
@@ -191,4 +197,26 @@ public sealed class AdminAiJobAlertResponse
     public string? LastFailure { get; set; }
     public DateTime UpdatedAt { get; set; }
     public string AlertReason { get; set; } = string.Empty;
+}
+
+public sealed class AdminLifecycleQueueItemResponse
+{
+    public string QueueKey { get; set; } = string.Empty;
+    public string Label { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public int Count { get; set; }
+    public IReadOnlyList<AdminLifecycleQueueCampaignResponse> Items { get; set; } = Array.Empty<AdminLifecycleQueueCampaignResponse>();
+}
+
+public sealed class AdminLifecycleQueueCampaignResponse
+{
+    public Guid CampaignId { get; set; }
+    public string CampaignName { get; set; } = string.Empty;
+    public string ClientName { get; set; } = string.Empty;
+    public string CurrentState { get; set; } = string.Empty;
+    public string CommercialState { get; set; } = string.Empty;
+    public string PaymentState { get; set; } = string.Empty;
+    public string CommunicationState { get; set; } = string.Empty;
+    public int AgeDays { get; set; }
+    public DateTime LastActivityAt { get; set; }
 }

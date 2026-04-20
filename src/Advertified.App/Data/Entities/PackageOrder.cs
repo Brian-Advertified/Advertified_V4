@@ -19,6 +19,8 @@ public partial class PackageOrder
 
     public string? PaymentProvider { get; set; }
 
+    public string OrderIntent { get; set; } = "sale";
+
     public string? PaymentReference { get; set; }
 
     public string PaymentStatus { get; set; } = null!;

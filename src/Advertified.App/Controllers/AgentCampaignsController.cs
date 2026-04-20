@@ -54,60 +54,21 @@ public sealed class AgentCampaignsController : ControllerBase
         var currentUserId = currentUser.Id;
         var campaigns = await _ownershipService.ApplyReadableScope(_db.Campaigns, currentUser)
             .AsNoTracking()
+            .AsSplitQuery()
+            .Include(x => x.User!)
+                .ThenInclude(x => x.BusinessProfile)
+            .Include(x => x.ProspectLead)
+            .Include(x => x.AssignedAgentUser)
+            .Include(x => x.PackageBand)
+            .Include(x => x.PackageOrder)
+            .Include(x => x.CampaignBrief)
+            .Include(x => x.CampaignRecommendations)
+                .ThenInclude(x => x.RecommendationItems)
+            .Include(x => x.EmailDeliveryMessages)
             .OrderByDescending(x => x.CreatedAt)
-            .Select(x => new AgentCampaignListProjection
-            {
-                Id = x.Id,
-                UserId = x.UserId,
-                ClientName = x.User != null ? x.User.FullName : x.ProspectLead != null ? x.ProspectLead.FullName : string.Empty,
-                ClientEmail = x.User != null ? x.User.Email : x.ProspectLead != null ? x.ProspectLead.Email : string.Empty,
-                BusinessName = x.User != null && x.User.BusinessProfile != null ? x.User.BusinessProfile.BusinessName : null,
-                PackageOrderId = x.PackageOrderId,
-                PackageBandId = x.PackageBandId,
-                PackageBandName = x.PackageBand.Name,
-                SelectedBudget = PricingPolicy.ResolvePlanningBudget(
-                    x.PackageOrder.SelectedBudget ?? x.PackageOrder.Amount,
-                    x.PackageOrder.AiStudioReserveAmount),
-                PaymentProvider = x.PackageOrder.PaymentProvider ?? string.Empty,
-                PaymentStatus = x.PackageOrder.PaymentStatus,
-                CampaignName = x.CampaignName,
-                Status = x.Status,
-                PlanningMode = x.PlanningMode,
-                AiUnlocked = x.AiUnlocked,
-                AgentAssistanceRequested = x.AgentAssistanceRequested,
-                AssignedAgentUserId = x.AssignedAgentUserId,
-                AssignedAgentName = x.AssignedAgentUser != null ? x.AssignedAgentUser.FullName : null,
-                AssignedAt = x.AssignedAt,
-                CreatedAt = x.CreatedAt
-            })
             .ToArrayAsync(cancellationToken);
 
-        return Ok(campaigns.Select(x => new CampaignListItemResponse
-        {
-            Id = x.Id,
-            UserId = x.UserId,
-            ClientName = x.ClientName,
-            ClientEmail = x.ClientEmail,
-            BusinessName = x.BusinessName,
-            PackageOrderId = x.PackageOrderId,
-            PackageBandId = x.PackageBandId,
-            PackageBandName = x.PackageBandName,
-            SelectedBudget = x.SelectedBudget,
-            PaymentProvider = x.PaymentProvider,
-            PaymentStatus = x.PaymentStatus,
-            CampaignName = x.CampaignName,
-                Status = x.Status,
-            PlanningMode = x.PlanningMode,
-            AiUnlocked = x.AiUnlocked,
-            AgentAssistanceRequested = x.AgentAssistanceRequested,
-            AssignedAgentUserId = x.AssignedAgentUserId,
-            AssignedAgentName = x.AssignedAgentName,
-            AssignedAt = x.AssignedAt.HasValue ? new DateTimeOffset(x.AssignedAt.Value, TimeSpan.Zero) : null,
-            IsAssignedToCurrentUser = x.AssignedAgentUserId == currentUserId,
-            IsUnassigned = x.AssignedAgentUserId is null,
-            NextAction = CampaignWorkflowPolicy.GetClientNextAction(new Campaign { Status = x.Status }),
-            CreatedAt = new DateTimeOffset(x.CreatedAt, TimeSpan.Zero)
-        }).ToArray());
+        return Ok(campaigns.Select(x => x.ToDetail(currentUserId, includeLinePricing: false)).ToArray());
     }
 
     [HttpGet("inbox")]
@@ -236,7 +197,7 @@ public sealed class AgentCampaignsController : ControllerBase
                 ChargedAmount = x.PackageOrder.Amount,
                 PaymentProvider = x.PackageOrder.PaymentProvider ?? "unknown",
                 PaymentReference = x.PackageOrder.PaymentReference,
-                ConvertedFromProspect = x.PackageOrder.PaymentProvider == "prospect",
+                ConvertedFromProspect = x.PackageOrder.OrderIntent == OrderIntentValues.Prospect,
                 PurchasedAt = new DateTimeOffset(x.PackageOrder.PurchasedAt ?? x.CreatedAt, TimeSpan.Zero),
                 CreatedAt = new DateTimeOffset(x.CreatedAt, TimeSpan.Zero)
             })
@@ -382,30 +343,6 @@ public sealed class AgentCampaignsController : ControllerBase
                 Status = StatusCodes.Status400BadRequest
             });
         }
-    }
-
-    private sealed class AgentCampaignListProjection
-    {
-        public Guid Id { get; init; }
-        public Guid? UserId { get; init; }
-        public string? ClientName { get; init; }
-        public string? ClientEmail { get; init; }
-        public string? BusinessName { get; init; }
-        public Guid PackageOrderId { get; init; }
-        public Guid PackageBandId { get; init; }
-        public string PackageBandName { get; init; } = string.Empty;
-        public decimal SelectedBudget { get; init; }
-        public string PaymentProvider { get; init; } = string.Empty;
-        public string PaymentStatus { get; init; } = string.Empty;
-        public string? CampaignName { get; init; }
-        public string Status { get; init; } = string.Empty;
-        public string? PlanningMode { get; init; }
-        public bool AiUnlocked { get; init; }
-        public bool AgentAssistanceRequested { get; init; }
-        public Guid? AssignedAgentUserId { get; init; }
-        public string? AssignedAgentName { get; init; }
-        public DateTime? AssignedAt { get; init; }
-        public DateTime CreatedAt { get; init; }
     }
 
     private async Task<UserAccount> GetCurrentOperationsUserAsync(CancellationToken cancellationToken)

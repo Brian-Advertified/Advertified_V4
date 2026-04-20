@@ -70,10 +70,10 @@ export function isRecommendationApproved(recommendation?: CampaignRecommendation
 export function hasRecommendationApprovalCompleted(
   campaignStatus: CampaignStatus | null | undefined,
   recommendation?: CampaignRecommendation | null,
-  workflow?: Campaign['workflow'],
+  lifecycle?: Campaign['lifecycle'],
 ): boolean {
-  if (workflow) {
-    return workflow.recommendationApprovalCompleted;
+  if (lifecycle?.proposalState === 'approved') {
+    return true;
   }
 
   return isRecommendationApproved(recommendation)

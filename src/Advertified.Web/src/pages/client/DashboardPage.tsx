@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { useAuth } from '../../features/auth/auth-context';
-import { canAccessAiStudioForStatus } from '../../features/campaigns/aiStudioAccess';
+import { canAccessAiStudio } from '../../features/campaigns/aiStudioAccess';
 import { campaignNeedsCheckout, getCampaignPrimaryAction, getClientCampaignState, isPaymentAwaitingManualReview } from '../../lib/access';
 import { getPrimaryRecommendation } from '../../lib/campaignStatus';
 import { getPendingPaymentPollInterval } from '../../lib/queryPolling';
@@ -317,7 +317,7 @@ export function DashboardPage() {
                   <Link to={action.href} className={paymentRequired ? 'user-btn-primary' : 'user-btn-secondary'}>
                     {paymentRequired ? 'Complete payment' : 'Continue'}
                   </Link>
-                  {canAccessAiStudioForStatus(campaign.status) ? (
+                  {canAccessAiStudio(campaign) ? (
                     <Link to={`/ai-studio?campaignId=${campaign.id}`} className="user-btn-secondary">Open campaign content</Link>
                   ) : null}
                 </div>

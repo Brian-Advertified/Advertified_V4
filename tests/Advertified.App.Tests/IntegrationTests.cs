@@ -16,6 +16,7 @@ using Advertified.App.Data.Entities;
 using Advertified.App.Data.Enums;
 using Advertified.App.Services;
 using Advertified.App.Services.Abstractions;
+using Advertified.App.Support;
 using Advertified.App.Validation;
 using FluentAssertions;
 using Microsoft.AspNetCore.Authentication;
@@ -1438,10 +1439,10 @@ public class HttpWorkflowIntegrationTests
                     Id = Guid.NewGuid(),
                     ProspectLeadId = lead.Id,
                     PackageBandId = band.Id,
+                    OrderIntent = OrderIntentValues.Prospect,
                     Amount = 150000m,
                     SelectedBudget = 150000m,
                     Currency = "ZAR",
-                    PaymentProvider = "prospect",
                     PaymentStatus = "pending",
                     RefundStatus = "none",
                     CreatedAt = now,
@@ -1544,7 +1545,65 @@ public class HttpWorkflowIntegrationTests
         var payload = await response.Content.ReadFromJsonAsync<CampaignDetailResponse>();
         payload.Should().NotBeNull();
         payload!.Status.Should().Be("awaiting_purchase");
+        payload.AiUnlocked.Should().BeFalse();
         payload.ClientEmail.Should().Be("beggie38.bali@gmail.com");
+    }
+
+    [Fact]
+    public async Task PublicProspectQuestionnaire_SubmissionUnlocksAiAfterBriefSubmissionOverHttp()
+    {
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var band = new PackageBand
+                {
+                    Id = Guid.NewGuid(),
+                    Code = "scale",
+                    Name = "Scale",
+                    MinBudget = 150000m,
+                    MaxBudget = 500000m,
+                    SortOrder = 3,
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                db.PackageBands.Add(band);
+                db.SaveChanges();
+            },
+            configureServices: services =>
+            {
+                services.AddSingleton<StubTemplatedEmailService>();
+                services.AddSingleton<ITemplatedEmailService>(sp => sp.GetRequiredService<StubTemplatedEmailService>());
+            });
+
+        var bandId = await harness.ExecuteDbAsync(db => db.PackageBands.Select(x => x.Id).SingleAsync());
+
+        var response = await harness.Client.PostAsJsonAsync("/public/prospect-questionnaires", new
+        {
+            fullName = "Public Prospect",
+            email = "public.prospect@example.com",
+            phone = "0821234567",
+            packageBandId = bandId,
+            campaignName = "Public questionnaire campaign",
+            brief = new
+            {
+                objective = "launch",
+                geographyScope = "regional",
+                provinces = new[] { "Gauteng" },
+                preferredMediaTypes = new[] { "radio", "ooh" },
+                openToUpsell = false,
+                specialRequirements = "Retail launch campaign"
+            }
+        });
+        var content = await response.Content.ReadAsStringAsync();
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK, content);
+
+        var campaign = await harness.ExecuteDbAsync(db => db.Campaigns.Include(x => x.CampaignBrief).SingleAsync());
+        campaign.Status.Should().Be(CampaignStatuses.BriefSubmitted);
+        campaign.AiUnlocked.Should().BeTrue();
+        campaign.CampaignBrief.Should().NotBeNull();
+        campaign.CampaignBrief!.SubmittedAt.Should().NotBeNull();
     }
 
     [Fact]
@@ -1560,13 +1619,18 @@ public class HttpWorkflowIntegrationTests
                 campaign.AssignedAt = DateTime.UtcNow;
                 campaign.Status = "planning_in_progress";
 
-                var recommendation = TestSeed.CreateRecommendation(campaign.Id, status: "draft");
+                var recommendations = new[]
+                {
+                    TestSeed.CreateRecommendation(campaign.Id, status: "draft", recommendationType: "hybrid:balanced"),
+                    TestSeed.CreateRecommendation(campaign.Id, status: "draft", recommendationType: "hybrid:ooh_focus"),
+                    TestSeed.CreateRecommendation(campaign.Id, status: "draft", recommendationType: "hybrid:radio_focus")
+                };
 
                 db.UserAccounts.AddRange(clientUser, agentUser);
                 db.PackageBands.Add(band);
                 db.PackageOrders.Add(order);
                 db.Campaigns.Add(campaign);
-                db.CampaignRecommendations.Add(recommendation);
+                db.CampaignRecommendations.AddRange(recommendations);
                 db.SaveChanges();
             },
             configureServices: services =>
@@ -2683,36 +2747,66 @@ public class ResendEmailServiceFallbackTests
             });
             await db.SaveChangesAsync();
 
-            var service = new ResendEmailService(
-                new HttpClient { BaseAddress = new Uri("https://api.resend.com/") },
-                db,
-                Options.Create(new ResendOptions
-                {
-                    ApiKey = string.Empty,
-                    LocalArchiveDirectory = "outbox",
+              var service = new ResendEmailService(
+                  db,
+                  Options.Create(new ResendOptions
+                  {
+                      ApiKey = string.Empty,
+                      LocalArchiveDirectory = "outbox",
                     SenderAddresses = new Dictionary<string, string>
-                    {
-                        ["noreply"] = "Advertified <noreply@advertified.com>"
-                    }
-                }),
-                new StubWebHostEnvironment(archiveRoot),
-                new StubEmailDeliveryTrackingService(),
-                NullLogger<ResendEmailService>.Instance);
+                      {
+                          ["noreply"] = "Advertified <noreply@advertified.com>"
+                      }
+                  }),
+                  new EmailDeliveryTrackingService(db, new PassthroughEmailIntegrationSecretCipher(), NullLogger<EmailDeliveryTrackingService>.Instance));
 
-            await service.SendAsync(
-                "test-template",
-                "client@example.com",
+              await service.SendAsync(
+                  "test-template",
+                  "client@example.com",
                 "noreply",
                 new Dictionary<string, string?> { ["Name"] = "Brian" },
                 null,
-                null,
-                CancellationToken.None);
+                  null,
+                  CancellationToken.None);
 
-            var outboxDirectory = Path.Combine(archiveRoot, "outbox");
-            Directory.Exists(outboxDirectory).Should().BeTrue();
-            var archivedFolder = Directory.GetDirectories(outboxDirectory).Should().ContainSingle().Subject;
-            File.Exists(Path.Combine(archivedFolder, "message.html")).Should().BeTrue();
-            File.ReadAllText(Path.Combine(archivedFolder, "message.html")).Should().Contain("Hello Brian");
+              var queuedMessage = await db.EmailDeliveryMessages.SingleAsync();
+              queuedMessage.Status.Should().Be("pending");
+              queuedMessage.BodyHtml.Should().Contain("Hello Brian");
+
+              var transport = new ResendEmailTransport(
+                  new HttpClient { BaseAddress = new Uri("https://api.resend.com/") },
+                  Options.Create(new ResendOptions
+                  {
+                      ApiKey = string.Empty,
+                      LocalArchiveDirectory = "outbox",
+                      SenderAddresses = new Dictionary<string, string>
+                      {
+                          ["noreply"] = "Advertified <noreply@advertified.com>"
+                      }
+                  }),
+                  new StubWebHostEnvironment(archiveRoot));
+              var dispatcher = new ResendEmailOutboxDispatcher(
+                  db,
+                  new EmailDeliveryTrackingService(db, new PassthroughEmailIntegrationSecretCipher(), NullLogger<EmailDeliveryTrackingService>.Instance),
+                  transport,
+                  Options.Create(new ResendOptions
+                  {
+                      ApiKey = string.Empty,
+                      LocalArchiveDirectory = "outbox",
+                      SenderAddresses = new Dictionary<string, string>
+                      {
+                          ["noreply"] = "Advertified <noreply@advertified.com>"
+                      }
+                  }),
+                  NullLogger<ResendEmailOutboxDispatcher>.Instance);
+
+              (await dispatcher.DispatchPendingAsync(CancellationToken.None)).Should().Be(1);
+
+              var outboxDirectory = Path.Combine(archiveRoot, "outbox");
+              Directory.Exists(outboxDirectory).Should().BeTrue();
+              var archivedFolder = Directory.GetDirectories(outboxDirectory).Should().ContainSingle().Subject;
+              File.Exists(Path.Combine(archivedFolder, "message.html")).Should().BeTrue();
+              File.ReadAllText(Path.Combine(archivedFolder, "message.html")).Should().Contain("Hello Brian");
             File.ReadAllText(Path.Combine(archivedFolder, "metadata.txt")).Should().Contain("Template: test-template");
         }
         finally
@@ -3539,6 +3633,8 @@ internal sealed class StubEmailDeliveryTrackingService : IEmailDeliveryTrackingS
         string fromAddress,
         string recipientEmail,
         string subject,
+        string bodyHtml,
+        IReadOnlyCollection<EmailAttachment>? attachments,
         EmailTrackingContext? trackingContext,
         CancellationToken cancellationToken)
     {
@@ -3555,7 +3651,7 @@ internal sealed class StubEmailDeliveryTrackingService : IEmailDeliveryTrackingS
     public Task MarkArchivedAsync(Guid dispatchId, string archivePath, CancellationToken cancellationToken)
         => Task.CompletedTask;
 
-    public Task MarkFailedAsync(Guid dispatchId, string errorMessage, CancellationToken cancellationToken)
+    public Task MarkFailedAsync(Guid dispatchId, string errorMessage, DateTime? nextAttemptAt, CancellationToken cancellationToken)
         => Task.CompletedTask;
 
     public Task<EmailWebhookProcessResult> ProcessResendWebhookAsync(
@@ -3570,6 +3666,12 @@ internal sealed class StubEmailDeliveryTrackingService : IEmailDeliveryTrackingS
             ProcessingStatus = "accepted"
         });
     }
+}
+
+internal sealed class PassthroughEmailIntegrationSecretCipher : IEmailIntegrationSecretCipher
+{
+    public string? Protect(string? plainText) => plainText;
+    public string? Unprotect(string? protectedValue) => protectedValue;
 }
 
 internal sealed class StubWebHostEnvironment : IWebHostEnvironment

@@ -12,7 +12,6 @@ import {
 } from './agentWorkspace';
 import { ActionIconButton } from './agentSectionShared';
 import { pushAgentMutationError } from './agentMutationToast';
-import { normalizeChannelKey } from '../../features/channels/channelUtils';
 
 export function AgentReviewSendPage() {
   const campaignsQuery = useAgentCampaignsQuery();
@@ -47,8 +46,6 @@ export function AgentReviewSendPage() {
     <AgentQueryBoundary query={campaignsQuery} loadingLabel="Loading review and send...">
       <AgentPageShell title="Send to Client" description="Review draft recommendations, check the client PDF, and send ready recommendations to the client.">
         {(() => {
-          const recommendationHasOoh = (recommendation: NonNullable<(typeof campaignsQuery.data)>[number]['recommendations'][number] | undefined) =>
-            (recommendation?.items ?? []).some((item) => normalizeChannelKey(item.channel) === 'OOH');
           const rows = (campaignsQuery.data ?? [])
             .filter((campaign) => campaign.recommendations.some((item) => item.status === 'draft' || item.status === 'sent_to_client'))
             .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime());
@@ -75,7 +72,8 @@ export function AgentReviewSendPage() {
                   <tbody>
                     {rows.map((campaign) => {
                       const active = campaign.recommendations[0] ?? campaign.recommendation;
-                      const canSendRecommendation = campaign.recommendations.length >= 3 && campaign.recommendations.every((item) => recommendationHasOoh(item));
+                      const canSendRecommendation = campaign.sendValidation?.canSendRecommendation ?? false;
+                      const sendReasons = campaign.sendValidation?.reasons ?? [];
                       return (
                         <tr key={campaign.id} className="border-t border-line">
                           <td className="px-4 py-4">
@@ -87,7 +85,7 @@ export function AgentReviewSendPage() {
                             <p className="text-xs">{titleize(active?.status ?? 'draft')} | {fmtCurrency(active?.totalCost)} | {campaign.recommendations.length} option(s)</p>
                           </td>
                           <td className="px-4 py-4 text-ink-soft">
-                            {active?.clientFeedbackNotes ?? campaign.nextAction}
+                            {active?.clientFeedbackNotes ?? sendReasons[0] ?? campaign.nextAction}
                           </td>
                           <td className="px-4 py-4 text-ink-soft">{campaign.recommendationPdfUrl ? 'Available' : 'Not generated yet'}</td>
                           <td className="px-4 py-4">

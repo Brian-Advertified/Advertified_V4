@@ -30,6 +30,7 @@ internal static class ControllerMappings
             SelectedBudget = PricingPolicy.ResolvePlanningBudget(
                 campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
                 campaign.PackageOrder.AiStudioReserveAmount),
+            OrderIntent = campaign.PackageOrder.OrderIntent,
             PaymentProvider = campaign.PackageOrder.PaymentProvider ?? string.Empty,
             PaymentStatus = campaign.PackageOrder.PaymentStatus,
             CampaignName = campaign.CampaignName,
@@ -47,6 +48,8 @@ internal static class ControllerMappings
             IsAssignedToCurrentUser = currentUserId.HasValue && campaign.AssignedAgentUserId == currentUserId.Value,
             IsUnassigned = campaign.AssignedAgentUserId is null,
             NextAction = CampaignWorkflowPolicy.GetClientNextAction(campaign),
+            Lifecycle = CampaignLifecycleSupport.Build(campaign),
+            SendValidation = CampaignSendValidationSupport.Build(campaign),
             CreatedAt = new DateTimeOffset(campaign.CreatedAt, TimeSpan.Zero)
         };
     }
@@ -76,6 +79,7 @@ internal static class ControllerMappings
             SelectedBudget = PricingPolicy.ResolvePlanningBudget(
                 campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
                 campaign.PackageOrder.AiStudioReserveAmount),
+            OrderIntent = campaign.PackageOrder.OrderIntent,
             PaymentProvider = campaign.PackageOrder.PaymentProvider ?? string.Empty,
             PaymentStatus = campaign.PackageOrder.PaymentStatus,
             CampaignName = campaign.CampaignName,
@@ -89,6 +93,8 @@ internal static class ControllerMappings
             IsAssignedToCurrentUser = currentUserId.HasValue && campaign.AssignedAgentUserId == currentUserId.Value,
             IsUnassigned = campaign.AssignedAgentUserId is null,
             NextAction = CampaignWorkflowPolicy.GetClientNextAction(campaign),
+            Lifecycle = CampaignLifecycleSupport.Build(campaign),
+            SendValidation = CampaignSendValidationSupport.Build(campaign),
             ProspectDisposition = new ProspectDispositionResponse
             {
                 Status = campaign.ProspectDispositionStatus,
@@ -98,7 +104,6 @@ internal static class ControllerMappings
                 ClosedByUserId = campaign.ProspectDispositionClosedByUserId,
                 ClosedByName = campaign.ProspectDispositionClosedByUser?.FullName
             },
-            Workflow = CampaignWorkflowPolicy.BuildClientWorkflow(campaign),
             CreatedAt = new DateTimeOffset(campaign.CreatedAt, TimeSpan.Zero),
             Timeline = CampaignWorkflowPolicy.BuildTimeline(campaign),
             Brief = campaign.CampaignBrief == null ? null : ToRequest(campaign.CampaignBrief),
@@ -237,6 +242,7 @@ internal static class ControllerMappings
             PackageBandName = order.PackageBand.Name,
             Amount = order.Amount,
             Currency = order.Currency,
+            OrderIntent = order.OrderIntent,
             PaymentProvider = order.PaymentProvider ?? string.Empty,
             PaymentStatus = order.PaymentStatus,
             RefundStatus = order.RefundStatus,

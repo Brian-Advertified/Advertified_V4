@@ -1,7 +1,8 @@
 export type UserRole = 'client' | 'agent' | 'creative_director' | 'admin';
 export type PaymentStatus = 'pending' | 'paid' | 'failed';
 export type RefundStatus = 'none' | 'partial' | 'refunded';
-export type PaymentProvider = 'vodapay' | 'lula' | 'prospect';
+export type PaymentProvider = 'vodapay' | 'lula';
+export type OrderIntent = 'sale' | 'prospect' | string;
 export type CampaignStatus =
   | 'awaiting_purchase'
   | 'paid'
@@ -149,6 +150,7 @@ export interface PackageOrder {
   packageBandName: string;
   amount: number;
   currency: string;
+  orderIntent?: OrderIntent;
   paymentProvider?: string;
   paymentStatus: PaymentStatus;
   refundStatus: RefundStatus;
@@ -420,22 +422,19 @@ export interface CampaignTimelineStep {
   state: 'complete' | 'current' | 'upcoming';
 }
 
-export interface CampaignWorkflowSummary {
-  currentStateKey: string;
-  statusLabel: string;
-  headline: string;
-  description: string;
-  nextStep: string;
-  requiresClientAction: boolean;
-  actionLabel: string;
-  paymentState: 'cleared' | 'manual_review' | 'payment_required' | string;
-  paymentAwaitingManualReview: boolean;
-  paymentRequiredBeforeApproval: boolean;
-  hasClearedPayment: boolean;
-  recommendationAwaitingDecision: boolean;
-  recommendationApprovalCompleted: boolean;
-  canOpenBrief: boolean;
-  canOpenPlanning: boolean;
+export interface CampaignLifecycle {
+  currentState: string;
+  proposalState: string;
+  paymentState: string;
+  commercialState: string;
+  communicationState: string;
+  fulfilmentState: string;
+  aiStudioAccessState: string;
+}
+
+export interface CampaignSendValidation {
+  canSendRecommendation: boolean;
+  reasons: string[];
 }
 
 export interface ProspectDisposition {
@@ -458,6 +457,7 @@ export interface Campaign {
   packageBandId: string;
   packageBandName: string;
   selectedBudget: number;
+  orderIntent?: OrderIntent;
   paymentProvider?: string;
   paymentStatus: PaymentStatus;
   status: CampaignStatus;
@@ -471,7 +471,8 @@ export interface Campaign {
   isUnassigned?: boolean;
     campaignName: string;
     nextAction: string;
-    workflow?: CampaignWorkflowSummary;
+    lifecycle?: CampaignLifecycle;
+    sendValidation?: CampaignSendValidation;
     prospectDisposition?: ProspectDisposition;
     effectivePlanningTarget?: CampaignPlanningTarget;
     timeline: CampaignTimelineStep[];
@@ -1349,7 +1350,33 @@ export interface AdminMonitoring {
   publishSuccessCount: number;
   publishFailureCount: number;
   metricsSyncLagMinutes: number;
+  unpaidOrderBacklogCount: number;
+  unsentProposalBacklogCount: number;
+  unopenedProposalBacklogCount: number;
+  paidActivationBacklogCount: number;
+  staleProspectBacklogCount: number;
   aiJobAlerts: AdminAiJobAlert[];
+  lifecycleQueues: AdminLifecycleQueue[];
+}
+
+export interface AdminLifecycleQueue {
+  queueKey: string;
+  label: string;
+  description: string;
+  count: number;
+  items: AdminLifecycleQueueCampaign[];
+}
+
+export interface AdminLifecycleQueueCampaign {
+  campaignId: string;
+  campaignName: string;
+  clientName: string;
+  currentState: string;
+  commercialState: string;
+  paymentState: string;
+  communicationState: string;
+  ageDays: number;
+  lastActivityAt: string;
 }
 
 export interface AdminAiJobAlert {

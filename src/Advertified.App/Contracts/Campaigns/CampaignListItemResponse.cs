@@ -11,6 +11,7 @@ public sealed class CampaignListItemResponse
     public Guid PackageBandId { get; set; }
     public string PackageBandName { get; set; } = string.Empty;
     public decimal SelectedBudget { get; set; }
+    public string OrderIntent { get; set; } = string.Empty;
     public string PaymentProvider { get; set; } = string.Empty;
     public string PaymentStatus { get; set; } = string.Empty;
     public string? CampaignName { get; set; }
@@ -24,5 +25,7 @@ public sealed class CampaignListItemResponse
     public bool IsAssignedToCurrentUser { get; set; }
     public bool IsUnassigned { get; set; }
     public string NextAction { get; set; } = string.Empty;
+    public CampaignLifecycleResponse? Lifecycle { get; set; }
+    public CampaignSendValidationResponse? SendValidation { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 }

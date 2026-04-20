@@ -12,12 +12,6 @@ public partial class Campaign
     public DateTime? AssignedAt { get; set; }
     public DateTime? ProspectDispositionClosedAt { get; set; }
 
-    public DateTime? AssignmentEmailSentAt { get; set; }
-
-    public DateTime? AgentWorkStartedEmailSentAt { get; set; }
-
-    public DateTime? RecommendationReadyEmailSentAt { get; set; }
-
     public string ProspectDispositionStatus { get; set; } = ProspectDispositionStatuses.Open;
 
     public string? ProspectDispositionReason { get; set; }

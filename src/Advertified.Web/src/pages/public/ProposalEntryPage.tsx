@@ -9,7 +9,7 @@ import { getCampaignRecommendations, selectRecommendation } from '../../features
 import { useToast } from '../../components/ui/toast';
 import { useAuth } from '../../features/auth/auth-context';
 import { hasRecommendationApprovalCompleted } from '../../lib/campaignStatus';
-import { isPaymentAwaitingManualReview } from '../../lib/access';
+import { getCampaignPaymentState } from '../../lib/access';
 import { formatCurrency, titleCase } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import { parseCampaignOpportunityContext } from '../../features/campaigns/briefModel';
@@ -60,13 +60,16 @@ export function ProposalEntryPage() {
     currentSelectionId: selectedRecommendationId,
     requestedRecommendationId: recommendationId,
   });
-  const paymentAwaitingReview = publicProposalQuery.data
-    ? isPaymentAwaitingManualReview(publicProposalQuery.data.paymentProvider, publicProposalQuery.data.paymentStatus)
-    : false;
-  const paymentRequiredBeforeApproval = Boolean(
-    publicProposalQuery.data?.paymentStatus !== 'paid' && !paymentAwaitingReview,
+  const paymentState = publicProposalQuery.data
+    ? getCampaignPaymentState(publicProposalQuery.data)
+    : 'payment_required';
+  const paymentAwaitingReview = paymentState === 'manual_review';
+  const paymentRequiredBeforeApproval = paymentState === 'payment_required';
+  const approvalAlreadyCompleted = hasRecommendationApprovalCompleted(
+    publicProposalQuery.data?.status,
+    recommendation,
+    publicProposalQuery.data?.lifecycle,
   );
-  const approvalAlreadyCompleted = hasRecommendationApprovalCompleted(publicProposalQuery.data?.status, recommendation, publicProposalQuery.data?.workflow);
   const currentProposalPath = `${location.pathname}${location.search}`;
   const checkoutPath = publicProposalQuery.data && recommendation
     ? `/checkout/payment?orderId=${encodeURIComponent(publicProposalQuery.data.packageOrderId)}&campaignId=${encodeURIComponent(publicProposalQuery.data.id)}&recommendationId=${encodeURIComponent(recommendation.id)}&proposalPath=${encodeURIComponent(currentProposalPath)}`

@@ -13,7 +13,7 @@ public static class ProspectCampaignPolicy
     public static bool IsProspectiveCampaign(Campaign campaign)
     {
         return string.Equals(campaign.Status, CampaignStatuses.AwaitingPurchase, StringComparison.OrdinalIgnoreCase)
-            || (campaign.PackageOrder?.PaymentProvider == "prospect"
+            || (PackageOrderIntentPolicy.IsProspect(campaign.PackageOrder)
                 && !string.Equals(campaign.PackageOrder?.PaymentStatus, "paid", StringComparison.OrdinalIgnoreCase));
     }
 

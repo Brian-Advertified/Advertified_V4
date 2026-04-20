@@ -103,7 +103,8 @@ public sealed class PublicProspectQuestionnaireController : ControllerBase
             AiStudioReservePercent = 0m,
             AiStudioReserveAmount = 0m,
             Currency = "ZAR",
-            PaymentProvider = "prospect",
+            OrderIntent = OrderIntentValues.Prospect,
+            PaymentProvider = null,
             PaymentStatus = "pending",
             RefundStatus = "none",
             CreatedAt = now,
@@ -123,7 +124,7 @@ public sealed class PublicProspectQuestionnaireController : ControllerBase
             CampaignName = campaignName,
             Status = CampaignStatuses.BriefSubmitted,
             PlanningMode = "hybrid",
-            AiUnlocked = true,
+            AiUnlocked = false,
             AgentAssistanceRequested = true,
             CreatedAt = now,
             UpdatedAt = now
@@ -138,6 +139,7 @@ public sealed class PublicProspectQuestionnaireController : ControllerBase
         };
         CampaignBriefMapper.Apply(brief, request.Brief, now);
         brief.SubmittedAt = now;
+        CampaignAiAccessPolicy.Apply(campaign, brief);
         _db.CampaignBriefs.Add(brief);
         _db.CampaignBriefDrafts.Add(new CampaignBriefDraft
         {
