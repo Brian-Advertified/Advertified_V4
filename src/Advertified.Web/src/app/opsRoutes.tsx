@@ -12,6 +12,7 @@ const AgentApprovalsPage = lazyPage(() => import('../pages/agent/AgentApprovalsP
 const AgentBriefsPage = lazyPage(() => import('../pages/agent/AgentBriefsPage'), 'AgentBriefsPage');
 const AgentCampaignsPage = lazyPage(() => import('../pages/agent/AgentCampaignsPage'), 'AgentCampaignsPage');
 const AgentDashboardPage = lazyPage(() => import('../pages/agent/AgentDashboardPage'), 'AgentDashboardPage');
+const AgentLeadOpsPage = lazyPage(() => import('../pages/agent/AgentLeadOpsPage'), 'AgentLeadOpsPage');
 const AgentLeadIntelligencePage = lazyPage(() => import('../pages/agent/AgentLeadIntelligencePage'), 'AgentLeadIntelligencePage');
 const AgentLeadsClientsPage = lazyPage(() => import('../pages/agent/AgentLeadsClientsPage'), 'AgentLeadsClientsPage');
 const AgentMessagesNotesPage = lazyPage(() => import('../pages/agent/AgentMessagesNotesPage'), 'AgentMessagesNotesPage');
@@ -65,6 +66,7 @@ export const opsRoutes: AppRoute[] = [
   { path: '/admin/integrations', element: <ProtectedRoute requireAdmin><AdminIntegrationsPage /></ProtectedRoute> },
 
   { path: '/agent', element: <ProtectedRoute requireAgent><AgentDashboardPage /></ProtectedRoute> },
+  { path: '/agent/lead-ops', element: <ProtectedRoute requireAgent><AgentLeadOpsPage /></ProtectedRoute> },
   { path: '/agent/lead-intelligence', element: <ProtectedRoute requireAgent><AgentLeadIntelligencePage /></ProtectedRoute> },
   { path: '/agent/lead-actions', element: <Navigate to="/agent/lead-intelligence" replace /> },
   { path: '/agent/leads', element: <ProtectedRoute requireAgent><AgentLeadsClientsPage /></ProtectedRoute> },

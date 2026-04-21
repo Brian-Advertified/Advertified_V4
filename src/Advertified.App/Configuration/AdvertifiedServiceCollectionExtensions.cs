@@ -35,6 +35,7 @@ public static class AdvertifiedServiceCollectionExtensions
         services.Configure<LeadIndustryPolicyOptions>(configuration.GetSection(LeadIndustryPolicyOptions.SectionName));
         services.Configure<LeadIntelligenceAutomationOptions>(configuration.GetSection(LeadIntelligenceAutomationOptions.SectionName));
         services.Configure<LeadSourceDropFolderOptions>(configuration.GetSection(LeadSourceDropFolderOptions.SectionName));
+        services.Configure<GoogleSheetsLeadOpsOptions>(configuration.GetSection(GoogleSheetsLeadOpsOptions.SectionName));
         services.Configure<OpenAIOptions>(configuration.GetSection(OpenAIOptions.SectionName));
         services.Configure<ElevenLabsOptions>(configuration.GetSection(ElevenLabsOptions.SectionName));
         services.Configure<AiPlatformOptions>(configuration.GetSection(AiPlatformOptions.SectionName));
@@ -296,6 +297,8 @@ public static class AdvertifiedServiceCollectionExtensions
         services.AddScoped<ILeadSourceDropFolderProcessor, LeadSourceDropFolderProcessor>();
         services.AddScoped<ILeadSourceIngestionService, LeadSourceIngestionService>();
         services.AddScoped<ILeadSourceImportService, LeadSourceImportService>();
+        services.AddScoped<ILeadOpsCoverageService, LeadOpsCoverageService>();
+        services.AddScoped<ILeadOpsInboxService, LeadOpsInboxService>();
         services.AddScoped<IPublicLocationSearchService, PublicLocationSearchService>();
         services.AddScoped<ISignalCollectorService, SignalCollectorService>();
         services.AddScoped<ILeadSignalEvidenceProvider, WebsiteLeadSignalEvidenceProvider>();
@@ -318,9 +321,14 @@ public static class AdvertifiedServiceCollectionExtensions
         {
             client.Timeout = TimeSpan.FromSeconds(15);
         });
+        services.AddHttpClient<IGoogleSheetsLeadIntegrationService, GoogleSheetsLeadIntegrationService>(client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(30);
+        }).AddHttpMessageHandler<TransientHttpRetryHandler>();
         services.AddHostedService<LeadIntelligenceRefreshWorker>();
         services.AddHostedService<LeadPaidMediaEvidenceSyncWorker>();
         services.AddHostedService<LeadSourceDropFolderWorker>();
+        services.AddHostedService<GoogleSheetsLeadIntegrationWorker>();
         services.AddHttpClient<IWebhookQueueService, UpstashQStashWebhookQueueService>((serviceProvider, client) =>
         {
             var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<UpstashQStashOptions>>().Value;

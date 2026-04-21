@@ -1,5 +1,7 @@
 import type {
   AgentInbox,
+  LeadOpsCoverage,
+  LeadOpsInbox,
   AgentSales,
   Campaign,
   CampaignPerformanceSnapshot,
@@ -18,6 +20,8 @@ type AgentApiDependencies = {
   getAgentCampaignPerformanceById: (campaignId: string) => Promise<CampaignPerformanceSnapshot>;
   listAgentCampaigns: () => Promise<Campaign[]>;
   getAgentInboxData: () => Promise<AgentInbox>;
+  getLeadOpsCoverageData: () => Promise<LeadOpsCoverage>;
+  getLeadOpsInboxData: () => Promise<LeadOpsInbox>;
   getAgentSalesData: () => Promise<AgentSales>;
   getAgentMessageInboxData: () => Promise<CampaignConversationListItem[]>;
   getAgentMessageThreadData: (campaignId: string) => Promise<CampaignConversationThread>;
@@ -59,6 +63,8 @@ export function createAgentApi({
   getAgentCampaignPerformanceById,
   listAgentCampaigns,
   getAgentInboxData,
+  getLeadOpsCoverageData,
+  getLeadOpsInboxData,
   getAgentSalesData,
   getAgentMessageInboxData,
   getAgentMessageThreadData,
@@ -113,6 +119,14 @@ export function createAgentApi({
 
     async getAgentInbox() {
       return getAgentInboxData();
+    },
+
+    async getLeadOpsInbox() {
+      return getLeadOpsInboxData();
+    },
+
+    async getLeadOpsCoverage() {
+      return getLeadOpsCoverageData();
     },
 
     async getAgentSales() {

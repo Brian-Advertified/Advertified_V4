@@ -416,6 +416,7 @@ public partial class AppDbContext
             entity.HasIndex(e => e.NormalizedPhone, "ix_prospect_leads_normalized_phone");
             entity.HasIndex(e => e.ClaimedUserId, "ix_prospect_leads_claimed_user_id");
             entity.HasIndex(e => e.OwnerAgentUserId, "ix_prospect_leads_owner_agent_user_id");
+            entity.HasIndex(e => e.SourceLeadId, "ix_prospect_leads_source_lead_id");
 
             entity.Property(e => e.Id)
                 .HasDefaultValueSql("gen_random_uuid()")
@@ -439,7 +440,12 @@ public partial class AppDbContext
                 .HasMaxLength(50)
                 .HasColumnName("source");
             entity.Property(e => e.ClaimedUserId).HasColumnName("claimed_user_id");
+            entity.Property(e => e.SourceLeadId).HasColumnName("source_lead_id");
             entity.Property(e => e.OwnerAgentUserId).HasColumnName("owner_agent_user_id");
+            entity.Property(e => e.LastContactedAt).HasColumnName("last_contacted_at");
+            entity.Property(e => e.NextFollowUpAt).HasColumnName("next_follow_up_at");
+            entity.Property(e => e.SlaDueAt).HasColumnName("sla_due_at");
+            entity.Property(e => e.LastOutcome).HasColumnName("last_outcome");
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("created_at");
@@ -458,6 +464,12 @@ public partial class AppDbContext
                 .HasForeignKey(e => e.OwnerAgentUserId)
                 .OnDelete(DeleteBehavior.SetNull)
                 .HasConstraintName("prospect_leads_owner_agent_user_id_fkey");
+
+            entity.HasOne(e => e.SourceLead)
+                .WithMany()
+                .HasForeignKey(e => e.SourceLeadId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("prospect_leads_source_lead_id_fkey");
         });
 
         modelBuilder.Entity<IdentityProfile>(entity =>

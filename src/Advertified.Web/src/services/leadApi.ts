@@ -2,6 +2,8 @@ import type {
   Lead,
   LeadAction,
   LeadActionInbox,
+  GoogleSheetsLeadIntegrationRunResult,
+  GoogleSheetsLeadIntegrationStatus,
   LeadIndustryContext,
   LeadIndustryPolicy,
   LeadInteraction,
@@ -23,6 +25,8 @@ type LeadApiMappers = {
   mapLeadIndustryContext: LeadMapper<LeadIndustryContext>;
   mapLeadIndustryPolicy: LeadMapper<LeadIndustryPolicy>;
   mapLeadActionInbox: LeadMapper<LeadActionInbox>;
+  mapGoogleSheetsLeadIntegrationStatus: LeadMapper<GoogleSheetsLeadIntegrationStatus>;
+  mapGoogleSheetsLeadIntegrationRunResult: LeadMapper<GoogleSheetsLeadIntegrationRunResult>;
   mapLeadSourceAutomationStatus: LeadMapper<LeadSourceAutomationStatus>;
   mapLeadSourceAutomationRunResult: LeadMapper<LeadSourceAutomationRunResult>;
   mapLeadPaidMediaSyncStatus: LeadMapper<LeadPaidMediaSyncStatus>;
@@ -93,6 +97,22 @@ export function createLeadApi(mappers: LeadApiMappers) {
       });
       return mappers.mapLeadSourceAutomationRunResult(response);
     },
+    async getGoogleSheetsLeadIntegrationStatus() {
+      const response = await apiRequest<unknown>('/integrations/google-sheets/leads/status');
+      return mappers.mapGoogleSheetsLeadIntegrationStatus(response);
+    },
+    async importGoogleSheetsLeadSourcesNow() {
+      const response = await apiRequest<unknown>('/integrations/google-sheets/leads/import-now', {
+        method: 'POST',
+      });
+      return mappers.mapGoogleSheetsLeadIntegrationRunResult(response);
+    },
+    async exportGoogleSheetsLeadOpsNow() {
+      const response = await apiRequest<unknown>('/integrations/google-sheets/leads/export-now', {
+        method: 'POST',
+      });
+      return mappers.mapGoogleSheetsLeadIntegrationRunResult(response);
+    },
     async getLeadPaidMediaSyncStatus() {
       const response = await apiRequest<unknown>('/leads/paid-media-sync/status');
       return mappers.mapLeadPaidMediaSyncStatus(response);
@@ -152,6 +172,37 @@ export function createLeadApi(mappers: LeadApiMappers) {
           leadActionId: input.leadActionId,
           interactionType: input.interactionType,
           notes: input.notes,
+        }),
+      });
+    },
+    async convertLeadToProspect(input: {
+      leadId: number;
+      fullName?: string;
+      email?: string;
+      phone?: string;
+      qualificationReason: 'real_contact' | 'human_engagement' | 'agent_decision';
+      lastOutcome?: string;
+      nextFollowUpAtUtc?: string;
+      packageBandId?: string;
+      campaignName?: string;
+    }) {
+      return apiRequest<{
+        prospectLeadId: string;
+        ownerAgentUserId: string;
+        campaignId?: string;
+        unifiedStatus: string;
+        message: string;
+      }>(`/leads/${encodeURIComponent(String(input.leadId))}/convert-to-prospect`, {
+        method: 'POST',
+        body: JSON.stringify({
+          fullName: input.fullName,
+          email: input.email,
+          phone: input.phone,
+          qualificationReason: input.qualificationReason,
+          lastOutcome: input.lastOutcome,
+          nextFollowUpAtUtc: input.nextFollowUpAtUtc,
+          packageBandId: input.packageBandId,
+          campaignName: input.campaignName,
         }),
       });
     },

@@ -4,6 +4,7 @@ import { NavLink } from 'react-router-dom';
 import {
   CircleDollarSign,
   FolderKanban,
+  Inbox,
   LayoutDashboard,
   MessageSquareText,
   Radar,
@@ -15,7 +16,7 @@ import { useAuth } from '../../features/auth/auth-context';
 import { catalogQueryOptions } from '../../lib/catalogQueryOptions';
 import { shouldPollWhenVisible } from '../../lib/queryPolling';
 import { advertifiedApi } from '../../services/advertifiedApi';
-import type { AgentInbox, Campaign, PackageBand } from '../../types/domain';
+import type { AgentInbox, Campaign, LeadOpsCoverage, LeadOpsInbox, PackageBand } from '../../types/domain';
 
 type AgentNavItem = {
   path: string;
@@ -39,6 +40,7 @@ export const agentNavSections: AgentNavSection[] = [
   {
     title: 'Work',
     items: [
+      { path: '/agent/lead-ops', label: 'Lead Ops', icon: Inbox },
       { path: '/agent/lead-intelligence', label: 'Lead Intelligence', icon: Radar },
       { path: '/agent/leads', label: 'Clients', icon: UserRoundSearch },
       { path: '/agent/campaigns', label: 'Campaigns', icon: FolderKanban, end: true },
@@ -75,6 +77,22 @@ export function useAgentInboxQuery(): UseQueryResult<AgentInbox> {
     queryKey: ['agent-inbox'],
     queryFn: advertifiedApi.getAgentInbox,
     refetchInterval: () => shouldPollWhenVisible() ? 15_000 : false,
+  });
+}
+
+export function useLeadOpsInboxQuery(): UseQueryResult<LeadOpsInbox> {
+  return useQuery<LeadOpsInbox>({
+    queryKey: ['lead-ops-inbox'],
+    queryFn: advertifiedApi.getLeadOpsInbox,
+    refetchInterval: () => shouldPollWhenVisible() ? 15_000 : false,
+  });
+}
+
+export function useLeadOpsCoverageQuery(): UseQueryResult<LeadOpsCoverage> {
+  return useQuery<LeadOpsCoverage>({
+    queryKey: ['lead-ops-coverage'],
+    queryFn: advertifiedApi.getLeadOpsCoverage,
+    refetchInterval: () => shouldPollWhenVisible() ? 30_000 : false,
   });
 }
 

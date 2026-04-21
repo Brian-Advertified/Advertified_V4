@@ -39,6 +39,8 @@ public sealed class LeadsController : ControllerBase
     private readonly IGeocodingService _geocodingService;
     private readonly LeadIntelligenceAutomationSnapshotProvider _leadIntelligenceAutomationSnapshotProvider;
     private readonly ICurrentUserAccessor _currentUserAccessor;
+    private readonly IProspectLeadRegistrationService _prospectLeadRegistrationService;
+    private readonly IChangeAuditService _changeAuditService;
 
     public LeadsController(
         AppDbContext db,
@@ -60,7 +62,9 @@ public sealed class LeadsController : ControllerBase
         ILeadIndustryContextResolver leadIndustryContextResolver,
         IGeocodingService geocodingService,
         LeadIntelligenceAutomationSnapshotProvider leadIntelligenceAutomationSnapshotProvider,
-        ICurrentUserAccessor currentUserAccessor)
+        ICurrentUserAccessor currentUserAccessor,
+        IProspectLeadRegistrationService prospectLeadRegistrationService,
+        IChangeAuditService changeAuditService)
     {
         _db = db;
         _leadScoreService = leadScoreService;
@@ -82,6 +86,8 @@ public sealed class LeadsController : ControllerBase
         _geocodingService = geocodingService;
         _leadIntelligenceAutomationSnapshotProvider = leadIntelligenceAutomationSnapshotProvider;
         _currentUserAccessor = currentUserAccessor;
+        _prospectLeadRegistrationService = prospectLeadRegistrationService;
+        _changeAuditService = changeAuditService;
     }
 
     [HttpGet]
@@ -660,6 +666,135 @@ public sealed class LeadsController : ControllerBase
         await _db.SaveChangesAsync(cancellationToken);
 
         return Ok(ToDto(interaction));
+    }
+
+    [HttpPost("{leadId:int}/convert-to-prospect")]
+    public async Task<ActionResult<ConvertLeadToProspectResponse>> ConvertToProspect(
+        int leadId,
+        [FromBody] ConvertLeadToProspectRequest request,
+        CancellationToken cancellationToken)
+    {
+        var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
+        var lead = await ApplyOperationsLeadScope(_db.Leads, currentUser)
+            .FirstOrDefaultAsync(x => x.Id == leadId, cancellationToken);
+        if (lead is null)
+        {
+            return NotFound();
+        }
+
+        var interactions = await _db.LeadInteractions
+            .Where(x => x.LeadId == leadId)
+            .OrderByDescending(x => x.CreatedAt)
+            .ToListAsync(cancellationToken);
+
+        LeadOpsPolicy.ValidateConversionRequest(request, interactions);
+
+        var fullName = string.IsNullOrWhiteSpace(request.FullName) ? lead.Name : request.FullName.Trim();
+        var email = request.Email?.Trim() ?? string.Empty;
+        var phone = request.Phone?.Trim() ?? string.Empty;
+        var now = DateTime.UtcNow;
+
+        var registrationResult = await _prospectLeadRegistrationService.UpsertAgentLeadAsync(
+            currentUser.Id,
+            fullName,
+            email,
+            phone,
+            "lead_conversion",
+            cancellationToken);
+
+        var prospectLead = registrationResult.Lead;
+        prospectLead.SourceLeadId ??= leadId;
+        prospectLead.LastContactedAt ??= interactions.FirstOrDefault()?.CreatedAt;
+        prospectLead.NextFollowUpAt = request.NextFollowUpAtUtc ?? now.AddDays(2);
+        prospectLead.SlaDueAt = now.AddHours(24);
+        prospectLead.LastOutcome = string.IsNullOrWhiteSpace(request.LastOutcome)
+            ? $"Converted via {request.QualificationReason.Trim()}."
+            : request.LastOutcome.Trim();
+        prospectLead.UpdatedAt = now;
+
+        Campaign? campaign = null;
+        if (request.PackageBandId.HasValue)
+        {
+            var packageBand = await _db.PackageBands
+                .FirstOrDefaultAsync(x => x.Id == request.PackageBandId.Value && x.IsActive, cancellationToken)
+                ?? throw new NotFoundException("Package band not found.");
+            var selectedBudget = packageBand.MinBudget > 0m ? packageBand.MinBudget : 25000m;
+
+            var packageOrder = new PackageOrder
+            {
+                Id = Guid.NewGuid(),
+                ProspectLeadId = prospectLead.Id,
+                PackageBandId = packageBand.Id,
+                Amount = selectedBudget,
+                SelectedBudget = selectedBudget,
+                AiStudioReservePercent = 0m,
+                AiStudioReserveAmount = 0m,
+                Currency = "ZAR",
+                OrderIntent = OrderIntentValues.Prospect,
+                PaymentProvider = null,
+                PaymentStatus = "pending",
+                RefundStatus = "none",
+                CreatedAt = now,
+                UpdatedAt = now
+            };
+            _db.PackageOrders.Add(packageOrder);
+
+            campaign = new Campaign
+            {
+                Id = Guid.NewGuid(),
+                ProspectLeadId = prospectLead.Id,
+                PackageOrderId = packageOrder.Id,
+                PackageBandId = packageBand.Id,
+                CampaignName = string.IsNullOrWhiteSpace(request.CampaignName)
+                    ? $"{lead.Name} Growth Opportunity Campaign"
+                    : request.CampaignName.Trim(),
+                Status = CampaignStatuses.AwaitingPurchase,
+                AiUnlocked = false,
+                AgentAssistanceRequested = true,
+                AssignedAgentUserId = currentUser.Id,
+                AssignedAt = now,
+                CreatedAt = now,
+                UpdatedAt = now
+            };
+            _db.Campaigns.Add(campaign);
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await _changeAuditService.WriteAsync(
+            currentUser.Id,
+            "agent",
+            "convert_lead_to_prospect",
+            "lead",
+            leadId.ToString(),
+            lead.Name,
+            $"Converted lead {lead.Name} to prospect ownership.",
+            new
+            {
+                LeadId = leadId,
+                ProspectLeadId = prospectLead.Id,
+                CampaignId = campaign?.Id,
+                QualificationReason = request.QualificationReason,
+                registrationResult.CreatedNewLead
+            },
+            cancellationToken);
+
+        var unifiedStatus = LeadOpsPolicy.ResolveUnifiedLifecycleStage(
+            campaign,
+            hasProspect: true,
+            hasHumanEngagement: LeadOpsPolicy.HasHumanEngagement(interactions),
+            hasOpenActions: await _db.LeadActions.AnyAsync(x => x.LeadId == leadId && x.Status == "open", cancellationToken));
+
+        return Ok(new ConvertLeadToProspectResponse
+        {
+            ProspectLeadId = prospectLead.Id,
+            OwnerAgentUserId = currentUser.Id,
+            CampaignId = campaign?.Id,
+            UnifiedStatus = unifiedStatus,
+            Message = campaign is null
+                ? "Lead converted to prospect."
+                : "Lead converted to prospect and campaign created."
+        });
     }
 
     private LeadDerivedContext BuildDerivedContext(

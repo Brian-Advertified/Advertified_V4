@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BrainCircuit, DatabaseZap, Inbox, LoaderCircle, Plus, Radar } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { formatCurrency } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import { formatChannelLabel } from '../../features/channels/channelUtils';
@@ -97,6 +97,7 @@ function inferDefaultPackageBandId(packageBands: PackageBand[] | undefined, lead
 
 export function AgentLeadIntelligencePage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const [form, setForm] = useState<CreateLeadFormState>(emptyForm);
   const [selectedLeadId, setSelectedLeadId] = useState<number | null>(null);
@@ -134,6 +135,10 @@ export function AgentLeadIntelligencePage() {
     queryKey: ['lead-source-automation-status'],
     queryFn: advertifiedApi.getLeadSourceAutomationStatus,
   });
+  const googleSheetsStatusQuery = useQuery({
+    queryKey: ['google-sheets-lead-integration-status'],
+    queryFn: advertifiedApi.getGoogleSheetsLeadIntegrationStatus,
+  });
   const paidMediaSyncStatusQuery = useQuery({
     queryKey: ['lead-paid-media-sync-status'],
     queryFn: advertifiedApi.getLeadPaidMediaSyncStatus,
@@ -163,11 +168,36 @@ export function AgentLeadIntelligencePage() {
       await selectedLead.refetch();
     },
   });
+  const importGoogleSheetsMutation = useMutation({
+    mutationFn: advertifiedApi.importGoogleSheetsLeadSourcesNow,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['google-sheets-lead-integration-status'] });
+      await refreshLeadIntelligenceWorkspace();
+    },
+  });
+  const exportGoogleSheetsMutation = useMutation({
+    mutationFn: advertifiedApi.exportGoogleSheetsLeadOpsNow,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['google-sheets-lead-integration-status'] });
+      await queryClient.invalidateQueries({ queryKey: ['lead-ops-inbox'] });
+    },
+  });
 
   const selectedLeadSummary = useMemo<LeadIntelligence | undefined>(
     () => intelligenceQuery.data?.find((item) => item.lead.id === selectedLeadId) ?? intelligenceQuery.data?.[0],
     [intelligenceQuery.data, selectedLeadId],
   );
+
+  useEffect(() => {
+    const requestedLeadId = Number(searchParams.get('leadId'));
+    if (!Number.isInteger(requestedLeadId) || requestedLeadId <= 0) {
+      return;
+    }
+
+    if (intelligenceQuery.data?.some((item) => item.lead.id === requestedLeadId)) {
+      setSelectedLeadId(requestedLeadId);
+    }
+  }, [intelligenceQuery.data, searchParams]);
 
   const selectedLead = useQuery({
     queryKey: ['lead-intelligence', selectedLeadSummary?.lead.id],
@@ -262,11 +292,11 @@ export function AgentLeadIntelligencePage() {
     },
   });
 
-  const generateProposalMutation = useMutation({
+  const convertToProspectMutation = useMutation({
     mutationFn: async () => {
       const lead = selectedLead.data;
       if (!lead) {
-        throw new Error('Select a lead before generating a proposal.');
+        throw new Error('Select a lead before converting it to a prospect.');
       }
       if (lead.enrichment.confidenceGate.isBlocked) {
         throw new Error(lead.enrichment.confidenceGate.message);
@@ -278,20 +308,25 @@ export function AgentLeadIntelligencePage() {
       const evidenceLines = buildResearchEvidenceLines(lead);
       const socialQualityNote = buildSocialQualityNote(lead);
 
-      const campaign = await advertifiedApi.createAgentProspectCampaign({
+      const result = await advertifiedApi.convertLeadToProspect({
+        leadId: lead.lead.id,
         fullName: proposalForm.fullName.trim(),
         email: proposalForm.email.trim(),
         phone: proposalForm.phone.trim(),
+        qualificationReason: 'agent_decision',
         packageBandId: proposalForm.packageBandId,
         campaignName: proposalForm.campaignName.trim() || `${lead.lead.name} Growth Opportunity Campaign`,
       });
+      if (!result.campaignId) {
+        throw new Error('Prospect was created but no campaign was returned.');
+      }
 
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['agent-inbox'] }),
         queryClient.invalidateQueries({ queryKey: ['agent-campaigns'] }),
       ]);
 
-      navigate(`/agent/recommendations/new?campaignId=${campaign.id}`, {
+      navigate(`/agent/recommendations/new?campaignId=${result.campaignId}`, {
         state: {
           convertToCampaign: {
             leadId: lead.lead.id,
@@ -570,6 +605,72 @@ export function AgentLeadIntelligencePage() {
                       {sourceAutomationStatusQuery.data.analyzeImportedLeads ? ' auto-analyze on import' : ' import only'}
                     </p>
                   </div>
+
+                  {googleSheetsStatusQuery.data ? (
+                    <div className="rounded-[20px] border border-line bg-white px-4 py-4">
+                      <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">Google Sheets integration</p>
+                      <div className="mt-3 grid gap-3 md:grid-cols-4">
+                        <div className="rounded-[14px] border border-line bg-slate-50 px-3 py-3">
+                          <p className="text-[11px] uppercase tracking-[0.14em] text-ink-soft">Status</p>
+                          <p className="mt-1 text-sm font-semibold text-ink">{googleSheetsStatusQuery.data.enabled ? 'Enabled' : 'Disabled'}</p>
+                        </div>
+                        <div className="rounded-[14px] border border-line bg-slate-50 px-3 py-3">
+                          <p className="text-[11px] uppercase tracking-[0.14em] text-ink-soft">Import sources</p>
+                          <p className="mt-1 text-sm font-semibold text-ink">{googleSheetsStatusQuery.data.activeSourceCount}/{googleSheetsStatusQuery.data.configuredSourceCount}</p>
+                        </div>
+                        <div className="rounded-[14px] border border-line bg-slate-50 px-3 py-3">
+                          <p className="text-[11px] uppercase tracking-[0.14em] text-ink-soft">Import interval</p>
+                          <p className="mt-1 text-sm font-semibold text-ink">{googleSheetsStatusQuery.data.importPollIntervalMinutes} min</p>
+                        </div>
+                        <div className="rounded-[14px] border border-line bg-slate-50 px-3 py-3">
+                          <p className="text-[11px] uppercase tracking-[0.14em] text-ink-soft">Export webhook</p>
+                          <p className="mt-1 text-sm font-semibold text-ink">{googleSheetsStatusQuery.data.exportWebhookConfigured ? 'Configured' : 'Missing'}</p>
+                        </div>
+                      </div>
+
+                      {googleSheetsStatusQuery.data.sources.length > 0 ? (
+                        <div className="mt-3 rounded-[14px] border border-line bg-slate-50 px-3 py-3 text-xs text-ink-soft">
+                          {googleSheetsStatusQuery.data.sources.map((source) => (
+                            <p key={source.name} className="mt-1 first:mt-0">
+                              <span className="font-semibold text-ink">{source.name}</span>: {source.enabled ? 'enabled' : 'disabled'}, source `{source.defaultSource}`, profile `{source.importProfile}`
+                            </p>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="mt-3 text-xs text-ink-soft">No Google Sheets sources are configured yet.</p>
+                      )}
+
+                      <div className="mt-4 flex flex-wrap gap-3">
+                        <button
+                          type="button"
+                          onClick={() => importGoogleSheetsMutation.mutate()}
+                          disabled={importGoogleSheetsMutation.isPending || !googleSheetsStatusQuery.data.enabled || !googleSheetsStatusQuery.data.importEnabled}
+                          className="button-secondary px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {importGoogleSheetsMutation.isPending ? 'Importing sheets...' : 'Import Google Sheets now'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => exportGoogleSheetsMutation.mutate()}
+                          disabled={exportGoogleSheetsMutation.isPending || !googleSheetsStatusQuery.data.enabled || !googleSheetsStatusQuery.data.exportEnabled}
+                          className="button-secondary px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {exportGoogleSheetsMutation.isPending ? 'Exporting Lead Ops...' : 'Export Lead Ops to Sheets'}
+                        </button>
+                      </div>
+
+                      {importGoogleSheetsMutation.data ? (
+                        <p className="mt-3 text-xs text-ink-soft">
+                          Import: {importGoogleSheetsMutation.data.message} Processed {importGoogleSheetsMutation.data.processedSourceCount}, failed {importGoogleSheetsMutation.data.failedSourceCount}, created {importGoogleSheetsMutation.data.createdLeadCount}, updated {importGoogleSheetsMutation.data.updatedLeadCount}.
+                        </p>
+                      ) : null}
+                      {exportGoogleSheetsMutation.data ? (
+                        <p className="mt-2 text-xs text-ink-soft">
+                          Export: {exportGoogleSheetsMutation.data.message} Exported {exportGoogleSheetsMutation.data.exportedItemCount} items.
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
 
                   <div className="rounded-[20px] border border-line bg-white px-4 py-4">
                     <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">Paid media sync</p>
@@ -909,16 +1010,16 @@ export function AgentLeadIntelligencePage() {
                 </div>
 
                 <div className="rounded-[24px] border border-brand/20 bg-brand-soft/30 px-4 py-4">
-                  <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">Proposal setup</p>
-                  <h3 className="mt-2 text-lg font-semibold text-ink">Turn this opportunity into a campaign proposal.</h3>
-                  <p className="mt-3 text-sm text-ink-soft">Use the contact details below and open the existing recommendation engine with this lead already framed as a growth opportunity.</p>
+                  <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">Convert to prospect</p>
+                  <h3 className="mt-2 text-lg font-semibold text-ink">Open a real sales opportunity from this lead.</h3>
+                  <p className="mt-3 text-sm text-ink-soft">This is the handoff from intelligence to active selling. We capture the contact, create or match the prospect, assign ownership, and open the recommendation workspace in one action.</p>
                   <div className="mt-4 flex flex-wrap gap-3">
                     <button
                       type="button"
                       onClick={() => setShowProposalForm((current) => !current)}
                       className="button-primary px-4 py-3"
                     >
-                      {showProposalForm ? 'Hide proposal setup' : 'Generate Campaign Proposal'}
+                      {showProposalForm ? 'Hide conversion setup' : 'Convert to Prospect'}
                     </button>
                   </div>
 
@@ -994,15 +1095,15 @@ export function AgentLeadIntelligencePage() {
                       <div className="md:col-span-2">
                         <button
                           type="button"
-                          onClick={() => generateProposalMutation.mutate()}
-                          disabled={!canGenerateProposal || generateProposalMutation.isPending}
+                          onClick={() => convertToProspectMutation.mutate()}
+                          disabled={!canGenerateProposal || convertToProspectMutation.isPending}
                           className="button-primary px-4 py-3 disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                          {generateProposalMutation.isPending ? 'Creating proposal draft...' : 'Create prospect campaign and generate proposal draft'}
+                          {convertToProspectMutation.isPending ? 'Converting to prospect and opening workspace...' : 'Convert to prospect and open proposal workspace'}
                         </button>
-                        {generateProposalMutation.isError ? (
+                        {convertToProspectMutation.isError ? (
                           <p className="mt-2 text-sm text-rose-700">
-                            {(generateProposalMutation.error as Error)?.message || 'Failed to create proposal draft.'}
+                            {(convertToProspectMutation.error as Error)?.message || 'Failed to convert lead to prospect.'}
                           </p>
                         ) : null}
                       </div>

@@ -690,6 +690,99 @@ export interface AgentInbox {
   items: AgentInboxItem[];
 }
 
+export type LeadOpsItemType =
+  | 'new_inbound_prospect'
+  | 'unassigned_prospect'
+  | 'open_lead_action'
+  | 'prospect_no_recent_activity'
+  | 'awaiting_client_response'
+  | 'overdue_follow_up';
+
+export interface LeadOpsInboxItem {
+  id: string;
+  itemType: LeadOpsItemType;
+  itemLabel: string;
+  campaignId?: string;
+  prospectLeadId?: string;
+  leadId?: number;
+  leadActionId?: number;
+  title: string;
+  subtitle: string;
+  description: string;
+  unifiedStatus: string;
+  assignedAgentUserId?: string;
+  assignedAgentName?: string;
+  isAssignedToCurrentUser: boolean;
+  isUnassigned: boolean;
+  isUrgent: boolean;
+  routePath: string;
+  routeLabel: string;
+  createdAt: string;
+  updatedAt: string;
+  dueAt?: string;
+}
+
+export interface LeadOpsInbox {
+  totalItems: number;
+  urgentCount: number;
+  assignedToMeCount: number;
+  unassignedCount: number;
+  newInboundProspectsCount: number;
+  unassignedProspectsCount: number;
+  openLeadActionsCount: number;
+  noRecentActivityCount: number;
+  awaitingClientResponsesCount: number;
+  overdueFollowUpsCount: number;
+  items: LeadOpsInboxItem[];
+}
+
+export interface LeadOpsCoverageSource {
+  source: string;
+  leadCount: number;
+  prospectCount: number;
+  wonCount: number;
+}
+
+export interface LeadOpsCoverageItem {
+  leadId: number;
+  leadName: string;
+  location: string;
+  category: string;
+  source: string;
+  sourceReference?: string;
+  unifiedStatus: string;
+  ownerAgentUserId?: string;
+  ownerAgentName?: string;
+  ownerResolution: string;
+  hasBeenContacted: boolean;
+  lastContactedAt?: string;
+  nextAction: string;
+  nextActionDueAt?: string;
+  openLeadActionCount: number;
+  hasProspect: boolean;
+  prospectLeadId?: string;
+  activeCampaignId?: string;
+  wonCampaignId?: string;
+  convertedToSale: boolean;
+  routePath: string;
+}
+
+export interface LeadOpsCoverage {
+  totalLeadCount: number;
+  ownedLeadCount: number;
+  unownedLeadCount: number;
+  ambiguousOwnerCount: number;
+  uncontactedLeadCount: number;
+  leadsWithNextActionCount: number;
+  prospectLeadCount: number;
+  activeDealCount: number;
+  wonLeadCount: number;
+  leadToProspectRatePercent: number;
+  leadToSaleRatePercent: number;
+  sources: LeadOpsCoverageSource[];
+  items: LeadOpsCoverageItem[];
+}
+
 export interface AgentSaleItem {
   campaignId: string;
   packageOrderId: string;
@@ -829,6 +922,36 @@ export interface LeadPaidMediaSyncStatus {
   batchSize: number;
   intervalMinutes: number;
   lastRun?: LeadPaidMediaSyncRun;
+}
+
+export interface GoogleSheetsLeadSourceStatus {
+  name: string;
+  enabled: boolean;
+  defaultSource: string;
+  importProfile: string;
+  csvExportUrl: string;
+}
+
+export interface GoogleSheetsLeadIntegrationStatus {
+  enabled: boolean;
+  importEnabled: boolean;
+  exportEnabled: boolean;
+  importPollIntervalMinutes: number;
+  exportPollIntervalMinutes: number;
+  exportWebhookConfigured: boolean;
+  configuredSourceCount: number;
+  activeSourceCount: number;
+  sources: GoogleSheetsLeadSourceStatus[];
+}
+
+export interface GoogleSheetsLeadIntegrationRunResult {
+  operation: string;
+  processedSourceCount: number;
+  failedSourceCount: number;
+  createdLeadCount: number;
+  updatedLeadCount: number;
+  exportedItemCount: number;
+  message: string;
 }
 
 export interface LeadChannelSignal {

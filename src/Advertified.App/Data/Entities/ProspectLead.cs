@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace Advertified.App.Data.Entities;
 
-public class ProspectLead
+public partial class ProspectLead
 {
     public Guid Id { get; set; }
 

@@ -31,6 +31,13 @@ import type {
   LeadAction,
   LeadActionInbox,
   LeadActionInboxItem,
+  GoogleSheetsLeadIntegrationRunResult,
+  GoogleSheetsLeadIntegrationStatus,
+  LeadOpsCoverage,
+  LeadOpsCoverageItem,
+  LeadOpsCoverageSource,
+  LeadOpsInbox,
+  LeadOpsInboxItem,
   LeadChannelDetection,
   LeadIndustryPolicy,
   LeadIndustryContext,
@@ -573,6 +580,91 @@ type AgentInboxResponse = {
   items: AgentInboxItemResponse[];
 };
 
+type LeadOpsInboxItemResponse = {
+  id: string;
+  itemType: LeadOpsInboxItem['itemType'];
+  itemLabel: string;
+  campaignId?: string | null;
+  prospectLeadId?: string | null;
+  leadId?: number | null;
+  leadActionId?: number | null;
+  title: string;
+  subtitle: string;
+  description: string;
+  unifiedStatus: string;
+  assignedAgentUserId?: string | null;
+  assignedAgentName?: string | null;
+  isAssignedToCurrentUser: boolean;
+  isUnassigned: boolean;
+  isUrgent: boolean;
+  routePath: string;
+  routeLabel: string;
+  createdAt: string;
+  updatedAt: string;
+  dueAt?: string | null;
+};
+
+type LeadOpsInboxResponse = {
+  totalItems: number;
+  urgentCount: number;
+  assignedToMeCount: number;
+  unassignedCount: number;
+  newInboundProspectsCount: number;
+  unassignedProspectsCount: number;
+  openLeadActionsCount: number;
+  noRecentActivityCount: number;
+  awaitingClientResponsesCount: number;
+  overdueFollowUpsCount: number;
+  items: LeadOpsInboxItemResponse[];
+};
+
+type LeadOpsCoverageSourceResponse = {
+  source: string;
+  leadCount: number;
+  prospectCount: number;
+  wonCount: number;
+};
+
+type LeadOpsCoverageItemResponse = {
+  leadId: number;
+  leadName: string;
+  location: string;
+  category: string;
+  source: string;
+  sourceReference?: string | null;
+  unifiedStatus: string;
+  ownerAgentUserId?: string | null;
+  ownerAgentName?: string | null;
+  ownerResolution: string;
+  hasBeenContacted: boolean;
+  lastContactedAt?: string | null;
+  nextAction: string;
+  nextActionDueAt?: string | null;
+  openLeadActionCount: number;
+  hasProspect: boolean;
+  prospectLeadId?: string | null;
+  activeCampaignId?: string | null;
+  wonCampaignId?: string | null;
+  convertedToSale: boolean;
+  routePath: string;
+};
+
+type LeadOpsCoverageResponse = {
+  totalLeadCount: number;
+  ownedLeadCount: number;
+  unownedLeadCount: number;
+  ambiguousOwnerCount: number;
+  uncontactedLeadCount: number;
+  leadsWithNextActionCount: number;
+  prospectLeadCount: number;
+  activeDealCount: number;
+  wonLeadCount: number;
+  leadToProspectRatePercent: number;
+  leadToSaleRatePercent: number;
+  sources: LeadOpsCoverageSourceResponse[];
+  items: LeadOpsCoverageItemResponse[];
+};
+
 type AgentSaleItemResponse = {
   campaignId: string;
   packageOrderId: string;
@@ -709,6 +801,36 @@ type LeadSourceAutomationRunResultResponse = {
   failedFileCount: number;
   importedLeadCount: number;
   analyzedLeadCount: number;
+};
+
+type GoogleSheetsLeadSourceStatusResponse = {
+  name: string;
+  enabled: boolean;
+  defaultSource: string;
+  importProfile: string;
+  csvExportUrl: string;
+};
+
+type GoogleSheetsLeadIntegrationStatusResponse = {
+  enabled: boolean;
+  importEnabled: boolean;
+  exportEnabled: boolean;
+  importPollIntervalMinutes: number;
+  exportPollIntervalMinutes: number;
+  exportWebhookConfigured: boolean;
+  configuredSourceCount: number;
+  activeSourceCount: number;
+  sources: GoogleSheetsLeadSourceStatusResponse[];
+};
+
+type GoogleSheetsLeadIntegrationRunResultResponse = {
+  operation: string;
+  processedSourceCount: number;
+  failedSourceCount: number;
+  createdLeadCount: number;
+  updatedLeadCount: number;
+  exportedItemCount: number;
+  message: string;
 };
 
 type LeadPaidMediaSyncRunResponse = {
@@ -1170,6 +1292,101 @@ function mapLeadActionInbox(response: LeadActionInboxResponse): LeadActionInbox 
   };
 }
 
+function mapLeadOpsInboxItem(response: LeadOpsInboxItemResponse): LeadOpsInboxItem {
+  return {
+    id: response.id,
+    itemType: response.itemType,
+    itemLabel: response.itemLabel,
+    campaignId: response.campaignId ?? undefined,
+    prospectLeadId: response.prospectLeadId ?? undefined,
+    leadId: response.leadId ?? undefined,
+    leadActionId: response.leadActionId ?? undefined,
+    title: response.title,
+    subtitle: response.subtitle,
+    description: response.description,
+    unifiedStatus: response.unifiedStatus,
+    assignedAgentUserId: response.assignedAgentUserId ?? undefined,
+    assignedAgentName: response.assignedAgentName ?? undefined,
+    isAssignedToCurrentUser: response.isAssignedToCurrentUser,
+    isUnassigned: response.isUnassigned,
+    isUrgent: response.isUrgent,
+    routePath: response.routePath,
+    routeLabel: response.routeLabel,
+    createdAt: response.createdAt,
+    updatedAt: response.updatedAt,
+    dueAt: response.dueAt ?? undefined,
+  };
+}
+
+function mapLeadOpsInbox(response: LeadOpsInboxResponse): LeadOpsInbox {
+  return {
+    totalItems: response.totalItems,
+    urgentCount: response.urgentCount,
+    assignedToMeCount: response.assignedToMeCount,
+    unassignedCount: response.unassignedCount,
+    newInboundProspectsCount: response.newInboundProspectsCount,
+    unassignedProspectsCount: response.unassignedProspectsCount,
+    openLeadActionsCount: response.openLeadActionsCount,
+    noRecentActivityCount: response.noRecentActivityCount,
+    awaitingClientResponsesCount: response.awaitingClientResponsesCount,
+    overdueFollowUpsCount: response.overdueFollowUpsCount,
+    items: response.items.map(mapLeadOpsInboxItem),
+  };
+}
+
+function mapLeadOpsCoverageSource(response: LeadOpsCoverageSourceResponse): LeadOpsCoverageSource {
+  return {
+    source: response.source,
+    leadCount: response.leadCount,
+    prospectCount: response.prospectCount,
+    wonCount: response.wonCount,
+  };
+}
+
+function mapLeadOpsCoverageItem(response: LeadOpsCoverageItemResponse): LeadOpsCoverageItem {
+  return {
+    leadId: response.leadId,
+    leadName: response.leadName,
+    location: response.location,
+    category: response.category,
+    source: response.source,
+    sourceReference: response.sourceReference ?? undefined,
+    unifiedStatus: response.unifiedStatus,
+    ownerAgentUserId: response.ownerAgentUserId ?? undefined,
+    ownerAgentName: response.ownerAgentName ?? undefined,
+    ownerResolution: response.ownerResolution,
+    hasBeenContacted: response.hasBeenContacted,
+    lastContactedAt: response.lastContactedAt ?? undefined,
+    nextAction: response.nextAction,
+    nextActionDueAt: response.nextActionDueAt ?? undefined,
+    openLeadActionCount: response.openLeadActionCount,
+    hasProspect: response.hasProspect,
+    prospectLeadId: response.prospectLeadId ?? undefined,
+    activeCampaignId: response.activeCampaignId ?? undefined,
+    wonCampaignId: response.wonCampaignId ?? undefined,
+    convertedToSale: response.convertedToSale,
+    routePath: response.routePath,
+  };
+}
+
+function mapLeadOpsCoverage(response: LeadOpsCoverageResponse): LeadOpsCoverage {
+  return {
+    totalLeadCount: response.totalLeadCount,
+    ownedLeadCount: response.ownedLeadCount,
+    unownedLeadCount: response.unownedLeadCount,
+    ambiguousOwnerCount: response.ambiguousOwnerCount,
+    uncontactedLeadCount: response.uncontactedLeadCount,
+    leadsWithNextActionCount: response.leadsWithNextActionCount,
+    prospectLeadCount: response.prospectLeadCount,
+    activeDealCount: response.activeDealCount,
+    wonLeadCount: response.wonLeadCount,
+    leadToProspectRatePercent: response.leadToProspectRatePercent,
+    leadToSaleRatePercent: response.leadToSaleRatePercent,
+    sources: response.sources.map(mapLeadOpsCoverageSource),
+    items: response.items.map(mapLeadOpsCoverageItem),
+  };
+}
+
 function mapLeadSourceAutomationStatus(response: LeadSourceAutomationStatusResponse): LeadSourceAutomationStatus {
   return {
     dropFolderEnabled: response.dropFolderEnabled,
@@ -1191,6 +1408,38 @@ function mapLeadSourceAutomationRunResult(response: LeadSourceAutomationRunResul
     failedFileCount: response.failedFileCount,
     importedLeadCount: response.importedLeadCount,
     analyzedLeadCount: response.analyzedLeadCount,
+  };
+}
+
+function mapGoogleSheetsLeadIntegrationStatus(response: GoogleSheetsLeadIntegrationStatusResponse): GoogleSheetsLeadIntegrationStatus {
+  return {
+    enabled: response.enabled,
+    importEnabled: response.importEnabled,
+    exportEnabled: response.exportEnabled,
+    importPollIntervalMinutes: response.importPollIntervalMinutes,
+    exportPollIntervalMinutes: response.exportPollIntervalMinutes,
+    exportWebhookConfigured: response.exportWebhookConfigured,
+    configuredSourceCount: response.configuredSourceCount,
+    activeSourceCount: response.activeSourceCount,
+    sources: (response.sources ?? []).map((source) => ({
+      name: source.name,
+      enabled: source.enabled,
+      defaultSource: source.defaultSource,
+      importProfile: source.importProfile,
+      csvExportUrl: source.csvExportUrl,
+    })),
+  };
+}
+
+function mapGoogleSheetsLeadIntegrationRunResult(response: GoogleSheetsLeadIntegrationRunResultResponse): GoogleSheetsLeadIntegrationRunResult {
+  return {
+    operation: response.operation,
+    processedSourceCount: response.processedSourceCount,
+    failedSourceCount: response.failedSourceCount,
+    createdLeadCount: response.createdLeadCount,
+    updatedLeadCount: response.updatedLeadCount,
+    exportedItemCount: response.exportedItemCount,
+    message: response.message,
   };
 }
 
@@ -1911,6 +2160,14 @@ const agentApi = createAgentApi({
     const response = await apiRequest<AgentInboxResponse>('/agent/campaigns/inbox');
     return mapAgentInbox(response);
   },
+  async getLeadOpsInboxData() {
+    const response = await apiRequest<LeadOpsInboxResponse>('/agent/lead-ops/inbox');
+    return mapLeadOpsInbox(response);
+  },
+  async getLeadOpsCoverageData() {
+    const response = await apiRequest<LeadOpsCoverageResponse>('/agent/lead-ops/coverage');
+    return mapLeadOpsCoverage(response);
+  },
   async getAgentSalesData() {
     const response = await apiRequest<AgentSalesResponse>('/agent/campaigns/sales');
     return mapAgentSales(response);
@@ -2190,6 +2447,8 @@ const leadApi = createLeadApi({
   mapLeadIndustryContext,
   mapLeadIndustryPolicy,
   mapLeadActionInbox,
+  mapGoogleSheetsLeadIntegrationStatus,
+  mapGoogleSheetsLeadIntegrationRunResult,
   mapLeadSourceAutomationStatus,
   mapLeadSourceAutomationRunResult,
   mapLeadPaidMediaSyncStatus,
