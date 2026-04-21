@@ -24,7 +24,6 @@ public sealed class PublicProspectQuestionnaireController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly SaveCampaignBriefRequestValidator _briefValidator;
-    private readonly IAgentAreaRoutingService _agentAreaRoutingService;
     private readonly IChangeAuditService _changeAuditService;
     private readonly ILocationCatalogService _locationCatalogService;
     private readonly IProspectLeadRegistrationService _prospectLeadRegistrationService;
@@ -35,7 +34,6 @@ public sealed class PublicProspectQuestionnaireController : ControllerBase
     public PublicProspectQuestionnaireController(
         AppDbContext db,
         SaveCampaignBriefRequestValidator briefValidator,
-        IAgentAreaRoutingService agentAreaRoutingService,
         IChangeAuditService changeAuditService,
         ILocationCatalogService locationCatalogService,
         IProspectLeadRegistrationService prospectLeadRegistrationService,
@@ -45,7 +43,6 @@ public sealed class PublicProspectQuestionnaireController : ControllerBase
     {
         _db = db;
         _briefValidator = briefValidator;
-        _agentAreaRoutingService = agentAreaRoutingService;
         _changeAuditService = changeAuditService;
         _locationCatalogService = locationCatalogService;
         _prospectLeadRegistrationService = prospectLeadRegistrationService;
@@ -151,7 +148,6 @@ public sealed class PublicProspectQuestionnaireController : ControllerBase
 
         await _db.SaveChangesAsync(cancellationToken);
         await TrySeedLocationCatalogAsync(request.Brief, cancellationToken);
-        await _agentAreaRoutingService.TryAssignCampaignAsync(campaign.Id, "public_prospect_questionnaire_submitted", cancellationToken);
         await _changeAuditService.WriteAsync(
             null,
             "public",
