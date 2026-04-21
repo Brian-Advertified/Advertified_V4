@@ -35,6 +35,7 @@ public sealed class LeadsController : ControllerBase
     private readonly ILeadPaidMediaEvidenceSyncService _leadPaidMediaEvidenceSyncService;
     private readonly IWebsiteSignalProvider _websiteSignalProvider;
     private readonly ILeadMasterDataService _leadMasterDataService;
+    private readonly ILeadIndustryContextResolver _leadIndustryContextResolver;
     private readonly IGeocodingService _geocodingService;
     private readonly LeadIntelligenceAutomationSnapshotProvider _leadIntelligenceAutomationSnapshotProvider;
     private readonly ICurrentUserAccessor _currentUserAccessor;
@@ -56,6 +57,7 @@ public sealed class LeadsController : ControllerBase
         ILeadPaidMediaEvidenceSyncService leadPaidMediaEvidenceSyncService,
         IWebsiteSignalProvider websiteSignalProvider,
         ILeadMasterDataService leadMasterDataService,
+        ILeadIndustryContextResolver leadIndustryContextResolver,
         IGeocodingService geocodingService,
         LeadIntelligenceAutomationSnapshotProvider leadIntelligenceAutomationSnapshotProvider,
         ICurrentUserAccessor currentUserAccessor)
@@ -76,6 +78,7 @@ public sealed class LeadsController : ControllerBase
         _leadPaidMediaEvidenceSyncService = leadPaidMediaEvidenceSyncService;
         _websiteSignalProvider = websiteSignalProvider;
         _leadMasterDataService = leadMasterDataService;
+        _leadIndustryContextResolver = leadIndustryContextResolver;
         _geocodingService = geocodingService;
         _leadIntelligenceAutomationSnapshotProvider = leadIntelligenceAutomationSnapshotProvider;
         _currentUserAccessor = currentUserAccessor;
@@ -185,8 +188,15 @@ public sealed class LeadsController : ControllerBase
     [HttpGet("industry-policy/resolve")]
     public ActionResult<LeadIndustryPolicyDto> ResolveIndustryPolicy([FromQuery] string? category)
     {
-        var policy = _leadIndustryPolicyService.ResolveForCategory(category);
-        return Ok(ToDto(policy));
+        var industryContext = _leadIndustryContextResolver.ResolveFromCategory(category);
+        return Ok(ToDto(industryContext.Policy));
+    }
+
+    [HttpGet("industry-context/resolve")]
+    public ActionResult<LeadIndustryContextDto> ResolveIndustryContext([FromQuery] string? category)
+    {
+        var industryContext = _leadIndustryContextResolver.ResolveFromCategory(category);
+        return Ok(ToDto(industryContext));
     }
 
     [HttpPost("source-automation/process-now")]
@@ -657,12 +667,13 @@ public sealed class LeadsController : ControllerBase
         Signal? signal,
         IReadOnlyList<LeadSignalEvidence> signalEvidence)
     {
-        var channelDetections = _leadChannelDetectionService.Detect(lead, signal, signalEvidence);
-        var industryPolicy = _leadIndustryPolicyService.ResolveForCategory(lead.Category);
+        var industryContext = _leadIndustryContextResolver.ResolveFromCategory(lead.Category);
+        var channelDetections = _leadChannelDetectionService.Detect(lead, signal, signalEvidence, industryContext.CanonicalIndustry);
+        var industryPolicy = industryContext.Policy;
         var opportunityProfile = _leadOpportunityProfileService.Build(lead, signal, channelDetections, industryPolicy);
-        var enrichment = _leadEnrichmentSnapshotService.Build(lead, signal, signalEvidence, channelDetections);
+        var enrichment = _leadEnrichmentSnapshotService.Build(lead, signal, signalEvidence, channelDetections, industryContext.CanonicalIndustry, industryContext);
         var businessProfile = _leadBusinessProfileService.Build(lead, enrichment, industryPolicy, opportunityProfile);
-        var strategy = _leadStrategyEngine.Build(businessProfile, industryPolicy, opportunityProfile, channelDetections);
+        var strategy = _leadStrategyEngine.Build(businessProfile, industryPolicy, industryContext, opportunityProfile, channelDetections);
 
         return new LeadDerivedContext(channelDetections, industryPolicy, opportunityProfile, enrichment, businessProfile, strategy);
     }
@@ -853,6 +864,54 @@ public sealed class LeadsController : ControllerBase
             Guardrails = profile.Guardrails,
             AdditionalGap = profile.AdditionalGap,
             AdditionalOutcome = profile.AdditionalOutcome,
+        };
+    }
+
+    private static LeadIndustryContextDto ToDto(LeadIndustryContext context)
+    {
+        return new LeadIndustryContextDto
+        {
+            Code = context.Code,
+            Label = context.Label,
+            Policy = ToDto(context.Policy),
+            Audience = new LeadIndustryAudienceProfileDto
+            {
+                PrimaryPersona = context.Audience.PrimaryPersona,
+                BuyingJourney = context.Audience.BuyingJourney,
+                TrustSensitivity = context.Audience.TrustSensitivity,
+                DefaultLanguageBiases = context.Audience.DefaultLanguageBiases,
+                AudienceHints = context.Audience.AudienceHints
+            },
+            Campaign = new LeadIndustryCampaignProfileDto
+            {
+                DefaultObjective = context.Campaign.DefaultObjective,
+                FunnelShape = context.Campaign.FunnelShape,
+                PrimaryKpis = context.Campaign.PrimaryKpis,
+                SalesCycle = context.Campaign.SalesCycle
+            },
+            Channels = new LeadIndustryChannelProfileDto
+            {
+                PreferredChannels = context.Channels.PreferredChannels,
+                BaseBudgetSplit = context.Channels.BaseBudgetSplit,
+                GeographyBias = context.Channels.GeographyBias
+            },
+            Creative = new LeadIndustryCreativeProfileDto
+            {
+                PreferredTone = context.Creative.PreferredTone,
+                MessagingAngle = context.Creative.MessagingAngle,
+                RecommendedCta = context.Creative.RecommendedCta,
+                ProofPoints = context.Creative.ProofPoints
+            },
+            Compliance = new LeadIndustryComplianceProfileDto
+            {
+                Guardrails = context.Compliance.Guardrails,
+                RestrictedClaimTypes = context.Compliance.RestrictedClaimTypes
+            },
+            Research = new LeadIndustryResearchProfileDto
+            {
+                Summary = context.Research.Summary,
+                Sources = context.Research.Sources
+            }
         };
     }
 

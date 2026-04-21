@@ -2,5 +2,5 @@ namespace Advertified.App.Services.Abstractions;
 
 public interface ILeadIndustryPolicyService
 {
-    LeadIndustryPolicyProfile ResolveForCategory(string? category);
+    LeadIndustryPolicyProfile ResolveForCategory(string? category, MasterIndustryMatch? canonicalIndustry = null);
 }

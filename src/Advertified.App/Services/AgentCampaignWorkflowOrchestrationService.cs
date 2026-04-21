@@ -19,6 +19,7 @@ namespace Advertified.App.Services;
 
 public sealed class AgentCampaignWorkflowOrchestrationService : IAgentCampaignWorkflowOrchestrationService
 {
+    private const string ClientFeedbackMarker = "Client feedback:";
     private readonly AppDbContext _db;
     private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly IPackagePurchaseService _packagePurchaseService;
@@ -289,13 +290,14 @@ public sealed class AgentCampaignWorkflowOrchestrationService : IAgentCampaignWo
         {
             throw new InvalidOperationException("Recommendation not found.");
         }
+        var recommendationsToSend = ResolveRecommendationsToSend(currentRecommendations);
 
         if (ProspectCampaignPolicy.IsClosed(campaign))
         {
             throw new InvalidOperationException("Reopen this prospect before sending a recommendation to the client.");
         }
 
-        var sendValidation = CampaignSendValidationSupport.Build(campaign, currentRecommendations);
+        var sendValidation = CampaignSendValidationSupport.Build(campaign, recommendationsToSend);
         if (!sendValidation.CanSendRecommendation)
         {
             return BadRequest(new
@@ -320,7 +322,7 @@ public sealed class AgentCampaignWorkflowOrchestrationService : IAgentCampaignWo
 
         try
         {
-            foreach (var recommendation in currentRecommendations)
+            foreach (var recommendation in recommendationsToSend)
             {
                 await _recommendationDocumentService.GetRecommendationPdfBytesAsync(campaign.Id, recommendation.Id, cancellationToken);
             }
@@ -331,7 +333,7 @@ public sealed class AgentCampaignWorkflowOrchestrationService : IAgentCampaignWo
             return BadRequest(new { Message = "Recommendation PDFs are not ready to send yet." });
         }
 
-        _campaignStatusTransitionService.MoveRecommendationSetToReviewReady(campaign, currentRecommendations, DateTime.UtcNow);
+        _campaignStatusTransitionService.MoveRecommendationSetToReviewReady(campaign, recommendationsToSend, DateTime.UtcNow);
 
         await _db.SaveChangesAsync(cancellationToken);
         await WriteChangeAuditAsync(
@@ -343,17 +345,17 @@ public sealed class AgentCampaignWorkflowOrchestrationService : IAgentCampaignWo
             new
             {
                 CampaignId = campaign.Id,
-                ProposalCount = currentRecommendations.Length,
+                ProposalCount = recommendationsToSend.Count,
                 request.Message
             },
             cancellationToken);
 
-        await SendRecommendationReadyEmailIfNeededAsync(campaign.Id, currentRecommendations, request.Message, currentUser, cancellationToken);
+        await SendRecommendationReadyEmailIfNeededAsync(campaign.Id, recommendationsToSend, request.Message, currentUser, cancellationToken);
 
         return Accepted(new
         {
             CampaignId = id,
-            ProposalCount = currentRecommendations.Length,
+            ProposalCount = recommendationsToSend.Count,
             Message = "Recommendation set sent to client.",
             ClientMessage = request.Message
         });
@@ -522,10 +524,11 @@ public sealed class AgentCampaignWorkflowOrchestrationService : IAgentCampaignWo
         {
             return BadRequest(new { Message = "No current recommendations found for this campaign." });
         }
+        var recommendationsToSend = ResolveRecommendationsToSend(currentRecommendations);
 
         try
         {
-            await SendRecommendationReadyEmailAsync(campaign, currentRecommendations, message, senderUser, toEmail, cancellationToken);
+            await SendRecommendationReadyEmailAsync(campaign, recommendationsToSend, message, senderUser, toEmail, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -548,13 +551,13 @@ public sealed class AgentCampaignWorkflowOrchestrationService : IAgentCampaignWo
             new
             {
                 CampaignId = campaign.Id,
-                ProposalCount = currentRecommendations.Length,
+                ProposalCount = recommendationsToSend.Count,
                 ToEmail = toEmail,
                 Message = message
             },
             cancellationToken);
 
-        return Accepted(new { CampaignId = id, ToEmail = toEmail, ProposalCount = currentRecommendations.Length, Message = "Proposal email resent." });
+        return Accepted(new { CampaignId = id, ToEmail = toEmail, ProposalCount = recommendationsToSend.Count, Message = "Proposal email resent." });
     }
 
     private async Task WriteChangeAuditAsync(
@@ -784,11 +787,11 @@ public sealed class AgentCampaignWorkflowOrchestrationService : IAgentCampaignWo
     {
         var useLeadTemplate = ShouldUseLeadOutreachMessage(campaign);
         EmailAttachment[]? attachments = null;
-        string recommendationPackBlock = string.Empty;
         var proposalCount = recommendations.Count;
         var templateName = useLeadTemplate
             ? "lead-proposal-ready"
             : "recommendation-ready";
+        var recommendationEmailContext = ResolveRecommendationEmailContext(recommendations);
 
         try
         {
@@ -809,11 +812,6 @@ public sealed class AgentCampaignWorkflowOrchestrationService : IAgentCampaignWo
             {
                 throw new InvalidOperationException($"Expected {recommendations.Count} recommendation PDF attachments but built {attachments.Length}.");
             }
-
-            recommendationPackBlock = @"
-                <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">
-                  We have attached a separate PDF for each recommendation option. Each PDF starts with a one-page summary followed by the full detailed media plan.
-                </p>";
             _logger.LogInformation(
                 "Built {AttachmentCount} recommendation PDF attachments for campaign {CampaignId} using template {TemplateName}.",
                 attachments.Length,
@@ -849,16 +847,16 @@ public sealed class AgentCampaignWorkflowOrchestrationService : IAgentCampaignWo
                 ["PackageName"] = campaign.PackageBand.Name,
                 ["BudgetLabel"] = ResolveBudgetLabel(campaign),
                 ["Budget"] = ResolveBudgetDisplayText(campaign),
+                ["RecommendationEmailSubject"] = recommendationEmailContext.Subject,
+                ["RecommendationEmailHeadline"] = recommendationEmailContext.Headline,
                 ["RecommendationIntro"] = recommendationIntro,
                 ["AreaOrIndustry"] = areaOrIndustry,
                 ["ReviewUrl"] = reviewUrl,
                 ["LeadPdfUrl"] = leadPdfUrl,
                 ["ProposalCount"] = proposalCount.ToString(CultureInfo.InvariantCulture),
-                ["ProposalSummary"] = proposalCount > 1
-                    ? $"We have prepared {proposalCount} proposal options for you to compare."
-                    : "We have prepared your recommendation for review.",
+                ["ProposalSummary"] = recommendationEmailContext.Summary,
                 ["AgentMessageBlock"] = BuildAgentMessageBlock(resolvedAgentMessage),
-                ["RecommendationPackBlock"] = recommendationPackBlock,
+                ["RecommendationPackBlock"] = recommendationEmailContext.PackBlock,
                 ["ProposalAcceptButtonsBlock"] = proposalActionButtons
             },
             attachments,
@@ -879,6 +877,73 @@ public sealed class AgentCampaignWorkflowOrchestrationService : IAgentCampaignWo
             cancellationToken);
 
         _logger.LogInformation("Proposal email sent for campaign {CampaignId} to {ToEmail} using template {TemplateName}.", campaign.Id, toEmail, templateName);
+    }
+
+    private static RecommendationEmailContext ResolveRecommendationEmailContext(IReadOnlyList<CampaignRecommendation> recommendations)
+    {
+        var selectedProposalLabel = recommendations
+            .Select(item => ExtractSelectedProposalLabel(ExtractClientFeedbackNotes(item.Rationale)))
+            .FirstOrDefault(label => !string.IsNullOrWhiteSpace(label));
+        var isRevision = recommendations.Any(item => !string.IsNullOrWhiteSpace(ExtractClientFeedbackNotes(item.Rationale)));
+
+        if (!isRevision)
+        {
+            return new RecommendationEmailContext(
+                "Your Advertified recommendation options are ready for {{CampaignName}}",
+                "Your campaign recommendations are ready to review",
+                recommendations.Count > 1
+                    ? $"We have prepared {recommendations.Count} proposal options for you to compare."
+                    : "We have prepared your recommendation for review.",
+                @"
+                <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">
+                  We have attached a separate PDF for each recommendation option. Each PDF starts with a one-page summary followed by the full detailed media plan.
+                </p>");
+        }
+
+        var proposalReference = string.IsNullOrWhiteSpace(selectedProposalLabel)
+            ? "your selected proposal"
+            : selectedProposalLabel;
+
+        return new RecommendationEmailContext(
+            string.IsNullOrWhiteSpace(selectedProposalLabel)
+                ? "Your revised Advertified recommendation is ready for {{CampaignName}}"
+                : $"Your revised {selectedProposalLabel} is ready for {{CampaignName}}",
+            string.IsNullOrWhiteSpace(selectedProposalLabel)
+                ? "Your revised recommendation is ready to review"
+                : $"Your revised {selectedProposalLabel} is ready to review",
+            recommendations.Count > 1
+                ? $"We have updated {proposalReference} based on your feedback. The revised proposal is attached, and your review page includes the latest full proposal set if you want to compare options again."
+                : $"We have updated {proposalReference} based on your feedback and attached the revised proposal for review.",
+            recommendations.Count > 1
+                ? @"
+                <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">
+                  We have attached the updated proposal PDFs for this revision. Your selected proposal has been revised, and the latest full proposal set is still available in your review workspace if you want to compare routes again.
+                </p>"
+                : @"
+                <p style=""margin:0 0 16px;font-size:15px;line-height:1.7;color:#4b635a;"">
+                  We have attached the updated proposal PDF for this revision so you can review the changes directly.
+                </p>");
+    }
+
+    private static IReadOnlyList<CampaignRecommendation> ResolveRecommendationsToSend(IReadOnlyList<CampaignRecommendation> recommendations)
+    {
+        var selectedProposalLabel = recommendations
+            .Select(item => ExtractSelectedProposalLabel(ExtractClientFeedbackNotes(item.Rationale)))
+            .FirstOrDefault(label => !string.IsNullOrWhiteSpace(label));
+        if (string.IsNullOrWhiteSpace(selectedProposalLabel))
+        {
+            return recommendations;
+        }
+
+        var selectedRecommendation = recommendations.FirstOrDefault(item =>
+            string.Equals(item.RecommendationType, selectedProposalLabel, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(GetProposalLabel(item), selectedProposalLabel, StringComparison.OrdinalIgnoreCase));
+        if (selectedRecommendation is not null)
+        {
+            return new[] { selectedRecommendation };
+        }
+
+        return recommendations;
     }
 
     private static string ResolveAgentDisplayName(Campaign campaign, UserAccount senderUser)
@@ -917,6 +982,59 @@ public sealed class AgentCampaignWorkflowOrchestrationService : IAgentCampaignWo
         return $"advertified-recommendation-{campaignId:D}-{safeProposalLabel}.pdf";
     }
 
+    private static string GetProposalLabel(CampaignRecommendation recommendation)
+    {
+        var variantKey = recommendation.RecommendationType?
+            .Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .LastOrDefault()?
+            .ToLowerInvariant();
+
+        return variantKey switch
+        {
+            "balanced" => "Proposal A",
+            "ooh_focus" => "Proposal B",
+            "radio_focus" => "Proposal C",
+            "digital_focus" => "Proposal C",
+            _ => string.Empty
+        };
+    }
+
+    private static string? ExtractClientFeedbackNotes(string? rationale)
+    {
+        if (string.IsNullOrWhiteSpace(rationale))
+        {
+            return null;
+        }
+
+        var markerIndex = rationale.LastIndexOf(ClientFeedbackMarker, StringComparison.OrdinalIgnoreCase);
+        if (markerIndex < 0)
+        {
+            return null;
+        }
+
+        var notes = rationale[(markerIndex + ClientFeedbackMarker.Length)..].Trim();
+        return string.IsNullOrWhiteSpace(notes) ? null : notes;
+    }
+
+    private static string? ExtractSelectedProposalLabel(string? clientFeedbackNotes)
+    {
+        if (string.IsNullOrWhiteSpace(clientFeedbackNotes))
+        {
+            return null;
+        }
+
+        var line = clientFeedbackNotes
+            .Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries)
+            .FirstOrDefault(entry => entry.StartsWith("Client selected proposal for revision:", StringComparison.OrdinalIgnoreCase));
+        if (line is null)
+        {
+            return null;
+        }
+
+        var proposalLabel = line["Client selected proposal for revision:".Length..].Trim();
+        return string.IsNullOrWhiteSpace(proposalLabel) ? null : proposalLabel;
+    }
+
     private static string ResolveBudgetLabel(Campaign campaign)
     {
         return ShouldDisplayPackageRange(campaign)
@@ -943,6 +1061,8 @@ public sealed class AgentCampaignWorkflowOrchestrationService : IAgentCampaignWo
     {
         return amount.ToString("C0", CultureInfo.GetCultureInfo("en-ZA"));
     }
+
+    private sealed record RecommendationEmailContext(string Subject, string Headline, string Summary, string PackBlock);
 
     private static string BuildAgentMessageBlock(string? message)
     {

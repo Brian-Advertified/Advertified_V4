@@ -48,14 +48,15 @@ public sealed class LeadIndustryPolicyService : ILeadIndustryPolicyService
     {
     }
 
-    public LeadIndustryPolicyProfile ResolveForCategory(string? category)
+    public LeadIndustryPolicyProfile ResolveForCategory(string? category, MasterIndustryMatch? canonicalIndustry = null)
     {
         if (string.IsNullOrWhiteSpace(category))
         {
             return _defaultProfile;
         }
 
-        var industryCode = _leadMasterDataService.ResolveIndustry(category)?.Code;
+        var industryCode = canonicalIndustry?.Code
+            ?? _leadMasterDataService.ResolveIndustry(category)?.Code;
         if (!string.IsNullOrWhiteSpace(industryCode)
             && _profilesByKey.TryGetValue(industryCode, out var canonicalProfile))
         {

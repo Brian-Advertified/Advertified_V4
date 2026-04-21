@@ -12,10 +12,12 @@ public sealed class CreativeGenerationOrchestrator : ICreativeGenerationOrchestr
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly AppDbContext _db;
+    private readonly ILeadIndustryContextResolver _leadIndustryContextResolver;
 
-    public CreativeGenerationOrchestrator(AppDbContext db)
+    public CreativeGenerationOrchestrator(AppDbContext db, ILeadIndustryContextResolver leadIndustryContextResolver)
     {
         _db = db;
+        _leadIndustryContextResolver = leadIndustryContextResolver;
     }
 
     public async Task<GenerateCreativesResponse> GenerateAsync(
@@ -25,7 +27,8 @@ public sealed class CreativeGenerationOrchestrator : ICreativeGenerationOrchestr
         CancellationToken cancellationToken)
     {
         var normalized = NormalizeRequest(request);
-        var brief = BuildCreativeBrief(normalized);
+        var industryContext = _leadIndustryContextResolver.ResolveFromCategory(normalized.Business.Industry);
+        var brief = BuildCreativeBrief(normalized, industryContext);
         var runId = Guid.NewGuid().ToString("N");
         var warnings = new List<string>();
 
@@ -88,6 +91,9 @@ public sealed class CreativeGenerationOrchestrator : ICreativeGenerationOrchestr
             .FirstOrDefaultAsync(x => x.Id == existing.CampaignId, cancellationToken)
             ?? throw new InvalidOperationException("Campaign not found.");
         var campaignUser = RequireCampaignUser(campaign);
+        var industryContext = _leadIndustryContextResolver.ResolveFromCategory(campaignUser.BusinessProfile?.Industry);
+        var resolvedTone = BuildTone(null, industryContext, request.Feedback);
+        var resolvedObjective = ResolveObjective(campaign.CampaignBrief?.Objective, industryContext);
 
         var requestModel = new GenerateCreativesRequest
         {
@@ -98,7 +104,7 @@ public sealed class CreativeGenerationOrchestrator : ICreativeGenerationOrchestr
                 Industry = campaignUser.BusinessProfile?.Industry ?? "General",
                 Location = campaignUser.BusinessProfile?.City ?? campaignUser.BusinessProfile?.Province ?? "South Africa"
             },
-            Objective = campaign.CampaignBrief?.Objective ?? "Awareness",
+            Objective = resolvedObjective,
             Budget = campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
             Audience = new CreativeAudienceRequest
             {
@@ -107,9 +113,7 @@ public sealed class CreativeGenerationOrchestrator : ICreativeGenerationOrchestr
                 Languages = campaign.CampaignBrief?.GetList(nameof(Advertified.App.Data.Entities.CampaignBrief.TargetLanguagesJson))?.ToArray() ?? new[] { "English" }
             },
             Channels = new[] { existing.Channel },
-            Tone = string.IsNullOrWhiteSpace(request.Feedback)
-                ? "Balanced"
-                : $"Balanced | {request.Feedback.Trim()}"
+            Tone = resolvedTone
         };
 
         return await GenerateAsync(requestModel, existing.SourceCreativeSystemId, true, cancellationToken);
@@ -132,6 +136,7 @@ public sealed class CreativeGenerationOrchestrator : ICreativeGenerationOrchestr
             .FirstOrDefaultAsync(x => x.Id == campaignId, cancellationToken)
             ?? throw new InvalidOperationException("Campaign not found.");
         var campaignUser = RequireCampaignUser(campaign);
+        var industryContext = _leadIndustryContextResolver.ResolveFromCategory(campaignUser.BusinessProfile?.Industry);
 
         var inferredChannels = channels?.Where(x => !string.IsNullOrWhiteSpace(x)).ToArray()
             ?? InferChannelsFromPrompt(prompt);
@@ -145,9 +150,9 @@ public sealed class CreativeGenerationOrchestrator : ICreativeGenerationOrchestr
                 Industry = campaignUser.BusinessProfile?.Industry ?? "General",
                 Location = campaignUser.BusinessProfile?.City ?? campaignUser.BusinessProfile?.Province ?? "South Africa"
             },
-            Objective = string.IsNullOrWhiteSpace(objective)
-                ? campaign.CampaignBrief?.Objective ?? "Awareness"
-                : objective.Trim(),
+            Objective = ResolveObjective(
+                string.IsNullOrWhiteSpace(objective) ? campaign.CampaignBrief?.Objective : objective,
+                industryContext),
             Budget = campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
             Audience = new CreativeAudienceRequest
             {
@@ -156,7 +161,7 @@ public sealed class CreativeGenerationOrchestrator : ICreativeGenerationOrchestr
                 Languages = campaign.CampaignBrief?.GetList(nameof(Advertified.App.Data.Entities.CampaignBrief.TargetLanguagesJson))?.ToArray() ?? new[] { "English" }
             },
             Channels = inferredChannels,
-            Tone = string.IsNullOrWhiteSpace(tone) ? "Balanced" : tone.Trim()
+            Tone = BuildTone(tone, industryContext)
         };
     }
 
@@ -225,21 +230,27 @@ public sealed class CreativeGenerationOrchestrator : ICreativeGenerationOrchestr
         return request;
     }
 
-    private static NormalizedCreativeBrief BuildCreativeBrief(GenerateCreativesRequest request)
+    private static NormalizedCreativeBrief BuildCreativeBrief(GenerateCreativesRequest request, LeadIndustryContext? industryContext)
     {
+        var resolvedTone = BuildTone(request.Tone, industryContext);
+        var resolvedObjective = ResolveObjective(request.Objective, industryContext);
+        var keyMessage = BuildKeyMessage(request, industryContext);
+        var cta = BuildCtaForObjective(resolvedObjective, industryContext);
+
         return new NormalizedCreativeBrief(
             Brand: request.Business.Name,
             Industry: request.Business.Industry,
             Location: request.Business.Location,
-            Objective: HumanizeObjective(request.Objective),
-            Tone: request.Tone,
-            KeyMessage: $"Fast, reliable {request.Business.Industry.ToLowerInvariant()} offering near {request.Business.Location}.",
-            Cta: BuildCtaForObjective(request.Objective),
+            Objective: HumanizeObjective(resolvedObjective),
+            Tone: resolvedTone,
+            KeyMessage: keyMessage,
+            Cta: cta,
             AudienceInsights: new[]
             {
                 $"LSM {request.Audience.Lsm}",
                 $"Age {request.Audience.AgeRange}",
-                request.Business.Location
+                request.Business.Location,
+                industryContext?.Audience.PrimaryPersona ?? string.Empty
             },
             Languages: request.Audience.Languages
         );
@@ -555,12 +566,59 @@ public sealed class CreativeGenerationOrchestrator : ICreativeGenerationOrchestr
         return result.Count > 0 ? result : new[] { "radio", "billboard", "digital" };
     }
 
-    private static string BuildCtaForObjective(string objective)
+    private static string BuildTone(string? requestedTone, LeadIndustryContext? industryContext, string? feedback = null)
     {
+        var baseTone = string.IsNullOrWhiteSpace(requestedTone)
+            ? industryContext?.Creative.PreferredTone ?? "Balanced"
+            : requestedTone.Trim();
+
+        if (string.IsNullOrWhiteSpace(feedback))
+        {
+            return baseTone;
+        }
+
+        return $"{baseTone} | {feedback.Trim()}";
+    }
+
+    private static string ResolveObjective(string? requestedObjective, LeadIndustryContext? industryContext)
+    {
+        if (!string.IsNullOrWhiteSpace(requestedObjective))
+        {
+            return requestedObjective.Trim();
+        }
+
+        return industryContext?.Campaign.DefaultObjective ?? "Awareness";
+    }
+
+    private static string BuildKeyMessage(GenerateCreativesRequest request, LeadIndustryContext? industryContext)
+    {
+        var messagingAngle = industryContext?.Creative.MessagingAngle;
+        var audiencePersona = industryContext?.Audience.PrimaryPersona;
+
+        if (!string.IsNullOrWhiteSpace(messagingAngle))
+        {
+            var personaSuffix = string.IsNullOrWhiteSpace(audiencePersona)
+                ? string.Empty
+                : $" for {audiencePersona.ToLowerInvariant()}";
+            return $"{request.Business.Name} delivers {messagingAngle} in {request.Business.Location}{personaSuffix}.";
+        }
+
+        return $"Fast, reliable {request.Business.Industry.ToLowerInvariant()} offering near {request.Business.Location}.";
+    }
+
+    private static string BuildCtaForObjective(string objective, LeadIndustryContext? industryContext = null)
+    {
+        if (!string.IsNullOrWhiteSpace(industryContext?.Creative.RecommendedCta))
+        {
+            return industryContext.Creative.RecommendedCta;
+        }
+
         return objective.Trim().ToLowerInvariant() switch
         {
             "foottraffic" => "Visit today",
+            "promotion" => "Visit today",
             "leadgen" => "Get your quote now",
+            "leads" => "Get your quote now",
             "sales" => "Buy now",
             _ => "Learn more today"
         };

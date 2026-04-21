@@ -48,7 +48,7 @@ export function ChannelShowcaseSection() {
             What Advertified actually helps you buy, plan, and activate.
           </h2>
           <p className="max-w-2xl text-sm leading-7 text-ink-soft">
-            From billboard-led launches to radio, TV, digital support, SMS, and print, these are the channels our package and planning workflow is designed to bring together.
+            From Billboards and Digital Screens to radio, TV, digital support, SMS, and print, these are the channels our package and planning workflow is designed to bring together.
           </p>
         </div>
 

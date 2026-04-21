@@ -7,5 +7,6 @@ public interface ILeadChannelDetectionService
     IReadOnlyList<LeadChannelDetectionResult> Detect(
         Lead lead,
         Signal? signal,
-        IReadOnlyList<LeadSignalEvidence>? evidences = null);
+        IReadOnlyList<LeadSignalEvidence>? evidences = null,
+        MasterIndustryMatch? canonicalIndustry = null);
 }

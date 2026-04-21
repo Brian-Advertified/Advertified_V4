@@ -15,43 +15,43 @@ public sealed class PlanningScoreService : IPlanningScoreService
     private const decimal BroadcastSuburbTokenBonus = 18m;
     private readonly IPlanningPolicyService _policyService;
     private readonly IBroadcastMasterDataService _broadcastMasterDataService;
-    private readonly ILeadMasterDataService _leadMasterDataService;
+    private readonly ILeadIndustryContextResolver _leadIndustryContextResolver;
     private readonly IIndustryArchetypeScoringService _industryArchetypeScoringService;
     private readonly IPlanningBriefIntentService _briefIntentService;
 
     public PlanningScoreService(
         IPlanningPolicyService policyService,
         IBroadcastMasterDataService broadcastMasterDataService,
-        ILeadMasterDataService leadMasterDataService,
+        ILeadIndustryContextResolver leadIndustryContextResolver,
         IIndustryArchetypeScoringService industryArchetypeScoringService,
         IPlanningBriefIntentService briefIntentService)
     {
         _policyService = policyService;
         _broadcastMasterDataService = broadcastMasterDataService;
-        _leadMasterDataService = leadMasterDataService;
+        _leadIndustryContextResolver = leadIndustryContextResolver;
         _industryArchetypeScoringService = industryArchetypeScoringService;
         _briefIntentService = briefIntentService;
     }
 
     public PlanningScoreService(IPlanningPolicyService policyService, IBroadcastMasterDataService broadcastMasterDataService)
-        : this(policyService, broadcastMasterDataService, new NoOpLeadMasterDataService(), new NoOpIndustryArchetypeScoringService(), new NoOpPlanningBriefIntentService())
+        : this(policyService, broadcastMasterDataService, new NoOpLeadIndustryContextResolver(), new NoOpIndustryArchetypeScoringService(), new NoOpPlanningBriefIntentService())
     {
     }
 
     public PlanningScoreService(
         IPlanningPolicyService policyService,
         IBroadcastMasterDataService broadcastMasterDataService,
-        ILeadMasterDataService leadMasterDataService)
-        : this(policyService, broadcastMasterDataService, leadMasterDataService, new NoOpIndustryArchetypeScoringService(), new NoOpPlanningBriefIntentService())
+        ILeadIndustryContextResolver leadIndustryContextResolver)
+        : this(policyService, broadcastMasterDataService, leadIndustryContextResolver, new NoOpIndustryArchetypeScoringService(), new NoOpPlanningBriefIntentService())
     {
     }
 
     public PlanningScoreService(
         IPlanningPolicyService policyService,
         IBroadcastMasterDataService broadcastMasterDataService,
-        ILeadMasterDataService leadMasterDataService,
+        ILeadIndustryContextResolver leadIndustryContextResolver,
         IIndustryArchetypeScoringService industryArchetypeScoringService)
-        : this(policyService, broadcastMasterDataService, leadMasterDataService, industryArchetypeScoringService, new NoOpPlanningBriefIntentService())
+        : this(policyService, broadcastMasterDataService, leadIndustryContextResolver, industryArchetypeScoringService, new NoOpPlanningBriefIntentService())
     {
     }
 
@@ -480,7 +480,6 @@ public sealed class PlanningScoreService : IPlanningScoreService
 
     private HashSet<string> ResolveIndustryArchetypes(CampaignPlanningRequest request)
     {
-        var archetypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var hints = request.TargetInterests
             .Where(static value => !string.IsNullOrWhiteSpace(value))
             .Concat(new[] { request.TargetAudienceNotes })
@@ -489,32 +488,11 @@ public sealed class PlanningScoreService : IPlanningScoreService
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-        foreach (var hint in hints)
-        {
-            var industryCode = _leadMasterDataService.ResolveIndustryFromHints(new[] { hint })?.Code;
-            if (_industryArchetypeScoringService.Resolve(industryCode) is not null)
-            {
-                archetypes.Add(industryCode!);
-                continue;
-            }
-
-            var normalizedHint = NormalizeStrategyToken(hint);
-            if (ContainsAnyStrategyToken(normalizedHint, "automotive", "dealership", "vehicle", "car", "motor"))
-            {
-                archetypes.Add(LeadCanonicalValues.IndustryCodes.Automotive);
-            }
-            else if (ContainsAnyStrategyToken(normalizedHint, "restaurant", "food", "takeaway", "cafe", "diner", "pizza"))
-            {
-                archetypes.Add(LeadCanonicalValues.IndustryCodes.FoodHospitality);
-            }
-        }
-
-        return archetypes;
-    }
-
-    private static bool ContainsAnyStrategyToken(string normalizedSource, params string[] aliases)
-    {
-        return aliases.Any(alias => normalizedSource.Contains(NormalizeStrategyToken(alias), StringComparison.OrdinalIgnoreCase));
+        return _leadIndustryContextResolver.ResolveFromHints(hints)
+            .Select(context => context.CanonicalIndustry?.Code ?? context.ArchetypeScoringProfile?.IndustryCode)
+            .Where(code => !string.IsNullOrWhiteSpace(code))
+            .Cast<string>()
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 
     private decimal RadioFitBonus(InventoryCandidate candidate, CampaignPlanningRequest request)
@@ -1736,6 +1714,19 @@ public sealed class PlanningScoreService : IPlanningScoreService
         public MasterIndustryMatch? ResolveIndustry(string? value) => null;
         public MasterIndustryMatch? ResolveIndustryFromHints(IReadOnlyList<string> hints) => null;
         public MasterLanguageMatch? ResolveLanguage(string? value) => null;
+    }
+
+    private sealed class NoOpLeadIndustryContextResolver : ILeadIndustryContextResolver
+    {
+        public LeadIndustryContext ResolveFromCategory(string? category)
+        {
+            return new LeadIndustryContext();
+        }
+
+        public IReadOnlyList<LeadIndustryContext> ResolveFromHints(IReadOnlyList<string> hints)
+        {
+            return Array.Empty<LeadIndustryContext>();
+        }
     }
 
     private sealed class NoOpIndustryArchetypeScoringService : IIndustryArchetypeScoringService

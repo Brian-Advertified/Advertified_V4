@@ -90,7 +90,9 @@ internal static class DatabaseSchemaInitializer
                       Path.Combine("database", "bootstrap", "068_agent_campaign_ownership_and_prospect_dedupe.sql"),
                       Path.Combine("database", "bootstrap", "069_campaign_brief_channel_flights.sql"),
                       Path.Combine("database", "bootstrap", "070_order_intent_and_email_delivery_retry.sql"),
-                      Path.Combine("database", "bootstrap", "071_email_delivery_outbox_payload.sql")
+                      Path.Combine("database", "bootstrap", "071_email_delivery_outbox_payload.sql"),
+                      Path.Combine("database", "bootstrap", "072_master_industry_catalog_alignment.sql"),
+                      Path.Combine("database", "bootstrap", "073_master_industry_strategy_catalog.sql")
                      })
         {
             var fullPath = baseDirectories

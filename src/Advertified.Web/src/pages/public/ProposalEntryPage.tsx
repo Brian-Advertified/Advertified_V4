@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { ArrowRight, FileText, Layers3, Sparkles, TrendingUp } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { PageHero } from '../../components/marketing/PageHero';
@@ -69,20 +69,32 @@ function buildFlexibleRoutes(campaign: Campaign, recommendation?: CampaignRecomm
   return [
     {
       title: 'Best-fit route',
+      badge: 'Recommended',
       amountLabel: formatCurrency(bestFitAmount),
       description: 'This is the strongest route for the full campaign shape shown in the proposal.',
+      supportCopy: 'Choose this when you want the clearest version of the full recommendation.',
+      toneClassName: 'border-brand/20 bg-white shadow-[0_12px_30px_rgba(15,118,110,0.08)]',
+      badgeClassName: 'border-brand/15 bg-brand-soft text-brand',
       icon: Sparkles,
     },
     {
       title: 'Lean start option',
+      badge: 'Lower entry point',
       amountLabel: `From ${formatCurrency(leanStartAmount)}`,
       description: 'Start with the core placements first and reduce the footprint if you need a lighter way in.',
+      supportCopy: 'Best when the full route feels heavy today but you still want to move forward.',
+      toneClassName: 'border-amber-200 bg-amber-50/80 shadow-[0_12px_28px_rgba(245,158,11,0.08)]',
+      badgeClassName: 'border-amber-200 bg-white text-amber-900',
       icon: Layers3,
     },
     {
       title: 'Phased rollout',
+      badge: 'Spread the timing',
       amountLabel: `${formatCurrency(phasedStartAmount)} first wave`,
       description: 'Launch the first wave now, then expand the rollout once timing, cash flow, or results allow.',
+      supportCopy: 'Useful when you want the bigger plan but need to stagger spend or execution.',
+      toneClassName: 'border-sky-200 bg-sky-50/80 shadow-[0_12px_28px_rgba(14,165,233,0.08)]',
+      badgeClassName: 'border-sky-200 bg-white text-sky-900',
       icon: TrendingUp,
     },
   ];
@@ -208,19 +220,17 @@ export function ProposalEntryPage() {
     },
   });
 
-  const approvalsPath = useMemo(() => {
-    const queryParams = new URLSearchParams();
-    if (recommendationId) {
-      queryParams.set('recommendationId', recommendationId);
-    }
-    if (action) {
-      queryParams.set('action', action);
-    }
-    const query = queryParams.toString();
-    return query
-      ? `/campaigns/${encodeURIComponent(id)}/approvals?${query}`
-      : `/campaigns/${encodeURIComponent(id)}/approvals`;
-  }, [action, id, recommendationId]);
+  const approvalQueryParams = new URLSearchParams();
+  if (recommendationId) {
+    approvalQueryParams.set('recommendationId', recommendationId);
+  }
+  if (action) {
+    approvalQueryParams.set('action', action);
+  }
+  const approvalsQuery = approvalQueryParams.toString();
+  const approvalsPath = approvalsQuery
+    ? `/campaigns/${encodeURIComponent(id)}/approvals?${approvalsQuery}`
+    : `/campaigns/${encodeURIComponent(id)}/approvals`;
 
   if (!id) {
     return <Navigate to="/" replace />;
@@ -361,21 +371,28 @@ export function ProposalEntryPage() {
             </div>
 
             <div className="mt-5 rounded-[18px] border border-brand/15 bg-brand-soft/25 px-5 py-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Flexible entry paths</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Choose the way in</p>
+              <p className="mt-2 text-2xl font-semibold tracking-tight text-ink">You do not have to say yes or no to one big number.</p>
               <p className="mt-2 text-sm leading-7 text-ink-soft">
-                If the full route feels too high right now, you do not need to reject the whole idea. We can start smaller, phase the rollout, or adjust the footprint around your budget.
+                If the full route feels too high right now, you do not need to reject the whole idea. Choose the strongest route, start leaner, or phase the rollout around what is workable for your business.
               </p>
               <div className="mt-4 grid gap-3 md:grid-cols-3">
                 {flexibleRoutes.map((route) => {
                   const Icon = route.icon;
                   return (
-                    <div key={route.title} className="rounded-[16px] border border-white/70 bg-white px-4 py-4">
-                      <div className="inline-flex rounded-full border border-brand/15 bg-brand-soft px-3 py-2 text-brand">
-                        <Icon className="size-4" />
+                    <div key={route.title} className={`rounded-[18px] border px-4 py-4 ${route.toneClassName}`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className={`inline-flex rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${route.badgeClassName}`}>
+                          {route.badge}
+                        </div>
+                        <div className="inline-flex rounded-full border border-brand/15 bg-white px-3 py-2 text-brand">
+                          <Icon className="size-4" />
+                        </div>
                       </div>
-                      <p className="mt-3 text-sm font-semibold text-ink">{route.title}</p>
-                      <p className="mt-1 text-base font-semibold text-brand">{route.amountLabel}</p>
+                      <p className="mt-4 text-sm font-semibold text-ink">{route.title}</p>
+                      <p className="mt-1 text-lg font-semibold text-ink">{route.amountLabel}</p>
                       <p className="mt-2 text-sm leading-6 text-ink-soft">{route.description}</p>
+                      <p className="mt-3 text-xs font-medium uppercase tracking-[0.14em] text-ink-soft">{route.supportCopy}</p>
                     </div>
                   );
                 })}
@@ -408,6 +425,9 @@ export function ProposalEntryPage() {
               </div>
             ) : null}
             <div className="mt-5 space-y-3">
+              <div className="rounded-[14px] border border-line bg-white/70 px-4 py-3 text-sm text-ink-soft">
+                Best response style: tell us whether you want the <strong>full route</strong>, a <strong>leaner start</strong>, or a <strong>phased rollout</strong>. That helps us rework the offer quickly.
+              </div>
               <label className="block text-sm font-semibold text-ink" htmlFor="proposal-review-notes">
                 Notes or adjustment request
               </label>

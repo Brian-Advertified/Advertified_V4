@@ -166,7 +166,7 @@ export function AdminEnginePage() {
                         <span className="pill">{band.tvEligible ? 'TV eligible' : 'TV not eligible'}</span>
                       </div>
                       <div className="mt-5 grid gap-2 text-sm text-ink-soft sm:grid-cols-2">
-                        <div><span className="font-semibold text-ink">Billboards or Digital Screens target:</span> {formatRatio(band.oohTarget)}</div>
+                        <div><span className="font-semibold text-ink">Billboards and Digital Screens target:</span> {formatRatio(band.oohTarget)}</div>
                         <div><span className="font-semibold text-ink">Billboard share of that target:</span> {formatRatio(band.billboardShareOfOoh)}</div>
                         <div><span className="font-semibold text-ink">TV minimum:</span> {formatRatio(band.tvMin)}</div>
                         <div><span className="font-semibold text-ink">Radio range:</span> {formatRatio(band.radioRange[0])} to {formatRatio(band.radioRange[1])}</div>
@@ -179,7 +179,7 @@ export function AdminEnginePage() {
                 <div className="panel p-6">
                   <p className="text-xs font-semibold uppercase tracking-[0.24em] text-ink-soft">Global rules</p>
                   <div className="mt-4 grid gap-2 text-sm text-ink-soft sm:grid-cols-3">
-                    <div><span className="font-semibold text-ink">Max Billboards or Digital Screens:</span> {formatRatio(dashboard.planningAllocationSettings.globalRules.maxOoh)}</div>
+                    <div><span className="font-semibold text-ink">Max Billboards and Digital Screens:</span> {formatRatio(dashboard.planningAllocationSettings.globalRules.maxOoh)}</div>
                     <div><span className="font-semibold text-ink">Min digital:</span> {formatRatio(dashboard.planningAllocationSettings.globalRules.minDigital)}</div>
                     <div><span className="font-semibold text-ink">TV floor if preferred:</span> {dashboard.planningAllocationSettings.globalRules.enforceTvFloorIfPreferred ? 'Yes' : 'No'}</div>
                   </div>
@@ -241,7 +241,7 @@ export function AdminEnginePage() {
                   <div className="mt-6 space-y-6">
                     <div className="grid gap-4 md:grid-cols-3">
                       <label className="text-sm text-ink-soft">
-                        <span className="font-semibold text-ink">Max Billboards or Digital Screens</span>
+                        <span className="font-semibold text-ink">Max Billboards and Digital Screens</span>
                         <input
                           disabled={allocationDialogMode === 'view'}
                           className="input-base mt-2 disabled:bg-slate-50"
@@ -333,7 +333,7 @@ export function AdminEnginePage() {
                               <input disabled={allocationDialogMode === 'view'} className="input-base mt-2 disabled:bg-slate-50" type="number" value={band.max} onChange={(event) => updateBudgetBand(index, (current) => ({ ...current, max: Number(event.target.value) }))} />
                             </label>
                             <label className="text-sm text-ink-soft">
-                              <span className="font-semibold text-ink">Billboards or Digital Screens target</span>
+                              <span className="font-semibold text-ink">Billboards and Digital Screens target</span>
                               <input disabled={allocationDialogMode === 'view'} className="input-base mt-2 disabled:bg-slate-50" type="number" step="0.01" value={band.oohTarget} onChange={(event) => updateBudgetBand(index, (current) => ({ ...current, oohTarget: Number(event.target.value) }))} />
                             </label>
                             <label className="text-sm text-ink-soft">

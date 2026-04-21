@@ -53,12 +53,12 @@ public static class PlanningChannelSupport
     {
         return NormalizeChannel(value) switch
         {
-            Billboard => "Billboards",
-            DigitalScreen => "Digital Screens",
+            Billboard => "Billboards and Digital Screens",
+            DigitalScreen => "Billboards and Digital Screens",
             Radio => "Radio",
             Digital => "Digital",
             Tv => "TV",
-            OohAlias => "Billboards or Digital Screens",
+            OohAlias => "Billboards and Digital Screens",
             _ => value ?? string.Empty
         };
     }

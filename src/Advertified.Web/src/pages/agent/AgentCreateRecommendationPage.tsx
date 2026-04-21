@@ -46,7 +46,7 @@ import {
   AgentInsightCard,
 } from './agentSectionShared';
 import type { AutoBriefConfidence, AutoBriefField, AutoBriefPayload } from '../../features/leads/leadAutoBrief';
-import type { AgentInboxItem, Campaign, LeadIndustryPolicy, PackageBand } from '../../types/domain';
+import type { AgentInboxItem, Campaign, LeadIndustryContext, PackageBand } from '../../types/domain';
 import { pushAgentMutationError } from './agentMutationToast';
 
 const STEP_CONFIG = [
@@ -110,49 +110,125 @@ function getAllowedChannels(campaign?: {
   return allowed;
 }
 
-function applyIndustryPolicyToForm(
+function applyIndustryContextToForm(
   form: CampaignFormState,
-  industryPolicy: LeadIndustryPolicy | undefined,
+  industryContext: LeadIndustryContext | undefined,
   allowedChannels: ChannelOption[],
+  force = false,
 ): CampaignFormState {
-  if (!industryPolicy) {
+  if (!industryContext) {
     return form;
   }
 
-  const policyChannels = (industryPolicy.preferredChannels ?? [])
+  const policy = industryContext.policy;
+  const policyChannels = (industryContext.channels.preferredChannels ?? policy.preferredChannels ?? [])
     .map(normalizeChannelOption)
     .filter((channel): channel is ChannelOption => channel !== undefined && allowedChannels.includes(channel));
   const mergedChannels = ensureRequiredChannels(mergeUniqueChannels(form.channels, policyChannels));
 
-  const objective = form.objective || normalizeOption(industryPolicy.objectiveOverride, OBJECTIVE_OPTIONS);
-  const tone = form.tone || normalizeOption(industryPolicy.preferredTone, TONE_OPTIONS);
+  const objective = force
+    ? (
+      normalizeOption(industryContext.campaign.defaultObjective, OBJECTIVE_OPTIONS)
+      || normalizeOption(policy.objectiveOverride, OBJECTIVE_OPTIONS)
+      || form.objective
+    )
+    : (
+      form.objective
+      || normalizeOption(industryContext.campaign.defaultObjective, OBJECTIVE_OPTIONS)
+      || normalizeOption(policy.objectiveOverride, OBJECTIVE_OPTIONS)
+    );
+  const tone = force
+    ? (
+      normalizeOption(industryContext.creative.preferredTone, TONE_OPTIONS)
+      || normalizeOption(policy.preferredTone, TONE_OPTIONS)
+      || form.tone
+    )
+    : (
+      form.tone
+      || normalizeOption(industryContext.creative.preferredTone, TONE_OPTIONS)
+      || normalizeOption(policy.preferredTone, TONE_OPTIONS)
+    );
+  const language = force
+    ? (industryContext.audience.defaultLanguageBiases?.[0] || form.language || '')
+    : (form.language || industryContext.audience.defaultLanguageBiases?.[0] || '');
 
   const industryNotes = [
-    `Industry profile: ${industryPolicy.name}`,
-    `Industry messaging angle:\n${industryPolicy.messagingAngle}`,
-    (industryPolicy.guardrails ?? []).length > 0
-      ? `Industry guardrails:\n${industryPolicy.guardrails
+    `Industry profile: ${industryContext.label || policy.name}`,
+    industryContext.audience.primaryPersona?.trim()
+      ? `Primary audience:\n${industryContext.audience.primaryPersona.trim()}`
+      : '',
+    industryContext.creative.messagingAngle?.trim() || policy.messagingAngle?.trim()
+      ? `Industry messaging angle:\n${(industryContext.creative.messagingAngle || policy.messagingAngle).trim()}`
+      : '',
+    (industryContext.compliance.guardrails ?? policy.guardrails ?? []).length > 0
+      ? `Industry guardrails:\n${(industryContext.compliance.guardrails ?? policy.guardrails ?? [])
         .filter((item) => item.trim().length > 0)
         .map((item) => `- ${item.trim()}`)
         .join('\n')}`
       : '',
-    industryPolicy.cta?.trim()
-      ? `Industry recommended CTA:\n${industryPolicy.cta.trim()}`
+    (industryContext.creative.recommendedCta || policy.cta)?.trim()
+      ? `Industry recommended CTA:\n${(industryContext.creative.recommendedCta || policy.cta).trim()}`
       : '',
   ].filter((value) => value.trim().length > 0);
 
+  const industryBlock = industryNotes.join('\n\n');
+  const briefWithoutIndustry = stripIndustryBriefBlock(form.brief);
   const hasIndustryBlock = form.brief.includes('Industry profile:');
-  const brief = hasIndustryBlock
-    ? form.brief
-    : [industryNotes.join('\n\n'), form.brief].filter((value) => value.trim().length > 0).join('\n\n');
+  const brief = force
+    ? [industryBlock, briefWithoutIndustry].filter((value) => value.trim().length > 0).join('\n\n')
+    : (
+      hasIndustryBlock
+        ? form.brief
+        : [industryBlock, form.brief].filter((value) => value.trim().length > 0).join('\n\n')
+    );
 
   return {
     ...form,
     objective,
     tone,
-    channels: mergedChannels,
+    language,
+    channels: force
+      ? ensureRequiredChannels(policyChannels.length > 0 ? policyChannels : form.channels)
+      : mergedChannels,
     brief,
   };
+}
+
+function stripIndustryBriefBlock(brief: string): string {
+  if (!brief.includes('Industry profile:')) {
+    return brief.trim();
+  }
+
+  const lines = brief.split('\n');
+  const preserved: string[] = [];
+  let skipping = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const startsIndustryBlock = trimmed.startsWith('Industry profile:');
+    const continuesIndustryBlock = skipping && (
+      trimmed.startsWith('Primary audience:')
+      || trimmed.startsWith('Industry messaging angle:')
+      || trimmed.startsWith('Industry guardrails:')
+      || trimmed.startsWith('Industry recommended CTA:')
+      || trimmed.startsWith('- ')
+      || trimmed.length === 0
+    );
+
+    if (startsIndustryBlock) {
+      skipping = true;
+      continue;
+    }
+
+    if (continuesIndustryBlock) {
+      continue;
+    }
+
+    skipping = false;
+    preserved.push(line);
+  }
+
+  return preserved.join('\n').trim();
 }
 
 type CampaignFormState = RecommendationDraftFormState;
@@ -458,9 +534,10 @@ export function AgentCreateRecommendationPage() {
   const autoGenerateKeyRef = useRef<string | null>(null);
   const [scopedAiInterpretationSummary, setScopedAiInterpretationSummary] = useState<{ key: string; summary: string } | null>(null);
   const [scopedForm, setScopedForm] = useState<ScopedFormState | null>(null);
-  const [draftValidationErrors, setDraftValidationErrors] = useState<RecommendationDraftValidationErrors>({});
-  const [showDetailEditing, setShowDetailEditing] = useState(false);
+  const [draftValidationErrorsState, setDraftValidationErrorsState] = useState<{ key: string; value: RecommendationDraftValidationErrors } | null>(null);
+  const [showDetailEditingState, setShowDetailEditingState] = useState<{ key: string; value: boolean } | null>(null);
   const [selectedProspectPackageBandState, setSelectedProspectPackageBandState] = useState<{ campaignId: string; packageBandId: string } | null>(null);
+  const autoAppliedIndustryRef = useRef<string>('');
   const emptyForm: CampaignFormState = {
     objective: '',
     audience: '',
@@ -551,12 +628,12 @@ export function AgentCreateRecommendationPage() {
     enabled: Boolean(selectedCampaign?.id),
   });
   const selectedCampaignDetails = selectedCampaignDetailsQuery.data;
-  const industryPolicyQuery = useQuery({
-    queryKey: ['lead-industry-policy', selectedCampaignDetails?.industry ?? ''],
-    queryFn: () => advertifiedApi.resolveLeadIndustryPolicy(selectedCampaignDetails?.industry ?? ''),
+  const industryContextQuery = useQuery({
+    queryKey: ['lead-industry-context', selectedCampaignDetails?.industry ?? ''],
+    queryFn: () => advertifiedApi.resolveLeadIndustryContext(selectedCampaignDetails?.industry ?? ''),
     enabled: Boolean(selectedCampaignDetails?.industry?.trim()),
   });
-  const selectedIndustryPolicy = industryPolicyQuery.data;
+  const selectedIndustryContext = industryContextQuery.data;
   const selectedCampaignBrief = selectedCampaignDetails?.brief;
   const selectedCampaignIsProspective = isProspectiveCampaign(selectedCampaignDetails ?? selectedCampaign);
   const selectedProspectPackageBandId = selectedCampaignIsProspective
@@ -600,7 +677,7 @@ export function AgentCreateRecommendationPage() {
     : emptyForm;
   const prefilledForm = useMemo(() => {
     if (!routePrefill) {
-      return applyIndustryPolicyToForm(inferredForm, selectedIndustryPolicy, allowedChannels);
+      return applyIndustryContextToForm(inferredForm, selectedIndustryContext, allowedChannels);
     }
 
     const autoBriefFields = routePrefill.autoBrief?.fields;
@@ -701,8 +778,8 @@ export function AgentCreateRecommendationPage() {
           : (recommendedChannels.length > 0 ? recommendedChannels : inferredForm.channels),
       ),
     };
-    return applyIndustryPolicyToForm(prefilled, selectedIndustryPolicy, allowedChannels);
-  }, [allowedChannels, inferredForm, routePrefill, selectedIndustryPolicy]);
+    return applyIndustryContextToForm(prefilled, selectedIndustryContext, allowedChannels);
+  }, [allowedChannels, inferredForm, routePrefill, selectedIndustryContext]);
   const form = scopedForm?.key === activeFormKey ? scopedForm.value : prefilledForm;
   const aiInterpretationSummary = scopedAiInterpretationSummary?.key === activeFormKey
     ? scopedAiInterpretationSummary.summary
@@ -736,14 +813,60 @@ export function AgentCreateRecommendationPage() {
   const draftValidationMode = isOpportunityFlow ? 'opportunity' : 'detailed';
   const draftValidationResult = validateRecommendationDraftForm(form, draftValidationMode);
   const opportunityMissingFields = isOpportunityFlow ? draftValidationResult.missingFields : [];
+  const draftValidationErrors = draftValidationErrorsState?.key === activeFormKey
+    ? draftValidationErrorsState.value
+    : {};
+  const showDetailEditing = showDetailEditingState?.key === activeFormKey
+    ? showDetailEditingState.value
+    : false;
+  const industryKey = selectedCampaignDetails?.industry?.trim() ?? '';
+  const industryAutoApplyKey = industryKey && selectedIndustryContext
+    ? `${activeFormKey}:${industryKey}`
+    : '';
+  const industryDefaultsApplied = Boolean(industryAutoApplyKey) && autoAppliedIndustryRef.current === industryAutoApplyKey;
+  const industryDefaultsMessage = industryDefaultsApplied && selectedIndustryContext
+    ? `Industry template applied for ${selectedIndustryContext.label}. You can keep refining the draft before saving.`
+    : '';
 
   useEffect(() => {
-    setShowDetailEditing(false);
-    setDraftValidationErrors({});
-  }, [activeFormKey]);
+    if (!industryKey || !selectedIndustryContext) {
+      autoAppliedIndustryRef.current = '';
+      return;
+    }
+
+    if (autoAppliedIndustryRef.current === industryAutoApplyKey) {
+      return;
+    }
+
+    autoAppliedIndustryRef.current = industryAutoApplyKey;
+  }, [industryAutoApplyKey, industryKey, selectedIndustryContext]);
+
+  const setDraftValidationErrorsForActiveForm = (value: RecommendationDraftValidationErrors | ((current: RecommendationDraftValidationErrors) => RecommendationDraftValidationErrors)) => {
+    setDraftValidationErrorsState((current) => {
+      const currentValue = current?.key === activeFormKey ? current.value : {};
+      return {
+        key: activeFormKey,
+        value: typeof value === 'function'
+          ? value(currentValue)
+          : value,
+      };
+    });
+  };
+
+  const setShowDetailEditingForActiveForm = (value: boolean | ((current: boolean) => boolean)) => {
+    setShowDetailEditingState((current) => {
+      const currentValue = current?.key === activeFormKey ? current.value : false;
+      return {
+        key: activeFormKey,
+        value: typeof value === 'function'
+          ? value(currentValue)
+          : value,
+      };
+    });
+  };
 
   const clearDraftValidationError = (key: keyof RecommendationDraftValidationErrors) => {
-    setDraftValidationErrors((current) => {
+    setDraftValidationErrorsForActiveForm((current) => {
       if (!current[key]) {
         return current;
       }
@@ -1051,7 +1174,11 @@ export function AgentCreateRecommendationPage() {
 
   const isStep1Complete = Boolean(selectedClientId && selectedCampaign);
   const isStep2Complete = isStep1Complete && draftValidationResult.success;
-  const isGenerating = pendingAction === 'generate' && initializeMutation.isPending;
+  const autoGenerateKey = selectedCampaign ? `${selectedCampaign.id}:${activeFormKey}` : null;
+  const isGenerating = initializeMutation.isPending && (
+    pendingAction === 'generate'
+    || (Boolean(routePrefill?.autoGenerateDraft) && autoGenerateKeyRef.current === autoGenerateKey)
+  );
   const isWorking = initializeMutation.isPending || interpretMutation.isPending;
   const canGenerate = !isWorking;
   const canSaveDraft = isStep1Complete && !isWorking;
@@ -1061,15 +1188,13 @@ export function AgentCreateRecommendationPage() {
       return;
     }
 
-    const autoGenerateKey = `${selectedCampaign.id}:${activeFormKey}`;
     if (autoGenerateKeyRef.current === autoGenerateKey) {
       return;
     }
 
     autoGenerateKeyRef.current = autoGenerateKey;
-    setPendingAction('generate');
     void initializeMutation.mutateAsync({ submitBrief: true });
-  }, [activeFormKey, draftValidationResult.success, initializeMutation, routePrefill?.autoGenerateDraft, selectedCampaign]);
+  }, [autoGenerateKey, draftValidationResult.success, initializeMutation, routePrefill?.autoGenerateDraft, selectedCampaign]);
 
   const stepPresentation = STEP_CONFIG.map((step) => {
     if (step.id === 1) {
@@ -1120,8 +1245,8 @@ export function AgentCreateRecommendationPage() {
     }
 
     if (!draftValidationResult.success) {
-      setDraftValidationErrors(draftValidationResult.errors);
-      setShowDetailEditing(true);
+      setDraftValidationErrorsForActiveForm(draftValidationResult.errors);
+      setShowDetailEditingForActiveForm(true);
       pushToast({
         title: 'Complete the required fields first.',
         description: draftValidationResult.missingFields[0] ?? 'Review the highlighted fields and try again.',
@@ -1129,9 +1254,25 @@ export function AgentCreateRecommendationPage() {
       return;
     }
 
-    setDraftValidationErrors({});
+    setDraftValidationErrorsForActiveForm({});
     setPendingAction('generate');
     await initializeMutation.mutateAsync({ submitBrief: true });
+  };
+
+  const applyIndustryDefaults = (force = false) => {
+    if (!selectedIndustryContext) {
+      return;
+    }
+
+    const baseForm = scopedForm?.key === activeFormKey ? scopedForm.value : form;
+    const nextForm = applyIndustryContextToForm(baseForm, selectedIndustryContext, allowedChannels, force);
+    setScopedForm({
+      key: activeFormKey,
+      value: nextForm,
+    });
+    if (industryAutoApplyKey) {
+      autoAppliedIndustryRef.current = industryAutoApplyKey;
+    }
   };
 
   if (inboxQuery.isLoading || packagesQuery.isLoading || formOptionsQuery.isLoading) {
@@ -1368,7 +1509,7 @@ export function AgentCreateRecommendationPage() {
                 {hasCapturedBrief ? (
                   <button
                     type="button"
-                    onClick={() => setShowDetailEditing((current) => !current)}
+                    onClick={() => setShowDetailEditingForActiveForm((current) => !current)}
                     className="button-secondary px-4 py-2"
                   >
                     {showDetailEditing ? 'Hide planning inputs' : 'Refine planning inputs'}
@@ -1383,6 +1524,62 @@ export function AgentCreateRecommendationPage() {
                 <p className="mt-2 text-sm text-rose-700">
                   Review the highlighted fields below, then create the recommendation draft again.
                 </p>
+              </div>
+            ) : null}
+
+            {selectedIndustryContext ? (
+              <div className="mb-5 rounded-[24px] border border-brand/15 bg-brand-soft/20 px-5 py-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand">Industry defaults</p>
+                    <p className="mt-2 text-sm font-semibold text-ink">{selectedIndustryContext.label}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-3">
+                    <button type="button" onClick={() => applyIndustryDefaults()} className="rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink">
+                      {industryDefaultsApplied ? 'Reapply defaults' : 'Apply defaults'}
+                    </button>
+                    {industryDefaultsApplied ? (
+                      <button
+                        type="button"
+                        onClick={() => applyIndustryDefaults(true)}
+                        className="rounded-full border border-brand/20 bg-brand-soft px-4 py-2 text-sm font-semibold text-brand"
+                      >
+                        Reset to industry defaults
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+                {industryDefaultsMessage ? (
+                  <div className="mt-4 rounded-[18px] border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-900">
+                    {industryDefaultsMessage}
+                  </div>
+                ) : null}
+                <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <p className="text-sm text-ink-soft">
+                    Objective: <span className="font-semibold text-ink">{selectedIndustryContext.campaign.defaultObjective || 'Not set'}</span>
+                  </p>
+                  <p className="text-sm text-ink-soft">
+                    Channels: <span className="font-semibold text-ink">{selectedIndustryContext.channels.preferredChannels.join(', ') || 'Not set'}</span>
+                  </p>
+                  <p className="text-sm text-ink-soft">
+                    Audience: <span className="font-semibold text-ink">{selectedIndustryContext.audience.primaryPersona || 'Not set'}</span>
+                  </p>
+                  <p className="text-sm text-ink-soft">
+                    Tone: <span className="font-semibold text-ink">{selectedIndustryContext.creative.preferredTone || 'Not set'}</span>
+                  </p>
+                </div>
+                {(selectedIndustryContext.compliance.guardrails ?? []).length > 0 ? (
+                  <div className="mt-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Guardrails</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {selectedIndustryContext.compliance.guardrails.slice(0, 3).map((item) => (
+                        <span key={item} className="rounded-full border border-line bg-white px-3 py-1 text-xs font-semibold text-ink-soft">
+                          {item}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             ) : null}
 

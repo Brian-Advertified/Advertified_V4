@@ -50,6 +50,7 @@ public sealed class AdminDashboardService : IAdminDashboardService
         var packageSettings = await GetPackageSettingsAsync(cancellationToken);
         var pricingSettings = await GetPricingSettingsAsync(cancellationToken);
         var leadIndustryPolicies = await GetLeadIndustryPoliciesAsync(cancellationToken);
+        var industryStrategyProfiles = await GetIndustryStrategyProfilesAsync(cancellationToken);
 
         var strongCount = outletRecords.Count(x => string.Equals(DetermineHealthBucket(x), "strong", StringComparison.OrdinalIgnoreCase));
         var mixedCount = outletRecords.Count(x => string.Equals(DetermineHealthBucket(x), "mixed_not_fully_healthy", StringComparison.OrdinalIgnoreCase));
@@ -120,6 +121,7 @@ public sealed class AdminDashboardService : IAdminDashboardService
             EnginePolicies = BuildEnginePolicies(),
             PlanningAllocationSettings = BuildPlanningAllocationSettings(),
             LeadIndustryPolicies = leadIndustryPolicies,
+            IndustryStrategyProfiles = industryStrategyProfiles,
             PreviewRules = previewRules,
             Monitoring = monitoring,
             Users = users,
@@ -815,6 +817,65 @@ public sealed class AdminDashboardService : IAdminDashboardService
             .ToArray();
     }
 
+    private async Task<AdminIndustryStrategyProfileResponse[]> GetIndustryStrategyProfilesAsync(CancellationToken cancellationToken)
+    {
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        var rows = await connection.QueryAsync<AdminIndustryStrategyProfileRow>(
+            new CommandDefinition(
+                @"select
+                    industry.code as IndustryCode,
+                    industry.label as IndustryLabel,
+                    profile.primary_persona as PrimaryPersona,
+                    profile.buying_journey as BuyingJourney,
+                    profile.trust_sensitivity as TrustSensitivity,
+                    profile.default_language_biases_json as DefaultLanguageBiasesJson,
+                    profile.default_objective as DefaultObjective,
+                    profile.funnel_shape as FunnelShape,
+                    profile.primary_kpis_json as PrimaryKpisJson,
+                    profile.sales_cycle as SalesCycle,
+                    profile.preferred_channels_json as PreferredChannelsJson,
+                    profile.base_budget_split_json as BaseBudgetSplitJson,
+                    profile.geography_bias as GeographyBias,
+                    profile.preferred_tone as PreferredTone,
+                    profile.messaging_angle as MessagingAngle,
+                    profile.recommended_cta as RecommendedCta,
+                    profile.proof_points_json as ProofPointsJson,
+                    profile.guardrails_json as GuardrailsJson,
+                    profile.restricted_claim_types_json as RestrictedClaimTypesJson,
+                    profile.research_summary as ResearchSummary,
+                    profile.research_sources_json as ResearchSourcesJson
+                  from master_industry_strategy_profiles profile
+                  join master_industries industry on industry.id = profile.master_industry_id
+                  order by industry.label;",
+                cancellationToken: cancellationToken));
+
+        return rows.Select(row => new AdminIndustryStrategyProfileResponse
+            {
+                IndustryCode = row.IndustryCode,
+                IndustryLabel = row.IndustryLabel,
+                PrimaryPersona = row.PrimaryPersona ?? string.Empty,
+                BuyingJourney = row.BuyingJourney ?? string.Empty,
+                TrustSensitivity = row.TrustSensitivity ?? string.Empty,
+                DefaultLanguageBiases = DeserializeJsonList(row.DefaultLanguageBiasesJson),
+                DefaultObjective = row.DefaultObjective ?? string.Empty,
+                FunnelShape = row.FunnelShape ?? string.Empty,
+                PrimaryKpis = DeserializeJsonList(row.PrimaryKpisJson),
+                SalesCycle = row.SalesCycle ?? string.Empty,
+                PreferredChannels = DeserializeJsonList(row.PreferredChannelsJson),
+                BaseBudgetSplit = DeserializeJsonDictionary(row.BaseBudgetSplitJson),
+                GeographyBias = row.GeographyBias ?? string.Empty,
+                PreferredTone = row.PreferredTone ?? string.Empty,
+                MessagingAngle = row.MessagingAngle ?? string.Empty,
+                RecommendedCta = row.RecommendedCta ?? string.Empty,
+                ProofPoints = DeserializeJsonList(row.ProofPointsJson),
+                Guardrails = DeserializeJsonList(row.GuardrailsJson),
+                RestrictedClaimTypes = DeserializeJsonList(row.RestrictedClaimTypesJson),
+                ResearchSummary = row.ResearchSummary ?? string.Empty,
+                ResearchSources = DeserializeJsonList(row.ResearchSourcesJson)
+            })
+            .ToArray();
+    }
+
     private static AdminOutletResponse MapOutlet(BroadcastInventoryRecord record)
     {
         var packagePrices = ExtractNumericValues(record.Packages, "investment_zar", "package_cost_zar", "cost_per_month_zar");
@@ -1161,6 +1222,46 @@ public sealed class AdminDashboardService : IAdminDashboardService
 
         var items = JsonSerializer.Deserialize<List<string>>(json);
         return items ?? (IReadOnlyList<string>)Array.Empty<string>();
+    }
+
+    private static IReadOnlyDictionary<string, int> DeserializeJsonDictionary(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        var values = JsonSerializer.Deserialize<Dictionary<string, int>>(json)
+            ?? new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+        return new Dictionary<string, int>(
+            values.ToDictionary(entry => entry.Key, entry => entry.Value, StringComparer.OrdinalIgnoreCase),
+            StringComparer.OrdinalIgnoreCase);
+    }
+
+    private sealed class AdminIndustryStrategyProfileRow
+    {
+        public string IndustryCode { get; init; } = string.Empty;
+        public string IndustryLabel { get; init; } = string.Empty;
+        public string? PrimaryPersona { get; init; }
+        public string? BuyingJourney { get; init; }
+        public string? TrustSensitivity { get; init; }
+        public string? DefaultLanguageBiasesJson { get; init; }
+        public string? DefaultObjective { get; init; }
+        public string? FunnelShape { get; init; }
+        public string? PrimaryKpisJson { get; init; }
+        public string? SalesCycle { get; init; }
+        public string? PreferredChannelsJson { get; init; }
+        public string? BaseBudgetSplitJson { get; init; }
+        public string? GeographyBias { get; init; }
+        public string? PreferredTone { get; init; }
+        public string? MessagingAngle { get; init; }
+        public string? RecommendedCta { get; init; }
+        public string? ProofPointsJson { get; init; }
+        public string? GuardrailsJson { get; init; }
+        public string? RestrictedClaimTypesJson { get; init; }
+        public string? ResearchSummary { get; init; }
+        public string? ResearchSourcesJson { get; init; }
     }
 
     private sealed record LifecycleQueueCandidate(

@@ -44,7 +44,7 @@ const routeSeo: Record<string, SeoMeta> = {
   },
   '/billboard-advertising-south-africa': {
     title: 'Billboard Advertising in South Africa | Advertified',
-    description: 'Explore billboard advertising in South Africa with Advertified, including budget-led planning, package-led campaign setup, and support across OOH and digital screens.',
+    description: 'Explore billboard advertising in South Africa with Advertified, including budget-led planning, package-led campaign setup, and support across Billboards and Digital Screens.',
     path: '/billboard-advertising-south-africa/',
     type: 'website',
   },

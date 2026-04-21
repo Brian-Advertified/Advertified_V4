@@ -415,12 +415,12 @@ internal static class EmailTemplateDefaults
                   </div>
                 </div>
                 ", nowUtc),
-            Build("recommendation-ready", "Your Advertified recommendation options are ready for {{CampaignName}}", @"
+            Build("recommendation-ready", "{{RecommendationEmailSubject}}", @"
                 <div style=""background:#f4fbf8;padding:32px;font-family:Arial,sans-serif;color:#12211D;"">
                   <div style=""max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #d8e9e1;border-radius:24px;overflow:hidden;"">
                     <div style=""padding:28px 32px;background:linear-gradient(180deg,#eefbf5 0%, #ffffff 100%);border-bottom:1px solid #d8e9e1;"">
                       <div style=""font-size:14px;letter-spacing:0.12em;text-transform:uppercase;color:#4b635a;font-weight:700;"">Advertified recommendations</div>
-                      <h1 style=""margin:12px 0 0;font-size:30px;line-height:1.2;color:#123A33;"">Your campaign recommendations are ready to review</h1>
+                      <h1 style=""margin:12px 0 0;font-size:30px;line-height:1.2;color:#123A33;"">{{RecommendationEmailHeadline}}</h1>
                     </div>
                     <div style=""padding:28px 32px;"">
                       <p style=""margin:0 0 14px;font-size:15px;line-height:1.7;color:#4b635a;"">

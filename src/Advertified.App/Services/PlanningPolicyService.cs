@@ -227,13 +227,14 @@ public sealed class PlanningPolicyService : IPlanningPolicyService
             .Select(share => share.Channel switch
             {
                 "radio" => $"Radio {share.Share}%",
-                "billboard" => $"Billboards {share.Share}%",
-                "digital_screen" => $"Digital Screens {share.Share}%",
-                "ooh" => $"Billboards or Digital Screens {share.Share}%",
+                "billboard" => $"Billboards and Digital Screens {share.Share}%",
+                "digital_screen" => $"Billboards and Digital Screens {share.Share}%",
+                "ooh" => $"Billboards and Digital Screens {share.Share}%",
                 "tv" => $"TV {share.Share}%",
                 "digital" => $"Digital {share.Share}%",
                 _ => $"{share.Channel} {share.Share}%"
             })
+            .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
         return parts.Count > 0 ? string.Join(" | ", parts) : null;
     }

@@ -254,6 +254,15 @@ public sealed class AgentInventoryController : ControllerBase
         var isBroadcast = normalizedChannel is PlanningChannelSupport.Radio or PlanningChannelSupport.Tv;
         var isOohLike = PlanningChannelSupport.IsOohFamilyChannel(normalizedChannel) || normalizedChannel == PlanningChannelSupport.Digital;
 
+        // Keep national broadcast and digital packages available in the manual
+        // replacement picker so it stays aligned with the planning engine's
+        // eligibility rules for narrower local/provincial briefs.
+        if ((isBroadcast || normalizedChannel == PlanningChannelSupport.Digital)
+            && string.Equals(candidate.MarketScope, "national", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
         var requestedTerms = (normalizedScope == "local"
                 ? (request.Suburbs.Count > 0
                     ? (isBroadcast ? request.Cities : request.Suburbs)

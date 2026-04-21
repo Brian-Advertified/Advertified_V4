@@ -10,15 +10,18 @@ public sealed class LeadProposalConfidenceGateService : ILeadProposalConfidenceG
     private readonly AppDbContext _db;
     private readonly ILeadChannelDetectionService _leadChannelDetectionService;
     private readonly ILeadEnrichmentSnapshotService _leadEnrichmentSnapshotService;
+    private readonly ILeadIndustryContextResolver _leadIndustryContextResolver;
 
     public LeadProposalConfidenceGateService(
         AppDbContext db,
         ILeadChannelDetectionService leadChannelDetectionService,
-        ILeadEnrichmentSnapshotService leadEnrichmentSnapshotService)
+        ILeadEnrichmentSnapshotService leadEnrichmentSnapshotService,
+        ILeadIndustryContextResolver leadIndustryContextResolver)
     {
         _db = db;
         _leadChannelDetectionService = leadChannelDetectionService;
         _leadEnrichmentSnapshotService = leadEnrichmentSnapshotService;
+        _leadIndustryContextResolver = leadIndustryContextResolver;
     }
 
     public async Task EnsureCampaignReadyAsync(Guid campaignId, CancellationToken cancellationToken)
@@ -68,8 +71,9 @@ public sealed class LeadProposalConfidenceGateService : ILeadProposalConfidenceG
                 .ToListAsync(cancellationToken);
         }
 
-        var channelDetections = _leadChannelDetectionService.Detect(lead, latestSignal, evidences);
-        var enrichment = _leadEnrichmentSnapshotService.Build(lead, latestSignal, evidences, channelDetections);
+        var industryContext = _leadIndustryContextResolver.ResolveFromCategory(lead.Category);
+        var channelDetections = _leadChannelDetectionService.Detect(lead, latestSignal, evidences, industryContext.CanonicalIndustry);
+        var enrichment = _leadEnrichmentSnapshotService.Build(lead, latestSignal, evidences, channelDetections, industryContext.CanonicalIndustry, industryContext);
         if (enrichment.ConfidenceGate.IsBlocked)
         {
             throw new InvalidOperationException(enrichment.ConfidenceGate.Message);

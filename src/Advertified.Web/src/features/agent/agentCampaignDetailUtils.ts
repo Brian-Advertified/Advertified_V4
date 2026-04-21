@@ -188,8 +188,8 @@ export function groupGeneratedRecommendationItems(items: RecommendationItem[]) {
 }
 
 export function isInventoryRelevant(item: SelectedPlanInventoryItem, brief?: CampaignBrief) {
-  const preferredMediaTypes = brief?.preferredMediaTypes?.map((value) => value.toLowerCase()) ?? [];
-  if (preferredMediaTypes.length > 0 && !preferredMediaTypes.includes(item.type.toLowerCase())) {
+  const preferredMediaTypes = brief?.preferredMediaTypes?.map((value) => normalizeChannelKey(value)) ?? [];
+  if (preferredMediaTypes.length > 0 && !preferredMediaTypes.includes(normalizeChannelKey(item.type))) {
     return false;
   }
 
@@ -217,6 +217,12 @@ export function isInventoryRelevant(item: SelectedPlanInventoryItem, brief?: Cam
     .filter(Boolean)
     .join(' ')
     .toLowerCase();
+
+  const normalizedChannel = normalizeChannelKey(item.type);
+  if ((normalizedChannel === 'RADIO' || normalizedChannel === 'DIGITAL' || normalizedChannel === 'TV')
+    && haystack.includes('national')) {
+    return true;
+  }
 
   return geoTerms.some((term) => haystack.includes(term));
 }

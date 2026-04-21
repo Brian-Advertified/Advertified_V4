@@ -1,4 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useQuery } from '@tanstack/react-query';
+import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import type { ReactNode } from 'react';
@@ -7,8 +9,9 @@ import {
   optionalNumber,
   splitCommaList,
 } from '../briefModel';
-import type { CampaignBrief } from '../../../types/domain';
+import type { CampaignBrief, LeadIndustryContext } from '../../../types/domain';
 import { useSharedFormOptions } from '../../../lib/useSharedFormOptions';
+import { advertifiedApi } from '../../../services/advertifiedApi';
 
 const objectiveOptions = [
   { value: 'awareness', label: 'Brand awareness' },
@@ -115,11 +118,13 @@ type FormShape = z.infer<typeof briefSchema>;
 
 export function CampaignBriefForm({
   initialValue,
+  industry,
   loading,
   onSave,
   onSubmitBrief,
 }: {
   initialValue?: CampaignBrief;
+  industry?: string;
   loading: boolean;
   onSave: (brief: CampaignBrief) => Promise<void>;
   onSubmitBrief: (brief: CampaignBrief) => Promise<void>;
@@ -180,29 +185,15 @@ export function CampaignBriefForm({
   });
   const formOptionsQuery = useSharedFormOptions();
   const geographyScope = watch('geographyScope');
-
-  if (formOptionsQuery.isPending) {
-    return <div className="panel px-6 py-6">Loading form options...</div>;
-  }
-
-  if (formOptionsQuery.isError || !formOptionsQuery.data) {
-    return <div className="panel px-6 py-6">We could not load brief options right now. Refresh and try again.</div>;
-  }
-
-  const {
-    audienceClarity,
-    averageCustomerSpendBands,
-    businessStages,
-    buyingBehaviours,
-    customerTypes,
-    decisionCycles,
-    growthTargets,
-    monthlyRevenueBands,
-    pricePositioning,
-    salesModels,
-    urgencyLevels,
-    valuePropositionFocus,
-  } = formOptionsQuery.data;
+  const [industryDefaultsApplied, setIndustryDefaultsApplied] = useState(false);
+  const [industryDefaultsMessage, setIndustryDefaultsMessage] = useState<string>('');
+  const autoAppliedIndustryRef = useRef<string>('');
+  const industryContextQuery = useQuery({
+    queryKey: ['campaign-brief-industry-context', industry?.trim() ?? ''],
+    queryFn: () => advertifiedApi.resolveLeadIndustryContext(industry?.trim() ?? ''),
+    enabled: Boolean(industry?.trim()),
+    staleTime: 5 * 60 * 1000,
+  });
 
   function setAgeBand(value: string) {
     if (!value) {
@@ -275,8 +266,130 @@ export function CampaignBriefForm({
     };
   }
 
+  function applyIndustryDefaults(force = false) {
+    const context = industryContextQuery.data;
+    if (!context) {
+      return;
+    }
+
+    const currentObjective = watch('objective');
+    const currentAudienceNotes = watch('targetAudienceNotes');
+    const currentPreferredMedia = watch('preferredMediaTypes');
+    const currentLanguages = watch('targetLanguages');
+    const currentSpecialRequirements = watch('specialRequirements');
+
+    if ((force || !currentObjective?.trim()) && context.campaign.defaultObjective) {
+      setValue('objective', normalizeIndustryObjective(context.campaign.defaultObjective));
+    }
+
+    if (force || !currentAudienceNotes?.trim()) {
+      setValue('targetAudienceNotes', buildAudienceNotes(context));
+    }
+
+    if (force || !currentPreferredMedia?.trim()) {
+      setValue('preferredMediaTypes', buildPreferredMedia(context));
+    }
+
+    if ((force || !currentLanguages?.trim()) && context.audience.defaultLanguageBiases.length > 0) {
+      setValue('targetLanguages', context.audience.defaultLanguageBiases.join(', '));
+    }
+
+    if (force || !currentSpecialRequirements?.trim()) {
+      setValue('specialRequirements', buildSpecialRequirements(context));
+    }
+
+    setIndustryDefaultsApplied(true);
+    setIndustryDefaultsMessage(`Industry template applied for ${context.label}. You can keep refining any field.`);
+  }
+
+  useEffect(() => {
+    const context = industryContextQuery.data;
+    const industryKey = industry?.trim() ?? '';
+    if (!context || !industryKey || autoAppliedIndustryRef.current === industryKey) {
+      return;
+    }
+
+    if (!isBriefEssentiallyEmpty(initialValue)) {
+      autoAppliedIndustryRef.current = industryKey;
+      return;
+    }
+
+    applyIndustryDefaults();
+    autoAppliedIndustryRef.current = industryKey;
+  }, [industry, industryContextQuery.data, initialValue]);
+
+  if (formOptionsQuery.isPending) {
+    return <div className="panel px-6 py-6">Loading form options...</div>;
+  }
+
+  if (formOptionsQuery.isError || !formOptionsQuery.data) {
+    return <div className="panel px-6 py-6">We could not load brief options right now. Refresh and try again.</div>;
+  }
+
+  const {
+    audienceClarity,
+    averageCustomerSpendBands,
+    businessStages,
+    buyingBehaviours,
+    customerTypes,
+    decisionCycles,
+    growthTargets,
+    monthlyRevenueBands,
+    pricePositioning,
+    salesModels,
+    urgencyLevels,
+    valuePropositionFocus,
+  } = formOptionsQuery.data;
+
   return (
     <form className="space-y-6">
+      {industryContextQuery.data ? (
+        <div className="panel px-6 py-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand">Industry defaults</p>
+              <h3 className="mt-2 text-xl font-semibold text-ink">{industryContextQuery.data.label}</h3>
+              <p className="mt-2 text-sm leading-7 text-ink-soft">
+                Use these defaults as a starting point, then refine the brief to match the campaign.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <button type="button" onClick={() => applyIndustryDefaults()} className="rounded-full border border-line px-5 py-3 text-sm font-semibold text-ink">
+                {industryDefaultsApplied ? 'Reapply defaults' : 'Apply defaults'}
+              </button>
+              {industryDefaultsApplied ? (
+                <button
+                  type="button"
+                  onClick={() => applyIndustryDefaults(true)}
+                  className="rounded-full border border-brand/20 bg-brand-soft px-5 py-3 text-sm font-semibold text-brand"
+                >
+                  Reset to industry defaults
+                </button>
+              ) : null}
+            </div>
+          </div>
+          {industryDefaultsMessage ? (
+            <div className="mt-5 rounded-[18px] border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-900">
+              {industryDefaultsMessage}
+            </div>
+          ) : null}
+          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <p className="text-sm text-ink-soft">
+              Objective: <span className="font-semibold text-ink">{industryContextQuery.data.campaign.defaultObjective || 'Not set'}</span>
+            </p>
+            <p className="text-sm text-ink-soft">
+              Audience: <span className="font-semibold text-ink">{industryContextQuery.data.audience.primaryPersona || 'Not set'}</span>
+            </p>
+            <p className="text-sm text-ink-soft">
+              Channels: <span className="font-semibold text-ink">{industryContextQuery.data.channels.preferredChannels.join(', ') || 'Not set'}</span>
+            </p>
+            <p className="text-sm text-ink-soft">
+              CTA: <span className="font-semibold text-ink">{industryContextQuery.data.creative.recommendedCta || 'Not set'}</span>
+            </p>
+          </div>
+        </div>
+      ) : null}
+
       <BriefSection title="Campaign setup" description="Frame the commercial objective, timing, and location in the simplest possible way.">
         <Grid>
           <Field label="Objective" error={errors.objective?.message}>
@@ -530,6 +643,44 @@ export function CampaignBriefForm({
         </button>
       </div>
     </form>
+  );
+}
+
+function normalizeIndustryObjective(value?: string) {
+  const normalized = value?.trim().toLowerCase();
+  return normalized === 'foottraffic' ? 'foot_traffic' : normalized ?? '';
+}
+
+function buildAudienceNotes(context: LeadIndustryContext): string {
+  return [
+    context.audience.primaryPersona ? `Primary audience: ${context.audience.primaryPersona}` : '',
+    context.audience.buyingJourney ? `Buying journey: ${context.audience.buyingJourney}` : '',
+    context.creative.messagingAngle ? `Messaging angle: ${context.creative.messagingAngle}` : '',
+  ].filter((value) => value.trim().length > 0).join('\n');
+}
+
+function buildPreferredMedia(context: LeadIndustryContext): string {
+  return (context.channels.preferredChannels ?? []).join(', ');
+}
+
+function buildSpecialRequirements(context: LeadIndustryContext): string {
+  return [
+    context.creative.recommendedCta ? `Recommended CTA: ${context.creative.recommendedCta}` : '',
+    ...(context.compliance.guardrails ?? []).map((item) => `Guardrail: ${item}`),
+  ].filter((value) => value.trim().length > 0).join('\n');
+}
+
+function isBriefEssentiallyEmpty(brief?: CampaignBrief) {
+  if (!brief) {
+    return true;
+  }
+
+  return !(
+    brief.objective?.trim()
+    || brief.targetAudienceNotes?.trim()
+    || (brief.preferredMediaTypes?.length ?? 0) > 0
+    || brief.targetLanguages?.some((value) => value.trim().length > 0)
+    || brief.specialRequirements?.trim()
   );
 }
 

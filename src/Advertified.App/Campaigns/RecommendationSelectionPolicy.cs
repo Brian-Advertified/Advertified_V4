@@ -36,6 +36,14 @@ internal static class RecommendationSelectionPolicy
                 .FirstOrDefault();
             if (sentRevisionNumber.HasValue)
             {
+                var sentRecommendations = RecommendationRevisionSupport.GetRevisionSet(materialized, sentRevisionNumber.Value)
+                    .Where(x => string.Equals(x.Status, RecommendationStatuses.SentToClient, StringComparison.OrdinalIgnoreCase))
+                    .ToArray();
+                if (sentRecommendations.Length > 0)
+                {
+                    return sentRecommendations;
+                }
+
                 return RecommendationRevisionSupport.GetRevisionSet(materialized, sentRevisionNumber.Value);
             }
         }

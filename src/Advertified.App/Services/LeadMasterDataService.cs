@@ -175,11 +175,29 @@ public sealed class LeadMasterDataService : ILeadMasterDataService
 
             var industryRows = connection.Query<IndustryAliasRow>(
                 @"select
-                    mia.alias,
-                    mi.code as Code,
-                    mi.label as Label
-                  from master_industry_aliases mia
-                  join master_industries mi on mi.id = mia.master_industry_id;");
+                    industry_aliases.alias,
+                    industry_aliases.Code,
+                    industry_aliases.Label
+                  from (
+                    select
+                        mi.label as alias,
+                        mi.code as Code,
+                        mi.label as Label
+                    from master_industries mi
+                    union all
+                    select
+                        mi.code as alias,
+                        mi.code as Code,
+                        mi.label as Label
+                    from master_industries mi
+                    union all
+                    select
+                        mia.alias,
+                        mi.code as Code,
+                        mi.label as Label
+                    from master_industry_aliases mia
+                    join master_industries mi on mi.id = mia.master_industry_id
+                  ) industry_aliases;");
 
             var languageRows = connection.Query<LanguageAliasRow>(
                 @"select

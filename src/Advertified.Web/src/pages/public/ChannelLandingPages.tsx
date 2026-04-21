@@ -138,25 +138,25 @@ export function BillboardAdvertisingPage() {
     <ChannelLandingPage
       path="/billboard-advertising-south-africa"
       title="Billboard Advertising in South Africa | Advertified"
-      description="Explore billboard advertising in South Africa with Advertified, including budget-led planning, package-led campaign setup, and support across OOH and digital screens."
+      description="Explore billboard advertising in South Africa with Advertified, including budget-led planning, package-led campaign setup, and support across Billboards and Digital Screens."
       kicker="Billboard advertising"
       heroTitle="Billboard advertising in South Africa with a clearer path from budget to campaign."
-      heroDescription="Advertified helps businesses approach billboard and digital screen campaigns through package-led planning, guided recommendations, and a more structured activation journey."
+      heroDescription="Advertified helps businesses approach Billboards and Digital Screens through package-led planning, guided recommendations, and a more structured activation journey."
       icon={Megaphone}
       overview={[
-        'Billboard advertising is often strongest when a business needs visible market presence, repeated daily reach, and a format that keeps the brand in front of commuters, shoppers, and local audiences.',
+        'Billboards and Digital Screens are often strongest when a business needs visible market presence, repeated daily reach, and formats that keep the brand in front of commuters, shoppers, and local audiences.',
         'Advertified helps businesses start with the budget band first, then shape the campaign around the right planning route, geography, and channel mix instead of beginning with an open-ended quoting process.',
       ]}
       benefits={[
         'Strong visual presence across high-traffic environments',
         'Useful for market visibility, local awareness, and launch support',
-        'Can be combined with digital screens, radio, TV, social, SMS, and print',
+        'Can be combined with radio, TV, digital, SMS, and print',
       ]}
       useCases={[
         'Retail campaigns that need repeated local visibility',
         'Brand launches that need large-format awareness quickly',
         'Regional campaigns that need visible roadside or commuter presence',
-        'Businesses that want billboard-led campaigns supported by other channels',
+        'Businesses that want Billboards and Digital Screens supported by other channels',
       ]}
       relatedLinks={[
         { href: '/packages', label: 'Packages' },
@@ -189,7 +189,7 @@ export function RadioAdvertisingPage() {
         'Retail and service businesses running short-term promotions',
         'Brands needing repeated awareness over a concentrated period',
         'Campaigns that work better with audio repetition than pure visual media',
-        'Businesses that want radio combined with OOH, TV, social, or SMS',
+        'Businesses that want radio combined with Billboards and Digital Screens, TV, social, or SMS',
       ]}
       relatedLinks={[
         { href: '/packages', label: 'Packages' },
@@ -216,7 +216,7 @@ export function TelevisionAdvertisingPage() {
       benefits={[
         'Useful for high-visibility brand awareness campaigns',
         'Stronger authority and perceived scale for the advertiser',
-        'Can sit inside a broader multi-channel plan with OOH, radio, digital, and print',
+        'Can sit inside a broader multi-channel plan with Billboards and Digital Screens, radio, digital, and print',
       ]}
       useCases={[
         'Brand awareness campaigns that need broad market visibility',
@@ -248,7 +248,7 @@ export function DigitalAdvertisingPage() {
       ]}
       benefits={[
         'Flexible support around social, digital, and response-led activity',
-        'Useful alongside billboard, radio, TV, and print campaigns',
+        'Useful alongside Billboards and Digital Screens, radio, TV, and print campaigns',
         'Can help carry campaign momentum between larger-format placements',
       ]}
       useCases={[

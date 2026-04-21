@@ -775,10 +775,14 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
                     allocation => (int)Math.Round(allocation.Weight * 100m, MidpointRounding.AwayFromZero),
                     StringComparer.OrdinalIgnoreCase);
 
-            return $"Radio {shareByChannel.GetValueOrDefault("radio")}% | Billboards {shareByChannel.GetValueOrDefault("billboard")}% | Digital Screens {shareByChannel.GetValueOrDefault("digital_screen")}% | TV {shareByChannel.GetValueOrDefault("tv")}% | Digital {shareByChannel.GetValueOrDefault("digital")}%";
+            var oohShare = shareByChannel.GetValueOrDefault("ooh")
+                + shareByChannel.GetValueOrDefault("billboard")
+                + shareByChannel.GetValueOrDefault("digital_screen");
+
+            return $"Radio {shareByChannel.GetValueOrDefault("radio")}% | Billboards and Digital Screens {oohShare}% | TV {shareByChannel.GetValueOrDefault("tv")}% | Digital {shareByChannel.GetValueOrDefault("digital")}%";
         }
 
-        return $"Radio {request.TargetRadioShare ?? 0}% | Billboards or Digital Screens {request.TargetOohShare ?? 0}% | TV {request.TargetTvShare ?? 0}% | Digital {request.TargetDigitalShare ?? 0}%";
+        return $"Radio {request.TargetRadioShare ?? 0}% | Billboards and Digital Screens {request.TargetOohShare ?? 0}% | TV {request.TargetTvShare ?? 0}% | Digital {request.TargetDigitalShare ?? 0}%";
     }
 
     private static string FormatSummaryChannelLabel(string? mediaType)

@@ -131,7 +131,7 @@ export function HomePage() {
                 Built to make media buying feel more guided, more flexible, and less intimidating.
               </h2>
               <p className="mt-4 max-w-[520px] text-sm leading-7 text-ink-soft sm:text-[15px]">
-                Advertified helps brands start with the right package, then unlock the planning support needed to shape campaigns across billboards, digital screens, radio, TV, social, SMS, and print.
+                Advertified helps brands start with the right package, then unlock the planning support needed to shape campaigns across Billboards and Digital Screens, radio, TV, social, SMS, and print.
               </p>
               <p className="mt-3 max-w-[520px] text-sm leading-7 text-ink-soft sm:text-[15px]">
                 This video is a quick brand introduction: who we are, what we enable, and why the journey is designed to feel clear instead of overwhelming.

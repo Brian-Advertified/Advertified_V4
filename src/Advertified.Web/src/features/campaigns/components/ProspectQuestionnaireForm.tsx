@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { ClipboardList } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { z } from 'zod';
 import { useToast } from '../../../components/ui/toast';
@@ -14,6 +14,7 @@ import {
 import { catalogQueryOptions } from '../../../lib/catalogQueryOptions';
 import { useSharedFormOptions } from '../../../lib/useSharedFormOptions';
 import { advertifiedApi } from '../../../services/advertifiedApi';
+import type { LeadIndustryContext } from '../../../types/domain';
 
 type QuestionnaireForm = QuestionnaireBriefFields & {
   fullName: string;
@@ -206,22 +207,63 @@ function clearStoredQuestionnaireDraft() {
   }
 }
 
+function normalizeIndustryObjective(value?: string) {
+  const normalized = value?.trim().toLowerCase();
+  return normalized === 'foottraffic' ? 'foot_traffic' : normalized ?? '';
+}
+
+function normalizeIndustryChannels(context?: LeadIndustryContext): string[] {
+  return (context?.channels.preferredChannels ?? [])
+    .map((channel) => channel.trim().toLowerCase())
+    .map((channel) => {
+      switch (channel) {
+        case 'ooh':
+          return 'ooh';
+        case 'digital':
+        case 'search':
+        case 'social':
+        case 'display':
+          return 'digital';
+        case 'radio':
+          return 'radio';
+        case 'tv':
+          return 'tv';
+        default:
+          return '';
+      }
+    })
+    .filter((value) => value.length > 0)
+    .filter((value, index, values) => values.indexOf(value) === index);
+}
+
+function buildIndustrySpecialRequirements(context: LeadIndustryContext): string {
+  return [
+    context.creative.messagingAngle
+      ? `Messaging angle: ${context.creative.messagingAngle}`
+      : '',
+    ...(context.compliance.guardrails ?? []).slice(0, 2).map((item) => `Guardrail: ${item}`),
+  ].filter((value) => value.trim().length > 0).join('\n');
+}
+
+function isQuestionnaireIndustryManagedFieldsEmpty(form: QuestionnaireForm): boolean {
+  return !(
+    form.objective?.trim()
+    || form.language?.trim()
+    || form.specialRequirements?.trim()
+    || form.preferredMediaTypes.length > 0
+  );
+}
+
 export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestionnaireFormProps) {
   const { pushToast } = useToast();
   const formOptionsQuery = useSharedFormOptions();
+  const storedDraft = readStoredQuestionnaireDraft();
   const [submitted, setSubmitted] = useState<{ campaignId: string; campaignName: string; message: string } | null>(null);
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [errors, setErrors] = useState<QuestionnaireErrors>({});
-  const [form, setForm] = useState<QuestionnaireForm>(() => createQuestionnaireFormState());
-  const [draftRestored, setDraftRestored] = useState(false);
-
-  useEffect(() => {
-    const storedDraft = readStoredQuestionnaireDraft();
-    if (storedDraft) {
-      setForm(storedDraft);
-      setDraftRestored(true);
-    }
-  }, []);
+  const [form, setForm] = useState<QuestionnaireForm>(() => createQuestionnaireFormState(storedDraft ?? undefined));
+  const [draftRestored, setDraftRestored] = useState(Boolean(storedDraft));
+  const autoAppliedIndustryRef = useRef<string>('');
 
   useEffect(() => {
     if (submitted || typeof window === 'undefined') {
@@ -237,6 +279,73 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
     ...catalogQueryOptions,
     retry: 1,
   });
+
+  const industryContextQuery = useQuery({
+    queryKey: ['questionnaire-industry-context', form.industry.trim()],
+    queryFn: () => advertifiedApi.resolveLeadIndustryContext(form.industry.trim()),
+    enabled: Boolean(form.industry.trim()),
+    staleTime: 5 * 60 * 1000,
+  });
+  const selectedIndustry = form.industry.trim();
+  const industryDefaultsApplied = Boolean(selectedIndustry && industryContextQuery.data && autoAppliedIndustryRef.current === selectedIndustry);
+  const industryDefaultsMessage = industryDefaultsApplied && industryContextQuery.data
+    ? `Industry template applied for ${industryContextQuery.data.label}. You can keep refining any answer.`
+    : '';
+
+  function applyIndustryDefaults(force = false) {
+    const context = industryContextQuery.data;
+    if (!context || !selectedIndustry) {
+      return;
+    }
+
+    const nextObjective = normalizeIndustryObjective(context.campaign.defaultObjective);
+    const nextChannels = normalizeIndustryChannels(context);
+    const nextLanguage = context.audience.defaultLanguageBiases[0] ?? '';
+    const nextSpecialRequirements = buildIndustrySpecialRequirements(context);
+
+    setForm((current) => ({
+      ...current,
+      objective: (force || !current.objective || current.objective === 'awareness')
+        ? (nextObjective || current.objective)
+        : current.objective,
+      preferredMediaTypes: force
+        ? (nextChannels.length > 0 ? nextChannels : current.preferredMediaTypes)
+        : (
+          current.preferredMediaTypes.length === 0
+          || current.preferredMediaTypes.every((value) => value === 'ooh' || value === 'radio' || value === 'digital')
+            ? (nextChannels.length > 0 ? nextChannels : current.preferredMediaTypes)
+            : current.preferredMediaTypes
+        ),
+      language: (force || current.language.trim().length === 0)
+        ? nextLanguage
+        : current.language,
+      specialRequirements: (force || current.specialRequirements.trim().length === 0)
+        ? nextSpecialRequirements
+        : current.specialRequirements,
+    }));
+  }
+
+  useEffect(() => {
+    const context = industryContextQuery.data;
+    if (!selectedIndustry || !context) {
+      if (!selectedIndustry) {
+        autoAppliedIndustryRef.current = '';
+      }
+      return;
+    }
+
+    if (autoAppliedIndustryRef.current === selectedIndustry) {
+      return;
+    }
+
+    if (!isQuestionnaireIndustryManagedFieldsEmpty(form)) {
+      autoAppliedIndustryRef.current = selectedIndustry;
+      return;
+    }
+
+    applyIndustryDefaults();
+    autoAppliedIndustryRef.current = selectedIndustry;
+  }, [form, industryContextQuery.data]);
 
   const submitMutation = useMutation({
     mutationFn: async () => {
@@ -509,6 +618,49 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                     {industries.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                   </select>
                 </label>
+                {industryContextQuery.data ? (
+                  <div className="rounded-[20px] border border-brand/15 bg-brand/[0.06] px-4 py-4 md:col-span-2">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand">Industry defaults</p>
+                        <p className="mt-2 text-sm font-semibold text-ink">{industryContextQuery.data.label}</p>
+                      </div>
+                      <div className="flex flex-wrap gap-3">
+                        <button type="button" onClick={() => applyIndustryDefaults()} className="rounded-full border border-line px-4 py-2 text-sm font-semibold text-ink">
+                          {industryDefaultsApplied ? 'Reapply defaults' : 'Apply defaults'}
+                        </button>
+                        {industryDefaultsApplied ? (
+                          <button
+                            type="button"
+                            onClick={() => applyIndustryDefaults(true)}
+                            className="rounded-full border border-brand/20 bg-brand-soft px-4 py-2 text-sm font-semibold text-brand"
+                          >
+                            Reset to industry defaults
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                    {industryDefaultsMessage ? (
+                      <div className="mt-4 rounded-[18px] border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-900">
+                        {industryDefaultsMessage}
+                      </div>
+                    ) : null}
+                    <div className="mt-3 grid gap-3 md:grid-cols-2">
+                      <p className="text-sm text-ink-soft">
+                        Objective: <span className="font-semibold text-ink">{industryContextQuery.data.campaign.defaultObjective || 'Not set'}</span>
+                      </p>
+                      <p className="text-sm text-ink-soft">
+                        Channels: <span className="font-semibold text-ink">{industryContextQuery.data.channels.preferredChannels.join(', ') || 'Not set'}</span>
+                      </p>
+                      <p className="text-sm text-ink-soft">
+                        Audience: <span className="font-semibold text-ink">{industryContextQuery.data.audience.primaryPersona || 'Not set'}</span>
+                      </p>
+                      <p className="text-sm text-ink-soft">
+                        CTA: <span className="font-semibold text-ink">{industryContextQuery.data.creative.recommendedCta || 'Not set'}</span>
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
                 <label className="block">
                   <span className="label-base">Where is your business right now?</span>
                   <select value={form.businessStage} onChange={(event) => setForm((current) => ({ ...current, businessStage: event.target.value }))} className="input-base">

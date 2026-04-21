@@ -874,6 +874,56 @@ export interface LeadIndustryPolicy {
   additionalOutcome: string;
 }
 
+export interface LeadIndustryAudienceProfile {
+  primaryPersona: string;
+  buyingJourney: string;
+  trustSensitivity: string;
+  defaultLanguageBiases: string[];
+  audienceHints: string[];
+}
+
+export interface LeadIndustryCampaignProfile {
+  defaultObjective: string;
+  funnelShape: string;
+  primaryKpis: string[];
+  salesCycle: string;
+}
+
+export interface LeadIndustryChannelProfile {
+  preferredChannels: string[];
+  baseBudgetSplit: Record<string, number>;
+  geographyBias: string;
+}
+
+export interface LeadIndustryCreativeProfile {
+  preferredTone: string;
+  messagingAngle: string;
+  recommendedCta: string;
+  proofPoints: string[];
+}
+
+export interface LeadIndustryComplianceProfile {
+  guardrails: string[];
+  restrictedClaimTypes: string[];
+}
+
+export interface LeadIndustryResearchProfile {
+  summary: string;
+  sources: string[];
+}
+
+export interface LeadIndustryContext {
+  code: string;
+  label: string;
+  policy: LeadIndustryPolicy;
+  audience: LeadIndustryAudienceProfile;
+  campaign: LeadIndustryCampaignProfile;
+  channels: LeadIndustryChannelProfile;
+  creative: LeadIndustryCreativeProfile;
+  compliance: LeadIndustryComplianceProfile;
+  research: LeadIndustryResearchProfile;
+}
+
 export interface LeadOpportunityProfile {
   key: string;
   name: string;
@@ -1269,6 +1319,30 @@ export interface AdminLeadIndustryPolicy {
   isActive: boolean;
 }
 
+export interface AdminIndustryStrategyProfile {
+  industryCode: string;
+  industryLabel: string;
+  primaryPersona: string;
+  buyingJourney: string;
+  trustSensitivity: string;
+  defaultLanguageBiases: string[];
+  defaultObjective: string;
+  funnelShape: string;
+  primaryKpis: string[];
+  salesCycle: string;
+  preferredChannels: string[];
+  baseBudgetSplit: Record<string, number>;
+  geographyBias: string;
+  preferredTone: string;
+  messagingAngle: string;
+  recommendedCta: string;
+  proofPoints: string[];
+  guardrails: string[];
+  restrictedClaimTypes: string[];
+  researchSummary: string;
+  researchSources: string[];
+}
+
 export interface AdminCreateGeographyInput {
   code: string;
   label: string;
@@ -1321,6 +1395,30 @@ export interface AdminUpsertLeadIndustryPolicyInput {
   additionalOutcome: string;
   sortOrder: number;
   isActive: boolean;
+}
+
+export interface AdminUpsertIndustryStrategyProfileInput {
+  industryCode: string;
+  industryLabel: string;
+  primaryPersona: string;
+  buyingJourney: string;
+  trustSensitivity: string;
+  defaultLanguageBiases: string[];
+  defaultObjective: string;
+  funnelShape: string;
+  primaryKpis: string[];
+  salesCycle: string;
+  preferredChannels: string[];
+  baseBudgetSplit: Record<string, number>;
+  geographyBias: string;
+  preferredTone: string;
+  messagingAngle: string;
+  recommendedCta: string;
+  proofPoints: string[];
+  guardrails: string[];
+  restrictedClaimTypes: string[];
+  researchSummary: string;
+  researchSources: string[];
 }
 
 export interface AdminPreviewRule {
@@ -1403,6 +1501,7 @@ export interface AdminDashboard {
   enginePolicies: AdminEnginePolicy[];
   planningAllocationSettings: AdminPlanningAllocationSettings;
   leadIndustryPolicies: AdminLeadIndustryPolicy[];
+  industryStrategyProfiles: AdminIndustryStrategyProfile[];
   previewRules: AdminPreviewRule[];
   monitoring: AdminMonitoring;
   users: AdminUser[];

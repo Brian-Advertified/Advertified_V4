@@ -47,7 +47,15 @@ function formatFallbackFlag(flag: string) {
   const normalized = flag.trim().toLowerCase();
   if (normalized.startsWith('preferred_media_unfulfilled:')) {
     const rawChannel = normalized.split(':')[1] ?? 'A preferred channel';
-    const channel = normalizeChannelKey(rawChannel) === 'OOH' ? 'Billboards and Digital Screens' : rawChannel.toUpperCase();
+    const channel = normalizeChannelKey(rawChannel) === 'OOH'
+      ? 'Billboards and Digital Screens'
+      : rawChannel === 'digital'
+        ? 'Digital'
+        : rawChannel === 'radio'
+          ? 'Radio'
+          : rawChannel === 'tv'
+            ? 'TV'
+            : rawChannel.toUpperCase();
     return `${channel} was requested, but this package or the available inventory could not support it in the draft.`;
   }
 
@@ -56,6 +64,16 @@ function formatFallbackFlag(flag: string) {
 
 function formatPackageRange(minBudget: number, maxBudget: number) {
   return `${formatCurrency(minBudget)} to ${formatCurrency(maxBudget)}`;
+}
+
+function extractClientSelectedProposalLabel(clientFeedbackNotes?: string) {
+  if (!clientFeedbackNotes) {
+    return null;
+  }
+
+  const match = clientFeedbackNotes.match(/Client selected proposal for revision:\s*(.+)/i);
+  const proposalLabel = match?.[1]?.trim();
+  return proposalLabel && proposalLabel.length > 0 ? proposalLabel : null;
 }
 
 function AuditLine({ label, value }: { label: string; value: string }) {
@@ -209,13 +227,22 @@ export function AgentCampaignDetailPage() {
   });
 
   const campaign = campaignQuery.data;
-  const inventoryItems = inventoryQuery.data ?? [];
+  const inventoryItems = useMemo(() => inventoryQuery.data ?? [], [inventoryQuery.data]);
   const selectedPackageBand = packagesQuery.data?.find((item) => item.id === campaign?.packageBandId) ?? null;
-  const recommendations = campaign?.recommendations.length
-    ? campaign.recommendations
-    : (campaign?.recommendation ? [campaign.recommendation] : []);
+  const recommendations = useMemo(() => (
+    campaign?.recommendations.length
+      ? campaign.recommendations
+      : (campaign?.recommendation ? [campaign.recommendation] : [])
+  ), [campaign?.recommendation, campaign?.recommendations]);
+  const requestedProposalLabel = recommendations
+    .map((item) => extractClientSelectedProposalLabel(item.clientFeedbackNotes))
+    .find((value): value is string => Boolean(value));
+  const requestedProposal = requestedProposalLabel
+    ? recommendations.find((item) => item.proposalLabel?.trim().toLowerCase() === requestedProposalLabel.toLowerCase())
+    : undefined;
   const preferredRecommendationId = recommendations.find((item) => item.status === 'approved')?.id
     ?? recommendations.find((item) => item.status === 'sent_to_client')?.id
+    ?? requestedProposal?.id
     ?? recommendations[0]?.id
     ?? '';
   const selectedRecommendationId = selectedRecommendationIdState || preferredRecommendationId;
@@ -296,26 +323,18 @@ export function AgentCampaignDetailPage() {
   const draftApprovalCaptured = draftApprovalState?.key === hydrationKey
     ? draftApprovalState.captured
     : false;
-  const proposalDisplayTotals = useMemo(() => {
-    const totals: Record<string, number> = {};
-    for (const recommendation of recommendations) {
-      totals[recommendation.id] = recommendation.id === activeRecommendation?.id
-        ? selectedPlanItems.reduce((sum, item) => sum + item.rate * item.quantity, 0) || activeRecommendation?.totalCost || 0
-        : recommendation.totalCost;
-    }
-
-    return totals;
-  }, [activeRecommendation?.id, activeRecommendation?.totalCost, recommendations, selectedPlanItems]);
-  const proposalDisplayItemCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const recommendation of recommendations) {
-      counts[recommendation.id] = recommendation.id === activeRecommendation?.id
-        ? selectedPlanItems.length
-        : recommendation.items.length;
-    }
-
-    return counts;
-  }, [activeRecommendation?.id, recommendations, selectedPlanItems.length]);
+  const proposalDisplayTotals: Record<string, number> = {};
+  for (const recommendation of recommendations) {
+    proposalDisplayTotals[recommendation.id] = recommendation.id === activeRecommendation?.id
+      ? selectedPlanItems.reduce((sum, item) => sum + item.rate * item.quantity, 0) || activeRecommendation?.totalCost || 0
+      : recommendation.totalCost;
+  }
+  const proposalDisplayItemCounts: Record<string, number> = {};
+  for (const recommendation of recommendations) {
+    proposalDisplayItemCounts[recommendation.id] = recommendation.id === activeRecommendation?.id
+      ? selectedPlanItems.length
+      : recommendation.items.length;
+  }
 
   if (campaignQuery.isLoading || (campaign && inventoryQuery.isLoading)) {
     return <LoadingState label="Loading agent campaign detail..." />;

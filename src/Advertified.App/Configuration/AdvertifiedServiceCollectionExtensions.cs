@@ -155,6 +155,7 @@ public static class AdvertifiedServiceCollectionExtensions
             _.GetRequiredService<IBroadcastInventoryCatalog>(),
             _.GetRequiredService<IBroadcastMasterDataService>()));
         services.AddScoped<IAdminLeadIndustryPolicyService, AdminLeadIndustryPolicyService>();
+        services.AddScoped<IAdminIndustryStrategyProfileService, AdminIndustryStrategyProfileService>();
         services.AddScoped<IAdminLeadIntelligenceSettingsService, AdminLeadIntelligenceSettingsService>();
         services.AddScoped<ICampaignAccessService, CampaignAccessService>();
         services.AddScoped<IAgentCampaignOwnershipService, AgentCampaignOwnershipService>();
@@ -278,6 +279,8 @@ public static class AdvertifiedServiceCollectionExtensions
         services.AddScoped<ILeadChannelDetectionService, LeadChannelDetectionService>();
         services.AddScoped<ILeadMasterDataService, LeadMasterDataService>();
         services.AddScoped<IIndustryArchetypeScoringService, IndustryArchetypeScoringService>();
+        services.AddScoped<IIndustryStrategyCatalogService, IndustryStrategyCatalogService>();
+        services.AddScoped<ILeadIndustryContextResolver, LeadIndustryContextResolver>();
         services.AddScoped<IGeocodingService, GeocodingService>();
         services.AddScoped<ILocationCatalogService, LocationCatalogService>();
         services.AddScoped<ICampaignBusinessLocationResolver, CampaignBusinessLocationResolver>();

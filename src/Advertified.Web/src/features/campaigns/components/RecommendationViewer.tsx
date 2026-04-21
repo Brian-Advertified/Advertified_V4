@@ -88,14 +88,14 @@ export function RecommendationViewer({
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Offer structure</p>
           <p className="mt-3 text-lg font-semibold text-ink">{groupedChannels.join(' + ') || 'Not set'}</p>
           <p className="mt-2 text-sm leading-7 text-ink-soft">
-            This reflects the channels included in the main offer route.
+            These are the channels included in the main route we want you to consider first.
           </p>
         </div>
         <div className="rounded-[24px] border border-line bg-slate-50 px-5 py-5">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">What is included</p>
           <p className="mt-3 text-lg font-semibold text-ink">{baseItems.length} placement{baseItems.length === 1 ? '' : 's'}</p>
           <p className="mt-2 text-sm leading-7 text-ink-soft">
-            Each placement has been checked against campaign fit and available inventory.
+            Each placement has been checked against campaign fit, timing, and available inventory.
           </p>
         </div>
         <div className="rounded-[24px] border border-line bg-slate-50 px-5 py-5">
@@ -110,6 +110,12 @@ export function RecommendationViewer({
             )}
           </div>
         </div>
+      </div>
+      <div className="rounded-[24px] border border-amber-200 bg-amber-50/80 px-5 py-5">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-900">Need a different starting point?</p>
+        <p className="mt-3 text-sm leading-7 text-amber-950">
+          You do not need to reject the whole offer if the current investment feels heavy. Ask us for a leaner start, fewer placements, or a phased rollout and we can reshape the route around that.
+        </p>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         {recommendation.items.map((item) => {

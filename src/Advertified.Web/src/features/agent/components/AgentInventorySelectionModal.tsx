@@ -1,5 +1,6 @@
 import { Search, X } from 'lucide-react';
-import { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { useDeferredValue, useMemo, useState } from 'react';
+import { normalizeChannelKey } from '../../channels/channelUtils';
 import type { InventoryRow } from '../../../types/domain';
 import { InventoryTable } from './InventoryTable';
 
@@ -20,6 +21,14 @@ function matchesSearch(item: InventoryRow, query: string) {
   ].join(' ').toLowerCase();
 
   return haystack.includes(query.toLowerCase());
+}
+
+function matchesReplacementChannel(itemType: InventoryRow['type'], replacementType?: InventoryRow['type'] | null) {
+  if (!replacementType) {
+    return true;
+  }
+
+  return normalizeChannelKey(itemType) === normalizeChannelKey(replacementType);
 }
 
 export function AgentInventorySelectionModal({
@@ -48,10 +57,9 @@ export function AgentInventorySelectionModal({
   const [inventoryLanguageFilter, setInventoryLanguageFilter] = useState('all');
   const [inventorySearchInput, setInventorySearchInput] = useState('');
   const deferredInventorySearchInput = useDeferredValue(inventorySearchInput);
-
-  useEffect(() => {
-    setInventoryTypeFilter(replacementInventoryType ?? 'all');
-  }, [replacementInventoryType]);
+  const effectiveInventoryTypeFilter = replacementInventoryType && items.some((item) => item.type === replacementInventoryType)
+    ? replacementInventoryType
+    : inventoryTypeFilter;
 
   const inventoryTypeOptions = useMemo(
     () => Array.from(new Set(items.map((item) => item.type))).sort(),
@@ -68,7 +76,7 @@ export function AgentInventorySelectionModal({
 
   const inventorySearchQuery = deferredInventorySearchInput.trim().toLowerCase();
   const filteredInventoryItems = useMemo(() => items.filter((item) => {
-    if (replacementInventoryType && item.type !== replacementInventoryType) {
+    if (!matchesReplacementChannel(item.type, replacementInventoryType)) {
       return false;
     }
 
@@ -76,7 +84,7 @@ export function AgentInventorySelectionModal({
       return false;
     }
 
-    if (inventoryTypeFilter !== 'all' && item.type !== inventoryTypeFilter) {
+    if (effectiveInventoryTypeFilter !== 'all' && item.type !== effectiveInventoryTypeFilter) {
       return false;
     }
 
@@ -89,7 +97,7 @@ export function AgentInventorySelectionModal({
     }
 
     return matchesSearch(item, inventorySearchQuery);
-  }), [inventoryLanguageFilter, inventoryRegionFilter, inventorySearchQuery, inventoryTypeFilter, items, replacementInventoryType, replacementItemId]);
+  }), [effectiveInventoryTypeFilter, inventoryLanguageFilter, inventoryRegionFilter, inventorySearchQuery, items, replacementInventoryType, replacementItemId]);
 
   if (!isOpen) {
     return null;
@@ -124,7 +132,7 @@ export function AgentInventorySelectionModal({
               className="input-base pl-9"
             />
           </label>
-          <select className="input-base" value={inventoryTypeFilter} onChange={(event) => setInventoryTypeFilter(event.target.value)} disabled={Boolean(replacementInventoryType)}>
+          <select className="input-base" value={effectiveInventoryTypeFilter} onChange={(event) => setInventoryTypeFilter(event.target.value)} disabled={Boolean(replacementInventoryType)}>
             <option value="all">All types</option>
             {inventoryTypeOptions.map((value) => <option key={value} value={value}>{formatChannelLabel(value)}</option>)}
           </select>

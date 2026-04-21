@@ -49,7 +49,7 @@ const routes = [
     lead: 'A clearer way for businesses to buy and run advertising.',
     body: [
       'Advertified helps businesses move from budget to campaign through a structured process that starts with what they want to spend and builds toward a campaign they can launch with confidence.',
-      'The platform is built around clearer commercial steps, visible campaign progress, and support across billboards, digital screens, radio, TV, social, SMS, and print.',
+      'The platform is built around clearer commercial steps, visible campaign progress, and support across Billboards and Digital Screens, radio, TV, social, SMS, and print.',
     ],
     links: [
       { href: '/packages', label: 'Browse packages' },
@@ -74,9 +74,9 @@ const routes = [
   {
     slug: 'billboard-advertising-south-africa',
     title: 'Billboard Advertising in South Africa | Advertified',
-    description: 'Explore billboard advertising in South Africa with Advertified, including budget-led planning, package-led campaign setup, and support across OOH and digital screens.',
+    description: 'Explore billboard advertising in South Africa with Advertified, including budget-led planning, package-led campaign setup, and support across Billboards and Digital Screens.',
     heading: 'Billboard advertising in South Africa',
-    lead: 'A clearer route into billboard and digital screen campaign planning.',
+    lead: 'A clearer route into Billboards and Digital Screens campaign planning.',
     body: [
       'Advertified helps businesses approach billboard advertising through package-led planning, campaign guidance, and clearer commercial steps from budget to activation.',
       'The route is useful for businesses that want visible market presence and a more structured way to shape outdoor campaigns alongside broader media support.',
@@ -124,7 +124,7 @@ const routes = [
     lead: 'A clearer path into digital support campaigns, social visibility, and response-led media activity.',
     body: [
       'Advertified supports digital campaigns as part of a broader package-led planning approach, helping businesses shape the right mix around goals, budget, and approvals.',
-      'Digital can work well alongside billboard, radio, TV, print, and SMS where brands need reinforcement, targeting flexibility, or response support.',
+      'Digital can work well alongside Billboards and Digital Screens, radio, TV, print, and SMS where brands need reinforcement, targeting flexibility, or response support.',
     ],
     links: [
       { href: '/packages', label: 'Browse packages' },

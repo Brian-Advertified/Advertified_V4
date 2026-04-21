@@ -33,10 +33,11 @@ public sealed class LeadChannelDetectionService : ILeadChannelDetectionService
     public IReadOnlyList<LeadChannelDetectionResult> Detect(
         Lead lead,
         Signal? signal,
-        IReadOnlyList<LeadSignalEvidence>? evidences = null)
+        IReadOnlyList<LeadSignalEvidence>? evidences = null,
+        MasterIndustryMatch? canonicalIndustry = null)
     {
         return Channels
-            .Select(channel => BuildChannelResult(channel, lead, signal, evidences))
+            .Select(channel => BuildChannelResult(channel, lead, signal, evidences, canonicalIndustry))
             .OrderByDescending(x => x.Score)
             .ThenBy(x => x.Channel, StringComparer.OrdinalIgnoreCase)
             .ToList();
@@ -46,7 +47,8 @@ public sealed class LeadChannelDetectionService : ILeadChannelDetectionService
         string channel,
         Lead lead,
         Signal? signal,
-        IReadOnlyList<LeadSignalEvidence>? evidences)
+        IReadOnlyList<LeadSignalEvidence>? evidences,
+        MasterIndustryMatch? canonicalIndustry)
     {
         var evidence = BuildPersistedEvidence(channel, evidences);
         var leadCategory = lead.Category.Trim();
@@ -72,7 +74,7 @@ public sealed class LeadChannelDetectionService : ILeadChannelDetectionService
                 {
                     evidence.Add(CreateEvidence("recent_content_refresh", "website_signal", 8, 0.7m, freshnessMultiplier, "Recent website updates support active social campaigns."));
                 }
-                AddCategoryPriors(channel, leadCategory, evidence);
+                AddCategoryPriors(channel, leadCategory, evidence, canonicalIndustry);
                 break;
 
             case "search":
@@ -92,7 +94,7 @@ public sealed class LeadChannelDetectionService : ILeadChannelDetectionService
                 {
                     evidence.Add(CreateEvidence("missing_website", "contradiction", -5, 1.0m, 1.0m, "No website reduces evidence for search activity."));
                 }
-                AddCategoryPriors(channel, leadCategory, evidence);
+                AddCategoryPriors(channel, leadCategory, evidence, canonicalIndustry);
                 break;
 
             case "display":
@@ -115,7 +117,7 @@ public sealed class LeadChannelDetectionService : ILeadChannelDetectionService
             case "billboards_ooh":
             case "print":
             case "influencer":
-                AddCategoryPriors(channel, leadCategory, evidence);
+                AddCategoryPriors(channel, leadCategory, evidence, canonicalIndustry);
 
                 if (signal?.HasPromo == true)
                 {
@@ -292,9 +294,14 @@ public sealed class LeadChannelDetectionService : ILeadChannelDetectionService
             .ToList();
     }
 
-    private void AddCategoryPriors(string channel, string category, ICollection<LeadChannelSignalEvidence> evidence)
+    private void AddCategoryPriors(
+        string channel,
+        string category,
+        ICollection<LeadChannelSignalEvidence> evidence,
+        MasterIndustryMatch? canonicalIndustry)
     {
-        var industryCode = _leadMasterDataService.ResolveIndustry(category)?.Code;
+        var industryCode = canonicalIndustry?.Code
+            ?? _leadMasterDataService.ResolveIndustry(category)?.Code;
         var normalized = category.ToLowerInvariant();
 
         if (ContainsAny(normalized, "dealership", "dealer", "auto", "car"))

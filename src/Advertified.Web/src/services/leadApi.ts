@@ -2,6 +2,7 @@ import type {
   Lead,
   LeadAction,
   LeadActionInbox,
+  LeadIndustryContext,
   LeadIndustryPolicy,
   LeadInteraction,
   LeadIntelligence,
@@ -12,16 +13,21 @@ import type {
 } from '../types/domain';
 import { apiRequest } from './apiClient';
 
+type LeadMapper<TOutput> = {
+  bivarianceHack(response: unknown): TOutput;
+}['bivarianceHack'];
+
 type LeadApiMappers = {
-  mapLead: (response: any) => Lead;
-  mapLeadIntelligence: (response: any) => LeadIntelligence;
-  mapLeadIndustryPolicy: (response: any) => LeadIndustryPolicy;
-  mapLeadActionInbox: (response: any) => LeadActionInbox;
-  mapLeadSourceAutomationStatus: (response: any) => LeadSourceAutomationStatus;
-  mapLeadSourceAutomationRunResult: (response: any) => LeadSourceAutomationRunResult;
-  mapLeadPaidMediaSyncStatus: (response: any) => LeadPaidMediaSyncStatus;
-  mapLeadPaidMediaSyncRun: (response: any) => LeadPaidMediaSyncRun;
-  mapLeadAction: (response: any) => LeadAction;
+  mapLead: LeadMapper<Lead>;
+  mapLeadIntelligence: LeadMapper<LeadIntelligence>;
+  mapLeadIndustryContext: LeadMapper<LeadIndustryContext>;
+  mapLeadIndustryPolicy: LeadMapper<LeadIndustryPolicy>;
+  mapLeadActionInbox: LeadMapper<LeadActionInbox>;
+  mapLeadSourceAutomationStatus: LeadMapper<LeadSourceAutomationStatus>;
+  mapLeadSourceAutomationRunResult: LeadMapper<LeadSourceAutomationRunResult>;
+  mapLeadPaidMediaSyncStatus: LeadMapper<LeadPaidMediaSyncStatus>;
+  mapLeadPaidMediaSyncRun: LeadMapper<LeadPaidMediaSyncRun>;
+  mapLeadAction: LeadMapper<LeadAction>;
 };
 
 export function createLeadApi(mappers: LeadApiMappers) {
@@ -65,6 +71,13 @@ export function createLeadApi(mappers: LeadApiMappers) {
         : '';
       const response = await apiRequest<unknown>(`/leads/industry-policy/resolve${query}`);
       return mappers.mapLeadIndustryPolicy(response);
+    },
+    async resolveLeadIndustryContext(category?: string) {
+      const query = category?.trim()
+        ? `?category=${encodeURIComponent(category.trim())}`
+        : '';
+      const response = await apiRequest<unknown>(`/leads/industry-context/resolve${query}`);
+      return mappers.mapLeadIndustryContext(response);
     },
     async getLeadActionInbox() {
       const response = await apiRequest<unknown>('/agent/lead-intelligence/inbox');

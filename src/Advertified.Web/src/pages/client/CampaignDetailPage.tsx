@@ -7,6 +7,7 @@ import { LoadingState } from '../../components/ui/LoadingState';
 import { useToast } from '../../components/ui/toast';
 import { useAuth } from '../../features/auth/auth-context';
 import { canAccessAiStudio } from '../../features/campaigns/aiStudioAccess';
+import { CampaignBriefForm } from '../../features/campaigns/components/CampaignBriefForm';
 import { CampaignPerformancePanel } from '../../features/campaigns/components/CampaignPerformancePanel';
 import {
   resolveCampaignPerformanceViewState,
@@ -18,11 +19,12 @@ import { formatChannelLabel } from '../../features/channels/channelUtils';
 import { buildApprovalDetails, getApprovalContent, getHeroContent } from '../../features/campaigns/clientCampaignDetailContent';
 import { getCampaignRecommendations, resolveRecommendationId } from '../../features/campaigns/recommendationSelection';
 import { CampaignStepper } from '../../components/campaign/CampaignStepper';
-import { getClientCampaignState } from '../../lib/access';
+import { canOpenBrief, getClientCampaignState } from '../../lib/access';
 import { getPrimaryRecommendation, hasRecommendationApprovalCompleted, isCampaignInSet, CAMPAIGN_STATUSES_AFTER_RECOMMENDATION_APPROVAL } from '../../lib/campaignStatus';
 import { invalidateClientCampaignQueries, queryKeys } from '../../lib/queryKeys';
 import { formatCurrency, formatDate, titleCase } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
+import type { CampaignBrief } from '../../types/domain';
 import { ClientCampaignShell, getCampaignProgressPercent } from './clientWorkspace';
 
 export function CampaignDetailPage() {
@@ -202,6 +204,38 @@ export function CampaignDetailPage() {
       }, 'error');
     },
   });
+  const saveBriefMutation = useMutation({
+    mutationFn: (brief: CampaignBrief) => advertifiedApi.saveCampaignBrief(id, brief),
+    onSuccess: async () => {
+      await invalidateClientCampaignQueries(queryClient, id, user?.id, true);
+      pushToast({
+        title: 'Brief saved.',
+        description: 'Your campaign brief draft has been updated.',
+      });
+    },
+    onError: (error) => {
+      pushToast({
+        title: 'Could not save brief.',
+        description: error instanceof Error ? error.message : 'Please try again.',
+      }, 'error');
+    },
+  });
+  const submitBriefMutation = useMutation({
+    mutationFn: () => advertifiedApi.submitCampaignBrief(id),
+    onSuccess: async () => {
+      await invalidateClientCampaignQueries(queryClient, id, user?.id, true);
+      pushToast({
+        title: 'Brief submitted.',
+        description: 'Advertified can now move this campaign into planning.',
+      });
+    },
+    onError: (error) => {
+      pushToast({
+        title: 'Could not submit brief.',
+        description: error instanceof Error ? error.message : 'Please try again.',
+      }, 'error');
+    },
+  });
 
   if (campaignQuery.isLoading || threadQuery.isLoading) {
     return <LoadingState label="Loading campaign workspace..." />;
@@ -268,6 +302,7 @@ export function CampaignDetailPage() {
   const performanceViewState = resolveCampaignPerformanceViewState(campaign, performanceQuery.data);
   const performanceSnapshot = performanceViewState.snapshot;
   const hasPerformanceView = performanceViewState.hasPerformanceView;
+  const showBriefEditor = canOpenBrief(campaign);
 
   function buildSelectedProposalFeedback(noteBody: string) {
     const selectedLabel = recommendation?.proposalLabel ?? recommendation?.id ?? 'Selected proposal';
@@ -317,6 +352,29 @@ export function CampaignDetailPage() {
       <div className="space-y-6">
         {activeView === 'overview' ? (
           <>
+            {showBriefEditor ? (
+              <section className="rounded-[30px] border border-line bg-white p-7 shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
+                <div className="mb-5">
+                  <h3 className="text-xl font-semibold text-ink">Campaign brief</h3>
+                  <p className="mt-2 text-sm leading-7 text-ink-soft">
+                    Set the planning direction for your campaign. Industry defaults are available to help you start faster.
+                  </p>
+                </div>
+                <CampaignBriefForm
+                  initialValue={campaign.brief}
+                  industry={campaign.industry}
+                  loading={saveBriefMutation.isPending || submitBriefMutation.isPending}
+                  onSave={async (brief) => {
+                    await saveBriefMutation.mutateAsync(brief);
+                  }}
+                  onSubmitBrief={async (brief) => {
+                    await saveBriefMutation.mutateAsync(brief);
+                    await submitBriefMutation.mutateAsync();
+                  }}
+                />
+              </section>
+            ) : null}
+
             <section className="rounded-[30px] border border-line bg-white p-7 shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
               <CampaignStepper campaign={campaign} />
             </section>

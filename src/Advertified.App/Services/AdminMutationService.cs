@@ -1830,7 +1830,7 @@ public sealed class AdminMutationService : IAdminMutationService
 
             if (band.OohTarget + band.TvMin > 1m)
             {
-                throw new InvalidOperationException($"Budget band '{band.Name}' cannot allocate more than 100% across Billboards or Digital Screens and TV.");
+                throw new InvalidOperationException($"Budget band '{band.Name}' cannot allocate more than 100% across Billboards and Digital Screens and TV.");
             }
 
             if (index > 0 && band.Min < orderedBands[index - 1].Max)

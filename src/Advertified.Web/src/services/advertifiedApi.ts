@@ -33,6 +33,7 @@ import type {
   LeadActionInboxItem,
   LeadChannelDetection,
   LeadIndustryPolicy,
+  LeadIndustryContext,
   LocationSuggestion,
   LeadOpportunityProfile,
   LeadStrategy,
@@ -790,6 +791,56 @@ type LeadIndustryPolicyResponse = {
   additionalOutcome: string;
 };
 
+type LeadIndustryAudienceProfileResponse = {
+  primaryPersona: string;
+  buyingJourney: string;
+  trustSensitivity: string;
+  defaultLanguageBiases: string[];
+  audienceHints: string[];
+};
+
+type LeadIndustryCampaignProfileResponse = {
+  defaultObjective: string;
+  funnelShape: string;
+  primaryKpis: string[];
+  salesCycle: string;
+};
+
+type LeadIndustryChannelProfileResponse = {
+  preferredChannels: string[];
+  baseBudgetSplit: Record<string, number>;
+  geographyBias: string;
+};
+
+type LeadIndustryCreativeProfileResponse = {
+  preferredTone: string;
+  messagingAngle: string;
+  recommendedCta: string;
+  proofPoints: string[];
+};
+
+type LeadIndustryComplianceProfileResponse = {
+  guardrails: string[];
+  restrictedClaimTypes: string[];
+};
+
+type LeadIndustryResearchProfileResponse = {
+  summary: string;
+  sources: string[];
+};
+
+type LeadIndustryContextResponse = {
+  code: string;
+  label: string;
+  policy: LeadIndustryPolicyResponse;
+  audience: LeadIndustryAudienceProfileResponse;
+  campaign: LeadIndustryCampaignProfileResponse;
+  channels: LeadIndustryChannelProfileResponse;
+  creative: LeadIndustryCreativeProfileResponse;
+  compliance: LeadIndustryComplianceProfileResponse;
+  research: LeadIndustryResearchProfileResponse;
+};
+
 type LeadOpportunityProfileResponse = {
   key: string;
   name: string;
@@ -996,6 +1047,46 @@ function mapLeadIndustryPolicy(response: LeadIndustryPolicyResponse): LeadIndust
     guardrails: response.guardrails ?? [],
     additionalGap: response.additionalGap,
     additionalOutcome: response.additionalOutcome,
+  };
+}
+
+function mapLeadIndustryContext(response: LeadIndustryContextResponse): LeadIndustryContext {
+  return {
+    code: response.code,
+    label: response.label,
+    policy: mapLeadIndustryPolicy(response.policy),
+    audience: {
+      primaryPersona: response.audience?.primaryPersona ?? '',
+      buyingJourney: response.audience?.buyingJourney ?? '',
+      trustSensitivity: response.audience?.trustSensitivity ?? '',
+      defaultLanguageBiases: response.audience?.defaultLanguageBiases ?? [],
+      audienceHints: response.audience?.audienceHints ?? [],
+    },
+    campaign: {
+      defaultObjective: response.campaign?.defaultObjective ?? '',
+      funnelShape: response.campaign?.funnelShape ?? '',
+      primaryKpis: response.campaign?.primaryKpis ?? [],
+      salesCycle: response.campaign?.salesCycle ?? '',
+    },
+    channels: {
+      preferredChannels: response.channels?.preferredChannels ?? [],
+      baseBudgetSplit: response.channels?.baseBudgetSplit ?? {},
+      geographyBias: response.channels?.geographyBias ?? '',
+    },
+    creative: {
+      preferredTone: response.creative?.preferredTone ?? '',
+      messagingAngle: response.creative?.messagingAngle ?? '',
+      recommendedCta: response.creative?.recommendedCta ?? '',
+      proofPoints: response.creative?.proofPoints ?? [],
+    },
+    compliance: {
+      guardrails: response.compliance?.guardrails ?? [],
+      restrictedClaimTypes: response.compliance?.restrictedClaimTypes ?? [],
+    },
+    research: {
+      summary: response.research?.summary ?? '',
+      sources: response.research?.sources ?? [],
+    },
   };
 }
 
@@ -2096,6 +2187,7 @@ const publicApi = createPublicApi({
 const leadApi = createLeadApi({
   mapLead,
   mapLeadIntelligence,
+  mapLeadIndustryContext,
   mapLeadIndustryPolicy,
   mapLeadActionInbox,
   mapLeadSourceAutomationStatus,

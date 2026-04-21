@@ -3,13 +3,14 @@ using Advertified.App.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Advertified.App.Support;
+using System.Data;
 
 namespace Advertified.App.Services;
 
 public sealed class FormOptionsService
 {
-    private const string CacheKey = "public-form-options:v1";
-    private const string AllItemsCacheKey = "form-options:all:v1";
+    private const string CacheKey = "public-form-options:v2";
+    private const string AllItemsCacheKey = "form-options:all:v2";
     private readonly AppDbContext _db;
     private readonly IMemoryCache _cache;
 
@@ -134,19 +135,90 @@ public sealed class FormOptionsService
                    async entry =>
                    {
                        entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10);
-                       return await _db.FormOptionItems
+                       var baseItems = await _db.FormOptionItems
                            .AsNoTracking()
-                           .Where(x => x.IsActive)
+                           .Where(x => x.IsActive && x.OptionSetKey != FormOptionSetKeys.Industries)
                            .OrderBy(x => x.OptionSetKey)
                            .ThenBy(x => x.SortOrder)
                            .ThenBy(x => x.Label)
-                           .Select(x => new FormOptionRow(x.OptionSetKey, x.Value, x.Label))
+                           .Select(x => new FormOptionRow(x.OptionSetKey, x.Value, x.Label, x.SortOrder))
                            .ToListAsync(cancellationToken);
+
+                       var industryItems = await GetCanonicalIndustryRowsAsync(cancellationToken);
+                       return baseItems
+                           .Concat(industryItems)
+                           .OrderBy(x => x.OptionSetKey, StringComparer.OrdinalIgnoreCase)
+                           .ThenBy(x => x.SortOrder)
+                           .ThenBy(x => x.Label, StringComparer.OrdinalIgnoreCase)
+                           .ToList();
                    })
                ?? new List<FormOptionRow>();
 
         return items;
     }
 
-    private sealed record FormOptionRow(string OptionSetKey, string Value, string Label);
+    private async Task<IReadOnlyList<FormOptionRow>> GetCanonicalIndustryRowsAsync(CancellationToken cancellationToken)
+    {
+        var connection = _db.Database.GetDbConnection();
+        var shouldClose = connection.State != ConnectionState.Open;
+        if (shouldClose)
+        {
+            await connection.OpenAsync(cancellationToken);
+        }
+
+        try
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = @"
+                select code, label
+                from master_industries
+                order by label;";
+
+            var rows = new List<FormOptionRow>();
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var code = reader.GetString(0);
+                var label = reader.GetString(1);
+                rows.Add(new FormOptionRow(
+                    FormOptionSetKeys.Industries,
+                    label,
+                    label,
+                    ResolveIndustrySortOrder(code, label)));
+            }
+
+            return rows;
+        }
+        finally
+        {
+            if (shouldClose)
+            {
+                await connection.CloseAsync();
+            }
+        }
+    }
+
+    private static int ResolveIndustrySortOrder(string code, string label)
+    {
+        return code.Trim().ToLowerInvariant() switch
+        {
+            LeadCanonicalValues.IndustryCodes.Retail => 10,
+            LeadCanonicalValues.IndustryCodes.Finance => 20,
+            LeadCanonicalValues.IndustryCodes.FoodHospitality => 30,
+            LeadCanonicalValues.IndustryCodes.RealEstate => 40,
+            LeadCanonicalValues.IndustryCodes.Automotive => 50,
+            LeadCanonicalValues.IndustryCodes.Technology => 60,
+            LeadCanonicalValues.IndustryCodes.Healthcare => 70,
+            LeadCanonicalValues.IndustryCodes.Education => 80,
+            LeadCanonicalValues.IndustryCodes.Travel => 90,
+            LeadCanonicalValues.IndustryCodes.HomeServices => 100,
+            LeadCanonicalValues.IndustryCodes.Beauty => 110,
+            LeadCanonicalValues.IndustryCodes.Fitness => 120,
+            LeadCanonicalValues.IndustryCodes.LegalServices => 130,
+            LeadCanonicalValues.IndustryCodes.GeneralServices => 140,
+            _ => 1000 + Math.Abs(StringComparer.OrdinalIgnoreCase.GetHashCode(label))
+        };
+    }
+
+    private sealed record FormOptionRow(string OptionSetKey, string Value, string Label, int SortOrder);
 }

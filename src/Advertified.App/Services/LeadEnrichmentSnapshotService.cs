@@ -29,7 +29,9 @@ public sealed class LeadEnrichmentSnapshotService : ILeadEnrichmentSnapshotServi
         Lead lead,
         Signal? latestSignal,
         IReadOnlyList<LeadSignalEvidence> evidences,
-        IReadOnlyList<LeadChannelDetectionResult> channelDetections)
+        IReadOnlyList<LeadChannelDetectionResult> channelDetections,
+        MasterIndustryMatch? canonicalIndustry = null,
+        LeadIndustryContext? industryContext = null)
     {
         var fields = new List<LeadEnrichmentField>
         {
@@ -38,7 +40,7 @@ public sealed class LeadEnrichmentSnapshotService : ILeadEnrichmentSnapshotServi
             BuildChannelActivityField(channelDetections),
             BuildLanguageField(lead, evidences),
             BuildSecondaryLanguageField(evidences),
-            BuildAudienceField(lead, evidences),
+            BuildAudienceField(lead, evidences, canonicalIndustry, industryContext),
             BuildGenderField(lead, evidences),
             BuildBudgetTierField(lead, channelDetections, latestSignal),
         };
@@ -229,7 +231,11 @@ public sealed class LeadEnrichmentSnapshotService : ILeadEnrichmentSnapshotServi
         return CreateUnknownField("secondary_language", "Secondary language", false);
     }
 
-    private LeadEnrichmentField BuildAudienceField(Lead lead, IReadOnlyList<LeadSignalEvidence> evidences)
+    private LeadEnrichmentField BuildAudienceField(
+        Lead lead,
+        IReadOnlyList<LeadSignalEvidence> evidences,
+        MasterIndustryMatch? canonicalIndustry,
+        LeadIndustryContext? industryContext)
     {
         var audienceEvidence = FindEvidence(evidences, "website_audience_hint");
         if (audienceEvidence is not null)
@@ -244,7 +250,20 @@ public sealed class LeadEnrichmentSnapshotService : ILeadEnrichmentSnapshotServi
                 required: false);
         }
 
-        var industryCode = _leadMasterDataService.ResolveIndustry(lead.Category)?.Code;
+        var industryCode = canonicalIndustry?.Code
+            ?? _leadMasterDataService.ResolveIndustry(lead.Category)?.Code;
+
+        if (!string.IsNullOrWhiteSpace(industryContext?.Audience.PrimaryPersona))
+        {
+            return CreateField(
+                key: "target_audience",
+                label: "Target audience",
+                value: industryContext.Audience.PrimaryPersona,
+                confidence: "inferred",
+                source: "industry_context",
+                reason: $"Derived from {industryContext.Label} industry audience profile ({industryContext.Audience.BuyingJourney}).",
+                required: false);
+        }
 
         if (industryCode == LeadCanonicalValues.IndustryCodes.FuneralServices)
         {

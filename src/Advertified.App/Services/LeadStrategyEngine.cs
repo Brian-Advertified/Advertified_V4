@@ -9,10 +9,11 @@ public sealed class LeadStrategyEngine : ILeadStrategyEngine
     public LeadStrategyResult Build(
         LeadBusinessProfile businessProfile,
         LeadIndustryPolicyProfile industryPolicy,
+        LeadIndustryContext? industryContext,
         LeadOpportunityProfile opportunityProfile,
         IReadOnlyList<LeadChannelDetectionResult> channelDetections)
     {
-        var baseSplit = ResolveBaseSplit(opportunityProfile.Key, industryPolicy.PreferredChannels);
+        var baseSplit = ResolveBaseSplit(opportunityProfile.Key, industryPolicy.PreferredChannels, industryContext?.Channels.BaseBudgetSplit);
         var opportunityAdjustedSplit = ApplyOpportunityAdjustments(baseSplit, opportunityProfile);
         var adjustedSplit = ApplyChannelFitAdjustments(opportunityAdjustedSplit, channelDetections);
         var normalizedSplit = NormalizeSplit(adjustedSplit);
@@ -30,16 +31,26 @@ public sealed class LeadStrategyEngine : ILeadStrategyEngine
         return new LeadStrategyResult
         {
             Archetype = opportunityProfile.Name,
-            Objective = industryPolicy.ObjectiveOverride ?? opportunityProfile.SuggestedCampaignType,
+            Objective = industryContext?.Campaign.DefaultObjective
+                ?? industryPolicy.ObjectiveOverride
+                ?? opportunityProfile.SuggestedCampaignType,
             Channels = channelPlans,
             GeoTargets = new[] { businessProfile.PrimaryLocation }.Where(value => !string.IsNullOrWhiteSpace(value)).ToArray(),
             Timing = "30-day launch with weekly optimization checkpoints",
-            Rationale = $"Strategy prioritizes business fit for {businessProfile.BusinessType} in {businessProfile.PrimaryLocation}, then amplifies channels with strongest opportunity gaps."
+            Rationale = BuildStrategyRationale(businessProfile, opportunityProfile, industryContext)
         };
     }
 
-    private static Dictionary<string, int> ResolveBaseSplit(string archetypeKey, IReadOnlyList<string> preferredChannels)
+    private static Dictionary<string, int> ResolveBaseSplit(
+        string archetypeKey,
+        IReadOnlyList<string> preferredChannels,
+        IReadOnlyDictionary<string, int>? contextBaseSplit)
     {
+        if (contextBaseSplit is not null && contextBaseSplit.Count > 0)
+        {
+            return contextBaseSplit.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
+        }
+
         var policySplit = BuildPolicyPreferredSplit(preferredChannels);
         if (policySplit is not null)
         {
@@ -196,6 +207,33 @@ public sealed class LeadStrategyEngine : ILeadStrategyEngine
             : $"Detected score {detection.Score}/100";
 
         return $"{opportunityProfile.Name} playbook for {businessProfile.BusinessType}. {fitSignal}.";
+    }
+
+    private static string BuildStrategyRationale(
+        LeadBusinessProfile businessProfile,
+        LeadOpportunityProfile opportunityProfile,
+        LeadIndustryContext? industryContext)
+    {
+        var audiencePersona = industryContext?.Audience.PrimaryPersona;
+        var geographyBias = industryContext?.Channels.GeographyBias;
+        var funnelShape = industryContext?.Campaign.FunnelShape;
+
+        var segments = new[]
+        {
+            $"Strategy prioritizes business fit for {businessProfile.BusinessType} in {businessProfile.PrimaryLocation}.",
+            !string.IsNullOrWhiteSpace(audiencePersona)
+                ? $"Audience focus centers on {audiencePersona.ToLowerInvariant()}."
+                : null,
+            !string.IsNullOrWhiteSpace(funnelShape)
+                ? $"Funnel approach is {funnelShape.Replace('_', ' ')}."
+                : null,
+            !string.IsNullOrWhiteSpace(geographyBias)
+                ? $"Geography bias is {geographyBias.Replace('-', ' ')}."
+                : null,
+            $"Opportunity gaps are anchored to the {opportunityProfile.Name} playbook."
+        };
+
+        return string.Join(" ", segments.Where(segment => !string.IsNullOrWhiteSpace(segment)));
     }
 
     private static string? MapDetectionChannel(string channel)
