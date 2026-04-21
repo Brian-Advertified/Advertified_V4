@@ -40,7 +40,11 @@ latest_prospect_owner as (
 single_action_owner as (
     select
         la.lead_id,
-        case when count(distinct la.assigned_agent_user_id) = 1 then max(la.assigned_agent_user_id) else null end as assigned_agent_user_id
+        case
+            when count(distinct la.assigned_agent_user_id) = 1
+                then min(la.assigned_agent_user_id::text)::uuid
+            else null
+        end as assigned_agent_user_id
     from lead_actions la
     where la.status = 'open'
       and la.assigned_agent_user_id is not null
