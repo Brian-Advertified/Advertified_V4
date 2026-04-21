@@ -253,18 +253,19 @@ public sealed class AgentCampaignWorkflowController : ControllerBase
                 .Include(x => x.CampaignRecommendations),
             cancellationToken);
 
-        if (!string.Equals(campaign.Status, CampaignStatuses.CreativeApproved, StringComparison.OrdinalIgnoreCase)
-            && !string.Equals(campaign.Status, CampaignStatuses.BookingInProgress, StringComparison.OrdinalIgnoreCase))
+        try
+        {
+            _campaignStatusTransitionService.MoveCampaignToLaunched(campaign, DateTime.UtcNow);
+        }
+        catch (InvalidOperationException ex)
         {
             return BadRequest(new ProblemDetails
             {
                 Title = "Campaign is not ready to be marked live.",
-                Detail = "Only campaigns with final creative approval captured or supplier booking underway can be activated as live.",
+                Detail = ex.Message,
                 Status = StatusCodes.Status400BadRequest
             });
         }
-
-        _campaignStatusTransitionService.MoveCampaignToLaunched(campaign, DateTime.UtcNow);
         await _db.SaveChangesAsync(cancellationToken);
         await _campaignExecutionTaskService.MarkTaskCompletedAsync(campaign.Id, "booking_confirmation", cancellationToken);
         await _campaignExecutionTaskService.MarkTaskCompletedAsync(campaign.Id, "tracking_links", cancellationToken);

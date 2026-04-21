@@ -402,17 +402,19 @@ public sealed class CampaignsController : ControllerBase
             .FirstOrDefaultAsync(x => x.Id == id && x.UserId == userId, cancellationToken)
             ?? throw new InvalidOperationException("Campaign not found.");
 
-        if (!string.Equals(campaign.Status, CampaignStatuses.CreativeSentToClientForApproval, StringComparison.OrdinalIgnoreCase))
+        try
+        {
+            _campaignStatusTransitionService.MoveCreativeToApproved(campaign, DateTime.UtcNow);
+        }
+        catch (InvalidOperationException ex)
         {
             return BadRequest(new ProblemDetails
             {
                 Title = "Creative is not ready for approval.",
-                Detail = "Finished media can only be approved once it has been sent back to the client for final review.",
+                Detail = ex.Message,
                 Status = StatusCodes.Status400BadRequest
             });
         }
-
-        _campaignStatusTransitionService.MoveCreativeToApproved(campaign, DateTime.UtcNow);
         await _db.SaveChangesAsync(cancellationToken);
         await _campaignExecutionTaskService.MarkTaskCompletedAsync(campaign.Id, "creative_handoff", cancellationToken);
         await _campaignExecutionTaskService.MarkTaskOpenAsync(campaign.Id, "booking_confirmation", cancellationToken);
@@ -445,18 +447,20 @@ public sealed class CampaignsController : ControllerBase
             .FirstOrDefaultAsync(x => x.Id == id && x.UserId == userId, cancellationToken)
             ?? throw new InvalidOperationException("Campaign not found.");
 
-        if (!string.Equals(campaign.Status, CampaignStatuses.CreativeSentToClientForApproval, StringComparison.OrdinalIgnoreCase))
+        var now = DateTime.UtcNow;
+        try
+        {
+            _campaignStatusTransitionService.MoveCreativeBackForChanges(campaign, now);
+        }
+        catch (InvalidOperationException ex)
         {
             return BadRequest(new ProblemDetails
             {
                 Title = "Creative is not ready for revision.",
-                Detail = "Creative changes can only be requested after finished media has been sent back for client approval.",
+                Detail = ex.Message,
                 Status = StatusCodes.Status400BadRequest
             });
         }
-
-        var now = DateTime.UtcNow;
-        _campaignStatusTransitionService.MoveCreativeBackForChanges(campaign, now);
 
         if (!string.IsNullOrWhiteSpace(request.Notes))
         {

@@ -84,10 +84,23 @@ public sealed class AgentCampaignBookingsController : ControllerBase
         };
 
         _db.CampaignSupplierBookings.Add(booking);
-        if (!_campaignStatusTransitionService.TryMoveToBookingInProgress(campaign, now))
+        try
         {
-            campaign.UpdatedAt = now;
+            if (!_campaignStatusTransitionService.TryMoveToBookingInProgress(campaign, now))
+            {
+                campaign.UpdatedAt = now;
+            }
         }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Campaign is not ready for supplier booking.",
+                Detail = ex.Message,
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
+
         await _db.SaveChangesAsync(cancellationToken);
 
         await WriteChangeAuditAsync(

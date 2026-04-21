@@ -181,17 +181,22 @@ export function ClientCampaignShell({
   activeView?: 'overview' | 'performance' | 'approvals' | 'messages';
 }>) {
   const workspaceBasePath = `/campaigns/${campaign.id}`;
+  const navItems = [
+    { key: 'overview' as const, label: 'Overview', href: `${workspaceBasePath}/overview` },
+    { key: 'performance' as const, label: 'Performance', href: `${workspaceBasePath}/performance` },
+    { key: 'approvals' as const, label: 'Approvals', href: `${workspaceBasePath}/approvals` },
+    { key: 'messages' as const, label: 'Messages', href: `${workspaceBasePath}/messages` },
+  ];
 
   return (
     <section className="page-shell">
       <div className="user-portal-layout">
-        <aside className="user-portal-sidebar">
+        <aside className="user-portal-sidebar user-portal-sidebar-desktop">
           <div className="user-nav-group">
             <div className="user-nav-title">Workspace</div>
-            <Link to={`${workspaceBasePath}/overview`} className={cn('user-nav-item', activeView === 'overview' && 'active')}>Overview</Link>
-            <Link to={`${workspaceBasePath}/performance`} className={cn('user-nav-item', activeView === 'performance' && 'active')}>Performance</Link>
-            <Link to={`${workspaceBasePath}/approvals`} className={cn('user-nav-item', activeView === 'approvals' && 'active')}>Approvals</Link>
-            <Link to={`${workspaceBasePath}/messages`} className={cn('user-nav-item', activeView === 'messages' && 'active')}>Messages</Link>
+            {navItems.map((item) => (
+              <Link key={item.key} to={item.href} className={cn('user-nav-item', activeView === item.key && 'active')}>{item.label}</Link>
+            ))}
           </div>
           <div className="user-nav-group">
             <div className="user-nav-title">Help</div>
@@ -204,12 +209,21 @@ export function ClientCampaignShell({
 
         <main className="user-portal-content">
           <div className="user-page">
+            <div className="user-portal-mobile-nav" aria-label="Campaign workspace sections">
+              <div className="user-portal-mobile-nav-row">
+                {navItems.map((item) => (
+                  <Link key={item.key} to={item.href} className={cn('user-portal-mobile-nav-item', activeView === item.key && 'active')}>
+                    {item.label}
+                  </Link>
+                ))}
+              </div>
+            </div>
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
                 <h2>{title}</h2>
                 <p className="user-subtitle">{description}</p>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="user-pill-row">
                 <span className="user-pill">{campaign.campaignName}</span>
                 <span className="user-pill">{campaign.packageBandName}</span>
                 <span className="user-pill">{formatCurrency(getClientFacingBudget(campaign))}</span>
@@ -236,18 +250,22 @@ export function ClientPortalShell({
   description: string;
   activeNav?: 'dashboard' | 'orders';
 }>) {
+  const navItems = [
+    { key: 'dashboard' as const, label: 'Dashboard', href: '/dashboard' },
+    { key: 'orders' as const, label: 'Orders', href: '/orders' },
+  ];
+
   return (
     <section className="page-shell">
       <div className="user-portal-layout">
-        <aside className="user-portal-sidebar">
+        <aside className="user-portal-sidebar user-portal-sidebar-desktop">
           <div className="user-nav-group">
             <div className="user-nav-title">Overview</div>
-            <Link to="/dashboard" className={cn('user-nav-item', activeNav === 'dashboard' && 'active')}>
-              Dashboard
-            </Link>
-            <Link to="/orders" className={cn('user-nav-item', activeNav === 'orders' && 'active')}>
-              Orders
-            </Link>
+            {navItems.map((item) => (
+              <Link key={item.key} to={item.href} className={cn('user-nav-item', activeNav === item.key && 'active')}>
+                {item.label}
+              </Link>
+            ))}
           </div>
           <div className="user-nav-group">
             <div className="user-nav-title">Campaigns</div>
@@ -265,6 +283,15 @@ export function ClientPortalShell({
 
         <main className="user-portal-content">
           <div className="user-page">
+            <div className="user-portal-mobile-nav" aria-label="Client workspace sections">
+              <div className="user-portal-mobile-nav-row">
+                {navItems.map((item) => (
+                  <Link key={item.key} to={item.href} className={cn('user-portal-mobile-nav-item', activeNav === item.key && 'active')}>
+                    {item.label}
+                  </Link>
+                ))}
+              </div>
+            </div>
             <h2>{title}</h2>
             <p className="user-subtitle">{description}</p>
             {children}
@@ -314,20 +341,22 @@ export function InfoTable({
   rows: string[][];
 }) {
   return (
-    <table className="user-table">
-      <thead>
-        <tr>
-          {columns.map((column) => <th key={column}>{column}</th>)}
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row, index) => (
-          <tr key={`${row[0]}-${index}`}>
-            {row.map((value, valueIndex) => <td key={`${value}-${valueIndex}`}>{value}</td>)}
+    <div className="user-table-wrap">
+      <table className="user-table">
+        <thead>
+          <tr>
+            {columns.map((column) => <th key={column}>{column}</th>)}
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {rows.map((row, index) => (
+            <tr key={`${row[0]}-${index}`}>
+              {row.map((value, valueIndex) => <td key={`${value}-${valueIndex}`}>{value}</td>)}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

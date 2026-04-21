@@ -8,7 +8,13 @@ public sealed class CampaignStatusTransitionService : ICampaignStatusTransitionS
 {
     public void MoveRecommendationSetToReviewReady(Campaign campaign, IEnumerable<CampaignRecommendation> recommendations, DateTime now)
     {
-        foreach (var recommendation in recommendations)
+        var recommendationSet = recommendations.ToArray();
+        if (recommendationSet.Length == 0)
+        {
+            throw new InvalidOperationException("At least one recommendation is required before sending a recommendation set to the client.");
+        }
+
+        foreach (var recommendation in recommendationSet)
         {
             recommendation.Status = RecommendationStatuses.SentToClient;
             recommendation.SentToClientAt = now;
@@ -21,6 +27,11 @@ public sealed class CampaignStatusTransitionService : ICampaignStatusTransitionS
 
     public void MoveRecommendationToApproved(Campaign campaign, CampaignRecommendation recommendation, DateTime now)
     {
+        if (!string.Equals(recommendation.Status, RecommendationStatuses.SentToClient, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Only recommendation options that have been sent to the client can be approved.");
+        }
+
         recommendation.Status = RecommendationStatuses.Approved;
         recommendation.ApprovedAt = now;
         recommendation.UpdatedAt = now;
@@ -78,7 +89,7 @@ public sealed class CampaignStatusTransitionService : ICampaignStatusTransitionS
 
         if (!string.Equals(campaign.Status, CampaignStatuses.CreativeApproved, StringComparison.OrdinalIgnoreCase))
         {
-            return false;
+            throw new InvalidOperationException("Supplier booking can only start after final creative approval has been captured.");
         }
 
         campaign.Status = CampaignStatuses.BookingInProgress;
