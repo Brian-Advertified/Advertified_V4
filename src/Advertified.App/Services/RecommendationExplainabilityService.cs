@@ -48,17 +48,25 @@ public sealed class RecommendationExplainabilityService : IRecommendationExplain
         }
 
         var selectedMedia = recommendedPlan
-            .Select(item => PlanningChannelSupport.NormalizeChannel(item.MediaType))
+            .Select(item => CanonicalizePreferredChannel(PlanningChannelSupport.NormalizeChannel(item.MediaType)))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         return request.PreferredMediaTypes
-            .SelectMany(PlanningChannelSupport.ExpandRequestedChannel)
+            .Select(preferred => CanonicalizePreferredChannel(PlanningChannelSupport.NormalizeChannel(preferred)))
             .Where(preferred => !string.IsNullOrWhiteSpace(preferred))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Where(preferred => _policyService.GetTargetShare(preferred, request).GetValueOrDefault() > 0)
             .Where(preferred => !selectedMedia.Contains(preferred))
             .Select(preferred => $"preferred_media_unfulfilled:{preferred}")
             .ToArray();
+    }
+
+    private static string CanonicalizePreferredChannel(string? value)
+    {
+        var normalized = PlanningChannelSupport.NormalizeChannel(value);
+        return PlanningChannelSupport.IsOohFamilyChannel(normalized)
+            ? PlanningChannelSupport.OohAlias
+            : normalized;
     }
 
     private string[] BuildSelectionReasons(InventoryCandidate candidate, CampaignPlanningRequest request)
