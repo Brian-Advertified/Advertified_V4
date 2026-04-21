@@ -63,6 +63,16 @@ begin
 end
 $$;
 
+with parsed_coordinates as (
+    select
+        iif.id,
+        parsed.latitude,
+        parsed.longitude
+    from inventory_items_final iif
+    cross join lateral try_parse_ooh_gps_coordinate_pair(coalesce(iif.metadata_json ->> 'gps_coordinates', '')) parsed
+    where (iif.latitude is null or iif.longitude is null)
+      and coalesce(iif.metadata_json ->> 'gps_coordinates', '') <> ''
+)
 update inventory_items_final iif
 set latitude = coalesce(iif.latitude, parsed.latitude),
     longitude = coalesce(iif.longitude, parsed.longitude),
@@ -70,7 +80,5 @@ set latitude = coalesce(iif.latitude, parsed.latitude),
         || jsonb_build_object(
             'latitude', coalesce(iif.latitude, parsed.latitude),
             'longitude', coalesce(iif.longitude, parsed.longitude)))
-from lateral try_parse_ooh_gps_coordinate_pair(coalesce(iif.metadata_json ->> 'gps_coordinates', '')) parsed
-where (iif.latitude is null or iif.longitude is null)
-  and coalesce(iif.metadata_json ->> 'gps_coordinates', '') <> '';
-
+from parsed_coordinates parsed
+where parsed.id = iif.id;
