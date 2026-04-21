@@ -80,8 +80,8 @@ export function getCampaignQuickSteps(campaign: Campaign) {
       key: 'recommendation',
       label: recommendationApproved ? 'Recommendation approved' : 'Approve placement recommendation',
       description: recommendation
-        ? 'Confirm the channels and placements in your live plan.'
-        : 'A recommendation will appear here once planning completes.',
+        ? 'Confirm the channels and advertising items in your live plan.'
+        : 'A recommendation will appear here once your campaign plan is ready.',
       state: recommendationApproved
         ? 'complete' as const
         : recommendation
@@ -93,7 +93,7 @@ export function getCampaignQuickSteps(campaign: Campaign) {
       label: creativeInRevision ? 'Creative revision in progress' : 'Creative production',
       description: creativeInRevision
         ? 'Advertified is revising the creative after your feedback.'
-        : 'Approved recommendations move into creative director production.',
+        : 'Approved recommendations move into content production.',
       state: creativeSentForApproval || creativeApproved
         ? 'complete' as const
         : creativeProductionStarted
@@ -112,8 +112,8 @@ export function getCampaignQuickSteps(campaign: Campaign) {
     },
     {
       key: 'launch',
-      label: 'Supplier booking',
-      description: 'Advertified is confirming placements and supplier availability before launch.',
+      label: 'Launch setup',
+      description: 'Advertified is confirming the final campaign details before launch.',
       state: campaignLive
         ? 'complete' as const
         : bookingInProgress || creativeApproved
@@ -200,7 +200,7 @@ export function ClientCampaignShell({
           </div>
           <div className="user-nav-group">
             <div className="user-nav-title">Help</div>
-            <Link to={`${workspaceBasePath}/messages`} className="user-nav-item">Ask your agent</Link>
+            <Link to={`${workspaceBasePath}/messages`} className="user-nav-item">Contact Advertified</Link>
           </div>
           <Link to="/dashboard" className="user-nav-item">
             Back to Client Portal

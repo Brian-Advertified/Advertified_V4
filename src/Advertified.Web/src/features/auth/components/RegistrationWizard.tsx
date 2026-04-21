@@ -220,7 +220,7 @@ export function RegistrationWizard({
             <div className="rounded-[18px] border border-brand/10 bg-brand/5 px-4 py-3 text-sm leading-6 text-ink-soft">
               {mapboxEnabled
                 ? 'Search for your business address and we will populate the location fields for you. You can still edit them manually if needed.'
-                : 'Enter your business address manually for now. Add VITE_MAPBOX_ACCESS_TOKEN to enable address search and autofill.'}
+                : 'Enter your business address manually for now. You can still complete registration without address search.'}
             </div>
           </div>
 

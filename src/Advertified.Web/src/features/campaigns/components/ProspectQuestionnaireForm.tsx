@@ -236,21 +236,17 @@ function normalizeIndustryChannels(context?: LeadIndustryContext): string[] {
     .filter((value, index, values) => values.indexOf(value) === index);
 }
 
-function buildIndustrySpecialRequirements(context: LeadIndustryContext): string {
-  return [
-    context.creative.messagingAngle
-      ? `Messaging angle: ${context.creative.messagingAngle}`
-      : '',
-    ...(context.compliance.guardrails ?? []).slice(0, 2).map((item) => `Guardrail: ${item}`),
-  ].filter((value) => value.trim().length > 0).join('\n');
+function haveSameValues(left: string[], right: string[]) {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
 function isQuestionnaireIndustryManagedFieldsEmpty(form: QuestionnaireForm): boolean {
+  const defaultBrief = createDefaultQuestionnaireBriefFields();
+
   return !(
-    form.objective?.trim()
+    (form.objective?.trim() && form.objective !== defaultBrief.objective)
     || form.language?.trim()
-    || form.specialRequirements?.trim()
-    || form.preferredMediaTypes.length > 0
+    || !haveSameValues(form.preferredMediaTypes, defaultBrief.preferredMediaTypes)
   );
 }
 
@@ -289,7 +285,7 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
   const selectedIndustry = form.industry.trim();
   const industryDefaultsApplied = Boolean(selectedIndustry && industryContextQuery.data && autoAppliedIndustryRef.current === selectedIndustry);
   const industryDefaultsMessage = industryDefaultsApplied && industryContextQuery.data
-    ? `Industry template applied for ${industryContextQuery.data.label}. You can keep refining any answer.`
+    ? `Industry template applied for ${industryContextQuery.data.label}. You can keep refining any planner input below.`
     : '';
 
   function applyIndustryDefaults(force = false) {
@@ -301,7 +297,6 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
     const nextObjective = normalizeIndustryObjective(context.campaign.defaultObjective);
     const nextChannels = normalizeIndustryChannels(context);
     const nextLanguage = context.audience.defaultLanguageBiases[0] ?? '';
-    const nextSpecialRequirements = buildIndustrySpecialRequirements(context);
 
     setForm((current) => ({
       ...current,
@@ -319,9 +314,6 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
       language: (force || current.language.trim().length === 0)
         ? nextLanguage
         : current.language,
-      specialRequirements: (force || current.specialRequirements.trim().length === 0)
-        ? nextSpecialRequirements
-        : current.specialRequirements,
     }));
   }
 
@@ -481,10 +473,10 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
     <div className={containerClassName}>
       <div className="pill bg-white text-brand">Questionnaire</div>
       <h2 className={titleClassName}>
-        Start with your campaign brief.
+        Start with your campaign details.
       </h2>
       <p className={copyClassName}>
-        Use this route if you want guidance before choosing a package. We will turn your answers into a working brief and use it to guide the next step.
+        Use this route if you want guidance before choosing a package. We will use your answers to shape your campaign plan and guide the next step.
       </p>
 
       {packagesQuery.isError ? (
@@ -509,15 +501,15 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
 
       {submitted ? (
         <div className="mt-6 rounded-[24px] border border-emerald-200 bg-emerald-50 px-5 py-5">
-          <p className="text-sm font-semibold text-emerald-800">Your brief is in</p>
+          <p className="text-sm font-semibold text-emerald-800">Your details are in</p>
           <p className="mt-2 text-sm leading-6 text-emerald-900">
-            We've saved your answers and queued them for review. An Advertified agent can now turn this into a recommendation.
+            We've saved your answers. Our team can now review them and prepare recommendations for your business.
           </p>
           <div className="mt-4 rounded-[20px] border border-emerald-200 bg-white/70 px-4 py-4">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">What happens next</p>
             <ul className="mt-3 space-y-2 text-sm leading-6 text-emerald-900">
-              <li>1. Your answers are reviewed and shaped into a working campaign brief.</li>
-              <li>2. We use that brief to build tailored media recommendations for your business.</li>
+              <li>1. We review your answers and shape them into a campaign plan.</li>
+              <li>2. We use that plan to build tailored advertising recommendations for your business.</li>
               <li>3. No account has been created yet. If you want to track this inside Advertified, create an account later with the same email address.</li>
             </ul>
           </div>
@@ -617,12 +609,15 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                     <option value="">Select industry</option>
                     {industries.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                   </select>
+                  <p className="mt-2 text-sm leading-6 text-ink-soft">
+                    Choose the closest match. We use this to tailor your starting brief, and you can still change any answer below.
+                  </p>
                 </label>
                 {industryContextQuery.data ? (
                   <div className="rounded-[20px] border border-brand/15 bg-brand/[0.06] px-4 py-4 md:col-span-2">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand">Industry defaults</p>
+                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand">Industry planner defaults</p>
                         <p className="mt-2 text-sm font-semibold text-ink">{industryContextQuery.data.label}</p>
                       </div>
                       <div className="flex flex-wrap gap-3">
@@ -656,7 +651,7 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                         Audience: <span className="font-semibold text-ink">{industryContextQuery.data.audience.primaryPersona || 'Not set'}</span>
                       </p>
                       <p className="text-sm text-ink-soft">
-                        CTA: <span className="font-semibold text-ink">{industryContextQuery.data.creative.recommendedCta || 'Not set'}</span>
+                        Languages: <span className="font-semibold text-ink">{industryContextQuery.data.audience.defaultLanguageBiases.join(', ') || 'Not set'}</span>
                       </p>
                     </div>
                   </div>
@@ -784,7 +779,7 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
                           onResolved={handleResolvedLocation}
                         />
                         <p className="mt-2 text-xs leading-5 text-ink-soft">
-                          Search the exact place that matters most. If there is no direct OOH inventory in that suburb, the planner will use coordinates to rank the nearest viable inventory.
+                          Search the exact place that matters most. If we do not find an exact match in that suburb, we will use the location to find the nearest suitable options.
                         </p>
                       </>
                     ) : (

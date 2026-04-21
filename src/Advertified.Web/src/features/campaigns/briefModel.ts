@@ -268,7 +268,7 @@ export function buildBriefQuestionnaireSummary(
     { label: 'Urgency', value: brief.urgencyLevel },
     { label: 'Audience clarity', value: brief.audienceClarity },
     { label: 'Value proposition', value: brief.valuePropositionFocus },
-    { label: 'Preferred channels', value: brief.preferredMediaTypes?.join(', ') },
+    { label: 'Preferred channels', value: brief.preferredMediaTypes?.map((channel) => formatChannelLabel(channel)).join(', ') },
     { label: 'Interests', value: brief.targetInterests?.join(', ') },
     { label: 'Audience notes', value: brief.targetAudienceNotes },
     { label: 'Special requirements', value: opportunityContext?.campaignNotes ?? brief.specialRequirements },

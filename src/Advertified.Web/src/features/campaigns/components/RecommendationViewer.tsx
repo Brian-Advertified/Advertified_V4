@@ -61,7 +61,7 @@ export function RecommendationViewer({
           <div className="rounded-2xl bg-brand-soft px-4 py-3 text-right">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Recommended investment</p>
             <p className="mt-1 text-2xl font-semibold text-ink">{formatCurrency(recommendation.totalCost)}</p>
-            <p className="mt-1 text-xs text-ink-soft">Need a lighter route? Ask for a lean start or phased rollout.</p>
+            <p className="mt-1 text-xs text-ink-soft">Need a lighter option? Ask for a lean start or phased rollout.</p>
           </div>
         </div>
       </div>
@@ -85,28 +85,28 @@ export function RecommendationViewer({
           </div>
         ) : null}
         <div className="rounded-[24px] border border-line bg-slate-50 px-5 py-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Offer structure</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Included channels</p>
           <p className="mt-3 text-lg font-semibold text-ink">{groupedChannels.join(' + ') || 'Not set'}</p>
           <p className="mt-2 text-sm leading-7 text-ink-soft">
-            These are the channels included in the main route we want you to consider first.
+            These are the channels included in the main option we would like you to consider first.
           </p>
         </div>
         <div className="rounded-[24px] border border-line bg-slate-50 px-5 py-5">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">What is included</p>
-          <p className="mt-3 text-lg font-semibold text-ink">{baseItems.length} placement{baseItems.length === 1 ? '' : 's'}</p>
+          <p className="mt-3 text-lg font-semibold text-ink">{baseItems.length} item{baseItems.length === 1 ? '' : 's'}</p>
           <p className="mt-2 text-sm leading-7 text-ink-soft">
-            Each placement has been checked against campaign fit, timing, and available inventory.
+            Each item has been chosen to match your campaign, timing, and location needs.
           </p>
         </div>
         <div className="rounded-[24px] border border-line bg-slate-50 px-5 py-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Why this route fits</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Why this option fits</p>
           <div className="mt-3 flex flex-wrap gap-2">
             {topReasons.length > 0 ? topReasons.map((reason) => (
               <span key={reason} className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-ink-soft ring-1 ring-line">
                 {reason}
               </span>
             )) : (
-              <span className="text-sm text-ink-soft">Reason codes are still being prepared for this recommendation.</span>
+              <span className="text-sm text-ink-soft">More detail will appear here as this recommendation is finalized.</span>
             )}
           </div>
         </div>
@@ -114,7 +114,7 @@ export function RecommendationViewer({
       <div className="rounded-[24px] border border-amber-200 bg-amber-50/80 px-5 py-5">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-900">Need a different starting point?</p>
         <p className="mt-3 text-sm leading-7 text-amber-950">
-          You do not need to reject the whole offer if the current investment feels heavy. Ask us for a leaner start, fewer placements, or a phased rollout and we can reshape the route around that.
+          You do not need to reject the whole offer if the current investment feels heavy. Ask us for a leaner start, fewer items, or a phased rollout and we can reshape the option around that.
         </p>
       </div>
       <div className="grid gap-4 md:grid-cols-2">

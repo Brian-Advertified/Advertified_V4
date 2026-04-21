@@ -31,7 +31,7 @@ export function LeadProposalEntryPage() {
     return (
       <section className="page-shell space-y-8 pb-20">
         <PageHero
-          kicker="Growth opportunity"
+          kicker="Campaign proposal"
           title="This lead proposal link is incomplete."
           description="Use the full link from your email so we can open your tailored growth options."
         />
@@ -40,14 +40,14 @@ export function LeadProposalEntryPage() {
   }
 
   if (proposalQuery.isLoading) {
-    return <LoadingState label="Loading growth snapshot..." />;
+    return <LoadingState label="Loading your proposal..." />;
   }
 
   if (proposalQuery.isError || !proposalQuery.data) {
     return (
       <section className="page-shell space-y-8 pb-20">
         <PageHero
-          kicker="Growth opportunity"
+          kicker="Campaign proposal"
           title="This lead proposal link is unavailable."
           description="The link may have expired. Reply to your Advertified contact and we will resend it."
         />
@@ -109,9 +109,9 @@ export function LeadProposalEntryPage() {
   return (
     <section className="page-shell space-y-8 pb-20">
       <PageHero
-        kicker="Growth opportunity snapshot"
+        kicker="Campaign proposal"
         title={campaign.campaignName}
-        description={`We reviewed public market signals for ${campaign.businessName ?? campaign.clientName ?? campaign.campaignName} and prepared three rollout options.`}
+        description={`We reviewed the available information for ${campaign.businessName ?? campaign.clientName ?? campaign.campaignName} and prepared three advertising options.`}
       />
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(340px,420px)]">
@@ -119,14 +119,14 @@ export function LeadProposalEntryPage() {
           <div className="rounded-[22px] border border-line bg-white p-6 shadow-[0_12px_36px_rgba(15,23,42,0.04)]">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Who we are</p>
             <p className="mt-3 text-sm leading-7 text-ink-soft">
-              Advertified is a South African advertising company focused on helping businesses capture more demand using real market signals and practical campaign execution.
+              Advertified is a South African advertising company focused on helping businesses reach more customers with practical campaign planning and execution.
             </p>
           </div>
 
           <div className="rounded-[22px] border border-line bg-white p-6 shadow-[0_12px_36px_rgba(15,23,42,0.04)]">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">What we found</p>
             <p className="mt-3 text-sm leading-7 text-ink-soft">
-              We identified opportunity gaps in how demand is currently being captured in {areaLabel}.
+              We found room to improve how your business is reaching customers in {areaLabel}.
             </p>
             {detectedGaps.length > 0 ? (
               <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-7 text-ink">
@@ -136,7 +136,7 @@ export function LeadProposalEntryPage() {
               </ul>
             ) : (
               <p className="mt-3 text-sm leading-7 text-ink-soft">
-                We found clear room to improve demand capture and local visibility with a practical multi-channel rollout.
+                We found clear room to improve local visibility with a practical multi-channel campaign.
               </p>
             )}
           </div>
@@ -182,7 +182,7 @@ export function LeadProposalEntryPage() {
               onClick={() => void handleDownloadPdf()}
               className="button-secondary flex w-full items-center justify-center gap-2 px-5 py-3"
             >
-              Download PDF snapshot
+              Download PDF
               <Download className="size-4" />
             </button>
             <button

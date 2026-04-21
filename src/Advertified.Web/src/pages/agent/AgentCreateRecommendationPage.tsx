@@ -137,98 +137,18 @@ function applyIndustryContextToForm(
       || normalizeOption(industryContext.campaign.defaultObjective, OBJECTIVE_OPTIONS)
       || normalizeOption(policy.objectiveOverride, OBJECTIVE_OPTIONS)
     );
-  const tone = force
-    ? (
-      normalizeOption(industryContext.creative.preferredTone, TONE_OPTIONS)
-      || normalizeOption(policy.preferredTone, TONE_OPTIONS)
-      || form.tone
-    )
-    : (
-      form.tone
-      || normalizeOption(industryContext.creative.preferredTone, TONE_OPTIONS)
-      || normalizeOption(policy.preferredTone, TONE_OPTIONS)
-    );
   const language = force
     ? (industryContext.audience.defaultLanguageBiases?.[0] || form.language || '')
     : (form.language || industryContext.audience.defaultLanguageBiases?.[0] || '');
 
-  const industryNotes = [
-    `Industry profile: ${industryContext.label || policy.name}`,
-    industryContext.audience.primaryPersona?.trim()
-      ? `Primary audience:\n${industryContext.audience.primaryPersona.trim()}`
-      : '',
-    industryContext.creative.messagingAngle?.trim() || policy.messagingAngle?.trim()
-      ? `Industry messaging angle:\n${(industryContext.creative.messagingAngle || policy.messagingAngle).trim()}`
-      : '',
-    (industryContext.compliance.guardrails ?? policy.guardrails ?? []).length > 0
-      ? `Industry guardrails:\n${(industryContext.compliance.guardrails ?? policy.guardrails ?? [])
-        .filter((item) => item.trim().length > 0)
-        .map((item) => `- ${item.trim()}`)
-        .join('\n')}`
-      : '',
-    (industryContext.creative.recommendedCta || policy.cta)?.trim()
-      ? `Industry recommended CTA:\n${(industryContext.creative.recommendedCta || policy.cta).trim()}`
-      : '',
-  ].filter((value) => value.trim().length > 0);
-
-  const industryBlock = industryNotes.join('\n\n');
-  const briefWithoutIndustry = stripIndustryBriefBlock(form.brief);
-  const hasIndustryBlock = form.brief.includes('Industry profile:');
-  const brief = force
-    ? [industryBlock, briefWithoutIndustry].filter((value) => value.trim().length > 0).join('\n\n')
-    : (
-      hasIndustryBlock
-        ? form.brief
-        : [industryBlock, form.brief].filter((value) => value.trim().length > 0).join('\n\n')
-    );
-
   return {
     ...form,
     objective,
-    tone,
     language,
     channels: force
       ? ensureRequiredChannels(policyChannels.length > 0 ? policyChannels : form.channels)
       : mergedChannels,
-    brief,
   };
-}
-
-function stripIndustryBriefBlock(brief: string): string {
-  if (!brief.includes('Industry profile:')) {
-    return brief.trim();
-  }
-
-  const lines = brief.split('\n');
-  const preserved: string[] = [];
-  let skipping = false;
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    const startsIndustryBlock = trimmed.startsWith('Industry profile:');
-    const continuesIndustryBlock = skipping && (
-      trimmed.startsWith('Primary audience:')
-      || trimmed.startsWith('Industry messaging angle:')
-      || trimmed.startsWith('Industry guardrails:')
-      || trimmed.startsWith('Industry recommended CTA:')
-      || trimmed.startsWith('- ')
-      || trimmed.length === 0
-    );
-
-    if (startsIndustryBlock) {
-      skipping = true;
-      continue;
-    }
-
-    if (continuesIndustryBlock) {
-      continue;
-    }
-
-    skipping = false;
-    preserved.push(line);
-  }
-
-  return preserved.join('\n').trim();
 }
 
 type CampaignFormState = RecommendationDraftFormState;
@@ -714,21 +634,6 @@ export function AgentCreateRecommendationPage() {
       packageDirectionLine,
       routePrefill.archetypeName?.trim()
         ? `Archetype: ${routePrefill.archetypeName.trim()}`
-        : '',
-      routePrefill.industryProfileName?.trim()
-        ? `Industry profile: ${routePrefill.industryProfileName.trim()}`
-        : '',
-      routePrefill.industryMessagingAngle?.trim()
-        ? `Industry messaging angle:\n${routePrefill.industryMessagingAngle.trim()}`
-        : '',
-      (routePrefill.industryGuardrails ?? []).length > 0
-        ? `Industry guardrails:\n${(routePrefill.industryGuardrails ?? [])
-          .filter((item) => item.trim().length > 0)
-          .map((item) => `- ${item.trim()}`)
-          .join('\n')}`
-        : '',
-      routePrefill.industryCta?.trim()
-        ? `Industry recommended CTA:\n${routePrefill.industryCta.trim()}`
         : '',
       researchBasisBlock
         ? `Research basis:\n${researchBasisBlock}`
@@ -1565,21 +1470,9 @@ export function AgentCreateRecommendationPage() {
                     Audience: <span className="font-semibold text-ink">{selectedIndustryContext.audience.primaryPersona || 'Not set'}</span>
                   </p>
                   <p className="text-sm text-ink-soft">
-                    Tone: <span className="font-semibold text-ink">{selectedIndustryContext.creative.preferredTone || 'Not set'}</span>
+                    Languages: <span className="font-semibold text-ink">{selectedIndustryContext.audience.defaultLanguageBiases.join(', ') || 'Not set'}</span>
                   </p>
                 </div>
-                {(selectedIndustryContext.compliance.guardrails ?? []).length > 0 ? (
-                  <div className="mt-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Guardrails</p>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {selectedIndustryContext.compliance.guardrails.slice(0, 3).map((item) => (
-                        <span key={item} className="rounded-full border border-line bg-white px-3 py-1 text-xs font-semibold text-ink-soft">
-                          {item}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
               </div>
             ) : null}
 

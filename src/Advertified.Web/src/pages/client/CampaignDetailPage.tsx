@@ -209,13 +209,13 @@ export function CampaignDetailPage() {
     onSuccess: async () => {
       await invalidateClientCampaignQueries(queryClient, id, user?.id, true);
       pushToast({
-        title: 'Brief saved.',
-        description: 'Your campaign brief draft has been updated.',
+        title: 'Campaign details saved.',
+        description: 'Your campaign details have been updated.',
       });
     },
     onError: (error) => {
       pushToast({
-        title: 'Could not save brief.',
+        title: 'Could not save campaign details.',
         description: error instanceof Error ? error.message : 'Please try again.',
       }, 'error');
     },
@@ -225,8 +225,8 @@ export function CampaignDetailPage() {
     onSuccess: async () => {
       await invalidateClientCampaignQueries(queryClient, id, user?.id, true);
       pushToast({
-        title: 'Brief submitted.',
-        description: 'Advertified can now move this campaign into planning.',
+        title: 'Campaign details submitted.',
+        description: 'Advertified can now use these details to prepare your campaign plan.',
       });
     },
     onError: (error) => {

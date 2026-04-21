@@ -276,7 +276,6 @@ export function CampaignBriefForm({
     const currentAudienceNotes = watch('targetAudienceNotes');
     const currentPreferredMedia = watch('preferredMediaTypes');
     const currentLanguages = watch('targetLanguages');
-    const currentSpecialRequirements = watch('specialRequirements');
 
     if ((force || !currentObjective?.trim()) && context.campaign.defaultObjective) {
       setValue('objective', normalizeIndustryObjective(context.campaign.defaultObjective));
@@ -292,10 +291,6 @@ export function CampaignBriefForm({
 
     if ((force || !currentLanguages?.trim()) && context.audience.defaultLanguageBiases.length > 0) {
       setValue('targetLanguages', context.audience.defaultLanguageBiases.join(', '));
-    }
-
-    if (force || !currentSpecialRequirements?.trim()) {
-      setValue('specialRequirements', buildSpecialRequirements(context));
     }
 
     setIndustryDefaultsApplied(true);
@@ -384,7 +379,7 @@ export function CampaignBriefForm({
               Channels: <span className="font-semibold text-ink">{industryContextQuery.data.channels.preferredChannels.join(', ') || 'Not set'}</span>
             </p>
             <p className="text-sm text-ink-soft">
-              CTA: <span className="font-semibold text-ink">{industryContextQuery.data.creative.recommendedCta || 'Not set'}</span>
+              Languages: <span className="font-semibold text-ink">{industryContextQuery.data.audience.defaultLanguageBiases.join(', ') || 'Not set'}</span>
             </p>
           </div>
         </div>
@@ -655,19 +650,11 @@ function buildAudienceNotes(context: LeadIndustryContext): string {
   return [
     context.audience.primaryPersona ? `Primary audience: ${context.audience.primaryPersona}` : '',
     context.audience.buyingJourney ? `Buying journey: ${context.audience.buyingJourney}` : '',
-    context.creative.messagingAngle ? `Messaging angle: ${context.creative.messagingAngle}` : '',
   ].filter((value) => value.trim().length > 0).join('\n');
 }
 
 function buildPreferredMedia(context: LeadIndustryContext): string {
   return (context.channels.preferredChannels ?? []).join(', ');
-}
-
-function buildSpecialRequirements(context: LeadIndustryContext): string {
-  return [
-    context.creative.recommendedCta ? `Recommended CTA: ${context.creative.recommendedCta}` : '',
-    ...(context.compliance.guardrails ?? []).map((item) => `Guardrail: ${item}`),
-  ].filter((value) => value.trim().length > 0).join('\n');
 }
 
 function isBriefEssentiallyEmpty(brief?: CampaignBrief) {
@@ -680,7 +667,6 @@ function isBriefEssentiallyEmpty(brief?: CampaignBrief) {
     || brief.targetAudienceNotes?.trim()
     || (brief.preferredMediaTypes?.length ?? 0) > 0
     || brief.targetLanguages?.some((value) => value.trim().length > 0)
-    || brief.specialRequirements?.trim()
   );
 }
 
