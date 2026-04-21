@@ -59,8 +59,9 @@ export function RecommendationViewer({
             </button>
           ) : null}
           <div className="rounded-2xl bg-brand-soft px-4 py-3 text-right">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Campaign total</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Recommended investment</p>
             <p className="mt-1 text-2xl font-semibold text-ink">{formatCurrency(recommendation.totalCost)}</p>
+            <p className="mt-1 text-xs text-ink-soft">Need a lighter route? Ask for a lean start or phased rollout.</p>
           </div>
         </div>
       </div>
@@ -84,21 +85,21 @@ export function RecommendationViewer({
           </div>
         ) : null}
         <div className="rounded-[24px] border border-line bg-slate-50 px-5 py-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Recommended mix</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Offer structure</p>
           <p className="mt-3 text-lg font-semibold text-ink">{groupedChannels.join(' + ') || 'Not set'}</p>
           <p className="mt-2 text-sm leading-7 text-ink-soft">
-            This mix reflects the channels selected for the main campaign recommendation.
+            This reflects the channels included in the main offer route.
           </p>
         </div>
         <div className="rounded-[24px] border border-line bg-slate-50 px-5 py-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Planned placements</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">What is included</p>
           <p className="mt-3 text-lg font-semibold text-ink">{baseItems.length} placement{baseItems.length === 1 ? '' : 's'}</p>
           <p className="mt-2 text-sm leading-7 text-ink-soft">
             Each placement has been checked against campaign fit and available inventory.
           </p>
         </div>
         <div className="rounded-[24px] border border-line bg-slate-50 px-5 py-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Why this was chosen</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Why this route fits</p>
           <div className="mt-3 flex flex-wrap gap-2">
             {topReasons.length > 0 ? topReasons.map((reason) => (
               <span key={reason} className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-ink-soft ring-1 ring-line">

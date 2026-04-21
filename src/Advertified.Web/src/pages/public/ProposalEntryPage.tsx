@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { ArrowRight, FileText } from 'lucide-react';
+import { ArrowRight, FileText, Layers3, Sparkles, TrendingUp } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { LoadingState } from '../../components/ui/LoadingState';
@@ -10,17 +10,10 @@ import { useToast } from '../../components/ui/toast';
 import { useAuth } from '../../features/auth/auth-context';
 import { hasRecommendationApprovalCompleted } from '../../lib/campaignStatus';
 import { getCampaignPaymentState } from '../../lib/access';
-import { formatCurrency, titleCase } from '../../lib/utils';
+import { formatCurrency } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import { parseCampaignOpportunityContext } from '../../features/campaigns/briefModel';
-
-function formatPaymentStatusLabel(status?: string) {
-  if (!status) {
-    return 'Pending';
-  }
-
-  return titleCase(status.replace(/_/g, ' '));
-}
+import type { Campaign, CampaignRecommendation } from '../../types/domain';
 
 function getSafeNextPath(raw: string | null) {
   if (!raw) {
@@ -29,6 +22,70 @@ function getSafeNextPath(raw: string | null) {
 
   const trimmed = raw.trim();
   return trimmed.startsWith('/') ? trimmed : null;
+}
+
+function buildOfferHeadline(campaign: Campaign, recommendation?: CampaignRecommendation) {
+  const strategy = recommendation?.proposalStrategy?.trim();
+  if (strategy) {
+    return `${strategy} offer for ${campaign.campaignName}`;
+  }
+
+  return `${campaign.packageBandName} offer for ${campaign.campaignName}`;
+}
+
+function buildFitBullets(campaign: Campaign, recommendation?: CampaignRecommendation) {
+  const reasons = Array.from(new Set(recommendation?.items.flatMap((item) => item.selectionReasons) ?? []))
+    .filter((reason) => reason.trim().length > 0)
+    .slice(0, 3);
+
+  if (reasons.length > 0) {
+    return reasons;
+  }
+
+  return [
+    `Built inside the ${campaign.packageBandName} route for this campaign stage.`,
+    'Structured to keep the strongest placements in view first.',
+    'Designed so the plan can be refined instead of rejected outright.',
+  ];
+}
+
+function buildIncludedItems(recommendation?: CampaignRecommendation) {
+  const channels = Array.from(new Set(recommendation?.items.map((item) => item.channel.replace(/\booh\b/gi, 'Billboards and Digital Screens')) ?? []));
+  const placements = recommendation?.items.length ?? 0;
+
+  return [
+    channels.length > 0 ? `Channels included: ${channels.join(', ')}` : 'Channels are being prepared for this offer.',
+    placements > 0 ? `${placements} planned placement${placements === 1 ? '' : 's'} in the main route.` : 'Placement detail will appear as soon as the route is finalised.',
+    'Creative, approvals, and campaign support stay inside the Advertified workflow.',
+  ];
+}
+
+function buildFlexibleRoutes(campaign: Campaign, recommendation?: CampaignRecommendation) {
+  const bestFitAmount = recommendation?.totalCost ?? campaign.selectedBudget;
+  const baseAmount = campaign.selectedBudget > 0 ? campaign.selectedBudget : bestFitAmount;
+  const leanStartAmount = Math.min(bestFitAmount, baseAmount);
+  const phasedStartAmount = Math.max(leanStartAmount, Math.round(bestFitAmount * 0.6));
+
+  return [
+    {
+      title: 'Best-fit route',
+      amountLabel: formatCurrency(bestFitAmount),
+      description: 'This is the strongest route for the full campaign shape shown in the proposal.',
+      icon: Sparkles,
+    },
+    {
+      title: 'Lean start option',
+      amountLabel: `From ${formatCurrency(leanStartAmount)}`,
+      description: 'Start with the core placements first and reduce the footprint if you need a lighter way in.',
+      icon: Layers3,
+    },
+    {
+      title: 'Phased rollout',
+      amountLabel: `${formatCurrency(phasedStartAmount)} first wave`,
+      description: 'Launch the first wave now, then expand the rollout once timing, cash flow, or results allow.',
+      icon: TrendingUp,
+    },
+  ];
 }
 
 export function ProposalEntryPage() {
@@ -60,6 +117,16 @@ export function ProposalEntryPage() {
     currentSelectionId: selectedRecommendationId,
     requestedRecommendationId: recommendationId,
   });
+  const offerHeadline = publicProposalQuery.data
+    ? buildOfferHeadline(publicProposalQuery.data, recommendation)
+    : '';
+  const fitBullets = publicProposalQuery.data
+    ? buildFitBullets(publicProposalQuery.data, recommendation)
+    : [];
+  const includedItems = buildIncludedItems(recommendation);
+  const flexibleRoutes = publicProposalQuery.data
+    ? buildFlexibleRoutes(publicProposalQuery.data, recommendation)
+    : [];
   const paymentState = publicProposalQuery.data
     ? getCampaignPaymentState(publicProposalQuery.data)
     : 'payment_required';
@@ -221,18 +288,18 @@ export function ProposalEntryPage() {
       <section className="page-shell space-y-8 pb-20">
         <PageHero
           kicker="Proposal review"
-          title={publicProposalQuery.data.campaignName}
+          title={offerHeadline || publicProposalQuery.data.campaignName}
           description={approvalAlreadyCompleted
             ? 'This proposal has already been approved. You can still reopen the proposal page from any email link.'
             : paymentAwaitingReview
               ? 'Your proposal is saved. Finance Partner is reviewing your Pay Later application, so there is nothing else you need to do right now.'
-              : 'Review the options and tell us how you want to proceed.'}
+              : 'Review the offer first, then choose the route that feels right for your business and timing.'}
         />
 
         {recommendations.length > 1 ? (
           <div className="rounded-[18px] border border-line bg-slate-50/70 p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Proposal options</p>
-            <p className="mt-2 text-sm text-ink-soft">Select the proposal you want to approve or revise. You can also reject all with comments.</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Offer options</p>
+            <p className="mt-2 text-sm text-ink-soft">Select the route that feels closest to your business need. You can still request changes or ask for a lighter starting point.</p>
             <div className="mt-4 grid gap-3 md:grid-cols-3">
               {recommendations.map((proposal, index) => {
                 const selected = proposal.id === recommendation?.id;
@@ -247,7 +314,7 @@ export function ProposalEntryPage() {
                   >
                     <p className="text-sm font-semibold text-ink">{proposal.proposalLabel ?? `Proposal ${index + 1}`}</p>
                     <p className="mt-1 text-xs text-ink-soft">{proposal.proposalStrategy ?? 'Media plan option'}</p>
-                    <p className="mt-2 text-sm font-semibold text-ink">{formatCurrency(proposal.totalCost)}</p>
+                    <p className="mt-2 text-sm font-semibold text-ink">Recommended investment {formatCurrency(proposal.totalCost)}</p>
                   </button>
                 );
               })}
@@ -263,51 +330,73 @@ export function ProposalEntryPage() {
 
         <div className="grid gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(340px,420px)]">
           <div className="rounded-[22px] border border-line bg-white p-6 shadow-[0_12px_36px_rgba(15,23,42,0.04)]">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">What you are reviewing</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Offer overview</p>
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <div className="rounded-[18px] border border-line bg-slate-50/80 px-4 py-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Campaign</p>
-                <p className="mt-2 text-base font-semibold text-ink">{publicProposalQuery.data.packageBandName}</p>
-                <p className="mt-1 text-sm text-ink-soft">{publicProposalQuery.data.campaignName}</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Offer headline</p>
+                <p className="mt-2 text-base font-semibold text-ink">{offerHeadline}</p>
+                <p className="mt-1 text-sm text-ink-soft">Built around your current campaign route and business context.</p>
               </div>
               <div className="rounded-[18px] border border-line bg-slate-50/80 px-4 py-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Selected option</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Selected route</p>
                 <p className="mt-2 text-base font-semibold text-ink">{recommendation?.proposalLabel ?? 'Current proposal'}</p>
-                <p className="mt-1 text-sm text-ink-soft">{recommendation ? formatCurrency(recommendation.totalCost) : 'Preparing details'}</p>
+                <p className="mt-1 text-sm text-ink-soft">{recommendation ? `Recommended investment ${formatCurrency(recommendation.totalCost)}` : 'Preparing details'}</p>
               </div>
               <div className="rounded-[18px] border border-line bg-slate-50/80 px-4 py-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Options prepared</p>
-                <p className="mt-2 text-base font-semibold text-ink">{recommendations.length || 0}</p>
-                <p className="mt-1 text-sm text-ink-soft">You can switch between proposals above.</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Why this fits</p>
+                <div className="mt-2 space-y-2 text-sm text-ink-soft">
+                  {fitBullets.map((reason) => (
+                    <p key={reason}>- {reason}</p>
+                  ))}
+                </div>
               </div>
               <div className="rounded-[18px] border border-line bg-slate-50/80 px-4 py-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Payment status</p>
-                <p className="mt-2 text-base font-semibold text-ink">
-                  {paymentAwaitingReview ? 'Pay Later under review' : formatPaymentStatusLabel(publicProposalQuery.data.paymentStatus)}
-                </p>
-                <p className="mt-1 text-sm text-ink-soft">
-                  {approvalAlreadyCompleted
-                    ? 'Approval is complete and Advertified is moving this campaign forward.'
-                    : paymentAwaitingReview
-                      ? 'Your Finance Partner application is under review. We will bring you back here when the next client action is available.'
-                    : paymentRequiredBeforeApproval
-                      ? 'Payment must be completed before final approval.'
-                      : 'This proposal can be approved now.'}
-                </p>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">What is included</p>
+                <div className="mt-2 space-y-2 text-sm text-ink-soft">
+                  {includedItems.map((item) => (
+                    <p key={item}>- {item}</p>
+                  ))}
+                </div>
               </div>
+            </div>
+
+            <div className="mt-5 rounded-[18px] border border-brand/15 bg-brand-soft/25 px-5 py-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Flexible entry paths</p>
+              <p className="mt-2 text-sm leading-7 text-ink-soft">
+                If the full route feels too high right now, you do not need to reject the whole idea. We can start smaller, phase the rollout, or adjust the footprint around your budget.
+              </p>
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                {flexibleRoutes.map((route) => {
+                  const Icon = route.icon;
+                  return (
+                    <div key={route.title} className="rounded-[16px] border border-white/70 bg-white px-4 py-4">
+                      <div className="inline-flex rounded-full border border-brand/15 bg-brand-soft px-3 py-2 text-brand">
+                        <Icon className="size-4" />
+                      </div>
+                      <p className="mt-3 text-sm font-semibold text-ink">{route.title}</p>
+                      <p className="mt-1 text-base font-semibold text-brand">{route.amountLabel}</p>
+                      <p className="mt-2 text-sm leading-6 text-ink-soft">{route.description}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="mt-5 rounded-[18px] border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
+              If affordability is the issue, ask for a leaner start or phased rollout instead of rejecting the offer. We can rework the footprint around what is realistic for you.
             </div>
           </div>
 
           <div className="rounded-[22px] border border-brand/20 bg-[linear-gradient(180deg,#f7fcfa_0%,#ffffff_100%)] p-6 shadow-[0_18px_44px_rgba(15,118,110,0.08)]">
-            <div className="text-lg font-semibold text-ink">{approvalAlreadyCompleted ? 'Proposal approved' : 'Choose your next step'}</div>
+            <div className="text-lg font-semibold text-ink">{approvalAlreadyCompleted ? 'Offer approved' : 'Choose your next step'}</div>
             <p className="mt-2 text-sm leading-7 text-ink-soft">
               {approvalAlreadyCompleted
-                ? 'The recommendation has already been approved. The actions below stay visible so every proposal email still opens the same review layout.'
-                : 'Pick one action below. If you want changes or a new set, add a short note first.'}
+                ? 'The offer has already been approved. The actions below stay visible so every proposal email still opens the same review layout.'
+                : 'Accept the route, ask for changes, or use the notes box to request a lighter entry point or phased rollout.'}
             </p>
             {approvalAlreadyCompleted ? (
               <div className="mt-4 rounded-[14px] border border-brand/20 bg-brand/[0.06] px-4 py-3 text-sm text-ink">
-                This proposal has already been accepted. You can still review it here from any proposal email link.
+                This offer has already been accepted. You can still review it here from any proposal email link.
               </div>
             ) : paymentAwaitingReview ? (
               <div className="mt-4 rounded-[14px] border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
@@ -315,19 +404,19 @@ export function ProposalEntryPage() {
               </div>
             ) : paymentRequiredBeforeApproval ? (
               <div className="mt-4 rounded-[14px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                Payment is still required before this recommendation can be finally approved.
+                Payment is still required before this route can be finally approved.
               </div>
             ) : null}
             <div className="mt-5 space-y-3">
               <label className="block text-sm font-semibold text-ink" htmlFor="proposal-review-notes">
-                Notes
+                Notes or adjustment request
               </label>
               <textarea
                 id="proposal-review-notes"
                 value={changeNotes}
                 onChange={(event) => setChangeNotes(event.target.value)}
                 className="input-base min-h-[110px]"
-                placeholder="Add feedback if you want changes or want to reject all proposals."
+                placeholder="Example: We like this route, but need a lighter start, fewer placements, or a phased rollout."
                 disabled={approvalAlreadyCompleted}
               />
               <div className="grid gap-3">
@@ -352,8 +441,8 @@ export function ProposalEntryPage() {
                     : paymentRequiredBeforeApproval
                     ? (prepareCheckoutMutation.isPending
                       ? 'Preparing payment...'
-                      : (isAuthenticated ? 'Pay for selected proposal' : 'Sign in to pay'))
-                    : (approveMutation.isPending ? 'Accepting...' : 'Approve selected')}
+                      : (isAuthenticated ? 'Continue with this offer' : 'Sign in to continue'))
+                    : (approveMutation.isPending ? 'Accepting...' : 'Accept this offer')}
                 </button>
                 <button
                   type="button"
@@ -361,7 +450,7 @@ export function ProposalEntryPage() {
                   disabled={approvalAlreadyCompleted || approveMutation.isPending || requestChangesMutation.isPending || rejectAllMutation.isPending || !changeNotes.trim()}
                   className="user-btn-secondary w-full justify-center text-center whitespace-normal px-4 py-3 text-sm disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {requestChangesMutation.isPending ? 'Sending...' : 'Request changes'}
+                  {requestChangesMutation.isPending ? 'Sending...' : 'Request adjustment'}
                 </button>
                 <button
                   type="button"
@@ -369,7 +458,7 @@ export function ProposalEntryPage() {
                   disabled={approvalAlreadyCompleted || approveMutation.isPending || requestChangesMutation.isPending || rejectAllMutation.isPending || !changeNotes.trim()}
                   className="user-btn-secondary w-full justify-center text-center whitespace-normal px-4 py-3 text-sm disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {rejectAllMutation.isPending ? 'Sending...' : 'Reject all'}
+                  {rejectAllMutation.isPending ? 'Sending...' : 'Reject this set'}
                 </button>
               </div>
             </div>
@@ -392,7 +481,7 @@ export function ProposalEntryPage() {
           </details>
         ) : (
           <div className="rounded-[18px] border border-line bg-slate-50/70 p-5 text-sm leading-7 text-ink-soft">
-            Your recommendation is still being prepared.
+            Your offer is still being prepared.
           </div>
         )}
       </section>
