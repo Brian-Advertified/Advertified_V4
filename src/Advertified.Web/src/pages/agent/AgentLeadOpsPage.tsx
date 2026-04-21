@@ -64,6 +64,12 @@ function coverageOwnerLabel(item: LeadOpsCoverageItem) {
   return 'Unassigned';
 }
 
+function coveragePriorityTone(priority: string) {
+  return priority === 'high'
+    ? 'border-rose-200 bg-rose-50 text-rose-700'
+    : 'border-slate-200 bg-slate-50 text-ink-soft';
+}
+
 export function AgentLeadOpsPage() {
   const inboxQuery = useLeadOpsInboxQuery();
   const coverageQuery = useLeadOpsCoverageQuery();
@@ -395,8 +401,14 @@ function LeadCoverageCard({ item }: { item: LeadOpsCoverageItem }) {
             <span className="inline-flex rounded-full border border-line bg-slate-50 px-3 py-1 text-xs font-semibold text-ink-soft">
               {titleize(item.unifiedStatus)}
             </span>
+            <span className="inline-flex rounded-full border border-line bg-white px-3 py-1 text-xs font-semibold text-ink-soft">
+              {titleize(item.source)}
+            </span>
             <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${item.hasBeenContacted ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
               {item.hasBeenContacted ? 'Contact started' : 'No contact yet'}
+            </span>
+            <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${coveragePriorityTone(item.priority)}`}>
+              {titleize(item.priority)} priority
             </span>
             {item.convertedToSale ? (
               <span className="inline-flex rounded-full border border-brand/20 bg-brand-soft px-3 py-1 text-xs font-semibold text-brand">
@@ -412,14 +424,27 @@ function LeadCoverageCard({ item }: { item: LeadOpsCoverageItem }) {
             <h3 className="text-base font-semibold text-ink">{item.leadName}</h3>
             <p className="mt-1 text-sm text-ink-soft">{item.location} | {item.category} | {titleize(item.source)}</p>
           </div>
+          {item.attentionReasons.length > 0 ? (
+            <p className="text-sm text-ink-soft">
+              Attention: {item.attentionReasons.map((reason) => titleize(reason)).join(' | ')}
+            </p>
+          ) : null}
           <div className="grid gap-3 text-sm md:grid-cols-2 xl:grid-cols-4">
             <div>
               <p className="text-ink-soft">Owner</p>
               <p className="font-medium text-ink">{coverageOwnerLabel(item)}</p>
             </div>
             <div>
+              <p className="text-ink-soft">Assignment</p>
+              <p className="font-medium text-ink">{titleize(item.assignmentStatus)}</p>
+            </div>
+            <div>
               <p className="text-ink-soft">Last contacted</p>
               <p className="font-medium text-ink">{item.lastContactedAt ? fmtDate(item.lastContactedAt) : 'Not yet contacted'}</p>
+            </div>
+            <div>
+              <p className="text-ink-soft">Next follow-up</p>
+              <p className="font-medium text-ink">{item.nextFollowUpAt ? fmtDate(item.nextFollowUpAt) : 'Not set'}</p>
             </div>
             <div>
               <p className="text-ink-soft">Next action</p>
@@ -428,6 +453,14 @@ function LeadCoverageCard({ item }: { item: LeadOpsCoverageItem }) {
             <div>
               <p className="text-ink-soft">Due</p>
               <p className="font-medium text-ink">{item.nextActionDueAt ? fmtDate(item.nextActionDueAt) : 'Not set'}</p>
+            </div>
+            <div>
+              <p className="text-ink-soft">SLA due</p>
+              <p className="font-medium text-ink">{item.slaDueAt ? fmtDate(item.slaDueAt) : 'Not set'}</p>
+            </div>
+            <div>
+              <p className="text-ink-soft">Last outcome</p>
+              <p className="font-medium text-ink">{item.lastOutcome ?? 'Not set'}</p>
             </div>
           </div>
         </div>

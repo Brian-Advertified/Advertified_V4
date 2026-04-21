@@ -626,6 +626,7 @@ type LeadOpsCoverageSourceResponse = {
 };
 
 type LeadOpsCoverageItemResponse = {
+  recordKey: string;
   leadId: number;
   leadName: string;
   location: string;
@@ -636,20 +637,29 @@ type LeadOpsCoverageItemResponse = {
   ownerAgentUserId?: string | null;
   ownerAgentName?: string | null;
   ownerResolution: string;
+  assignmentStatus: string;
   hasBeenContacted: boolean;
+  firstContactedAt?: string | null;
+  contactStatus: string;
   lastContactedAt?: string | null;
   nextAction: string;
   nextActionDueAt?: string | null;
+  nextFollowUpAt?: string | null;
+  slaDueAt?: string | null;
+  priority: string;
+  attentionReasons: string[];
   openLeadActionCount: number;
   hasProspect: boolean;
   prospectLeadId?: string | null;
   activeCampaignId?: string | null;
   wonCampaignId?: string | null;
   convertedToSale: boolean;
+  lastOutcome?: string | null;
   routePath: string;
 };
 
 type LeadOpsCoverageResponse = {
+  generatedAtUtc: string;
   totalLeadCount: number;
   ownedLeadCount: number;
   unownedLeadCount: number;
@@ -716,8 +726,15 @@ type LeadResponse = {
   category: string;
   source: string;
   sourceReference?: string | null;
+  ownerAgentUserId?: string | null;
+  ownerAgentName?: string | null;
   autoInferredFields?: string[] | null;
   lastDiscoveredAt?: string | null;
+  firstContactedAt?: string | null;
+  lastContactedAt?: string | null;
+  nextFollowUpAt?: string | null;
+  slaDueAt?: string | null;
+  lastOutcome?: string | null;
   createdAt: string;
 };
 
@@ -1025,8 +1042,15 @@ function mapLead(response: LeadResponse): Lead {
     category: response.category,
     source: response.source,
     sourceReference: response.sourceReference ?? undefined,
+    ownerAgentUserId: response.ownerAgentUserId ?? undefined,
+    ownerAgentName: response.ownerAgentName ?? undefined,
     autoInferredFields: response.autoInferredFields ?? [],
     lastDiscoveredAt: response.lastDiscoveredAt ?? undefined,
+    firstContactedAt: response.firstContactedAt ?? undefined,
+    lastContactedAt: response.lastContactedAt ?? undefined,
+    nextFollowUpAt: response.nextFollowUpAt ?? undefined,
+    slaDueAt: response.slaDueAt ?? undefined,
+    lastOutcome: response.lastOutcome ?? undefined,
     createdAt: response.createdAt,
   };
 }
@@ -1345,6 +1369,7 @@ function mapLeadOpsCoverageSource(response: LeadOpsCoverageSourceResponse): Lead
 
 function mapLeadOpsCoverageItem(response: LeadOpsCoverageItemResponse): LeadOpsCoverageItem {
   return {
+    recordKey: response.recordKey,
     leadId: response.leadId,
     leadName: response.leadName,
     location: response.location,
@@ -1355,22 +1380,31 @@ function mapLeadOpsCoverageItem(response: LeadOpsCoverageItemResponse): LeadOpsC
     ownerAgentUserId: response.ownerAgentUserId ?? undefined,
     ownerAgentName: response.ownerAgentName ?? undefined,
     ownerResolution: response.ownerResolution,
+    assignmentStatus: response.assignmentStatus,
     hasBeenContacted: response.hasBeenContacted,
+    firstContactedAt: response.firstContactedAt ?? undefined,
+    contactStatus: response.contactStatus,
     lastContactedAt: response.lastContactedAt ?? undefined,
     nextAction: response.nextAction,
     nextActionDueAt: response.nextActionDueAt ?? undefined,
+    nextFollowUpAt: response.nextFollowUpAt ?? undefined,
+    slaDueAt: response.slaDueAt ?? undefined,
+    priority: response.priority,
+    attentionReasons: response.attentionReasons ?? [],
     openLeadActionCount: response.openLeadActionCount,
     hasProspect: response.hasProspect,
     prospectLeadId: response.prospectLeadId ?? undefined,
     activeCampaignId: response.activeCampaignId ?? undefined,
     wonCampaignId: response.wonCampaignId ?? undefined,
     convertedToSale: response.convertedToSale,
+    lastOutcome: response.lastOutcome ?? undefined,
     routePath: response.routePath,
   };
 }
 
 function mapLeadOpsCoverage(response: LeadOpsCoverageResponse): LeadOpsCoverage {
   return {
+    generatedAtUtc: response.generatedAtUtc,
     totalLeadCount: response.totalLeadCount,
     ownedLeadCount: response.ownedLeadCount,
     unownedLeadCount: response.unownedLeadCount,

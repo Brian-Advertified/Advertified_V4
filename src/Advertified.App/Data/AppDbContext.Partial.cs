@@ -519,6 +519,7 @@ public partial class AppDbContext
             entity.ToTable("leads");
 
             entity.HasIndex(e => new { e.Name, e.Location }, "ix_leads_name_location");
+            entity.HasIndex(e => e.OwnerAgentUserId, "ix_leads_owner_agent_user_id");
 
             entity.Property(e => e.Id)
                 .ValueGeneratedOnAdd()
@@ -548,6 +549,18 @@ public partial class AppDbContext
                 .HasColumnName("source_reference");
             entity.Property(e => e.LastDiscoveredAt)
                 .HasColumnName("last_discovered_at");
+            entity.Property(e => e.OwnerAgentUserId)
+                .HasColumnName("owner_agent_user_id");
+            entity.Property(e => e.FirstContactedAt)
+                .HasColumnName("first_contacted_at");
+            entity.Property(e => e.LastContactedAt)
+                .HasColumnName("last_contacted_at");
+            entity.Property(e => e.NextFollowUpAt)
+                .HasColumnName("next_follow_up_at");
+            entity.Property(e => e.SlaDueAt)
+                .HasColumnName("sla_due_at");
+            entity.Property(e => e.LastOutcome)
+                .HasColumnName("last_outcome");
             entity.Property(e => e.Latitude)
                 .HasColumnName("latitude");
             entity.Property(e => e.Longitude)
@@ -555,6 +568,12 @@ public partial class AppDbContext
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("timezone('utc', now())")
                 .HasColumnName("created_at");
+
+            entity.HasOne(e => e.OwnerAgentUser)
+                .WithMany()
+                .HasForeignKey(e => e.OwnerAgentUserId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("leads_owner_agent_user_id_fkey");
         });
 
         modelBuilder.Entity<LeadAction>(entity =>

@@ -18,9 +18,23 @@ public sealed class LeadDto
 
     public string? SourceReference { get; init; }
 
+    public Guid? OwnerAgentUserId { get; init; }
+
+    public string? OwnerAgentName { get; init; }
+
     public IReadOnlyList<string> AutoInferredFields { get; init; } = Array.Empty<string>();
 
     public DateTime? LastDiscoveredAt { get; init; }
+
+    public DateTime? FirstContactedAt { get; init; }
+
+    public DateTime? LastContactedAt { get; init; }
+
+    public DateTime? NextFollowUpAt { get; init; }
+
+    public DateTime? SlaDueAt { get; init; }
+
+    public string? LastOutcome { get; init; }
 
     public double? Latitude { get; init; }
 

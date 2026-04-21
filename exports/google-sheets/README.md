@@ -7,7 +7,7 @@ These CSV files are ready to upload into Google Sheets.
 - `lead-intake-template.csv`
   - Use this as the clean intake sheet for leads coming into Advertified.
 - `lead-control-tower-template.csv`
-  - Use this as the destination structure for the Lead Ops webhook export.
+  - Use this as the human-facing destination structure for the Lead Ops webhook export.
 
 ## Recommended setup
 
@@ -20,11 +20,16 @@ These CSV files are ready to upload into Google Sheets.
 6. Use the `Lead Intake` tab as your human-editable source list.
 7. Let Advertified update the `Lead Control Tower` tab from the webhook.
 
+The Apps Script will also create and maintain:
+- `Lead Control Sync`
+  - Hidden system tab used for raw row upserts and auditability.
+- `Lead Control Totals`
+  - Operating totals and conversion summary tab.
+
 ## Notes
 
 - `source_reference` should stay stable for each row. That is the best way to avoid duplicates.
-- The current lead importer uses:
-  - `business_name` via the alias `name` is not automatic yet, so when publishing to CSV we should either:
-    - rename `business_name` to `name`, or
-    - add a simple import mapping update in code.
-- If we want zero-friction import from this exact template, the next code tweak should add `business_name` as an accepted alias for `name`.
+- The current lead importer already accepts `business_name` because headers are normalized before matching.
+- The control tower template is intentionally simple for humans. Internal IDs and raw workflow fields now live in the hidden sync tab instead of the visible operations tab.
+- The visible control tower now mirrors the app's canonical control-tower rows directly instead of rebuilding queue logic inside Apps Script.
+- The `notes` column is preserved across syncs so Workspace users can keep lightweight collaboration notes there.

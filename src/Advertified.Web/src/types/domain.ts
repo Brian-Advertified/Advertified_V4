@@ -744,6 +744,7 @@ export interface LeadOpsCoverageSource {
 }
 
 export interface LeadOpsCoverageItem {
+  recordKey: string;
   leadId: number;
   leadName: string;
   location: string;
@@ -754,20 +755,29 @@ export interface LeadOpsCoverageItem {
   ownerAgentUserId?: string;
   ownerAgentName?: string;
   ownerResolution: string;
+  assignmentStatus: string;
   hasBeenContacted: boolean;
+  firstContactedAt?: string;
+  contactStatus: string;
   lastContactedAt?: string;
   nextAction: string;
   nextActionDueAt?: string;
+  nextFollowUpAt?: string;
+  slaDueAt?: string;
+  priority: string;
+  attentionReasons: string[];
   openLeadActionCount: number;
   hasProspect: boolean;
   prospectLeadId?: string;
   activeCampaignId?: string;
   wonCampaignId?: string;
   convertedToSale: boolean;
+  lastOutcome?: string;
   routePath: string;
 }
 
 export interface LeadOpsCoverage {
+  generatedAtUtc: string;
   totalLeadCount: number;
   ownedLeadCount: number;
   unownedLeadCount: number;
@@ -817,8 +827,15 @@ export interface Lead {
   category: string;
   source: string;
   sourceReference?: string;
+  ownerAgentUserId?: string;
+  ownerAgentName?: string;
   autoInferredFields?: string[];
   lastDiscoveredAt?: string;
+  firstContactedAt?: string;
+  lastContactedAt?: string;
+  nextFollowUpAt?: string;
+  slaDueAt?: string;
+  lastOutcome?: string;
   createdAt: string;
 }
 

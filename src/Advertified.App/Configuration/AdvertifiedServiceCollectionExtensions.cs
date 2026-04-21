@@ -298,6 +298,7 @@ public static class AdvertifiedServiceCollectionExtensions
         services.AddScoped<ILeadSourceIngestionService, LeadSourceIngestionService>();
         services.AddScoped<ILeadSourceImportService, LeadSourceImportService>();
         services.AddScoped<ILeadOpsCoverageService, LeadOpsCoverageService>();
+        services.AddScoped<ILeadOpsStateService, LeadOpsStateService>();
         services.AddScoped<ILeadOpsInboxService, LeadOpsInboxService>();
         services.AddScoped<IPublicLocationSearchService, PublicLocationSearchService>();
         services.AddScoped<ISignalCollectorService, SignalCollectorService>();

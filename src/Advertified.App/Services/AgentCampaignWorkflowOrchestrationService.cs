@@ -34,6 +34,7 @@ public sealed class AgentCampaignWorkflowOrchestrationService : IAgentCampaignWo
     private readonly IProspectDispositionService _prospectDispositionService;
     private readonly IRecommendationApprovalWorkflowService _recommendationApprovalWorkflowService;
     private readonly IAgentCampaignOwnershipService _ownershipService;
+    private readonly ILeadOpsStateService _leadOpsStateService;
     private readonly FormOptionsService _formOptionsService;
     private readonly FrontendOptions _frontendOptions;
     private readonly ILogger<AgentCampaignWorkflowOrchestrationService> _logger;
@@ -53,6 +54,7 @@ public sealed class AgentCampaignWorkflowOrchestrationService : IAgentCampaignWo
         IProspectDispositionService prospectDispositionService,
         IRecommendationApprovalWorkflowService recommendationApprovalWorkflowService,
         IAgentCampaignOwnershipService ownershipService,
+        ILeadOpsStateService leadOpsStateService,
         FormOptionsService formOptionsService,
         IOptions<FrontendOptions> frontendOptions,
         ILogger<AgentCampaignWorkflowOrchestrationService> logger)
@@ -71,6 +73,7 @@ public sealed class AgentCampaignWorkflowOrchestrationService : IAgentCampaignWo
         _prospectDispositionService = prospectDispositionService;
         _recommendationApprovalWorkflowService = recommendationApprovalWorkflowService;
         _ownershipService = ownershipService;
+        _leadOpsStateService = leadOpsStateService;
         _formOptionsService = formOptionsService;
         _frontendOptions = frontendOptions.Value;
         _logger = logger;
@@ -101,6 +104,7 @@ public sealed class AgentCampaignWorkflowOrchestrationService : IAgentCampaignWo
         campaign.AssignedAt = DateTime.UtcNow;
         campaign.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
+        await _leadOpsStateService.RefreshCampaignAsync(campaign.Id, cancellationToken);
         await WriteChangeAuditAsync(
             "assign",
             "campaign",
@@ -126,6 +130,7 @@ public sealed class AgentCampaignWorkflowOrchestrationService : IAgentCampaignWo
         campaign.AssignedAt = null;
         campaign.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
+        await _leadOpsStateService.RefreshCampaignAsync(campaign.Id, cancellationToken);
         await WriteChangeAuditAsync(
             "unassign",
             "campaign",

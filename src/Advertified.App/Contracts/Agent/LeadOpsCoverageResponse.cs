@@ -2,6 +2,8 @@ namespace Advertified.App.Contracts.Agent;
 
 public sealed class LeadOpsCoverageResponse
 {
+    public DateTimeOffset GeneratedAtUtc { get; set; }
+
     public int TotalLeadCount { get; set; }
 
     public int OwnedLeadCount { get; set; }
@@ -42,6 +44,8 @@ public sealed class LeadOpsCoverageSourceResponse
 
 public sealed class LeadOpsCoverageItemResponse
 {
+    public string RecordKey { get; set; } = string.Empty;
+
     public int LeadId { get; set; }
 
     public string LeadName { get; set; } = string.Empty;
@@ -62,13 +66,27 @@ public sealed class LeadOpsCoverageItemResponse
 
     public string OwnerResolution { get; set; } = string.Empty;
 
+    public string AssignmentStatus { get; set; } = string.Empty;
+
     public bool HasBeenContacted { get; set; }
+
+    public DateTimeOffset? FirstContactedAt { get; set; }
+
+    public string ContactStatus { get; set; } = string.Empty;
 
     public DateTimeOffset? LastContactedAt { get; set; }
 
     public string NextAction { get; set; } = string.Empty;
 
     public DateTimeOffset? NextActionDueAt { get; set; }
+
+    public DateTimeOffset? NextFollowUpAt { get; set; }
+
+    public DateTimeOffset? SlaDueAt { get; set; }
+
+    public string Priority { get; set; } = string.Empty;
+
+    public IReadOnlyList<string> AttentionReasons { get; set; } = Array.Empty<string>();
 
     public int OpenLeadActionCount { get; set; }
 
@@ -81,6 +99,8 @@ public sealed class LeadOpsCoverageItemResponse
     public Guid? WonCampaignId { get; set; }
 
     public bool ConvertedToSale { get; set; }
+
+    public string? LastOutcome { get; set; }
 
     public string RoutePath { get; set; } = string.Empty;
 }

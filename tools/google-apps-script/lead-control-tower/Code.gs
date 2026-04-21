@@ -1,29 +1,60 @@
-var LEAD_CONTROL_HEADERS = [
+var LEAD_CONTROL_SYNC_HEADERS = [
   'record_key',
-  'item_type',
-  'item_label',
-  'campaign_id',
-  'prospect_lead_id',
   'lead_id',
-  'lead_action_id',
-  'title',
-  'subtitle',
-  'description',
+  'lead_name',
+  'location',
+  'category',
+  'source',
+  'source_reference',
   'unified_status',
-  'assigned_agent_user_id',
-  'assigned_agent_name',
-  'is_assigned_to_current_user',
-  'is_unassigned',
-  'is_urgent',
+  'owner_agent_user_id',
+  'owner_agent_name',
+  'owner_resolution',
+  'assignment_status',
+  'has_been_contacted',
+  'first_contacted_at',
+  'contact_status',
+  'last_contacted_at',
+  'next_action',
+  'next_action_due_at',
+  'next_follow_up_at',
+  'sla_due_at',
+  'priority',
+  'attention_reasons',
+  'open_lead_action_count',
+  'has_prospect',
+  'prospect_lead_id',
+  'active_campaign_id',
+  'won_campaign_id',
+  'converted_to_sale',
+  'last_outcome',
   'route_path',
   'route_url',
-  'route_label',
-  'created_at',
-  'updated_at',
-  'due_at',
   'snapshot_generated_at',
   'snapshot_status',
   'last_seen_at'
+];
+
+var LEAD_CONTROL_HEADERS = [
+  'record_key',
+  'lead_name',
+  'location',
+  'category',
+  'source',
+  'owner',
+  'assignment_status',
+  'lifecycle_stage',
+  'contact_status',
+  'next_action',
+  'next_action_due_at',
+  'next_follow_up_at',
+  'sla_due_at',
+  'priority',
+  'attention_reasons',
+  'last_outcome',
+  'notes',
+  'open_in_advertified',
+  'last_updated_at'
 ];
 
 var LEAD_TOTAL_HEADERS = [
@@ -36,15 +67,14 @@ var LEAD_TOTAL_HEADERS = [
 function doGet(e) {
   try {
     var config = getLeadControlConfig_();
-    var payload = {
+    return jsonResponse_({
       ok: true,
       sheetName: config.sheetName,
+      syncSheetName: config.syncSheetName,
       totalsSheetName: config.totalsSheetName,
       archiveMissingItems: config.archiveMissingItems,
       hasToken: !!config.token
-    };
-
-    return jsonResponse_(payload);
+    });
   } catch (error) {
     return jsonResponse_({
       ok: false,
@@ -62,13 +92,17 @@ function doPost(e) {
     validateWebhookPayload_(body);
 
     var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    var syncSheet = ensureSheet_(spreadsheet, config.syncSheetName, LEAD_CONTROL_SYNC_HEADERS);
     var towerSheet = ensureSheet_(spreadsheet, config.sheetName, LEAD_CONTROL_HEADERS);
     var totalsSheet = ensureSheet_(spreadsheet, config.totalsSheetName, LEAD_TOTAL_HEADERS);
     var snapshotGeneratedAt = normalizeIsoString_(body.generatedAtUtc) || new Date().toISOString();
     var items = Array.isArray(body.items) ? body.items : [];
 
+    upsertLeadControlSyncRows_(syncSheet, items, snapshotGeneratedAt, config);
     upsertLeadControlRows_(towerSheet, items, snapshotGeneratedAt, config);
-    upsertTotalsRows_(totalsSheet, body.totals || {}, snapshotGeneratedAt);
+    upsertTotalsRows_(totalsSheet, body.totals || {}, body.sources || [], snapshotGeneratedAt);
+    syncSheet.hideSheet();
+    towerSheet.hideColumns(1);
 
     return jsonResponse_({
       ok: true,
@@ -86,14 +120,18 @@ function doPost(e) {
 function setupLeadControlTower() {
   var config = getLeadControlConfig_();
   var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  ensureSheet_(spreadsheet, config.sheetName, LEAD_CONTROL_HEADERS);
+  var syncSheet = ensureSheet_(spreadsheet, config.syncSheetName, LEAD_CONTROL_SYNC_HEADERS);
+  var towerSheet = ensureSheet_(spreadsheet, config.sheetName, LEAD_CONTROL_HEADERS);
   ensureSheet_(spreadsheet, config.totalsSheetName, LEAD_TOTAL_HEADERS);
+  syncSheet.hideSheet();
+  towerSheet.hideColumns(1);
 }
 
 function getLeadControlConfig_() {
   var properties = PropertiesService.getScriptProperties();
   return {
     sheetName: properties.getProperty('LEAD_CONTROL_TOWER_SHEET_NAME') || 'Lead Control Tower',
+    syncSheetName: properties.getProperty('LEAD_CONTROL_SYNC_SHEET_NAME') || 'Lead Control Sync',
     totalsSheetName: properties.getProperty('LEAD_CONTROL_TOTALS_SHEET_NAME') || 'Lead Control Totals',
     token: properties.getProperty('LEAD_CONTROL_WEBHOOK_TOKEN') || '',
     appBaseUrl: trimTrailingSlash_(properties.getProperty('LEAD_CONTROL_APP_BASE_URL') || ''),
@@ -144,20 +182,17 @@ function ensureSheet_(spreadsheet, sheetName, headers) {
     sheet = spreadsheet.insertSheet(sheetName);
   }
 
-  var headerRange = sheet.getRange(1, 1, 1, headers.length);
-  var currentHeaders = sheet.getLastRow() > 0
-    ? headerRange.getValues()[0]
+  var existingHeaders = sheet.getLastRow() > 0
+    ? sheet.getRange(1, 1, 1, Math.max(headers.length, sheet.getLastColumn())).getValues()[0]
     : [];
 
-  var shouldResetHeaders = currentHeaders.length !== headers.length
-    || headers.some(function (header, index) {
-      return currentHeaders[index] !== header;
-    });
+  var shouldResetHeaders = headers.some(function (header, index) {
+    return existingHeaders[index] !== header;
+  }) || existingHeaders.length < headers.length;
 
   if (shouldResetHeaders) {
-    headerRange.setValues([headers]);
-    headerRange.setFontWeight('bold');
-    sheet.setFrozenRows(1);
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold');
   }
 
   if (sheet.getFrozenRows() !== 1) {
@@ -167,6 +202,93 @@ function ensureSheet_(spreadsheet, sheetName, headers) {
   return sheet;
 }
 
+function upsertLeadControlSyncRows_(sheet, items, snapshotGeneratedAt, config) {
+  var headerIndex = buildHeaderIndex_(LEAD_CONTROL_SYNC_HEADERS);
+  var existingRows = getExistingDataRows_(sheet, LEAD_CONTROL_SYNC_HEADERS.length);
+  var existingRowMap = {};
+
+  existingRows.forEach(function (row, offsetIndex) {
+    var key = sanitizeCell_(row[headerIndex.record_key]);
+    if (!key) {
+      return;
+    }
+
+    existingRowMap[key] = {
+      rowNumber: offsetIndex + 2,
+      values: row
+    };
+  });
+
+  items.forEach(function (item) {
+    var row = buildLeadControlSyncRow_(item, snapshotGeneratedAt, config);
+    var key = sanitizeCell_(row[headerIndex.record_key]);
+    if (!key) {
+      return;
+    }
+
+    if (existingRowMap[key]) {
+      sheet.getRange(existingRowMap[key].rowNumber, 1, 1, LEAD_CONTROL_SYNC_HEADERS.length).setValues([row]);
+      delete existingRowMap[key];
+      return;
+    }
+
+    sheet.appendRow(row);
+  });
+
+  if (config.archiveMissingItems) {
+    archiveMissingRows_(sheet, existingRowMap, headerIndex, snapshotGeneratedAt, {
+      snapshotStatus: 'snapshot_status',
+      lastSeenAt: 'last_seen_at'
+    });
+  }
+
+  autosizeSheet_(sheet, LEAD_CONTROL_SYNC_HEADERS.length);
+}
+
+function buildLeadControlSyncRow_(item, snapshotGeneratedAt, config) {
+  var routePath = sanitizeCell_(item.routePath);
+  var routeUrl = routePath && config.appBaseUrl
+    ? config.appBaseUrl + routePath
+    : routePath;
+
+  return [
+    sanitizeCell_(item.recordKey),
+    sanitizeCell_(item.leadId),
+    sanitizeCell_(item.leadName),
+    sanitizeCell_(item.location),
+    sanitizeCell_(item.category),
+    sanitizeCell_(item.source),
+    sanitizeCell_(item.sourceReference),
+    sanitizeCell_(item.unifiedStatus),
+    sanitizeCell_(item.ownerAgentUserId),
+    sanitizeCell_(item.ownerAgentName),
+    sanitizeCell_(item.ownerResolution),
+    sanitizeCell_(item.assignmentStatus),
+    toBooleanString_(item.hasBeenContacted),
+    normalizeIsoString_(item.firstContactedAt),
+    sanitizeCell_(item.contactStatus),
+    normalizeIsoString_(item.lastContactedAt),
+    sanitizeCell_(item.nextAction),
+    normalizeIsoString_(item.nextActionDueAt),
+    normalizeIsoString_(item.nextFollowUpAt),
+    normalizeIsoString_(item.slaDueAt),
+    sanitizeCell_(item.priority),
+    sanitizeCell_(normalizeAttentionReasons_(item.attentionReasons)),
+    sanitizeCell_(item.openLeadActionCount),
+    toBooleanString_(item.hasProspect),
+    sanitizeCell_(item.prospectLeadId),
+    sanitizeCell_(item.activeCampaignId),
+    sanitizeCell_(item.wonCampaignId),
+    toBooleanString_(item.convertedToSale),
+    sanitizeCell_(item.lastOutcome),
+    routePath,
+    routeUrl,
+    snapshotGeneratedAt,
+    'active',
+    snapshotGeneratedAt
+  ];
+}
+
 function upsertLeadControlRows_(sheet, items, snapshotGeneratedAt, config) {
   var headerIndex = buildHeaderIndex_(LEAD_CONTROL_HEADERS);
   var existingRows = getExistingDataRows_(sheet, LEAD_CONTROL_HEADERS.length);
@@ -174,23 +296,28 @@ function upsertLeadControlRows_(sheet, items, snapshotGeneratedAt, config) {
 
   existingRows.forEach(function (row, offsetIndex) {
     var key = sanitizeCell_(row[headerIndex.record_key]);
-    if (key) {
-      existingRowMap[key] = {
-        rowNumber: offsetIndex + 2,
-        values: row
-      };
-    }
-  });
-
-  var seenKeys = {};
-  items.forEach(function (item) {
-    var row = buildLeadControlRow_(item, snapshotGeneratedAt, config);
-    var key = row[headerIndex.record_key];
     if (!key) {
       return;
     }
 
-    seenKeys[key] = true;
+    existingRowMap[key] = {
+      rowNumber: offsetIndex + 2,
+      values: row
+    };
+  });
+
+  items.forEach(function (item) {
+    var existingNotes = '';
+    var existingRow = existingRowMap[sanitizeCell_(item.recordKey)];
+    if (existingRow) {
+      existingNotes = sanitizeCell_(existingRow.values[headerIndex.notes]);
+    }
+
+    var row = buildHumanLeadControlRow_(item, snapshotGeneratedAt, config, existingNotes);
+    var key = sanitizeCell_(row[headerIndex.record_key]);
+    if (!key) {
+      return;
+    }
 
     if (existingRowMap[key]) {
       sheet.getRange(existingRowMap[key].rowNumber, 1, 1, LEAD_CONTROL_HEADERS.length).setValues([row]);
@@ -202,59 +329,78 @@ function upsertLeadControlRows_(sheet, items, snapshotGeneratedAt, config) {
   });
 
   if (config.archiveMissingItems) {
-    archiveMissingLeadControlRows_(sheet, existingRowMap, headerIndex, snapshotGeneratedAt);
+    archiveMissingRows_(sheet, existingRowMap, headerIndex, snapshotGeneratedAt, {
+      lastUpdatedAt: 'last_updated_at',
+      priority: 'priority',
+      attentionReasons: 'attention_reasons'
+    });
   }
 
   autosizeSheet_(sheet, LEAD_CONTROL_HEADERS.length);
 }
 
-function buildLeadControlRow_(item, snapshotGeneratedAt, config) {
+function buildHumanLeadControlRow_(item, snapshotGeneratedAt, config, existingNotes) {
   var routePath = sanitizeCell_(item.routePath);
   var routeUrl = routePath && config.appBaseUrl
     ? config.appBaseUrl + routePath
     : routePath;
 
   return [
-    sanitizeCell_(item.id),
-    sanitizeCell_(item.itemType),
-    sanitizeCell_(item.itemLabel),
-    sanitizeCell_(item.campaignId),
-    sanitizeCell_(item.prospectLeadId),
-    sanitizeCell_(item.leadId),
-    sanitizeCell_(item.leadActionId),
-    sanitizeCell_(item.title),
-    sanitizeCell_(item.subtitle),
-    sanitizeCell_(item.description),
-    sanitizeCell_(item.unifiedStatus),
-    sanitizeCell_(item.assignedAgentUserId),
-    sanitizeCell_(item.assignedAgentName),
-    toBooleanString_(item.isAssignedToCurrentUser),
-    toBooleanString_(item.isUnassigned),
-    toBooleanString_(item.isUrgent),
-    routePath,
-    routeUrl,
-    sanitizeCell_(item.routeLabel),
-    normalizeIsoString_(item.createdAt),
-    normalizeIsoString_(item.updatedAt),
-    normalizeIsoString_(item.dueAt),
-    snapshotGeneratedAt,
-    'active',
+    sanitizeCell_(item.recordKey),
+    sanitizeCell_(item.leadName),
+    sanitizeCell_(item.location),
+    sanitizeCell_(item.category),
+    titleizeValue_(item.source),
+    sanitizeCell_(item.ownerAgentName) || resolveOwnerLabel_(item.ownerResolution, item.assignmentStatus),
+    titleizeValue_(item.assignmentStatus),
+    titleizeValue_(item.unifiedStatus),
+    titleizeValue_(item.contactStatus),
+    sanitizeCell_(item.nextAction),
+    normalizeIsoString_(item.nextActionDueAt),
+    normalizeIsoString_(item.nextFollowUpAt),
+    normalizeIsoString_(item.slaDueAt),
+    titleizeValue_(item.priority),
+    titleizeValue_(normalizeAttentionReasons_(item.attentionReasons)),
+    sanitizeCell_(item.lastOutcome),
+    sanitizeCell_(existingNotes),
+    routeUrl ? '=HYPERLINK("' + escapeFormulaText_(routeUrl) + '","Open")' : '',
     snapshotGeneratedAt
   ];
 }
 
-function archiveMissingLeadControlRows_(sheet, missingRowMap, headerIndex, snapshotGeneratedAt) {
+function archiveMissingRows_(sheet, missingRowMap, headerIndex, snapshotGeneratedAt, options) {
   Object.keys(missingRowMap).forEach(function (key) {
     var rowInfo = missingRowMap[key];
     var row = rowInfo.values.slice();
-    row[headerIndex.snapshot_generated_at] = snapshotGeneratedAt;
-    row[headerIndex.snapshot_status] = 'missing_from_snapshot';
-    row[headerIndex.last_seen_at] = snapshotGeneratedAt;
-    sheet.getRange(rowInfo.rowNumber, 1, 1, LEAD_CONTROL_HEADERS.length).setValues([row]);
+
+    if (options.snapshotStatus && headerIndex[options.snapshotStatus] != null) {
+      row[headerIndex[options.snapshotStatus]] = 'missing_from_snapshot';
+    }
+
+    if (options.lastSeenAt && headerIndex[options.lastSeenAt] != null) {
+      row[headerIndex[options.lastSeenAt]] = snapshotGeneratedAt;
+    }
+
+    if (options.lastUpdatedAt && headerIndex[options.lastUpdatedAt] != null) {
+      row[headerIndex[options.lastUpdatedAt]] = snapshotGeneratedAt;
+    }
+
+    if (options.priority && headerIndex[options.priority] != null) {
+      row[headerIndex[options.priority]] = 'Archived';
+    }
+
+    if (options.attentionReasons && headerIndex[options.attentionReasons] != null) {
+      var currentReasons = sanitizeCell_(row[headerIndex[options.attentionReasons]]);
+      row[headerIndex[options.attentionReasons]] = currentReasons
+        ? currentReasons + ' | No longer active'
+        : 'No longer active';
+    }
+
+    sheet.getRange(rowInfo.rowNumber, 1, 1, row.length).setValues([row]);
   });
 }
 
-function upsertTotalsRows_(sheet, totals, snapshotGeneratedAt) {
+function upsertTotalsRows_(sheet, totals, sources, snapshotGeneratedAt) {
   var headerIndex = buildHeaderIndex_(LEAD_TOTAL_HEADERS);
   var existingRows = getExistingDataRows_(sheet, LEAD_TOTAL_HEADERS.length);
   var existingRowMap = {};
@@ -266,17 +412,20 @@ function upsertTotalsRows_(sheet, totals, snapshotGeneratedAt) {
     }
   });
 
+  var topSource = Array.isArray(sources) && sources.length > 0 ? sources[0] : null;
   var metrics = [
-    { metric: 'total_items', value: totals.totalItems },
-    { metric: 'urgent_count', value: totals.urgentCount },
-    { metric: 'assigned_to_me_count', value: totals.assignedToMeCount },
-    { metric: 'unassigned_count', value: totals.unassignedCount },
-    { metric: 'new_inbound_prospects_count', value: totals.newInboundProspectsCount },
-    { metric: 'unassigned_prospects_count', value: totals.unassignedProspectsCount },
-    { metric: 'open_lead_actions_count', value: totals.openLeadActionsCount },
-    { metric: 'no_recent_activity_count', value: totals.noRecentActivityCount },
-    { metric: 'awaiting_client_responses_count', value: totals.awaitingClientResponsesCount },
-    { metric: 'overdue_follow_ups_count', value: totals.overdueFollowUpsCount }
+    { metric: 'total_leads', value: totals.totalLeadCount },
+    { metric: 'owned_leads', value: totals.ownedLeadCount },
+    { metric: 'unowned_leads', value: totals.unownedLeadCount },
+    { metric: 'ambiguous_owner_leads', value: totals.ambiguousOwnerCount },
+    { metric: 'uncontacted_leads', value: totals.uncontactedLeadCount },
+    { metric: 'leads_with_next_action', value: totals.leadsWithNextActionCount },
+    { metric: 'prospect_leads', value: totals.prospectLeadCount },
+    { metric: 'active_deals', value: totals.activeDealCount },
+    { metric: 'won_leads', value: totals.wonLeadCount },
+    { metric: 'lead_to_prospect_rate_percent', value: totals.leadToProspectRatePercent },
+    { metric: 'lead_to_sale_rate_percent', value: totals.leadToSaleRatePercent },
+    { metric: 'top_source', value: topSource ? titleizeValue_(topSource.source) : '' }
   ];
 
   metrics.forEach(function (metric) {
@@ -316,6 +465,47 @@ function buildHeaderIndex_(headers) {
   return index;
 }
 
+function normalizeAttentionReasons_(value) {
+  if (Array.isArray(value)) {
+    return value.map(function (entry) {
+      return sanitizeCell_(entry);
+    }).filter(function (entry) {
+      return !!entry;
+    }).join(' | ');
+  }
+
+  return sanitizeCell_(value);
+}
+
+function resolveOwnerLabel_(ownerResolution, assignmentStatus) {
+  if (sanitizeCell_(ownerResolution) === 'multiple_action_owners') {
+    return 'Multiple owners';
+  }
+
+  if (sanitizeCell_(assignmentStatus) === 'unassigned') {
+    return 'Unassigned';
+  }
+
+  return '';
+}
+
+function titleizeValue_(value) {
+  return sanitizeCell_(value)
+    .split('|')
+    .map(function (entry) {
+      return entry
+        .trim()
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, function (character) {
+          return character.toUpperCase();
+        });
+    })
+    .filter(function (entry) {
+      return !!entry;
+    })
+    .join(' | ');
+}
+
 function autosizeSheet_(sheet, columnCount) {
   sheet.autoResizeColumns(1, columnCount);
 }
@@ -343,6 +533,10 @@ function normalizeIsoString_(value) {
   }
 
   return date.toISOString();
+}
+
+function escapeFormulaText_(value) {
+  return sanitizeCell_(value).replace(/"/g, '""');
 }
 
 function jsonResponse_(payload) {

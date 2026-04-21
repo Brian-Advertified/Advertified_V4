@@ -19,14 +19,35 @@ public sealed class LeadOpsCoverageService : ILeadOpsCoverageService
         _ownershipService = ownershipService;
     }
 
-    public async Task<LeadOpsCoverageResponse> BuildAsync(UserAccount currentUser, CancellationToken cancellationToken)
+    public Task<LeadOpsCoverageResponse> BuildAsync(UserAccount currentUser, CancellationToken cancellationToken)
     {
-        var scopedLeadIds = await ApplyOperationsLeadScope(_db.Leads.AsNoTracking(), currentUser)
+        return BuildInternalAsync(currentUser, includeAllLeads: currentUser.Role != UserRole.Agent, cancellationToken);
+    }
+
+    public Task<LeadOpsCoverageResponse> BuildSystemSnapshotAsync(CancellationToken cancellationToken)
+    {
+        return BuildInternalAsync(currentUser: null, includeAllLeads: true, cancellationToken);
+    }
+
+    private async Task<LeadOpsCoverageResponse> BuildInternalAsync(UserAccount? currentUser, bool includeAllLeads, CancellationToken cancellationToken)
+    {
+        var generatedAtUtc = DateTimeOffset.UtcNow;
+        var currentUserId = currentUser?.Id ?? Guid.Empty;
+
+        IQueryable<Lead> leadsQuery = _db.Leads.AsNoTracking();
+        if (!includeAllLeads && currentUser is not null)
+        {
+            leadsQuery = ApplyOperationsLeadScope(leadsQuery, currentUser);
+        }
+
+        var scopedLeadIds = await leadsQuery
+            .OrderByDescending(x => x.CreatedAt)
             .Select(x => x.Id)
+            .Take(500)
             .ToListAsync(cancellationToken);
 
         IQueryable<Campaign> campaignsQuery = _db.Campaigns;
-        if (currentUser.Role == UserRole.Agent)
+        if (!includeAllLeads && currentUser is not null && currentUser.Role == UserRole.Agent)
         {
             campaignsQuery = _ownershipService.ApplyReadableScope(campaignsQuery, currentUser);
         }
@@ -41,7 +62,7 @@ public sealed class LeadOpsCoverageService : ILeadOpsCoverageService
             .Include(x => x.PackageBand)
             .Include(x => x.CampaignBrief)
             .OrderByDescending(x => x.UpdatedAt)
-            .Take(400)
+            .Take(500)
             .ToListAsync(cancellationToken);
 
         var campaignsByLeadId = new Dictionary<int, List<Campaign>>();
@@ -66,15 +87,14 @@ public sealed class LeadOpsCoverageService : ILeadOpsCoverageService
             .Include(x => x.OwnerAgentUser)
             .Where(x => x.SourceLeadId.HasValue);
 
-        if (currentUser.Role == UserRole.Agent)
+        if (!includeAllLeads && currentUser is not null && currentUser.Role == UserRole.Agent)
         {
-            var currentUserId = currentUser.Id;
             prospectsQuery = prospectsQuery.Where(x => x.OwnerAgentUserId == currentUserId || x.OwnerAgentUserId == null);
         }
 
         var prospects = await prospectsQuery
             .OrderByDescending(x => x.UpdatedAt)
-            .Take(400)
+            .Take(500)
             .ToListAsync(cancellationToken);
 
         var prospectLeadIds = prospects
@@ -90,6 +110,7 @@ public sealed class LeadOpsCoverageService : ILeadOpsCoverageService
 
         var leads = await _db.Leads
             .AsNoTracking()
+            .Include(x => x.OwnerAgentUser)
             .Where(x => leadIds.Contains(x.Id))
             .OrderByDescending(x => x.CreatedAt)
             .ToListAsync(cancellationToken);
@@ -133,19 +154,36 @@ public sealed class LeadOpsCoverageService : ILeadOpsCoverageService
                     .Where(x => string.Equals(x.PackageOrder?.PaymentStatus, CampaignStatuses.Paid, StringComparison.OrdinalIgnoreCase))
                     .OrderByDescending(x => x.PackageOrder?.PurchasedAt ?? x.UpdatedAt)
                     .FirstOrDefault();
-                var owner = ResolveOwner(leadProspects, leadCampaigns, openLeadActions);
-                var lastContactedAt = ResolveLastContactedAt(leadInteractions, leadProspects);
-                var hasBeenContacted = lastContactedAt.HasValue;
+                var owner = ResolveOwner(lead, leadProspects, leadCampaigns, openLeadActions);
+                var firstContactedAt = ResolveFirstContactedAt(lead, leadInteractions);
+                var lastContactedAt = ResolveLastContactedAt(lead, leadInteractions, leadProspects);
+                var nextFollowUpAt = ResolveNextFollowUpAt(lead, leadProspects, preferredCampaign);
+                var slaDueAt = ResolveSlaDueAt(lead, leadProspects, preferredCampaign);
+                var hasBeenContacted = firstContactedAt.HasValue || lastContactedAt.HasValue;
                 var hasHumanEngagement = LeadOpsPolicy.HasHumanEngagement(leadInteractions);
-                var nextAction = ResolveNextAction(lead, preferredCampaign, leadProspects, openLeadActions, hasBeenContacted, currentUser.Id);
+                var nextAction = ResolveNextAction(lead, preferredCampaign, leadProspects, openLeadActions, hasBeenContacted, currentUserId);
                 var unifiedStatus = LeadOpsPolicy.ResolveUnifiedLifecycleStage(
                     preferredCampaign ?? winningCampaign,
                     hasProspect: leadProspects.Count > 0 || leadCampaigns.Count > 0,
                     hasHumanEngagement,
                     hasOpenActions: openLeadActions.Count > 0);
+                var assignmentStatus = owner.UserId.HasValue
+                    ? owner.Resolution == "multiple_action_owners" ? "ambiguous" : "assigned"
+                    : "unassigned";
+                var contactStatus = hasBeenContacted ? "contact_started" : "not_contacted";
+                var attentionReasons = BuildAttentionReasons(preferredCampaign, openLeadActions, hasBeenContacted, nextFollowUpAt, slaDueAt);
+                var priority = DeterminePriority(attentionReasons, hasBeenContacted, owner.UserId.HasValue);
+                var routePath = preferredCampaign is not null
+                    ? $"/agent/campaigns/{preferredCampaign.Id}"
+                    : $"/agent/lead-intelligence?leadId={lead.Id}";
 
                 return new LeadOpsCoverageItemResponse
                 {
+                    RecordKey = preferredCampaign is not null
+                        ? $"campaign:{preferredCampaign.Id}"
+                        : leadProspects.FirstOrDefault() is { } prospect
+                            ? $"prospect:{prospect.Id}"
+                            : $"lead:{lead.Id}",
                     LeadId = lead.Id,
                     LeadName = lead.Name,
                     Location = lead.Location,
@@ -156,19 +194,25 @@ public sealed class LeadOpsCoverageService : ILeadOpsCoverageService
                     OwnerAgentUserId = owner.UserId,
                     OwnerAgentName = owner.Name,
                     OwnerResolution = owner.Resolution,
+                    AssignmentStatus = assignmentStatus,
                     HasBeenContacted = hasBeenContacted,
+                    FirstContactedAt = firstContactedAt,
+                    ContactStatus = contactStatus,
                     LastContactedAt = lastContactedAt,
                     NextAction = nextAction.Label,
                     NextActionDueAt = nextAction.DueAt,
+                    NextFollowUpAt = nextFollowUpAt,
+                    SlaDueAt = slaDueAt,
+                    Priority = priority,
+                    AttentionReasons = attentionReasons,
                     OpenLeadActionCount = openLeadActions.Count,
                     HasProspect = leadProspects.Count > 0 || leadCampaigns.Count > 0,
                     ProspectLeadId = leadProspects.FirstOrDefault()?.Id ?? preferredCampaign?.ProspectLeadId,
                     ActiveCampaignId = preferredCampaign?.Id,
                     WonCampaignId = winningCampaign?.Id,
                     ConvertedToSale = winningCampaign is not null,
-                    RoutePath = preferredCampaign is not null
-                        ? $"/agent/campaigns/{preferredCampaign.Id}"
-                        : $"/agent/lead-intelligence?leadId={lead.Id}"
+                    LastOutcome = ResolveLastOutcome(lead, leadProspects, preferredCampaign, winningCampaign),
+                    RoutePath = routePath
                 };
             })
             .OrderByDescending(x => x.ConvertedToSale)
@@ -197,6 +241,7 @@ public sealed class LeadOpsCoverageService : ILeadOpsCoverageService
 
         return new LeadOpsCoverageResponse
         {
+            GeneratedAtUtc = generatedAtUtc,
             TotalLeadCount = totalLeadCount,
             OwnedLeadCount = items.Count(x => x.OwnerAgentUserId.HasValue),
             UnownedLeadCount = items.Count(x => !x.OwnerAgentUserId.HasValue && x.OwnerResolution != "multiple_action_owners"),
@@ -222,7 +267,9 @@ public sealed class LeadOpsCoverageService : ILeadOpsCoverageService
 
         var currentUserId = currentUser.Id;
         return query.Where(lead =>
-            _db.LeadActions.Any(action =>
+            lead.OwnerAgentUserId == currentUserId
+            || lead.OwnerAgentUserId == null
+            || _db.LeadActions.Any(action =>
                 action.LeadId == lead.Id
                 && (action.AssignedAgentUserId == currentUserId || action.AssignedAgentUserId == null))
             || !_db.LeadActions.Any(action => action.LeadId == lead.Id));
@@ -248,7 +295,22 @@ public sealed class LeadOpsCoverageService : ILeadOpsCoverageService
             .FirstOrDefault();
     }
 
+    private static DateTimeOffset? ResolveFirstContactedAt(Lead lead, IReadOnlyCollection<LeadInteraction> interactions)
+    {
+        var interactionAt = interactions.Count == 0
+            ? null
+            : interactions.Min(x => (DateTime?)x.CreatedAt);
+        var first = new[] { lead.FirstContactedAt, interactionAt }
+            .Where(x => x.HasValue)
+            .Select(x => x!.Value)
+            .DefaultIfEmpty()
+            .Min();
+
+        return first == default ? null : new DateTimeOffset(first, TimeSpan.Zero);
+    }
+
     private static DateTimeOffset? ResolveLastContactedAt(
+        Lead lead,
         IReadOnlyCollection<LeadInteraction> interactions,
         IReadOnlyCollection<ProspectLead> prospects)
     {
@@ -261,7 +323,7 @@ public sealed class LeadOpsCoverageService : ILeadOpsCoverageService
             .DefaultIfEmpty()
             .Max();
 
-        var latest = new[] { interactionContactAt, prospectContactAt }
+        var latest = new[] { lead.LastContactedAt, interactionContactAt, prospectContactAt }
             .Where(x => x.HasValue)
             .Select(x => x!.Value)
             .DefaultIfEmpty()
@@ -270,11 +332,33 @@ public sealed class LeadOpsCoverageService : ILeadOpsCoverageService
         return latest == default ? null : new DateTimeOffset(latest, TimeSpan.Zero);
     }
 
+    private static DateTimeOffset? ResolveNextFollowUpAt(Lead lead, IReadOnlyCollection<ProspectLead> prospects, Campaign? preferredCampaign)
+    {
+        var prospectFollowUpAt = preferredCampaign?.ProspectLead?.NextFollowUpAt
+            ?? prospects.Where(x => x.NextFollowUpAt.HasValue).Select(x => x.NextFollowUpAt).OrderBy(x => x).FirstOrDefault();
+        var value = prospectFollowUpAt ?? lead.NextFollowUpAt;
+        return value.HasValue ? new DateTimeOffset(value.Value, TimeSpan.Zero) : null;
+    }
+
+    private static DateTimeOffset? ResolveSlaDueAt(Lead lead, IReadOnlyCollection<ProspectLead> prospects, Campaign? preferredCampaign)
+    {
+        var prospectSlaAt = preferredCampaign?.ProspectLead?.SlaDueAt
+            ?? prospects.Where(x => x.SlaDueAt.HasValue).Select(x => x.SlaDueAt).OrderBy(x => x).FirstOrDefault();
+        var value = prospectSlaAt ?? lead.SlaDueAt;
+        return value.HasValue ? new DateTimeOffset(value.Value, TimeSpan.Zero) : null;
+    }
+
     private static LeadOpsOwnerResolution ResolveOwner(
+        Lead lead,
         IReadOnlyCollection<ProspectLead> prospects,
         IReadOnlyCollection<Campaign> campaigns,
         IReadOnlyCollection<LeadAction> openLeadActions)
     {
+        if (lead.OwnerAgentUserId.HasValue)
+        {
+            return new LeadOpsOwnerResolution(lead.OwnerAgentUserId, lead.OwnerAgentUser?.FullName, "lead_owner");
+        }
+
         var campaignOwner = campaigns
             .Where(x => x.AssignedAgentUserId.HasValue)
             .OrderByDescending(x => x.UpdatedAt)
@@ -351,12 +435,100 @@ public sealed class LeadOpsCoverageService : ILeadOpsCoverageService
             return new LeadOpsNextAction("Follow up with the prospect.", new DateTimeOffset(nextFollowUpAt.Value, TimeSpan.Zero));
         }
 
+        if (lead.NextFollowUpAt.HasValue)
+        {
+            return new LeadOpsNextAction("Follow up with this lead.", new DateTimeOffset(lead.NextFollowUpAt.Value, TimeSpan.Zero));
+        }
+
         if (!hasBeenContacted)
         {
             return new LeadOpsNextAction($"Make first contact with {lead.Name}.", null);
         }
 
         return new LeadOpsNextAction("Review qualification and decide whether to open a prospect.", null);
+    }
+
+    private static IReadOnlyList<string> BuildAttentionReasons(
+        Campaign? preferredCampaign,
+        IReadOnlyCollection<LeadAction> openLeadActions,
+        bool hasBeenContacted,
+        DateTimeOffset? nextFollowUpAt,
+        DateTimeOffset? slaDueAt)
+    {
+        var reasons = new List<string>();
+        var now = DateTimeOffset.UtcNow;
+
+        if (preferredCampaign is not null && preferredCampaign.AssignedAgentUserId is null)
+        {
+            reasons.Add("unassigned");
+        }
+
+        if (!hasBeenContacted)
+        {
+            reasons.Add("first_contact_needed");
+        }
+
+        if (openLeadActions.Any(x => string.Equals(x.Priority, "high", StringComparison.OrdinalIgnoreCase)))
+        {
+            reasons.Add("high_priority_action");
+        }
+
+        if (nextFollowUpAt.HasValue && nextFollowUpAt.Value <= now)
+        {
+            reasons.Add("follow_up_overdue");
+        }
+
+        if (slaDueAt.HasValue && slaDueAt.Value <= now)
+        {
+            reasons.Add("sla_overdue");
+        }
+
+        if (preferredCampaign is not null && CampaignWorkflowPolicy.ResolveAgentQueueStage(preferredCampaign) == QueueStages.WaitingOnClient)
+        {
+            reasons.Add("awaiting_client");
+        }
+
+        return reasons.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+    }
+
+    private static string DeterminePriority(IReadOnlyCollection<string> attentionReasons, bool hasBeenContacted, bool hasOwner)
+    {
+        if (attentionReasons.Contains("follow_up_overdue", StringComparer.OrdinalIgnoreCase)
+            || attentionReasons.Contains("sla_overdue", StringComparer.OrdinalIgnoreCase)
+            || attentionReasons.Contains("high_priority_action", StringComparer.OrdinalIgnoreCase))
+        {
+            return "high";
+        }
+
+        if (!hasBeenContacted || !hasOwner)
+        {
+            return "high";
+        }
+
+        return "normal";
+    }
+
+    private static string? ResolveLastOutcome(Lead lead, IReadOnlyCollection<ProspectLead> prospects, Campaign? preferredCampaign, Campaign? winningCampaign)
+    {
+        if (winningCampaign is not null)
+        {
+            return "Won";
+        }
+
+        if (preferredCampaign is not null && ProspectCampaignPolicy.IsClosed(preferredCampaign))
+        {
+            return string.IsNullOrWhiteSpace(preferredCampaign.ProspectDispositionReason)
+                ? "Lost"
+                : $"Lost: {preferredCampaign.ProspectDispositionReason}";
+        }
+
+        var prospectOutcome = prospects
+            .Where(x => !string.IsNullOrWhiteSpace(x.LastOutcome))
+            .OrderByDescending(x => x.UpdatedAt)
+            .Select(x => x.LastOutcome)
+            .FirstOrDefault();
+
+        return string.IsNullOrWhiteSpace(prospectOutcome) ? lead.LastOutcome : prospectOutcome;
     }
 
     private sealed record LeadOpsOwnerResolution(Guid? UserId, string? Name, string Resolution);

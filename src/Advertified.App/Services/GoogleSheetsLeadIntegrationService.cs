@@ -11,7 +11,7 @@ public sealed class GoogleSheetsLeadIntegrationService : IGoogleSheetsLeadIntegr
     private readonly HttpClient _httpClient;
     private readonly GoogleSheetsLeadOpsOptions _options;
     private readonly ILeadSourceImportService _leadSourceImportService;
-    private readonly ILeadOpsInboxService _leadOpsInboxService;
+    private readonly ILeadOpsCoverageService _leadOpsCoverageService;
     private readonly IChangeAuditService _changeAuditService;
     private readonly ILogger<GoogleSheetsLeadIntegrationService> _logger;
 
@@ -19,14 +19,14 @@ public sealed class GoogleSheetsLeadIntegrationService : IGoogleSheetsLeadIntegr
         HttpClient httpClient,
         IOptions<GoogleSheetsLeadOpsOptions> options,
         ILeadSourceImportService leadSourceImportService,
-        ILeadOpsInboxService leadOpsInboxService,
+        ILeadOpsCoverageService leadOpsCoverageService,
         IChangeAuditService changeAuditService,
         ILogger<GoogleSheetsLeadIntegrationService> logger)
     {
         _httpClient = httpClient;
         _options = options.Value;
         _leadSourceImportService = leadSourceImportService;
-        _leadOpsInboxService = leadOpsInboxService;
+        _leadOpsCoverageService = leadOpsCoverageService;
         _changeAuditService = changeAuditService;
         _logger = logger;
     }
@@ -144,26 +144,28 @@ public sealed class GoogleSheetsLeadIntegrationService : IGoogleSheetsLeadIntegr
             };
         }
 
-        var inbox = await _leadOpsInboxService.BuildSystemSnapshotAsync(cancellationToken);
+        var coverage = await _leadOpsCoverageService.BuildSystemSnapshotAsync(cancellationToken);
         using var request = new HttpRequestMessage(HttpMethod.Post, _options.ExportWebhookUrl.Trim())
         {
             Content = JsonContent.Create(new
             {
-                generatedAtUtc = DateTime.UtcNow,
+                generatedAtUtc = coverage.GeneratedAtUtc,
                 totals = new
                 {
-                    inbox.TotalItems,
-                    inbox.UrgentCount,
-                    inbox.AssignedToMeCount,
-                    inbox.UnassignedCount,
-                    inbox.NewInboundProspectsCount,
-                    inbox.UnassignedProspectsCount,
-                    inbox.OpenLeadActionsCount,
-                    inbox.NoRecentActivityCount,
-                    inbox.AwaitingClientResponsesCount,
-                    inbox.OverdueFollowUpsCount
+                    coverage.TotalLeadCount,
+                    coverage.OwnedLeadCount,
+                    coverage.UnownedLeadCount,
+                    coverage.AmbiguousOwnerCount,
+                    coverage.UncontactedLeadCount,
+                    coverage.LeadsWithNextActionCount,
+                    coverage.ProspectLeadCount,
+                    coverage.ActiveDealCount,
+                    coverage.WonLeadCount,
+                    coverage.LeadToProspectRatePercent,
+                    coverage.LeadToSaleRatePercent
                 },
-                items = inbox.Items
+                sources = coverage.Sources,
+                items = coverage.Items
             })
         };
 
@@ -184,15 +186,15 @@ public sealed class GoogleSheetsLeadIntegrationService : IGoogleSheetsLeadIntegr
             "lead_ops",
             "google_sheets",
             "Google Sheets lead ops export",
-            $"Exported {inbox.Items.Count} Lead Ops items to Google Sheets.",
-            new { ExportedItemCount = inbox.Items.Count },
+            $"Exported {coverage.Items.Count} Lead Ops control tower records to Google Sheets.",
+            new { ExportedItemCount = coverage.Items.Count },
             cancellationToken);
 
         return new GoogleSheetsLeadIntegrationRunDto
         {
             Operation = "export",
-            ExportedItemCount = inbox.Items.Count,
-            Message = "Lead Ops snapshot exported to Google Sheets."
+            ExportedItemCount = coverage.Items.Count,
+            Message = "Lead Ops control tower exported to Google Sheets."
         };
     }
 }

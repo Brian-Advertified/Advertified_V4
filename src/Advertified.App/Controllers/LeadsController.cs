@@ -41,6 +41,7 @@ public sealed class LeadsController : ControllerBase
     private readonly ICurrentUserAccessor _currentUserAccessor;
     private readonly IProspectLeadRegistrationService _prospectLeadRegistrationService;
     private readonly IChangeAuditService _changeAuditService;
+    private readonly ILeadOpsStateService _leadOpsStateService;
 
     public LeadsController(
         AppDbContext db,
@@ -64,7 +65,8 @@ public sealed class LeadsController : ControllerBase
         LeadIntelligenceAutomationSnapshotProvider leadIntelligenceAutomationSnapshotProvider,
         ICurrentUserAccessor currentUserAccessor,
         IProspectLeadRegistrationService prospectLeadRegistrationService,
-        IChangeAuditService changeAuditService)
+        IChangeAuditService changeAuditService,
+        ILeadOpsStateService leadOpsStateService)
     {
         _db = db;
         _leadScoreService = leadScoreService;
@@ -88,6 +90,7 @@ public sealed class LeadsController : ControllerBase
         _currentUserAccessor = currentUserAccessor;
         _prospectLeadRegistrationService = prospectLeadRegistrationService;
         _changeAuditService = changeAuditService;
+        _leadOpsStateService = leadOpsStateService;
     }
 
     [HttpGet]
@@ -95,6 +98,7 @@ public sealed class LeadsController : ControllerBase
     {
         var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
         var leads = await ApplyOperationsLeadScope(_db.Leads, currentUser)
+            .Include(x => x.OwnerAgentUser)
             .AsNoTracking()
             .OrderByDescending(x => x.CreatedAt)
             .Select(x => ToDto(x))
@@ -108,6 +112,7 @@ public sealed class LeadsController : ControllerBase
     {
         var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
         var leads = await ApplyOperationsLeadScope(_db.Leads, currentUser)
+            .Include(x => x.OwnerAgentUser)
             .AsNoTracking()
             .OrderByDescending(x => x.CreatedAt)
             .ToListAsync(cancellationToken);
@@ -250,6 +255,7 @@ public sealed class LeadsController : ControllerBase
     {
         var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
         var lead = await ApplyOperationsLeadScope(_db.Leads, currentUser)
+            .Include(x => x.OwnerAgentUser)
             .AsNoTracking()
             .Where(x => x.Id == id)
             .Select(x => ToDto(x))
@@ -268,6 +274,7 @@ public sealed class LeadsController : ControllerBase
     {
         var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
         var lead = await ApplyOperationsLeadScope(_db.Leads, currentUser)
+            .Include(x => x.OwnerAgentUser)
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 
@@ -414,7 +421,9 @@ public sealed class LeadsController : ControllerBase
 
         _db.Leads.Add(lead);
         await _db.SaveChangesAsync(cancellationToken);
+        await _leadOpsStateService.RefreshLeadAsync(lead.Id, cancellationToken);
 
+        await _db.Entry(lead).Reference(x => x.OwnerAgentUser).LoadAsync(cancellationToken);
         var dto = ToDto(lead);
         return CreatedAtAction(nameof(GetById), new { id = dto.Id }, dto);
     }
@@ -559,6 +568,8 @@ public sealed class LeadsController : ControllerBase
         action.Status = normalizedStatus;
         action.CompletedAt = normalizedStatus == "completed" ? DateTime.UtcNow : null;
         await _db.SaveChangesAsync(cancellationToken);
+        await _leadOpsStateService.RefreshLeadAsync(leadId, cancellationToken);
+        await _db.Entry(action).Reference(x => x.AssignedAgentUser).LoadAsync(cancellationToken);
 
         return Ok(ToDto(action));
     }
@@ -582,6 +593,7 @@ public sealed class LeadsController : ControllerBase
         action.AssignedAgentUserId = currentUserId;
         action.AssignedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
+        await _leadOpsStateService.RefreshLeadAsync(leadId, cancellationToken);
 
         await _db.Entry(action)
             .Reference(x => x.AssignedAgentUser)
@@ -616,6 +628,7 @@ public sealed class LeadsController : ControllerBase
         action.AssignedAgentUserId = null;
         action.AssignedAt = null;
         await _db.SaveChangesAsync(cancellationToken);
+        await _leadOpsStateService.RefreshLeadAsync(leadId, cancellationToken);
 
         return Ok(ToDto(action, currentUserId));
     }
@@ -664,6 +677,7 @@ public sealed class LeadsController : ControllerBase
 
         _db.LeadInteractions.Add(interaction);
         await _db.SaveChangesAsync(cancellationToken);
+        await _leadOpsStateService.RefreshLeadAsync(leadId, cancellationToken);
 
         return Ok(ToDto(interaction));
     }
@@ -760,6 +774,7 @@ public sealed class LeadsController : ControllerBase
         }
 
         await _db.SaveChangesAsync(cancellationToken);
+        await _leadOpsStateService.RefreshLeadAsync(leadId, cancellationToken);
 
         await _changeAuditService.WriteAsync(
             currentUser.Id,
@@ -856,8 +871,15 @@ public sealed class LeadsController : ControllerBase
             Category = lead.Category,
             Source = lead.Source,
             SourceReference = lead.SourceReference,
+            OwnerAgentUserId = lead.OwnerAgentUserId,
+            OwnerAgentName = lead.OwnerAgentUser?.FullName,
             AutoInferredFields = ParseAutoInferredFields(lead.SourceReference),
             LastDiscoveredAt = lead.LastDiscoveredAt,
+            FirstContactedAt = lead.FirstContactedAt,
+            LastContactedAt = lead.LastContactedAt,
+            NextFollowUpAt = lead.NextFollowUpAt,
+            SlaDueAt = lead.SlaDueAt,
+            LastOutcome = lead.LastOutcome,
             Latitude = lead.Latitude,
             Longitude = lead.Longitude,
             CreatedAt = lead.CreatedAt
@@ -1266,6 +1288,9 @@ public sealed class LeadsController : ControllerBase
 
         var currentUserId = currentUser.Id;
         return query.Where(lead =>
+            lead.OwnerAgentUserId == currentUserId
+            || lead.OwnerAgentUserId == null
+            ||
             _db.LeadActions.Any(action =>
                 action.LeadId == lead.Id
                 && (action.AssignedAgentUserId == currentUserId || action.AssignedAgentUserId == null))

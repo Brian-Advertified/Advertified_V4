@@ -26,6 +26,7 @@ public sealed class AgentProspectsController : ControllerBase
     private readonly IAgentCampaignOwnershipService _ownershipService;
     private readonly IChangeAuditService _changeAuditService;
     private readonly IProspectLeadRegistrationService _prospectLeadRegistrationService;
+    private readonly ILeadOpsStateService _leadOpsStateService;
     private readonly ILogger<AgentProspectsController> _logger;
 
     public AgentProspectsController(
@@ -34,6 +35,7 @@ public sealed class AgentProspectsController : ControllerBase
         IAgentCampaignOwnershipService ownershipService,
         IChangeAuditService changeAuditService,
         IProspectLeadRegistrationService prospectLeadRegistrationService,
+        ILeadOpsStateService leadOpsStateService,
         ILogger<AgentProspectsController> logger)
     {
         _db = db;
@@ -41,6 +43,7 @@ public sealed class AgentProspectsController : ControllerBase
         _ownershipService = ownershipService;
         _changeAuditService = changeAuditService;
         _prospectLeadRegistrationService = prospectLeadRegistrationService;
+        _leadOpsStateService = leadOpsStateService;
         _logger = logger;
     }
 
@@ -124,6 +127,7 @@ public sealed class AgentProspectsController : ControllerBase
         _db.Campaigns.Add(campaign);
         await _db.SaveChangesAsync(cancellationToken);
 
+        await _leadOpsStateService.RefreshCampaignAsync(campaign.Id, cancellationToken);
         var refreshedCampaign = await LoadCampaignDetailAsync(campaign.Id, cancellationToken);
 
         await WriteChangeAuditAsync(
@@ -216,6 +220,7 @@ public sealed class AgentProspectsController : ControllerBase
         _db.Campaigns.Add(campaign);
         await _db.SaveChangesAsync(cancellationToken);
 
+        await _leadOpsStateService.RefreshCampaignAsync(campaign.Id, cancellationToken);
         var refreshedCampaign = await LoadCampaignDetailAsync(campaign.Id, cancellationToken);
 
         await WriteChangeAuditAsync(
@@ -275,6 +280,7 @@ public sealed class AgentProspectsController : ControllerBase
         campaign.PackageOrder.UpdatedAt = DateTime.UtcNow;
         campaign.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
+        await _leadOpsStateService.RefreshCampaignAsync(campaign.Id, cancellationToken);
 
         await WriteChangeAuditAsync(
             "update_prospect_pricing",
