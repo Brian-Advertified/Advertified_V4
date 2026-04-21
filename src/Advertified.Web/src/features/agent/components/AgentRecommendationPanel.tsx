@@ -297,6 +297,14 @@ export function AgentRecommendationPanel({
                             ? `${formatCurrency(item.rate * item.quantity)}${item.quantity > 1 ? ` | Qty ${item.quantity}` : ''}`
                             : `${formatCurrency(item.cost)}${item.quantity > 1 ? ` | Qty ${item.quantity}` : ''}`}
                         </p>
+                        {item.appliedDuration ? (
+                          <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.12em] text-brand">
+                            Quoted for {item.appliedDuration}
+                          </p>
+                        ) : null}
+                        {item.commercialExplanation ? (
+                          <p className="mt-1 text-xs text-ink-soft line-clamp-2">{item.commercialExplanation}</p>
+                        ) : null}
                         {!('station' in item) && item.confidenceScore !== undefined ? (
                           <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.12em] text-brand">
                             {formatConfidenceLabel(item.confidenceScore)}

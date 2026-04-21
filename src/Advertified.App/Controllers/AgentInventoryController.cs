@@ -16,28 +16,27 @@ namespace Advertified.App.Controllers;
 [Authorize(Roles = "Agent,Admin")]
 public sealed class AgentInventoryController : ControllerBase
 {
-    private const double LocalSuburbRadiusKm = 30.0;
     private readonly AppDbContext _db;
     private readonly IPlanningInventoryRepository _inventoryRepository;
-    private readonly IGeocodingService _geocodingService;
+    private readonly IPlanningEligibilityService _planningEligibilityService;
+    private readonly IPlanningRequestFactory _planningRequestFactory;
 
-    public AgentInventoryController(AppDbContext db, IPlanningInventoryRepository inventoryRepository, IGeocodingService geocodingService)
+    public AgentInventoryController(
+        AppDbContext db,
+        IPlanningInventoryRepository inventoryRepository,
+        IPlanningEligibilityService planningEligibilityService,
+        IPlanningRequestFactory planningRequestFactory)
     {
         _db = db;
         _inventoryRepository = inventoryRepository;
-        _geocodingService = geocodingService;
+        _planningEligibilityService = planningEligibilityService;
+        _planningRequestFactory = planningRequestFactory;
     }
 
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<AgentInventoryItemResponse>>> Get([FromQuery] Guid? campaignId, CancellationToken cancellationToken)
     {
         var request = await BuildRequestAsync(campaignId, cancellationToken);
-        var geocodingTarget = _geocodingService.ResolveCampaignTarget(request);
-        if (geocodingTarget.IsResolved)
-        {
-            request.TargetLatitude = geocodingTarget.Latitude;
-            request.TargetLongitude = geocodingTarget.Longitude;
-        }
         var candidates = new List<InventoryCandidate>();
 
         candidates.AddRange(await _inventoryRepository.GetOohCandidatesAsync(request, cancellationToken));
@@ -46,9 +45,10 @@ public sealed class AgentInventoryController : ControllerBase
         candidates.AddRange(await _inventoryRepository.GetRadioPackageCandidatesAsync(request, cancellationToken));
         candidates.AddRange(await _inventoryRepository.GetTvCandidatesAsync(request, cancellationToken));
 
-        var filtered = candidates
+        var eligibleCandidates = _planningEligibilityService.FilterEligibleCandidates(candidates, request).Candidates;
+
+        var filtered = eligibleCandidates
             .Where(candidate => MatchesPreferredMedia(candidate, request))
-            .Where(candidate => MatchesRequestedGeography(candidate, request))
             .OrderBy(candidate => GetChannelRank(candidate.MediaType))
             .ThenBy(candidate => candidate.Cost)
             .ThenBy(candidate => candidate.DisplayName)
@@ -104,75 +104,25 @@ public sealed class AgentInventoryController : ControllerBase
             ?? throw new InvalidOperationException("Campaign not found.");
 
         var brief = campaign.CampaignBrief;
-        var strategyRequest = new CampaignPlanningRequest
+        if (brief is null)
         {
-            BusinessStage = brief?.BusinessStage,
-            MonthlyRevenueBand = brief?.MonthlyRevenueBand,
-            SalesModel = brief?.SalesModel,
-            CustomerType = brief?.CustomerType,
-            BuyingBehaviour = brief?.BuyingBehaviour,
-            DecisionCycle = brief?.DecisionCycle,
-            PricePositioning = brief?.PricePositioning,
-            AverageCustomerSpendBand = brief?.AverageCustomerSpendBand,
-            GrowthTarget = brief?.GrowthTarget,
-            UrgencyLevel = brief?.UrgencyLevel,
-            AudienceClarity = brief?.AudienceClarity,
-            ValuePropositionFocus = brief?.ValuePropositionFocus
-        };
-        var inferredLsmRange = CampaignStrategySupport.ResolveSuggestedLsmRange(strategyRequest);
-        return new CampaignPlanningRequest
-        {
-            CampaignId = campaign.Id,
-            SelectedBudget = PricingPolicy.ResolvePlanningBudget(
-                campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
-                campaign.PackageOrder.AiStudioReserveAmount),
-            Objective = brief?.Objective,
-            BusinessStage = brief?.BusinessStage,
-            MonthlyRevenueBand = brief?.MonthlyRevenueBand,
-            SalesModel = brief?.SalesModel,
-            StartDate = brief?.StartDate,
-            EndDate = brief?.EndDate,
-            DurationWeeks = brief?.DurationWeeks,
-            ChannelFlights = CampaignFlightingSupport.Normalize(
-                CampaignFlightingSupport.Deserialize(brief?.ChannelFlightsJson),
-                brief?.StartDate,
-                brief?.EndDate,
-                brief?.DurationWeeks),
-            GeographyScope = brief?.GeographyScope,
-            Provinces = DeserializeList(brief?.ProvincesJson),
-            Cities = DeserializeList(brief?.CitiesJson),
-            Suburbs = DeserializeList(brief?.SuburbsJson),
-            Areas = DeserializeList(brief?.AreasJson),
-            PreferredMediaTypes = DeserializeList(brief?.PreferredMediaTypesJson),
-            ExcludedMediaTypes = DeserializeList(brief?.ExcludedMediaTypesJson),
-            TargetLanguages = DeserializeList(brief?.TargetLanguagesJson),
-            TargetAgeMin = brief?.TargetAgeMin,
-            TargetAgeMax = brief?.TargetAgeMax,
-            TargetGender = brief?.TargetGender,
-            TargetInterests = DeserializeList(brief?.TargetInterestsJson)
-                .Concat(CampaignStrategySupport.BuildAudienceTerms(strategyRequest))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList(),
-            TargetAudienceNotes = string.Join(
-                Environment.NewLine,
-                new[] { brief?.TargetAudienceNotes }
-                    .Concat(CampaignStrategySupport.BuildContextLines(strategyRequest))
-                    .Where(static value => !string.IsNullOrWhiteSpace(value))),
-            CustomerType = brief?.CustomerType,
-            BuyingBehaviour = brief?.BuyingBehaviour,
-            DecisionCycle = brief?.DecisionCycle,
-            PricePositioning = brief?.PricePositioning,
-            AverageCustomerSpendBand = brief?.AverageCustomerSpendBand,
-            GrowthTarget = brief?.GrowthTarget,
-            UrgencyLevel = brief?.UrgencyLevel,
-            AudienceClarity = brief?.AudienceClarity,
-            ValuePropositionFocus = brief?.ValuePropositionFocus,
-            TargetLsmMin = brief?.TargetLsmMin ?? inferredLsmRange.Min,
-            TargetLsmMax = brief?.TargetLsmMax ?? inferredLsmRange.Max,
-            OpenToUpsell = brief?.OpenToUpsell ?? false,
-            AdditionalBudget = brief?.AdditionalBudget,
-            MaxMediaItems = brief?.MaxMediaItems
-        };
+            return new CampaignPlanningRequest
+            {
+                CampaignId = campaign.Id,
+                SelectedBudget = PricingPolicy.ResolvePlanningBudget(
+                    campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
+                    campaign.PackageOrder.AiStudioReserveAmount),
+                GeographyScope = "national"
+            };
+        }
+
+        var packageProfile = campaign.PackageBandId == Guid.Empty
+            ? null
+            : await _db.PackageBandProfiles
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.PackageBandId == campaign.PackageBandId, cancellationToken);
+
+        return _planningRequestFactory.FromCampaignBrief(campaign, brief, request: null, packageProfile);
     }
 
     private static AgentInventoryItemResponse MapInventoryItem(InventoryCandidate candidate)
@@ -241,114 +191,6 @@ public sealed class AgentInventoryController : ControllerBase
 
         return request.PreferredMediaTypes.Any(value => PlanningChannelSupport.MatchesRequestedChannel(candidate.MediaType, value));
     }
-
-    private static bool MatchesRequestedGeography(InventoryCandidate candidate, CampaignPlanningRequest request)
-    {
-        var normalizedScope = NormalizeScope(request.GeographyScope);
-        if (normalizedScope == "national")
-        {
-            return true;
-        }
-
-        var normalizedChannel = PlanningChannelSupport.NormalizeChannel(candidate.MediaType);
-        var isBroadcast = normalizedChannel is PlanningChannelSupport.Radio or PlanningChannelSupport.Tv;
-        var isOohLike = PlanningChannelSupport.IsOohFamilyChannel(normalizedChannel) || normalizedChannel == PlanningChannelSupport.Digital;
-
-        // Keep national broadcast and digital packages available in the manual
-        // replacement picker so it stays aligned with the planning engine's
-        // eligibility rules for narrower local/provincial briefs.
-        if ((isBroadcast || normalizedChannel == PlanningChannelSupport.Digital)
-            && string.Equals(candidate.MarketScope, "national", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        var requestedTerms = (normalizedScope == "local"
-                ? (request.Suburbs.Count > 0
-                    ? (isBroadcast ? request.Cities : request.Suburbs)
-                    : request.Areas.Concat(request.Cities))
-                : request.Provinces)
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .Select(value => value.Trim().ToLowerInvariant())
-            .Distinct()
-            .ToArray();
-
-        if (requestedTerms.Length == 0)
-        {
-            return true;
-        }
-
-        if (normalizedScope == "local"
-            && request.Cities.Count > 0
-            && isOohLike
-            && request.TargetLatitude.HasValue
-            && request.TargetLongitude.HasValue
-            && candidate.Latitude.HasValue
-            && candidate.Longitude.HasValue)
-        {
-            var distanceKm = HaversineDistanceKm(
-                request.TargetLatitude.Value,
-                request.TargetLongitude.Value,
-                candidate.Latitude.Value,
-                candidate.Longitude.Value);
-
-            if (distanceKm <= LocalSuburbRadiusKm)
-            {
-                return true;
-            }
-        }
-
-        if (normalizedScope == "local"
-            && request.Suburbs.Count > 0
-            && isOohLike
-            && request.TargetLatitude.HasValue
-            && request.TargetLongitude.HasValue
-            && candidate.Latitude.HasValue
-            && candidate.Longitude.HasValue)
-        {
-            var distanceKm = HaversineDistanceKm(
-                request.TargetLatitude.Value,
-                request.TargetLongitude.Value,
-                candidate.Latitude.Value,
-                candidate.Longitude.Value);
-
-            if (distanceKm <= LocalSuburbRadiusKm)
-            {
-                return true;
-            }
-        }
-
-        var haystack = string.Join(" ", new[]
-        {
-            candidate.DisplayName,
-            candidate.Area,
-            candidate.City,
-            candidate.Province,
-            candidate.MarketScope
-        }.Where(value => !string.IsNullOrWhiteSpace(value))).ToLowerInvariant();
-
-        return requestedTerms.Any(term => haystack.Contains(term));
-    }
-
-    private static double HaversineDistanceKm(double lat1, double lon1, double lat2, double lon2)
-    {
-        const double radiusKm = 6371.0;
-        static double ToRadians(double angle) => Math.PI * angle / 180.0;
-
-        var dLat = ToRadians(lat2 - lat1);
-        var dLon = ToRadians(lon2 - lon1);
-        var a = Math.Pow(Math.Sin(dLat / 2), 2)
-                + Math.Cos(ToRadians(lat1)) * Math.Cos(ToRadians(lat2)) * Math.Pow(Math.Sin(dLon / 2), 2);
-        var c = 2 * Math.Asin(Math.Min(1, Math.Sqrt(a)));
-        return radiusKm * c;
-    }
-
-    private static string NormalizeScope(string? scope)
-    {
-        var normalized = (scope ?? string.Empty).Trim().ToLowerInvariant();
-        return normalized == "regional" ? "provincial" : normalized;
-    }
-
     private static int GetChannelRank(string mediaType)
     {
         return mediaType.Trim().ToLowerInvariant() switch
@@ -359,13 +201,6 @@ public sealed class AgentInventoryController : ControllerBase
             "tv" => 2,
             _ => 3
         };
-    }
-
-    private static List<string> DeserializeList(string? json)
-    {
-        return string.IsNullOrWhiteSpace(json)
-            ? new List<string>()
-            : JsonSerializer.Deserialize<List<string>>(json) ?? new List<string>();
     }
 
     private static string? TryGetMetadataString(IReadOnlyDictionary<string, object?> metadata, string key)
