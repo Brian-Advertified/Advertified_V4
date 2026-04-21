@@ -2,8 +2,11 @@ using Advertified.App.Contracts.Leads;
 using Advertified.App.Configuration;
 using Advertified.App.Data;
 using Advertified.App.Data.Entities;
+using Advertified.App.Data.Enums;
 using Advertified.App.Services;
 using Advertified.App.Services.Abstractions;
+using Advertified.App.Support;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -13,6 +16,7 @@ namespace Advertified.App.Controllers;
 
 [ApiController]
 [Route("leads")]
+[Authorize(Roles = "Agent,Admin")]
 public sealed class LeadsController : ControllerBase
 {
     private readonly AppDbContext _db;
@@ -80,7 +84,8 @@ public sealed class LeadsController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<LeadDto>>> GetAll(CancellationToken cancellationToken)
     {
-        var leads = await _db.Leads
+        var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
+        var leads = await ApplyOperationsLeadScope(_db.Leads, currentUser)
             .AsNoTracking()
             .OrderByDescending(x => x.CreatedAt)
             .Select(x => ToDto(x))
@@ -92,7 +97,8 @@ public sealed class LeadsController : ControllerBase
     [HttpGet("intelligence")]
     public async Task<ActionResult<IReadOnlyList<LeadIntelligenceDto>>> GetIntelligenceList(CancellationToken cancellationToken)
     {
-        var leads = await _db.Leads
+        var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
+        var leads = await ApplyOperationsLeadScope(_db.Leads, currentUser)
             .AsNoTracking()
             .OrderByDescending(x => x.CreatedAt)
             .ToListAsync(cancellationToken);
@@ -226,7 +232,8 @@ public sealed class LeadsController : ControllerBase
     [HttpGet("{id:int}")]
     public async Task<ActionResult<LeadDto>> GetById(int id, CancellationToken cancellationToken)
     {
-        var lead = await _db.Leads
+        var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
+        var lead = await ApplyOperationsLeadScope(_db.Leads, currentUser)
             .AsNoTracking()
             .Where(x => x.Id == id)
             .Select(x => ToDto(x))
@@ -243,7 +250,8 @@ public sealed class LeadsController : ControllerBase
     [HttpGet("{id:int}/intelligence")]
     public async Task<ActionResult<LeadIntelligenceDto>> GetIntelligence(int id, CancellationToken cancellationToken)
     {
-        var lead = await _db.Leads
+        var currentUser = await GetCurrentOperationsUserAsync(cancellationToken);
+        var lead = await ApplyOperationsLeadScope(_db.Leads, currentUser)
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 
@@ -1054,4 +1062,36 @@ public sealed class LeadsController : ControllerBase
     }
 
     private sealed record LeadInputInferenceResult(string? Location, string? Category);
+
+    private IQueryable<Lead> ApplyOperationsLeadScope(IQueryable<Lead> query, UserAccount currentUser)
+    {
+        if (currentUser.Role != UserRole.Agent)
+        {
+            return query;
+        }
+
+        var currentUserId = currentUser.Id;
+        return query.Where(lead =>
+            _db.LeadActions.Any(action =>
+                action.LeadId == lead.Id
+                && (action.AssignedAgentUserId == currentUserId || action.AssignedAgentUserId == null))
+            || !_db.LeadActions.Any(action => action.LeadId == lead.Id));
+    }
+
+    private async Task<UserAccount> GetCurrentOperationsUserAsync(CancellationToken cancellationToken)
+    {
+        var currentUserId = await _currentUserAccessor.GetCurrentUserIdAsync(cancellationToken);
+        var currentUser = await _db.UserAccounts.FirstOrDefaultAsync(x => x.Id == currentUserId, cancellationToken);
+        if (currentUser is null)
+        {
+            throw new InvalidOperationException("Authenticated user account could not be found.");
+        }
+
+        if (currentUser.Role is not UserRole.Agent and not UserRole.Admin)
+        {
+            throw new ForbiddenException("Agent or admin access is required.");
+        }
+
+        return currentUser;
+    }
 }

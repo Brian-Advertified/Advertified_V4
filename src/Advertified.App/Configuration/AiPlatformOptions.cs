@@ -22,7 +22,7 @@ public sealed class AiPlatformOptions
     public decimal ImageGenerationCostZar { get; set; } = 5m;
     public decimal VoiceGenerationCostZar { get; set; } = 3m;
     public decimal VideoGenerationCostZar { get; set; } = 50m;
-    public decimal VideoMinCampaignBudgetZar { get; set; } = 20000m;
+    public decimal VideoMinCampaignBudgetZar { get; set; } = 10000m;
     public int FreeRegenerationLimit { get; set; } = 1;
     public int PaidRegenerationLimit { get; set; } = 3;
 }

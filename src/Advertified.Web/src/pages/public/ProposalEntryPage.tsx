@@ -74,8 +74,8 @@ export function ProposalEntryPage() {
   const checkoutPath = publicProposalQuery.data && recommendation
     ? `/checkout/payment?orderId=${encodeURIComponent(publicProposalQuery.data.packageOrderId)}&campaignId=${encodeURIComponent(publicProposalQuery.data.id)}&recommendationId=${encodeURIComponent(recommendation.id)}&proposalPath=${encodeURIComponent(currentProposalPath)}`
     : null;
-  const registerCheckoutPath = checkoutPath
-    ? `/register?next=${encodeURIComponent(checkoutPath)}`
+  const loginCheckoutPath = checkoutPath
+    ? `/login?next=${encodeURIComponent(checkoutPath)}`
     : null;
 
   const approveMutation = useMutation({
@@ -202,8 +202,8 @@ export function ProposalEntryPage() {
           }
         }
 
-        if (!isAuthenticated && registerCheckoutPath) {
-          navigate(registerCheckoutPath);
+        if (!isAuthenticated && loginCheckoutPath) {
+          navigate(loginCheckoutPath);
           return;
         }
 
@@ -352,7 +352,7 @@ export function ProposalEntryPage() {
                     : paymentRequiredBeforeApproval
                     ? (prepareCheckoutMutation.isPending
                       ? 'Preparing payment...'
-                      : (isAuthenticated ? 'Pay for selected proposal' : 'Create account and pay'))
+                      : (isAuthenticated ? 'Pay for selected proposal' : 'Sign in to pay'))
                     : (approveMutation.isPending ? 'Accepting...' : 'Approve selected')}
                 </button>
                 <button
@@ -413,7 +413,7 @@ export function ProposalEntryPage() {
       <PageHero
         kicker="Proposal review"
         title="Your Advertified proposal is ready."
-        description="Sign in or activate your account to open this proposal and continue to approval and payment."
+        description="If you already have an Advertified account, sign in to open this proposal. If you are new, create your account once and continue from the same step."
       />
 
       <div className="mx-auto grid max-w-4xl gap-6 lg:grid-cols-[1.15fr_0.85fr]">
@@ -425,6 +425,9 @@ export function ProposalEntryPage() {
           <p className="mt-4 text-sm leading-7 text-ink-soft">
             This secure link opens your campaign proposal workspace where you can review Proposal A/B/C, accept one option, or request changes.
           </p>
+          <div className="mt-4 rounded-[14px] border border-brand/20 bg-brand/[0.06] px-4 py-3 text-sm text-ink">
+            Existing clients should sign in with the same email used before. Only create an account if this is your first time using Advertified.
+          </div>
           {action === 'reject_all' ? (
             <div className="mt-4 rounded-[14px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
               We&apos;ll take you straight to the feedback form so you can request a new proposal set.
@@ -439,13 +442,16 @@ export function ProposalEntryPage() {
 
         <aside className="rounded-[24px] border border-line bg-white p-6 shadow-[0_18px_50px_rgba(15,23,42,0.05)]">
           <p className="text-sm font-semibold text-ink">Continue securely</p>
+          <p className="mt-2 text-sm leading-7 text-ink-soft">
+            Sign in if you already have an Advertified account. Create an account only if this is your first proposal with us.
+          </p>
           <div className="mt-4 space-y-3">
             <Link to={loginPath} className="button-primary flex w-full items-center justify-center gap-2 px-5 py-3">
               Sign in to review
               <ArrowRight className="size-4" />
             </Link>
             <Link to={registerPath} className="button-secondary flex w-full items-center justify-center gap-2 px-5 py-3">
-              Activate or create account
+              New here? Create account
             </Link>
           </div>
         </aside>

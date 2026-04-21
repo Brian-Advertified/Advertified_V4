@@ -7,8 +7,8 @@ values
     'allocation_budget_band_rules_json',
     $$[
       {
-        "name": "20k-100k",
-        "min": 20000,
+        "name": "10k-100k",
+        "min": 10000,
         "max": 100000,
         "oohTarget": 0.60,
         "billboardShareOfOoh": 0.75,

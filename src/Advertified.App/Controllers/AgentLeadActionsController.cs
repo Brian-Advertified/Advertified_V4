@@ -34,6 +34,9 @@ public sealed class AgentLeadActionsController : ControllerBase
         var items = await _db.LeadActions
             .AsNoTracking()
             .Where(x => x.Status == "open")
+            .Where(x => currentUser.Role != UserRole.Agent
+                || x.AssignedAgentUserId == currentUserId
+                || x.AssignedAgentUserId == null)
             .OrderBy(x => x.AssignedAgentUserId == currentUserId ? 0 : x.AssignedAgentUserId == null ? 1 : 2)
             .ThenByDescending(x => x.Priority == "high")
             .ThenByDescending(x => x.CreatedAt)

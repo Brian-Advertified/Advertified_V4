@@ -253,12 +253,15 @@ export function PaymentSelectionPage() {
 
           {!user ? (
             <div className="space-y-3">
-              <Link to={`/register?next=${encodeURIComponent(authNextPath)}`} className="button-primary flex items-center justify-center gap-2 px-5 py-3">
-                Register to continue
+              <Link to={`/login?next=${encodeURIComponent(authNextPath)}`} className="button-primary flex items-center justify-center gap-2 px-5 py-3">
+                Sign in to continue
               </Link>
-              <Link to={`/login?next=${encodeURIComponent(authNextPath)}`} className="button-secondary flex items-center justify-center gap-2 px-5 py-3">
-                Log in
+              <Link to={`/register?next=${encodeURIComponent(authNextPath)}`} className="button-secondary flex items-center justify-center gap-2 px-5 py-3">
+                New here? Create account
               </Link>
+              <p className="text-sm leading-7 text-ink-soft">
+                Existing clients should sign in with their current account. New clients only need to register once.
+              </p>
             </div>
           ) : !canBuyPackage(user) ? (
             <div className="space-y-4 rounded-[20px] border border-amber-200 bg-amber-50 px-4 py-4">
