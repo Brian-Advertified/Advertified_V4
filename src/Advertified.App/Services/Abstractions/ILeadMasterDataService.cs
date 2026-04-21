@@ -6,6 +6,8 @@ public interface ILeadMasterDataService
 
     MasterLocationMatch? ResolveLocation(string? value);
 
+    MasterLocationMatch? ResolveNearestLocation(double latitude, double longitude, double maxDistanceKm = 50d) => null;
+
     MasterIndustryMatch? ResolveIndustry(string? value);
 
     MasterIndustryMatch? ResolveIndustryFromHints(IReadOnlyList<string> hints);
@@ -26,9 +28,17 @@ public sealed class MasterLocationMatch
 {
     public string CanonicalName { get; init; } = string.Empty;
 
+    public string? LocationType { get; init; }
+
+    public string? ParentCity { get; init; }
+
+    public string? Province { get; init; }
+
     public double? Latitude { get; init; }
 
     public double? Longitude { get; init; }
+
+    public double? DistanceKm { get; init; }
 }
 
 public sealed class MasterIndustryMatch

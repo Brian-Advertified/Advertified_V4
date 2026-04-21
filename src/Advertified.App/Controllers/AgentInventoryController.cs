@@ -279,6 +279,26 @@ public sealed class AgentInventoryController : ControllerBase
         }
 
         if (normalizedScope == "local"
+            && request.Cities.Count > 0
+            && isOohLike
+            && request.TargetLatitude.HasValue
+            && request.TargetLongitude.HasValue
+            && candidate.Latitude.HasValue
+            && candidate.Longitude.HasValue)
+        {
+            var distanceKm = HaversineDistanceKm(
+                request.TargetLatitude.Value,
+                request.TargetLongitude.Value,
+                candidate.Latitude.Value,
+                candidate.Longitude.Value);
+
+            if (distanceKm <= LocalSuburbRadiusKm)
+            {
+                return true;
+            }
+        }
+
+        if (normalizedScope == "local"
             && request.Suburbs.Count > 0
             && isOohLike
             && request.TargetLatitude.HasValue

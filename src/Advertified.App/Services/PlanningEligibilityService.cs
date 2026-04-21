@@ -135,6 +135,26 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
                 Matches(x, candidate.City)
                 || MatchesAnyMetadataToken(candidate, x, "cityLabels", "city_labels", "city", "area"));
 
+        if (normalizedScope == "local"
+            && requestedCities.Count > 0
+            && isOohLike
+            && request.TargetLatitude.HasValue
+            && request.TargetLongitude.HasValue
+            && candidate.Latitude.HasValue
+            && candidate.Longitude.HasValue)
+        {
+            var distanceKm = HaversineDistanceKm(
+                request.TargetLatitude.Value,
+                request.TargetLongitude.Value,
+                candidate.Latitude.Value,
+                candidate.Longitude.Value);
+
+            if (distanceKm <= LocalSuburbRadiusKm)
+            {
+                return true;
+            }
+        }
+
         if (requestedSuburbs.Count > 0)
         {
             // Suburb targeting is intended for hyperlocal surfaces (OOH/digital). Broadcast inventory

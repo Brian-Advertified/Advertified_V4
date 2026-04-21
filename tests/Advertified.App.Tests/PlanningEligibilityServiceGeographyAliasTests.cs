@@ -213,6 +213,54 @@ public sealed class PlanningEligibilityServiceGeographyAliasTests
         result.Candidates.Should().ContainSingle(x => x.DisplayName == "Nearby Billboard");
     }
 
+    [Fact]
+    public void FilterEligibleCandidates_WhenCitySpecified_AllowsOohWithinRadiusEvenIfSuburbTextDiffers()
+    {
+        var policyService = CreatePolicyService();
+        var service = new PlanningEligibilityService(policyService, new TestBroadcastMasterDataService());
+        var request = new CampaignPlanningRequest
+        {
+            SelectedBudget = 100000m,
+            GeographyScope = "local",
+            Cities = new List<string> { "Johannesburg" },
+            TargetLatitude = -26.2041,
+            TargetLongitude = 28.0473
+        };
+
+        var nearCandidate = new InventoryCandidate
+        {
+            SourceId = Guid.NewGuid(),
+            SourceType = "ooh",
+            DisplayName = "Soweto Billboard",
+            MediaType = "billboard",
+            City = "Unknown",
+            Suburb = "Diepkloof",
+            Area = "Diepkloof",
+            Latitude = -26.2485,
+            Longitude = 27.9449,
+            Cost = 45000m,
+            IsAvailable = true
+        };
+
+        var farCandidate = new InventoryCandidate
+        {
+            SourceId = Guid.NewGuid(),
+            SourceType = "ooh",
+            DisplayName = "Cape Town Billboard",
+            MediaType = "billboard",
+            City = "Unknown",
+            Suburb = "Far away",
+            Area = "Far away",
+            Latitude = -33.9249,
+            Longitude = 18.4241,
+            Cost = 45000m,
+            IsAvailable = true
+        };
+
+        var result = service.FilterEligibleCandidates(new List<InventoryCandidate> { nearCandidate, farCandidate }, request);
+        result.Candidates.Should().ContainSingle(x => x.DisplayName == "Soweto Billboard");
+    }
+
     [Theory]
     [InlineData("billboard")]
     [InlineData("digital_screen")]

@@ -2,14 +2,71 @@ using System.Text.Json;
 using System.Globalization;
 using Advertified.App.Domain.Campaigns;
 using Advertified.App.Services.Abstractions;
+using Advertified.App.Support;
 
 namespace Advertified.App.Services;
 
 public sealed class PlanningInventoryCandidateMapper : IPlanningInventoryCandidateMapper
 {
+    private readonly ILeadMasterDataService _leadMasterDataService;
+
+    public PlanningInventoryCandidateMapper(ILeadMasterDataService leadMasterDataService)
+    {
+        _leadMasterDataService = leadMasterDataService;
+    }
+
     public InventoryCandidate MapOoh(OohPlanningInventoryRow row)
     {
         var metadata = NormalizeMetadata(ParseMetadata(row.MetadataJson), row);
+        var parsedGpsCoordinates = GpsCoordinateParser.TryParse(GetMetadataValue(metadata, "gps_coordinates"));
+        var latitude = row.Latitude
+            ?? ParseNullableDouble(GetMetadataValue(metadata, "latitude"))
+            ?? ParseNullableDouble(GetMetadataValue(metadata, "lat"))
+            ?? parsedGpsCoordinates?.Latitude;
+        var longitude = row.Longitude
+            ?? ParseNullableDouble(GetMetadataValue(metadata, "longitude"))
+            ?? ParseNullableDouble(GetMetadataValue(metadata, "lng"))
+            ?? ParseNullableDouble(GetMetadataValue(metadata, "lon"))
+            ?? parsedGpsCoordinates?.Longitude;
+        if (latitude.HasValue)
+        {
+            metadata["latitude"] = latitude.Value;
+        }
+
+        if (longitude.HasValue)
+        {
+            metadata["longitude"] = longitude.Value;
+        }
+
+        var nearestLocation = latitude.HasValue && longitude.HasValue
+            ? _leadMasterDataService.ResolveNearestLocation(latitude.Value, longitude.Value)
+            : null;
+        if (nearestLocation is not null)
+        {
+            var nearestDistanceKm = nearestLocation.DistanceKm;
+            SetIfMissing(metadata, "nearestCanonicalLocation", nearestLocation.CanonicalName);
+            SetIfMissing(metadata, "nearestLocationType", nearestLocation.LocationType);
+            SetIfMissing(metadata, "nearestParentCity", nearestLocation.ParentCity);
+            SetIfMissing(metadata, "nearestProvince", nearestLocation.Province);
+            SetIfMissing(metadata, "nearestDistanceKm", nearestDistanceKm.HasValue
+                ? Math.Round(nearestDistanceKm.Value, 2, MidpointRounding.AwayFromZero)
+                : null);
+        }
+
+        var resolvedProvince = FirstNonEmpty(row.Province, GetMetadataValue(metadata, "province"), nearestLocation?.Province);
+        var resolvedCity = FirstNonEmpty(
+            row.City,
+            GetMetadataValue(metadata, "city"),
+            nearestLocation is not null && string.Equals(nearestLocation.LocationType, "city", StringComparison.OrdinalIgnoreCase) ? nearestLocation.CanonicalName : null,
+            nearestLocation?.ParentCity);
+        var resolvedArea = FirstNonEmpty(
+            row.Area,
+            GetMetadataValue(metadata, "area"),
+            row.Suburb,
+            GetMetadataValue(metadata, "suburb"),
+            nearestLocation?.CanonicalName,
+            resolvedCity,
+            resolvedProvince);
 
         return new InventoryCandidate
         {
@@ -18,10 +75,10 @@ public sealed class PlanningInventoryCandidateMapper : IPlanningInventoryCandida
             DisplayName = row.DisplayName,
             MediaType = row.MediaType,
             Subtype = row.Subtype,
-            Province = FirstNonEmpty(row.Province, GetMetadataValue(metadata, "province")),
-            City = FirstNonEmpty(row.City, GetMetadataValue(metadata, "city")),
+            Province = resolvedProvince,
+            City = resolvedCity,
             Suburb = FirstNonEmpty(row.Suburb, GetMetadataValue(metadata, "suburb")),
-            Area = FirstNonEmpty(row.Area, GetMetadataValue(metadata, "area")),
+            Area = resolvedArea,
             Language = FirstNonEmpty(row.Language, GetMetadataValue(metadata, "language")),
             LsmMin = row.LsmMin,
             LsmMax = row.LsmMax,
@@ -38,8 +95,8 @@ public sealed class PlanningInventoryCandidateMapper : IPlanningInventoryCandida
             MonthlyListenership = row.MonthlyListenership,
             IsFlagshipStation = row.IsFlagshipStation,
             IsPremiumStation = row.IsPremiumStation,
-            Latitude = row.Latitude ?? ParseNullableDouble(GetMetadataValue(metadata, "latitude")) ?? ParseNullableDouble(GetMetadataValue(metadata, "lat")),
-            Longitude = row.Longitude ?? ParseNullableDouble(GetMetadataValue(metadata, "longitude")) ?? ParseNullableDouble(GetMetadataValue(metadata, "lng")) ?? ParseNullableDouble(GetMetadataValue(metadata, "lon")),
+            Latitude = latitude,
+            Longitude = longitude,
             Metadata = metadata
         };
     }
