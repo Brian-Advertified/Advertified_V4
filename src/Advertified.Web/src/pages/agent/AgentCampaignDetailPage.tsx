@@ -62,6 +62,10 @@ function formatFallbackFlag(flag: string) {
   return flag.replace(/_/g, ' ');
 }
 
+function formatFallbackFlags(flags: string[]) {
+  return Array.from(new Set(flags.map(formatFallbackFlag))).join(' ');
+}
+
 function formatPackageRange(minBudget: number, maxBudget: number) {
   return `${formatCurrency(minBudget)} to ${formatCurrency(maxBudget)}`;
 }
@@ -475,7 +479,7 @@ export function AgentCampaignDetailPage() {
       budget: activeRecommendation.audit.budgetSummary,
       fallback: activeRecommendation.audit.fallbackSummary
         ?? (activeRecommendation.fallbackFlags.length > 0
-          ? activeRecommendation.fallbackFlags.map(formatFallbackFlag).join(' ')
+          ? formatFallbackFlags(activeRecommendation.fallbackFlags)
           : activeRecommendation.manualReviewRequired
             ? 'Manual review was required for this recommendation.'
             : undefined),
@@ -492,7 +496,7 @@ export function AgentCampaignDetailPage() {
           ? `${formatCurrency(effectivePlannedTotal)} inside ${formatPackageRange(selectedPackageBand.minBudget, selectedPackageBand.maxBudget)}.`
           : `${formatCurrency(effectivePlannedTotal)} against ${formatCurrency(campaign.selectedBudget)}.`,
         fallback: activeRecommendation.fallbackFlags.length > 0
-          ? activeRecommendation.fallbackFlags.map(formatFallbackFlag).join(' ')
+          ? formatFallbackFlags(activeRecommendation.fallbackFlags)
           : 'No fallback conditions were recorded.',
       }
       : null;

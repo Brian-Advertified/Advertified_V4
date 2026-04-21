@@ -213,6 +213,57 @@ public sealed class PlanningEligibilityServiceGeographyAliasTests
         result.Candidates.Should().ContainSingle(x => x.DisplayName == "Nearby Billboard");
     }
 
+    [Theory]
+    [InlineData("billboard")]
+    [InlineData("digital_screen")]
+    public void FilterEligibleCandidates_WhenSuburbsSpecified_AllowsNormalizedOohChannelsWithinRadius(string mediaType)
+    {
+        var policyService = CreatePolicyService();
+        var service = new PlanningEligibilityService(policyService, new TestBroadcastMasterDataService());
+        var request = new CampaignPlanningRequest
+        {
+            SelectedBudget = 100000m,
+            GeographyScope = "local",
+            Cities = new List<string> { "Johannesburg" },
+            Suburbs = new List<string> { "DiepKloof, Soweto" },
+            TargetLatitude = -26.2497583,
+            TargetLongitude = 27.9539444
+        };
+
+        var nearCandidate = new InventoryCandidate
+        {
+            SourceId = Guid.NewGuid(),
+            SourceType = "ooh",
+            DisplayName = $"{mediaType} near target",
+            MediaType = mediaType,
+            City = "Johannesburg",
+            Suburb = "Some Other Suburb",
+            Area = "Some Other Suburb",
+            Latitude = -26.2498,
+            Longitude = 27.9540,
+            Cost = 45000m,
+            IsAvailable = true
+        };
+
+        var farCandidate = new InventoryCandidate
+        {
+            SourceId = Guid.NewGuid(),
+            SourceType = "ooh",
+            DisplayName = $"{mediaType} far away",
+            MediaType = mediaType,
+            City = "Johannesburg",
+            Suburb = "Some Other Suburb",
+            Area = "Some Other Suburb",
+            Latitude = -26.0,
+            Longitude = 28.5,
+            Cost = 45000m,
+            IsAvailable = true
+        };
+
+        var result = service.FilterEligibleCandidates(new List<InventoryCandidate> { nearCandidate, farCandidate }, request);
+        result.Candidates.Should().ContainSingle(x => x.DisplayName == $"{mediaType} near target");
+    }
+
     [Fact]
     public void FilterEligibleCandidates_AllowsNationalDigitalForProvincialBriefs()
     {
