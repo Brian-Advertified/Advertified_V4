@@ -231,12 +231,18 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
         }
 
         var selectedChannels = recommendedPlan
-            .Select(item => NormalizeChannel(item.MediaType))
+            .Select(item => NormalizeRequestedChannel(item.MediaType))
             .Where(channel => !string.IsNullOrWhiteSpace(channel))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        var requiredSet = requiredChannels.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        foreach (var channel in requiredChannels)
+        var orderedRequiredChannels = requiredChannels
+            .Select(NormalizeRequestedChannel)
+            .Where(channel => !string.IsNullOrWhiteSpace(channel))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(channel => GetChannelPriorityWeight(channel, request))
+            .ToArray();
+        var requiredSet = orderedRequiredChannels.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var channel in orderedRequiredChannels)
         {
             if (selectedChannels.Contains(channel))
             {
@@ -244,7 +250,7 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
             }
 
             var candidate = scoredCandidates
-                .Where(item => NormalizeChannel(item.MediaType).Equals(channel, StringComparison.OrdinalIgnoreCase))
+                .Where(item => PlanningChannelSupport.MatchesRequestedChannel(item.MediaType, channel))
                 .Where(item => item.Cost > 0m)
                 .Where(item => item.Cost <= request.SelectedBudget)
                 .Where(item => recommendedPlan.All(line => line.SourceId != item.SourceId))
@@ -273,13 +279,13 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
             {
                 recommendedPlan.Add(ToPlannedItem(candidate));
                 selectedChannels = recommendedPlan
-                    .Select(item => NormalizeChannel(item.MediaType))
+                    .Select(item => NormalizeRequestedChannel(item.MediaType))
                     .Where(value => !string.IsNullOrWhiteSpace(value))
                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
                 continue;
             }
 
-            var removable = BuildRemovableLineIndexes(recommendedPlan, requiredSet)
+            var removable = BuildRemovableLineIndexes(recommendedPlan, requiredSet, request, channel)
                 .ToList();
             var indexesToRemove = new List<int>();
             var freed = 0m;
@@ -303,29 +309,35 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
 
                 recommendedPlan.Add(ToPlannedItem(candidate));
                 selectedChannels = recommendedPlan
-                    .Select(item => NormalizeChannel(item.MediaType))
+                    .Select(item => NormalizeRequestedChannel(item.MediaType))
                     .Where(value => !string.IsNullOrWhiteSpace(value))
                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
             }
         }
     }
 
-    private static IEnumerable<int> BuildRemovableLineIndexes(List<PlannedItem> plan, HashSet<string> preferredSet)
+    private static IEnumerable<int> BuildRemovableLineIndexes(
+        List<PlannedItem> plan,
+        HashSet<string> preferredSet,
+        CampaignPlanningRequest request,
+        string protectedChannel)
     {
         var channelCounts = plan
-            .Select(item => NormalizeChannel(item.MediaType))
+            .Select(item => NormalizeRequestedChannel(item.MediaType))
             .Where(channel => !string.IsNullOrWhiteSpace(channel))
             .GroupBy(channel => channel, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.Count(), StringComparer.OrdinalIgnoreCase);
 
+        var protectedShare = GetChannelPriorityWeight(protectedChannel, request);
         var ordered = plan
             .Select((item, index) => new
             {
                 Index = index,
                 Item = item,
-                Channel = NormalizeChannel(item.MediaType)
+                Channel = NormalizeRequestedChannel(item.MediaType)
             })
             .OrderBy(entry => preferredSet.Contains(entry.Channel)) // remove non-preferred channels first
+            .ThenBy(entry => GetChannelPriorityWeight(entry.Channel, request))
             .ThenBy(entry => entry.Item.Score)
             .ThenByDescending(entry => entry.Item.TotalCost)
             .ToList();
@@ -356,6 +368,12 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
             {
                 removable.Add(entry.Index);
                 remainingCounts[entry.Channel] = preferredCount - 1;
+                continue;
+            }
+
+            if (GetChannelPriorityWeight(entry.Channel, request) < protectedShare)
+            {
+                removable.Add(entry.Index);
             }
         }
 
@@ -386,6 +404,36 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
 
         var normalized = raw.Trim().ToLowerInvariant();
         return PlanningChannelSupport.NormalizeChannel(normalized);
+    }
+
+    private static string NormalizeRequestedChannel(string? raw)
+    {
+        var normalized = NormalizeChannel(raw);
+        return PlanningChannelSupport.IsOohFamilyChannel(normalized)
+            ? PlanningChannelSupport.OohAlias
+            : normalized;
+    }
+
+    private static int GetChannelPriorityWeight(string? raw, CampaignPlanningRequest request)
+    {
+        var normalized = NormalizeRequestedChannel(raw);
+        if (request.BudgetAllocation?.ChannelAllocations.Count > 0)
+        {
+            return request.BudgetAllocation.ChannelAllocations
+                .Where(entry => entry.Weight > 0m)
+                .Where(entry => string.Equals(NormalizeRequestedChannel(entry.Channel), normalized, StringComparison.OrdinalIgnoreCase))
+                .Select(entry => (int)Math.Round(entry.Weight * 100m, MidpointRounding.AwayFromZero))
+                .FirstOrDefault();
+        }
+
+        return normalized switch
+        {
+            "radio" => request.TargetRadioShare.GetValueOrDefault(),
+            "ooh" => request.TargetOohShare.GetValueOrDefault(),
+            "tv" => request.TargetTvShare.GetValueOrDefault(),
+            "digital" => request.TargetDigitalShare.GetValueOrDefault(),
+            _ => 0
+        };
     }
 
     private static RecommendationRunTrace BuildRunTrace(

@@ -597,7 +597,10 @@ public sealed class PlanningScoreService : IPlanningScoreService
     private static decimal StrategyFitScore(InventoryCandidate candidate, CampaignPlanningRequest request)
     {
         var signals = CampaignStrategySupport.BuildSignals(request);
-        var mediaType = candidate.MediaType.Trim().ToLowerInvariant();
+        var normalizedMediaType = PlanningChannelSupport.NormalizeChannel(candidate.MediaType);
+        var mediaType = PlanningChannelSupport.IsOohFamilyChannel(normalizedMediaType)
+            ? PlanningChannelSupport.OohAlias
+            : normalizedMediaType;
         decimal score = 0m;
 
         if (signals.PremiumAudience)

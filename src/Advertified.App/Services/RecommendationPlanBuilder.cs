@@ -649,9 +649,10 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
         {
             return request.BudgetAllocation.ChannelAllocations
                 .Where(entry => entry.Amount > 0m)
+                .GroupBy(entry => GetSpendTargetChannelKey(entry.Channel), StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(
-                    entry => PlanningChannelSupport.NormalizeChannel(entry.Channel),
-                    entry => entry.Amount,
+                    group => group.Key,
+                    group => group.Sum(entry => entry.Amount),
                     StringComparer.OrdinalIgnoreCase);
         }
 
@@ -668,7 +669,7 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
             return true;
         }
 
-        var channelKey = PlanningChannelSupport.NormalizeChannel(candidate.MediaType);
+        var channelKey = GetSpendTargetChannelKey(candidate.MediaType);
         if (!channelSpendTargets.TryGetValue(channelKey, out var targetAmount) || targetAmount <= 0m)
         {
             return true;
@@ -694,7 +695,7 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
             return true;
         }
 
-        var channelKey = PlanningChannelSupport.NormalizeChannel(candidate.MediaType);
+        var channelKey = GetSpendTargetChannelKey(candidate.MediaType);
         if (!channelSpendTargets.TryGetValue(channelKey, out var targetAmount) || targetAmount <= 0m)
         {
             return true;
@@ -714,7 +715,7 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
             return 0m;
         }
 
-        var channelKey = PlanningChannelSupport.NormalizeChannel(candidate.MediaType);
+        var channelKey = GetSpendTargetChannelKey(candidate.MediaType);
         if (!channelSpendTargets.TryGetValue(channelKey, out var targetAmount) || targetAmount <= 0m)
         {
             return 0m;
@@ -727,8 +728,16 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
     private static decimal GetChannelSpend(IReadOnlyList<PlannedItem> currentPlan, string channelKey)
     {
         return currentPlan
-            .Where(item => MatchesChannel(item.MediaType, channelKey))
+            .Where(item => string.Equals(GetSpendTargetChannelKey(item.MediaType), channelKey, StringComparison.OrdinalIgnoreCase))
             .Sum(item => item.TotalCost);
+    }
+
+    private static string GetSpendTargetChannelKey(string? mediaType)
+    {
+        var normalized = PlanningChannelSupport.NormalizeChannel(mediaType);
+        return PlanningChannelSupport.IsOohFamilyChannel(normalized)
+            ? PlanningChannelSupport.OohAlias
+            : normalized;
     }
 
     private static decimal GetChannelOvershootTolerance(decimal targetAmount)
@@ -961,35 +970,48 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
             return true;
         }
 
-        var businessLocation = request.BusinessLocation;
-        if (businessLocation is null)
-        {
-            return false;
-        }
+        var area = request.Targeting?.Areas.FirstOrDefault()
+            ?? request.Targeting?.Label
+            ?? request.BusinessLocation?.Area;
+        var city = request.Targeting?.City
+            ?? request.Targeting?.Cities.FirstOrDefault()
+            ?? request.BusinessLocation?.City;
+        var province = request.Targeting?.Province
+            ?? request.Targeting?.Provinces.FirstOrDefault()
+            ?? request.BusinessLocation?.Province;
 
-        return MatchesGeo(businessLocation.Area, candidate.Area)
-            || MatchesGeo(businessLocation.Area, candidate.Suburb)
-            || MatchesGeo(businessLocation.City, candidate.City)
-            || MatchesGeo(businessLocation.Province, candidate.Province);
+        return MatchesGeo(area, candidate.Area)
+            || MatchesGeo(area, candidate.Suburb)
+            || MatchesGeo(city, candidate.City)
+            || MatchesGeo(province, candidate.Province);
     }
 
     private static bool MatchesNearbyBucket(InventoryCandidate candidate, CampaignPlanningRequest request, double? nearbyRadiusKm)
     {
-        var businessLocation = request.BusinessLocation;
-        if (businessLocation is null)
+        var latitude = request.Targeting?.Latitude
+            ?? request.TargetLatitude
+            ?? request.BusinessLocation?.Latitude;
+        var longitude = request.Targeting?.Longitude
+            ?? request.TargetLongitude
+            ?? request.BusinessLocation?.Longitude;
+        var city = request.Targeting?.City
+            ?? request.Targeting?.Cities.FirstOrDefault()
+            ?? request.BusinessLocation?.City;
+
+        if (!latitude.HasValue || !longitude.HasValue)
         {
-            return false;
+            return !string.IsNullOrWhiteSpace(city)
+                && MatchesGeo(city, candidate.City)
+                && !MatchesOriginBucket(candidate, request);
         }
 
         if (candidate.Latitude.HasValue
             && candidate.Longitude.HasValue
-            && businessLocation.Latitude.HasValue
-            && businessLocation.Longitude.HasValue
             && nearbyRadiusKm.HasValue)
         {
             var distanceKm = HaversineDistanceKm(
-                businessLocation.Latitude.Value,
-                businessLocation.Longitude.Value,
+                latitude.Value,
+                longitude.Value,
                 candidate.Latitude.Value,
                 candidate.Longitude.Value);
 
@@ -999,8 +1021,8 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
             }
         }
 
-        return !string.IsNullOrWhiteSpace(businessLocation.City)
-            && MatchesGeo(businessLocation.City, candidate.City)
+        return !string.IsNullOrWhiteSpace(city)
+            && MatchesGeo(city, candidate.City)
             && !MatchesOriginBucket(candidate, request);
     }
 

@@ -20,7 +20,6 @@ import {
   getConstraintChecks,
   groupGeneratedRecommendationItems,
   groupPlanItems,
-  isInventoryRelevant,
   normalizeChannelKey,
 } from '../../features/agent/agentCampaignDetailUtils';
 import { AgentCampaignWorkspaceOverview } from '../../features/agent/components/AgentCampaignWorkspaceOverview';
@@ -361,10 +360,9 @@ export function AgentCampaignDetailPage() {
   }
 
   const selectedInventoryIds = selectedPlanItems.map((item) => item.id);
-  const relevantInventoryItems = inventoryItems.filter((item) => isInventoryRelevant(item as SelectedPlanInventoryItem, campaign.brief));
   const visibleInventoryItems = [
     ...selectedPlanItems.filter((item) => !inventoryItems.some((inventoryRow) => inventoryRow.id === item.id)),
-    ...relevantInventoryItems,
+    ...inventoryItems,
   ];
   const groupedItems = groupPlanItems(selectedPlanItems);
   const generatedRecommendationItems = activeRecommendation?.items ?? [];
