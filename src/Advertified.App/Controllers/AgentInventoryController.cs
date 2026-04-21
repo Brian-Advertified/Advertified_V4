@@ -34,9 +34,12 @@ public sealed class AgentInventoryController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<AgentInventoryItemResponse>>> Get([FromQuery] Guid? campaignId, CancellationToken cancellationToken)
+    public async Task<ActionResult<IReadOnlyList<AgentInventoryItemResponse>>> Get(
+        [FromQuery] Guid? campaignId,
+        [FromQuery] Guid? recommendationId,
+        CancellationToken cancellationToken)
     {
-        var request = await BuildRequestAsync(campaignId, cancellationToken);
+        var request = await BuildRequestAsync(campaignId, recommendationId, cancellationToken);
         var candidates = new List<InventoryCandidate>();
 
         candidates.AddRange(await _inventoryRepository.GetOohCandidatesAsync(request, cancellationToken));
@@ -85,7 +88,7 @@ public sealed class AgentInventoryController : ControllerBase
         return Ok(results);
     }
 
-    private async Task<CampaignPlanningRequest> BuildRequestAsync(Guid? campaignId, CancellationToken cancellationToken)
+    private async Task<CampaignPlanningRequest> BuildRequestAsync(Guid? campaignId, Guid? recommendationId, CancellationToken cancellationToken)
     {
         if (campaignId is null)
         {
@@ -122,7 +125,32 @@ public sealed class AgentInventoryController : ControllerBase
                 .AsNoTracking()
                 .FirstOrDefaultAsync(x => x.PackageBandId == campaign.PackageBandId, cancellationToken);
 
-        return _planningRequestFactory.FromCampaignBrief(campaign, brief, request: null, packageProfile);
+        var request = _planningRequestFactory.FromCampaignBrief(campaign, brief, request: null, packageProfile);
+        if (!recommendationId.HasValue)
+        {
+            return request;
+        }
+
+        var recommendation = await _db.CampaignRecommendations
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                x => x.Id == recommendationId.Value && x.CampaignId == campaign.Id,
+                cancellationToken);
+
+        if (recommendation is null || string.IsNullOrWhiteSpace(recommendation.RequestSnapshotJson))
+        {
+            return request;
+        }
+
+        try
+        {
+            var snapshot = JsonSerializer.Deserialize<CampaignPlanningRequestSnapshot>(recommendation.RequestSnapshotJson);
+            return snapshot is null ? request : ApplyRecommendationSnapshot(request, snapshot);
+        }
+        catch (JsonException)
+        {
+            return request;
+        }
     }
 
     private static AgentInventoryItemResponse MapInventoryItem(InventoryCandidate candidate)
@@ -190,6 +218,142 @@ public sealed class AgentInventoryController : ControllerBase
         }
 
         return request.PreferredMediaTypes.Any(value => PlanningChannelSupport.MatchesRequestedChannel(candidate.MediaType, value));
+    }
+
+    private static CampaignPlanningRequest ApplyRecommendationSnapshot(
+        CampaignPlanningRequest request,
+        CampaignPlanningRequestSnapshot snapshot)
+    {
+        var clone = request.DeepClone();
+        clone.SelectedBudget = snapshot.SelectedBudget > 0m ? snapshot.SelectedBudget : clone.SelectedBudget;
+        clone.Objective = snapshot.Objective;
+        clone.BusinessStage = snapshot.BusinessStage;
+        clone.MonthlyRevenueBand = snapshot.MonthlyRevenueBand;
+        clone.SalesModel = snapshot.SalesModel;
+        clone.StartDate = snapshot.StartDate;
+        clone.EndDate = snapshot.EndDate;
+        clone.DurationWeeks = snapshot.DurationWeeks;
+        clone.ChannelFlights = snapshot.ChannelFlights
+            .Select(static flight => new CampaignChannelFlightRequest
+            {
+                Channel = flight.Channel,
+                StartDate = flight.StartDate,
+                EndDate = flight.EndDate,
+                DurationWeeks = flight.DurationWeeks,
+                DurationMonths = flight.DurationMonths,
+                Priority = flight.Priority,
+                Notes = flight.Notes
+            })
+            .ToList();
+        clone.GeographyScope = snapshot.GeographyScope;
+        clone.Provinces = snapshot.Provinces.ToList();
+        clone.Cities = snapshot.Cities.ToList();
+        clone.Suburbs = snapshot.Suburbs.ToList();
+        clone.Areas = snapshot.Areas.ToList();
+        clone.TargetLocationLabel = snapshot.TargetLocationLabel;
+        clone.TargetLocationCity = snapshot.TargetLocationCity;
+        clone.TargetLocationProvince = snapshot.TargetLocationProvince;
+        clone.TargetLocationSource = snapshot.TargetLocationSource;
+        clone.TargetLocationPrecision = snapshot.TargetLocationPrecision;
+        clone.PreferredMediaTypes = snapshot.PreferredMediaTypes.ToList();
+        clone.ExcludedMediaTypes = snapshot.ExcludedMediaTypes.ToList();
+        clone.TargetLanguages = snapshot.TargetLanguages.ToList();
+        clone.TargetAgeMin = snapshot.TargetAgeMin;
+        clone.TargetAgeMax = snapshot.TargetAgeMax;
+        clone.TargetGender = snapshot.TargetGender;
+        clone.TargetInterests = snapshot.TargetInterests.ToList();
+        clone.TargetAudienceNotes = snapshot.TargetAudienceNotes;
+        clone.CustomerType = snapshot.CustomerType;
+        clone.BuyingBehaviour = snapshot.BuyingBehaviour;
+        clone.DecisionCycle = snapshot.DecisionCycle;
+        clone.PricePositioning = snapshot.PricePositioning;
+        clone.AverageCustomerSpendBand = snapshot.AverageCustomerSpendBand;
+        clone.GrowthTarget = snapshot.GrowthTarget;
+        clone.UrgencyLevel = snapshot.UrgencyLevel;
+        clone.AudienceClarity = snapshot.AudienceClarity;
+        clone.ValuePropositionFocus = snapshot.ValuePropositionFocus;
+        clone.TargetLsmMin = snapshot.TargetLsmMin;
+        clone.TargetLsmMax = snapshot.TargetLsmMax;
+        clone.MustHaveAreas = snapshot.MustHaveAreas.ToList();
+        clone.ExcludedAreas = snapshot.ExcludedAreas.ToList();
+        clone.OpenToUpsell = snapshot.OpenToUpsell;
+        clone.AdditionalBudget = snapshot.AdditionalBudget;
+        clone.MaxMediaItems = snapshot.MaxMediaItems;
+        clone.TargetRadioShare = snapshot.TargetRadioShare;
+        clone.TargetOohShare = snapshot.TargetOohShare;
+        clone.TargetTvShare = snapshot.TargetTvShare;
+        clone.TargetDigitalShare = snapshot.TargetDigitalShare;
+        clone.TargetLatitude = snapshot.TargetLatitude;
+        clone.TargetLongitude = snapshot.TargetLongitude;
+        clone.BusinessLocation = snapshot.BusinessLocation is null
+            ? clone.BusinessLocation
+            : new CampaignBusinessLocation
+            {
+                Label = snapshot.BusinessLocation.Label,
+                Area = snapshot.BusinessLocation.Area,
+                City = snapshot.BusinessLocation.City,
+                Province = snapshot.BusinessLocation.Province,
+                Latitude = snapshot.BusinessLocation.Latitude,
+                Longitude = snapshot.BusinessLocation.Longitude,
+                Source = snapshot.BusinessLocation.Source,
+                Precision = snapshot.BusinessLocation.Precision,
+                IsResolved = snapshot.BusinessLocation.IsResolved
+            };
+        clone.Targeting = snapshot.Targeting is null
+            ? clone.Targeting
+            : new CampaignTargetingProfile
+            {
+                Scope = snapshot.Targeting.Scope,
+                Label = snapshot.Targeting.Label,
+                City = snapshot.Targeting.City,
+                Province = snapshot.Targeting.Province,
+                Latitude = snapshot.Targeting.Latitude,
+                Longitude = snapshot.Targeting.Longitude,
+                Source = snapshot.Targeting.Source,
+                Precision = snapshot.Targeting.Precision,
+                Provinces = snapshot.Targeting.Provinces.ToList(),
+                Cities = snapshot.Targeting.Cities.ToList(),
+                Suburbs = snapshot.Targeting.Suburbs.ToList(),
+                Areas = snapshot.Targeting.Areas.ToList(),
+                PriorityAreas = snapshot.Targeting.PriorityAreas.ToList(),
+                Exclusions = snapshot.Targeting.Exclusions.ToList()
+            };
+        clone.BudgetAllocation = snapshot.BudgetAllocation is null
+            ? clone.BudgetAllocation
+            : new PlanningBudgetAllocation
+            {
+                ChannelPolicyKey = snapshot.BudgetAllocation.ChannelPolicyKey,
+                GeoPolicyKey = snapshot.BudgetAllocation.GeoPolicyKey,
+                AudienceSegment = snapshot.BudgetAllocation.AudienceSegment,
+                ChannelAllocations = snapshot.BudgetAllocation.ChannelAllocations
+                    .Select(static allocation => new PlanningChannelAllocation
+                    {
+                        Channel = allocation.Channel,
+                        Weight = allocation.Weight,
+                        Amount = allocation.Amount
+                    })
+                    .ToList(),
+                GeoAllocations = snapshot.BudgetAllocation.GeoAllocations
+                    .Select(static allocation => new PlanningGeoAllocation
+                    {
+                        Bucket = allocation.Bucket,
+                        Weight = allocation.Weight,
+                        Amount = allocation.Amount,
+                        RadiusKm = allocation.RadiusKm
+                    })
+                    .ToList(),
+                CompositeAllocations = snapshot.BudgetAllocation.CompositeAllocations
+                    .Select(static allocation => new PlanningAllocationLine
+                    {
+                        Channel = allocation.Channel,
+                        Bucket = allocation.Bucket,
+                        Weight = allocation.Weight,
+                        Amount = allocation.Amount,
+                        RadiusKm = allocation.RadiusKm
+                    })
+                    .ToList()
+            };
+        return clone;
     }
     private static int GetChannelRank(string mediaType)
     {

@@ -28,7 +28,8 @@ export const queryKeys = {
     campaigns: ['agent-campaigns'] as const,
     campaign: (campaignId: string) => ['agent-campaign', campaignId] as const,
     performance: (campaignId: string) => ['agent-campaign-performance', campaignId] as const,
-    inventory: (campaignId?: string) => ['inventory', campaignId ?? 'all'] as const,
+    inventory: (campaignId?: string, recommendationId?: string) =>
+      ['inventory', campaignId ?? 'all', recommendationId ?? 'all'] as const,
     messages: {
       inbox: ['agent-message-inbox'] as const,
       thread: (campaignId: string) => ['agent-message-thread', campaignId] as const,

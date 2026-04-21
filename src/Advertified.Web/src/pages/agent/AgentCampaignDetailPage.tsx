@@ -112,9 +112,27 @@ export function AgentCampaignDetailPage() {
     queryFn: () => advertifiedApi.getAgentCampaign(id),
     retry: false,
   });
+  const campaign = campaignQuery.data;
+  const recommendations = campaign?.recommendations.length
+    ? campaign.recommendations
+    : (campaign?.recommendation ? [campaign.recommendation] : []);
+  const requestedProposalLabel = recommendations
+    .map((item) => extractClientSelectedProposalLabel(item.clientFeedbackNotes))
+    .find((value): value is string => Boolean(value));
+  const requestedProposal = requestedProposalLabel
+    ? recommendations.find((item) => item.proposalLabel?.trim().toLowerCase() === requestedProposalLabel.toLowerCase())
+    : undefined;
+  const preferredRecommendationId = recommendations.find((item) => item.status === 'approved')?.id
+    ?? recommendations.find((item) => item.status === 'sent_to_client')?.id
+    ?? requestedProposal?.id
+    ?? recommendations[0]?.id
+    ?? '';
+  const selectedRecommendationId = selectedRecommendationIdState || preferredRecommendationId;
+  const activeRecommendation = recommendations.find((item) => item.id === selectedRecommendationId) ?? recommendations[0];
+
   const inventoryQuery = useQuery({
-    queryKey: queryKeys.agent.inventory(id),
-    queryFn: () => advertifiedApi.getInventory(id),
+    queryKey: queryKeys.agent.inventory(id, activeRecommendation?.id),
+    queryFn: () => advertifiedApi.getInventory(id, activeRecommendation?.id),
     enabled: campaignQuery.isSuccess,
     retry: false,
   });
@@ -229,27 +247,8 @@ export function AgentCampaignDetailPage() {
     onError: (error) => pushAgentMutationError(pushToast, 'We could not regenerate the recommendation.', error, 'Please try again in a moment.'),
   });
 
-  const campaign = campaignQuery.data;
   const inventoryItems = useMemo(() => inventoryQuery.data ?? [], [inventoryQuery.data]);
   const selectedPackageBand = packagesQuery.data?.find((item) => item.id === campaign?.packageBandId) ?? null;
-  const recommendations = useMemo(() => (
-    campaign?.recommendations.length
-      ? campaign.recommendations
-      : (campaign?.recommendation ? [campaign.recommendation] : [])
-  ), [campaign?.recommendation, campaign?.recommendations]);
-  const requestedProposalLabel = recommendations
-    .map((item) => extractClientSelectedProposalLabel(item.clientFeedbackNotes))
-    .find((value): value is string => Boolean(value));
-  const requestedProposal = requestedProposalLabel
-    ? recommendations.find((item) => item.proposalLabel?.trim().toLowerCase() === requestedProposalLabel.toLowerCase())
-    : undefined;
-  const preferredRecommendationId = recommendations.find((item) => item.status === 'approved')?.id
-    ?? recommendations.find((item) => item.status === 'sent_to_client')?.id
-    ?? requestedProposal?.id
-    ?? recommendations[0]?.id
-    ?? '';
-  const selectedRecommendationId = selectedRecommendationIdState || preferredRecommendationId;
-  const activeRecommendation = recommendations.find((item) => item.id === selectedRecommendationId) ?? recommendations[0];
   const recommendationItemsKey = activeRecommendation?.items
     .map((item) => `${item.id}:${item.sourceInventoryId ?? ''}:${item.quantity ?? 1}:${item.cost}`)
     .join('|') ?? '';

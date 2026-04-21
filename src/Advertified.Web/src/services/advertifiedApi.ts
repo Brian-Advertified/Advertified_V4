@@ -2255,9 +2255,18 @@ const agentApi = createAgentApi({
     });
     return mapCampaign(response);
   },
-  async listInventoryData(campaignId) {
+  async listInventoryData(campaignId?: string, recommendationId?: string) {
+    const search = new URLSearchParams();
+    if (campaignId) {
+      search.set('campaignId', campaignId);
+    }
+
+    if (recommendationId) {
+      search.set('recommendationId', recommendationId);
+    }
+
     return apiRequest<InventoryRow[]>(
-      campaignId ? `/agent/inventory?campaignId=${encodeURIComponent(campaignId)}` : '/agent/inventory',
+      search.size > 0 ? `/agent/inventory?${search.toString()}` : '/agent/inventory',
     );
   },
   async getProspectDispositionReasonsData() {

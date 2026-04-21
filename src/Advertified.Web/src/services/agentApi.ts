@@ -50,7 +50,7 @@ type AgentApiDependencies = {
     packageBandId: string;
     campaignName?: string;
   }) => Promise<Campaign>;
-  listInventoryData: (campaignId?: string) => Promise<InventoryRow[]>;
+  listInventoryData: (campaignId?: string, recommendationId?: string) => Promise<InventoryRow[]>;
   getProspectDispositionReasonsData: () => Promise<SelectOption[]>;
   uploadAgentAssetData: (campaignId: string, file: File, assetType: string) => Promise<CampaignAsset>;
   postJson: (path: string, body: unknown) => Promise<void>;
@@ -281,8 +281,8 @@ export function createAgentApi({
       return getAgentCampaignById(campaignId);
     },
 
-    async getInventory(campaignId?: string) {
-      return listInventoryData(campaignId);
+    async getInventory(campaignId?: string, recommendationId?: string) {
+      return listInventoryData(campaignId, recommendationId);
     },
   };
 }
