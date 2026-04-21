@@ -64,7 +64,7 @@ import { createCampaignApi } from './campaignApi';
 import { createCreativeApi } from './creativeApi';
 import { createLeadApi } from './leadApi';
 import { createPublicApi } from './publicApi';
-import { apiRequest, API_BASE_URL, downloadProtectedFile, downloadPublicFile, parseApiError, toAbsoluteApiUrl } from './apiClient';
+import { apiRequest, API_BASE_URL, downloadProtectedFile, downloadPublicFile, parseApiError, readJsonResponse, toAbsoluteApiUrl } from './apiClient';
 
 type PackageBandResponse = {
   id: string;
@@ -2278,7 +2278,7 @@ const agentApi = createAgentApi({
       await parseApiError(response);
     }
 
-    return mapCampaignAsset(await response.json());
+    return mapCampaignAsset(await readJsonResponse(response));
   },
   async postJson(path, body) {
     await apiRequest(path, {
@@ -2323,7 +2323,7 @@ const creativeApi = createCreativeApi({
       await parseApiError(response);
     }
 
-    return mapCampaignAsset(await response.json());
+    return mapCampaignAsset(await readJsonResponse(response));
   },
   async generateCreativeSystemData(campaignId, payload) {
     const response = await apiRequest<CreativeSystemResponse>(`/creative/campaigns/${campaignId}/creative-system`, {

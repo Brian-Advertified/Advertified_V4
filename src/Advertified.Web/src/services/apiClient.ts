@@ -8,6 +8,28 @@ type ApiErrorShape = {
   errors?: Record<string, string[]>;
 };
 
+function looksLikeHtmlDocument(value: string) {
+  const trimmed = value.trim().toLowerCase();
+  return trimmed.startsWith('<!doctype html') || trimmed.startsWith('<html');
+}
+
+function parseApiPayload(text: string, contentType: string | null): ApiErrorShape | null {
+  if (!text.trim()) {
+    return null;
+  }
+
+  const shouldTryJson = contentType?.toLowerCase().includes('json') ?? false;
+  if (!shouldTryJson && looksLikeHtmlDocument(text)) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(text) as ApiErrorShape;
+  } catch {
+    return null;
+  }
+}
+
 function humanizeApiMessage(message: string) {
   const normalized = message.trim();
 
@@ -79,13 +101,9 @@ function humanizeApiMessage(message: string) {
 }
 
 export async function parseApiError(response: Response) {
-  let payload: ApiErrorShape | null = null;
-
-  try {
-    payload = (await response.json()) as ApiErrorShape;
-  } catch {
-    payload = null;
-  }
+  const contentType = response.headers.get('content-type');
+  const text = await response.text();
+  const payload = parseApiPayload(text, contentType);
 
   const validationErrors = payload?.errors
     ? Object.values(payload.errors)
@@ -98,9 +116,33 @@ export async function parseApiError(response: Response) {
     payload?.Message ??
     payload?.detail ??
     payload?.title ??
+    (looksLikeHtmlDocument(text)
+      ? 'The app received an HTML page instead of an API response. Check the API base URL or sign in again.'
+      : null) ??
+    text.trim() ??
     `Request failed with status ${response.status}.`;
 
   throw new Error(humanizeApiMessage(message));
+}
+
+export async function readJsonResponse<T>(response: Response): Promise<T> {
+  const contentType = response.headers.get('content-type');
+  const text = await response.text();
+
+  if (!text.trim()) {
+    return undefined as T;
+  }
+
+  if (looksLikeHtmlDocument(text)) {
+    throw new Error('The app received an HTML page instead of API JSON. Check the API base URL or sign in again.');
+  }
+
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    const contentTypeLabel = contentType ? ` (${contentType})` : '';
+    throw new Error(`The app received an invalid API response${contentTypeLabel}.`);
+  }
 }
 
 export function toAbsoluteApiUrl(path?: string | null) {
@@ -143,7 +185,7 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
     return undefined as T;
   }
 
-  return (await response.json()) as T;
+  return readJsonResponse<T>(response);
 }
 
 export async function downloadProtectedFile(path: string, fallbackFileName?: string) {

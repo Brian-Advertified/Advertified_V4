@@ -32,7 +32,7 @@ import type {
   AdminUpsertPackageSettingInput,
   AdminUser,
 } from '../types/domain';
-import { API_BASE_URL, apiRequest, parseApiError } from './apiClient';
+import { API_BASE_URL, apiRequest, parseApiError, readJsonResponse } from './apiClient';
 
 type AdminDashboardResponse = AdminDashboard;
 
@@ -339,7 +339,7 @@ export function createAdminApi({ mapAdminPackageOrder }: AdminApiDependencies) {
         await parseApiError(response);
       }
 
-      return response.json();
+      return readJsonResponse(response);
     },
 
     async updateAdminRateCard(sourceFile: string, input: AdminRateCardUpdateInput) {
@@ -571,7 +571,7 @@ export function createAdminApi({ mapAdminPackageOrder }: AdminApiDependencies) {
         await parseApiError(response);
       }
 
-      const payload = (await response.json()) as AdminPackageOrderResponse;
+      const payload = await readJsonResponse<AdminPackageOrderResponse>(response);
       return mapAdminPackageOrder(payload);
     },
 

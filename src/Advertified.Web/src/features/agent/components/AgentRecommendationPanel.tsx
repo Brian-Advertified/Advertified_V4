@@ -80,6 +80,10 @@ export function AgentRecommendationPanel({
   formatConfidenceLabel: (value?: number) => string | null;
   formatFallbackFlag: (value: string) => string;
 }) {
+  const fallbackMessages = activeRecommendation
+    ? Array.from(new Set(activeRecommendation.fallbackFlags.map(formatFallbackFlag)))
+    : [];
+
   return (
     <>
       {showAuditSummary && activeRecommendation?.audit ? (
@@ -172,11 +176,11 @@ export function AgentRecommendationPanel({
           <p className="mt-2 text-sm leading-7 text-rose-900">
             The planner could not fully satisfy package policy or inventory requirements for this draft.
           </p>
-          {activeRecommendation.fallbackFlags.length > 0 ? (
+          {fallbackMessages.length > 0 ? (
             <div className="mt-3 flex flex-wrap gap-2">
-              {activeRecommendation.fallbackFlags.map((flag) => (
-                <span key={flag} className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-rose-700 ring-1 ring-rose-200">
-                  {formatFallbackFlag(flag)}
+              {fallbackMessages.map((message) => (
+                <span key={message} className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-rose-700 ring-1 ring-rose-200">
+                  {message}
                 </span>
               ))}
             </div>
