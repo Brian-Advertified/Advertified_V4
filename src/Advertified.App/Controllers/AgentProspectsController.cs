@@ -3,6 +3,7 @@ using Advertified.App.Contracts.Agent;
 using Advertified.App.Data;
 using Advertified.App.Data.Entities;
 using Advertified.App.Data.Enums;
+using Advertified.App.Mappings;
 using Advertified.App.Services.Abstractions;
 using Advertified.App.Support;
 using Microsoft.AspNetCore.Authorization;

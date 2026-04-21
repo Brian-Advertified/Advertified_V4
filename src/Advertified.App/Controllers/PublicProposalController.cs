@@ -1,6 +1,7 @@
 using Advertified.App.Contracts.Campaigns;
 using Advertified.App.Campaigns;
 using Advertified.App.Data;
+using Advertified.App.Mappings;
 using Advertified.App.Services.Abstractions;
 using Advertified.App.Support;
 using Microsoft.AspNetCore.Authorization;

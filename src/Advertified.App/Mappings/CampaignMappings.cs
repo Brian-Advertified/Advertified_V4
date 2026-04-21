@@ -11,9 +11,9 @@ using PlanningBudgetAllocationSnapshot = Advertified.App.Domain.Campaigns.Planni
 using RecommendationRejectedCandidateTrace = Advertified.App.Domain.Campaigns.RecommendationRejectedCandidateTrace;
 using RecommendationSelectedItemTrace = Advertified.App.Domain.Campaigns.RecommendationSelectedItemTrace;
 
-namespace Advertified.App.Controllers;
+namespace Advertified.App.Mappings;
 
-internal static class ControllerMappings
+internal static class CampaignMappings
 {
     private const string ClientFeedbackMarker = "Client feedback:";
     private const string FallbackFlagsMarker = "Fallback flags:";
