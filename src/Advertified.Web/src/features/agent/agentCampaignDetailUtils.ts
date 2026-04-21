@@ -173,7 +173,7 @@ export function getConstraintChecks(
 
 export function groupPlanItems(items: SelectedPlanInventoryItem[]) {
   return items.reduce<Record<string, SelectedPlanInventoryItem[]>>((acc, item) => {
-    const key = item.type.toUpperCase();
+    const key = normalizeChannelKey(item.type);
     acc[key] = [...(acc[key] ?? []), item];
     return acc;
   }, {});

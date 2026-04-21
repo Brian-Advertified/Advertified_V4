@@ -38,7 +38,7 @@ public static class PlanningChannelSupport
         var normalized = NormalizeChannel(value);
         return normalized switch
         {
-            OohAlias => new[] { Billboard, DigitalScreen },
+            OohAlias => new[] { OohAlias },
             Billboard => new[] { Billboard },
             DigitalScreen => new[] { DigitalScreen },
             Radio => new[] { Radio },
@@ -81,9 +81,15 @@ public static class PlanningChannelSupport
     public static bool MatchesRequestedChannel(string? candidateChannel, string? requestedChannel)
     {
         var normalizedCandidate = NormalizeChannel(candidateChannel);
+        var normalizedRequested = NormalizeChannel(requestedChannel);
         if (string.IsNullOrWhiteSpace(normalizedCandidate))
         {
             return false;
+        }
+
+        if (normalizedRequested == OohAlias)
+        {
+            return IsOohFamilyChannel(normalizedCandidate);
         }
 
         return ExpandRequestedChannel(requestedChannel)

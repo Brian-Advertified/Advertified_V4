@@ -121,7 +121,7 @@ public sealed class PlanningBudgetAllocationService : IPlanningBudgetAllocationS
                 ["digital"] = ToWeight(request.TargetDigitalShare),
                 ["tv"] = ToWeight(request.TargetTvShare)
             };
-            MergeOohSplitWeights(explicitWeights, ToWeight(request.TargetOohShare), ResolveBudgetBand(snapshot.BudgetBands, request.SelectedBudget));
+            AddOohWeight(explicitWeights, ToWeight(request.TargetOohShare));
             return ("explicit_request", NormalizeWeights(explicitWeights, GetExplicitRequestFallbackWeights(request, snapshot.BudgetBands, request.SelectedBudget)));
         }
 
@@ -161,7 +161,7 @@ public sealed class PlanningBudgetAllocationService : IPlanningBudgetAllocationS
             ["radio"] = 0.30m,
             ["digital"] = 0.35m
         };
-        MergeOohSplitWeights(fallback, ToWeight(request.TargetOohShare), ResolveBudgetBand(budgetBands, selectedBudget));
+        AddOohWeight(fallback, ToWeight(request.TargetOohShare));
         return fallback;
     }
 
@@ -369,25 +369,21 @@ public sealed class PlanningBudgetAllocationService : IPlanningBudgetAllocationS
             ["radio"] = radio,
             ["digital"] = digital
         };
-        MergeOohSplitWeights(weights, ooh, budgetBand);
+        AddOohWeight(weights, ooh);
 
         return NormalizeWeights(weights, new Dictionary<string, decimal>(weights, StringComparer.OrdinalIgnoreCase));
     }
 
-    private static void MergeOohSplitWeights(
+    private static void AddOohWeight(
         IDictionary<string, decimal> weights,
-        decimal oohWeight,
-        BudgetBandAllocationPolicyRule? budgetBand)
+        decimal oohWeight)
     {
         if (oohWeight <= 0m)
         {
             return;
         }
 
-        var billboardShare = ClampRatio(budgetBand?.BillboardShareOfOoh ?? 0.65m);
-        var digitalScreenShare = Math.Max(0m, 1m - billboardShare);
-        weights[PlanningChannelSupport.Billboard] = decimal.Round(oohWeight * billboardShare, 4, MidpointRounding.AwayFromZero);
-        weights[PlanningChannelSupport.DigitalScreen] = decimal.Round(oohWeight * digitalScreenShare, 4, MidpointRounding.AwayFromZero);
+        weights[PlanningChannelSupport.OohAlias] = decimal.Round(oohWeight, 4, MidpointRounding.AwayFromZero);
     }
 
     private static decimal ResolveMidpoint(IReadOnlyList<decimal> range)

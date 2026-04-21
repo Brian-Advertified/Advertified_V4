@@ -1147,14 +1147,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         var oohWeight = targets.Ooh / 100m;
         if (oohWeight > 0m)
         {
-            var currentOohWeights = request.BudgetAllocation.ChannelAllocations
-                .Where(entry => PlanningChannelSupport.IsOohFamilyChannel(entry.Channel))
-                .ToArray();
-            var billboardShare = currentOohWeights.Sum(entry =>
-                PlanningChannelSupport.NormalizeChannel(entry.Channel) == PlanningChannelSupport.Billboard ? entry.Weight : 0m);
-            var normalizedBillboardShare = billboardShare <= 0m || billboardShare >= 1m ? 0.65m : billboardShare;
-            channelWeights[PlanningChannelSupport.Billboard] = decimal.Round(oohWeight * normalizedBillboardShare, 4, MidpointRounding.AwayFromZero);
-            channelWeights[PlanningChannelSupport.DigitalScreen] = decimal.Round(oohWeight * (1m - normalizedBillboardShare), 4, MidpointRounding.AwayFromZero);
+            channelWeights[PlanningChannelSupport.OohAlias] = decimal.Round(oohWeight, 4, MidpointRounding.AwayFromZero);
         }
         var activeChannelWeights = channelWeights
             .Where(entry => entry.Value > 0m)

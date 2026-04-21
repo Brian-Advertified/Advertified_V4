@@ -191,7 +191,10 @@ public sealed class PlanningPolicyService : IPlanningPolicyService
 
     public int? GetTargetShare(string? mediaType, CampaignPlanningRequest request)
     {
-        var normalized = mediaType?.Trim().ToLowerInvariant();
+        var normalized = PlanningChannelSupport.NormalizeChannel(mediaType);
+        var allocationChannel = PlanningChannelSupport.IsOohFamilyChannel(normalized)
+            ? PlanningChannelSupport.OohAlias
+            : normalized;
         var explicitShare = normalized switch
         {
             "radio" => request.TargetRadioShare,
@@ -208,10 +211,10 @@ public sealed class PlanningPolicyService : IPlanningPolicyService
             return explicitShare;
         }
 
-        if (request.BudgetAllocation?.ChannelAllocations.Count > 0 && !string.IsNullOrWhiteSpace(normalized))
+        if (request.BudgetAllocation?.ChannelAllocations.Count > 0 && !string.IsNullOrWhiteSpace(allocationChannel))
         {
             var allocation = request.BudgetAllocation.ChannelAllocations
-                .FirstOrDefault(entry => string.Equals(NormalizeChannel(entry.Channel), normalized, StringComparison.OrdinalIgnoreCase));
+                .FirstOrDefault(entry => string.Equals(NormalizeChannel(entry.Channel), allocationChannel, StringComparison.OrdinalIgnoreCase));
             if (allocation is not null && allocation.Weight > 0m)
             {
                 return (int)Math.Round(allocation.Weight * 100m, MidpointRounding.AwayFromZero);

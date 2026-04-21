@@ -1,6 +1,7 @@
 using Advertified.App.Contracts.Campaigns;
 using Advertified.App.Domain.Campaigns;
 using Advertified.App.Services.Abstractions;
+using Advertified.App.Support;
 using System.Text.Json;
 
 namespace Advertified.App.Services;
@@ -68,7 +69,8 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
             return "cost_out_of_budget";
         }
 
-        if (request.ExcludedMediaTypes.Contains(candidate.MediaType, StringComparer.OrdinalIgnoreCase))
+        if (request.ExcludedMediaTypes.Any(excluded =>
+                PlanningChannelSupport.MatchesRequestedChannel(candidate.MediaType, excluded)))
         {
             return "media_type_excluded";
         }
