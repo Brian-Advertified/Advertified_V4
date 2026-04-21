@@ -479,7 +479,7 @@ public sealed class AdminDashboardService : IAdminDashboardService
         var waitingOnClientCount = await _db.CampaignRecommendations.CountAsync(x => x.Status == RecommendationStatuses.SentToClient, cancellationToken);
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         var inventoryRows = await connection.ExecuteScalarAsync<int>(new CommandDefinition(
-            "select count(*) from inventory_items_final",
+            "select count(*) from ooh_inventory_intelligence where is_active = true",
             cancellationToken: cancellationToken));
         var recommendationCount = await _db.CampaignRecommendations.CountAsync(cancellationToken);
         var creativeAlertCount = await _db.AiCreativeJobStatuses

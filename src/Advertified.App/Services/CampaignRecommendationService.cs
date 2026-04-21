@@ -939,18 +939,6 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             span * ProposalTierSpanToleranceRatio));
     }
 
-    private static string GetProposalDisplayLabel(string variantKey)
-    {
-        return variantKey.ToLowerInvariant() switch
-        {
-            "balanced" => "Proposal A",
-            "ooh_focus" => "Proposal B",
-            "radio_focus" => "Proposal C",
-            "digital_focus" => "Proposal C",
-            _ => "the proposal"
-        };
-    }
-
     private static string FormatCurrency(decimal amount)
     {
         return $"R {amount.ToString("N2", CultureInfo.GetCultureInfo("en-ZA"))}";

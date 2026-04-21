@@ -57,11 +57,6 @@ internal static class RecommendationPdfPresentationBuilder
             .ToArray();
     }
 
-    internal static string BuildProposalSubheading(RecommendationDocumentModel model, RecommendationProposalDocumentModel proposal)
-    {
-        return BuildProposalAreaSummary(model, proposal);
-    }
-
     internal static string BuildProposalDeliverableSummary(RecommendationProposalDocumentModel proposal)
     {
         var placements = proposal.Items

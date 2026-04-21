@@ -317,40 +317,6 @@ internal static class RecommendationPdfGenerator
         });
     }
 
-    private static void ComposeBudgetSplit(IContainer container, RecommendationProposalDocumentModel proposal)
-    {
-        var split = RecommendationPdfPresentationBuilder.BuildChannelSpendSplit(proposal);
-        if (split.Count == 0)
-        {
-            return;
-        }
-
-        container.Background(ColorSurface).Padding(14).Column(column =>
-        {
-            column.Spacing(8);
-            column.Item().Text("Budget split").FontSize(8).SemiBold().FontColor(ColorMuted);
-            foreach (var entry in split)
-            {
-                column.Item().Row(row =>
-                {
-                    row.ConstantItem(120).Text(entry.Label).FontSize(9).FontColor(ColorMuted);
-                    row.ConstantItem(150).PaddingTop(4).Table(table =>
-                    {
-                        table.ColumnsDefinition(columns =>
-                        {
-                            columns.ConstantColumn(Math.Max(8, (float)entry.Percent * 1.5f));
-                            columns.RelativeColumn();
-                        });
-
-                        table.Cell().Height(8).Background(ResolveSpendColor(entry.Key));
-                        table.Cell().Height(8).Background(ColorBorder);
-                    });
-                    row.ConstantItem(34).AlignRight().Text($"{entry.Percent}%").FontSize(9).SemiBold();
-                });
-            }
-        });
-    }
-
     private static void ComposePlacementCard(IContainer container, RecommendationDocumentModel model, RecommendationLineDocumentModel item)
     {
         var details = RecommendationPdfPresentationBuilder.BuildPlacementTags(item);
@@ -449,29 +415,6 @@ internal static class RecommendationPdfGenerator
             });
             row.ConstantItem(220).AlignRight().Text($"{model.CampaignName} | Generated {model.GeneratedAtUtc:dd MMM yyyy}").FontSize(8).FontColor(ColorMuted);
         });
-    }
-
-    private static void AddDetailRow(TableDescriptor table, string label, string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return;
-        }
-
-        table.Cell().PaddingVertical(2).Text(label).SemiBold().FontColor("#4B5563");
-        table.Cell().PaddingVertical(2).Text(RecommendationPdfCopy.ToClientCopy(value));
-    }
-
-    private static string ResolveSpendColor(string channelKey)
-    {
-        return channelKey switch
-        {
-            "ooh" => ColorGreen,
-            "radio" => ColorAmber,
-            "digital" => ColorBlue,
-            "tv" => "#6D5BD0",
-            _ => ColorGreenDark
-        };
     }
 
     private static int GetFeaturedProposalIndex(int count)

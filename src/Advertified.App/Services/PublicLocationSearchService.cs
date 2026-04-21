@@ -23,12 +23,13 @@ public sealed class PublicLocationSearchService : IPublicLocationSearchService
         }
 
         const string sql = @"
-            select trim(iif.suburb) as suburb
-            from inventory_items_final iif
-            where lower(coalesce(iif.city, '')) = lower(@City)
-              and coalesce(trim(iif.suburb), '') <> ''
-            group by trim(iif.suburb)
-            order by trim(iif.suburb)
+            select trim(oii.suburb) as suburb
+            from ooh_inventory_intelligence oii
+            where oii.is_active = true
+              and lower(coalesce(oii.city, '')) = lower(@City)
+              and coalesce(trim(oii.suburb), '') <> ''
+            group by trim(oii.suburb)
+            order by trim(oii.suburb)
             limit 50;";
 
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
@@ -89,42 +90,44 @@ public sealed class PublicLocationSearchService : IPublicLocationSearchService
             ),
             inventory_suburbs as (
                 select
-                    trim(iif.suburb) as label,
+                    trim(oii.suburb) as label,
                     'suburb'::text as location_type,
-                    nullif(trim(iif.city), '') as city,
-                    nullif(trim(iif.province), '') as province,
-                    avg(iif.latitude) as latitude,
-                    avg(iif.longitude) as longitude,
+                    nullif(trim(oii.city), '') as city,
+                    nullif(trim(oii.province), '') as province,
+                    avg(oii.latitude) as latitude,
+                    avg(oii.longitude) as longitude,
                     'inventory'::text as source,
                     1 as source_rank
-                from inventory_items_final iif
-                where coalesce(trim(iif.suburb), '') <> ''
+                from ooh_inventory_intelligence oii
+                where oii.is_active = true
+                  and coalesce(trim(oii.suburb), '') <> ''
                   and (
-                    trim(iif.suburb) ilike @Pattern
-                    or trim(coalesce(iif.city, '')) ilike @Pattern
+                    trim(oii.suburb) ilike @Pattern
+                    or trim(coalesce(oii.city, '')) ilike @Pattern
                   )
                   and (
                     @Scope <> 'local'
                     or @City is null
-                    or lower(coalesce(iif.city, '')) = lower(@City)
+                    or lower(coalesce(oii.city, '')) = lower(@City)
                   )
-                group by trim(iif.suburb), nullif(trim(iif.city), ''), nullif(trim(iif.province), '')
+                group by trim(oii.suburb), nullif(trim(oii.city), ''), nullif(trim(oii.province), '')
             ),
             inventory_cities as (
                 select
-                    trim(iif.city) as label,
+                    trim(oii.city) as label,
                     'city'::text as location_type,
-                    trim(iif.city) as city,
-                    nullif(trim(iif.province), '') as province,
-                    avg(iif.latitude) as latitude,
-                    avg(iif.longitude) as longitude,
+                    trim(oii.city) as city,
+                    nullif(trim(oii.province), '') as province,
+                    avg(oii.latitude) as latitude,
+                    avg(oii.longitude) as longitude,
                     'inventory'::text as source,
                     2 as source_rank
-                from inventory_items_final iif
-                where coalesce(trim(iif.city), '') <> ''
-                  and trim(iif.city) ilike @Pattern
+                from ooh_inventory_intelligence oii
+                where oii.is_active = true
+                  and coalesce(trim(oii.city), '') <> ''
+                  and trim(oii.city) ilike @Pattern
                   and @Scope <> 'provincial'
-                group by trim(iif.city), nullif(trim(iif.province), '')
+                group by trim(oii.city), nullif(trim(oii.province), '')
             ),
             combined as (
                 select * from master_matches

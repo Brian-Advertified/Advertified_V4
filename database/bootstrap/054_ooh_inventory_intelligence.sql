@@ -1,12 +1,20 @@
 create table if not exists ooh_inventory_intelligence (
     id uuid primary key default gen_random_uuid(),
-    source_inventory_id uuid null references inventory_items_final(id) on delete set null,
     supplier text not null,
     site_code text null,
     site_name text not null,
     city text null,
     suburb text null,
     province text null,
+    media_type text null,
+    address text null,
+    latitude double precision null,
+    longitude double precision null,
+    is_available boolean not null default true,
+    discounted_rate_zar numeric(18,2) null,
+    rate_card_zar numeric(18,2) null,
+    monthly_rate_zar numeric(18,2) null,
+    traffic_count bigint null,
     scope_level varchar(30) not null default 'site',
     venue_type varchar(80) null,
     premium_mass_fit varchar(50) null,
@@ -45,8 +53,8 @@ create unique index if not exists ux_ooh_inventory_intelligence_site_lookup
         lower(coalesce(province, ''))
     );
 
-create index if not exists ix_ooh_inventory_intelligence_source_inventory_id
-    on ooh_inventory_intelligence (source_inventory_id);
-
 create index if not exists ix_ooh_inventory_intelligence_supplier_site
     on ooh_inventory_intelligence (supplier, site_name);
+
+create index if not exists ix_ooh_inventory_intelligence_active_geography
+    on ooh_inventory_intelligence (is_active, province, city, suburb);

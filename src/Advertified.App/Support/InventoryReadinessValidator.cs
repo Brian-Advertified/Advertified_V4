@@ -26,22 +26,22 @@ internal static class InventoryReadinessValidator
         await connection.OpenAsync(cancellationToken);
 
         var oohInventoryRows = await connection.ExecuteScalarAsync<int>(new CommandDefinition(
-            "select count(*) from inventory_items_final;",
+            "select count(*) from ooh_inventory_intelligence where is_active = true;",
             cancellationToken: cancellationToken));
 
         if (oohInventoryRows < options.MinimumOohInventoryRows)
         {
             logger.LogCritical(
-                "Startup blocked: OOH inventory readiness failed. inventory_items_final has {RowCount} row(s), minimum required is {MinimumRequired}.",
+                "Startup blocked: OOH inventory readiness failed. ooh_inventory_intelligence has {RowCount} row(s), minimum required is {MinimumRequired}.",
                 oohInventoryRows,
                 options.MinimumOohInventoryRows);
 
             throw new InvalidOperationException(
-                $"OOH inventory readiness failed: inventory_items_final has {oohInventoryRows} row(s), minimum required is {options.MinimumOohInventoryRows}.");
+                $"OOH inventory readiness failed: ooh_inventory_intelligence has {oohInventoryRows} row(s), minimum required is {options.MinimumOohInventoryRows}.");
         }
 
         logger.LogInformation(
-            "Inventory readiness passed. inventory_items_final rows: {RowCount} (minimum required: {MinimumRequired}).",
+            "Inventory readiness passed. ooh_inventory_intelligence rows: {RowCount} (minimum required: {MinimumRequired}).",
             oohInventoryRows,
             options.MinimumOohInventoryRows);
     }
