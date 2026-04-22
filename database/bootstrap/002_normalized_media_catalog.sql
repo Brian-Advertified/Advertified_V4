@@ -106,5 +106,3 @@ CREATE TABLE IF NOT EXISTS media_reference_sources (
 -- Legacy V1 broadcast structures were intentionally removed after the V2
 -- media_outlet migration. Shared source-document and geography tables above
 -- remain part of the supported schema.
-
-ALTER TABLE inventory_items_final ADD COLUMN IF NOT EXISTS region_cluster_id UUID REFERENCES region_clusters(id) ON DELETE SET NULL;

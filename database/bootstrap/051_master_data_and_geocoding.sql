@@ -442,13 +442,5 @@ on conflict (alias) do nothing;
 alter table leads add column if not exists latitude double precision;
 alter table leads add column if not exists longitude double precision;
 
-alter table inventory_items_final add column if not exists latitude double precision;
-alter table inventory_items_final add column if not exists longitude double precision;
-
 alter table media_outlet add column if not exists latitude double precision;
 alter table media_outlet add column if not exists longitude double precision;
-
-update inventory_items_final
-set latitude = coalesce(latitude, nullif(metadata_json ->> 'latitude', '')::double precision, nullif(metadata_json ->> 'lat', '')::double precision),
-    longitude = coalesce(longitude, nullif(metadata_json ->> 'longitude', '')::double precision, nullif(metadata_json ->> 'lng', '')::double precision, nullif(metadata_json ->> 'lon', '')::double precision)
-where metadata_json is not null;

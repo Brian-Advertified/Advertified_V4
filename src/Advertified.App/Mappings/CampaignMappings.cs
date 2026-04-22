@@ -323,8 +323,7 @@ internal static class CampaignMappings
     private static CampaignRecommendationResponse ToResponse(Campaign campaign, CampaignRecommendation recommendation, bool includeLinePricing, int proposalIndex)
     {
         var extractedFeedback = ExtractClientFeedbackNotes(recommendation.Rationale);
-        var fallbackFlags = ExtractFallbackFlags(recommendation.Rationale);
-        var manualReviewRequired = ExtractManualReviewRequired(recommendation.Rationale);
+        var fallbackState = RecommendationAuditSupport.ResolveFallbackState(recommendation);
         var (proposalLabel, proposalStrategy) = GetProposalDetails(recommendation.RecommendationType, proposalIndex);
 
         return new CampaignRecommendationResponse
@@ -336,8 +335,8 @@ internal static class CampaignMappings
             Summary = recommendation.Summary ?? string.Empty,
             Rationale = RemoveInternalMarkers(recommendation.Rationale),
             ClientFeedbackNotes = extractedFeedback,
-            ManualReviewRequired = manualReviewRequired,
-            FallbackFlags = fallbackFlags,
+            ManualReviewRequired = fallbackState.ManualReviewRequired,
+            FallbackFlags = fallbackState.FallbackFlags,
             Audit = BuildAuditResponse(recommendation),
             Status = recommendation.Status,
             TotalCost = recommendation.TotalCost,
@@ -1191,51 +1190,6 @@ internal static class CampaignMappings
         {
             return new CreativeSystemResponse();
         }
-    }
-
-    private static bool ExtractManualReviewRequired(string? rationale)
-    {
-        if (string.IsNullOrWhiteSpace(rationale))
-        {
-            return false;
-        }
-
-        var line = rationale
-            .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
-            .Select(entry => entry.Trim())
-            .LastOrDefault(entry => entry.StartsWith(ManualReviewMarker, StringComparison.OrdinalIgnoreCase));
-
-        if (line is null)
-        {
-            return false;
-        }
-
-        var rawValue = line[(ManualReviewMarker.Length)..].Trim();
-        return bool.TryParse(rawValue, out var parsed) && parsed;
-    }
-
-    private static IReadOnlyList<string> ExtractFallbackFlags(string? rationale)
-    {
-        if (string.IsNullOrWhiteSpace(rationale))
-        {
-            return Array.Empty<string>();
-        }
-
-        var line = rationale
-            .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
-            .Select(entry => entry.Trim())
-            .LastOrDefault(entry => entry.StartsWith(FallbackFlagsMarker, StringComparison.OrdinalIgnoreCase));
-
-        if (line is null)
-        {
-            return Array.Empty<string>();
-        }
-
-        return line[(FallbackFlagsMarker.Length)..]
-            .Split(',', StringSplitOptions.RemoveEmptyEntries)
-            .Select(flag => flag.Trim())
-            .Where(flag => !string.IsNullOrWhiteSpace(flag))
-            .ToArray();
     }
 
     private static string? ExtractClientFeedbackNotes(string? rationale)

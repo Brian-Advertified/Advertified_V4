@@ -65,6 +65,8 @@ public sealed class AgentCampaignsController : ControllerBase
             .Include(x => x.CampaignBrief)
             .Include(x => x.CampaignRecommendations)
                 .ThenInclude(x => x.RecommendationItems)
+            .Include(x => x.CampaignRecommendations)
+                .ThenInclude(x => x.RecommendationRunAudits)
             .Include(x => x.EmailDeliveryMessages)
             .OrderByDescending(x => x.CreatedAt)
             .ToArrayAsync(cancellationToken);
@@ -88,6 +90,7 @@ public sealed class AgentCampaignsController : ControllerBase
             .Include(x => x.PackageOrder)
             .Include(x => x.CampaignBrief)
             .Include(x => x.CampaignRecommendations)
+                .ThenInclude(x => x.RecommendationRunAudits)
             .OrderByDescending(x => x.UpdatedAt)
             .ThenByDescending(x => x.CreatedAt)
             .ToArrayAsync(cancellationToken);
@@ -98,10 +101,11 @@ public sealed class AgentCampaignsController : ControllerBase
             var stage = CampaignWorkflowPolicy.ResolveAgentQueueStage(workflowCampaign);
             var currentRecommendations = RecommendationSelectionPolicy.GetVisibleRecommendationSet(campaign);
             var activeRecommendation = RecommendationSelectionPolicy.GetVisibleRecommendation(campaign);
+            var fallbackState = RecommendationAuditSupport.ResolveFallbackState(activeRecommendation);
             var selectedBudget = PricingPolicy.ResolvePlanningBudget(
                 campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
                 campaign.PackageOrder.AiStudioReserveAmount);
-            var manualReviewRequired = ExtractManualReviewRequired(activeRecommendation?.Rationale);
+            var manualReviewRequired = fallbackState.ManualReviewRequired;
             var isOverBudget = activeRecommendation is not null
                 && activeRecommendation.TotalCost > selectedBudget
                 && !string.Equals(activeRecommendation.Status, RecommendationStatuses.Approved, StringComparison.OrdinalIgnoreCase);
@@ -361,28 +365,5 @@ public sealed class AgentCampaignsController : ControllerBase
         }
 
         return currentUser;
-    }
-
-    private static bool ExtractManualReviewRequired(string? rationale)
-    {
-        const string ManualReviewMarker = "Manual review required:";
-        
-        if (string.IsNullOrWhiteSpace(rationale))
-        {
-            return false;
-        }
-
-        var line = rationale
-            .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
-            .Select(entry => entry.Trim())
-            .LastOrDefault(entry => entry.StartsWith(ManualReviewMarker, StringComparison.OrdinalIgnoreCase));
-
-        if (line is null)
-        {
-            return false;
-        }
-
-        var rawValue = line[(ManualReviewMarker.Length)..].Trim();
-        return bool.TryParse(rawValue, out var parsed) && parsed;
     }
 }

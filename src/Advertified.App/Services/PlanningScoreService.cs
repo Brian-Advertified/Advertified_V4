@@ -3,7 +3,6 @@ using Advertified.App.Domain.Campaigns;
 using Advertified.App.Services.Abstractions;
 using Advertified.App.Support;
 using System.Text.RegularExpressions;
-using System.Text.Json;
 
 namespace Advertified.App.Services;
 
@@ -13,6 +12,7 @@ public sealed class PlanningScoreService : IPlanningScoreService
     private const decimal BroadcastSecondaryLanguageMatchScore = 20m;
     private const decimal BroadcastLanguageMismatchPenalty = -24m;
     private const decimal BroadcastSuburbTokenBonus = 18m;
+    private readonly IPlanningEligibilityService _eligibilityService;
     private readonly IPlanningPolicyService _policyService;
     private readonly IBroadcastMasterDataService _broadcastMasterDataService;
     private readonly ILeadIndustryContextResolver _leadIndustryContextResolver;
@@ -20,39 +20,19 @@ public sealed class PlanningScoreService : IPlanningScoreService
     private readonly IPlanningBriefIntentService _briefIntentService;
 
     public PlanningScoreService(
+        IPlanningEligibilityService eligibilityService,
         IPlanningPolicyService policyService,
         IBroadcastMasterDataService broadcastMasterDataService,
         ILeadIndustryContextResolver leadIndustryContextResolver,
         IIndustryArchetypeScoringService industryArchetypeScoringService,
         IPlanningBriefIntentService briefIntentService)
     {
+        _eligibilityService = eligibilityService;
         _policyService = policyService;
         _broadcastMasterDataService = broadcastMasterDataService;
         _leadIndustryContextResolver = leadIndustryContextResolver;
         _industryArchetypeScoringService = industryArchetypeScoringService;
         _briefIntentService = briefIntentService;
-    }
-
-    public PlanningScoreService(IPlanningPolicyService policyService, IBroadcastMasterDataService broadcastMasterDataService)
-        : this(policyService, broadcastMasterDataService, new NoOpLeadIndustryContextResolver(), new NoOpIndustryArchetypeScoringService(), new NoOpPlanningBriefIntentService())
-    {
-    }
-
-    public PlanningScoreService(
-        IPlanningPolicyService policyService,
-        IBroadcastMasterDataService broadcastMasterDataService,
-        ILeadIndustryContextResolver leadIndustryContextResolver)
-        : this(policyService, broadcastMasterDataService, leadIndustryContextResolver, new NoOpIndustryArchetypeScoringService(), new NoOpPlanningBriefIntentService())
-    {
-    }
-
-    public PlanningScoreService(
-        IPlanningPolicyService policyService,
-        IBroadcastMasterDataService broadcastMasterDataService,
-        ILeadIndustryContextResolver leadIndustryContextResolver,
-        IIndustryArchetypeScoringService industryArchetypeScoringService)
-        : this(policyService, broadcastMasterDataService, leadIndustryContextResolver, industryArchetypeScoringService, new NoOpPlanningBriefIntentService())
-    {
     }
 
     public PlanningCandidateAnalysis AnalyzeCandidate(InventoryCandidate candidate, CampaignPlanningRequest request)
@@ -62,8 +42,9 @@ public sealed class PlanningScoreService : IPlanningScoreService
 
     public decimal GeoScore(InventoryCandidate candidate, CampaignPlanningRequest request)
     {
-        var scope = NormalizeScope(request.GeographyScope);
-        var candidateCoverage = ResolveCandidateCoverage(candidate);
+        var geography = _eligibilityService.EvaluateGeography(candidate, request);
+        var scope = geography.Scope;
+        var candidateCoverage = geography.Coverage;
         var normalizedCandidateChannel = PlanningChannelSupport.NormalizeChannel(candidate.MediaType);
         var isBroadcast = normalizedCandidateChannel is PlanningChannelSupport.Radio or PlanningChannelSupport.Tv;
 
@@ -93,7 +74,7 @@ public sealed class PlanningScoreService : IPlanningScoreService
             _ => 8m
         };
 
-        if (request.Suburbs.Any(x => MatchesGeo(x, candidate.Suburb) || MatchesGeo(x, candidate.Area)))
+        if (geography.MatchesSuburb)
         {
             score += 10m;
         }
@@ -104,60 +85,41 @@ public sealed class PlanningScoreService : IPlanningScoreService
         // If no station matches the token, nothing breaks: all other geo scoring still applies.
         if (isBroadcast && request.Suburbs.Count > 0)
         {
-            var suburbTokens = ExtractSuburbTokens(request.Suburbs);
             // Important: use exact token matching here (no geography aliasing), otherwise a token like
             // "Soweto" could alias to "Johannesburg" and incorrectly boost stations that only list
             // the broader city label.
-            if (suburbTokens.Length > 0 && suburbTokens.Any(token =>
-                    MatchesAnyMetadataTokenExact(candidate, token, "cityLabels", "city_labels", "city", "area")))
+            if (PlanningMetadataSupport.HasBroadcastGeoTokenMatch(candidate, request.Suburbs, "cityLabels", "city_labels", "city", "area"))
             {
                 score += 10m;
             }
         }
 
-        if (request.Cities.Any(x =>
-            MatchesGeo(x, candidate.City)
-            || MatchesAnyMetadataToken(candidate, x, "cityLabels", "city_labels", "city", "area")))
+        if (geography.MatchesCity)
         {
             score += 10m;
         }
 
-        if (request.Provinces.Any(x => MatchesRequestedProvince(candidate, x, isBroadcast)))
+        if (geography.MatchesProvince)
         {
             score += 10m;
         }
 
-        if (request.Areas.Any(x => MatchesGeo(x, candidate.Area) || MatchesGeo(x, candidate.Suburb)))
+        if (geography.MatchesArea)
         {
             score += 8m;
         }
 
-        score += PriorityAreaScore(candidate, request);
-        score += BusinessLocationScore(candidate, request);
-
-        return Math.Min(48m, score);
-    }
-
-    private static string[] ExtractSuburbTokens(IEnumerable<string> suburbs)
-    {
-        return suburbs
-            .Where(static value => !string.IsNullOrWhiteSpace(value))
-            .SelectMany(value => value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-            .Where(static value => !string.IsNullOrWhiteSpace(value))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-    }
-
-    private static bool MatchesAnyMetadataTokenExact(InventoryCandidate candidate, string requestedValue, params string[] keys)
-    {
-        if (string.IsNullOrWhiteSpace(requestedValue) || candidate.Metadata.Count == 0)
+        if (geography.MatchesPriorityArea)
         {
-            return false;
+            score += 6m;
         }
 
-        return keys.Any(key =>
-            candidate.Metadata.TryGetValue(key, out var value)
-            && ExtractMetadataTokens(value).Any(token => Matches(requestedValue, token)));
+        if (geography.MatchesBusinessOrigin)
+        {
+            score += 5m;
+        }
+
+        return Math.Min(48m, score);
     }
 
     public decimal AudienceScore(InventoryCandidate candidate, CampaignPlanningRequest request)
@@ -344,9 +306,7 @@ public sealed class PlanningScoreService : IPlanningScoreService
                 || candidate.MediaType.Equals("TV", StringComparison.OrdinalIgnoreCase))
             && request.Suburbs.Count > 0)
         {
-            var suburbTokens = ExtractSuburbTokens(request.Suburbs);
-            if (suburbTokens.Length > 0 && suburbTokens.Any(token =>
-                    MatchesAnyMetadataTokenExact(candidate, token, "cityLabels", "city_labels", "city", "area")))
+            if (PlanningMetadataSupport.HasBroadcastGeoTokenMatch(candidate, request.Suburbs, "cityLabels", "city_labels", "city", "area"))
             {
                 score += BroadcastSuburbTokenBonus;
             }
@@ -382,7 +342,7 @@ public sealed class PlanningScoreService : IPlanningScoreService
             return 0m;
         }
 
-        var mediaType = NormalizeStrategyToken(candidate.MediaType);
+        var mediaType = PlanningMetadataSupport.NormalizeStrategyToken(candidate.MediaType);
         return profile.MediaTypeScores.TryGetValue(mediaType, out var score) ? score : 0m;
     }
 
@@ -922,60 +882,6 @@ public sealed class PlanningScoreService : IPlanningScoreService
         return preferredOoh ? 24m : 14m;
     }
 
-    private decimal PriorityAreaScore(InventoryCandidate candidate, CampaignPlanningRequest request)
-    {
-        var priorityAreas = request.Targeting?.PriorityAreas ?? request.MustHaveAreas;
-        if (priorityAreas.Count == 0)
-        {
-            return 0m;
-        }
-
-        if (priorityAreas.Any(area => MatchesGeo(area, candidate.Suburb) || MatchesGeo(area, candidate.Area)))
-        {
-            return 12m;
-        }
-
-        if (priorityAreas.Any(area =>
-            MatchesGeo(area, candidate.City)
-            || MatchesAnyMetadataToken(candidate, area, "cityLabels", "city_labels", "city", "area")))
-        {
-            return 7m;
-        }
-
-        return 0m;
-    }
-
-    private decimal BusinessLocationScore(InventoryCandidate candidate, CampaignPlanningRequest request)
-    {
-        var businessLocation = request.BusinessLocation;
-        if (businessLocation is null)
-        {
-            return 0m;
-        }
-
-        if (!string.IsNullOrWhiteSpace(businessLocation.Area)
-            && (MatchesGeo(businessLocation.Area, candidate.Suburb) || MatchesGeo(businessLocation.Area, candidate.Area)))
-        {
-            return 14m;
-        }
-
-        if (!string.IsNullOrWhiteSpace(businessLocation.City)
-            && (MatchesGeo(businessLocation.City, candidate.City)
-                || MatchesAnyMetadataToken(candidate, businessLocation.City, "cityLabels", "city_labels", "city", "area")))
-        {
-            return 8m;
-        }
-
-        if (!string.IsNullOrWhiteSpace(businessLocation.Province)
-            && (MatchesGeo(businessLocation.Province, candidate.Province)
-                || MatchesAnyMetadataToken(candidate, businessLocation.Province, "provinceCodes", "province_codes", "province", "area")))
-        {
-            return 4m;
-        }
-
-        return 0m;
-    }
-
     private static decimal OohIntelligenceFitScore(InventoryCandidate candidate, CampaignPlanningRequest request)
     {
         var normalizedMediaType = PlanningChannelSupport.NormalizeChannel(candidate.MediaType);
@@ -1082,7 +988,7 @@ public sealed class PlanningScoreService : IPlanningScoreService
         }
 
         decimal score = 0m;
-        var objective = NormalizeStrategyToken(request.Objective ?? string.Empty);
+        var objective = PlanningMetadataSupport.NormalizeStrategyToken(request.Objective ?? string.Empty);
         var strategySignals = CampaignStrategySupport.BuildSignals(request);
         var audienceIntent = string.Join(" ",
             request.TargetInterests.Where(static value => !string.IsNullOrWhiteSpace(value)),
@@ -1407,90 +1313,7 @@ public sealed class PlanningScoreService : IPlanningScoreService
             return false;
         }
 
-        return keys.Any(key =>
-            candidate.Metadata.TryGetValue(key, out var value)
-            && ExtractMetadataTokens(value).Any(token => MatchesGeo(requestedValue, token) || MatchesLanguage(requestedValue, token)));
-    }
-
-    private bool MatchesRequestedProvince(InventoryCandidate candidate, string requestedProvince, bool isBroadcast)
-    {
-        if (!isBroadcast)
-        {
-            return MatchesGeo(requestedProvince, candidate.Province)
-                || MatchesAnyMetadataToken(candidate, requestedProvince, "provinceCodes", "province_codes", "province", "area");
-        }
-
-        return MatchesGeo(requestedProvince, candidate.Province)
-            || MatchesGeo(requestedProvince, candidate.RegionClusterCode)
-            || MatchesAnyMetadataToken(candidate, requestedProvince, "primaryProvinceCode", "primary_province_code", "province", "province_code");
-    }
-
-    private static IEnumerable<string> ExtractMetadataTokens(object? value)
-    {
-        if (value is null)
-        {
-            yield break;
-        }
-
-        if (value is string text)
-        {
-            if (!string.IsNullOrWhiteSpace(text))
-            {
-                yield return text.Trim();
-            }
-
-            yield break;
-        }
-
-        if (value is IEnumerable<string> textValues)
-        {
-            foreach (var entry in textValues)
-            {
-                if (!string.IsNullOrWhiteSpace(entry))
-                {
-                    yield return entry.Trim();
-                }
-            }
-
-            yield break;
-        }
-
-        if (value is JsonElement json)
-        {
-            if (json.ValueKind == JsonValueKind.String)
-            {
-                var jsonText = json.GetString();
-                if (!string.IsNullOrWhiteSpace(jsonText))
-                {
-                    yield return jsonText.Trim();
-                }
-
-                yield break;
-            }
-
-            if (json.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var item in json.EnumerateArray())
-                {
-                    if (item.ValueKind == JsonValueKind.String)
-                    {
-                        var itemText = item.GetString();
-                        if (!string.IsNullOrWhiteSpace(itemText))
-                        {
-                            yield return itemText.Trim();
-                        }
-                    }
-                }
-            }
-
-            yield break;
-        }
-
-        var fallback = value.ToString();
-        if (!string.IsNullOrWhiteSpace(fallback))
-        {
-            yield return fallback.Trim();
-        }
+        return PlanningMetadataSupport.MatchesAnyMetadataToken(candidate, token => MatchesGeo(requestedValue, token) || MatchesLanguage(requestedValue, token), keys);
     }
 
     private static string GetMetadataText(InventoryCandidate candidate, params string[] keys)
@@ -1499,7 +1322,7 @@ public sealed class PlanningScoreService : IPlanningScoreService
         {
             if (candidate.Metadata.TryGetValue(key, out var value))
             {
-                var flattened = string.Join(" ", ExtractMetadataTokens(value));
+                var flattened = string.Join(" ", PlanningMetadataSupport.ExtractMetadataTokens(value));
                 if (!string.IsNullOrWhiteSpace(flattened))
                 {
                     return flattened;
@@ -1527,7 +1350,7 @@ public sealed class PlanningScoreService : IPlanningScoreService
         {
             if (candidate.Metadata.TryGetValue(key, out var value))
             {
-                parts.AddRange(ExtractMetadataTokens(value));
+                parts.AddRange(PlanningMetadataSupport.ExtractMetadataTokens(value));
             }
         }
 
@@ -1546,34 +1369,7 @@ public sealed class PlanningScoreService : IPlanningScoreService
 
     private static bool MatchesMetadataToken(InventoryCandidate candidate, string requestedValue, params string[] keys)
     {
-        return keys.Any(key =>
-            candidate.Metadata.TryGetValue(key, out var value)
-            && ExtractMetadataTokens(value).Any(token => MatchesStrategyToken(requestedValue, token)));
-    }
-
-    private static bool MatchesStrategyToken(string requestedValue, string metadataToken)
-    {
-        var normalizedRequested = NormalizeStrategyToken(requestedValue);
-        var normalizedMetadata = NormalizeStrategyToken(metadataToken);
-        if (normalizedRequested.Length == 0 || normalizedMetadata.Length == 0)
-        {
-            return false;
-        }
-
-        return normalizedRequested == normalizedMetadata
-            || normalizedMetadata.Contains(normalizedRequested, StringComparison.OrdinalIgnoreCase)
-            || normalizedRequested.Contains(normalizedMetadata, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static string NormalizeStrategyToken(string value)
-    {
-        return value
-            .Trim()
-            .ToLowerInvariant()
-            .Replace('|', ' ')
-            .Replace('/', ' ')
-            .Replace('-', '_')
-            .Replace(' ', '_');
+        return PlanningMetadataSupport.MatchesStrategyMetadataToken(candidate, requestedValue, keys);
     }
 
     private static bool MatchesAudienceIntent(string text, params string[] tokens)
@@ -1719,42 +1515,5 @@ public sealed class PlanningScoreService : IPlanningScoreService
             "female" => new[] { "female", "women", "woman", "lady" },
             _ => Array.Empty<string>()
         };
-    }
-
-    private sealed class NoOpLeadMasterDataService : ILeadMasterDataService
-    {
-        public LeadMasterTokenSet GetTokenSet() => new();
-        public MasterLocationMatch? ResolveLocation(string? value) => null;
-        public MasterIndustryMatch? ResolveIndustry(string? value) => null;
-        public MasterIndustryMatch? ResolveIndustryFromHints(IReadOnlyList<string> hints) => null;
-        public MasterLanguageMatch? ResolveLanguage(string? value) => null;
-    }
-
-    private sealed class NoOpLeadIndustryContextResolver : ILeadIndustryContextResolver
-    {
-        public LeadIndustryContext ResolveFromCategory(string? category)
-        {
-            return new LeadIndustryContext();
-        }
-
-        public IReadOnlyList<LeadIndustryContext> ResolveFromHints(IReadOnlyList<string> hints)
-        {
-            return Array.Empty<LeadIndustryContext>();
-        }
-    }
-
-    private sealed class NoOpIndustryArchetypeScoringService : IIndustryArchetypeScoringService
-    {
-        public IndustryArchetypeScoringProfile? Resolve(string? industryCode) => null;
-
-        public IReadOnlyCollection<string> GetSupportedIndustryCodes() => Array.Empty<string>();
-    }
-
-    private sealed class NoOpPlanningBriefIntentService : IPlanningBriefIntentService
-    {
-        public PlanningBriefIntentEvaluation EvaluateCandidate(InventoryCandidate candidate, CampaignPlanningRequest request)
-        {
-            return new PlanningBriefIntentEvaluation();
-        }
     }
 }

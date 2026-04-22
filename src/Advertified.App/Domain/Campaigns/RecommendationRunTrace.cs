@@ -9,6 +9,8 @@ public sealed class RecommendationRunTrace
     public List<RecommendationTraceCount> CandidateCounts { get; set; } = new();
     public List<RecommendationRejectedCandidateTrace> RejectedCandidates { get; set; } = new();
     public List<RecommendationSelectedItemTrace> SelectedItems { get; set; } = new();
+    public List<string> FallbackFlags { get; set; } = new();
+    public bool ManualReviewRequired { get; set; }
 }
 
 public sealed class CampaignPlanningRequestSnapshot

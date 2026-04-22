@@ -484,11 +484,20 @@ public class EngineNormalizationTests
             Dominance = new PackagePlanningPolicy()
         }));
 
+        var eligibilityService = new PlanningEligibilityService(policyService, new TestBroadcastMasterDataService(), new TestPlanningBriefIntentService());
         return new PlanningScoreService(
+            eligibilityService,
             policyService,
             new TestBroadcastMasterDataService(),
-            new TestLeadMasterDataService(),
-            new TestIndustryArchetypeScoringService());
+            new TestLeadIndustryContextResolver(),
+            new TestIndustryArchetypeScoringService(),
+            new TestPlanningBriefIntentService());
+    }
+
+    private sealed class TestLeadIndustryContextResolver : ILeadIndustryContextResolver
+    {
+        public LeadIndustryContext ResolveFromCategory(string? category) => new();
+        public IReadOnlyList<LeadIndustryContext> ResolveFromHints(IReadOnlyList<string> hints) => Array.Empty<LeadIndustryContext>();
     }
 
     private sealed class TestLeadMasterDataService : ILeadMasterDataService
@@ -604,5 +613,10 @@ public class EngineNormalizationTests
         }
 
         public IReadOnlyCollection<string> GetSupportedIndustryCodes() => _profiles.Keys.ToArray();
+    }
+
+    private sealed class TestPlanningBriefIntentService : IPlanningBriefIntentService
+    {
+        public PlanningBriefIntentEvaluation EvaluateCandidate(InventoryCandidate candidate, CampaignPlanningRequest request) => new();
     }
 }

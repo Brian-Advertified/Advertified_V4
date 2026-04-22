@@ -2,6 +2,7 @@ using Advertified.App.Contracts.Campaigns;
 using Advertified.App.Domain.Campaigns;
 using Advertified.App.Configuration;
 using Advertified.App.Services;
+using Advertified.App.Services.Abstractions;
 using FluentAssertions;
 
 namespace Advertified.App.Tests;
@@ -42,7 +43,7 @@ public sealed class PlanningEligibilityServiceGeographyAliasTests
     public void FilterEligibleCandidates_TreatsSowetoAsJohannesburgForLocalMatching()
     {
         var policyService = CreatePolicyService();
-        var service = new PlanningEligibilityService(policyService, new TestBroadcastMasterDataService());
+        var service = new PlanningEligibilityService(policyService, new TestBroadcastMasterDataService(), new StubPlanningBriefIntentService());
         var request = new CampaignPlanningRequest
         {
             SelectedBudget = 50000m,
@@ -73,7 +74,7 @@ public sealed class PlanningEligibilityServiceGeographyAliasTests
     public void FilterEligibleCandidates_WhenSuburbsSpecified_RequiresSuburbMatchWithinRequestedCity()
     {
         var policyService = CreatePolicyService();
-        var service = new PlanningEligibilityService(policyService, new TestBroadcastMasterDataService());
+        var service = new PlanningEligibilityService(policyService, new TestBroadcastMasterDataService(), new StubPlanningBriefIntentService());
         var request = new CampaignPlanningRequest
         {
             SelectedBudget = 100000m,
@@ -135,7 +136,7 @@ public sealed class PlanningEligibilityServiceGeographyAliasTests
     public void FilterEligibleCandidates_WhenSuburbsSpecified_DoesNotExcludeRadioWhenCityMatches()
     {
         var policyService = CreatePolicyService();
-        var service = new PlanningEligibilityService(policyService, new TestBroadcastMasterDataService());
+        var service = new PlanningEligibilityService(policyService, new TestBroadcastMasterDataService(), new StubPlanningBriefIntentService());
         var request = new CampaignPlanningRequest
         {
             SelectedBudget = 100000m,
@@ -168,7 +169,7 @@ public sealed class PlanningEligibilityServiceGeographyAliasTests
     public void FilterEligibleCandidates_WhenSuburbsSpecified_AllowsOohWithinRadiusEvenIfSuburbTextDiffers()
     {
         var policyService = CreatePolicyService();
-        var service = new PlanningEligibilityService(policyService, new TestBroadcastMasterDataService());
+        var service = new PlanningEligibilityService(policyService, new TestBroadcastMasterDataService(), new StubPlanningBriefIntentService());
         var request = new CampaignPlanningRequest
         {
             SelectedBudget = 100000m,
@@ -217,7 +218,7 @@ public sealed class PlanningEligibilityServiceGeographyAliasTests
     public void FilterEligibleCandidates_WhenCitySpecified_AllowsOohWithinRadiusEvenIfSuburbTextDiffers()
     {
         var policyService = CreatePolicyService();
-        var service = new PlanningEligibilityService(policyService, new TestBroadcastMasterDataService());
+        var service = new PlanningEligibilityService(policyService, new TestBroadcastMasterDataService(), new StubPlanningBriefIntentService());
         var request = new CampaignPlanningRequest
         {
             SelectedBudget = 100000m,
@@ -267,7 +268,7 @@ public sealed class PlanningEligibilityServiceGeographyAliasTests
     public void FilterEligibleCandidates_WhenSuburbsSpecified_AllowsNormalizedOohChannelsWithinRadius(string mediaType)
     {
         var policyService = CreatePolicyService();
-        var service = new PlanningEligibilityService(policyService, new TestBroadcastMasterDataService());
+        var service = new PlanningEligibilityService(policyService, new TestBroadcastMasterDataService(), new StubPlanningBriefIntentService());
         var request = new CampaignPlanningRequest
         {
             SelectedBudget = 100000m,
@@ -316,7 +317,7 @@ public sealed class PlanningEligibilityServiceGeographyAliasTests
     public void FilterEligibleCandidates_AllowsNationalDigitalForProvincialBriefs()
     {
         var policyService = CreatePolicyService();
-        var service = new PlanningEligibilityService(policyService, new TestBroadcastMasterDataService());
+        var service = new PlanningEligibilityService(policyService, new TestBroadcastMasterDataService(), new StubPlanningBriefIntentService());
         var request = new CampaignPlanningRequest
         {
             SelectedBudget = 100000m,
@@ -343,7 +344,7 @@ public sealed class PlanningEligibilityServiceGeographyAliasTests
     public void FilterEligibleCandidates_ProvincialBroadcast_DoesNotUseSpilloverProvinceCodesAsPrimaryMatch()
     {
         var policyService = CreatePolicyService();
-        var service = new PlanningEligibilityService(policyService, new TestBroadcastMasterDataService());
+        var service = new PlanningEligibilityService(policyService, new TestBroadcastMasterDataService(), new StubPlanningBriefIntentService());
         var request = new CampaignPlanningRequest
         {
             SelectedBudget = 100000m,
@@ -370,5 +371,10 @@ public sealed class PlanningEligibilityServiceGeographyAliasTests
 
         var result = service.FilterEligibleCandidates(new List<InventoryCandidate> { spilloverRegionalStation }, request);
         result.Candidates.Should().BeEmpty();
+    }
+
+    private sealed class StubPlanningBriefIntentService : IPlanningBriefIntentService
+    {
+        public PlanningBriefIntentEvaluation EvaluateCandidate(InventoryCandidate candidate, CampaignPlanningRequest request) => new();
     }
 }

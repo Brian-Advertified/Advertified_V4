@@ -237,7 +237,7 @@ public static class CampaignWorkflowPolicy
         var selectedBudget = PricingPolicy.ResolvePlanningBudget(
             campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
             campaign.PackageOrder.AiStudioReserveAmount);
-        var manualReviewRequired = ExtractManualReviewRequired(latestRecommendation?.Rationale);
+        var manualReviewRequired = RecommendationAuditSupport.ResolveFallbackState(latestRecommendation).ManualReviewRequired;
         var isOverBudget = latestRecommendation is not null
             && latestRecommendation.TotalCost > selectedBudget
             && !string.Equals(latestRecommendation.Status, RecommendationStatuses.Approved, StringComparison.OrdinalIgnoreCase);
@@ -385,28 +385,6 @@ public static class CampaignWorkflowPolicy
             State = isComplete ? TimelineStates.Complete : isCurrent ? TimelineStates.Current : TimelineStates.Upcoming
         };
     }
-
-    private static bool ExtractManualReviewRequired(string? rationale)
-    {
-        if (string.IsNullOrWhiteSpace(rationale))
-        {
-            return false;
-        }
-
-        var line = rationale
-            .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
-            .Select(entry => entry.Trim())
-            .LastOrDefault(entry => entry.StartsWith("Manual review required:", StringComparison.OrdinalIgnoreCase));
-
-        if (line is null)
-        {
-            return false;
-        }
-
-        var rawValue = line["Manual review required:".Length..].Trim();
-        return bool.TryParse(rawValue, out var parsed) && parsed;
-    }
-
     private static bool IsRecommendationAwaitingDecision(Campaign campaign, CampaignRecommendation? recommendation)
     {
         return string.Equals(campaign.Status, CampaignStatuses.ReviewReady, StringComparison.OrdinalIgnoreCase)

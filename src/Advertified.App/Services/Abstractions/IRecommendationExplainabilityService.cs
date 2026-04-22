@@ -9,6 +9,5 @@ public interface IRecommendationExplainabilityService
     string BuildRationale(List<PlannedItem> basePlan, List<PlannedItem> recommendedPlan, CampaignPlanningRequest request);
     IReadOnlyList<string> GetPreferredMediaFallbackFlags(
         CampaignPlanningRequest request,
-        List<PlannedItem> recommendedPlan,
-        IReadOnlyList<InventoryCandidate> eligibleCandidates);
+        List<PlannedItem> recommendedPlan);
 }

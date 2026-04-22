@@ -68,7 +68,14 @@ public sealed class MediaPlanningEngineLocalSuburbRadioTests
     public async Task GenerateAsync_WhenSuburbTokenMatchesBroadcastCityLabels_PrefersJoziOverKaya()
     {
         var policyService = CreatePolicyService();
-        var scoreService = new PlanningScoreService(policyService, new TestBroadcastMasterDataService());
+        var eligibilityService = new PlanningEligibilityService(policyService, new TestBroadcastMasterDataService(), new StubPlanningBriefIntentService());
+        var scoreService = new PlanningScoreService(
+            eligibilityService,
+            policyService,
+            new TestBroadcastMasterDataService(),
+            new StubLeadIndustryContextResolver(),
+            new StubIndustryArchetypeScoringService(),
+            new StubPlanningBriefIntentService());
 
         var repository = new StubPlanningInventoryRepository
         {
@@ -368,11 +375,52 @@ public sealed class MediaPlanningEngineLocalSuburbRadioTests
     private static MediaPlanningEngine CreateEngine(IPlanningInventoryRepository repository, PlanningPolicyService policyService)
     {
         var candidateLoader = new PlanningCandidateLoader(repository);
-        var eligibilityService = new PlanningEligibilityService(policyService, new TestBroadcastMasterDataService());
+        var eligibilityService = new PlanningEligibilityService(policyService, new TestBroadcastMasterDataService(), new StubPlanningBriefIntentService());
         var planBuilder = new RecommendationPlanBuilder(policyService, new TestBroadcastMasterDataService());
-        var scoreService = new PlanningScoreService(policyService, new TestBroadcastMasterDataService());
-        var explainabilityService = new RecommendationExplainabilityService(scoreService, policyService);
-        return new MediaPlanningEngine(candidateLoader, eligibilityService, planBuilder, explainabilityService, policyService);
+        var scoreService = new PlanningScoreService(
+            eligibilityService,
+            policyService,
+            new TestBroadcastMasterDataService(),
+            new StubLeadIndustryContextResolver(),
+            new StubIndustryArchetypeScoringService(),
+            new StubPlanningBriefIntentService());
+        var explainabilityService = new RecommendationExplainabilityService(eligibilityService, scoreService, policyService);
+        return new MediaPlanningEngine(
+            candidateLoader,
+            eligibilityService,
+            planBuilder,
+            explainabilityService,
+            policyService,
+            new StubBroadcastLanguagePriorityService());
+    }
+
+    private sealed class StubLeadIndustryContextResolver : ILeadIndustryContextResolver
+    {
+        public LeadIndustryContext ResolveFromCategory(string? category) => new();
+        public IReadOnlyList<LeadIndustryContext> ResolveFromHints(IReadOnlyList<string> hints) => Array.Empty<LeadIndustryContext>();
+    }
+
+    private sealed class StubIndustryArchetypeScoringService : IIndustryArchetypeScoringService
+    {
+        public IndustryArchetypeScoringProfile? Resolve(string? industryCode) => null;
+        public IReadOnlyCollection<string> GetSupportedIndustryCodes() => Array.Empty<string>();
+    }
+
+    private sealed class StubPlanningBriefIntentService : IPlanningBriefIntentService
+    {
+        public PlanningBriefIntentEvaluation EvaluateCandidate(InventoryCandidate candidate, CampaignPlanningRequest request) => new();
+    }
+
+    private sealed class StubBroadcastLanguagePriorityService : IBroadcastLanguagePriorityService
+    {
+        public Task<IReadOnlyList<string>> OrderRequestedLanguagesAsync(IEnumerable<string> languages, CancellationToken cancellationToken)
+        {
+            return Task.FromResult<IReadOnlyList<string>>(languages
+                .Where(static language => !string.IsNullOrWhiteSpace(language))
+                .Select(static language => language.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray());
+        }
     }
 
     private sealed class StubPlanningInventoryRepository : IPlanningInventoryRepository

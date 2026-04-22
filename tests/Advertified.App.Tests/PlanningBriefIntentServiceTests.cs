@@ -86,10 +86,12 @@ public sealed class PlanningBriefIntentServiceTests
     {
         var policyService = CreatePolicyService();
         var briefIntentService = CreateBriefIntentService();
+        var eligibilityService = new PlanningEligibilityService(policyService, new TestBroadcastMasterDataService(), briefIntentService);
         var scoreService = new PlanningScoreService(
+            eligibilityService,
             policyService,
             new TestBroadcastMasterDataService(),
-            new StubLeadMasterDataService(),
+            new StubLeadIndustryContextResolver(),
             new StubIndustryArchetypeScoringService(),
             briefIntentService);
 
@@ -206,13 +208,10 @@ public sealed class PlanningBriefIntentServiceTests
             new TestBroadcastMasterDataService());
     }
 
-    private sealed class StubLeadMasterDataService : ILeadMasterDataService
+    private sealed class StubLeadIndustryContextResolver : ILeadIndustryContextResolver
     {
-        public LeadMasterTokenSet GetTokenSet() => new();
-        public MasterLocationMatch? ResolveLocation(string? value) => null;
-        public MasterIndustryMatch? ResolveIndustry(string? value) => null;
-        public MasterIndustryMatch? ResolveIndustryFromHints(IReadOnlyList<string> hints) => null;
-        public MasterLanguageMatch? ResolveLanguage(string? value) => null;
+        public LeadIndustryContext ResolveFromCategory(string? category) => new();
+        public IReadOnlyList<LeadIndustryContext> ResolveFromHints(IReadOnlyList<string> hints) => Array.Empty<LeadIndustryContext>();
     }
 
     private sealed class StubIndustryArchetypeScoringService : IIndustryArchetypeScoringService

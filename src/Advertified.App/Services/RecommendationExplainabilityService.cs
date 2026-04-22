@@ -7,11 +7,16 @@ namespace Advertified.App.Services;
 
 public sealed class RecommendationExplainabilityService : IRecommendationExplainabilityService
 {
+    private readonly IPlanningEligibilityService _eligibilityService;
     private readonly IPlanningScoreService _scoreService;
     private readonly IPlanningPolicyService _policyService;
 
-    public RecommendationExplainabilityService(IPlanningScoreService scoreService, IPlanningPolicyService policyService)
+    public RecommendationExplainabilityService(
+        IPlanningEligibilityService eligibilityService,
+        IPlanningScoreService scoreService,
+        IPlanningPolicyService policyService)
     {
+        _eligibilityService = eligibilityService;
         _scoreService = scoreService;
         _policyService = policyService;
     }
@@ -39,8 +44,7 @@ public sealed class RecommendationExplainabilityService : IRecommendationExplain
 
     public IReadOnlyList<string> GetPreferredMediaFallbackFlags(
         CampaignPlanningRequest request,
-        List<PlannedItem> recommendedPlan,
-        IReadOnlyList<InventoryCandidate> eligibleCandidates)
+        List<PlannedItem> recommendedPlan)
     {
         if (request.PreferredMediaTypes.Count == 0 || recommendedPlan.Count == 0)
         {
@@ -72,16 +76,23 @@ public sealed class RecommendationExplainabilityService : IRecommendationExplain
     private string[] BuildSelectionReasons(InventoryCandidate candidate, CampaignPlanningRequest request)
     {
         var reasons = new List<string>();
+        var geography = _eligibilityService.EvaluateGeography(candidate, request);
 
-        if (_scoreService.GeoScore(candidate, request) >= 22m) reasons.Add("Strong geography match");
-        else if (_scoreService.GeoScore(candidate, request) >= 16m) reasons.Add("Good regional alignment");
+        if (geography.UsedRadiusMatch || geography.MatchesSuburb || geography.MatchesCity)
+        {
+            reasons.Add("Strong geography match");
+        }
+        else if (geography.IsMatch && geography.Coverage is "provincial" or "national")
+        {
+            reasons.Add("Good regional alignment");
+        }
 
-        if (MatchesBusinessOrigin(candidate, request))
+        if (geography.MatchesBusinessOrigin)
         {
             reasons.Add("Close to the business origin");
         }
 
-        if (MatchesPriorityArea(candidate, request))
+        if (geography.MatchesPriorityArea)
         {
             reasons.Add("Supports a high-priority target area");
         }
@@ -226,7 +237,13 @@ public sealed class RecommendationExplainabilityService : IRecommendationExplain
         }
 
         var targetShare = _policyService.GetTargetShare(candidate.MediaType, request);
-        if (targetShare.HasValue) flags.Add($"mix_target_{candidate.MediaType.Trim().ToLowerInvariant()}_{targetShare.Value}");
+        var policyChannel = PlanningChannelSupport.IsOohFamilyChannel(candidate.MediaType)
+            ? PlanningChannelSupport.OohAlias
+            : PlanningChannelSupport.NormalizeChannel(candidate.MediaType);
+        if (targetShare.HasValue && !string.IsNullOrWhiteSpace(policyChannel))
+        {
+            flags.Add($"mix_target_{policyChannel}_{targetShare.Value}");
+        }
         if (!string.IsNullOrWhiteSpace(candidate.RegionClusterCode)) flags.Add($"region:{candidate.RegionClusterCode.Trim().ToLowerInvariant()}");
 
         return flags.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
@@ -342,102 +359,7 @@ public sealed class RecommendationExplainabilityService : IRecommendationExplain
 
     private static bool MatchesMetadataToken(InventoryCandidate candidate, string requestedValue, params string[] keys)
     {
-        return keys.Any(key =>
-            candidate.Metadata.TryGetValue(key, out var value)
-            && ExtractMetadataTokens(value).Any(token => MatchesStrategyToken(requestedValue, token)));
-    }
-
-    private static IEnumerable<string> ExtractMetadataTokens(object? value)
-    {
-        if (value is null)
-        {
-            yield break;
-        }
-
-        if (value is string text)
-        {
-            if (!string.IsNullOrWhiteSpace(text))
-            {
-                yield return text.Trim();
-            }
-
-            yield break;
-        }
-
-        if (value is IEnumerable<string> textValues)
-        {
-            foreach (var entry in textValues)
-            {
-                if (!string.IsNullOrWhiteSpace(entry))
-                {
-                    yield return entry.Trim();
-                }
-            }
-
-            yield break;
-        }
-
-        if (value is System.Text.Json.JsonElement json)
-        {
-            if (json.ValueKind == System.Text.Json.JsonValueKind.String)
-            {
-                var jsonText = json.GetString();
-                if (!string.IsNullOrWhiteSpace(jsonText))
-                {
-                    yield return jsonText.Trim();
-                }
-
-                yield break;
-            }
-
-            if (json.ValueKind == System.Text.Json.JsonValueKind.Array)
-            {
-                foreach (var item in json.EnumerateArray())
-                {
-                    if (item.ValueKind == System.Text.Json.JsonValueKind.String)
-                    {
-                        var itemText = item.GetString();
-                        if (!string.IsNullOrWhiteSpace(itemText))
-                        {
-                            yield return itemText.Trim();
-                        }
-                    }
-                }
-            }
-
-            yield break;
-        }
-
-        var fallback = value.ToString();
-        if (!string.IsNullOrWhiteSpace(fallback))
-        {
-            yield return fallback.Trim();
-        }
-    }
-
-    private static bool MatchesStrategyToken(string requestedValue, string metadataToken)
-    {
-        var normalizedRequested = NormalizeStrategyToken(requestedValue);
-        var normalizedMetadata = NormalizeStrategyToken(metadataToken);
-        if (normalizedRequested.Length == 0 || normalizedMetadata.Length == 0)
-        {
-            return false;
-        }
-
-        return normalizedRequested == normalizedMetadata
-            || normalizedMetadata.Contains(normalizedRequested, StringComparison.OrdinalIgnoreCase)
-            || normalizedRequested.Contains(normalizedMetadata, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static string NormalizeStrategyToken(string value)
-    {
-        return value
-            .Trim()
-            .ToLowerInvariant()
-            .Replace('|', ' ')
-            .Replace('/', ' ')
-            .Replace('-', '_')
-            .Replace(' ', '_');
+        return PlanningMetadataSupport.MatchesStrategyMetadataToken(candidate, requestedValue, keys);
     }
 
     private static bool Matches(string? left, string? right)
@@ -483,7 +405,7 @@ public sealed class RecommendationExplainabilityService : IRecommendationExplain
             return Array.Empty<string>();
         }
 
-        var reasons = ExtractMetadataTokens(value)
+        var reasons = PlanningMetadataSupport.ExtractMetadataTokens(value)
             .Select(MapBriefIntentReason)
             .Where(static text => !string.IsNullOrWhiteSpace(text))
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -506,30 +428,6 @@ public sealed class RecommendationExplainabilityService : IRecommendationExplain
             "local_radius" => "Stays close to the selected main area",
             _ => null
         };
-    }
-
-    private static bool MatchesBusinessOrigin(InventoryCandidate candidate, CampaignPlanningRequest request)
-    {
-        var businessLocation = request.BusinessLocation;
-        if (businessLocation is null)
-        {
-            return false;
-        }
-
-        return Matches(businessLocation.Area, candidate.Suburb)
-            || Matches(businessLocation.Area, candidate.Area)
-            || Matches(businessLocation.City, candidate.City)
-            || Matches(businessLocation.Province, candidate.Province);
-    }
-
-    private static bool MatchesPriorityArea(InventoryCandidate candidate, CampaignPlanningRequest request)
-    {
-        var priorityAreas = request.Targeting?.PriorityAreas ?? request.MustHaveAreas;
-        return priorityAreas.Any(area =>
-            Matches(area, candidate.Suburb)
-            || Matches(area, candidate.Area)
-            || Matches(area, candidate.City)
-            || Matches(area, candidate.Province));
     }
 }
 

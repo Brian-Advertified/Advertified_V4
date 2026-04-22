@@ -1,7 +1,7 @@
 using Advertified.App.Contracts.Campaigns;
 using Advertified.App.Domain.Campaigns;
 using Advertified.App.Services.Abstractions;
-using System.Text.Json;
+using Advertified.App.Support;
 using System.Text.RegularExpressions;
 
 namespace Advertified.App.Services;
@@ -132,8 +132,8 @@ public sealed class PlanningBriefIntentService : IPlanningBriefIntentService
             return;
         }
 
-        var candidateLanguages = ExtractMetadataTokens(candidate.Language)
-            .Concat(ExtractMetadataTokens(GetMetadataValue(candidate, "primaryLanguages", "primary_languages", "language", "secondaryLanguage", "secondary_language")))
+        var candidateLanguages = PlanningMetadataSupport.ExtractMetadataTokens(candidate.Language)
+            .Concat(PlanningMetadataSupport.ExtractMetadataTokens(GetMetadataValue(candidate, "primaryLanguages", "primary_languages", "language", "secondaryLanguage", "secondary_language")))
             .Select(_broadcastMasterDataService.NormalizeLanguageForMatching)
             .Where(static value => value.Length > 0)
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -397,7 +397,7 @@ public sealed class PlanningBriefIntentService : IPlanningBriefIntentService
 
         foreach (var key in new[] { "audienceKeywords", "audience_keywords", "primaryAudienceTags", "primary_audience_tags", "secondaryAudienceTags", "secondary_audience_tags", "recommendationTags", "recommendation_tags" })
         {
-            parts.AddRange(ExtractMetadataTokens(GetMetadataValue(candidate, key)));
+            parts.AddRange(PlanningMetadataSupport.ExtractMetadataTokens(GetMetadataValue(candidate, key)));
         }
 
         return string.Join(" ", parts);
@@ -405,9 +405,7 @@ public sealed class PlanningBriefIntentService : IPlanningBriefIntentService
 
     private static bool MatchesMetadataToken(InventoryCandidate candidate, string requestedValue, params string[] keys)
     {
-        return keys.Any(key =>
-            candidate.Metadata.TryGetValue(key, out var value)
-            && ExtractMetadataTokens(value).Any(token => MatchesStrategyToken(requestedValue, token)));
+        return PlanningMetadataSupport.MatchesStrategyMetadataToken(candidate, requestedValue, keys);
     }
 
     private static object? GetMetadataValue(InventoryCandidate candidate, params string[] keys)
@@ -425,75 +423,7 @@ public sealed class PlanningBriefIntentService : IPlanningBriefIntentService
 
     private static string GetMetadataText(InventoryCandidate candidate, params string[] keys)
     {
-        return string.Join(" ", ExtractMetadataTokens(GetMetadataValue(candidate, keys)));
-    }
-
-    private static IEnumerable<string> ExtractMetadataTokens(object? value)
-    {
-        if (value is null)
-        {
-            yield break;
-        }
-
-        if (value is string text)
-        {
-            if (!string.IsNullOrWhiteSpace(text))
-            {
-                yield return text.Trim();
-            }
-
-            yield break;
-        }
-
-        if (value is IEnumerable<string> textValues)
-        {
-            foreach (var entry in textValues)
-            {
-                if (!string.IsNullOrWhiteSpace(entry))
-                {
-                    yield return entry.Trim();
-                }
-            }
-
-            yield break;
-        }
-
-        if (value is JsonElement json)
-        {
-            if (json.ValueKind == JsonValueKind.String)
-            {
-                var jsonText = json.GetString();
-                if (!string.IsNullOrWhiteSpace(jsonText))
-                {
-                    yield return jsonText.Trim();
-                }
-
-                yield break;
-            }
-
-            if (json.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var item in json.EnumerateArray())
-                {
-                    if (item.ValueKind == JsonValueKind.String)
-                    {
-                        var itemText = item.GetString();
-                        if (!string.IsNullOrWhiteSpace(itemText))
-                        {
-                            yield return itemText.Trim();
-                        }
-                    }
-                }
-            }
-
-            yield break;
-        }
-
-        var fallback = value.ToString();
-        if (!string.IsNullOrWhiteSpace(fallback))
-        {
-            yield return fallback.Trim();
-        }
+        return string.Join(" ", PlanningMetadataSupport.ExtractMetadataTokens(GetMetadataValue(candidate, keys)));
     }
 
     private static IEnumerable<string> TokenizeTerms(string? text)
@@ -507,31 +437,6 @@ public sealed class PlanningBriefIntentService : IPlanningBriefIntentService
         {
             yield return match.Value.Trim().ToLowerInvariant();
         }
-    }
-
-    private static bool MatchesStrategyToken(string requestedValue, string metadataToken)
-    {
-        var normalizedRequested = NormalizeStrategyToken(requestedValue);
-        var normalizedMetadata = NormalizeStrategyToken(metadataToken);
-        if (normalizedRequested.Length == 0 || normalizedMetadata.Length == 0)
-        {
-            return false;
-        }
-
-        return normalizedRequested == normalizedMetadata
-            || normalizedMetadata.Contains(normalizedRequested, StringComparison.OrdinalIgnoreCase)
-            || normalizedRequested.Contains(normalizedMetadata, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static string NormalizeStrategyToken(string value)
-    {
-        return value
-            .Trim()
-            .ToLowerInvariant()
-            .Replace('|', ' ')
-            .Replace('/', ' ')
-            .Replace('-', '_')
-            .Replace(' ', '_');
     }
 
     private static bool TryParseAgeRange(string text, out int min, out int max)

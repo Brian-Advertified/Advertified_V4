@@ -22,6 +22,23 @@ public readonly record struct PlanningCandidateRejection(
     string DisplayName,
     string MediaType);
 
+public readonly record struct PlanningGeographyEvaluation(
+    bool IsMatch,
+    string Scope,
+    string Coverage,
+    bool MatchesSuburb,
+    bool MatchesCity,
+    bool MatchesProvince,
+    bool MatchesArea,
+    bool MatchesPriorityArea,
+    bool MatchesBusinessOrigin,
+    bool UsedRadiusMatch,
+    bool UsedNationalInventoryOverride);
+
+public readonly record struct RecommendationFallbackState(
+    bool ManualReviewRequired,
+    IReadOnlyList<string> FallbackFlags);
+
 public sealed class OohPlanningInventoryRow
 {
     public Guid SourceId { get; set; }

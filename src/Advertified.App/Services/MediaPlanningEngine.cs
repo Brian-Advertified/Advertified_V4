@@ -31,16 +31,6 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
         _broadcastLanguagePriorityService = broadcastLanguagePriorityService;
     }
 
-    public MediaPlanningEngine(
-        IPlanningCandidateLoader candidateLoader,
-        IPlanningEligibilityService eligibilityService,
-        IRecommendationPlanBuilder planBuilder,
-        IRecommendationExplainabilityService explainabilityService,
-        IPlanningPolicyService policyService)
-        : this(candidateLoader, eligibilityService, planBuilder, explainabilityService, policyService, new NoOpBroadcastLanguagePriorityService())
-    {
-    }
-
     public async Task<RecommendationResult> GenerateAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
     {
         var planningPasses = BuildPlanningPasses(request);
@@ -132,17 +122,20 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
             fallbackFlags.Add("no_recommendation_generated");
         }
 
-        fallbackFlags.AddRange(_explainabilityService.GetPreferredMediaFallbackFlags(preparedRequest, recommendedPlan, eligibleCandidates));
+        fallbackFlags.AddRange(_explainabilityService.GetPreferredMediaFallbackFlags(preparedRequest, recommendedPlan));
+
+        var distinctFallbackFlags = fallbackFlags.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var manualReviewRequired = distinctFallbackFlags.Count > 0;
 
         return new RecommendationResult
         {
             BasePlan = basePlan,
             RecommendedPlan = recommendedPlan,
             Upsells = upsells,
-            FallbackFlags = fallbackFlags.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
-            ManualReviewRequired = fallbackFlags.Count > 0,
+            FallbackFlags = distinctFallbackFlags,
+            ManualReviewRequired = manualReviewRequired,
             Rationale = _explainabilityService.BuildRationale(basePlan, recommendedPlan, preparedRequest),
-            RunTrace = BuildRunTrace(preparedRequest, allCandidates, eligibleCandidates, policyOutcome.Rejections, recommendedPlan, upsells)
+            RunTrace = BuildRunTrace(preparedRequest, allCandidates, eligibleCandidates, policyOutcome.Rejections, recommendedPlan, upsells, distinctFallbackFlags, manualReviewRequired)
         };
     }
 
@@ -158,6 +151,10 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
     {
         var normalizedRequest = NormalizeEngineRequest(request);
         var passes = new List<PlanningPass> { new(normalizedRequest, Array.Empty<string>()) };
+        if (HasExplicitGeographyConstraints(normalizedRequest))
+        {
+            return passes;
+        }
 
         var broaderRequest = BuildBroaderGeographyRequest(normalizedRequest);
         if (!AreEquivalentRequests(normalizedRequest, broaderRequest))
@@ -166,6 +163,20 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
         }
 
         return passes;
+    }
+
+    private static bool HasExplicitGeographyConstraints(CampaignPlanningRequest request)
+    {
+        return request.Cities.Count > 0
+            || request.Suburbs.Count > 0
+            || request.Areas.Count > 0
+            || request.TargetLatitude.HasValue
+            || request.TargetLongitude.HasValue
+            || request.Targeting?.Cities.Count > 0
+            || request.Targeting?.Suburbs.Count > 0
+            || request.Targeting?.Areas.Count > 0
+            || request.Targeting?.Latitude.HasValue == true
+            || request.Targeting?.Longitude.HasValue == true;
     }
 
     private static CampaignPlanningRequest BuildBroaderGeographyRequest(CampaignPlanningRequest request)
@@ -219,13 +230,16 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
         return result.RecommendedPlanTotal >= request.SelectedBudget * MinimumAcceptableBudgetUtilizationRatio;
     }
 
-    private static void EnsureRequiredChannelCoverage(
+    private void EnsureRequiredChannelCoverage(
         List<PlannedItem> recommendedPlan,
         IReadOnlyList<InventoryCandidate> scoredCandidates,
         CampaignPlanningRequest request,
         IReadOnlyCollection<string> requiredChannels)
     {
-        if (recommendedPlan.Count == 0 || requiredChannels.Count == 0 || scoredCandidates.Count == 0)
+        if (recommendedPlan.Count == 0
+            || requiredChannels.Count == 0
+            || scoredCandidates.Count == 0
+            || HasStructuredChannelPlan(request))
         {
             return;
         }
@@ -271,113 +285,14 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
             {
                 recommendedPlan.Add(ToPlannedItem(candidate));
                 selectedChannels.Add(channel);
-                continue;
-            }
-
-            var requiredReduction = candidate.Cost - remaining;
-            if (requiredReduction <= 0m)
-            {
-                recommendedPlan.Add(ToPlannedItem(candidate));
-                selectedChannels = recommendedPlan
-                    .Select(item => NormalizeRequestedChannel(item.MediaType))
-                    .Where(value => !string.IsNullOrWhiteSpace(value))
-                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
-                continue;
-            }
-
-            var removable = BuildRemovableLineIndexes(recommendedPlan, requiredSet, request, channel)
-                .ToList();
-            var indexesToRemove = new List<int>();
-            var freed = 0m;
-
-            foreach (var index in removable)
-            {
-                indexesToRemove.Add(index);
-                freed += recommendedPlan[index].TotalCost;
-                if (freed >= requiredReduction)
-                {
-                    break;
-                }
-            }
-
-            if (freed >= requiredReduction)
-            {
-                foreach (var index in indexesToRemove.OrderByDescending(value => value))
-                {
-                    recommendedPlan.RemoveAt(index);
-                }
-
-                recommendedPlan.Add(ToPlannedItem(candidate));
-                selectedChannels = recommendedPlan
-                    .Select(item => NormalizeRequestedChannel(item.MediaType))
-                    .Where(value => !string.IsNullOrWhiteSpace(value))
-                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
             }
         }
     }
 
-    private static IEnumerable<int> BuildRemovableLineIndexes(
-        List<PlannedItem> plan,
-        HashSet<string> preferredSet,
-        CampaignPlanningRequest request,
-        string protectedChannel)
+    private bool HasStructuredChannelPlan(CampaignPlanningRequest request)
     {
-        var channelCounts = plan
-            .Select(item => NormalizeRequestedChannel(item.MediaType))
-            .Where(channel => !string.IsNullOrWhiteSpace(channel))
-            .GroupBy(channel => channel, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(group => group.Key, group => group.Count(), StringComparer.OrdinalIgnoreCase);
-
-        var protectedShare = GetChannelPriorityWeight(protectedChannel, request);
-        var ordered = plan
-            .Select((item, index) => new
-            {
-                Index = index,
-                Item = item,
-                Channel = NormalizeRequestedChannel(item.MediaType)
-            })
-            .OrderBy(entry => preferredSet.Contains(entry.Channel)) // remove non-preferred channels first
-            .ThenBy(entry => GetChannelPriorityWeight(entry.Channel, request))
-            .ThenBy(entry => entry.Item.Score)
-            .ThenByDescending(entry => entry.Item.TotalCost)
-            .ToList();
-
-        var remainingCounts = new Dictionary<string, int>(channelCounts, StringComparer.OrdinalIgnoreCase);
-        var removable = new List<int>(ordered.Count);
-
-        foreach (var entry in ordered)
-        {
-            if (string.IsNullOrWhiteSpace(entry.Channel))
-            {
-                removable.Add(entry.Index);
-                continue;
-            }
-
-            if (!preferredSet.Contains(entry.Channel))
-            {
-                removable.Add(entry.Index);
-                if (remainingCounts.TryGetValue(entry.Channel, out var nonPreferredCount) && nonPreferredCount > 0)
-                {
-                    remainingCounts[entry.Channel] = nonPreferredCount - 1;
-                }
-
-                continue;
-            }
-
-            if (remainingCounts.TryGetValue(entry.Channel, out var preferredCount) && preferredCount > 1)
-            {
-                removable.Add(entry.Index);
-                remainingCounts[entry.Channel] = preferredCount - 1;
-                continue;
-            }
-
-            if (GetChannelPriorityWeight(entry.Channel, request) < protectedShare)
-            {
-                removable.Add(entry.Index);
-            }
-        }
-
-        return removable;
+        return request.BudgetAllocation?.CompositeAllocations.Count > 0
+            || _policyService.GetRequestedChannelShares(request).Count > 0;
     }
 
     private static PlannedItem ToPlannedItem(InventoryCandidate candidate)
@@ -414,26 +329,10 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
             : normalized;
     }
 
-    private static int GetChannelPriorityWeight(string? raw, CampaignPlanningRequest request)
+    private int GetChannelPriorityWeight(string? raw, CampaignPlanningRequest request)
     {
         var normalized = NormalizeRequestedChannel(raw);
-        if (request.BudgetAllocation?.ChannelAllocations.Count > 0)
-        {
-            return request.BudgetAllocation.ChannelAllocations
-                .Where(entry => entry.Weight > 0m)
-                .Where(entry => string.Equals(NormalizeRequestedChannel(entry.Channel), normalized, StringComparison.OrdinalIgnoreCase))
-                .Select(entry => (int)Math.Round(entry.Weight * 100m, MidpointRounding.AwayFromZero))
-                .FirstOrDefault();
-        }
-
-        return normalized switch
-        {
-            "radio" => request.TargetRadioShare.GetValueOrDefault(),
-            "ooh" => request.TargetOohShare.GetValueOrDefault(),
-            "tv" => request.TargetTvShare.GetValueOrDefault(),
-            "digital" => request.TargetDigitalShare.GetValueOrDefault(),
-            _ => 0
-        };
+        return _policyService.GetTargetShare(normalized, request).GetValueOrDefault();
     }
 
     private static RecommendationRunTrace BuildRunTrace(
@@ -442,7 +341,9 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
         IReadOnlyList<InventoryCandidate> eligibleCandidates,
         IReadOnlyList<PlanningCandidateRejection> rejections,
         IReadOnlyList<PlannedItem> recommendedPlan,
-        IReadOnlyList<PlannedItem> upsells)
+        IReadOnlyList<PlannedItem> upsells,
+        IReadOnlyList<string> fallbackFlags,
+        bool manualReviewRequired)
     {
         return new RecommendationRunTrace
         {
@@ -461,7 +362,9 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
             SelectedItems = recommendedPlan
                 .Select(item => BuildSelectedItemTrace(item, isUpsell: false))
                 .Concat(upsells.Select(item => BuildSelectedItemTrace(item, isUpsell: true)))
-                .ToList()
+                .ToList(),
+            FallbackFlags = fallbackFlags.ToList(),
+            ManualReviewRequired = manualReviewRequired
         };
     }
 
@@ -714,11 +617,4 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
 
     private sealed record PlanningPass(CampaignPlanningRequest Request, IReadOnlyCollection<string> FallbackFlags);
 
-    private sealed class NoOpBroadcastLanguagePriorityService : IBroadcastLanguagePriorityService
-    {
-        public Task<IReadOnlyList<string>> OrderRequestedLanguagesAsync(IEnumerable<string> requestedLanguages, CancellationToken cancellationToken)
-        {
-            return Task.FromResult<IReadOnlyList<string>>(requestedLanguages.ToArray());
-        }
-    }
 }

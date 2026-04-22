@@ -14,5 +14,8 @@ public interface IPlanningPolicyService
     IReadOnlyList<string> GetRequiredChannels(CampaignPlanningRequest request);
     IReadOnlyList<RequestedChannelShare> GetRequestedChannelShares(CampaignPlanningRequest request);
     int? GetTargetShare(string? mediaType, CampaignPlanningRequest request);
+    IReadOnlyDictionary<string, decimal>? GetChannelSpendTargets(CampaignPlanningRequest request);
+    string NormalizeChannelBudgetKey(string? mediaType);
+    decimal GetChannelOvershootTolerance(decimal targetAmount);
     string? BuildRequestedMixLabel(CampaignPlanningRequest request);
 }

@@ -23,11 +23,6 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
         _briefIntentService = briefIntentService;
     }
 
-    public PlanningEligibilityService(IPlanningPolicyService policyService, IBroadcastMasterDataService broadcastMasterDataService)
-        : this(policyService, broadcastMasterDataService, new NoOpPlanningBriefIntentService())
-    {
-    }
-
     public PlanningPolicyOutcome FilterEligibleCandidates(List<InventoryCandidate> candidates, CampaignPlanningRequest request)
     {
         var eligible = new List<InventoryCandidate>(candidates.Count);
@@ -80,7 +75,7 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
             return "excluded_area";
         }
 
-        if (!MatchesRequestedGeography(candidate, request))
+        if (!EvaluateGeography(candidate, request).IsMatch)
         {
             return "geography_mismatch";
         }
@@ -94,12 +89,26 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
         return null;
     }
 
-    private bool MatchesRequestedGeography(InventoryCandidate candidate, CampaignPlanningRequest request)
+    public PlanningGeographyEvaluation EvaluateGeography(InventoryCandidate candidate, CampaignPlanningRequest request)
     {
         var normalizedScope = NormalizeScope(request.GeographyScope);
+        var coverage = ResolveCandidateCoverage(candidate);
+        var matchesPriorityArea = MatchesPriorityArea(candidate, request);
+        var matchesBusinessOrigin = MatchesBusinessOrigin(candidate, request);
         if (normalizedScope == "national")
         {
-            return true;
+            return new PlanningGeographyEvaluation(
+                true,
+                normalizedScope,
+                coverage,
+                MatchesSuburb: false,
+                MatchesCity: false,
+                MatchesProvince: false,
+                MatchesArea: false,
+                matchesPriorityArea,
+                matchesBusinessOrigin,
+                UsedRadiusMatch: false,
+                UsedNationalInventoryOverride: false);
         }
 
         var normalizedMediaType = NormalizeMediaType(candidate.MediaType);
@@ -114,7 +123,18 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
         if ((isBroadcast || normalizedMediaType == "digital")
             && Matches(candidate.MarketScope, "national"))
         {
-            return true;
+            return new PlanningGeographyEvaluation(
+                true,
+                normalizedScope,
+                coverage,
+                MatchesSuburb: false,
+                MatchesCity: false,
+                MatchesProvince: false,
+                MatchesArea: false,
+                matchesPriorityArea,
+                matchesBusinessOrigin,
+                UsedRadiusMatch: false,
+                UsedNationalInventoryOverride: true);
         }
 
         var requestedSuburbs = normalizedScope == "local" ? request.Suburbs : new List<string>();
@@ -129,13 +149,33 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
 
         if (!hasSpecificGeography)
         {
-            return true;
+            return new PlanningGeographyEvaluation(
+                true,
+                normalizedScope,
+                coverage,
+                MatchesSuburb: false,
+                MatchesCity: false,
+                MatchesProvince: false,
+                MatchesArea: false,
+                matchesPriorityArea,
+                matchesBusinessOrigin,
+                UsedRadiusMatch: false,
+                UsedNationalInventoryOverride: false);
         }
 
         var matchesRequestedCity = requestedCities.Count == 0
             || requestedCities.Any(x =>
                 Matches(x, candidate.City)
                 || MatchesAnyMetadataToken(candidate, x, "cityLabels", "city_labels", "city", "area"));
+        var explicitCityMatch = requestedCities.Count > 0 && requestedCities.Any(x =>
+            Matches(x, candidate.City)
+            || MatchesAnyMetadataToken(candidate, x, "cityLabels", "city_labels", "city", "area"));
+        var matchesRequestedProvince = requestedProvinces.Any(x => MatchesRequestedProvince(candidate, x, isBroadcast));
+        var matchesRequestedArea = requestedAreas.Any(x =>
+            Matches(x, candidate.Area)
+            || Matches(x, candidate.Suburb)
+            || MatchesAnyMetadataToken(candidate, x, "provinceCodes", "province_codes", "cityLabels", "city_labels", "area", "province", "city"));
+        var explicitSuburbMatch = requestedSuburbs.Any(x => Matches(x, candidate.Suburb) || Matches(x, candidate.Area));
 
         if (normalizedScope == "local"
             && requestedCities.Count > 0
@@ -153,7 +193,18 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
 
             if (distanceKm <= LocalSuburbRadiusKm)
             {
-                return true;
+                return new PlanningGeographyEvaluation(
+                    true,
+                    normalizedScope,
+                    coverage,
+                    MatchesSuburb: requestedSuburbs.Count > 0,
+                    MatchesCity: explicitCityMatch,
+                    MatchesProvince: matchesRequestedProvince,
+                    MatchesArea: matchesRequestedArea,
+                    matchesPriorityArea,
+                    matchesBusinessOrigin,
+                    UsedRadiusMatch: true,
+                    UsedNationalInventoryOverride: false);
             }
         }
 
@@ -163,7 +214,18 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
             // is not sold at suburb precision, so we keep it eligible based on city/province matching.
             if (isBroadcast)
             {
-                return matchesRequestedCity;
+                return new PlanningGeographyEvaluation(
+                    matchesRequestedCity,
+                    normalizedScope,
+                    coverage,
+                    MatchesSuburb: false,
+                    MatchesCity: explicitCityMatch,
+                    MatchesProvince: matchesRequestedProvince,
+                    MatchesArea: matchesRequestedArea,
+                    matchesPriorityArea,
+                    matchesBusinessOrigin,
+                    UsedRadiusMatch: false,
+                    UsedNationalInventoryOverride: false);
             }
 
             // If we have a geocoded campaign target and the inventory has coordinates, use radius-based matching.
@@ -181,35 +243,95 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
 
                 if (distanceKm <= LocalSuburbRadiusKm)
                 {
-                    return true;
+                    return new PlanningGeographyEvaluation(
+                        true,
+                        normalizedScope,
+                        coverage,
+                        MatchesSuburb: true,
+                        MatchesCity: explicitCityMatch,
+                        MatchesProvince: matchesRequestedProvince,
+                        MatchesArea: matchesRequestedArea,
+                        matchesPriorityArea,
+                        matchesBusinessOrigin,
+                        UsedRadiusMatch: true,
+                        UsedNationalInventoryOverride: false);
                 }
             }
 
-            var matchesSuburb = requestedSuburbs.Any(x => Matches(x, candidate.Suburb) || Matches(x, candidate.Area));
-            return matchesRequestedCity && matchesSuburb;
+            return new PlanningGeographyEvaluation(
+                matchesRequestedCity && explicitSuburbMatch,
+                normalizedScope,
+                coverage,
+                explicitSuburbMatch,
+                explicitCityMatch,
+                matchesRequestedProvince,
+                matchesRequestedArea,
+                matchesPriorityArea,
+                matchesBusinessOrigin,
+                UsedRadiusMatch: false,
+                UsedNationalInventoryOverride: false);
         }
 
-        if (requestedCities.Any(x =>
-            Matches(x, candidate.City)
-            || MatchesAnyMetadataToken(candidate, x, "cityLabels", "city_labels", "city", "area")))
+        if (explicitCityMatch)
         {
-            return true;
+            return new PlanningGeographyEvaluation(
+                true,
+                normalizedScope,
+                coverage,
+                MatchesSuburb: false,
+                MatchesCity: true,
+                MatchesProvince: matchesRequestedProvince,
+                MatchesArea: matchesRequestedArea,
+                matchesPriorityArea,
+                matchesBusinessOrigin,
+                UsedRadiusMatch: false,
+                UsedNationalInventoryOverride: false);
         }
 
-        if (requestedProvinces.Any(x => MatchesRequestedProvince(candidate, x, isBroadcast)))
+        if (matchesRequestedProvince)
         {
-            return true;
+            return new PlanningGeographyEvaluation(
+                true,
+                normalizedScope,
+                coverage,
+                MatchesSuburb: false,
+                MatchesCity: false,
+                MatchesProvince: true,
+                MatchesArea: matchesRequestedArea,
+                matchesPriorityArea,
+                matchesBusinessOrigin,
+                UsedRadiusMatch: false,
+                UsedNationalInventoryOverride: false);
         }
 
-        if (requestedAreas.Any(x =>
-            Matches(x, candidate.Area)
-            || Matches(x, candidate.Suburb)
-            || MatchesAnyMetadataToken(candidate, x, "provinceCodes", "province_codes", "cityLabels", "city_labels", "area", "province", "city")))
+        if (matchesRequestedArea)
         {
-            return matchesRequestedCity;
+            return new PlanningGeographyEvaluation(
+                matchesRequestedCity,
+                normalizedScope,
+                coverage,
+                MatchesSuburb: false,
+                MatchesCity: explicitCityMatch,
+                MatchesProvince: matchesRequestedProvince,
+                MatchesArea: true,
+                matchesPriorityArea,
+                matchesBusinessOrigin,
+                UsedRadiusMatch: false,
+                UsedNationalInventoryOverride: false);
         }
 
-        return false;
+        return new PlanningGeographyEvaluation(
+            false,
+            normalizedScope,
+            coverage,
+            MatchesSuburb: false,
+            MatchesCity: explicitCityMatch,
+            MatchesProvince: matchesRequestedProvince,
+            MatchesArea: matchesRequestedArea,
+            matchesPriorityArea,
+            matchesBusinessOrigin,
+            UsedRadiusMatch: false,
+            UsedNationalInventoryOverride: false);
     }
 
     private bool MatchesExcludedArea(InventoryCandidate candidate, CampaignPlanningRequest request)
@@ -268,9 +390,7 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
             return false;
         }
 
-        return keys.Any(key =>
-            candidate.Metadata.TryGetValue(key, out var value)
-            && ExtractMetadataTokens(value).Any(token => Matches(requestedValue, token)));
+        return PlanningMetadataSupport.MatchesAnyMetadataToken(candidate, token => Matches(requestedValue, token), keys);
     }
 
     private bool MatchesRequestedProvince(InventoryCandidate candidate, string requestedProvince, bool isBroadcast)
@@ -288,72 +408,28 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
             || MatchesAnyMetadataToken(candidate, requestedProvince, "primaryProvinceCode", "primary_province_code", "province", "province_code");
     }
 
-    private static IEnumerable<string> ExtractMetadataTokens(object? value)
+    private bool MatchesPriorityArea(InventoryCandidate candidate, CampaignPlanningRequest request)
     {
-        if (value is null)
+        var priorityAreas = request.Targeting?.PriorityAreas ?? request.MustHaveAreas;
+        return priorityAreas.Any(area =>
+            Matches(area, candidate.Suburb)
+            || Matches(area, candidate.Area)
+            || Matches(area, candidate.City)
+            || Matches(area, candidate.Province));
+    }
+
+    private bool MatchesBusinessOrigin(InventoryCandidate candidate, CampaignPlanningRequest request)
+    {
+        var businessLocation = request.BusinessLocation;
+        if (businessLocation is null)
         {
-            yield break;
+            return false;
         }
 
-        if (value is string text)
-        {
-            if (!string.IsNullOrWhiteSpace(text))
-            {
-                yield return text.Trim();
-            }
-
-            yield break;
-        }
-
-        if (value is IEnumerable<string> textValues)
-        {
-            foreach (var entry in textValues)
-            {
-                if (!string.IsNullOrWhiteSpace(entry))
-                {
-                    yield return entry.Trim();
-                }
-            }
-
-            yield break;
-        }
-
-        if (value is JsonElement json)
-        {
-            if (json.ValueKind == JsonValueKind.String)
-            {
-                var jsonText = json.GetString();
-                if (!string.IsNullOrWhiteSpace(jsonText))
-                {
-                    yield return jsonText.Trim();
-                }
-
-                yield break;
-            }
-
-            if (json.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var item in json.EnumerateArray())
-                {
-                    if (item.ValueKind == JsonValueKind.String)
-                    {
-                        var itemText = item.GetString();
-                        if (!string.IsNullOrWhiteSpace(itemText))
-                        {
-                            yield return itemText.Trim();
-                        }
-                    }
-                }
-            }
-
-            yield break;
-        }
-
-        var fallback = value.ToString();
-        if (!string.IsNullOrWhiteSpace(fallback))
-        {
-            yield return fallback.Trim();
-        }
+        return Matches(businessLocation.Area, candidate.Suburb)
+            || Matches(businessLocation.Area, candidate.Area)
+            || Matches(businessLocation.City, candidate.City)
+            || Matches(businessLocation.Province, candidate.Province);
     }
 
     private static string NormalizeScope(string? scope)
@@ -373,14 +449,42 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
     {
         return string.IsNullOrWhiteSpace(mediaType)
             ? "unknown"
-            : mediaType.Trim().ToLowerInvariant();
+            : PlanningChannelSupport.NormalizeChannel(mediaType);
     }
 
-    private sealed class NoOpPlanningBriefIntentService : IPlanningBriefIntentService
+    private static string ResolveCandidateCoverage(InventoryCandidate candidate)
     {
-        public PlanningBriefIntentEvaluation EvaluateCandidate(InventoryCandidate candidate, CampaignPlanningRequest request)
+        var scope = (candidate.MarketScope ?? string.Empty).Trim().ToLowerInvariant();
+        if (scope.Contains("national", StringComparison.OrdinalIgnoreCase))
         {
-            return new PlanningBriefIntentEvaluation();
+            return "national";
         }
+
+        if (scope.Contains("provincial", StringComparison.OrdinalIgnoreCase)
+            || scope.Contains("regional", StringComparison.OrdinalIgnoreCase)
+            || scope.Contains("province", StringComparison.OrdinalIgnoreCase))
+        {
+            return "provincial";
+        }
+
+        if (scope.Contains("local", StringComparison.OrdinalIgnoreCase)
+            || scope.Contains("city", StringComparison.OrdinalIgnoreCase)
+            || scope.Contains("suburb", StringComparison.OrdinalIgnoreCase))
+        {
+            return "local";
+        }
+
+        if (!string.IsNullOrWhiteSpace(candidate.City) || !string.IsNullOrWhiteSpace(candidate.Suburb))
+        {
+            return "local";
+        }
+
+        if (!string.IsNullOrWhiteSpace(candidate.Province) || !string.IsNullOrWhiteSpace(candidate.RegionClusterCode))
+        {
+            return "provincial";
+        }
+
+        return "unknown";
     }
+
 }

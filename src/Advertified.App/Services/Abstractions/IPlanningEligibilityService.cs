@@ -6,5 +6,5 @@ namespace Advertified.App.Services.Abstractions;
 public interface IPlanningEligibilityService
 {
     PlanningPolicyOutcome FilterEligibleCandidates(List<InventoryCandidate> candidates, CampaignPlanningRequest request);
+    PlanningGeographyEvaluation EvaluateGeography(InventoryCandidate candidate, CampaignPlanningRequest request);
 }
-

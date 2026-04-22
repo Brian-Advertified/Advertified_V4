@@ -1,4 +1,5 @@
 using Advertified.App.Configuration;
+using Advertified.App.Contracts.Admin;
 using Advertified.App.Contracts.Campaigns;
 using Advertified.App.Domain.Campaigns;
 using Advertified.App.Services;
@@ -40,7 +41,10 @@ public sealed class PlanningAllocationPolicyTests
     public void PreferredMediaFallbackFlags_SkipTvWhenTvTargetIsZeroByDesign()
     {
         var policyService = CreatePlanningPolicyService();
-        var explainabilityService = new RecommendationExplainabilityService(new StubPlanningScoreService(), policyService);
+        var explainabilityService = new RecommendationExplainabilityService(
+            new PlanningEligibilityService(policyService, new StubBroadcastMasterDataService(), new StubPlanningBriefIntentService()),
+            new StubPlanningScoreService(),
+            policyService);
 
         var flags = explainabilityService.GetPreferredMediaFallbackFlags(
             new CampaignPlanningRequest
@@ -63,8 +67,7 @@ public sealed class PlanningAllocationPolicyTests
                 new() { MediaType = "digital_screen" },
                 new() { MediaType = "Radio" },
                 new() { MediaType = "Digital" }
-            },
-            Array.Empty<InventoryCandidate>());
+            });
 
         flags.Should().BeEmpty();
     }
@@ -73,7 +76,10 @@ public sealed class PlanningAllocationPolicyTests
     public void PreferredMediaFallbackFlags_EmitTvWhenTvWasTargetedButNotSelected()
     {
         var policyService = CreatePlanningPolicyService();
-        var explainabilityService = new RecommendationExplainabilityService(new StubPlanningScoreService(), policyService);
+        var explainabilityService = new RecommendationExplainabilityService(
+            new PlanningEligibilityService(policyService, new StubBroadcastMasterDataService(), new StubPlanningBriefIntentService()),
+            new StubPlanningScoreService(),
+            policyService);
 
         var flags = explainabilityService.GetPreferredMediaFallbackFlags(
             new CampaignPlanningRequest
@@ -97,8 +103,7 @@ public sealed class PlanningAllocationPolicyTests
                 new() { MediaType = "digital_screen" },
                 new() { MediaType = "Radio" },
                 new() { MediaType = "Digital" }
-            },
-            Array.Empty<InventoryCandidate>());
+            });
 
         flags.Should().ContainSingle("preferred_media_unfulfilled:tv");
     }
@@ -139,5 +144,23 @@ public sealed class PlanningAllocationPolicyTests
         public decimal MixTargetScore(InventoryCandidate candidate, CampaignPlanningRequest request) => 0m;
         public decimal BudgetScore(InventoryCandidate candidate, CampaignPlanningRequest request) => 0m;
         public decimal IndustryContextFitScore(InventoryCandidate candidate, CampaignPlanningRequest request) => 0m;
+    }
+
+    private sealed class StubBroadcastMasterDataService : IBroadcastMasterDataService
+    {
+        public Task<AdminOutletMasterDataResponse> GetOutletMasterDataAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(new AdminOutletMasterDataResponse());
+
+        public string NormalizeGeographyForMatching(string? value) => value?.Trim().ToLowerInvariant() ?? string.Empty;
+        public string NormalizeLanguageForMatching(string? value) => value?.Trim().ToLowerInvariant() ?? string.Empty;
+        public string NormalizeLanguageCode(string? value) => value?.Trim().ToLowerInvariant() ?? string.Empty;
+        public string NormalizeProvinceCode(string? value) => value?.Trim().ToLowerInvariant() ?? string.Empty;
+        public string NormalizeCoverageType(string? value) => value?.Trim().ToLowerInvariant() ?? string.Empty;
+        public string NormalizeCatalogHealth(string? value) => value?.Trim().ToLowerInvariant() ?? string.Empty;
+    }
+
+    private sealed class StubPlanningBriefIntentService : IPlanningBriefIntentService
+    {
+        public PlanningBriefIntentEvaluation EvaluateCandidate(InventoryCandidate candidate, CampaignPlanningRequest request) => new();
     }
 }

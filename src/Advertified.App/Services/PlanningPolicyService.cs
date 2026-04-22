@@ -224,6 +224,35 @@ public sealed class PlanningPolicyService : IPlanningPolicyService
         return explicitShare;
     }
 
+    public IReadOnlyDictionary<string, decimal>? GetChannelSpendTargets(CampaignPlanningRequest request)
+    {
+        if (request.BudgetAllocation?.ChannelAllocations.Count > 0)
+        {
+            return request.BudgetAllocation.ChannelAllocations
+                .Where(entry => entry.Amount > 0m)
+                .GroupBy(entry => NormalizeChannelBudgetKey(entry.Channel), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group.Sum(entry => entry.Amount),
+                    StringComparer.OrdinalIgnoreCase);
+        }
+
+        return null;
+    }
+
+    public string NormalizeChannelBudgetKey(string? mediaType)
+    {
+        var normalized = PlanningChannelSupport.NormalizeChannel(mediaType);
+        return PlanningChannelSupport.IsOohFamilyChannel(normalized)
+            ? PlanningChannelSupport.OohAlias
+            : normalized;
+    }
+
+    public decimal GetChannelOvershootTolerance(decimal targetAmount)
+    {
+        return Math.Max(5000m, decimal.Round(targetAmount * 0.10m, 2, MidpointRounding.AwayFromZero));
+    }
+
     public string? BuildRequestedMixLabel(CampaignPlanningRequest request)
     {
         var parts = GetRequestedChannelShares(request)

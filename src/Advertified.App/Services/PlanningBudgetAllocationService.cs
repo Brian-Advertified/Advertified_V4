@@ -122,7 +122,13 @@ public sealed class PlanningBudgetAllocationService : IPlanningBudgetAllocationS
                 ["tv"] = ToWeight(request.TargetTvShare)
             };
             AddOohWeight(explicitWeights, ToWeight(request.TargetOohShare));
-            return ("explicit_request", NormalizeWeights(explicitWeights, GetExplicitRequestFallbackWeights(request, snapshot.BudgetBands, request.SelectedBudget)));
+            var fallbackWeights = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["radio"] = 0.30m,
+                ["digital"] = 0.35m
+            };
+            AddOohWeight(fallbackWeights, ToWeight(request.TargetOohShare));
+            return ("explicit_request", NormalizeWeights(explicitWeights, fallbackWeights));
         }
 
         var matchedBand = ResolveBudgetBand(snapshot.BudgetBands, request.SelectedBudget);
@@ -151,23 +157,13 @@ public sealed class PlanningBudgetAllocationService : IPlanningBudgetAllocationS
             .FirstOrDefault();
     }
 
-    private static IReadOnlyDictionary<string, decimal> GetExplicitRequestFallbackWeights(
-        CampaignPlanningRequest request,
-        IReadOnlyList<BudgetBandAllocationPolicyRule> budgetBands,
-        decimal selectedBudget)
-    {
-        var fallback = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["radio"] = 0.30m,
-            ["digital"] = 0.35m
-        };
-        AddOohWeight(fallback, ToWeight(request.TargetOohShare));
-        return fallback;
-    }
-
     private static IReadOnlyDictionary<string, decimal> GetGeoFallbackWeights(CampaignPlanningRequest request)
     {
-        var scope = NormalizeScope(request.GeographyScope);
+        var scope = (request.GeographyScope ?? string.Empty).Trim().ToLowerInvariant() switch
+        {
+            "regional" => "provincial",
+            _ => (request.GeographyScope ?? string.Empty).Trim().ToLowerInvariant()
+        };
         return scope switch
         {
             "local" => new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase)
@@ -217,15 +213,7 @@ public sealed class PlanningBudgetAllocationService : IPlanningBudgetAllocationS
 
     private static string ResolveAudienceSegment(CampaignPlanningRequest request)
     {
-        var signals = CampaignStrategySupport.BuildSignals(request);
-        if (signals.PremiumAudience
-            || string.Equals(request.PricePositioning, "premium", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(request.PricePositioning, "luxury", StringComparison.OrdinalIgnoreCase))
-        {
-            return "premium";
-        }
-
-        return "general";
+        return CampaignStrategySupport.BuildSignals(request).PremiumAudience ? "premium" : "general";
     }
 
     private static bool HasExplicitTargetMix(CampaignPlanningRequest request)
@@ -267,15 +255,6 @@ public sealed class PlanningBudgetAllocationService : IPlanningBudgetAllocationS
             "television" => "tv",
             "billboards or digital screens" => PlanningChannelSupport.OohAlias,
             "billboards and digital screens" => PlanningChannelSupport.OohAlias,
-            _ => (value ?? string.Empty).Trim().ToLowerInvariant()
-        };
-    }
-
-    private static string NormalizeScope(string? value)
-    {
-        return (value ?? string.Empty).Trim().ToLowerInvariant() switch
-        {
-            "regional" => "provincial",
             _ => (value ?? string.Empty).Trim().ToLowerInvariant()
         };
     }
