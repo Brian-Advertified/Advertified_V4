@@ -128,13 +128,28 @@ export function getConstraintChecks(
 ) {
   const hasOoh = selectedPlanItems.some((item) => normalizeChannelKey(item.type) === 'OOH');
   const hasRadio = selectedPlanItems.some((item) => normalizeChannelKey(item.type) === 'RADIO');
+  const geoTerms = [
+    ...(brief?.areas ?? []),
+    ...(brief?.cities ?? []),
+    ...(brief?.provinces ?? []),
+    ...(brief?.suburbs ?? []),
+    brief?.targetLocationLabel,
+    brief?.targetLocationCity,
+    brief?.targetLocationProvince,
+  ]
+    .filter((value): value is string => Boolean(value && value.trim()))
+    .map((value) => value.toLowerCase());
   const geoAligned = selectedPlanItems.length === 0
     || selectedPlanItems.some((item) => {
       const region = item.region.toLowerCase();
+      const normalizedChannel = normalizeChannelKey(item.type);
+      if ((normalizedChannel === 'RADIO' || normalizedChannel === 'DIGITAL' || normalizedChannel === 'TV')
+        && region.includes('national')) {
+        return true;
+      }
+
       return (
-        brief?.areas?.some((area) => region.includes(area.toLowerCase()))
-        || brief?.cities?.some((city) => region.includes(city.toLowerCase()))
-        || brief?.provinces?.some((province) => region.includes(province.toLowerCase()))
+        geoTerms.some((term) => region.includes(term))
         || region.includes((brief?.geographyScope ?? '').toLowerCase())
       );
     });

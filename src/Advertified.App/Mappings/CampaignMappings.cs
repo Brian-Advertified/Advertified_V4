@@ -15,6 +15,7 @@ namespace Advertified.App.Mappings;
 
 internal static class CampaignMappings
 {
+    private static readonly JsonSerializerOptions AuditJsonOptions = new(JsonSerializerDefaults.Web);
     private const string ClientFeedbackMarker = "Client feedback:";
     private const string FallbackFlagsMarker = "Fallback flags:";
     private const string ManualReviewMarker = "Manual review required:";
@@ -1263,7 +1264,7 @@ internal static class CampaignMappings
 
         try
         {
-            return JsonSerializer.Deserialize<T>(json);
+            return JsonSerializer.Deserialize<T>(json, AuditJsonOptions);
         }
         catch (JsonException)
         {
