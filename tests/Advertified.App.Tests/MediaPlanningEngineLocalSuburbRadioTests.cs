@@ -242,6 +242,95 @@ public sealed class MediaPlanningEngineLocalSuburbRadioTests
         result.RecommendedPlan[0].DisplayName.Should().Contain("SAfm");
     }
 
+    [Fact]
+    public async Task GenerateAsync_WhenBudgetCannotFitAllRequestedChannels_PreservesHigherShareRadioOverLowerShareDigital()
+    {
+        var repository = new StubPlanningInventoryRepository
+        {
+            OohCandidates = new List<InventoryCandidate>
+            {
+                new()
+                {
+                    SourceId = Guid.NewGuid(),
+                    SourceType = "ooh",
+                    DisplayName = "Expensive OOH",
+                    MediaType = "billboard",
+                    Province = "Gauteng",
+                    RegionClusterCode = "Gauteng",
+                    Cost = 12600m,
+                    IsAvailable = true
+                },
+                new()
+                {
+                    SourceId = Guid.NewGuid(),
+                    SourceType = "ooh",
+                    DisplayName = "Affordable OOH",
+                    MediaType = "billboard",
+                    Province = "Gauteng",
+                    RegionClusterCode = "Gauteng",
+                    Cost = 11550m,
+                    IsAvailable = true
+                }
+            },
+            RadioSlotCandidates = new List<InventoryCandidate>
+            {
+                new()
+                {
+                    SourceId = Guid.NewGuid(),
+                    SourceType = "radio_slot",
+                    DisplayName = "SAfm - spot",
+                    MediaType = "Radio",
+                    MarketScope = "national",
+                    Province = "national",
+                    RegionClusterCode = "national",
+                    Cost = 13200m,
+                    IsAvailable = true,
+                    Metadata = new Dictionary<string, object?>
+                    {
+                        ["language"] = "English"
+                    }
+                }
+            },
+            DigitalCandidates = new List<InventoryCandidate>
+            {
+                new()
+                {
+                    SourceId = Guid.NewGuid(),
+                    SourceType = "digital_package",
+                    DisplayName = "Meta starter",
+                    MediaType = "digital",
+                    Cost = 8332.50m,
+                    IsAvailable = true
+                }
+            }
+        };
+
+        var engine = CreateEngine(repository);
+        var request = new CampaignPlanningRequest
+        {
+            CampaignId = SowetoCampaignId,
+            SelectedBudget = 25000m,
+            GeographyScope = "provincial",
+            Provinces = new List<string> { "Gauteng" },
+            PreferredMediaTypes = new List<string> { "ooh", "radio", "digital" },
+            TargetOohShare = 60,
+            TargetRadioShare = 32,
+            TargetDigitalShare = 8
+        };
+
+        var result = await engine.GenerateAsync(request, CancellationToken.None);
+
+        result.RecommendedPlan.Select(item => item.DisplayName)
+            .Should()
+            .Contain("Affordable OOH")
+            .And.Contain("SAfm - spot");
+        result.RecommendedPlan.Select(item => item.DisplayName)
+            .Should()
+            .NotContain("Meta starter");
+        result.FallbackFlags.Should().Contain("preferred_media_unfulfilled:digital");
+        result.FallbackFlags.Should().NotContain("preferred_media_unfulfilled:radio");
+    }
+
     private static PlanningPolicyService CreatePolicyService()
     {
         var snapshotProvider = new PlanningPolicySnapshotProvider(new PlanningPolicyOptions

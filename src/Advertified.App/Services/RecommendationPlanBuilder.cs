@@ -212,7 +212,15 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
                 {
                     var matched = channelCandidates
                         .Where(candidate => MatchesAnyBroadcastGeoToken(candidate, suburbTokens))
-                        .OrderByDescending(candidate => ScoreRequestedLanguageCoverage(candidate, result, request))
+                        .OrderByDescending(candidate => RemainingRequestedShareCapacity(
+                            candidates,
+                            requestedShares,
+                            shareTarget.Channel,
+                            candidate,
+                            usedSourceIds,
+                            spentTotal,
+                            request.SelectedBudget))
+                        .ThenByDescending(candidate => ScoreRequestedLanguageCoverage(candidate, result, request))
                         .ThenByDescending(candidate => HasMatchingOohSite(result, candidate))
                         .ThenByDescending(candidate => FitsChannelTarget(result, candidate, channelSpendTargets))
                         .ThenBy(candidate => ChannelOvershootAmount(result, candidate, channelSpendTargets))
@@ -233,7 +241,15 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
             }
 
             var channelCandidate = channelCandidates
-                .OrderByDescending(candidate => ScoreRequestedLanguageCoverage(candidate, result, request))
+                .OrderByDescending(candidate => RemainingRequestedShareCapacity(
+                    candidates,
+                    requestedShares,
+                    shareTarget.Channel,
+                    candidate,
+                    usedSourceIds,
+                    spentTotal,
+                    request.SelectedBudget))
+                .ThenByDescending(candidate => ScoreRequestedLanguageCoverage(candidate, result, request))
                 .ThenByDescending(candidate => HasMatchingOohSite(result, candidate))
                 .ThenByDescending(candidate => FitsChannelTarget(result, candidate, channelSpendTargets))
                 .ThenBy(candidate => ChannelOvershootAmount(result, candidate, channelSpendTargets))
@@ -283,7 +299,15 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
                     .Where(candidate => spentTotal + candidate.Cost <= request.SelectedBudget)
                     .Where(candidate => !ExceedsStationDiversityCap(result, candidate))
                     .Where(candidate => CanSpendInChannel(result, candidate, channelSpendTargets))
-                    .OrderByDescending(candidate => ScoreRequestedLanguageCoverage(candidate, result, request))
+                    .OrderByDescending(candidate => RemainingRequestedShareCapacity(
+                        candidates,
+                        requestedShares,
+                        shareTarget.Channel,
+                        candidate,
+                        usedSourceIds,
+                        spentTotal,
+                        request.SelectedBudget))
+                    .ThenByDescending(candidate => ScoreRequestedLanguageCoverage(candidate, result, request))
                     .ThenByDescending(candidate => HasMatchingOohSite(result, candidate))
                     .ThenByDescending(candidate => FitsChannelTarget(result, candidate, channelSpendTargets))
                     .ThenBy(candidate => ChannelOvershootAmount(result, candidate, channelSpendTargets))
@@ -322,6 +346,76 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
         }
 
         return result;
+    }
+
+    private static int RemainingRequestedShareCapacity(
+        IReadOnlyList<InventoryCandidate> candidates,
+        IReadOnlyList<(string Channel, int Share)> requestedShares,
+        string currentChannel,
+        InventoryCandidate selectedCandidate,
+        ISet<Guid> usedSourceIds,
+        decimal spentTotal,
+        decimal totalBudget)
+    {
+        var remainingBudget = totalBudget - spentTotal - selectedCandidate.Cost;
+        if (remainingBudget <= 0m)
+        {
+            return 0;
+        }
+
+        var remainingChannels = requestedShares
+            .Where(entry => !string.Equals(entry.Channel, currentChannel, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        if (remainingChannels.Length == 0)
+        {
+            return 0;
+        }
+
+        var remainingOptions = new List<(int Share, decimal Cost)>();
+        foreach (var remaining in remainingChannels)
+        {
+            var cheapest = candidates
+                .Where(candidate => candidate.SourceId != selectedCandidate.SourceId)
+                .Where(candidate => !usedSourceIds.Contains(candidate.SourceId))
+                .Where(candidate => MatchesChannel(candidate.MediaType, remaining.Channel))
+                .Where(candidate => candidate.Cost > 0m)
+                .OrderBy(candidate => candidate.Cost)
+                .FirstOrDefault();
+            if (cheapest is null)
+            {
+                continue;
+            }
+
+            remainingOptions.Add((remaining.Share, cheapest.Cost));
+        }
+
+        if (remainingOptions.Count == 0)
+        {
+            return 0;
+        }
+
+        return MaxAchievableShare(remainingOptions, remainingBudget, index: 0);
+    }
+
+    private static int MaxAchievableShare(
+        IReadOnlyList<(int Share, decimal Cost)> options,
+        decimal remainingBudget,
+        int index)
+    {
+        if (index >= options.Count || remainingBudget <= 0m)
+        {
+            return 0;
+        }
+
+        var skip = MaxAchievableShare(options, remainingBudget, index + 1);
+        var option = options[index];
+        if (option.Cost > remainingBudget)
+        {
+            return skip;
+        }
+
+        var take = option.Share + MaxAchievableShare(options, remainingBudget - option.Cost, index + 1);
+        return Math.Max(skip, take);
     }
 
     public List<PlannedItem> BuildUpsells(List<InventoryCandidate> candidates, List<PlannedItem> recommendedPlan, decimal upsellHeadroom)
