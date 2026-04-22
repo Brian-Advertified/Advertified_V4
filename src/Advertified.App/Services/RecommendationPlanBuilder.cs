@@ -212,14 +212,16 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
                 {
                     var matched = channelCandidates
                         .Where(candidate => MatchesAnyBroadcastGeoToken(candidate, suburbTokens))
-                        .OrderByDescending(candidate => RemainingRequestedShareCapacity(
+                        .OrderByDescending(candidate => RemainingAllocationCoverageScore(
                             candidates,
                             requestedShares,
+                            channelSpendTargets,
                             shareTarget.Channel,
                             candidate,
                             usedSourceIds,
                             spentTotal,
                             request.SelectedBudget))
+                        .ThenBy(candidate => CurrentChannelTargetGap(candidate, shareTarget.Channel, channelSpendTargets))
                         .ThenByDescending(candidate => ScoreRequestedLanguageCoverage(candidate, result, request))
                         .ThenByDescending(candidate => HasMatchingOohSite(result, candidate))
                         .ThenByDescending(candidate => FitsChannelTarget(result, candidate, channelSpendTargets))
@@ -241,14 +243,16 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
             }
 
             var channelCandidate = channelCandidates
-                .OrderByDescending(candidate => RemainingRequestedShareCapacity(
+                .OrderByDescending(candidate => RemainingAllocationCoverageScore(
                     candidates,
                     requestedShares,
+                    channelSpendTargets,
                     shareTarget.Channel,
                     candidate,
                     usedSourceIds,
                     spentTotal,
                     request.SelectedBudget))
+                .ThenBy(candidate => CurrentChannelTargetGap(candidate, shareTarget.Channel, channelSpendTargets))
                 .ThenByDescending(candidate => ScoreRequestedLanguageCoverage(candidate, result, request))
                 .ThenByDescending(candidate => HasMatchingOohSite(result, candidate))
                 .ThenByDescending(candidate => FitsChannelTarget(result, candidate, channelSpendTargets))
@@ -299,14 +303,16 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
                     .Where(candidate => spentTotal + candidate.Cost <= request.SelectedBudget)
                     .Where(candidate => !ExceedsStationDiversityCap(result, candidate))
                     .Where(candidate => CanSpendInChannel(result, candidate, channelSpendTargets))
-                    .OrderByDescending(candidate => RemainingRequestedShareCapacity(
+                    .OrderByDescending(candidate => RemainingAllocationCoverageScore(
                         candidates,
                         requestedShares,
+                        channelSpendTargets,
                         shareTarget.Channel,
                         candidate,
                         usedSourceIds,
                         spentTotal,
                         request.SelectedBudget))
+                    .ThenBy(candidate => CurrentChannelTargetGap(candidate, shareTarget.Channel, channelSpendTargets))
                     .ThenByDescending(candidate => ScoreRequestedLanguageCoverage(candidate, result, request))
                     .ThenByDescending(candidate => HasMatchingOohSite(result, candidate))
                     .ThenByDescending(candidate => FitsChannelTarget(result, candidate, channelSpendTargets))
@@ -348,9 +354,10 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
         return result;
     }
 
-    private static int RemainingRequestedShareCapacity(
+    private static decimal RemainingAllocationCoverageScore(
         IReadOnlyList<InventoryCandidate> candidates,
         IReadOnlyList<(string Channel, int Share)> requestedShares,
+        IReadOnlyDictionary<string, decimal>? channelSpendTargets,
         string currentChannel,
         InventoryCandidate selectedCandidate,
         ISet<Guid> usedSourceIds,
@@ -360,7 +367,7 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
         var remainingBudget = totalBudget - spentTotal - selectedCandidate.Cost;
         if (remainingBudget <= 0m)
         {
-            return 0;
+            return 0m;
         }
 
         var remainingChannels = requestedShares
@@ -368,10 +375,10 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
             .ToArray();
         if (remainingChannels.Length == 0)
         {
-            return 0;
+            return 0m;
         }
 
-        var remainingOptions = new List<(int Share, decimal Cost)>();
+        var remainingOptions = new List<(int Share, decimal Cost, decimal Gap)>();
         foreach (var remaining in remainingChannels)
         {
             var cheapest = candidates
@@ -386,36 +393,60 @@ public sealed class RecommendationPlanBuilder : IRecommendationPlanBuilder
                 continue;
             }
 
-            remainingOptions.Add((remaining.Share, cheapest.Cost));
+            remainingOptions.Add((
+                remaining.Share,
+                cheapest.Cost,
+                CurrentChannelTargetGap(cheapest, remaining.Channel, channelSpendTargets)));
         }
 
         if (remainingOptions.Count == 0)
         {
-            return 0;
+            return 0m;
         }
 
-        return MaxAchievableShare(remainingOptions, remainingBudget, index: 0);
+        return MaxAchievableAllocationScore(remainingOptions, remainingBudget, index: 0);
     }
 
-    private static int MaxAchievableShare(
-        IReadOnlyList<(int Share, decimal Cost)> options,
+    private static decimal MaxAchievableAllocationScore(
+        IReadOnlyList<(int Share, decimal Cost, decimal Gap)> options,
         decimal remainingBudget,
         int index)
     {
         if (index >= options.Count || remainingBudget <= 0m)
         {
-            return 0;
+            return 0m;
         }
 
-        var skip = MaxAchievableShare(options, remainingBudget, index + 1);
+        var skip = MaxAchievableAllocationScore(options, remainingBudget, index + 1);
         var option = options[index];
         if (option.Cost > remainingBudget)
         {
             return skip;
         }
 
-        var take = option.Share + MaxAchievableShare(options, remainingBudget - option.Cost, index + 1);
+        // Higher configured share is more important; smaller gap to the channel target is better.
+        var take = (option.Share * 1000m) - option.Gap
+                   + MaxAchievableAllocationScore(options, remainingBudget - option.Cost, index + 1);
         return Math.Max(skip, take);
+    }
+
+    private static decimal CurrentChannelTargetGap(
+        InventoryCandidate candidate,
+        string channel,
+        IReadOnlyDictionary<string, decimal>? channelSpendTargets)
+    {
+        if (channelSpendTargets is null || channelSpendTargets.Count == 0)
+        {
+            return 0m;
+        }
+
+        var channelKey = GetSpendTargetChannelKey(channel);
+        if (!channelSpendTargets.TryGetValue(channelKey, out var targetAmount) || targetAmount <= 0m)
+        {
+            return 0m;
+        }
+
+        return Math.Abs(targetAmount - candidate.Cost);
     }
 
     public List<PlannedItem> BuildUpsells(List<InventoryCandidate> candidates, List<PlannedItem> recommendedPlan, decimal upsellHeadroom)
