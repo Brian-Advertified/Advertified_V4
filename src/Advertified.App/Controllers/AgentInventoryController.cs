@@ -16,6 +16,7 @@ namespace Advertified.App.Controllers;
 [Authorize(Roles = "Agent,Admin")]
 public sealed class AgentInventoryController : ControllerBase
 {
+    private static readonly JsonSerializerOptions SnapshotJsonOptions = new(JsonSerializerDefaults.Web);
     private readonly AppDbContext _db;
     private readonly IPlanningInventoryRepository _inventoryRepository;
     private readonly IPlanningEligibilityService _planningEligibilityService;
@@ -144,7 +145,7 @@ public sealed class AgentInventoryController : ControllerBase
 
         try
         {
-            var snapshot = JsonSerializer.Deserialize<CampaignPlanningRequestSnapshot>(recommendation.RequestSnapshotJson);
+            var snapshot = JsonSerializer.Deserialize<CampaignPlanningRequestSnapshot>(recommendation.RequestSnapshotJson, SnapshotJsonOptions);
             return snapshot is null ? request : ApplyRecommendationSnapshot(request, snapshot);
         }
         catch (JsonException)
