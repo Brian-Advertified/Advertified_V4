@@ -3,8 +3,6 @@ import { type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import type { useAgentCampaignsQuery, useAgentInboxQuery } from './agentWorkspace';
 
-export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:5050';
-
 export function ActionIconButton({
   title,
   onClick,

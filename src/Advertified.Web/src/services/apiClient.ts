@@ -1,4 +1,45 @@
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:5050';
+function trimTrailingSlash(value: string) {
+  return value.replace(/\/$/, '');
+}
+
+function isLocalHostname(hostname: string) {
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
+}
+
+function normalizeHostname(hostname: string) {
+  return hostname.replace(/^www\./i, '');
+}
+
+function resolveApiBaseUrl() {
+  const configuredBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
+  const browserOrigin = typeof window !== 'undefined' ? window.location.origin : null;
+  const browserHostname = typeof window !== 'undefined' ? window.location.hostname : null;
+
+  if (configuredBaseUrl) {
+    const normalizedConfiguredBaseUrl = trimTrailingSlash(configuredBaseUrl);
+
+    if (browserOrigin) {
+      try {
+        const configuredUrl = new URL(normalizedConfiguredBaseUrl);
+        if (normalizeHostname(configuredUrl.hostname) === normalizeHostname(window.location.hostname)) {
+          return trimTrailingSlash(`${browserOrigin}${configuredUrl.pathname}`) + configuredUrl.search + configuredUrl.hash;
+        }
+      } catch {
+        // Keep relative or otherwise invalid custom values unchanged.
+      }
+    }
+
+    return normalizedConfiguredBaseUrl;
+  }
+
+  if (browserOrigin && browserHostname && !isLocalHostname(browserHostname)) {
+    return `${browserOrigin}/api`;
+  }
+
+  return 'http://localhost:5050';
+}
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 type ApiErrorShape = {
   message?: string;
