@@ -338,4 +338,37 @@ public sealed class PlanningEligibilityServiceGeographyAliasTests
         var result = service.FilterEligibleCandidates(new List<InventoryCandidate> { digitalCandidate }, request);
         result.Candidates.Should().ContainSingle(x => x.DisplayName == "Meta - Awareness benchmark");
     }
+
+    [Fact]
+    public void FilterEligibleCandidates_ProvincialBroadcast_DoesNotUseSpilloverProvinceCodesAsPrimaryMatch()
+    {
+        var policyService = CreatePolicyService();
+        var service = new PlanningEligibilityService(policyService, new TestBroadcastMasterDataService());
+        var request = new CampaignPlanningRequest
+        {
+            SelectedBudget = 100000m,
+            GeographyScope = "provincial",
+            Provinces = new List<string> { "Gauteng" }
+        };
+
+        var spilloverRegionalStation = new InventoryCandidate
+        {
+            SourceId = Guid.NewGuid(),
+            SourceType = "radio_slot",
+            DisplayName = "Munghana Lonene FM - spot",
+            MediaType = "Radio",
+            Province = "Limpopo",
+            RegionClusterCode = "Limpopo",
+            MarketScope = "regional",
+            Cost = 9240m,
+            IsAvailable = true,
+            Metadata = new Dictionary<string, object?>
+            {
+                ["provinceCodes"] = new[] { "limpopo", "mpumalanga", "gauteng", "north_west" }
+            }
+        };
+
+        var result = service.FilterEligibleCandidates(new List<InventoryCandidate> { spilloverRegionalStation }, request);
+        result.Candidates.Should().BeEmpty();
+    }
 }

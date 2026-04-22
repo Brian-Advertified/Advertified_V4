@@ -163,9 +163,7 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
             // is not sold at suburb precision, so we keep it eligible based on city/province matching.
             if (isBroadcast)
             {
-                return matchesRequestedCity
-                    || Matches(normalizedScope, candidate.MarketScope)
-                    || Matches(normalizedScope, candidate.RegionClusterCode);
+                return matchesRequestedCity;
             }
 
             // If we have a geocoded campaign target and the inventory has coordinates, use radius-based matching.
@@ -198,9 +196,7 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
             return true;
         }
 
-        if (requestedProvinces.Any(x =>
-            Matches(x, candidate.Province)
-            || MatchesAnyMetadataToken(candidate, x, "provinceCodes", "province_codes", "province", "area")))
+        if (requestedProvinces.Any(x => MatchesRequestedProvince(candidate, x, isBroadcast)))
         {
             return true;
         }
@@ -213,8 +209,7 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
             return matchesRequestedCity;
         }
 
-        return Matches(normalizedScope, candidate.MarketScope)
-            || Matches(normalizedScope, candidate.RegionClusterCode);
+        return false;
     }
 
     private bool MatchesExcludedArea(InventoryCandidate candidate, CampaignPlanningRequest request)
@@ -276,6 +271,21 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
         return keys.Any(key =>
             candidate.Metadata.TryGetValue(key, out var value)
             && ExtractMetadataTokens(value).Any(token => Matches(requestedValue, token)));
+    }
+
+    private bool MatchesRequestedProvince(InventoryCandidate candidate, string requestedProvince, bool isBroadcast)
+    {
+        if (!isBroadcast)
+        {
+            return Matches(requestedProvince, candidate.Province)
+                || MatchesAnyMetadataToken(candidate, requestedProvince, "provinceCodes", "province_codes", "province", "area");
+        }
+
+        // For broadcast, a provincial brief should match the station's primary province,
+        // not any spillover province listed in broader coverage metadata.
+        return Matches(requestedProvince, candidate.Province)
+            || Matches(requestedProvince, candidate.RegionClusterCode)
+            || MatchesAnyMetadataToken(candidate, requestedProvince, "primaryProvinceCode", "primary_province_code", "province", "province_code");
     }
 
     private static IEnumerable<string> ExtractMetadataTokens(object? value)

@@ -122,9 +122,7 @@ public sealed class PlanningScoreService : IPlanningScoreService
             score += 10m;
         }
 
-        if (request.Provinces.Any(x =>
-            MatchesGeo(x, candidate.Province)
-            || MatchesAnyMetadataToken(candidate, x, "provinceCodes", "province_codes", "province", "area")))
+        if (request.Provinces.Any(x => MatchesRequestedProvince(candidate, x, isBroadcast)))
         {
             score += 10m;
         }
@@ -1412,6 +1410,19 @@ public sealed class PlanningScoreService : IPlanningScoreService
         return keys.Any(key =>
             candidate.Metadata.TryGetValue(key, out var value)
             && ExtractMetadataTokens(value).Any(token => MatchesGeo(requestedValue, token) || MatchesLanguage(requestedValue, token)));
+    }
+
+    private bool MatchesRequestedProvince(InventoryCandidate candidate, string requestedProvince, bool isBroadcast)
+    {
+        if (!isBroadcast)
+        {
+            return MatchesGeo(requestedProvince, candidate.Province)
+                || MatchesAnyMetadataToken(candidate, requestedProvince, "provinceCodes", "province_codes", "province", "area");
+        }
+
+        return MatchesGeo(requestedProvince, candidate.Province)
+            || MatchesGeo(requestedProvince, candidate.RegionClusterCode)
+            || MatchesAnyMetadataToken(candidate, requestedProvince, "primaryProvinceCode", "primary_province_code", "province", "province_code");
     }
 
     private static IEnumerable<string> ExtractMetadataTokens(object? value)

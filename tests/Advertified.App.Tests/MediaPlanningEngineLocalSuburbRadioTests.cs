@@ -181,6 +181,67 @@ public sealed class MediaPlanningEngineLocalSuburbRadioTests
         result.RecommendedPlan[0].DisplayName.Should().Contain("Kaya 959");
     }
 
+    [Fact]
+    public async Task GenerateAsync_ForProvincialBrief_RejectsSpilloverRegionalRadioAndUsesNationalAlternative()
+    {
+        var repository = new StubPlanningInventoryRepository
+        {
+            RadioSlotCandidates = new List<InventoryCandidate>
+            {
+                new()
+                {
+                    SourceId = Guid.NewGuid(),
+                    SourceType = "radio_slot",
+                    DisplayName = "Munghana Lonene FM - spot",
+                    MediaType = "Radio",
+                    MarketScope = "regional",
+                    Province = "Limpopo",
+                    RegionClusterCode = "Limpopo",
+                    Cost = 9240m,
+                    IsAvailable = true,
+                    Metadata = new Dictionary<string, object?>
+                    {
+                        ["provinceCodes"] = new[] { "limpopo", "mpumalanga", "gauteng" },
+                        ["language"] = "Xitsonga"
+                    }
+                },
+                new()
+                {
+                    SourceId = Guid.NewGuid(),
+                    SourceType = "radio_slot",
+                    DisplayName = "SAfm - spot",
+                    MediaType = "Radio",
+                    MarketScope = "national",
+                    Province = "national",
+                    RegionClusterCode = "national",
+                    Cost = 10000m,
+                    IsAvailable = true,
+                    Metadata = new Dictionary<string, object?>
+                    {
+                        ["language"] = "English"
+                    }
+                }
+            }
+        };
+
+        var engine = CreateEngine(repository);
+        var request = new CampaignPlanningRequest
+        {
+            CampaignId = SowetoCampaignId,
+            SelectedBudget = 15000m,
+            GeographyScope = "provincial",
+            Provinces = new List<string> { "Gauteng" },
+            PreferredMediaTypes = new List<string> { "radio" },
+            MaxMediaItems = 1
+        };
+
+        var result = await engine.GenerateAsync(request, CancellationToken.None);
+
+        result.RecommendedPlan.Should().ContainSingle();
+        result.RecommendedPlan[0].MediaType.Should().Be("Radio");
+        result.RecommendedPlan[0].DisplayName.Should().Contain("SAfm");
+    }
+
     private static PlanningPolicyService CreatePolicyService()
     {
         var snapshotProvider = new PlanningPolicySnapshotProvider(new PlanningPolicyOptions
