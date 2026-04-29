@@ -578,8 +578,14 @@ textarea {
 }
 
 .checkout-status-brand-logo-advertified {
-  height: 1.5rem;
+  height: 1.2rem;
   border-radius: 0;
+}
+
+@media (min-width: 640px) {
+  .checkout-status-brand-logo-advertified {
+    height: 1.5rem;
+  }
 }
 
 .checkout-status-icon-wrap {

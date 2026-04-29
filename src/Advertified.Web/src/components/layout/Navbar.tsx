@@ -37,7 +37,7 @@ export function Navbar() {
           <img
             src={advertifiedLogo}
             alt="Advertified"
-            className="h-8 w-auto sm:h-9"
+            className="h-[1.6rem] w-auto sm:h-9"
           />
         </Link>
 

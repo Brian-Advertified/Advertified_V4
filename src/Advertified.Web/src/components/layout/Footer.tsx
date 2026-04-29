@@ -13,7 +13,7 @@ export function Footer() {
             <img
               src={advertifiedLogo}
               alt="Advertified"
-              className="h-8 w-auto"
+              className="h-[1.6rem] w-auto sm:h-8"
             />
             <p className="mt-5 text-sm leading-7 text-ink-soft">
               Empowering businesses with flexible advertising solutions that align with your cash flow.
