@@ -20,6 +20,7 @@ public sealed class AdminDashboardService : IAdminDashboardService
     private readonly PlanningBudgetAllocationSnapshotProvider _planningBudgetAllocationSnapshotProvider;
     private readonly Npgsql.NpgsqlDataSource _dataSource;
     private readonly IBroadcastMasterDataService _broadcastMasterDataService;
+    private readonly AdminIntegrationStatusService _adminIntegrationStatusService;
 
     public AdminDashboardService(
         AppDbContext db,
@@ -27,7 +28,8 @@ public sealed class AdminDashboardService : IAdminDashboardService
         PlanningPolicySnapshotProvider planningPolicySnapshotProvider,
         PlanningBudgetAllocationSnapshotProvider planningBudgetAllocationSnapshotProvider,
         Npgsql.NpgsqlDataSource dataSource,
-        IBroadcastMasterDataService broadcastMasterDataService)
+        IBroadcastMasterDataService broadcastMasterDataService,
+        AdminIntegrationStatusService adminIntegrationStatusService)
     {
         _db = db;
         _broadcastInventoryCatalog = broadcastInventoryCatalog;
@@ -35,6 +37,7 @@ public sealed class AdminDashboardService : IAdminDashboardService
         _planningBudgetAllocationSnapshotProvider = planningBudgetAllocationSnapshotProvider;
         _dataSource = dataSource;
         _broadcastMasterDataService = broadcastMasterDataService;
+        _adminIntegrationStatusService = adminIntegrationStatusService;
     }
 
     public async Task<AdminDashboardResponse> GetDashboardAsync(CancellationToken cancellationToken)
@@ -443,28 +446,7 @@ public sealed class AdminDashboardService : IAdminDashboardService
     }
 
     private async Task<AdminIntegrationStatusResponse> GetIntegrationsAsync(CancellationToken cancellationToken)
-    {
-        var requestCount = await _db.PaymentProviderRequests.CountAsync(cancellationToken);
-        var webhookCount = await _db.PaymentProviderWebhooks.CountAsync(cancellationToken);
-        var lastRequestAt = await _db.PaymentProviderRequests
-            .AsNoTracking()
-            .OrderByDescending(x => x.CompletedAt ?? x.CreatedAt)
-            .Select(x => (DateTime?)(x.CompletedAt ?? x.CreatedAt))
-            .FirstOrDefaultAsync(cancellationToken);
-        var lastWebhookAt = await _db.PaymentProviderWebhooks
-            .AsNoTracking()
-            .OrderByDescending(x => x.CreatedAt)
-            .Select(x => (DateTime?)x.CreatedAt)
-            .FirstOrDefaultAsync(cancellationToken);
-
-        return new AdminIntegrationStatusResponse
-        {
-            PaymentRequestAuditCount = requestCount,
-            PaymentWebhookAuditCount = webhookCount,
-            LastPaymentRequestAt = lastRequestAt,
-            LastPaymentWebhookAt = lastWebhookAt
-        };
-    }
+        => await _adminIntegrationStatusService.GetAsync(cancellationToken);
 
     private async Task<AdminMonitoringResponse> GetMonitoringAsync(int activeAreaCount, CancellationToken cancellationToken)
     {

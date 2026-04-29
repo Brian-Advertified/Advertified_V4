@@ -2752,6 +2752,7 @@ public class ResendEmailServiceFallbackTests
                   Options.Create(new ResendOptions
                   {
                       ApiKey = string.Empty,
+                      AllowLocalArchiveFallback = true,
                       LocalArchiveDirectory = "outbox",
                     SenderAddresses = new Dictionary<string, string>
                       {
@@ -2778,6 +2779,7 @@ public class ResendEmailServiceFallbackTests
                   Options.Create(new ResendOptions
                   {
                       ApiKey = string.Empty,
+                      AllowLocalArchiveFallback = true,
                       LocalArchiveDirectory = "outbox",
                       SenderAddresses = new Dictionary<string, string>
                       {
@@ -2792,6 +2794,7 @@ public class ResendEmailServiceFallbackTests
                   Options.Create(new ResendOptions
                   {
                       ApiKey = string.Empty,
+                      AllowLocalArchiveFallback = true,
                       LocalArchiveDirectory = "outbox",
                       SenderAddresses = new Dictionary<string, string>
                       {
@@ -2816,6 +2819,54 @@ public class ResendEmailServiceFallbackTests
                 Directory.Delete(archiveRoot, recursive: true);
             }
         }
+    }
+}
+
+public class ResendStartupValidatorTests
+{
+    [Fact]
+    public async Task ValidateAsync_ThrowsWhenApiKeyIsMissingAndFallbackIsDisabled()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddOptions();
+        services.Configure<ResendOptions>(options =>
+        {
+            options.ApiKey = string.Empty;
+            options.BaseUrl = "https://api.resend.com";
+            options.AllowLocalArchiveFallback = false;
+            options.SenderAddresses["noreply"] = "Advertified <noreply@advertified.com>";
+        });
+
+        await using var provider = services.BuildServiceProvider();
+
+        await FluentActions
+            .Invoking(() => ResendStartupValidator.ValidateAsync(provider))
+            .Should()
+            .ThrowAsync<InvalidOperationException>()
+            .WithMessage("*Resend:ApiKey is missing*");
+    }
+
+    [Fact]
+    public async Task ValidateAsync_AllowsArchiveFallbackWhenExplicitlyEnabled()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddOptions();
+        services.Configure<ResendOptions>(options =>
+        {
+            options.ApiKey = string.Empty;
+            options.BaseUrl = "https://api.resend.com";
+            options.AllowLocalArchiveFallback = true;
+            options.SenderAddresses["noreply"] = "Advertified <noreply@advertified.com>";
+        });
+
+        await using var provider = services.BuildServiceProvider();
+
+        await FluentActions
+            .Invoking(() => ResendStartupValidator.ValidateAsync(provider))
+            .Should()
+            .NotThrowAsync();
     }
 }
 

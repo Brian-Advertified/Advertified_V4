@@ -1165,6 +1165,21 @@ export interface AdminIntegrationStatus {
   paymentWebhookAuditCount: number;
   lastPaymentRequestAt?: string;
   lastPaymentWebhookAt?: string;
+  resendSendConfigured: boolean;
+  resendArchiveFallbackEnabled: boolean;
+  resendWebhookEnabled: boolean;
+  resendWebhookSigningSecretConfigured: boolean;
+  resendWebhookEndpointPath?: string;
+  emailPendingCount: number;
+  emailAcceptedCount: number;
+  emailDeliveredCount: number;
+  emailFailedCount: number;
+  emailArchivedCount: number;
+  lastEmailAcceptedAt?: string;
+  lastEmailDeliveredAt?: string;
+  lastEmailFailedAt?: string;
+  lastEmailArchivedAt?: string;
+  lastEmailWebhookAt?: string;
 }
 
 export interface AdminCampaignOperationsItem {

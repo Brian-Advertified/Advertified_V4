@@ -45,6 +45,7 @@ await LeadMasterDataValidator.ValidateAsync(app.Services);
 await IndustryArchetypeScoringValidator.ValidateAsync(app.Services);
 await EmailTemplateInitializer.InitializeAsync(app.Services);
 await PackageCatalogInitializer.InitializeAsync(app.Services);
+await ResendStartupValidator.ValidateAsync(app.Services);
 await using (var scope = app.Services.CreateAsyncScope())
 {
     var broadcastInventoryImportService = scope.ServiceProvider.GetRequiredService<IBroadcastInventoryImportService>();

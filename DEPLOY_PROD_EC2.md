@@ -44,3 +44,12 @@ The deploy does:
 - Keep DEV and PROD on separate compose/env files and separate hosts.
 - No database migration step is included; use your runbook before deploying if schema changes are required.
 
+## Resend production checklist
+
+- Set `Resend:ApiKey` in the production app configuration or env overrides.
+- Set `Resend:FromEmail` and/or the required `Resend:SenderAddresses` entries.
+- Keep `Resend:AllowLocalArchiveFallback=false` in production so missing credentials fail fast instead of silently archiving mail.
+- In Admin -> Integrations, configure the `resend` email-delivery provider webhook settings:
+  - enable the webhook
+  - store the Resend signing secret
+  - confirm the endpoint path matches `/webhooks/email-delivery/resend`

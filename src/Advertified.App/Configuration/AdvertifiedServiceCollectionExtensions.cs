@@ -149,7 +149,8 @@ public static class AdvertifiedServiceCollectionExtensions
             _.GetRequiredService<PlanningPolicySnapshotProvider>(),
             _.GetRequiredService<PlanningBudgetAllocationSnapshotProvider>(),
             _.GetRequiredService<Npgsql.NpgsqlDataSource>(),
-            _.GetRequiredService<IBroadcastMasterDataService>()));
+            _.GetRequiredService<IBroadcastMasterDataService>(),
+            _.GetRequiredService<AdminIntegrationStatusService>()));
         services.AddScoped<IAdminMutationService>(_ => new AdminMutationService(
             _.GetRequiredService<Npgsql.NpgsqlDataSource>(),
             _.GetRequiredService<IWebHostEnvironment>(),
@@ -355,6 +356,7 @@ public static class AdvertifiedServiceCollectionExtensions
             }
         }).AddHttpMessageHandler<TransientHttpRetryHandler>();
         services.AddScoped<ITemplatedEmailService, ResendEmailService>();
+        services.AddScoped<AdminIntegrationStatusService>();
         services.AddHttpClient<ResendEmailTransport>((serviceProvider, client) =>
         {
             var resendOptions = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ResendOptions>>().Value;

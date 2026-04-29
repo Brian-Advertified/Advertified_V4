@@ -1,5 +1,6 @@
 using Advertified.App.Contracts.Admin;
 using Advertified.App.Data;
+using Advertified.App.Services;
 using Advertified.App.Services.Abstractions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -11,15 +12,18 @@ namespace Advertified.App.Controllers;
 public sealed class AdminIntegrationsController : BaseAdminController
 {
     private readonly IEmailIntegrationSecretCipher _secretCipher;
+    private readonly AdminIntegrationStatusService _integrationStatusService;
 
     public AdminIntegrationsController(
         AppDbContext db,
         ICurrentUserAccessor currentUserAccessor,
         IChangeAuditService changeAuditService,
-        IEmailIntegrationSecretCipher secretCipher)
+        IEmailIntegrationSecretCipher secretCipher,
+        AdminIntegrationStatusService integrationStatusService)
         : base(db, currentUserAccessor, changeAuditService)
     {
         _secretCipher = secretCipher;
+        _integrationStatusService = integrationStatusService;
     }
 
     [HttpGet("")]
@@ -31,26 +35,7 @@ public sealed class AdminIntegrationsController : BaseAdminController
             return gateResult;
         }
 
-        var requestCount = await Db.PaymentProviderRequests.CountAsync(cancellationToken);
-        var webhookCount = await Db.PaymentProviderWebhooks.CountAsync(cancellationToken);
-        var lastRequestAt = await Db.PaymentProviderRequests
-            .AsNoTracking()
-            .OrderByDescending(x => x.CompletedAt ?? x.CreatedAt)
-            .Select(x => (DateTime?)(x.CompletedAt ?? x.CreatedAt))
-            .FirstOrDefaultAsync(cancellationToken);
-        var lastWebhookAt = await Db.PaymentProviderWebhooks
-            .AsNoTracking()
-            .OrderByDescending(x => x.CreatedAt)
-            .Select(x => (DateTime?)x.CreatedAt)
-            .FirstOrDefaultAsync(cancellationToken);
-
-        return Ok(new AdminIntegrationStatusResponse
-        {
-            PaymentRequestAuditCount = requestCount,
-            PaymentWebhookAuditCount = webhookCount,
-            LastPaymentRequestAt = lastRequestAt,
-            LastPaymentWebhookAt = lastWebhookAt,
-        });
+        return Ok(await _integrationStatusService.GetAsync(cancellationToken));
     }
 
     [HttpGet("email-delivery/providers/{providerKey}")]

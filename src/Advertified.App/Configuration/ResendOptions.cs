@@ -10,6 +10,8 @@ public sealed class ResendOptions
 
     public string FromEmail { get; set; } = string.Empty;
 
+    public bool AllowLocalArchiveFallback { get; set; }
+
     public string LocalArchiveDirectory { get; set; } = "App_Data/email_outbox";
 
     public int WorkerBatchSize { get; set; } = 10;

@@ -30,6 +30,11 @@ public sealed class ResendEmailTransport
         var attachments = EmailOutboxPayload.DeserializeAttachments(message.AttachmentsJson);
         if (string.IsNullOrWhiteSpace(_options.ApiKey))
         {
+            if (!_options.AllowLocalArchiveFallback)
+            {
+                return ResendDispatchOutcome.PermanentFailure("Resend ApiKey is not configured and local archive fallback is disabled.");
+            }
+
             var archivePath = await ArchiveEmailAsync(message, attachments, cancellationToken);
             return ResendDispatchOutcome.Archived(archivePath);
         }
