@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef } from 'react';
 import { BadgeCheck, CircleAlert, Clock3, FileText } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
-import advertifiedLogo from '../../assets/advertified-logo-v3.png';
+import advertifiedLogo from '../../assets/advertified-logo.png';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { useToast } from '../../components/ui/toast';
 import { useAuth } from '../../features/auth/auth-context';

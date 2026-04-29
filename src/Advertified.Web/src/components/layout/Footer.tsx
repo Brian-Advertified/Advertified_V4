@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import advertifiedLogo from '../../assets/advertified-logo-v3.png';
+import advertifiedLogo from '../../assets/advertified-logo.png';
 import { openConsentPreferences } from '../ui/consentPreferences';
 
 const currentYear = new Date().getFullYear();

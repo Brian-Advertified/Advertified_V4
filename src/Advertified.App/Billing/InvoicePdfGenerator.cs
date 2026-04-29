@@ -198,8 +198,8 @@ internal static class InvoicePdfGenerator
         var candidates = new[]
         {
             configuredLogoPath,
-            Path.Combine(contentRootPath, "..", "Advertified.Web", "src", "assets", "advertified-logo-v3.png"),
-            Path.Combine(contentRootPath, "public", "images", "advertified-logo-v3.png")
+            Path.Combine(contentRootPath, "..", "Advertified.Web", "src", "assets", "advertified-logo.png"),
+            Path.Combine(contentRootPath, "public", "images", "advertified-logo.png")
         };
 
         return candidates

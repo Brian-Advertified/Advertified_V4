@@ -4,7 +4,7 @@ import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../features/auth/auth-context';
 import { NotificationCenter } from '../../features/notifications/NotificationCenter';
 import { publicAiStudioEnabled } from '../../lib/featureFlags';
-import advertifiedLogo from '../../assets/advertified-logo-v3.png';
+import advertifiedLogo from '../../assets/advertified-logo.png';
 import type { UserRole } from '../../types/domain';
 
 const publicLinks = [
