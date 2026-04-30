@@ -264,6 +264,8 @@ public sealed class PlanningInventoryCandidateMapper : IPlanningInventoryCandida
         {
             "tv" => "TV",
             "radio" => "Radio",
+            "print" => "Newspaper",
+            "newspaper" => "Newspaper",
             "ooh" => "OOH",
             _ => mediaType
         };

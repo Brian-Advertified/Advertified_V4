@@ -26,6 +26,7 @@ public sealed class PlanningCandidateLoader : IPlanningCandidateLoader
             .Concat(broadcast.RadioSlots)
             .Concat(broadcast.RadioPackages)
             .Concat(broadcast.Tv)
+            .Concat(broadcast.Newspapers)
             .ToList();
     }
 }

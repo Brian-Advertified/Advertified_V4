@@ -16,6 +16,7 @@ public static class CampaignBriefMapper
             request.Areas);
 
         brief.Objective = request.Objective;
+        brief.Industry = NormalizeText(request.Industry);
         brief.BusinessStage = request.BusinessStage;
         brief.MonthlyRevenueBand = request.MonthlyRevenueBand;
         brief.SalesModel = request.SalesModel;

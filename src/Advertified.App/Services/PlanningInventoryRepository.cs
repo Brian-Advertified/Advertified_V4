@@ -35,7 +35,8 @@ public sealed class PlanningInventoryRepository : IPlanningInventoryRepository
         return new BroadcastInventoryCandidateSet(
             RadioSlots: seeds.RadioSlots.Select(_candidateMapper.MapBroadcast).ToList(),
             RadioPackages: seeds.RadioPackages.Select(_candidateMapper.MapBroadcast).ToList(),
-            Tv: seeds.Tv.Select(_candidateMapper.MapBroadcast).ToList());
+            Tv: seeds.Tv.Select(_candidateMapper.MapBroadcast).ToList(),
+            Newspapers: seeds.Newspapers.Select(_candidateMapper.MapBroadcast).ToList());
     }
 
     public async Task<List<InventoryCandidate>> GetDigitalCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
@@ -59,6 +60,12 @@ public sealed class PlanningInventoryRepository : IPlanningInventoryRepository
     public async Task<List<InventoryCandidate>> GetTvCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
     {
         var seeds = await _broadcastSource.GetTvCandidatesAsync(request, cancellationToken);
+        return seeds.Select(_candidateMapper.MapBroadcast).ToList();
+    }
+
+    public async Task<List<InventoryCandidate>> GetNewspaperCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
+    {
+        var seeds = await _broadcastSource.GetNewspaperCandidatesAsync(request, cancellationToken);
         return seeds.Select(_candidateMapper.MapBroadcast).ToList();
     }
 }

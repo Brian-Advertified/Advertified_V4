@@ -264,6 +264,7 @@ internal static class CampaignMappings
         return new SaveCampaignBriefRequest
         {
             Objective = brief.Objective,
+            Industry = brief.Industry,
             BusinessStage = brief.BusinessStage,
             MonthlyRevenueBand = brief.MonthlyRevenueBand,
             SalesModel = brief.SalesModel,
@@ -1351,6 +1352,7 @@ internal static class CampaignMappings
         if (request.TargetRadioShare.GetValueOrDefault() > 0) parts.Add($"Radio {request.TargetRadioShare.GetValueOrDefault()}%");
         if (request.TargetTvShare.GetValueOrDefault() > 0) parts.Add($"TV {request.TargetTvShare.GetValueOrDefault()}%");
         if (request.TargetDigitalShare.GetValueOrDefault() > 0) parts.Add($"Digital {request.TargetDigitalShare.GetValueOrDefault()}%");
+        if (request.TargetNewspaperShare.GetValueOrDefault() > 0) parts.Add($"Newspaper {request.TargetNewspaperShare.GetValueOrDefault()}%");
 
         if (parts.Count == 0 && request.BudgetAllocation?.ChannelAllocations.Count > 0)
         {

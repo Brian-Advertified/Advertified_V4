@@ -581,7 +581,7 @@ public sealed class BroadcastInventoryImportService : IBroadcastInventoryImportS
         foreach (var package in record.Packages.EnumerateArray())
         {
             var packageName = GetString(package, "name") ?? "Package";
-            var packageType = InferPackageType(packageName, GetString(package, "notes"));
+            var packageType = GetString(package, "package_type") ?? InferPackageType(packageName, GetString(package, "notes"));
 
             if (package.TryGetProperty("elements", out var elements) && elements.ValueKind == JsonValueKind.Array)
             {
@@ -795,7 +795,9 @@ public sealed class BroadcastInventoryImportService : IBroadcastInventoryImportS
             }
 
             if (!string.Equals(record.MediaType, "radio", StringComparison.OrdinalIgnoreCase) &&
-                !string.Equals(record.MediaType, "tv", StringComparison.OrdinalIgnoreCase))
+                !string.Equals(record.MediaType, "tv", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(record.MediaType, "newspaper", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(record.MediaType, "print", StringComparison.OrdinalIgnoreCase))
             {
                 issues.Add($"{record.Id}: invalid media_type '{record.MediaType}'.");
             }

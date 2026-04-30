@@ -21,6 +21,7 @@ public sealed class CampaignPlanningRequestSnapshot
     public CampaignTargetingProfileSnapshot? Targeting { get; set; }
     public PlanningBudgetAllocationSnapshot? BudgetAllocation { get; set; }
     public string? Objective { get; set; }
+    public string? Industry { get; set; }
     public string? BusinessStage { get; set; }
     public string? MonthlyRevenueBand { get; set; }
     public string? SalesModel { get; set; }
@@ -66,6 +67,7 @@ public sealed class CampaignPlanningRequestSnapshot
     public int? TargetOohShare { get; set; }
     public int? TargetTvShare { get; set; }
     public int? TargetDigitalShare { get; set; }
+    public int? TargetNewspaperShare { get; set; }
     public double? TargetLatitude { get; set; }
     public double? TargetLongitude { get; set; }
 }

@@ -3,6 +3,7 @@ namespace Advertified.App.Contracts.Campaigns;
 public sealed class SaveCampaignBriefRequest
 {
     public string Objective { get; set; } = string.Empty;
+    public string? Industry { get; set; }
     public string? BusinessStage { get; set; }
     public string? MonthlyRevenueBand { get; set; }
     public string? SalesModel { get; set; }

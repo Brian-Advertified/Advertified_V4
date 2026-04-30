@@ -137,6 +137,8 @@ public sealed class PlanningPolicyService : IPlanningPolicyService
         {
             "radio_package" => "package_total",
             "radio_slot" => "per_spot_rate_card",
+            "newspaper_package" => "package_total",
+            "newspaper_slot" => "unit_rate",
             "ooh" => "fixed_placement_total",
             _ => candidate.PackageOnly ? "package_total" : "unit_rate"
         };
@@ -161,6 +163,7 @@ public sealed class PlanningPolicyService : IPlanningPolicyService
         AddRequestedShare(shares, "radio", request.TargetRadioShare);
         AddRequestedShare(shares, "digital", request.TargetDigitalShare);
         AddRequestedShare(shares, "tv", request.TargetTvShare);
+        AddRequestedShare(shares, PlanningChannelSupport.Newspaper, request.TargetNewspaperShare);
 
         if (request.BudgetAllocation?.ChannelAllocations.Count > 0)
         {
@@ -202,6 +205,7 @@ public sealed class PlanningPolicyService : IPlanningPolicyService
             "billboard" => request.TargetOohShare,
             "digital_screen" => request.TargetOohShare,
             "tv" => request.TargetTvShare,
+            "newspaper" => request.TargetNewspaperShare,
             "digital" => request.TargetDigitalShare,
             _ => null
         };
@@ -264,6 +268,7 @@ public sealed class PlanningPolicyService : IPlanningPolicyService
                 "ooh" => $"Billboards and Digital Screens {share.Share}%",
                 "tv" => $"TV {share.Share}%",
                 "digital" => $"Digital {share.Share}%",
+                "newspaper" => $"Newspaper {share.Share}%",
                 _ => $"{share.Channel} {share.Share}%"
             })
             .Distinct(StringComparer.OrdinalIgnoreCase)

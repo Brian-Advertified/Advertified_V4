@@ -7,6 +7,7 @@ public static class PlanningChannelSupport
     public const string Radio = "radio";
     public const string Digital = "digital";
     public const string Tv = "tv";
+    public const string Newspaper = "newspaper";
     public const string OohAlias = "ooh";
 
     public static string NormalizeChannel(string? value)
@@ -15,6 +16,8 @@ public static class PlanningChannelSupport
         return normalized switch
         {
             "television" => Tv,
+            "print" => Newspaper,
+            "press" => Newspaper,
             "billboards and digital screens" => OohAlias,
             "billboards" => Billboard,
             "billboard" => Billboard,
@@ -44,6 +47,7 @@ public static class PlanningChannelSupport
             Radio => new[] { Radio },
             Digital => new[] { Digital },
             Tv => new[] { Tv },
+            Newspaper => new[] { Newspaper },
             _ when string.IsNullOrWhiteSpace(normalized) => Array.Empty<string>(),
             _ => new[] { normalized }
         };
@@ -58,6 +62,7 @@ public static class PlanningChannelSupport
             Radio => "Radio",
             Digital => "Digital",
             Tv => "TV",
+            Newspaper => "Newspaper",
             OohAlias => "Billboards and Digital Screens",
             _ => value ?? string.Empty
         };

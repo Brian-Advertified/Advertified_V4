@@ -8,9 +8,11 @@ public interface IBroadcastPlanningInventorySource
     Task<List<BroadcastPlanningInventorySeed>> GetRadioSlotCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken);
     Task<List<BroadcastPlanningInventorySeed>> GetRadioPackageCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken);
     Task<List<BroadcastPlanningInventorySeed>> GetTvCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken);
+    Task<List<BroadcastPlanningInventorySeed>> GetNewspaperCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken);
 }
 
 public sealed record BroadcastPlanningCandidateSet(
     List<BroadcastPlanningInventorySeed> RadioSlots,
     List<BroadcastPlanningInventorySeed> RadioPackages,
-    List<BroadcastPlanningInventorySeed> Tv);
+    List<BroadcastPlanningInventorySeed> Tv,
+    List<BroadcastPlanningInventorySeed> Newspapers);

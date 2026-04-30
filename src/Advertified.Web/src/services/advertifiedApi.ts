@@ -191,6 +191,7 @@ type SharedFormOptionsResponse = {
 
 type CampaignBriefResponse = {
   objective: string;
+  industry?: string;
   businessStage?: string;
   monthlyRevenueBand?: string;
   salesModel?: string;

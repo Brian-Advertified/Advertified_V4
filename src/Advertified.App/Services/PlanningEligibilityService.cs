@@ -113,7 +113,7 @@ public sealed class PlanningEligibilityService : IPlanningEligibilityService
 
         var normalizedMediaType = NormalizeMediaType(candidate.MediaType);
 
-        var isBroadcast = normalizedMediaType is "radio" or "tv";
+        var isBroadcast = normalizedMediaType is "radio" or "tv" or "newspaper";
         var isOohLike = normalizedMediaType is "ooh" or "billboard" or "digital_screen" or "digital";
 
         // National broadcast inventory (radio + TV) and national digital packages

@@ -46,6 +46,23 @@ public class BroadcastInventoryDataTests
         Assert.Contains("national", record.ProvinceCodes, StringComparer.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void NormalizedBroadcastInventory_IncludesNewspaperPlannerInventory()
+    {
+        var records = LoadRecords();
+        var newspapers = records
+            .Where(x => string.Equals(x.MediaType, "newspaper", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+
+        Assert.True(newspapers.Length >= 15);
+        Assert.Contains(newspapers, x => string.Equals(x.Station, "Business Day", StringComparison.Ordinal));
+        Assert.All(newspapers, record =>
+        {
+            Assert.True(record.HasPricing);
+            Assert.True(record.Packages.GetArrayLength() > 0);
+        });
+    }
+
     private static BroadcastInventoryRecord[] LoadRecords()
     {
         var path = ResolveRepoPath("src", "Advertified.App", "App_Data", "broadcast", "enriched_broadcast_inventory_normalized.json");
@@ -104,6 +121,9 @@ public class BroadcastInventoryDataTests
     {
         [JsonPropertyName("station")]
         public string Station { get; set; } = string.Empty;
+
+        [JsonPropertyName("media_type")]
+        public string MediaType { get; set; } = string.Empty;
 
         [JsonPropertyName("catalog_health")]
         public string CatalogHealth { get; set; } = string.Empty;

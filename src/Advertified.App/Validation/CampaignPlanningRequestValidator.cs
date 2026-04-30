@@ -20,7 +20,10 @@ public sealed class CampaignPlanningRequestValidator : AbstractValidator<Campaig
         "radio_slot",
         "radio_package",
         "tv",
-        "digital"
+        "digital",
+        "newspaper",
+        "print",
+        "press"
     };
 
     private static readonly HashSet<string> AllowedPlanningObjectives = new(StringComparer.OrdinalIgnoreCase)

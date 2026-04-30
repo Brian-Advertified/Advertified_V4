@@ -437,6 +437,7 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
                     .ToList()
             },
             Objective = request.Objective,
+            Industry = request.Industry,
             BusinessStage = request.BusinessStage,
             MonthlyRevenueBand = request.MonthlyRevenueBand,
             SalesModel = request.SalesModel,
@@ -493,6 +494,7 @@ public sealed class MediaPlanningEngine : IMediaPlanningEngine
             TargetOohShare = request.TargetOohShare,
             TargetTvShare = request.TargetTvShare,
             TargetDigitalShare = request.TargetDigitalShare,
+            TargetNewspaperShare = request.TargetNewspaperShare,
             TargetLatitude = request.TargetLatitude,
             TargetLongitude = request.TargetLongitude
         };

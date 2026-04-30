@@ -119,7 +119,8 @@ public sealed class PlanningBudgetAllocationService : IPlanningBudgetAllocationS
             {
                 ["radio"] = ToWeight(request.TargetRadioShare),
                 ["digital"] = ToWeight(request.TargetDigitalShare),
-                ["tv"] = ToWeight(request.TargetTvShare)
+                ["tv"] = ToWeight(request.TargetTvShare),
+                [PlanningChannelSupport.Newspaper] = ToWeight(request.TargetNewspaperShare)
             };
             AddOohWeight(explicitWeights, ToWeight(request.TargetOohShare));
             var fallbackWeights = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase)
@@ -221,7 +222,8 @@ public sealed class PlanningBudgetAllocationService : IPlanningBudgetAllocationS
         return request.TargetRadioShare.GetValueOrDefault() > 0
             || request.TargetOohShare.GetValueOrDefault() > 0
             || request.TargetDigitalShare.GetValueOrDefault() > 0
-            || request.TargetTvShare.GetValueOrDefault() > 0;
+            || request.TargetTvShare.GetValueOrDefault() > 0
+            || request.TargetNewspaperShare.GetValueOrDefault() > 0;
     }
 
     private static decimal ToWeight(int? value) => value is > 0 ? value.Value / 100m : 0m;
@@ -250,12 +252,12 @@ public sealed class PlanningBudgetAllocationService : IPlanningBudgetAllocationS
 
     private static string NormalizeChannel(string? value)
     {
-        return (value ?? string.Empty).Trim().ToLowerInvariant() switch
+        return PlanningChannelSupport.NormalizeChannel(value) switch
         {
             "television" => "tv",
             "billboards or digital screens" => PlanningChannelSupport.OohAlias,
             "billboards and digital screens" => PlanningChannelSupport.OohAlias,
-            _ => (value ?? string.Empty).Trim().ToLowerInvariant()
+            var normalized => normalized
         };
     }
 
@@ -317,7 +319,14 @@ public sealed class PlanningBudgetAllocationService : IPlanningBudgetAllocationS
             tv = Math.Max(0m, 1m - ooh);
         }
 
+        var newspaper = 0m;
         var remaining = Math.Max(0m, 1m - ooh - tv);
+        if (remaining > 0m && IsPreferredChannel(request, PlanningChannelSupport.Newspaper))
+        {
+            newspaper = Math.Min(0.10m, remaining);
+            remaining = Math.Max(0m, remaining - newspaper);
+        }
+
         var radioMid = ResolveMidpoint(budgetBand.RadioRange);
         var digitalMid = ResolveMidpoint(budgetBand.DigitalRange);
 
@@ -346,7 +355,8 @@ public sealed class PlanningBudgetAllocationService : IPlanningBudgetAllocationS
         {
             ["tv"] = tv,
             ["radio"] = radio,
-            ["digital"] = digital
+            ["digital"] = digital,
+            [PlanningChannelSupport.Newspaper] = newspaper
         };
         AddOohWeight(weights, ooh);
 

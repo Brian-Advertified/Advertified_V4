@@ -154,9 +154,9 @@ public sealed class BroadcastCostNormalizer : IBroadcastCostNormalizer
                 var durationMonths = GetInt(item, "duration_months") ?? GetDurationMonthsFromName(GetString(item, "name"));
                 var durationWeeks = GetInt(item, "duration_weeks") ?? GetDurationWeeksFromName(GetString(item, "name"));
 
-                var result = mediaType.Equals("radio", StringComparison.OrdinalIgnoreCase)
-                    ? NormalizeRadioPackage(station, GetString(item, "name"), GetDecimal(item, "investment_zar"), GetDecimal(item, "package_cost_zar"), GetDecimal(item, "cost_per_month_zar"), durationMonths)
-                    : NormalizeTvPackage(station, GetString(item, "name"), GetDecimal(item, "investment_zar"), GetDecimal(item, "package_cost_zar"), GetDecimal(item, "cost_per_month_zar"), durationWeeks, durationMonths);
+                var result = mediaType.Equals("tv", StringComparison.OrdinalIgnoreCase)
+                    ? NormalizeTvPackage(station, GetString(item, "name"), GetDecimal(item, "investment_zar"), GetDecimal(item, "package_cost_zar"), GetDecimal(item, "cost_per_month_zar"), durationWeeks, durationMonths)
+                    : NormalizeRadioPackage(station, GetString(item, "name"), GetDecimal(item, "investment_zar"), GetDecimal(item, "package_cost_zar"), GetDecimal(item, "cost_per_month_zar"), durationMonths);
 
                 if (result.MonthlyCostEstimateZar > 0)
                 {
@@ -167,9 +167,9 @@ public sealed class BroadcastCostNormalizer : IBroadcastCostNormalizer
                 {
                     foreach (var element in elements.EnumerateArray())
                     {
-                        var elementResult = mediaType.Equals("radio", StringComparison.OrdinalIgnoreCase)
-                            ? NormalizeRadioPackage(station, GetString(element, "name"), GetDecimal(element, "investment_zar"), GetDecimal(element, "package_cost_zar"), GetDecimal(element, "cost_per_month_zar") ?? GetDecimal(item, "cost_per_month_zar"), durationMonths)
-                            : NormalizeTvPackage(station, GetString(element, "name"), GetDecimal(element, "investment_zar"), GetDecimal(element, "package_cost_zar"), GetDecimal(element, "cost_per_month_zar") ?? GetDecimal(item, "cost_per_month_zar"), durationWeeks, durationMonths);
+                        var elementResult = mediaType.Equals("tv", StringComparison.OrdinalIgnoreCase)
+                            ? NormalizeTvPackage(station, GetString(element, "name"), GetDecimal(element, "investment_zar"), GetDecimal(element, "package_cost_zar"), GetDecimal(element, "cost_per_month_zar") ?? GetDecimal(item, "cost_per_month_zar"), durationWeeks, durationMonths)
+                            : NormalizeRadioPackage(station, GetString(element, "name"), GetDecimal(element, "investment_zar"), GetDecimal(element, "package_cost_zar"), GetDecimal(element, "cost_per_month_zar") ?? GetDecimal(item, "cost_per_month_zar"), durationMonths);
 
                         if (elementResult.MonthlyCostEstimateZar > 0)
                         {
@@ -203,9 +203,9 @@ public sealed class BroadcastCostNormalizer : IBroadcastCostNormalizer
                         continue;
                     }
 
-                    var result = mediaType.Equals("radio", StringComparison.OrdinalIgnoreCase)
-                        ? NormalizeRadioRate(station, slot.Name, group.Name, rate)
-                        : NormalizeTvRate(station, null, slot.Name, group.Name, rate);
+                    var result = mediaType.Equals("tv", StringComparison.OrdinalIgnoreCase)
+                        ? NormalizeTvRate(station, null, slot.Name, group.Name, rate)
+                        : NormalizeRadioRate(station, slot.Name, group.Name, rate);
 
                     if (result.MonthlyCostEstimateZar > 0)
                     {
@@ -224,9 +224,9 @@ public sealed class BroadcastCostNormalizer : IBroadcastCostNormalizer
                     continue;
                 }
 
-                var result = mediaType.Equals("radio", StringComparison.OrdinalIgnoreCase)
-                    ? NormalizeRadioRate(station, GetString(item, "slot") ?? GetString(item, "time"), GetString(item, "group"), rate.Value)
-                    : NormalizeTvRate(station, GetString(item, "program") ?? GetString(item, "programme"), GetString(item, "slot") ?? GetString(item, "time"), GetString(item, "group"), rate.Value);
+                var result = mediaType.Equals("tv", StringComparison.OrdinalIgnoreCase)
+                    ? NormalizeTvRate(station, GetString(item, "program") ?? GetString(item, "programme"), GetString(item, "slot") ?? GetString(item, "time"), GetString(item, "group"), rate.Value)
+                    : NormalizeRadioRate(station, GetString(item, "slot") ?? GetString(item, "time"), GetString(item, "group"), rate.Value);
 
                 if (result.MonthlyCostEstimateZar > 0)
                 {
@@ -368,4 +368,3 @@ public sealed class BroadcastCostNormalizer : IBroadcastCostNormalizer
         return null;
     }
 }
-

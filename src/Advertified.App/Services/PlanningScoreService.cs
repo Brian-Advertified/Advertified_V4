@@ -438,19 +438,34 @@ public sealed class PlanningScoreService : IPlanningScoreService
 
     private HashSet<string> ResolveIndustryArchetypes(CampaignPlanningRequest request)
     {
+        var resolved = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (!string.IsNullOrWhiteSpace(request.Industry))
+        {
+            var directContext = _leadIndustryContextResolver.ResolveFromCategory(request.Industry);
+            var directCode = directContext.CanonicalIndustry?.Code ?? directContext.ArchetypeScoringProfile?.IndustryCode;
+            if (!string.IsNullOrWhiteSpace(directCode))
+            {
+                resolved.Add(directCode);
+            }
+        }
+
         var hints = request.TargetInterests
             .Where(static value => !string.IsNullOrWhiteSpace(value))
-            .Concat(new[] { request.TargetAudienceNotes })
+            .Concat(new[] { request.TargetAudienceNotes, request.Industry })
             .Where(static value => !string.IsNullOrWhiteSpace(value))
             .SelectMany(value => new[] { value!.Trim() }.Concat(TokenizeAudienceTerms(value)))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-        return _leadIndustryContextResolver.ResolveFromHints(hints)
+        foreach (var code in _leadIndustryContextResolver.ResolveFromHints(hints)
             .Select(context => context.CanonicalIndustry?.Code ?? context.ArchetypeScoringProfile?.IndustryCode)
             .Where(code => !string.IsNullOrWhiteSpace(code))
-            .Cast<string>()
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            .Cast<string>())
+        {
+            resolved.Add(code);
+        }
+
+        return resolved;
     }
 
     private decimal RadioFitBonus(InventoryCandidate candidate, CampaignPlanningRequest request)
@@ -786,6 +801,7 @@ public sealed class PlanningScoreService : IPlanningScoreService
                 "ooh" => 10m,
                 "tv" => 9m,
                 "radio" => 7m,
+                "newspaper" => 7m,
                 "digital" => 6m,
                 _ => 0m
             },
@@ -794,6 +810,7 @@ public sealed class PlanningScoreService : IPlanningScoreService
                 "ooh" => 10m,
                 "radio" => 8m,
                 "tv" => 8m,
+                "newspaper" => 7m,
                 "digital" => 6m,
                 _ => 0m
             },
@@ -802,6 +819,7 @@ public sealed class PlanningScoreService : IPlanningScoreService
                 "radio" => 9m,
                 "ooh" => 8m,
                 "digital" => 7m,
+                "newspaper" => 6m,
                 "tv" => 4m,
                 _ => 0m
             },
@@ -809,6 +827,7 @@ public sealed class PlanningScoreService : IPlanningScoreService
             {
                 "digital" => 10m,
                 "radio" => 8m,
+                "newspaper" => 5m,
                 "ooh" => 3m,
                 "tv" => 2m,
                 _ => 0m

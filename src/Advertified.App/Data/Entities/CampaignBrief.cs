@@ -11,6 +11,8 @@ public partial class CampaignBrief
 
     public string Objective { get; set; } = null!;
 
+    public string? Industry { get; set; }
+
     public string? BusinessStage { get; set; }
 
     public string? MonthlyRevenueBand { get; set; }

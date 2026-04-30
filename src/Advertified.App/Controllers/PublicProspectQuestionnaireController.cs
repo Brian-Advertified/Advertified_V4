@@ -134,6 +134,11 @@ public sealed class PublicProspectQuestionnaireController : ControllerBase
             CampaignId = campaign.Id,
             CreatedAt = now
         };
+        if (string.IsNullOrWhiteSpace(request.Brief.Industry) && !string.IsNullOrWhiteSpace(request.Industry))
+        {
+            request.Brief.Industry = request.Industry.Trim();
+        }
+
         CampaignBriefMapper.Apply(brief, request.Brief, now);
         brief.SubmittedAt = now;
         CampaignAiAccessPolicy.Apply(campaign, brief);

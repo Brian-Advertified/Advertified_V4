@@ -389,10 +389,10 @@ public sealed class RecommendationExplainabilityService : IRecommendationExplain
         var mediaType = candidate.MediaType.Trim().ToLowerInvariant();
         return objective switch
         {
-            "awareness" or "brand_presence" => mediaType is PlanningChannelSupport.Billboard or PlanningChannelSupport.DigitalScreen or "tv" or "radio",
-            "launch" => mediaType is PlanningChannelSupport.Billboard or PlanningChannelSupport.DigitalScreen or "tv" or "radio",
-            "promotion" => mediaType is "radio" or PlanningChannelSupport.Billboard or PlanningChannelSupport.DigitalScreen or "digital",
-            "leads" => mediaType is "digital" or "radio",
+            "awareness" or "brand_presence" => mediaType is PlanningChannelSupport.Billboard or PlanningChannelSupport.DigitalScreen or "tv" or "radio" or "newspaper",
+            "launch" => mediaType is PlanningChannelSupport.Billboard or PlanningChannelSupport.DigitalScreen or "tv" or "radio" or "newspaper",
+            "promotion" => mediaType is "radio" or PlanningChannelSupport.Billboard or PlanningChannelSupport.DigitalScreen or "digital" or "newspaper",
+            "leads" => mediaType is "digital" or "radio" or "newspaper",
             "foot_traffic" => mediaType is PlanningChannelSupport.Billboard or PlanningChannelSupport.DigitalScreen or "radio",
             _ => false
         };

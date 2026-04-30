@@ -6,4 +6,5 @@ public sealed class GenerateRecommendationRequest
     public int? TargetOohShare { get; set; }
     public int? TargetTvShare { get; set; }
     public int? TargetDigitalShare { get; set; }
+    public int? TargetNewspaperShare { get; set; }
 }

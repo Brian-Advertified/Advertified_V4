@@ -11,9 +11,11 @@ public interface IPlanningInventoryRepository
     Task<List<InventoryCandidate>> GetRadioSlotCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken);
     Task<List<InventoryCandidate>> GetRadioPackageCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken);
     Task<List<InventoryCandidate>> GetTvCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken);
+    Task<List<InventoryCandidate>> GetNewspaperCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken);
 }
 
 public sealed record BroadcastInventoryCandidateSet(
     List<InventoryCandidate> RadioSlots,
     List<InventoryCandidate> RadioPackages,
-    List<InventoryCandidate> Tv);
+    List<InventoryCandidate> Tv,
+    List<InventoryCandidate> Newspapers);

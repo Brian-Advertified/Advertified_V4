@@ -176,6 +176,7 @@ export interface PackageCheckoutSession {
 
 export interface CampaignBrief {
   objective: string;
+  industry?: string;
   businessStage?: string;
   monthlyRevenueBand?: string;
   salesModel?: string;

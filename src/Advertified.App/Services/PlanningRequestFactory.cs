@@ -48,6 +48,7 @@ public sealed class PlanningRequestFactory : IPlanningRequestFactory
 
         var strategyRequest = new CampaignPlanningRequest
         {
+            Industry = brief.Industry,
             BusinessStage = brief.BusinessStage,
             MonthlyRevenueBand = brief.MonthlyRevenueBand,
             SalesModel = brief.SalesModel,
@@ -101,6 +102,7 @@ public sealed class PlanningRequestFactory : IPlanningRequestFactory
                 IsResolved = businessLocation.IsResolved
             },
             Objective = brief.Objective,
+            Industry = brief.Industry,
             BusinessStage = brief.BusinessStage,
             MonthlyRevenueBand = brief.MonthlyRevenueBand,
             SalesModel = brief.SalesModel,
@@ -145,7 +147,8 @@ public sealed class PlanningRequestFactory : IPlanningRequestFactory
             TargetRadioShare = request?.TargetRadioShare,
             TargetOohShare = request?.TargetOohShare,
             TargetTvShare = request?.TargetTvShare,
-            TargetDigitalShare = request?.TargetDigitalShare
+            TargetDigitalShare = request?.TargetDigitalShare,
+            TargetNewspaperShare = request?.TargetNewspaperShare
         };
 
         var resolvedTarget = _planningTargetResolver.Resolve(planningRequest);

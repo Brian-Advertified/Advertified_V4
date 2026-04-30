@@ -218,6 +218,7 @@ export function CampaignBriefForm({
   function map(values: FormShape): CampaignBrief {
     return {
       objective: values.objective,
+      industry: initialValue?.industry?.trim() || industry?.trim() || undefined,
       businessStage: values.businessStage || undefined,
       monthlyRevenueBand: values.monthlyRevenueBand || undefined,
       salesModel: values.salesModel || undefined,

@@ -63,6 +63,14 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
                 .Where(record => string.Equals(record.MediaType, "tv", StringComparison.OrdinalIgnoreCase))
                 .SelectMany(record => CreateBroadcastPackageCandidates(request, record, pricingSettings, tvIntelligence).Concat(CreateBroadcastRateCandidates(request, record, pricingSettings, tvIntelligence)))
                 .Where(candidate => candidate.Cost > 0m && candidate.Cost <= request.SelectedBudget)
+                .ToList(),
+            Newspapers: records
+                .Where(IsNewspaperRecord)
+                .SelectMany(record => CreateBroadcastPackageCandidates(request, record, pricingSettings, new Dictionary<string, IReadOnlyDictionary<string, object?>>()))
+                .Concat(records
+                    .Where(IsNewspaperRecord)
+                    .SelectMany(record => CreateBroadcastRateCandidates(request, record, pricingSettings, new Dictionary<string, IReadOnlyDictionary<string, object?>>())))
+                .Where(candidate => candidate.Cost > 0m && candidate.Cost <= request.SelectedBudget)
                 .ToList());
     }
 
@@ -82,6 +90,12 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
     {
         var candidates = await GetCandidatesAsync(request, cancellationToken);
         return candidates.Tv;
+    }
+
+    public async Task<List<BroadcastPlanningInventorySeed>> GetNewspaperCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
+    {
+        var candidates = await GetCandidatesAsync(request, cancellationToken);
+        return candidates.Newspapers;
     }
 
     private IEnumerable<BroadcastPlanningInventorySeed> CreateBroadcastPackageCandidates(
@@ -163,7 +177,7 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
                     {
                         Record = record,
                         SourceId = CreateDeterministicGuid($"{record.Id}:package:{index}:{GetString(element, "name") ?? "element"}"),
-                        SourceType = record.MediaType.Equals("tv", StringComparison.OrdinalIgnoreCase) ? "tv_package" : "radio_package",
+                        SourceType = $"{GetSourceTypePrefix(record)}_package",
                         DisplayName = $"{record.Station} - {packageName} - {GetString(element, "name") ?? "Element"}",
                         SlotType = "package",
                         Cost = commercialResolution.QuotedCost,
@@ -241,7 +255,7 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
             {
                 Record = record,
                 SourceId = CreateDeterministicGuid($"{record.Id}:package:{index}:{packageName}"),
-                SourceType = record.MediaType.Equals("tv", StringComparison.OrdinalIgnoreCase) ? "tv_package" : "radio_package",
+                SourceType = $"{GetSourceTypePrefix(record)}_package",
                 DisplayName = $"{record.Station} - {packageName}",
                 SlotType = "package",
                 Cost = packageResolution.QuotedCost,
@@ -275,9 +289,7 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
                         continue;
                     }
 
-                    var normalized = record.MediaType.Equals("tv", StringComparison.OrdinalIgnoreCase)
-                        ? _costNormalizer.NormalizeTvRate(record.Station, null, slot.Name, dayGroup.Name, rate)
-                        : _costNormalizer.NormalizeRadioRate(record.Station, slot.Name, dayGroup.Name, rate);
+                    var normalized = ResolveRateCost(record, null, slot.Name, dayGroup.Name, rate);
 
                     if (normalized.MonthlyCostEstimateZar <= 0m)
                     {
@@ -305,7 +317,7 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
                     {
                         Record = record,
                         SourceId = CreateDeterministicGuid($"{record.Id}:rate:{dayGroup.Name}:{slot.Name}"),
-                        SourceType = record.MediaType.Equals("tv", StringComparison.OrdinalIgnoreCase) ? "tv_slot" : "radio_slot",
+                        SourceType = $"{GetSourceTypePrefix(record)}_slot",
                         DisplayName = $"{record.Station} - {slot.Name}",
                         SlotType = "spot",
                         Cost = commercialResolution.QuotedCost,
@@ -332,9 +344,7 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
                 var dayGroup = GetString(row, "group") ?? GetString(row, "day_group") ?? "schedule";
                 var programmeName = GetString(row, "program") ?? GetString(row, "programme") ?? GetString(row, "rate_type");
 
-                var normalized = record.MediaType.Equals("tv", StringComparison.OrdinalIgnoreCase)
-                    ? _costNormalizer.NormalizeTvRate(record.Station, programmeName, slotLabel, dayGroup, rate)
-                    : _costNormalizer.NormalizeRadioRate(record.Station, slotLabel, dayGroup, rate);
+                var normalized = ResolveRateCost(record, programmeName, slotLabel, dayGroup, rate);
 
                 if (normalized.MonthlyCostEstimateZar <= 0m)
                 {
@@ -364,7 +374,7 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
                 {
                     Record = record,
                     SourceId = CreateDeterministicGuid($"{record.Id}:rate:{dayGroup}:{slotLabel}:{programmeName}:{rate}"),
-                    SourceType = record.MediaType.Equals("tv", StringComparison.OrdinalIgnoreCase) ? "tv_slot" : "radio_slot",
+                    SourceType = $"{GetSourceTypePrefix(record)}_slot",
                     DisplayName = $"{record.Station} - {displaySlot}",
                     SlotType = "spot",
                     Cost = commercialResolution.QuotedCost,
@@ -394,8 +404,8 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
         return new Dictionary<string, object?>
         {
             ["sourceType"] = packageOnly
-                ? (record.MediaType.Equals("tv", StringComparison.OrdinalIgnoreCase) ? "tv_package" : "radio_package")
-                : (record.MediaType.Equals("tv", StringComparison.OrdinalIgnoreCase) ? "tv_slot" : "radio_slot"),
+                ? $"{GetSourceTypePrefix(record)}_package"
+                : $"{GetSourceTypePrefix(record)}_slot",
             ["mediaType"] = NormalizeMediaType(record.MediaType),
             ["pricingModel"] = commercialResolution.AppliedPricingModel,
             ["rawCostZar"] = normalizedCost.RawCostZar,
@@ -523,9 +533,45 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
         {
             "tv" => "TV",
             "radio" => "Radio",
+            "print" => "Newspaper",
+            "newspaper" => "Newspaper",
             "ooh" => "OOH",
             _ => mediaType
         };
+    }
+
+    private NormalizedCostResult ResolveRateCost(
+        BroadcastInventoryRecord record,
+        string? programmeName,
+        string? slotLabel,
+        string? dayGroup,
+        decimal rate)
+    {
+        if (record.MediaType.Equals("tv", StringComparison.OrdinalIgnoreCase))
+        {
+            return _costNormalizer.NormalizeTvRate(record.Station, programmeName, slotLabel, dayGroup, rate);
+        }
+
+        return _costNormalizer.NormalizeRadioRate(record.Station, slotLabel, dayGroup, rate);
+    }
+
+    private static bool IsNewspaperRecord(BroadcastInventoryRecord record)
+        => record.MediaType.Equals("newspaper", StringComparison.OrdinalIgnoreCase)
+           || record.MediaType.Equals("print", StringComparison.OrdinalIgnoreCase);
+
+    private static string GetSourceTypePrefix(BroadcastInventoryRecord record)
+    {
+        if (record.MediaType.Equals("tv", StringComparison.OrdinalIgnoreCase))
+        {
+            return "tv";
+        }
+
+        if (IsNewspaperRecord(record))
+        {
+            return "newspaper";
+        }
+
+        return "radio";
     }
 
     private static bool TryGetRate(JsonElement element, out decimal rate)

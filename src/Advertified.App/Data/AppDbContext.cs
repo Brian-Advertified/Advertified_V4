@@ -277,6 +277,9 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.GeographyScope)
                 .HasMaxLength(50)
                 .HasColumnName("geography_scope");
+            entity.Property(e => e.Industry)
+                .HasMaxLength(160)
+                .HasColumnName("industry");
             entity.Property(e => e.GrowthTarget)
                 .HasMaxLength(50)
                 .HasColumnName("growth_target");

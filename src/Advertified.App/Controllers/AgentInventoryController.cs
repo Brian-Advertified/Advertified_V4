@@ -48,6 +48,7 @@ public sealed class AgentInventoryController : ControllerBase
         candidates.AddRange(await _inventoryRepository.GetRadioSlotCandidatesAsync(request, cancellationToken));
         candidates.AddRange(await _inventoryRepository.GetRadioPackageCandidatesAsync(request, cancellationToken));
         candidates.AddRange(await _inventoryRepository.GetTvCandidatesAsync(request, cancellationToken));
+        candidates.AddRange(await _inventoryRepository.GetNewspaperCandidatesAsync(request, cancellationToken));
 
         var eligibleCandidates = _planningEligibilityService.FilterEligibleCandidates(candidates, request).Candidates;
 
@@ -64,6 +65,7 @@ public sealed class AgentInventoryController : ControllerBase
         const int maxOohLikeItems = 350;
         const int maxRadioItems = 130;
         const int maxTvItems = 20;
+        const int maxNewspaperItems = 50;
 
         var oohLike = filtered
             .Where(candidate => PlanningChannelSupport.IsOohFamilyChannel(candidate.MediaType)
@@ -75,10 +77,14 @@ public sealed class AgentInventoryController : ControllerBase
         var tv = filtered
             .Where(candidate => candidate.MediaType.Equals("tv", StringComparison.OrdinalIgnoreCase))
             .Take(maxTvItems);
+        var newspapers = filtered
+            .Where(candidate => candidate.MediaType.Equals("newspaper", StringComparison.OrdinalIgnoreCase))
+            .Take(maxNewspaperItems);
 
         var results = oohLike
             .Concat(radio)
             .Concat(tv)
+            .Concat(newspapers)
             .OrderBy(candidate => GetChannelRank(candidate.MediaType))
             .ThenBy(candidate => candidate.Cost)
             .ThenBy(candidate => candidate.DisplayName)
@@ -246,6 +252,7 @@ public sealed class AgentInventoryController : ControllerBase
                 Notes = flight.Notes
             })
             .ToList();
+        clone.Industry = snapshot.Industry;
         clone.GeographyScope = snapshot.GeographyScope;
         clone.Provinces = snapshot.Provinces.ToList();
         clone.Cities = snapshot.Cities.ToList();
@@ -284,6 +291,7 @@ public sealed class AgentInventoryController : ControllerBase
         clone.TargetOohShare = snapshot.TargetOohShare;
         clone.TargetTvShare = snapshot.TargetTvShare;
         clone.TargetDigitalShare = snapshot.TargetDigitalShare;
+        clone.TargetNewspaperShare = snapshot.TargetNewspaperShare;
         clone.TargetLatitude = snapshot.TargetLatitude;
         clone.TargetLongitude = snapshot.TargetLongitude;
         clone.BusinessLocation = snapshot.BusinessLocation is null
@@ -364,6 +372,7 @@ public sealed class AgentInventoryController : ControllerBase
             "digital_screen" => 1,
             "radio" => 1,
             "tv" => 2,
+            "newspaper" => 3,
             _ => 3
         };
     }

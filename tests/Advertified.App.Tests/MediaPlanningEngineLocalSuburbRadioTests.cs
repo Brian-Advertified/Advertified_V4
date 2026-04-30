@@ -430,6 +430,7 @@ public sealed class MediaPlanningEngineLocalSuburbRadioTests
         public List<InventoryCandidate> RadioSlotCandidates { get; set; } = new();
         public List<InventoryCandidate> RadioPackageCandidates { get; set; } = new();
         public List<InventoryCandidate> TvCandidates { get; set; } = new();
+        public List<InventoryCandidate> NewspaperCandidates { get; set; } = new();
 
         public Task<List<InventoryCandidate>> GetOohCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
             => Task.FromResult(OohCandidates);
@@ -438,7 +439,7 @@ public sealed class MediaPlanningEngineLocalSuburbRadioTests
             => Task.FromResult(DigitalCandidates);
 
         public Task<BroadcastInventoryCandidateSet> GetBroadcastCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
-            => Task.FromResult(new BroadcastInventoryCandidateSet(RadioSlotCandidates, RadioPackageCandidates, TvCandidates));
+            => Task.FromResult(new BroadcastInventoryCandidateSet(RadioSlotCandidates, RadioPackageCandidates, TvCandidates, NewspaperCandidates));
 
         public Task<List<InventoryCandidate>> GetRadioSlotCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
             => Task.FromResult(RadioSlotCandidates);
@@ -448,5 +449,8 @@ public sealed class MediaPlanningEngineLocalSuburbRadioTests
 
         public Task<List<InventoryCandidate>> GetTvCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
             => Task.FromResult(TvCandidates);
+
+        public Task<List<InventoryCandidate>> GetNewspaperCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
+            => Task.FromResult(NewspaperCandidates);
     }
 }

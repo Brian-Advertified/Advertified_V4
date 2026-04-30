@@ -415,7 +415,7 @@ function Convert-ToJsonArrayText {
         return "[]"
     }
 
-    $items = $Value.Split(';', [System.StringSplitOptions]::RemoveEmptyEntries) |
+    $items = $Value.Split([char[]]@(';', ','), [System.StringSplitOptions]::RemoveEmptyEntries) |
         ForEach-Object { $_.Trim() } |
         Where-Object { $_ -ne "" }
 

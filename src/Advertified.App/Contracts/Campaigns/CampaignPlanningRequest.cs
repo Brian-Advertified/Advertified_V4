@@ -8,6 +8,7 @@ public sealed class CampaignPlanningRequest
     public CampaignTargetingProfile? Targeting { get; set; }
     public PlanningBudgetAllocation? BudgetAllocation { get; set; }
     public string? Objective { get; set; }
+    public string? Industry { get; set; }
     public string? BusinessStage { get; set; }
     public string? MonthlyRevenueBand { get; set; }
     public string? SalesModel { get; set; }
@@ -53,6 +54,7 @@ public sealed class CampaignPlanningRequest
     public int? TargetOohShare { get; set; }
     public int? TargetTvShare { get; set; }
     public int? TargetDigitalShare { get; set; }
+    public int? TargetNewspaperShare { get; set; }
     public double? TargetLatitude { get; set; }
     public double? TargetLongitude { get; set; }
 
@@ -66,6 +68,7 @@ public sealed class CampaignPlanningRequest
             Targeting = Targeting?.DeepClone(),
             BudgetAllocation = BudgetAllocation?.DeepClone(),
             Objective = Objective,
+            Industry = Industry,
             BusinessStage = BusinessStage,
             MonthlyRevenueBand = MonthlyRevenueBand,
             SalesModel = SalesModel,
@@ -122,6 +125,7 @@ public sealed class CampaignPlanningRequest
             TargetOohShare = TargetOohShare,
             TargetTvShare = TargetTvShare,
             TargetDigitalShare = TargetDigitalShare,
+            TargetNewspaperShare = TargetNewspaperShare,
             TargetLatitude = TargetLatitude,
             TargetLongitude = TargetLongitude
         };

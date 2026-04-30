@@ -66,7 +66,7 @@ public sealed class BroadcastInventoryCatalog : IBroadcastInventoryCatalog
                         data_source_enrichment as DataSourceEnrichment,
                         strategy_fit_json as StrategyFitJson
                     from media_outlet
-                    where lower(media_type) not in ('radio', 'tv')
+                    where lower(media_type) not in ('radio', 'tv', 'newspaper', 'print')
                        or not exists (select 1 from active_broadcast_batch)
                        or import_batch_id in (select id from active_broadcast_batch)
                     order by media_type, name;
