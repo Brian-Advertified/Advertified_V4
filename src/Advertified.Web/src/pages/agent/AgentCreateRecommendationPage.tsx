@@ -14,6 +14,10 @@ import {
   inferRecommendationToneFromBrief,
   type RecommendationDraftFormState,
 } from '../../features/campaigns/briefModel';
+import {
+  firstIndustryLanguage,
+  industryPreferredChannels,
+} from '../../features/campaigns/industryDefaults';
 import { CampaignLocationInput, type ResolvedCampaignLocation } from '../../features/campaigns/components/CampaignLocationInput';
 import { catalogQueryOptions } from '../../lib/catalogQueryOptions';
 import { useSharedFormOptions } from '../../lib/useSharedFormOptions';
@@ -121,7 +125,8 @@ function applyIndustryContextToForm(
   }
 
   const policy = industryContext.policy;
-  const policyChannels = (industryContext.channels.preferredChannels ?? policy.preferredChannels ?? [])
+  const preferredChannels = industryPreferredChannels(industryContext);
+  const policyChannels = (preferredChannels.length > 0 ? preferredChannels : policy.preferredChannels ?? [])
     .map(normalizeChannelOption)
     .filter((channel): channel is ChannelOption => channel !== undefined && allowedChannels.includes(channel));
   const mergedChannels = ensureRequiredChannels(mergeUniqueChannels(form.channels, policyChannels));
@@ -138,8 +143,8 @@ function applyIndustryContextToForm(
       || normalizeOption(policy.objectiveOverride, OBJECTIVE_OPTIONS)
     );
   const language = force
-    ? (industryContext.audience.defaultLanguageBiases?.[0] || form.language || '')
-    : (form.language || industryContext.audience.defaultLanguageBiases?.[0] || '');
+    ? (firstIndustryLanguage(industryContext) || form.language || '')
+    : (form.language || firstIndustryLanguage(industryContext) || '');
 
   return {
     ...form,

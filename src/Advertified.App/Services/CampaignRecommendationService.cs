@@ -36,34 +36,6 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
     private readonly IPlanningPolicyService _policyService;
     private readonly IPlanningRequestFactory _planningRequestFactory;
 
-    internal CampaignRecommendationService(
-        AppDbContext db,
-        IMediaPlanningEngine planningEngine,
-        ICampaignReasoningService campaignReasoningService,
-        PlanningPolicySnapshotProvider policySnapshotProvider,
-        IPlanningPolicyService policyService)
-    {
-        _db = db;
-        _planningEngine = planningEngine;
-        _campaignReasoningService = campaignReasoningService;
-        _policySnapshotProvider = policySnapshotProvider;
-        _policyService = policyService;
-        _planningRequestFactory = new PlanningRequestFactory(new NullPlanningTargetResolver(), new NullBusinessLocationResolver(), new NullPlanningBudgetAllocationService());
-    }
-
-    public CampaignRecommendationService(
-        AppDbContext db,
-        IMediaPlanningEngine planningEngine,
-        ICampaignReasoningService campaignReasoningService)
-    {
-        _db = db;
-        _planningEngine = planningEngine;
-        _campaignReasoningService = campaignReasoningService;
-        _policySnapshotProvider = new PlanningPolicySnapshotProvider(new PlanningPolicyOptions());
-        _policyService = new PlanningPolicyService(_policySnapshotProvider);
-        _planningRequestFactory = new PlanningRequestFactory(new NullPlanningTargetResolver(), new NullBusinessLocationResolver(), new NullPlanningBudgetAllocationService());
-    }
-
     [ActivatorUtilitiesConstructor]
     public CampaignRecommendationService(
         AppDbContext db,
@@ -1241,50 +1213,6 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
     private static string SerializeAuditJson(object value)
     {
         return JsonSerializer.Serialize(value, AuditJsonOptions);
-    }
-
-    private sealed class NullPlanningTargetResolver : ICampaignPlanningTargetResolver
-    {
-        public CampaignPlanningTargetResolution Resolve(CampaignBriefEntity? brief)
-        {
-            return new CampaignPlanningTargetResolution();
-        }
-
-        public CampaignPlanningTargetResolution Resolve(CampaignPlanningRequest request)
-        {
-            return new CampaignPlanningTargetResolution
-            {
-                Label = request.TargetLocationLabel ?? string.Empty,
-                City = request.TargetLocationCity,
-                Province = request.TargetLocationProvince,
-                Latitude = request.TargetLatitude,
-                Longitude = request.TargetLongitude,
-                Source = "none",
-                Precision = request.TargetLocationPrecision ?? "unknown",
-                IsResolved = request.TargetLatitude.HasValue && request.TargetLongitude.HasValue
-            };
-        }
-    }
-
-    private sealed class NullBusinessLocationResolver : ICampaignBusinessLocationResolver
-    {
-        public CampaignBusinessLocationResolution Resolve(CampaignEntity campaign)
-        {
-            return new CampaignBusinessLocationResolution();
-        }
-    }
-
-    private sealed class NullPlanningBudgetAllocationService : IPlanningBudgetAllocationService
-    {
-        public PlanningBudgetAllocation Resolve(CampaignPlanningRequest request)
-        {
-            return new PlanningBudgetAllocation();
-        }
-
-        public PlanningBudgetAllocation RebalanceChannelTargets(CampaignPlanningRequest request, IReadOnlyDictionary<string, int> channelShares)
-        {
-            return new PlanningBudgetAllocation();
-        }
     }
 
     private sealed record ProposalVariant(string Key, CampaignPlanningRequest Request, ProposalBudgetBand? BudgetBand);

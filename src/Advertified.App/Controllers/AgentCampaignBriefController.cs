@@ -1,6 +1,5 @@
 using Advertified.App.Contracts.Agent;
 using Advertified.App.Contracts.Campaigns;
-using Advertified.App.Campaigns;
 using Advertified.App.Configuration;
 using Advertified.App.Data;
 using Advertified.App.Data.Entities;
@@ -89,46 +88,13 @@ public sealed class AgentCampaignBriefController : ControllerBase
         }
         else
         {
-            var now = DateTime.UtcNow;
-            var brief = campaign.CampaignBrief;
-            if (brief is null)
-            {
-                brief = new CampaignBrief
-                {
-                    Id = Guid.NewGuid(),
-                    CampaignId = campaign.Id,
-                    CreatedAt = now
-                };
-                _db.CampaignBriefs.Add(brief);
-            }
-
-            CampaignBriefMapper.Apply(brief, request.Brief, now);
-
-            if (!string.IsNullOrWhiteSpace(request.CampaignName))
-            {
-                campaign.CampaignName = request.CampaignName.Trim();
-            }
-
-            campaign.PlanningMode = request.PlanningMode;
-            campaign.AgentAssistanceRequested = request.PlanningMode is "agent_assisted" or "hybrid";
-            if (request.SubmitBrief)
-            {
-                campaign.Status = CampaignStatuses.PlanningInProgress;
-            }
-            else if (string.Equals(campaign.Status, CampaignStatuses.AwaitingPurchase, StringComparison.OrdinalIgnoreCase))
-            {
-                campaign.Status = CampaignStatuses.BriefInProgress;
-            }
-            campaign.UpdatedAt = now;
-
-            if (request.SubmitBrief)
-            {
-                brief.SubmittedAt ??= now;
-            }
-
-            CampaignAiAccessPolicy.Apply(campaign, brief);
-
-            await _db.SaveChangesAsync(cancellationToken);
+            await _campaignBriefService.SaveAgentManagedAsync(
+                campaign,
+                request.Brief,
+                request.PlanningMode,
+                request.CampaignName,
+                request.SubmitBrief,
+                cancellationToken);
         }
 
         var campaignName = string.IsNullOrWhiteSpace(campaign.CampaignName)

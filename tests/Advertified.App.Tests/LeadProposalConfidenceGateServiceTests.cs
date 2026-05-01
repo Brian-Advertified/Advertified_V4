@@ -1,6 +1,7 @@
 using Advertified.App.Data;
 using Advertified.App.Data.Entities;
 using Advertified.App.Services;
+using Advertified.App.Services.Abstractions;
 using Advertified.App.Support;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
@@ -142,7 +143,14 @@ public class LeadProposalConfidenceGateServiceTests
         return new LeadProposalConfidenceGateService(
             db,
             new LeadChannelDetectionService(),
-            new LeadEnrichmentSnapshotService());
+            new LeadEnrichmentSnapshotService(),
+            new StubLeadIndustryContextResolver());
+    }
+
+    private sealed class StubLeadIndustryContextResolver : ILeadIndustryContextResolver
+    {
+        public LeadIndustryContext ResolveFromCategory(string? category) => new();
+        public IReadOnlyList<LeadIndustryContext> ResolveFromHints(IReadOnlyList<string> hints) => Array.Empty<LeadIndustryContext>();
     }
 
     private static async Task SeedCampaignAsync(AppDbContext db, Guid campaignId, string specialRequirements)

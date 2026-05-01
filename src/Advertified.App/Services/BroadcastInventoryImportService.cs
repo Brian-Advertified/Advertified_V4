@@ -19,17 +19,20 @@ public sealed class BroadcastInventoryImportService : IBroadcastInventoryImportS
     private readonly BroadcastInventoryOptions _options;
     private readonly IWebHostEnvironment _environment;
     private readonly IBroadcastInventoryCatalog _broadcastInventoryCatalog;
+    private readonly ILogger<BroadcastInventoryImportService> _logger;
 
     public BroadcastInventoryImportService(
         Npgsql.NpgsqlDataSource dataSource,
         IOptions<BroadcastInventoryOptions> options,
         IWebHostEnvironment environment,
-        IBroadcastInventoryCatalog broadcastInventoryCatalog)
+        IBroadcastInventoryCatalog broadcastInventoryCatalog,
+        ILogger<BroadcastInventoryImportService> logger)
     {
         _dataSource = dataSource;
         _options = options.Value;
         _environment = environment;
         _broadcastInventoryCatalog = broadcastInventoryCatalog;
+        _logger = logger;
     }
 
     public async Task SyncAsync(CancellationToken cancellationToken)
@@ -37,6 +40,9 @@ public sealed class BroadcastInventoryImportService : IBroadcastInventoryImportS
         var path = ResolveInventoryPath();
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
         {
+            _logger.LogWarning(
+                "Broadcast inventory sync skipped because configured inventory file was not found. Path: {InventoryPath}",
+                string.IsNullOrWhiteSpace(path) ? "(empty)" : path);
             return;
         }
 
@@ -50,6 +56,7 @@ public sealed class BroadcastInventoryImportService : IBroadcastInventoryImportS
 
         if (document is null || document.Records.Count == 0)
         {
+            _logger.LogWarning("Broadcast inventory sync skipped because {InventoryPath} contained no records.", path);
             return;
         }
 
@@ -58,6 +65,7 @@ public sealed class BroadcastInventoryImportService : IBroadcastInventoryImportS
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         if (await HasActiveBatchWithChecksumAsync(connection, checksum, cancellationToken))
         {
+            _logger.LogInformation("Broadcast inventory sync skipped because checksum {Checksum} is already active.", checksum);
             return;
         }
 

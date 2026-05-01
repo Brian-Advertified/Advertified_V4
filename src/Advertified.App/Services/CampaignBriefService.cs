@@ -59,47 +59,77 @@ public sealed class CampaignBriefService : ICampaignBriefService
         }
 
         var now = DateTime.UtcNow;
-        var draftJson = JsonSerializer.Serialize(request);
-        var brief = await _db.CampaignBriefs
-            .FirstOrDefaultAsync(x => x.CampaignId == campaignId, cancellationToken);
-
-        if (brief is null)
-        {
-            brief = new CampaignBrief
-            {
-                Id = Guid.NewGuid(),
-                CampaignId = campaignId,
-                CreatedAt = now
-            };
-            _db.CampaignBriefs.Add(brief);
-        }
-
-        CampaignBriefMapper.Apply(brief, request, now);
-
-        var draft = await _db.CampaignBriefDrafts
-            .FirstOrDefaultAsync(x => x.CampaignId == campaignId, cancellationToken);
-
-        if (draft is null)
-        {
-            _db.CampaignBriefDrafts.Add(new CampaignBriefDraft
-            {
-                Id = Guid.NewGuid(),
-                CampaignId = campaignId,
-                DraftJson = draftJson,
-                SavedAt = now
-            });
-        }
-        else
-        {
-            draft.DraftJson = draftJson;
-            draft.SavedAt = now;
-        }
+        await UpsertBriefAsync(campaignId, request, now, cancellationToken);
+        await UpsertDraftAsync(campaignId, request, now, cancellationToken);
 
         campaign.Status = CampaignStatuses.BriefInProgress;
         campaign.UpdatedAt = now;
         await _db.SaveChangesAsync(cancellationToken);
         await TrySeedLocationCatalogAsync(request, cancellationToken);
         await _agentAreaRoutingService.TryAssignCampaignAsync(campaignId, "brief_saved", cancellationToken);
+    }
+
+    public async Task SaveAgentManagedAsync(
+        Campaign campaign,
+        SaveCampaignBriefRequest request,
+        string planningMode,
+        string? campaignName,
+        bool submitBrief,
+        CancellationToken cancellationToken)
+    {
+        await _validator.ValidateAndThrowAsync(request, cancellationToken);
+        ValidatePlanningMode(planningMode);
+
+        var now = DateTime.UtcNow;
+        var brief = await UpsertBriefAsync(campaign.Id, request, now, cancellationToken);
+        await UpsertDraftAsync(campaign.Id, request, now, cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(campaignName))
+        {
+            campaign.CampaignName = campaignName.Trim();
+        }
+
+        campaign.PlanningMode = planningMode;
+        campaign.AgentAssistanceRequested = planningMode is "agent_assisted" or "hybrid";
+        if (submitBrief)
+        {
+            campaign.Status = CampaignStatuses.PlanningInProgress;
+            brief.SubmittedAt ??= now;
+        }
+        else if (string.Equals(campaign.Status, CampaignStatuses.AwaitingPurchase, StringComparison.OrdinalIgnoreCase))
+        {
+            campaign.Status = CampaignStatuses.BriefInProgress;
+        }
+
+        CampaignAiAccessPolicy.Apply(campaign, brief);
+        campaign.UpdatedAt = now;
+
+        await _db.SaveChangesAsync(cancellationToken);
+        await TrySeedLocationCatalogAsync(request, cancellationToken);
+        await _agentAreaRoutingService.TryAssignCampaignAsync(campaign.Id, submitBrief ? "brief_submitted" : "brief_saved", cancellationToken);
+    }
+
+    public async Task SaveProspectSubmissionAsync(
+        Campaign campaign,
+        SaveCampaignBriefRequest request,
+        DateTime submittedAt,
+        CancellationToken cancellationToken)
+    {
+        await _validator.ValidateAndThrowAsync(request, cancellationToken);
+
+        var brief = await UpsertBriefAsync(campaign.Id, request, submittedAt, cancellationToken);
+        await UpsertDraftAsync(campaign.Id, request, submittedAt, cancellationToken);
+
+        brief.SubmittedAt = submittedAt;
+        campaign.Status = CampaignStatuses.BriefSubmitted;
+        campaign.PlanningMode = string.IsNullOrWhiteSpace(campaign.PlanningMode) ? "hybrid" : campaign.PlanningMode;
+        campaign.AgentAssistanceRequested = true;
+        CampaignAiAccessPolicy.Apply(campaign, brief);
+        campaign.UpdatedAt = submittedAt;
+
+        await _db.SaveChangesAsync(cancellationToken);
+        await TrySeedLocationCatalogAsync(request, cancellationToken);
+        await _agentAreaRoutingService.TryAssignCampaignAsync(campaign.Id, "prospect_brief_submitted", cancellationToken);
     }
 
     public async Task SubmitAsync(Guid userId, Guid campaignId, CancellationToken cancellationToken)
@@ -155,10 +185,7 @@ public sealed class CampaignBriefService : ICampaignBriefService
 
     public async Task SetPlanningModeAsync(Guid userId, Guid campaignId, string planningMode, CancellationToken cancellationToken)
     {
-        if (!AllowedModes.Contains(planningMode))
-        {
-            throw new InvalidOperationException("Invalid planning mode.");
-        }
+        ValidatePlanningMode(planningMode);
 
         var campaign = await _db.Campaigns
             .FirstOrDefaultAsync(x => x.Id == campaignId && x.UserId == userId, cancellationToken)
@@ -175,6 +202,64 @@ public sealed class CampaignBriefService : ICampaignBriefService
         CampaignAiAccessPolicy.Apply(campaign);
         campaign.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task<CampaignBrief> UpsertBriefAsync(
+        Guid campaignId,
+        SaveCampaignBriefRequest request,
+        DateTime now,
+        CancellationToken cancellationToken)
+    {
+        var brief = await _db.CampaignBriefs
+            .FirstOrDefaultAsync(x => x.CampaignId == campaignId, cancellationToken);
+
+        if (brief is null)
+        {
+            brief = new CampaignBrief
+            {
+                Id = Guid.NewGuid(),
+                CampaignId = campaignId,
+                CreatedAt = now
+            };
+            _db.CampaignBriefs.Add(brief);
+        }
+
+        CampaignBriefMapper.Apply(brief, request, now);
+        return brief;
+    }
+
+    private async Task UpsertDraftAsync(
+        Guid campaignId,
+        SaveCampaignBriefRequest request,
+        DateTime now,
+        CancellationToken cancellationToken)
+    {
+        var draftJson = JsonSerializer.Serialize(request);
+        var draft = await _db.CampaignBriefDrafts
+            .FirstOrDefaultAsync(x => x.CampaignId == campaignId, cancellationToken);
+
+        if (draft is null)
+        {
+            _db.CampaignBriefDrafts.Add(new CampaignBriefDraft
+            {
+                Id = Guid.NewGuid(),
+                CampaignId = campaignId,
+                DraftJson = draftJson,
+                SavedAt = now
+            });
+            return;
+        }
+
+        draft.DraftJson = draftJson;
+        draft.SavedAt = now;
+    }
+
+    private static void ValidatePlanningMode(string planningMode)
+    {
+        if (!AllowedModes.Contains(planningMode))
+        {
+            throw new InvalidOperationException("Invalid planning mode.");
+        }
     }
 
     private string BuildFrontendUrl(string path)

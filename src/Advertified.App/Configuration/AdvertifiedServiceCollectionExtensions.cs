@@ -263,7 +263,8 @@ public static class AdvertifiedServiceCollectionExtensions
                 _.GetRequiredService<Npgsql.NpgsqlDataSource>(),
                 _.GetRequiredService<Microsoft.Extensions.Options.IOptions<BroadcastInventoryOptions>>(),
                 _.GetRequiredService<IWebHostEnvironment>(),
-                _.GetRequiredService<IBroadcastInventoryCatalog>()));
+                _.GetRequiredService<IBroadcastInventoryCatalog>(),
+                _.GetRequiredService<ILogger<BroadcastInventoryImportService>>()));
         services.AddConfiguredOpenAiClient<ICampaignBriefInterpretationService, CampaignBriefInterpretationService>();
         services.AddConfiguredOpenAiClient<ICampaignReasoningService, OpenAICampaignReasoningService>();
         services.AddConfiguredOpenAiClient(nameof(OpenAiProviderStrategy));

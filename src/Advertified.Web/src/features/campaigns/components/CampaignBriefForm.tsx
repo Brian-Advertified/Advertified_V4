@@ -9,7 +9,13 @@ import {
   optionalNumber,
   splitCommaList,
 } from '../briefModel';
-import type { CampaignBrief, LeadIndustryContext } from '../../../types/domain';
+import {
+  buildIndustryAudienceNotes,
+  industryLanguageList,
+  industryPreferredChannels,
+  normalizeIndustryObjective,
+} from '../industryDefaults';
+import type { CampaignBrief } from '../../../types/domain';
 import { useSharedFormOptions } from '../../../lib/useSharedFormOptions';
 import { advertifiedApi } from '../../../services/advertifiedApi';
 
@@ -283,15 +289,15 @@ export function CampaignBriefForm({
     }
 
     if (force || !currentAudienceNotes?.trim()) {
-      setValue('targetAudienceNotes', buildAudienceNotes(context));
+      setValue('targetAudienceNotes', buildIndustryAudienceNotes(context));
     }
 
     if (force || !currentPreferredMedia?.trim()) {
-      setValue('preferredMediaTypes', buildPreferredMedia(context));
+      setValue('preferredMediaTypes', industryPreferredChannels(context).join(', '));
     }
 
     if ((force || !currentLanguages?.trim()) && context.audience.defaultLanguageBiases.length > 0) {
-      setValue('targetLanguages', context.audience.defaultLanguageBiases.join(', '));
+      setValue('targetLanguages', industryLanguageList(context));
     }
 
     setIndustryDefaultsApplied(true);
@@ -640,22 +646,6 @@ export function CampaignBriefForm({
       </div>
     </form>
   );
-}
-
-function normalizeIndustryObjective(value?: string) {
-  const normalized = value?.trim().toLowerCase();
-  return normalized === 'foottraffic' ? 'foot_traffic' : normalized ?? '';
-}
-
-function buildAudienceNotes(context: LeadIndustryContext): string {
-  return [
-    context.audience.primaryPersona ? `Primary audience: ${context.audience.primaryPersona}` : '',
-    context.audience.buyingJourney ? `Buying journey: ${context.audience.buyingJourney}` : '',
-  ].filter((value) => value.trim().length > 0).join('\n');
-}
-
-function buildPreferredMedia(context: LeadIndustryContext): string {
-  return (context.channels.preferredChannels ?? []).join(', ');
 }
 
 function isBriefEssentiallyEmpty(brief?: CampaignBrief) {

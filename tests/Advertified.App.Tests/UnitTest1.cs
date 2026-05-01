@@ -8,6 +8,7 @@ using Advertified.App.Controllers;
 using Advertified.App.Domain.Campaigns;
 using Advertified.App.Data;
 using Advertified.App.Data.Entities;
+using Advertified.App.Mappings;
 using Advertified.App.Middleware;
 using Advertified.App.Services;
 using Advertified.App.Services.Abstractions;

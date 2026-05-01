@@ -24,5 +24,11 @@
              Link="public/images/advertified-logo.png"
              CopyToOutputDirectory="PreserveNewest"
              CopyToPublishDirectory="PreserveNewest" />
+    <None Update="App_Data\broadcast\**\*"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="PreserveNewest" />
+    <None Update="App_Data\inventory\**\*"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

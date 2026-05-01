@@ -11,6 +11,11 @@ import {
   splitCommaList,
   type QuestionnaireBriefFields,
 } from '../briefModel';
+import {
+  firstIndustryLanguage,
+  industryPreferredChannels,
+  normalizeIndustryObjective,
+} from '../industryDefaults';
 import { catalogQueryOptions } from '../../../lib/catalogQueryOptions';
 import { useSharedFormOptions } from '../../../lib/useSharedFormOptions';
 import { advertifiedApi } from '../../../services/advertifiedApi';
@@ -207,13 +212,8 @@ function clearStoredQuestionnaireDraft() {
   }
 }
 
-function normalizeIndustryObjective(value?: string) {
-  const normalized = value?.trim().toLowerCase();
-  return normalized === 'foottraffic' ? 'foot_traffic' : normalized ?? '';
-}
-
 function normalizeIndustryChannels(context?: LeadIndustryContext): string[] {
-  return (context?.channels.preferredChannels ?? [])
+  return (context ? industryPreferredChannels(context) : [])
     .map((channel) => channel.trim().toLowerCase())
     .map((channel) => {
       switch (channel) {
@@ -296,7 +296,7 @@ export function ProspectQuestionnaireForm({ variant = 'page' }: ProspectQuestion
 
     const nextObjective = normalizeIndustryObjective(context.campaign.defaultObjective);
     const nextChannels = normalizeIndustryChannels(context);
-    const nextLanguage = context.audience.defaultLanguageBiases[0] ?? '';
+    const nextLanguage = firstIndustryLanguage(context);
 
     setForm((current) => ({
       ...current,

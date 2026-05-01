@@ -21,6 +21,7 @@ public sealed class LeadStrategyEngineTests
                 Name = "Funeral Services",
                 PreferredChannels = new[] { "Search", "Radio", "OOH" }
             },
+            null,
             new LeadOpportunityProfile
             {
                 Key = "invisible_local_business",
@@ -51,6 +52,7 @@ public sealed class LeadStrategyEngineTests
                 Name = "Retail",
                 PreferredChannels = new[] { "OOH", "Radio", "Digital" }
             },
+            null,
             new LeadOpportunityProfile
             {
                 Key = "promo_dependent_retailer",

@@ -848,8 +848,9 @@ public class CampaignRecommendationServiceAuditTests
             db,
             new TierRecoveryMediaPlanningEngineStub(),
             new StubRecommendationAuditCampaignReasoningService(),
-            policySnapshotProvider,
-            new PlanningPolicyService(policySnapshotProvider));
+            new PlanningPolicyService(policySnapshotProvider),
+            Options.Create(new PlanningPolicyOptions()),
+            CreatePlanningRequestFactory());
 
         var recommendationId = await service.GenerateAndSaveAsync(campaignId, null, CancellationToken.None);
 
@@ -967,8 +968,9 @@ public class CampaignRecommendationServiceAuditTests
             db,
             new StubRecommendationAuditMediaPlanningEngine(),
             new StubRecommendationAuditCampaignReasoningService(),
-            policySnapshotProvider,
-            new PlanningPolicyService(policySnapshotProvider));
+            new PlanningPolicyService(policySnapshotProvider),
+            Options.Create(policyOptions),
+            CreatePlanningRequestFactory());
 
         var recommendationId = await service.GenerateAndSaveAsync(
             campaignId,
@@ -1028,6 +1030,15 @@ public class CampaignRecommendationServiceAuditTests
                 && item.GetProperty("sourceIdentifier").GetString() == "seed.json")
             .Should()
             .BeTrue();
+    }
+
+    private static IPlanningRequestFactory CreatePlanningRequestFactory()
+    {
+        return new PlanningRequestFactory(
+            new StubRecommendationPlanningTargetResolver(),
+            new StubRecommendationBusinessLocationResolver(),
+            new StubRecommendationPlanningBudgetAllocationService(),
+            new StubRecommendationLeadIndustryContextResolver());
     }
 }
 
@@ -1231,6 +1242,49 @@ sealed class LeadIntelligenceStubWebHostEnvironment : IWebHostEnvironment
     public string EnvironmentName { get; set; } = "Development";
     public string ContentRootPath { get; set; }
     public IFileProvider ContentRootFileProvider { get; set; }
+}
+
+sealed class StubRecommendationPlanningTargetResolver : ICampaignPlanningTargetResolver
+{
+    public CampaignPlanningTargetResolution Resolve(Advertified.App.Data.Entities.CampaignBrief? brief)
+    {
+        return new CampaignPlanningTargetResolution();
+    }
+
+    public CampaignPlanningTargetResolution Resolve(CampaignPlanningRequest request)
+    {
+        return new CampaignPlanningTargetResolution
+        {
+            Label = request.TargetLocationLabel ?? string.Empty,
+            City = request.TargetLocationCity,
+            Province = request.TargetLocationProvince,
+            Latitude = request.TargetLatitude,
+            Longitude = request.TargetLongitude,
+            Source = "test",
+            Precision = request.TargetLocationPrecision ?? "unknown",
+            IsResolved = request.TargetLatitude.HasValue && request.TargetLongitude.HasValue
+        };
+    }
+}
+
+sealed class StubRecommendationBusinessLocationResolver : ICampaignBusinessLocationResolver
+{
+    public CampaignBusinessLocationResolution Resolve(Advertified.App.Data.Entities.Campaign campaign)
+    {
+        return new CampaignBusinessLocationResolution();
+    }
+}
+
+sealed class StubRecommendationLeadIndustryContextResolver : ILeadIndustryContextResolver
+{
+    public LeadIndustryContext ResolveFromCategory(string? category) => new();
+    public IReadOnlyList<LeadIndustryContext> ResolveFromHints(IReadOnlyList<string> hints) => Array.Empty<LeadIndustryContext>();
+}
+
+sealed class StubRecommendationPlanningBudgetAllocationService : IPlanningBudgetAllocationService
+{
+    public PlanningBudgetAllocation Resolve(CampaignPlanningRequest request) => new();
+    public PlanningBudgetAllocation RebalanceChannelTargets(CampaignPlanningRequest request, IReadOnlyDictionary<string, int> channelShares) => new();
 }
 
 sealed class StubRecommendationAuditMediaPlanningEngine : IMediaPlanningEngine

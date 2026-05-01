@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Advertified.App.Contracts.Campaigns;
 using Advertified.App.Configuration;
 using Advertified.App.Data;
@@ -6,8 +5,6 @@ using Advertified.App.Data.Entities;
 using Advertified.App.Data.Enums;
 using Advertified.App.Services.Abstractions;
 using Advertified.App.Support;
-using Advertified.App.Validation;
-using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -23,9 +20,8 @@ namespace Advertified.App.Controllers;
 public sealed class PublicProspectQuestionnaireController : ControllerBase
 {
     private readonly AppDbContext _db;
-    private readonly SaveCampaignBriefRequestValidator _briefValidator;
+    private readonly ICampaignBriefService _campaignBriefService;
     private readonly IChangeAuditService _changeAuditService;
-    private readonly ILocationCatalogService _locationCatalogService;
     private readonly IProspectLeadRegistrationService _prospectLeadRegistrationService;
     private readonly ITemplatedEmailService _emailService;
     private readonly FrontendOptions _frontendOptions;
@@ -33,18 +29,16 @@ public sealed class PublicProspectQuestionnaireController : ControllerBase
 
     public PublicProspectQuestionnaireController(
         AppDbContext db,
-        SaveCampaignBriefRequestValidator briefValidator,
+        ICampaignBriefService campaignBriefService,
         IChangeAuditService changeAuditService,
-        ILocationCatalogService locationCatalogService,
         IProspectLeadRegistrationService prospectLeadRegistrationService,
         ITemplatedEmailService emailService,
         IOptions<FrontendOptions> frontendOptions,
         ILogger<PublicProspectQuestionnaireController> logger)
     {
         _db = db;
-        _briefValidator = briefValidator;
+        _campaignBriefService = campaignBriefService;
         _changeAuditService = changeAuditService;
-        _locationCatalogService = locationCatalogService;
         _prospectLeadRegistrationService = prospectLeadRegistrationService;
         _emailService = emailService;
         _frontendOptions = frontendOptions.Value;
@@ -56,8 +50,6 @@ public sealed class PublicProspectQuestionnaireController : ControllerBase
         [FromBody] PublicProspectQuestionnaireRequest request,
         CancellationToken cancellationToken)
     {
-        await _briefValidator.ValidateAndThrowAsync(request.Brief, cancellationToken);
-
         var fullName = request.FullName?.Trim() ?? string.Empty;
         var email = ProspectLeadContactNormalizer.NormalizeEmail(request.Email);
         var phone = request.Phone?.Trim() ?? string.Empty;
@@ -128,31 +120,12 @@ public sealed class PublicProspectQuestionnaireController : ControllerBase
         };
         _db.Campaigns.Add(campaign);
 
-        var brief = new CampaignBrief
-        {
-            Id = Guid.NewGuid(),
-            CampaignId = campaign.Id,
-            CreatedAt = now
-        };
         if (string.IsNullOrWhiteSpace(request.Brief.Industry) && !string.IsNullOrWhiteSpace(request.Industry))
         {
             request.Brief.Industry = request.Industry.Trim();
         }
 
-        CampaignBriefMapper.Apply(brief, request.Brief, now);
-        brief.SubmittedAt = now;
-        CampaignAiAccessPolicy.Apply(campaign, brief);
-        _db.CampaignBriefs.Add(brief);
-        _db.CampaignBriefDrafts.Add(new CampaignBriefDraft
-        {
-            Id = Guid.NewGuid(),
-            CampaignId = campaign.Id,
-            DraftJson = JsonSerializer.Serialize(request.Brief),
-            SavedAt = now
-        });
-
-        await _db.SaveChangesAsync(cancellationToken);
-        await TrySeedLocationCatalogAsync(request.Brief, cancellationToken);
+        await _campaignBriefService.SaveProspectSubmissionAsync(campaign, request.Brief, now, cancellationToken);
         await _changeAuditService.WriteAsync(
             null,
             "public",
@@ -222,17 +195,5 @@ public sealed class PublicProspectQuestionnaireController : ControllerBase
         }
 
         return fullName.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0];
-    }
-
-    private async Task TrySeedLocationCatalogAsync(SaveCampaignBriefRequest request, CancellationToken cancellationToken)
-    {
-        try
-        {
-            await _locationCatalogService.SeedResolvedLocationAsync(request, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Resolved prospect questionnaire location could not be added to the master location catalog.");
-        }
     }
 }
