@@ -25,7 +25,9 @@ internal static class ProspectContactSupport
 
     public static string? ResolveIndustry(this Campaign campaign)
     {
-        return campaign.User?.BusinessProfile?.Industry;
+        return !string.IsNullOrWhiteSpace(campaign.CampaignBrief?.Industry)
+            ? campaign.CampaignBrief.Industry
+            : campaign.User?.BusinessProfile?.Industry;
     }
 
     public static string? ResolveClientPhone(this Campaign campaign)

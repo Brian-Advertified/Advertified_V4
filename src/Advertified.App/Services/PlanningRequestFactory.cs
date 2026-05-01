@@ -10,15 +10,18 @@ public sealed class PlanningRequestFactory : IPlanningRequestFactory
     private readonly ICampaignPlanningTargetResolver _planningTargetResolver;
     private readonly ICampaignBusinessLocationResolver _businessLocationResolver;
     private readonly IPlanningBudgetAllocationService _budgetAllocationService;
+    private readonly ILeadIndustryContextResolver? _industryContextResolver;
 
     public PlanningRequestFactory(
         ICampaignPlanningTargetResolver planningTargetResolver,
         ICampaignBusinessLocationResolver businessLocationResolver,
-        IPlanningBudgetAllocationService budgetAllocationService)
+        IPlanningBudgetAllocationService budgetAllocationService,
+        ILeadIndustryContextResolver? industryContextResolver = null)
     {
         _planningTargetResolver = planningTargetResolver;
         _businessLocationResolver = businessLocationResolver;
         _budgetAllocationService = budgetAllocationService;
+        _industryContextResolver = industryContextResolver;
     }
 
     public CampaignPlanningRequest FromCampaignBrief(
@@ -163,10 +166,68 @@ public sealed class PlanningRequestFactory : IPlanningRequestFactory
             planningRequest.TargetLongitude = resolvedTarget.Longitude;
         }
 
+        ApplyIndustryDefaults(planningRequest);
         planningRequest.Targeting = BuildTargetingProfile(planningRequest);
         planningRequest.BudgetAllocation = _budgetAllocationService.Resolve(planningRequest);
 
         return planningRequest;
+    }
+
+    private void ApplyIndustryDefaults(CampaignPlanningRequest request)
+    {
+        if (_industryContextResolver is null || string.IsNullOrWhiteSpace(request.Industry))
+        {
+            return;
+        }
+
+        var context = _industryContextResolver.ResolveFromCategory(request.Industry);
+        if (string.IsNullOrWhiteSpace(request.Objective) && !string.IsNullOrWhiteSpace(context.Campaign.DefaultObjective))
+        {
+            request.Objective = NormalizeObjective(context.Campaign.DefaultObjective);
+        }
+
+        if (request.PreferredMediaTypes.Count == 0 && context.Channels.PreferredChannels.Count > 0)
+        {
+            request.PreferredMediaTypes = context.Channels.PreferredChannels
+                .Where(static channel => !string.IsNullOrWhiteSpace(channel))
+                .Select(static channel => channel.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        if (request.TargetLanguages.Count == 0 && context.Audience.DefaultLanguageBiases.Count > 0)
+        {
+            request.TargetLanguages = context.Audience.DefaultLanguageBiases
+                .Where(static language => !string.IsNullOrWhiteSpace(language))
+                .Select(static language => language.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        var industryAudienceTerms = context.Audience.AudienceHints
+            .Where(static hint => !string.IsNullOrWhiteSpace(hint))
+            .Select(static hint => hint.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (industryAudienceTerms.Length > 0)
+        {
+            request.TargetInterests = request.TargetInterests
+                .Concat(industryAudienceTerms)
+                .Where(static interest => !string.IsNullOrWhiteSpace(interest))
+                .Select(static interest => interest.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        if (string.IsNullOrWhiteSpace(request.TargetAudienceNotes))
+        {
+            request.TargetAudienceNotes = BuildIndustryAudienceNotes(context);
+        }
+
+        if (!HasExplicitTargetMix(request) && context.Channels.BaseBudgetSplit.Count > 0)
+        {
+            ApplyIndustryTargetMix(request, context.Channels.BaseBudgetSplit);
+        }
     }
 
     private static CampaignTargetingProfile BuildTargetingProfile(CampaignPlanningRequest request)
@@ -215,5 +276,70 @@ public sealed class PlanningRequestFactory : IPlanningRequestFactory
         {
             values.Add(value.Trim());
         }
+    }
+
+    private static string? BuildIndustryAudienceNotes(LeadIndustryContext context)
+    {
+        var parts = new[]
+            {
+                string.IsNullOrWhiteSpace(context.Audience.PrimaryPersona) ? null : $"Primary audience: {context.Audience.PrimaryPersona.Trim()}",
+                string.IsNullOrWhiteSpace(context.Audience.BuyingJourney) ? null : $"Buying journey: {context.Audience.BuyingJourney.Trim()}",
+                string.IsNullOrWhiteSpace(context.Creative.MessagingAngle) ? null : $"Messaging angle: {context.Creative.MessagingAngle.Trim()}"
+            }
+            .Where(static value => !string.IsNullOrWhiteSpace(value))
+            .ToArray();
+
+        return parts.Length == 0 ? null : string.Join(Environment.NewLine, parts);
+    }
+
+    private static bool HasExplicitTargetMix(CampaignPlanningRequest request)
+    {
+        return request.TargetRadioShare.GetValueOrDefault() > 0
+            || request.TargetOohShare.GetValueOrDefault() > 0
+            || request.TargetTvShare.GetValueOrDefault() > 0
+            || request.TargetDigitalShare.GetValueOrDefault() > 0
+            || request.TargetNewspaperShare.GetValueOrDefault() > 0;
+    }
+
+    private static void ApplyIndustryTargetMix(CampaignPlanningRequest request, IReadOnlyDictionary<string, int> baseBudgetSplit)
+    {
+        foreach (var entry in baseBudgetSplit)
+        {
+            var share = Math.Clamp(entry.Value, 0, 100);
+            if (share <= 0)
+            {
+                continue;
+            }
+
+            switch (PlanningChannelSupport.NormalizeChannel(entry.Key))
+            {
+                case "radio":
+                    request.TargetRadioShare = share;
+                    break;
+                case "ooh":
+                case "billboard":
+                case "digital_screen":
+                    request.TargetOohShare = share;
+                    break;
+                case "tv":
+                case "television":
+                    request.TargetTvShare = share;
+                    break;
+                case "digital":
+                    request.TargetDigitalShare = share;
+                    break;
+                case PlanningChannelSupport.Newspaper:
+                    request.TargetNewspaperShare = share;
+                    break;
+            }
+        }
+    }
+
+    private static string NormalizeObjective(string objective)
+    {
+        var normalized = objective.Trim();
+        return normalized.Equals("foottraffic", StringComparison.OrdinalIgnoreCase)
+            ? "foot_traffic"
+            : normalized;
     }
 }

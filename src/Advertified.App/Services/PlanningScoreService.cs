@@ -2,6 +2,7 @@ using Advertified.App.Contracts.Campaigns;
 using Advertified.App.Domain.Campaigns;
 using Advertified.App.Services.Abstractions;
 using Advertified.App.Support;
+using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace Advertified.App.Services;
@@ -1404,6 +1405,19 @@ public sealed class PlanningScoreService : IPlanningScoreService
     private static decimal ScoreFitBand(InventoryCandidate candidate, string camelKey, string snakeKey, decimal high, decimal medium)
     {
         var raw = GetMetadataText(candidate, camelKey, snakeKey).Trim().ToLowerInvariant();
+        if (decimal.TryParse(raw, NumberStyles.Number, CultureInfo.InvariantCulture, out var numericFit))
+        {
+            if (numericFit >= 8m)
+            {
+                return high;
+            }
+
+            if (numericFit >= 5m)
+            {
+                return medium;
+            }
+        }
+
         return raw switch
         {
             "high" => high,
