@@ -283,8 +283,8 @@ public sealed class BroadcastInventoryImportService : IBroadcastInventoryImportS
                 Code = record.Id,
                 Name = record.Station,
                 MediaType = record.MediaType,
-                CoverageType = record.CoverageType,
-                CatalogHealth = record.CatalogHealth,
+                CoverageType = NormalizeCoverageType(record.CoverageType),
+                CatalogHealth = NormalizeReferenceCode(record.CatalogHealth),
                 OperatorName = (string?)null,
                 IsNational = record.IsNational,
                 HasPricing = record.HasPricing,
@@ -392,7 +392,10 @@ public sealed class BroadcastInventoryImportService : IBroadcastInventoryImportS
                 transaction: transaction,
                 cancellationToken: cancellationToken));
 
-            foreach (var province in record.ProvinceCodes.Where(static value => !string.IsNullOrWhiteSpace(value)).Distinct(StringComparer.OrdinalIgnoreCase))
+            foreach (var province in record.ProvinceCodes
+                .Select(NormalizeReferenceCode)
+                .Where(static value => !string.IsNullOrWhiteSpace(value))
+                .Distinct(StringComparer.OrdinalIgnoreCase))
             {
                 await connection.ExecuteAsync(new CommandDefinition(
                     @"
@@ -403,7 +406,7 @@ public sealed class BroadcastInventoryImportService : IBroadcastInventoryImportS
                     {
                         Id = CreateDeterministicGuid($"{record.Id}:province:{province}"),
                         MediaOutletId = outletId,
-                        ProvinceCode = province.Trim().ToLowerInvariant()
+                        ProvinceCode = province
                     },
                     transaction: transaction,
                     cancellationToken: cancellationToken));
@@ -725,6 +728,19 @@ public sealed class BroadcastInventoryImportService : IBroadcastInventoryImportS
             JsonValueKind.String => TryParseDecimalFlexible(element.GetString(), out rate),
             _ => false
         };
+    }
+
+    private static string NormalizeReferenceCode(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? string.Empty
+            : value.Trim().Replace("-", "_").Replace(" ", "_").ToLowerInvariant();
+    }
+
+    private static string NormalizeCoverageType(string? value)
+    {
+        var normalized = NormalizeReferenceCode(value);
+        return normalized == "provincial" ? "regional" : normalized;
     }
 
     private static string? GetString(JsonElement element, string propertyName)

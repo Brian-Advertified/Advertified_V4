@@ -120,6 +120,80 @@ public sealed class BroadcastCostNormalizer : IBroadcastCostNormalizer
             "TV package treated as monthly because no duration was supplied.");
     }
 
+    public NormalizedCostResult NormalizeNewspaperPackage(
+        string publication,
+        string? packageName,
+        decimal? investmentZar,
+        decimal? packageCostZar,
+        decimal? costPerMonthZar,
+        int? durationWeeks,
+        int? durationMonths)
+    {
+        if (costPerMonthZar.HasValue && costPerMonthZar.Value > 0)
+        {
+            return new NormalizedCostResult(costPerMonthZar.Value, costPerMonthZar.Value, "newspaper_package_monthly", "Newspaper package already supplied as monthly cost.");
+        }
+
+        var sourceCost = investmentZar ?? packageCostZar;
+        if (!sourceCost.HasValue || sourceCost.Value <= 0)
+        {
+            return NormalizedCostResult.Empty("newspaper_package");
+        }
+
+        if (durationMonths.HasValue && durationMonths.Value > 0)
+        {
+            return new NormalizedCostResult(
+                sourceCost.Value,
+                DecimalRound(sourceCost.Value / durationMonths.Value),
+                "newspaper_package_multi_month",
+                $"Newspaper package cost divided across {durationMonths.Value} month(s).");
+        }
+
+        if (durationWeeks.HasValue && durationWeeks.Value > 0)
+        {
+            if (durationWeeks.Value == 4)
+            {
+                return new NormalizedCostResult(sourceCost.Value, sourceCost.Value, "newspaper_4_week_package", "4-week newspaper package treated as monthly.");
+            }
+
+            return new NormalizedCostResult(
+                sourceCost.Value,
+                DecimalRound(sourceCost.Value * (4m / durationWeeks.Value)),
+                "newspaper_weekly_or_multi_week_package",
+                $"Newspaper package normalized from {durationWeeks.Value} week(s) to 4 weeks.");
+        }
+
+        return new NormalizedCostResult(
+            sourceCost.Value,
+            sourceCost.Value,
+            "newspaper_package_once_or_monthly",
+            "Newspaper package treated as a single monthly planning placement because no duration was supplied.");
+    }
+
+    public NormalizedCostResult NormalizeNewspaperRate(
+        string publication,
+        string? rateLabel,
+        string? groupName,
+        decimal rawRateZar,
+        NewspaperNormalizationContext? context = null)
+    {
+        if (rawRateZar <= 0)
+        {
+            return NormalizedCostResult.Empty("newspaper_slot");
+        }
+
+        var insertionsPerMonth = Math.Max(1, context?.InsertionsPerMonth ?? 1);
+        var costType = context?.CostType ?? "newspaper_slot";
+
+        return new NormalizedCostResult(
+            rawRateZar,
+            DecimalRound(rawRateZar * insertionsPerMonth),
+            costType,
+            insertionsPerMonth == 1
+                ? "Newspaper rate treated as one planned insertion."
+                : $"{insertionsPerMonth} newspaper insertion(s)/month assumed.");
+    }
+
     public NormalizedCostResult NormalizeTvRate(
         string station,
         string? programmeName,
@@ -154,9 +228,15 @@ public sealed class BroadcastCostNormalizer : IBroadcastCostNormalizer
                 var durationMonths = GetInt(item, "duration_months") ?? GetDurationMonthsFromName(GetString(item, "name"));
                 var durationWeeks = GetInt(item, "duration_weeks") ?? GetDurationWeeksFromName(GetString(item, "name"));
 
-                var result = mediaType.Equals("tv", StringComparison.OrdinalIgnoreCase)
-                    ? NormalizeTvPackage(station, GetString(item, "name"), GetDecimal(item, "investment_zar"), GetDecimal(item, "package_cost_zar"), GetDecimal(item, "cost_per_month_zar"), durationWeeks, durationMonths)
-                    : NormalizeRadioPackage(station, GetString(item, "name"), GetDecimal(item, "investment_zar"), GetDecimal(item, "package_cost_zar"), GetDecimal(item, "cost_per_month_zar"), durationMonths);
+                var result = NormalizePackageForMediaType(
+                    mediaType,
+                    station,
+                    GetString(item, "name"),
+                    GetDecimal(item, "investment_zar"),
+                    GetDecimal(item, "package_cost_zar"),
+                    GetDecimal(item, "cost_per_month_zar"),
+                    durationWeeks,
+                    durationMonths);
 
                 if (result.MonthlyCostEstimateZar > 0)
                 {
@@ -167,9 +247,15 @@ public sealed class BroadcastCostNormalizer : IBroadcastCostNormalizer
                 {
                     foreach (var element in elements.EnumerateArray())
                     {
-                        var elementResult = mediaType.Equals("tv", StringComparison.OrdinalIgnoreCase)
-                            ? NormalizeTvPackage(station, GetString(element, "name"), GetDecimal(element, "investment_zar"), GetDecimal(element, "package_cost_zar"), GetDecimal(element, "cost_per_month_zar") ?? GetDecimal(item, "cost_per_month_zar"), durationWeeks, durationMonths)
-                            : NormalizeRadioPackage(station, GetString(element, "name"), GetDecimal(element, "investment_zar"), GetDecimal(element, "package_cost_zar"), GetDecimal(element, "cost_per_month_zar") ?? GetDecimal(item, "cost_per_month_zar"), durationMonths);
+                        var elementResult = NormalizePackageForMediaType(
+                            mediaType,
+                            station,
+                            GetString(element, "name"),
+                            GetDecimal(element, "investment_zar"),
+                            GetDecimal(element, "package_cost_zar"),
+                            GetDecimal(element, "cost_per_month_zar") ?? GetDecimal(item, "cost_per_month_zar"),
+                            durationWeeks,
+                            durationMonths);
 
                         if (elementResult.MonthlyCostEstimateZar > 0)
                         {
@@ -203,9 +289,7 @@ public sealed class BroadcastCostNormalizer : IBroadcastCostNormalizer
                         continue;
                     }
 
-                    var result = mediaType.Equals("tv", StringComparison.OrdinalIgnoreCase)
-                        ? NormalizeTvRate(station, null, slot.Name, group.Name, rate)
-                        : NormalizeRadioRate(station, slot.Name, group.Name, rate);
+                    var result = NormalizeRateForMediaType(mediaType, station, null, slot.Name, group.Name, rate);
 
                     if (result.MonthlyCostEstimateZar > 0)
                     {
@@ -224,9 +308,13 @@ public sealed class BroadcastCostNormalizer : IBroadcastCostNormalizer
                     continue;
                 }
 
-                var result = mediaType.Equals("tv", StringComparison.OrdinalIgnoreCase)
-                    ? NormalizeTvRate(station, GetString(item, "program") ?? GetString(item, "programme"), GetString(item, "slot") ?? GetString(item, "time"), GetString(item, "group"), rate.Value)
-                    : NormalizeRadioRate(station, GetString(item, "slot") ?? GetString(item, "time"), GetString(item, "group"), rate.Value);
+                var result = NormalizeRateForMediaType(
+                    mediaType,
+                    station,
+                    GetString(item, "program") ?? GetString(item, "programme"),
+                    GetString(item, "slot") ?? GetString(item, "time"),
+                    GetString(item, "group"),
+                    rate.Value);
 
                 if (result.MonthlyCostEstimateZar > 0)
                 {
@@ -236,6 +324,44 @@ public sealed class BroadcastCostNormalizer : IBroadcastCostNormalizer
         }
 
         return candidates.Count == 0 ? null : candidates.Min();
+    }
+
+    private NormalizedCostResult NormalizePackageForMediaType(
+        string mediaType,
+        string station,
+        string? packageName,
+        decimal? investmentZar,
+        decimal? packageCostZar,
+        decimal? costPerMonthZar,
+        int? durationWeeks,
+        int? durationMonths)
+    {
+        if (IsNewspaper(mediaType))
+        {
+            return NormalizeNewspaperPackage(station, packageName, investmentZar, packageCostZar, costPerMonthZar, durationWeeks, durationMonths);
+        }
+
+        return mediaType.Equals("tv", StringComparison.OrdinalIgnoreCase)
+            ? NormalizeTvPackage(station, packageName, investmentZar, packageCostZar, costPerMonthZar, durationWeeks, durationMonths)
+            : NormalizeRadioPackage(station, packageName, investmentZar, packageCostZar, costPerMonthZar, durationMonths);
+    }
+
+    private NormalizedCostResult NormalizeRateForMediaType(
+        string mediaType,
+        string station,
+        string? programmeName,
+        string? slotLabel,
+        string? groupName,
+        decimal rate)
+    {
+        if (IsNewspaper(mediaType))
+        {
+            return NormalizeNewspaperRate(station, programmeName ?? slotLabel, groupName, rate);
+        }
+
+        return mediaType.Equals("tv", StringComparison.OrdinalIgnoreCase)
+            ? NormalizeTvRate(station, programmeName, slotLabel, groupName, rate)
+            : NormalizeRadioRate(station, slotLabel, groupName, rate);
     }
 
     private RadioNormalizationProfile ResolveRadioProfile(string station, string? slotLabel, string? groupName, RadioNormalizationContext? context)
@@ -316,6 +442,11 @@ public sealed class BroadcastCostNormalizer : IBroadcastCostNormalizer
     }
 
     private static bool ContainsAny(string value, params string[] needles) => needles.Any(n => value.Contains(n, StringComparison.OrdinalIgnoreCase));
+
+    private static bool IsNewspaper(string? mediaType)
+        => string.Equals(mediaType, "newspaper", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(mediaType, "print", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(mediaType, "press", StringComparison.OrdinalIgnoreCase);
 
     private static decimal DecimalRound(decimal value) => Math.Round(value, 2, MidpointRounding.AwayFromZero);
 

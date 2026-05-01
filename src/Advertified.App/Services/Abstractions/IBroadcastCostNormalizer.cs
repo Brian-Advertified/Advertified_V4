@@ -28,6 +28,22 @@ public interface IBroadcastCostNormalizer
         int? durationWeeks,
         int? durationMonths);
 
+    NormalizedCostResult NormalizeNewspaperPackage(
+        string publication,
+        string? packageName,
+        decimal? investmentZar,
+        decimal? packageCostZar,
+        decimal? costPerMonthZar,
+        int? durationWeeks,
+        int? durationMonths);
+
+    NormalizedCostResult NormalizeNewspaperRate(
+        string publication,
+        string? rateLabel,
+        string? groupName,
+        decimal rawRateZar,
+        NewspaperNormalizationContext? context = null);
+
     NormalizedCostResult NormalizeTvRate(
         string station,
         string? programmeName,
@@ -62,6 +78,10 @@ public sealed record TvNormalizationContext(
     int InsertionsPerMonth,
     string? CostType = null);
 
+public sealed record NewspaperNormalizationContext(
+    int InsertionsPerMonth = 1,
+    string? CostType = null);
+
 public sealed record RadioNormalizationProfile(
     int SpotsPerDay,
     int ActiveDaysPerMonth,
@@ -82,4 +102,3 @@ public sealed class BroadcastNormalizationOptions
 
     public static BroadcastNormalizationOptions Default() => new();
 }
-

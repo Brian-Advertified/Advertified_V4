@@ -1368,6 +1368,41 @@ public class BroadcastCostNormalizerTests
         result.MonthlyCostEstimateZar.Should().Be(40000m);
         result.CostType.Should().Be("tv_weekly_or_multi_week_package");
     }
+
+    [Fact]
+    public void NormalizeNewspaperPackage_UsesDedicatedMonthlyCostType()
+    {
+        var normalizer = new BroadcastCostNormalizer();
+
+        var result = normalizer.NormalizeNewspaperPackage(
+            publication: "Business Day",
+            packageName: "Main Body - Colour",
+            investmentZar: 28400m,
+            packageCostZar: null,
+            costPerMonthZar: null,
+            durationWeeks: null,
+            durationMonths: 1);
+
+        result.RawCostZar.Should().Be(28400m);
+        result.MonthlyCostEstimateZar.Should().Be(28400m);
+        result.CostType.Should().Be("newspaper_package_multi_month");
+    }
+
+    [Fact]
+    public void NormalizeNewspaperRate_DoesNotApplyRadioSpotMultiplier()
+    {
+        var normalizer = new BroadcastCostNormalizer();
+
+        var result = normalizer.NormalizeNewspaperRate(
+            publication: "The Herald",
+            rateLabel: "Main Body",
+            groupName: "print",
+            rawRateZar: 950m);
+
+        result.RawCostZar.Should().Be(950m);
+        result.MonthlyCostEstimateZar.Should().Be(950m);
+        result.CostType.Should().Be("newspaper_slot");
+    }
 }
 
 public class PricingPolicyTests

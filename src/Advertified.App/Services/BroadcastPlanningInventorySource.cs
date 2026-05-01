@@ -132,22 +132,14 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
                         ?? GetDurationWeeksFromName(GetString(element, "name"))
                         ?? GetDurationWeeksFromName(packageName);
 
-                    var normalized = record.MediaType.Equals("tv", StringComparison.OrdinalIgnoreCase)
-                        ? _costNormalizer.NormalizeTvPackage(
-                            record.Station,
-                            GetString(element, "name"),
-                            GetDecimal(element, "investment_zar"),
-                            GetDecimal(element, "package_cost_zar"),
-                            GetDecimal(element, "cost_per_month_zar") ?? GetDecimal(package, "cost_per_month_zar"),
-                            durationWeeks,
-                            durationMonths)
-                        : _costNormalizer.NormalizeRadioPackage(
-                            record.Station,
-                            GetString(element, "name"),
-                            GetDecimal(element, "investment_zar"),
-                            GetDecimal(element, "package_cost_zar"),
-                            GetDecimal(element, "cost_per_month_zar") ?? GetDecimal(package, "cost_per_month_zar"),
-                            durationMonths);
+                    var normalized = NormalizePackageCost(
+                        record,
+                        GetString(element, "name"),
+                        GetDecimal(element, "investment_zar"),
+                        GetDecimal(element, "package_cost_zar"),
+                        GetDecimal(element, "cost_per_month_zar") ?? GetDecimal(package, "cost_per_month_zar"),
+                        durationWeeks,
+                        durationMonths);
 
                     if (normalized.MonthlyCostEstimateZar <= 0m)
                     {
@@ -202,29 +194,16 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
                 continue;
             }
 
-            var packageCost = GetDecimal(package, "investment_zar")
-                ?? GetDecimal(package, "total_investment_zar")
-                ?? GetDecimal(package, "package_cost_zar")
-                ?? GetDecimal(package, "cost_per_month_zar")
-                ?? 0m;
             var durationMonthsForPackage = GetInt(package, "duration_months") ?? GetDurationMonthsFromName(packageName);
             var durationWeeksForPackage = GetInt(package, "duration_weeks") ?? GetDurationWeeksFromName(packageName);
-            var normalizedPackage = record.MediaType.Equals("tv", StringComparison.OrdinalIgnoreCase)
-                ? _costNormalizer.NormalizeTvPackage(
-                    record.Station,
-                    packageName,
-                    GetDecimal(package, "investment_zar") ?? GetDecimal(package, "total_investment_zar"),
-                    GetDecimal(package, "package_cost_zar"),
-                    GetDecimal(package, "cost_per_month_zar"),
-                    durationWeeksForPackage,
-                    durationMonthsForPackage)
-                : _costNormalizer.NormalizeRadioPackage(
-                    record.Station,
-                    packageName,
-                    GetDecimal(package, "investment_zar") ?? GetDecimal(package, "total_investment_zar"),
-                    GetDecimal(package, "package_cost_zar"),
-                    GetDecimal(package, "cost_per_month_zar"),
-                    durationMonthsForPackage);
+            var normalizedPackage = NormalizePackageCost(
+                record,
+                packageName,
+                GetDecimal(package, "investment_zar") ?? GetDecimal(package, "total_investment_zar"),
+                GetDecimal(package, "package_cost_zar"),
+                GetDecimal(package, "cost_per_month_zar"),
+                durationWeeksForPackage,
+                durationMonthsForPackage);
 
             if (normalizedPackage.MonthlyCostEstimateZar <= 0m)
             {
@@ -552,7 +531,54 @@ public sealed class BroadcastPlanningInventorySource : IBroadcastPlanningInvento
             return _costNormalizer.NormalizeTvRate(record.Station, programmeName, slotLabel, dayGroup, rate);
         }
 
+        if (IsNewspaperRecord(record))
+        {
+            return _costNormalizer.NormalizeNewspaperRate(record.Station, programmeName ?? slotLabel, dayGroup, rate);
+        }
+
         return _costNormalizer.NormalizeRadioRate(record.Station, slotLabel, dayGroup, rate);
+    }
+
+    private NormalizedCostResult NormalizePackageCost(
+        BroadcastInventoryRecord record,
+        string? packageName,
+        decimal? investmentZar,
+        decimal? packageCostZar,
+        decimal? costPerMonthZar,
+        int? durationWeeks,
+        int? durationMonths)
+    {
+        if (record.MediaType.Equals("tv", StringComparison.OrdinalIgnoreCase))
+        {
+            return _costNormalizer.NormalizeTvPackage(
+                record.Station,
+                packageName,
+                investmentZar,
+                packageCostZar,
+                costPerMonthZar,
+                durationWeeks,
+                durationMonths);
+        }
+
+        if (IsNewspaperRecord(record))
+        {
+            return _costNormalizer.NormalizeNewspaperPackage(
+                record.Station,
+                packageName,
+                investmentZar,
+                packageCostZar,
+                costPerMonthZar,
+                durationWeeks,
+                durationMonths);
+        }
+
+        return _costNormalizer.NormalizeRadioPackage(
+            record.Station,
+            packageName,
+            investmentZar,
+            packageCostZar,
+            costPerMonthZar,
+            durationMonths);
     }
 
     private static bool IsNewspaperRecord(BroadcastInventoryRecord record)
