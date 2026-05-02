@@ -88,7 +88,7 @@ set
     legal_name = 'Advertified (PTY) Ltd',
     registration_number = '2024/104944/07',
     vat_number = '4210266484',
-    address = E'Office 301, 3rd Floor\n43 Andringa Street\nStellenbosch\n7559',
+    address = E'The Vineyard\nDevon Valley Road\nDevon Park\nStellenbosch\n7600',
     contact_email = 'ad@advertified.co.za',
     contact_phone = '0812549067',
     is_active = true,
@@ -111,7 +111,7 @@ select
     'Advertified (Pty) Ltd',
     '2024/104944/07',
     '4210266484',
-    E'Office 301, 3rd Floor\n43 Andringa Street\nStellenbosch\n7559',
+    E'The Vineyard\nDevon Valley Road\nDevon Park\nStellenbosch\n7600',
     'ad@advertified.co.za',
     '0812549067',
     true

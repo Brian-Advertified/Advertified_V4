@@ -41,9 +41,9 @@ export function HomePage() {
             telephone: '+27 11 040 1195',
             address: {
               '@type': 'PostalAddress',
-              streetAddress: 'Office 301, 3rd Floor, 43 Andringa Street',
+              streetAddress: 'The Vineyard, Devon Valley Road, Devon Park',
               addressLocality: 'Stellenbosch',
-              postalCode: '7559',
+              postalCode: '7600',
               addressCountry: 'ZA',
             },
           },

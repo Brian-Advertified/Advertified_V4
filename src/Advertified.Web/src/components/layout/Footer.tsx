@@ -44,10 +44,11 @@ export function Footer() {
           <div>
             <h3 className="text-sm font-semibold text-ink">Contact</h3>
             <div className="mt-4 space-y-2.5 text-sm text-ink-soft">
-              <p>Office 301, 3rd Floor</p>
-              <p>43 Andringa Street</p>
+              <p>The Vineyard</p>
+              <p>Devon Valley Road</p>
+              <p>Devon Park</p>
               <p>Stellenbosch</p>
-              <p>7559</p>
+              <p>7600</p>
               <p>
                 <a href="mailto:ad@advertified.com" className="transition hover:text-brand">ad@advertified.com</a>
               </p>
