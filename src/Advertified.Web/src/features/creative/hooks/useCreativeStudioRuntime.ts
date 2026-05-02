@@ -41,6 +41,7 @@ export function useCreativeStudioRuntime({
   const [channelsInput, setChannelsInput] = useState(channelMood.join(', '));
   const [ctaInput, setCtaInput] = useState('');
   const [constraintsInput, setConstraintsInput] = useState(brief?.specialRequirements ?? '');
+  const [selectedVoicePackId, setSelectedVoicePackId] = useState('');
   const [activeAiJobId, setActiveAiJobId] = useState('');
   const [regenCreativeId, setRegenCreativeId] = useState('');
   const [regenFeedback, setRegenFeedback] = useState('');
@@ -104,6 +105,14 @@ export function useCreativeStudioRuntime({
     enabled: !isPreview,
   });
 
+  const voicePacksQuery = useQuery({
+    queryKey: ['ai-platform-voice-packs', campaign.id],
+    queryFn: () => advertifiedApi.getAiPlatformVoicePacks('ElevenLabs', {
+      campaignId: campaign.id,
+    }),
+    enabled: !isPreview,
+  });
+
   const adMetricsSummaryQuery = useQuery({
     queryKey: ['ai-platform-campaign-metrics-summary', campaign.id],
     queryFn: () => advertifiedApi.getAiCampaignAdMetricsSummary(campaign.id),
@@ -120,6 +129,7 @@ export function useCreativeStudioRuntime({
     mutationFn: async () => advertifiedApi.submitAiPlatformJob({
       campaignId: campaign.id,
       promptOverride: prompt.trim() || undefined,
+      voicePackId: selectedVoicePackId || undefined,
     }),
     onSuccess: (response) => {
       setActiveAiJobId(response.jobId);
@@ -204,6 +214,8 @@ export function useCreativeStudioRuntime({
     setCtaInput,
     constraintsInput,
     setConstraintsInput,
+    selectedVoicePackId,
+    setSelectedVoicePackId,
     activeAiJobId,
     setActiveAiJobId,
     regenCreativeId,
@@ -216,6 +228,7 @@ export function useCreativeStudioRuntime({
     setScopedCreativeState,
     creativeSystemMutation,
     campaignCreativesQuery,
+    voicePacksQuery,
     adMetricsSummaryQuery,
     adVariantsQuery,
     submitAiJobMutation,

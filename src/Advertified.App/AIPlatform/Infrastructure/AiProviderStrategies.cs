@@ -198,7 +198,7 @@ public sealed class ElevenLabsProviderStrategy : IAiProviderStrategy
         var requestPayload = JsonSerializer.Deserialize<VoiceAssetRequest>(inputJson, SerializerOptions)
             ?? throw new InvalidOperationException("Voice asset request payload is invalid.");
 
-        var voiceId = await ResolveVoiceIdAsync(requestPayload.VoiceType, cancellationToken);
+        var voiceId = await ResolveVoiceIdAsync(requestPayload.VoicePackId, requestPayload.VoiceType, cancellationToken);
         if (string.IsNullOrWhiteSpace(voiceId))
         {
             throw new InvalidOperationException("ElevenLabs voice id is missing. Configure ElevenLabs:DefaultVoiceId or pass a valid voice id in VoiceType.");
@@ -257,8 +257,22 @@ public sealed class ElevenLabsProviderStrategy : IAiProviderStrategy
         return JsonSerializer.Serialize(payload, SerializerOptions);
     }
 
-    private async Task<string> ResolveVoiceIdAsync(string? voiceType, CancellationToken cancellationToken)
+    private async Task<string> ResolveVoiceIdAsync(Guid? voicePackId, string? voiceType, CancellationToken cancellationToken)
     {
+        if (voicePackId.HasValue)
+        {
+            var packVoiceId = await _db.AiVoicePacks
+                .AsNoTracking()
+                .Where(item => item.Id == voicePackId.Value && item.Provider == "ElevenLabs" && item.IsActive)
+                .Select(item => item.VoiceId)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (!string.IsNullOrWhiteSpace(packVoiceId))
+            {
+                return packVoiceId.Trim();
+            }
+        }
+
         if (!string.IsNullOrWhiteSpace(voiceType))
         {
             var candidate = voiceType.Trim();

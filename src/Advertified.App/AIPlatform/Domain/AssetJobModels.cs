@@ -5,7 +5,8 @@ public sealed record VoiceAssetRequest(
     Guid CreativeId,
     string Script,
     string VoiceType,
-    string Language);
+    string Language,
+    Guid? VoicePackId = null);
 
 public sealed record ImageAssetRequest(
     Guid CampaignId,

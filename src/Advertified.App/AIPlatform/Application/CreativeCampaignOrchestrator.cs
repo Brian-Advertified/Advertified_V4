@@ -86,7 +86,8 @@ public sealed class CreativeCampaignOrchestrator : ICreativeCampaignOrchestrator
                 item.CampaignId,
                 item.CreativeId,
                 item.Channel,
-                item.PayloadJson)).ToArray();
+                item.PayloadJson,
+                command.VoicePackId)).ToArray();
             var approvedAssetRequests = new List<AssetGenerationRequest>();
             foreach (var request in assetRequests)
             {
@@ -254,7 +255,8 @@ public sealed class CreativeCampaignOrchestrator : ICreativeCampaignOrchestrator
             ? "default"
             : command.PromptOverride.Trim().ToLowerInvariant();
 
-        return $"{command.CampaignId:D}:{normalizedPrompt}";
+        var voicePackPart = command.VoicePackId.HasValue ? command.VoicePackId.Value.ToString("D") : "default-voice";
+        return $"{command.CampaignId:D}:{normalizedPrompt}:{voicePackPart}";
     }
 
     private static CreativeBrief BuildBrief(

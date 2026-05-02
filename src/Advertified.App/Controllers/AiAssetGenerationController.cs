@@ -111,7 +111,8 @@ public sealed class AiAssetGenerationController : ControllerBase
                 request.CreativeId,
                 request.Script,
                 resolvedVoiceType,
-                policy.AppliedLanguage), cancellationToken);
+                policy.AppliedLanguage,
+                resolvedVoicePackId), cancellationToken);
 
             var variantJobIds = new List<Guid>();
             if (request.GenerateSaLanguageVariants)
@@ -124,7 +125,8 @@ public sealed class AiAssetGenerationController : ControllerBase
                         request.CreativeId,
                         request.Script,
                         resolvedVoiceType,
-                        variantLanguage), cancellationToken);
+                        variantLanguage,
+                        resolvedVoicePackId), cancellationToken);
                     variantJobIds.Add(variant.JobId);
                 }
             }

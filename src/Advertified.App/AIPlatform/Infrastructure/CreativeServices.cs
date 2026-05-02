@@ -280,8 +280,9 @@ public sealed class StrategyAssetGenerationPipeline : IAssetGenerationPipeline
                     request.CampaignId,
                     request.CreativeId,
                     request.PayloadJson,
-                    "Standard",
-                    "English"), cancellationToken),
+                    string.Empty,
+                    "English",
+                    request.VoicePackId), cancellationToken),
                 AdvertisingChannel.Tv => await _videoAssetGenerationService.QueueAsync(new VideoAssetRequest(
                     request.CampaignId,
                     request.CreativeId,

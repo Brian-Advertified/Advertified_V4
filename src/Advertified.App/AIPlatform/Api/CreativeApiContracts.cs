@@ -4,6 +4,7 @@ public sealed class SubmitCreativeGenerationRequest
 {
     public Guid CampaignId { get; set; }
     public string? PromptOverride { get; set; }
+    public Guid? VoicePackId { get; set; }
     public string? IdempotencyKey { get; set; }
 }
 

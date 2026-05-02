@@ -52,6 +52,7 @@ public sealed class AiPlatformController : ControllerBase
                 request.CampaignId,
                 request.PromptOverride,
                 PersistOutputs: true,
+                VoicePackId: request.VoicePackId,
                 IdempotencyKey: string.IsNullOrWhiteSpace(request.IdempotencyKey) ? idempotencyKeyHeader : request.IdempotencyKey),
             cancellationToken);
 

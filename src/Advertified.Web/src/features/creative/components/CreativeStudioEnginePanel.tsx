@@ -31,6 +31,17 @@ interface CreativeStudioEnginePanelProps {
   setCtaInput: Dispatch<SetStateAction<string>>;
   constraintsInput: string;
   setConstraintsInput: Dispatch<SetStateAction<string>>;
+  selectedVoicePackId: string;
+  setSelectedVoicePackId: Dispatch<SetStateAction<string>>;
+  voicePackOptions: Array<{
+    id: string;
+    name: string;
+    accent?: string | null;
+    language?: string | null;
+    tone?: string | null;
+    pricingTier?: string | null;
+  }>;
+  isLoadingVoicePacks: boolean;
   onGenerateCreativeSystem: (iteration?: { iterationLabel: string; iterationInstruction: string }) => void;
   isGeneratingCreativeSystem: boolean;
   onQueueAiJob: () => void;
@@ -83,6 +94,10 @@ export function CreativeStudioEnginePanel(props: CreativeStudioEnginePanelProps)
     setCtaInput,
     constraintsInput,
     setConstraintsInput,
+    selectedVoicePackId,
+    setSelectedVoicePackId,
+    voicePackOptions,
+    isLoadingVoicePacks,
     onGenerateCreativeSystem,
     isGeneratingCreativeSystem,
     onQueueAiJob,
@@ -215,6 +230,22 @@ export function CreativeStudioEnginePanel(props: CreativeStudioEnginePanelProps)
           <p className="mt-2 text-sm leading-7 text-slate-700">
             Queue the multi-provider AI pipeline and track job execution directly from the studio.
           </p>
+          <label className="mt-3 block space-y-2">
+            <span className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Radio voice pack</span>
+            <select
+              value={selectedVoicePackId}
+              onChange={(event) => setSelectedVoicePackId(event.target.value)}
+              disabled={isPreview || isLoadingVoicePacks}
+              className="input-base"
+            >
+              <option value="">{isLoadingVoicePacks ? 'Loading voice packs...' : 'Use default voice'}</option>
+              {voicePackOptions.map((pack) => (
+                <option key={pack.id} value={pack.id}>
+                  {[pack.name, pack.language, pack.accent, pack.tone, pack.pricingTier].filter(Boolean).join(' | ')}
+                </option>
+              ))}
+            </select>
+          </label>
           <div className="mt-3 flex flex-wrap gap-3">
             <button
               type="button"

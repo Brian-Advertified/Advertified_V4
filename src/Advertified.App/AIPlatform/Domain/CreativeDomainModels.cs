@@ -56,7 +56,8 @@ public sealed record AssetGenerationRequest(
     Guid CampaignId,
     Guid CreativeId,
     AdvertisingChannel Channel,
-    string PayloadJson);
+    string PayloadJson,
+    Guid? VoicePackId = null);
 
 public sealed record AssetGenerationResult(
     Guid CreativeId,

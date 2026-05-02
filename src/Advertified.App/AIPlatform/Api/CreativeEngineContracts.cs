@@ -6,6 +6,7 @@ public sealed class CreativeEngineGenerateRequest
 {
     public Guid CampaignId { get; set; }
     public string? PromptOverride { get; set; }
+    public Guid? VoicePackId { get; set; }
     public bool PersistOutputs { get; set; } = true;
     public string? IdempotencyKey { get; set; }
 }

@@ -230,6 +230,7 @@ export const aiPlatformApi = {
   async submitAiPlatformJob(payload: {
     campaignId: string;
     promptOverride?: string;
+    voicePackId?: string;
   }) {
     return apiRequest<AiPlatformSubmitJobResponse>('/api/v2/ai-platform/jobs', {
       method: 'POST',
@@ -261,6 +262,7 @@ export const aiPlatformApi = {
   async generateAiPlatformCreatives(payload: {
     campaignId: string;
     promptOverride?: string;
+    voicePackId?: string;
     persistOutputs?: boolean;
     idempotencyKey?: string;
   }) {

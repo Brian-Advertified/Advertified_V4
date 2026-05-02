@@ -34,6 +34,7 @@ public sealed class AiCreativeEngineController : ControllerBase
             request.CampaignId,
             request.PromptOverride,
             request.PersistOutputs,
+            request.VoicePackId,
             request.IdempotencyKey), cancellationToken);
 
         return Ok(Map(result));

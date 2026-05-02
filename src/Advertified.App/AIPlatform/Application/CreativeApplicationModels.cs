@@ -6,6 +6,7 @@ public sealed record GenerateCampaignCreativesCommand(
     Guid CampaignId,
     string? PromptOverride,
     bool PersistOutputs,
+    Guid? VoicePackId = null,
     string? IdempotencyKey = null);
 
 public sealed record GenerateCampaignCreativesResult(

@@ -902,6 +902,8 @@ function CreativeStudioContent({
     setCtaInput,
     constraintsInput,
     setConstraintsInput,
+    selectedVoicePackId,
+    setSelectedVoicePackId,
     activeAiJobId,
     setActiveAiJobId,
     regenCreativeId,
@@ -914,6 +916,7 @@ function CreativeStudioContent({
     setScopedCreativeState,
     creativeSystemMutation,
     campaignCreativesQuery,
+    voicePacksQuery,
     adMetricsSummaryQuery,
     adVariantsQuery,
     submitAiJobMutation,
@@ -985,6 +988,10 @@ function CreativeStudioContent({
             setCtaInput={setCtaInput}
             constraintsInput={constraintsInput}
             setConstraintsInput={setConstraintsInput}
+            selectedVoicePackId={selectedVoicePackId}
+            setSelectedVoicePackId={setSelectedVoicePackId}
+            voicePackOptions={voicePacksQuery.data ?? []}
+            isLoadingVoicePacks={voicePacksQuery.isLoading}
             onGenerateCreativeSystem={(iteration) => creativeSystemMutation.mutate(iteration ?? {})}
             isGeneratingCreativeSystem={creativeSystemMutation.isPending}
             onQueueAiJob={() => submitAiJobMutation.mutate()}
