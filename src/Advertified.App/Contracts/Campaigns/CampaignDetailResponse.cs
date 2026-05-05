@@ -29,6 +29,7 @@ public sealed class CampaignDetailResponse
     public CampaignLifecycleResponse Lifecycle { get; set; } = new();
     public CampaignSendValidationResponse SendValidation { get; set; } = new();
     public ProspectDispositionResponse ProspectDisposition { get; set; } = new();
+    public CampaignBusinessProcessResponse BusinessProcess { get; set; } = new();
     public CampaignPlanningTargetResponse? BusinessLocation { get; set; }
     public CampaignPlanningTargetResponse? EffectivePlanningTarget { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
@@ -46,4 +47,76 @@ public sealed class CampaignDetailResponse
     public IReadOnlyList<CampaignPerformanceTimelinePointResponse> PerformanceTimeline { get; set; } = Array.Empty<CampaignPerformanceTimelinePointResponse>();
     public DateOnly? EffectiveEndDate { get; set; }
     public int? DaysLeft { get; set; }
+}
+
+public sealed class CampaignBusinessProcessResponse
+{
+    public RevenueAttributionResponse RevenueAttribution { get; set; } = new();
+    public LostReasonResponse LostReason { get; set; } = new();
+    public RecommendationCommercialCheckResponse RecommendationCommercialCheck { get; set; } = new();
+    public SupplierReadinessResponse SupplierReadiness { get; set; } = new();
+    public PostCampaignGrowthResponse PostCampaignGrowth { get; set; } = new();
+    public TermsAcceptanceResponse TermsAcceptance { get; set; } = new();
+    public ClientRefundCancellationResponse RefundCancellation { get; set; } = new();
+}
+
+public sealed class RevenueAttributionResponse
+{
+    public Guid? AgentUserId { get; set; }
+    public string? AgentName { get; set; }
+    public string Geography { get; set; } = string.Empty;
+    public string PackageName { get; set; } = string.Empty;
+    public IReadOnlyDictionary<string, decimal> ChannelSpend { get; set; } = new Dictionary<string, decimal>();
+    public decimal PaidRevenue { get; set; }
+}
+
+public sealed class LostReasonResponse
+{
+    public string? Stage { get; set; }
+    public string? Reason { get; set; }
+    public DateTimeOffset? LostAt { get; set; }
+}
+
+public sealed class RecommendationCommercialCheckResponse
+{
+    public Guid? RecommendationId { get; set; }
+    public decimal TotalCost { get; set; }
+    public decimal EstimatedSupplierCost { get; set; }
+    public decimal EstimatedGrossProfit { get; set; }
+    public decimal? EstimatedGrossMarginPercent { get; set; }
+    public string MarginStatus { get; set; } = string.Empty;
+}
+
+public sealed class SupplierReadinessResponse
+{
+    public string Status { get; set; } = string.Empty;
+    public int ConfirmedBookings { get; set; }
+    public int UnconfirmedBookings { get; set; }
+    public string Summary { get; set; } = string.Empty;
+}
+
+public sealed class PostCampaignGrowthResponse
+{
+    public string ReportingStatus { get; set; } = string.Empty;
+    public bool RenewalRecommended { get; set; }
+    public string NextAction { get; set; } = string.Empty;
+}
+
+public sealed class TermsAcceptanceResponse
+{
+    public bool Accepted { get; set; }
+    public DateTimeOffset? AcceptedAt { get; set; }
+    public string? Version { get; set; }
+    public string? Source { get; set; }
+}
+
+public sealed class ClientRefundCancellationResponse
+{
+    public string RefundStatus { get; set; } = string.Empty;
+    public decimal RefundedAmount { get; set; }
+    public string? RefundReason { get; set; }
+    public DateTimeOffset? RefundProcessedAt { get; set; }
+    public string CancellationStatus { get; set; } = string.Empty;
+    public string? CancellationReason { get; set; }
+    public DateTimeOffset? CancellationRequestedAt { get; set; }
 }

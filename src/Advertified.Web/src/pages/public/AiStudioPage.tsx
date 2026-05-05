@@ -9,7 +9,7 @@ type FilterKey = 'all' | ChannelKey;
 
 const filters: Array<{ key: FilterKey; label: string }> = [
   { key: 'all', label: 'All' },
-  { key: 'billboard', label: 'Billboard' },
+  { key: 'billboard', label: 'Billboards' },
   { key: 'radio', label: 'Radio' },
   { key: 'tv', label: 'TV & Video' },
   { key: 'social', label: 'Social' },
@@ -18,7 +18,7 @@ const filters: Array<{ key: FilterKey; label: string }> = [
 const tiles = [
   {
     key: 'billboard' as const,
-    channel: 'Billboards & Digital Screens',
+    channel: 'Billboards, Digital Screens',
     title: ['Outdoor headlines', '& visual direction.'],
     subtitle: 'Campaign-specific copy, format notes, and visual briefs for real placements.',
   },
@@ -62,7 +62,7 @@ function TileVisual({ channel }: { channel: ChannelKey }) {
   if (channel === 'billboard') {
     return (
       <div className="studio-v1 studio-tile-visual">
-        <img src={billboardImage} alt="Billboard campaign mockup" className="studio-tile-photo" />
+        <img src={billboardImage} alt="Billboards, Digital Screens campaign mockup" className="studio-tile-photo" />
         <div className="studio-tile-photo-wash" />
         <div className="studio-v1-sky" />
         <div className="studio-v1-stars" />
@@ -75,7 +75,7 @@ function TileVisual({ channel }: { channel: ChannelKey }) {
         <div className="studio-v1-board">
           <div className="studio-v1-face">
             <div className="studio-v1-copy">
-              <small>Billboards and Digital Screens</small>
+              <small>Billboards, Digital Screens</small>
               Make them
               <br />
               stop & look.

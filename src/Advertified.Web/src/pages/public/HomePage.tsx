@@ -27,8 +27,8 @@ export function HomePage() {
   return (
     <div className="space-y-16">
       <Seo
-        title="Advertified | Advertising Packages and Media Buying in South Africa"
-        description="Start advertising with clearer package-led media buying in South Africa. Explore packages, guided campaign planning, and multi-channel execution with Advertified."
+        title="Advertified | Billboards, Digital Screens, Radio, TV and Newspaper Advertising"
+        description="Start Billboards, Digital Screens, radio, TV, newspaper and digital advertising with clearer package-led media buying, guided campaign planning, and multi-channel execution in South Africa."
         path="/"
         type="website"
         jsonLd={[
@@ -52,7 +52,7 @@ export function HomePage() {
             '@type': 'WebSite',
             name: 'Advertified',
             url: 'https://www.advertified.com',
-            description: 'Advertising packages and guided media buying in South Africa.',
+            description: 'Billboards, Digital Screens, radio, TV, newspaper and multi-channel advertising packages with guided media buying in South Africa.',
           },
         ]}
       />
@@ -131,7 +131,7 @@ export function HomePage() {
                 Built to make media buying feel more guided, more flexible, and less intimidating.
               </h2>
               <p className="mt-4 max-w-[520px] text-sm leading-7 text-ink-soft sm:text-[15px]">
-                Advertified helps brands start with the right package, then unlock the planning support needed to shape campaigns across Billboards and Digital Screens, radio, TV, social, SMS, and print.
+                Advertified helps brands start with the right package, then unlock the planning support needed to shape campaigns across Billboards, Digital Screens, radio, TV, newspaper advertising, social, SMS, and digital.
               </p>
               <p className="mt-3 max-w-[520px] text-sm leading-7 text-ink-soft sm:text-[15px]">
                 This video is a quick brand introduction: who we are, what we enable, and why the journey is designed to feel clear instead of overwhelming.

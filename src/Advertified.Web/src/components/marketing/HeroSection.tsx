@@ -9,10 +9,11 @@ export function HeroSection() {
           <div>
             <div className="hero-kicker">Advertise Now. Pay Later.</div>
             <h1 className="mt-6 max-w-3xl text-4xl font-semibold tracking-tight text-ink sm:text-6xl">
-              Unlock Premium Advertising Without Breaking Your Cash Flow
+              Unlock Billboards, Digital Screens and Premium Advertising Without Breaking Your Cash Flow
             </h1>
             <p className="mt-6 max-w-2xl text-base leading-8 text-ink-soft sm:text-lg">
-Pay over terms – aligned with your business cycles, not upfront. Access TV, Radio, and Billboards, plus premium digital advertising screens in shopping centres, airports and major traffic routes. Pay when your revenue flows in, not upfront.            </p>
+              Pay over terms aligned with your business cycles, not upfront. Access Billboards, Digital Screens, TV, radio, newspaper advertising, and multi-channel campaign support across shopping centres, airports, and major traffic routes.
+            </p>
             <div className="mt-8 flex flex-col gap-4 sm:flex-row">
               <Link to="/packages" className="hero-primary-button">
                 Buy a package

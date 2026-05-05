@@ -65,6 +65,10 @@ public sealed class AgentCampaignBookingOrchestrationService : IAgentCampaignBoo
             SupplierOrStation = request.SupplierOrStation.Trim(),
             Channel = request.Channel.Trim(),
             BookingStatus = string.IsNullOrWhiteSpace(request.BookingStatus) ? "planned" : request.BookingStatus.Trim().ToLowerInvariant(),
+            AvailabilityStatus = ResolveAvailabilityStatus(request),
+            AvailabilityCheckedAt = request.AvailabilityCheckedAt?.UtcDateTime,
+            SupplierConfirmationReference = NormalizeOptionalText(request.SupplierConfirmationReference),
+            ConfirmedAt = request.ConfirmedAt?.UtcDateTime,
             CommittedAmount = request.CommittedAmount,
             BookedAt = request.BookedAt?.UtcDateTime,
             LiveFrom = request.LiveFrom,
@@ -106,6 +110,8 @@ public sealed class AgentCampaignBookingOrchestrationService : IAgentCampaignBoo
                 booking.SupplierOrStation,
                 booking.Channel,
                 booking.BookingStatus,
+                booking.AvailabilityStatus,
+                booking.SupplierConfirmationReference,
                 booking.CommittedAmount,
                 booking.LiveFrom,
                 booking.LiveTo
@@ -221,6 +227,19 @@ public sealed class AgentCampaignBookingOrchestrationService : IAgentCampaignBoo
         }
 
         return value.Trim();
+    }
+
+    private static string ResolveAvailabilityStatus(SaveCampaignSupplierBookingRequest request)
+    {
+        if (!string.IsNullOrWhiteSpace(request.AvailabilityStatus))
+        {
+            return request.AvailabilityStatus.Trim().ToLowerInvariant();
+        }
+
+        var bookingStatus = request.BookingStatus?.Trim().ToLowerInvariant();
+        return bookingStatus is "booked" or "live" or "confirmed"
+            ? "confirmed"
+            : "unconfirmed";
     }
 
     private async Task SendSupplierBookingEmailAsync(Campaign campaign, CampaignSupplierBooking booking, CancellationToken cancellationToken)

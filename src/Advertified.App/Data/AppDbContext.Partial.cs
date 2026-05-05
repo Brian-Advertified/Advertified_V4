@@ -10,6 +10,22 @@ public partial class AppDbContext
     {
         modelBuilder.Entity<CampaignRecommendation>(entity =>
         {
+            entity.Property(e => e.ClientExplanation).HasColumnName("client_explanation");
+            entity.Property(e => e.EstimatedGrossMarginPercent)
+                .HasPrecision(8, 4)
+                .HasColumnName("estimated_gross_margin_percent");
+            entity.Property(e => e.EstimatedGrossProfit)
+                .HasPrecision(12, 2)
+                .HasDefaultValue(0m)
+                .HasColumnName("estimated_gross_profit");
+            entity.Property(e => e.EstimatedSupplierCost)
+                .HasPrecision(12, 2)
+                .HasDefaultValue(0m)
+                .HasColumnName("estimated_supplier_cost");
+            entity.Property(e => e.MarginStatus)
+                .HasMaxLength(50)
+                .HasDefaultValue("unchecked")
+                .HasColumnName("margin_status");
             entity.Property(e => e.RequestSnapshotJson)
                 .HasColumnType("jsonb")
                 .HasColumnName("request_snapshot_json");
@@ -22,6 +38,12 @@ public partial class AppDbContext
             entity.Property(e => e.InventoryBatchRefsJson)
                 .HasColumnType("jsonb")
                 .HasColumnName("inventory_batch_refs_json");
+            entity.Property(e => e.SupplierAvailabilityCheckedAt).HasColumnName("supplier_availability_checked_at");
+            entity.Property(e => e.SupplierAvailabilityNotes).HasColumnName("supplier_availability_notes");
+            entity.Property(e => e.SupplierAvailabilityStatus)
+                .HasMaxLength(50)
+                .HasDefaultValue("unconfirmed")
+                .HasColumnName("supplier_availability_status");
         });
 
         modelBuilder.Entity<RecommendationRunAudit>(entity =>
@@ -391,18 +413,59 @@ public partial class AppDbContext
             entity.HasIndex(e => e.ProspectLeadId, "ix_package_orders_prospect_lead_id");
             entity.HasIndex(e => e.OrderIntent, "ix_package_orders_order_intent");
             entity.HasIndex(e => new { e.OrderIntent, e.PaymentStatus }, "ix_package_orders_order_intent_payment_status");
+            entity.HasIndex(e => e.SelectedRecommendationId, "ix_package_orders_selected_recommendation_id");
 
             entity.Property(e => e.OrderIntent)
                 .HasMaxLength(20)
                 .HasDefaultValue(OrderIntentValues.Sale)
                 .HasColumnName("order_intent");
             entity.Property(e => e.ProspectLeadId).HasColumnName("prospect_lead_id");
+            entity.Property(e => e.SelectedAt).HasColumnName("selected_at");
+            entity.Property(e => e.SelectedRecommendationId).HasColumnName("selected_recommendation_id");
+            entity.Property(e => e.SelectionSource)
+                .HasMaxLength(50)
+                .HasColumnName("selection_source");
+            entity.Property(e => e.SelectionStatus)
+                .HasMaxLength(50)
+                .HasDefaultValue(RecommendationSelectionStatuses.None)
+                .HasColumnName("selection_status");
+            entity.Property(e => e.LostReason).HasColumnName("lost_reason");
+            entity.Property(e => e.LostStage)
+                .HasMaxLength(50)
+                .HasColumnName("lost_stage");
+            entity.Property(e => e.LostAt).HasColumnName("lost_at");
+            entity.Property(e => e.TermsAcceptedAt).HasColumnName("terms_accepted_at");
+            entity.Property(e => e.TermsVersion)
+                .HasMaxLength(50)
+                .HasColumnName("terms_version");
+            entity.Property(e => e.TermsAcceptanceSource)
+                .HasMaxLength(50)
+                .HasColumnName("terms_acceptance_source");
+            entity.Property(e => e.CancellationStatus)
+                .HasMaxLength(50)
+                .HasDefaultValue("none")
+                .HasColumnName("cancellation_status");
+            entity.Property(e => e.CancellationReason).HasColumnName("cancellation_reason");
+            entity.Property(e => e.CancellationRequestedAt).HasColumnName("cancellation_requested_at");
 
             entity.HasOne(e => e.ProspectLead)
                 .WithMany(e => e.PackageOrders)
                 .HasForeignKey(e => e.ProspectLeadId)
                 .OnDelete(DeleteBehavior.SetNull)
                 .HasConstraintName("package_orders_prospect_lead_id_fkey");
+        });
+
+        modelBuilder.Entity<CampaignSupplierBooking>(entity =>
+        {
+            entity.Property(e => e.AvailabilityCheckedAt).HasColumnName("availability_checked_at");
+            entity.Property(e => e.AvailabilityStatus)
+                .HasMaxLength(50)
+                .HasDefaultValue("unconfirmed")
+                .HasColumnName("availability_status");
+            entity.Property(e => e.ConfirmedAt).HasColumnName("confirmed_at");
+            entity.Property(e => e.SupplierConfirmationReference)
+                .HasMaxLength(120)
+                .HasColumnName("supplier_confirmation_reference");
         });
 
         modelBuilder.Entity<ProspectLead>(entity =>

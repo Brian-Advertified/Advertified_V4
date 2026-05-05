@@ -22,6 +22,7 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
     private readonly IAgentAreaRoutingService _agentAreaRoutingService;
     private readonly IPricingSettingsProvider _pricingSettingsProvider;
     private readonly ITemplatedEmailService _emailService;
+    private readonly IRecommendationApprovalWorkflowService _recommendationApprovalWorkflowService;
     private readonly FrontendOptions _frontendOptions;
     private readonly ILogger<PackagePurchaseService> _logger;
 
@@ -34,6 +35,7 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
         IAgentAreaRoutingService agentAreaRoutingService,
         IPricingSettingsProvider pricingSettingsProvider,
         ITemplatedEmailService emailService,
+        IRecommendationApprovalWorkflowService recommendationApprovalWorkflowService,
         IOptions<FrontendOptions> frontendOptions,
         ILogger<PackagePurchaseService> logger)
     {
@@ -45,6 +47,7 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
         _agentAreaRoutingService = agentAreaRoutingService;
         _pricingSettingsProvider = pricingSettingsProvider;
         _emailService = emailService;
+        _recommendationApprovalWorkflowService = recommendationApprovalWorkflowService;
         _frontendOptions = frontendOptions.Value;
         _logger = logger;
     }
@@ -224,7 +227,7 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
 
         if (recommendationId.HasValue)
         {
-            await AlignOrderToRecommendationAsync(order, recommendationId.Value, cancellationToken);
+            await AlignOrderToRecommendationAsync(order, recommendationId.Value, "checkout", cancellationToken);
         }
 
         order.PaymentProvider = normalizedProvider;
@@ -294,7 +297,7 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
         };
     }
 
-    public async Task PrepareRecommendationCheckoutAsync(Guid campaignId, Guid recommendationId, CancellationToken cancellationToken)
+    public async Task PrepareRecommendationCheckoutAsync(Guid campaignId, Guid recommendationId, string selectionSource, CancellationToken cancellationToken)
     {
         var campaign = await _db.Campaigns
             .Include(x => x.PackageOrder)
@@ -311,11 +314,11 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
             return;
         }
 
-        await AlignOrderToRecommendationAsync(campaign.PackageOrder, recommendationId, cancellationToken);
+        await AlignOrderToRecommendationAsync(campaign.PackageOrder, recommendationId, selectionSource, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
     }
 
-    private async Task AlignOrderToRecommendationAsync(PackageOrder order, Guid recommendationId, CancellationToken cancellationToken)
+    private async Task AlignOrderToRecommendationAsync(PackageOrder order, Guid recommendationId, string selectionSource, CancellationToken cancellationToken)
     {
         if (order.Campaign is null)
         {
@@ -337,6 +340,10 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
         var alignedAmount = decimal.Round(recommendation.TotalCost, 2, MidpointRounding.AwayFromZero);
         order.Amount = alignedAmount;
         order.SelectedBudget = alignedAmount;
+        order.SelectedRecommendationId = recommendation.Id;
+        order.SelectedAt = DateTime.UtcNow;
+        order.SelectionSource = string.IsNullOrWhiteSpace(selectionSource) ? "checkout" : selectionSource.Trim().ToLowerInvariant();
+        order.SelectionStatus = RecommendationSelectionStatuses.PendingPayment;
         order.UpdatedAt = DateTime.UtcNow;
     }
 
@@ -366,6 +373,7 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
         order.PaymentStatus = "paid";
         order.PaymentReference = paymentReference;
         order.PurchasedAt = DateTime.UtcNow;
+        TermsAcceptancePolicy.Capture(order, "payment", order.PurchasedAt.Value);
         order.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(cancellationToken);
@@ -422,6 +430,34 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
         }
 
         await UpdatePaymentCacheAsync(order, order.PackageBand.Code, order.PaymentReference, cancellationToken);
+
+        if (order.Campaign is not null
+            && order.SelectedRecommendationId.HasValue
+            && string.Equals(order.SelectionStatus, RecommendationSelectionStatuses.PendingPayment, StringComparison.OrdinalIgnoreCase))
+        {
+            await AutoApproveSelectedRecommendationAsync(order, cancellationToken);
+        }
+    }
+
+    private async Task AutoApproveSelectedRecommendationAsync(PackageOrder order, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _recommendationApprovalWorkflowService.ApproveAsync(order.Campaign!.Id, order.SelectedRecommendationId, cancellationToken);
+            order.SelectionStatus = RecommendationSelectionStatuses.AutoApproved;
+        }
+        catch (Exception ex)
+        {
+            order.SelectionStatus = RecommendationSelectionStatuses.ApprovalFailed;
+            _logger.LogError(
+                ex,
+                "Payment completed but selected recommendation {RecommendationId} could not be auto-approved for order {PackageOrderId}.",
+                order.SelectedRecommendationId,
+                order.Id);
+        }
+
+        order.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
     }
 
     private async Task MarkOrderFailedInternalAsync(Guid packageOrderId, string? paymentReference, CancellationToken cancellationToken)
@@ -437,6 +473,9 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
         }
 
         order.PaymentStatus = "failed";
+        order.LostStage = "payment_failed";
+        order.LostReason = "Payment failed or was declined.";
+        order.LostAt = DateTime.UtcNow;
         if (!string.IsNullOrWhiteSpace(paymentReference))
         {
             order.PaymentReference = paymentReference;

@@ -18,7 +18,7 @@ const differentiators = [
 ] as const;
 
 const channelCards = [
-  { label: 'Outdoor', detail: 'Billboards and Digital Screens', icon: RectangleHorizontal },
+  { label: 'Billboards', detail: 'Billboards, Digital Screens', icon: RectangleHorizontal },
   { label: 'Radio', detail: 'Audio-led reach and frequency', icon: RadioTower },
   { label: 'TV', detail: 'Broadcast visibility and awareness', icon: Tv },
   { label: 'Digital', detail: 'Social, digital, SMS, and print', icon: Smartphone },
@@ -35,14 +35,14 @@ export function AboutUsPage() {
     <div className="page-shell space-y-8 pb-10">
       <Seo
         title="About Advertified | Advertising Platform for South African Businesses"
-        description="Learn how Advertified helps businesses in South Africa buy advertising with more clarity through package-led planning, campaign workflows, and multi-channel execution."
+        description="Learn how Advertified helps South African businesses buy Billboards, Digital Screens, radio, TV, newspaper, digital and multi-channel advertising with clearer package-led planning."
         path="/about"
         type="website"
       />
       <PageHero
         kicker="Advertise Now. Pay Later."
         title="A clearer way to buy and run advertising."
-        description="Advertified helps businesses move from budget to campaign through a structured process that starts with what you want to spend and builds toward a campaign you can launch with confidence."
+        description="Advertified helps businesses move from budget to campaign through a structured process that can support Billboards, Digital Screens, radio, TV, newspaper, digital, and wider media mixes."
         actions={(
           <>
             <Link to="/packages" className="hero-primary-button">
@@ -146,7 +146,7 @@ export function AboutUsPage() {
             <div className="pill self-start bg-highlight-soft text-highlight">Built for real campaigns</div>
             <h2 className="mt-4 text-3xl font-semibold tracking-tight text-ink">Multi-channel planning without unnecessary friction.</h2>
             <p className="mt-4 text-sm leading-7 text-ink-soft sm:text-base">
-              Advertified supports campaigns across Billboards and Digital Screens, radio, TV, social, digital, SMS, and print. Everything is designed to work together so businesses can plan, approve, and execute with less friction.
+              Advertified supports campaigns across Billboards, Digital Screens, radio, TV, newspaper, social, digital, and SMS. Everything is designed to work together so businesses can plan, approve, and execute with less friction.
             </p>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
@@ -222,4 +222,3 @@ export function AboutUsPage() {
     </div>
   );
 }
-

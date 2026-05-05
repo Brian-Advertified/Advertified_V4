@@ -160,6 +160,19 @@ export interface PackageOrder {
   refundProcessedAt?: string;
   createdAt: string;
   paymentReference?: string;
+  selectedRecommendationId?: string;
+  selectedAt?: string;
+  selectionSource?: string;
+  selectionStatus?: string;
+  lostReason?: string;
+  lostStage?: string;
+  lostAt?: string;
+  termsAcceptedAt?: string;
+  termsVersion?: string;
+  termsAcceptanceSource?: string;
+  cancellationStatus?: string;
+  cancellationReason?: string;
+  cancellationRequestedAt?: string;
   invoiceId?: string;
   invoiceStatus?: string;
   invoicePdfUrl?: string;
@@ -294,6 +307,14 @@ export interface CampaignRecommendation {
   buildSourceLabel?: string;
   status: 'draft' | 'sent_to_client' | 'approved';
   totalCost: number;
+  estimatedSupplierCost?: number;
+  estimatedGrossProfit?: number;
+  estimatedGrossMarginPercent?: number;
+  marginStatus?: string;
+  clientExplanation?: string;
+  supplierAvailabilityStatus?: string;
+  supplierAvailabilityCheckedAt?: string;
+  supplierAvailabilityNotes?: string;
   emailDeliveries?: EmailDeliveryAttempt[];
   items: RecommendationItem[];
 }
@@ -341,6 +362,10 @@ export interface CampaignSupplierBooking {
   supplierOrStation: string;
   channel: string;
   bookingStatus: string;
+  availabilityStatus?: string;
+  availabilityCheckedAt?: string;
+  supplierConfirmationReference?: string;
+  confirmedAt?: string;
   committedAmount: number;
   bookedAt?: string;
   liveFrom?: string;
@@ -475,6 +500,7 @@ export interface Campaign {
     lifecycle?: CampaignLifecycle;
     sendValidation?: CampaignSendValidation;
     prospectDisposition?: ProspectDisposition;
+    businessProcess?: CampaignBusinessProcess;
     effectivePlanningTarget?: CampaignPlanningTarget;
     timeline: CampaignTimelineStep[];
   brief?: CampaignBrief;
@@ -491,6 +517,56 @@ export interface Campaign {
   effectiveEndDate?: string;
   daysLeft?: number;
   createdAt: string;
+}
+
+export interface CampaignBusinessProcess {
+  revenueAttribution: {
+    agentUserId?: string;
+    agentName?: string;
+    geography: string;
+    packageName: string;
+    channelSpend: Record<string, number>;
+    paidRevenue: number;
+  };
+  lostReason: {
+    stage?: string;
+    reason?: string;
+    lostAt?: string;
+  };
+  recommendationCommercialCheck: {
+    recommendationId?: string;
+    totalCost: number;
+    estimatedSupplierCost: number;
+    estimatedGrossProfit: number;
+    estimatedGrossMarginPercent?: number;
+    marginStatus: string;
+  };
+  supplierReadiness: {
+    status: string;
+    confirmedBookings: number;
+    unconfirmedBookings: number;
+    summary: string;
+  };
+  postCampaignGrowth: {
+    reportingStatus: string;
+    renewalRecommended: boolean;
+    nextAction: string;
+  };
+  termsAcceptance: {
+    accepted: boolean;
+    acceptedAt?: string;
+    version?: string;
+    source?: string;
+  };
+  refundCancellation: {
+    refundStatus: string;
+    refundedAmount: number;
+    refundReason?: string;
+    refundProcessedAt?: string;
+    cancellationStatus: string;
+    cancellationReason?: string;
+    cancellationRequestedAt?: string;
+  };
 }
 
 export interface CampaignConversationListItem {

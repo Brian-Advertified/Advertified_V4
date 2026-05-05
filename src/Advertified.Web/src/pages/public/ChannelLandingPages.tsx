@@ -1,8 +1,9 @@
-import { ArrowRight, Check, Megaphone, Radio, Smartphone, Tv } from 'lucide-react';
+import { ArrowRight, Check, Megaphone, Newspaper, Radio, Smartphone, Tv } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { PageHero } from '../../components/marketing/PageHero';
 import { Seo } from '../../components/seo/Seo';
+import { buildAbsoluteUrl, SITE_NAME, SITE_URL } from '../../lib/seo';
 
 type ChannelLandingPageProps = {
   path: string;
@@ -31,6 +32,40 @@ function ChannelLandingPage({
   useCases,
   relatedLinks,
 }: ChannelLandingPageProps) {
+  const canonicalUrl = buildAbsoluteUrl(path);
+  const jsonLd = [
+    {
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        {
+          '@type': 'ListItem',
+          position: 1,
+          name: 'Home',
+          item: SITE_URL,
+        },
+        {
+          '@type': 'ListItem',
+          position: 2,
+          name: kicker,
+          item: canonicalUrl,
+        },
+      ],
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'WebPage',
+      name: title.replace(` | ${SITE_NAME}`, ''),
+      description,
+      url: canonicalUrl,
+      isPartOf: {
+        '@type': 'WebSite',
+        name: SITE_NAME,
+        url: SITE_URL,
+      },
+    },
+  ];
+
   return (
     <div className="page-shell space-y-8 pb-10">
       <Seo
@@ -38,6 +73,7 @@ function ChannelLandingPage({
         description={description}
         path={path}
         type="website"
+        jsonLd={jsonLd}
       />
       <PageHero
         kicker={kicker}
@@ -137,28 +173,29 @@ export function BillboardAdvertisingPage() {
   return (
     <ChannelLandingPage
       path="/billboard-advertising-south-africa"
-      title="Billboard Advertising in South Africa | Advertified"
-      description="Explore billboard advertising in South Africa with Advertified, including budget-led planning, package-led campaign setup, and support across Billboards and Digital Screens."
-      kicker="Billboard advertising"
-      heroTitle="Billboard advertising in South Africa with a clearer path from budget to campaign."
-      heroDescription="Advertified helps businesses approach Billboards and Digital Screens through package-led planning, guided recommendations, and a more structured activation journey."
+      title="Billboards, Digital Screens Advertising in South Africa | Advertified"
+      description="Explore Billboards, Digital Screens advertising in South Africa with Advertified, including package-led campaign planning across roadside, retail and commuter media."
+      kicker="Billboards, Digital Screens"
+      heroTitle="Billboards, Digital Screens advertising in South Africa with a clearer path from budget to campaign."
+      heroDescription="Advertified helps businesses approach Billboards, Digital Screens through package-led planning, guided recommendations, and a structured activation journey."
       icon={Megaphone}
       overview={[
-        'Billboards and Digital Screens are often strongest when a business needs visible market presence, repeated daily reach, and formats that keep the brand in front of commuters, shoppers, and local audiences.',
+        'Billboards, Digital Screens are strongest when a business needs visible market presence, repeated daily reach, and formats that keep the brand in front of commuters, shoppers, and local audiences.',
         'Advertified helps businesses start with the budget band first, then shape the campaign around the right planning route, geography, and channel mix instead of beginning with an open-ended quoting process.',
       ]}
       benefits={[
         'Strong visual presence across high-traffic environments',
         'Useful for market visibility, local awareness, and launch support',
-        'Can be combined with radio, TV, digital, SMS, and print',
+        'Can be combined with radio, TV, newspaper, digital, SMS, and social',
       ]}
       useCases={[
         'Retail campaigns that need repeated local visibility',
         'Brand launches that need large-format awareness quickly',
         'Regional campaigns that need visible roadside or commuter presence',
-        'Businesses that want Billboards and Digital Screens supported by other channels',
+        'Businesses that want Billboards, Digital Screens supported by other channels',
       ]}
       relatedLinks={[
+        { href: '/radio-advertising-south-africa', label: 'Radio advertising' },
         { href: '/packages', label: 'Packages' },
         { href: '/how-it-works', label: 'How it works' },
       ]}
@@ -189,7 +226,7 @@ export function RadioAdvertisingPage() {
         'Retail and service businesses running short-term promotions',
         'Brands needing repeated awareness over a concentrated period',
         'Campaigns that work better with audio repetition than pure visual media',
-        'Businesses that want radio combined with Billboards and Digital Screens, TV, social, or SMS',
+        'Businesses that want radio combined with Billboards, Digital Screens, TV, newspaper, social, or SMS',
       ]}
       relatedLinks={[
         { href: '/packages', label: 'Packages' },
@@ -216,7 +253,7 @@ export function TelevisionAdvertisingPage() {
       benefits={[
         'Useful for high-visibility brand awareness campaigns',
         'Stronger authority and perceived scale for the advertiser',
-        'Can sit inside a broader multi-channel plan with Billboards and Digital Screens, radio, digital, and print',
+        'Can sit inside a broader multi-channel plan with Billboards, Digital Screens, radio, newspaper, and digital',
       ]}
       useCases={[
         'Brand awareness campaigns that need broad market visibility',
@@ -248,7 +285,7 @@ export function DigitalAdvertisingPage() {
       ]}
       benefits={[
         'Flexible support around social, digital, and response-led activity',
-        'Useful alongside Billboards and Digital Screens, radio, TV, and print campaigns',
+        'Useful alongside Billboards, Digital Screens, radio, TV, and newspaper campaigns',
         'Can help carry campaign momentum between larger-format placements',
       ]}
       useCases={[
@@ -260,6 +297,40 @@ export function DigitalAdvertisingPage() {
       relatedLinks={[
         { href: '/packages', label: 'Packages' },
         { href: '/about', label: 'About Advertified' },
+      ]}
+    />
+  );
+}
+
+export function NewspaperAdvertisingPage() {
+  return (
+    <ChannelLandingPage
+      path="/newspaper-advertising-south-africa"
+      title="Newspaper Advertising in South Africa | Advertified"
+      description="Plan newspaper advertising in South Africa with Advertified, including package-led campaign planning, press placements, creative support, approvals, and launch workflows."
+      kicker="Newspaper advertising"
+      heroTitle="Newspaper advertising in South Africa with clearer campaign planning and launch support."
+      heroDescription="Advertified helps businesses use newspaper advertising and press placements as part of a package-led campaign route that can work alongside Billboards, Digital Screens, radio, TV, digital, SMS, and social."
+      icon={Newspaper}
+      overview={[
+        'Newspaper advertising can support trust, local market presence, retail offers, public notices, brand announcements, and campaigns that benefit from a credible print environment.',
+        'Advertified helps businesses start from budget and campaign intent, then shape newspaper advertising into a wider recommendation and approval workflow rather than a disconnected media booking.',
+      ]}
+      benefits={[
+        'Useful for local credibility, offers, announcements, and community reach',
+        'Can support retail campaigns, launches, property campaigns, and service businesses',
+        'Can be combined with Billboards, Digital Screens, radio, TV, digital, SMS, and social',
+      ]}
+      useCases={[
+        'Retail promotions that need trusted local visibility',
+        'Regional campaigns where newspaper readership still matters',
+        'Announcements, launches, and public-facing offers',
+        'Advertisers combining newspaper advertising with radio, TV, Billboards, Digital Screens, or digital support',
+      ]}
+      relatedLinks={[
+        { href: '/packages', label: 'Packages' },
+        { href: '/radio-advertising-south-africa', label: 'Radio advertising' },
+        { href: '/tv-advertising-south-africa', label: 'TV advertising' },
       ]}
     />
   );

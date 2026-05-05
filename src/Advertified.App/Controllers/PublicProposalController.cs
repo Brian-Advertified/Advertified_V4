@@ -94,6 +94,29 @@ public sealed class PublicProposalController : ControllerBase
     public async Task<IActionResult> Approve(Guid id, [FromBody] PublicProposalActionRequest request, CancellationToken cancellationToken)
     {
         await EnsureValidTokenAsync(id, request.Token, cancellationToken);
+        var campaign = await _db.Campaigns
+            .AsNoTracking()
+            .Include(x => x.PackageOrder)
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+            ?? throw new NotFoundException("Campaign not found.");
+
+        if (!CampaignOperationsPolicy.IsOrderOperationallyActive(campaign.PackageOrder))
+        {
+            if (!request.RecommendationId.HasValue)
+            {
+                throw new BadRequestException("Recommendation not found.");
+            }
+
+            await _packagePurchaseService.PrepareRecommendationCheckoutAsync(id, request.RecommendationId.Value, "public_proposal", cancellationToken);
+            return Accepted(new
+            {
+                CampaignId = id,
+                RecommendationId = request.RecommendationId.Value,
+                Status = RecommendationSelectionStatuses.PendingPayment,
+                Message = "Proposal selected. Complete checkout to approve it automatically."
+            });
+        }
+
         var result = await _recommendationApprovalWorkflowService.ApproveAsync(id, request.RecommendationId, cancellationToken);
 
         return Accepted(new
@@ -144,7 +167,7 @@ public sealed class PublicProposalController : ControllerBase
             throw new BadRequestException("Recommendation not found.");
         }
 
-        await _packagePurchaseService.PrepareRecommendationCheckoutAsync(id, request.RecommendationId.Value, cancellationToken);
+        await _packagePurchaseService.PrepareRecommendationCheckoutAsync(id, request.RecommendationId.Value, "public_proposal", cancellationToken);
         return Accepted(new { CampaignId = id, RecommendationId = request.RecommendationId.Value, Message = "Checkout prepared." });
     }
 

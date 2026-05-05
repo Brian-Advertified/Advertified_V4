@@ -724,6 +724,22 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.GeneratedBy)
                 .HasMaxLength(50)
                 .HasColumnName("generated_by");
+            entity.Property(e => e.ClientExplanation).HasColumnName("client_explanation");
+            entity.Property(e => e.EstimatedGrossMarginPercent)
+                .HasPrecision(8, 4)
+                .HasColumnName("estimated_gross_margin_percent");
+            entity.Property(e => e.EstimatedGrossProfit)
+                .HasPrecision(12, 2)
+                .HasDefaultValue(0m)
+                .HasColumnName("estimated_gross_profit");
+            entity.Property(e => e.EstimatedSupplierCost)
+                .HasPrecision(12, 2)
+                .HasDefaultValue(0m)
+                .HasColumnName("estimated_supplier_cost");
+            entity.Property(e => e.MarginStatus)
+                .HasMaxLength(50)
+                .HasDefaultValue("unchecked")
+                .HasColumnName("margin_status");
             entity.Property(e => e.Rationale).HasColumnName("rationale");
             entity.Property(e => e.RecommendationType)
                 .HasMaxLength(50)
@@ -743,6 +759,12 @@ public partial class AppDbContext : DbContext
                 .HasPrecision(12, 2)
                 .HasColumnName("total_cost");
             entity.Property(e => e.ApprovedAt).HasColumnName("approved_at");
+            entity.Property(e => e.SupplierAvailabilityCheckedAt).HasColumnName("supplier_availability_checked_at");
+            entity.Property(e => e.SupplierAvailabilityNotes).HasColumnName("supplier_availability_notes");
+            entity.Property(e => e.SupplierAvailabilityStatus)
+                .HasMaxLength(50)
+                .HasDefaultValue("unconfirmed")
+                .HasColumnName("supplier_availability_status");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");
@@ -930,6 +952,24 @@ public partial class AppDbContext : DbContext
                 .HasMaxLength(50)
                 .HasDefaultValueSql("'pending'::character varying")
                 .HasColumnName("payment_status");
+            entity.Property(e => e.LostReason).HasColumnName("lost_reason");
+            entity.Property(e => e.LostStage)
+                .HasMaxLength(50)
+                .HasColumnName("lost_stage");
+            entity.Property(e => e.LostAt).HasColumnName("lost_at");
+            entity.Property(e => e.TermsAcceptedAt).HasColumnName("terms_accepted_at");
+            entity.Property(e => e.TermsVersion)
+                .HasMaxLength(50)
+                .HasColumnName("terms_version");
+            entity.Property(e => e.TermsAcceptanceSource)
+                .HasMaxLength(50)
+                .HasColumnName("terms_acceptance_source");
+            entity.Property(e => e.CancellationStatus)
+                .HasMaxLength(50)
+                .HasDefaultValue("none")
+                .HasColumnName("cancellation_status");
+            entity.Property(e => e.CancellationReason).HasColumnName("cancellation_reason");
+            entity.Property(e => e.CancellationRequestedAt).HasColumnName("cancellation_requested_at");
             entity.Property(e => e.PurchasedAt).HasColumnName("purchased_at");
             entity.Property(e => e.RefundProcessedAt).HasColumnName("refund_processed_at");
             entity.Property(e => e.RefundReason).HasColumnName("refund_reason");
@@ -941,9 +981,18 @@ public partial class AppDbContext : DbContext
                 .HasPrecision(12, 2)
                 .HasDefaultValue(0m)
                 .HasColumnName("refunded_amount");
+            entity.Property(e => e.SelectedAt).HasColumnName("selected_at");
             entity.Property(e => e.SelectedBudget)
                 .HasPrecision(12, 2)
                 .HasColumnName("selected_budget");
+            entity.Property(e => e.SelectedRecommendationId).HasColumnName("selected_recommendation_id");
+            entity.Property(e => e.SelectionSource)
+                .HasMaxLength(50)
+                .HasColumnName("selection_source");
+            entity.Property(e => e.SelectionStatus)
+                .HasMaxLength(50)
+                .HasDefaultValueSql("'none'::character varying")
+                .HasColumnName("selection_status");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");
@@ -973,6 +1022,11 @@ public partial class AppDbContext : DbContext
                 .HasDefaultValueSql("gen_random_uuid()")
                 .HasColumnName("id");
             entity.Property(e => e.BookedAt).HasColumnName("booked_at");
+            entity.Property(e => e.AvailabilityCheckedAt).HasColumnName("availability_checked_at");
+            entity.Property(e => e.AvailabilityStatus)
+                .HasMaxLength(50)
+                .HasDefaultValue("unconfirmed")
+                .HasColumnName("availability_status");
             entity.Property(e => e.BookingStatus)
                 .HasMaxLength(50)
                 .HasDefaultValueSql("'planned'::character varying")
@@ -985,6 +1039,7 @@ public partial class AppDbContext : DbContext
                 .HasPrecision(12, 2)
                 .HasDefaultValue(0m)
                 .HasColumnName("committed_amount");
+            entity.Property(e => e.ConfirmedAt).HasColumnName("confirmed_at");
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("created_at");
@@ -996,6 +1051,9 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.SupplierOrStation)
                 .HasMaxLength(255)
                 .HasColumnName("supplier_or_station");
+            entity.Property(e => e.SupplierConfirmationReference)
+                .HasMaxLength(120)
+                .HasColumnName("supplier_confirmation_reference");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");

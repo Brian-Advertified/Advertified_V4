@@ -18,6 +18,14 @@ public partial class CampaignSupplierBooking
 
     public string BookingStatus { get; set; } = null!;
 
+    public string AvailabilityStatus { get; set; } = "unconfirmed";
+
+    public DateTime? AvailabilityCheckedAt { get; set; }
+
+    public string? SupplierConfirmationReference { get; set; }
+
+    public DateTime? ConfirmedAt { get; set; }
+
     public decimal CommittedAmount { get; set; }
 
     public DateTime? BookedAt { get; set; }

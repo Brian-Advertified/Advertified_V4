@@ -8,28 +8,29 @@ const prerenderRoot = path.join(appRoot, '.prerender');
 
 const siteName = 'Advertified';
 const siteUrl = 'https://www.advertified.com';
-const defaultDescription = 'Advertified helps businesses in South Africa start advertising with clear packages, guided campaign planning, and multi-channel media buying support.';
+const defaultDescription = 'Advertified helps South African businesses buy Billboards, Digital Screens, radio, TV, newspaper and digital advertising with package-led media planning and clearer campaign support.';
 
 const routes = [
   {
     slug: 'packages',
     title: 'Advertising Packages in South Africa | Advertified',
-    description: 'Browse Advertified package bands, choose the budget that fits your campaign, and move into guided advertising planning with clearer pricing.',
-    heading: 'Advertising packages built for clearer campaign buying',
-    lead: 'Explore package-led advertising options designed to help businesses move from budget to campaign with more confidence.',
+    description: 'Browse Advertified package bands for Billboards, Digital Screens, radio, TV, newspaper, digital and multi-channel advertising campaigns in South Africa.',
+    heading: 'Advertising packages for Billboards, Digital Screens, radio, TV, newspaper, and digital campaigns',
+    lead: 'Explore package-led advertising options designed to help South African businesses move from budget to campaign with more confidence.',
     body: [
-      'Advertified helps South African businesses start from a clear budget range, choose the right package band, and move into guided planning across multiple advertising channels.',
+      'Advertified helps South African businesses start from a clear budget range, choose the right package band, and move into guided planning across Billboards, Digital Screens, radio, TV, newspaper, digital, SMS, and social.',
       'If you already know your spend, you can browse packages and continue toward payment. If you need help first, Advertified can guide the brief before planning starts.',
     ],
     links: [
       { href: '/', label: 'Home' },
+      { href: '/billboard-advertising-south-africa', label: 'Billboards, Digital Screens' },
       { href: '/how-it-works', label: 'How it works' },
     ],
   },
   {
     slug: 'how-it-works',
     title: 'How Advertified Works | Guided Advertising Planning',
-    description: 'See how Advertified takes businesses from package purchase to campaign recommendation, approval, creative production, and launch.',
+    description: 'See how Advertified takes businesses from package purchase to Billboards, Digital Screens, radio, TV, newspaper or digital campaign recommendation, approval, creative production, and launch.',
     heading: 'How Advertified works',
     lead: 'A guided flow from package purchase to campaign recommendation, approval, and launch.',
     body: [
@@ -44,12 +45,12 @@ const routes = [
   {
     slug: 'about',
     title: 'About Advertified | Advertising Platform for South African Businesses',
-    description: 'Learn how Advertified helps businesses in South Africa buy advertising with more clarity through package-led planning, campaign workflows, and multi-channel execution.',
+    description: 'Learn how Advertified helps South African businesses buy Billboards, Digital Screens, radio, TV, newspaper, digital and multi-channel advertising with clearer package-led planning.',
     heading: 'About Advertified',
     lead: 'A clearer way for businesses to buy and run advertising.',
     body: [
       'Advertified helps businesses move from budget to campaign through a structured process that starts with what they want to spend and builds toward a campaign they can launch with confidence.',
-      'The platform is built around clearer commercial steps, visible campaign progress, and support across Billboards and Digital Screens, radio, TV, social, SMS, and print.',
+      'The platform is built around clearer commercial steps, visible campaign progress, and support across Billboards, Digital Screens, radio, TV, newspaper, social, SMS, and digital.',
     ],
     links: [
       { href: '/packages', label: 'Browse packages' },
@@ -58,13 +59,13 @@ const routes = [
   },
   {
     slug: 'faq',
-    title: 'Advertified FAQ | Packages, Payments, Campaigns, and Launch',
-    description: 'Read common questions about Advertified packages, payment timing, campaign approvals, creative production, launch workflows, and platform support.',
+    title: 'Advertified FAQ | Billboards, Digital Screens, Radio, TV and Newspaper Advertising',
+    description: 'Read common questions about Advertified Billboards, Digital Screens, radio, TV, newspaper advertising, packages, payment timing, campaign approvals, creative production, launch workflows, and platform support.',
     heading: 'Advertified FAQ',
     lead: 'Answers to common questions about packages, payments, approvals, creative production, and launch.',
     body: [
-      'The Advertified FAQ explains how package selection, payment, campaign approvals, creative review, launch, and in-platform support work.',
-      'It is designed to help businesses understand the customer journey before they commit to a campaign.',
+      'The Advertified FAQ explains how package selection, Billboards, Digital Screens, radio, TV, newspaper advertising, payment, campaign approvals, creative review, launch, and in-platform support work.',
+      'It is designed to help businesses understand the customer journey before they commit to a Billboards, Digital Screens, radio, TV, newspaper, digital, or multi-channel campaign.',
     ],
     links: [
       { href: '/how-it-works', label: 'See how it works' },
@@ -73,15 +74,16 @@ const routes = [
   },
   {
     slug: 'billboard-advertising-south-africa',
-    title: 'Billboard Advertising in South Africa | Advertified',
-    description: 'Explore billboard advertising in South Africa with Advertified, including budget-led planning, package-led campaign setup, and support across Billboards and Digital Screens.',
-    heading: 'Billboard advertising in South Africa',
-    lead: 'A clearer route into Billboards and Digital Screens campaign planning.',
+    title: 'Billboards, Digital Screens Advertising in South Africa | Advertified',
+    description: 'Explore Billboards, Digital Screens advertising in South Africa with Advertified, including package-led campaign planning across roadside, retail and commuter media.',
+    heading: 'Billboards, Digital Screens advertising in South Africa',
+    lead: 'A clearer route into Billboards, Digital Screens campaign planning.',
     body: [
-      'Advertified helps businesses approach billboard advertising through package-led planning, campaign guidance, and clearer commercial steps from budget to activation.',
-      'The route is useful for businesses that want visible market presence and a more structured way to shape outdoor campaigns alongside broader media support.',
+      'Advertified helps businesses approach Billboards, Digital Screens through package-led planning, campaign guidance, and clearer commercial steps from budget to activation.',
+      'The route is useful for businesses that want visible market presence and a more structured way to shape high-traffic visual advertising alongside broader media support.',
     ],
     links: [
+      { href: '/radio-advertising-south-africa', label: 'Radio advertising' },
       { href: '/packages', label: 'Browse packages' },
       { href: '/how-it-works', label: 'How it works' },
     ],
@@ -124,7 +126,7 @@ const routes = [
     lead: 'A clearer path into digital support campaigns, social visibility, and response-led media activity.',
     body: [
       'Advertified supports digital campaigns as part of a broader package-led planning approach, helping businesses shape the right mix around goals, budget, and approvals.',
-      'Digital can work well alongside Billboards and Digital Screens, radio, TV, print, and SMS where brands need reinforcement, targeting flexibility, or response support.',
+      'Digital can work well alongside Billboards, Digital Screens, radio, TV, newspaper, and SMS where brands need reinforcement, targeting flexibility, or response support.',
     ],
     links: [
       { href: '/packages', label: 'Browse packages' },
@@ -132,14 +134,30 @@ const routes = [
     ],
   },
   {
+    slug: 'newspaper-advertising-south-africa',
+    title: 'Newspaper Advertising in South Africa | Advertified',
+    description: 'Plan newspaper advertising in South Africa with Advertified, including package-led campaign planning, press placements, creative support, approvals, and launch workflows.',
+    heading: 'Newspaper advertising in South Africa',
+    lead: 'A clearer way to plan newspaper advertising and press placements around budget, campaign intent, and launch support.',
+    body: [
+      'Advertified helps businesses use newspaper advertising as part of a package-led campaign route, with planning support across approvals, creative handoff, and launch readiness.',
+      'Newspaper advertising can support local credibility, retail offers, public announcements, property campaigns, and broader multi-channel advertising mixes.',
+    ],
+    links: [
+      { href: '/packages', label: 'Browse packages' },
+      { href: '/radio-advertising-south-africa', label: 'Radio advertising' },
+      { href: '/tv-advertising-south-africa', label: 'TV advertising' },
+    ],
+  },
+  {
     slug: 'media-partners',
     title: 'Media Partners | Advertified',
-    description: 'Partner with Advertified to connect premium billboard, radio, TV, press, and venue inventory to structured advertiser demand.',
+    description: 'Partner with Advertified to connect premium Billboards, Digital Screens, radio, TV, newspaper, press, and venue inventory to structured advertiser demand.',
     heading: 'Media partnerships with Advertified',
     lead: 'Connect premium inventory to structured advertiser demand through a clearer operating model.',
     body: [
       'Advertified works with media owners, networks, and venue operators to connect high-intent advertisers to quality inventory through a planning and activation flow designed for reliability.',
-      'Partnerships can cover billboards, radio, television, press, and venue-based inventory.',
+      'Partnerships can cover Billboards, Digital Screens, radio, television, newspaper, press, and venue-based inventory.',
     ],
     links: [
       { href: '/partner-enquiry', label: 'Become a partner' },
@@ -344,7 +362,7 @@ function renderPage(route) {
     .join('');
 
   return `<!doctype html>
-<html lang="en">
+<html lang="en-ZA">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />

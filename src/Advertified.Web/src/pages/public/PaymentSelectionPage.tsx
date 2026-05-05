@@ -11,7 +11,6 @@ import { catalogQueryOptions } from '../../lib/catalogQueryOptions';
 import { canBuyPackage, getPackagePurchaseRestriction } from '../../lib/access';
 import { formatCurrency } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
-import { writeCheckoutAutoApproval } from '../../services/checkoutAutoApprovalStore';
 import type { PackageBand, PaymentProvider } from '../../types/domain';
 
 type ProviderOption = {
@@ -104,14 +103,6 @@ export function PaymentSelectionPage() {
         }
 
         throw new Error('VodaPay did not return a checkout URL.');
-      }
-
-      if (recommendationId && typeof window !== 'undefined') {
-        writeCheckoutAutoApproval(checkout.order.id, {
-          campaignId,
-          recommendationId,
-          proposalPath,
-        });
       }
 
       window.location.assign(checkout.checkoutUrl);

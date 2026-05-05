@@ -50,7 +50,7 @@ function buildFitBullets(campaign: Campaign, recommendation?: CampaignRecommenda
 }
 
 function buildIncludedItems(recommendation?: CampaignRecommendation) {
-  const channels = Array.from(new Set(recommendation?.items.map((item) => item.channel.replace(/\booh\b/gi, 'Billboards and Digital Screens')) ?? []));
+  const channels = Array.from(new Set(recommendation?.items.map((item) => item.channel.replace(/\booh\b/gi, 'Billboards, Digital Screens')) ?? []));
   const placements = recommendation?.items.length ?? 0;
 
   return [
@@ -421,7 +421,7 @@ export function ProposalEntryPage() {
               </div>
             ) : paymentRequiredBeforeApproval ? (
               <div className="mt-4 rounded-[14px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                Payment is still required before this route can be finally approved.
+                Select this route and complete payment. Once payment is confirmed, we approve it automatically and open creative production.
               </div>
             ) : null}
             <div className="mt-5 space-y-3">
@@ -461,7 +461,7 @@ export function ProposalEntryPage() {
                     : paymentRequiredBeforeApproval
                     ? (prepareCheckoutMutation.isPending
                       ? 'Preparing payment...'
-                      : (isAuthenticated ? 'Continue with this offer' : 'Sign in to continue'))
+                      : (isAuthenticated ? 'Select and pay for this offer' : 'Sign in to continue'))
                     : (approveMutation.isPending ? 'Accepting...' : 'Accept this offer')}
                 </button>
                 <button

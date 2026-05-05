@@ -341,7 +341,7 @@ public sealed class CampaignsController : ControllerBase
             throw new BadRequestException("Recommendation not found.");
         }
 
-        await _packagePurchaseService.PrepareRecommendationCheckoutAsync(id, request!.RecommendationId!.Value, cancellationToken);
+        await _packagePurchaseService.PrepareRecommendationCheckoutAsync(id, request!.RecommendationId!.Value, "client_campaign", cancellationToken);
         return Accepted(new { CampaignId = id, RecommendationId = request.RecommendationId.Value, Message = "Checkout prepared." });
     }
 

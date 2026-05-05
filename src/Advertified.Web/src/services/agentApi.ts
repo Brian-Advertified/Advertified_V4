@@ -207,6 +207,10 @@ export function createAgentApi({
       supplierOrStation: string;
       channel: string;
       bookingStatus: string;
+      availabilityStatus?: string;
+      availabilityCheckedAt?: string;
+      supplierConfirmationReference?: string;
+      confirmedAt?: string;
       committedAmount: number;
       bookedAt?: string;
       liveFrom?: string;

@@ -25,6 +25,32 @@ public partial class PackageOrder
 
     public string PaymentStatus { get; set; } = null!;
 
+    public Guid? SelectedRecommendationId { get; set; }
+
+    public DateTime? SelectedAt { get; set; }
+
+    public string? SelectionSource { get; set; }
+
+    public string SelectionStatus { get; set; } = "none";
+
+    public string? LostReason { get; set; }
+
+    public string? LostStage { get; set; }
+
+    public DateTime? LostAt { get; set; }
+
+    public DateTime? TermsAcceptedAt { get; set; }
+
+    public string? TermsVersion { get; set; }
+
+    public string? TermsAcceptanceSource { get; set; }
+
+    public string CancellationStatus { get; set; } = "none";
+
+    public string? CancellationReason { get; set; }
+
+    public DateTime? CancellationRequestedAt { get; set; }
+
     public DateTime? PurchasedAt { get; set; }
 
     public DateTime CreatedAt { get; set; }

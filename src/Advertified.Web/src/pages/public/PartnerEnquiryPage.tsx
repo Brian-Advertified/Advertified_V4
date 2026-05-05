@@ -8,7 +8,7 @@ import { useToast } from '../../components/ui/toast';
 import { advertifiedApi } from '../../services/advertifiedApi';
 
 const partnerTypes = [
-  'Billboard Media Owner',
+  'Billboards, Digital Screens Media Owner',
   'Radio Network',
   'TV Channel',
   'Retail Venue Group',

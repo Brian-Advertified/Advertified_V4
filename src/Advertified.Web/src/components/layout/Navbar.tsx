@@ -10,6 +10,7 @@ import type { UserRole } from '../../types/domain';
 const publicLinks = [
   { label: 'Advertified', href: '/about' },
   { label: 'Packages', href: '/packages' },
+  { label: 'Billboards, Digital Screens', href: '/billboard-advertising-south-africa' },
 ] as const;
 
 const workspaceLinksByRole: Record<UserRole, { label: string; href: string }> = {

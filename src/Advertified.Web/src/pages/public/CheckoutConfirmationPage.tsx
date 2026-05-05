@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef } from 'react';
 import { BadgeCheck, CircleAlert, Clock3, FileText } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -10,7 +10,6 @@ import { getCampaignPrimaryAction } from '../../lib/access';
 import { getPendingPaymentPollInterval } from '../../lib/queryPolling';
 import { formatCurrency } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
-import { clearCheckoutAutoApproval, readCheckoutAutoApproval } from '../../services/checkoutAutoApprovalStore';
 
 type VodaPayReturnData = {
   responseCode?: string;
@@ -23,15 +22,11 @@ export function CheckoutConfirmationPage() {
   const currentSearch = searchParams.toString();
   const { user } = useAuth();
   const { pushToast } = useToast();
-  const queryClient = useQueryClient();
   const orderId = searchParams.get('orderId') ?? '';
   const provider = (searchParams.get('provider') ?? '').toLowerCase();
-  const requestedCampaignId = searchParams.get('campaignId')?.trim() ?? '';
-  const requestedRecommendationId = searchParams.get('recommendationId')?.trim() ?? '';
   const requestedProposalPath = searchParams.get('proposalPath')?.trim() ?? '';
   const callbackCapturedRef = useRef(false);
   const statusToastKeyRef = useRef<string | null>(null);
-  const autoApprovalAttemptedKeyRef = useRef<string | null>(null);
 
   const orderQuery = useQuery({
     queryKey: ['package-order', orderId, user?.id],
@@ -53,47 +48,13 @@ export function CheckoutConfirmationPage() {
     enabled: Boolean(user?.id && order?.paymentStatus === 'paid'),
   });
   const vodaPayReturnData = useMemo(() => parseVodaPayReturnData(searchParams.get('data')), [searchParams]);
-  const storedAutoApproval = useMemo(() => {
-    return readCheckoutAutoApproval(orderId);
-  }, [orderId]);
   const currentReturnPath = useMemo(
     () => `/checkout/confirmation${currentSearch ? `?${currentSearch}` : ''}`,
     [currentSearch],
   );
   const linkedCampaign = (campaignsQuery.data ?? []).find((campaign) => campaign.packageOrderId === order?.id);
   const linkedCampaignAction = linkedCampaign ? getCampaignPrimaryAction(linkedCampaign) : null;
-  const effectiveCampaignId = requestedCampaignId || storedAutoApproval?.campaignId || linkedCampaign?.id || '';
-  const effectiveRecommendationId = requestedRecommendationId || storedAutoApproval?.recommendationId || '';
-  const effectiveProposalPath = requestedProposalPath || storedAutoApproval?.proposalPath || '';
-
-  const autoApproveMutation = useMutation({
-    mutationFn: async () => {
-      if (!effectiveCampaignId || !effectiveRecommendationId) {
-        return null;
-      }
-
-      return advertifiedApi.approveRecommendation(effectiveCampaignId, effectiveRecommendationId);
-    },
-    onSuccess: async () => {
-      clearCheckoutAutoApproval(orderId);
-
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['campaigns', user?.id] }),
-        effectiveCampaignId ? queryClient.invalidateQueries({ queryKey: ['campaign', effectiveCampaignId] }) : Promise.resolve(),
-      ]);
-
-      pushToast({
-        title: 'Proposal accepted.',
-        description: 'Your selected proposal was accepted automatically after successful payment.',
-      });
-    },
-    onError: (error) => {
-      pushToast({
-        title: 'Payment succeeded, but proposal acceptance needs attention.',
-        description: error instanceof Error ? error.message : 'Please open campaign approvals and accept manually.',
-      }, 'error');
-    },
-  });
+  const effectiveProposalPath = requestedProposalPath;
 
   useEffect(() => {
     if (provider !== 'vodapay' || !orderId || callbackCapturedRef.current) {
@@ -104,31 +65,6 @@ export function CheckoutConfirmationPage() {
     callbackCapturedRef.current = true;
     void advertifiedApi.captureVodaPayCallback(orderId, queryParameters);
   }, [orderId, provider, searchParams]);
-
-  const attemptKey = `${orderId}:${effectiveCampaignId}:${effectiveRecommendationId}`;
-  useEffect(() => {
-    if (
-      !orderId
-      || !effectiveRecommendationId
-      || !effectiveCampaignId
-      || order?.paymentStatus !== 'paid'
-      || autoApprovalAttemptedKeyRef.current === attemptKey
-      || autoApproveMutation.isPending
-    ) {
-      return;
-    }
-
-    autoApprovalAttemptedKeyRef.current = attemptKey;
-    autoApproveMutation.mutate();
-  }, [attemptKey, autoApproveMutation, effectiveCampaignId, effectiveRecommendationId, order?.paymentStatus, orderId]);
-
-  useEffect(() => {
-    if (!orderId || order?.paymentStatus === 'paid') {
-      return;
-    }
-
-    clearCheckoutAutoApproval(orderId);
-  }, [order?.paymentStatus, orderId]);
 
   const statusKey = `${order?.id ?? ''}:${order?.paymentStatus ?? ''}:${vodaPayReturnData?.responseCode ?? ''}:${vodaPayReturnData?.responseMessage ?? ''}`;
   useEffect(() => {

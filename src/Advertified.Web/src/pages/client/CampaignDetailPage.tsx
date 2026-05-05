@@ -746,7 +746,7 @@ export function CampaignDetailPage() {
                 <div className="rounded-[18px] border border-amber-200 bg-amber-50 p-5">
                   <div className="mb-2 text-sm font-semibold text-amber-900">Payment required first</div>
                   <p className="text-sm leading-7 text-amber-800">
-                    Continue to payment for the selected proposal, then return here to review and approve it explicitly.
+                    Continue to payment for the selected proposal. Once payment is confirmed, we approve it automatically and open creative production.
                   </p>
                   <div className="mt-3">
                     <button

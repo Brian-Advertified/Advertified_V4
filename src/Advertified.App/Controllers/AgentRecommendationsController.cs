@@ -94,6 +94,7 @@ public sealed class AgentRecommendationsController : ControllerBase
             now);
 
         recommendation.TotalCost = items.Sum(x => x.TotalCost);
+        ApplyManualCommercialDefaults(recommendation, items);
         _db.CampaignRecommendations.Add(recommendation);
         _db.RecommendationItems.AddRange(items);
 
@@ -193,6 +194,7 @@ public sealed class AgentRecommendationsController : ControllerBase
             {
                 recommendation.TotalCost = 0;
             }
+            ApplyManualCommercialDefaults(recommendation, updatedItems);
 
             await _db.SaveChangesAsync(cancellationToken);
         }
@@ -276,6 +278,34 @@ public sealed class AgentRecommendationsController : ControllerBase
     private static string ResolveCampaignLabel(string? campaignName)
     {
         return string.IsNullOrWhiteSpace(campaignName) ? "campaign" : campaignName.Trim();
+    }
+
+    private static void ApplyManualCommercialDefaults(
+        Data.Entities.CampaignRecommendation recommendation,
+        IReadOnlyCollection<Data.Entities.RecommendationItem> items)
+    {
+        recommendation.EstimatedSupplierCost = items.Sum(x => x.TotalCost);
+        recommendation.EstimatedGrossProfit = recommendation.TotalCost - recommendation.EstimatedSupplierCost;
+        recommendation.EstimatedGrossMarginPercent = recommendation.TotalCost > 0m
+            ? decimal.Round(recommendation.EstimatedGrossProfit / recommendation.TotalCost, 4, MidpointRounding.AwayFromZero)
+            : null;
+        recommendation.MarginStatus = "manual_review";
+        recommendation.ClientExplanation = BuildManualClientExplanation(items);
+        recommendation.SupplierAvailabilityStatus = "unconfirmed";
+        recommendation.SupplierAvailabilityNotes = "Manual recommendations need supplier availability confirmation before dates are promised.";
+    }
+
+    private static string BuildManualClientExplanation(IReadOnlyCollection<Data.Entities.RecommendationItem> items)
+    {
+        var channels = items
+            .Select(item => item.InventoryType)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(4)
+            .ToArray();
+
+        return channels.Length == 0
+            ? "Recommended by the Advertified strategist based on the brief, budget, and available media options."
+            : $"Recommended by the Advertified strategist to match the brief and budget across {string.Join(", ", channels)}.";
     }
 
     private static List<Data.Entities.RecommendationItem> BuildRecommendationItems(

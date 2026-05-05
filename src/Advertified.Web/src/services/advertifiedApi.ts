@@ -136,6 +136,19 @@ type PackageOrderResponse = {
   refundProcessedAt?: string | null;
   createdAt: string;
   paymentReference?: string | null;
+  selectedRecommendationId?: string | null;
+  selectedAt?: string | null;
+  selectionSource?: string | null;
+  selectionStatus?: string | null;
+  lostReason?: string | null;
+  lostStage?: string | null;
+  lostAt?: string | null;
+  termsAcceptedAt?: string | null;
+  termsVersion?: string | null;
+  termsAcceptanceSource?: string | null;
+  cancellationStatus?: string | null;
+  cancellationReason?: string | null;
+  cancellationRequestedAt?: string | null;
   invoiceId?: string | null;
   invoiceStatus?: string | null;
   invoicePdfUrl?: string | null;
@@ -295,6 +308,14 @@ type CampaignRecommendationResponse = {
   } | null;
   status: 'draft' | 'sent_to_client' | 'approved';
   totalCost: number;
+  estimatedSupplierCost?: number | null;
+  estimatedGrossProfit?: number | null;
+  estimatedGrossMarginPercent?: number | null;
+  marginStatus?: string | null;
+  clientExplanation?: string | null;
+  supplierAvailabilityStatus?: string | null;
+  supplierAvailabilityCheckedAt?: string | null;
+  supplierAvailabilityNotes?: string | null;
   emailDeliveries?: Array<{
     id: string;
     provider: string;
@@ -362,6 +383,55 @@ type CampaignResponse = {
     closedByUserId?: string | null;
     closedByName?: string | null;
   } | null;
+  businessProcess?: {
+    revenueAttribution: {
+      agentUserId?: string | null;
+      agentName?: string | null;
+      geography: string;
+      packageName: string;
+      channelSpend?: Record<string, number> | null;
+      paidRevenue: number;
+    };
+    lostReason: {
+      stage?: string | null;
+      reason?: string | null;
+      lostAt?: string | null;
+    };
+    recommendationCommercialCheck: {
+      recommendationId?: string | null;
+      totalCost: number;
+      estimatedSupplierCost: number;
+      estimatedGrossProfit: number;
+      estimatedGrossMarginPercent?: number | null;
+      marginStatus: string;
+    };
+    supplierReadiness: {
+      status: string;
+      confirmedBookings: number;
+      unconfirmedBookings: number;
+      summary: string;
+    };
+    postCampaignGrowth: {
+      reportingStatus: string;
+      renewalRecommended: boolean;
+      nextAction: string;
+    };
+    termsAcceptance: {
+      accepted: boolean;
+      acceptedAt?: string | null;
+      version?: string | null;
+      source?: string | null;
+    };
+    refundCancellation: {
+      refundStatus: string;
+      refundedAmount: number;
+      refundReason?: string | null;
+      refundProcessedAt?: string | null;
+      cancellationStatus: string;
+      cancellationReason?: string | null;
+      cancellationRequestedAt?: string | null;
+    };
+  } | null;
   effectivePlanningTarget?: {
     label: string;
     city?: string | null;
@@ -409,6 +479,10 @@ type CampaignResponse = {
     supplierOrStation: string;
     channel: string;
     bookingStatus: string;
+    availabilityStatus?: string | null;
+    availabilityCheckedAt?: string | null;
+    supplierConfirmationReference?: string | null;
+    confirmedAt?: string | null;
     committedAmount: number;
     bookedAt?: string | null;
     liveFrom?: string | null;
@@ -1575,6 +1649,19 @@ function mapPackageOrder(response: PackageOrderResponse): PackageOrder {
     refundProcessedAt: response.refundProcessedAt ?? undefined,
     createdAt: response.createdAt,
     paymentReference: response.paymentReference ?? undefined,
+    selectedRecommendationId: response.selectedRecommendationId ?? undefined,
+    selectedAt: response.selectedAt ?? undefined,
+    selectionSource: response.selectionSource ?? undefined,
+    selectionStatus: response.selectionStatus ?? undefined,
+    lostReason: response.lostReason ?? undefined,
+    lostStage: response.lostStage ?? undefined,
+    lostAt: response.lostAt ?? undefined,
+    termsAcceptedAt: response.termsAcceptedAt ?? undefined,
+    termsVersion: response.termsVersion ?? undefined,
+    termsAcceptanceSource: response.termsAcceptanceSource ?? undefined,
+    cancellationStatus: response.cancellationStatus ?? undefined,
+    cancellationReason: response.cancellationReason ?? undefined,
+    cancellationRequestedAt: response.cancellationRequestedAt ?? undefined,
     invoiceId: response.invoiceId ?? undefined,
     invoiceStatus: response.invoiceStatus ?? undefined,
     invoicePdfUrl: response.invoicePdfUrl ?? undefined,
@@ -1688,6 +1775,14 @@ function mapRecommendation(response?: CampaignRecommendationResponse | null): Ca
         : undefined,
       status: response.status,
       totalCost: response.totalCost,
+      estimatedSupplierCost: response.estimatedSupplierCost ?? undefined,
+      estimatedGrossProfit: response.estimatedGrossProfit ?? undefined,
+      estimatedGrossMarginPercent: response.estimatedGrossMarginPercent ?? undefined,
+      marginStatus: response.marginStatus ?? undefined,
+      clientExplanation: response.clientExplanation ?? undefined,
+      supplierAvailabilityStatus: response.supplierAvailabilityStatus ?? undefined,
+      supplierAvailabilityCheckedAt: response.supplierAvailabilityCheckedAt ?? undefined,
+      supplierAvailabilityNotes: response.supplierAvailabilityNotes ?? undefined,
       emailDeliveries: (response.emailDeliveries ?? []).map((delivery) => ({
         id: delivery.id,
         provider: delivery.provider,
@@ -1765,6 +1860,10 @@ function mapSupplierBooking(response: NonNullable<CampaignResponse['supplierBook
     supplierOrStation: response.supplierOrStation,
     channel: response.channel,
     bookingStatus: response.bookingStatus,
+    availabilityStatus: response.availabilityStatus ?? undefined,
+    availabilityCheckedAt: response.availabilityCheckedAt ?? undefined,
+    supplierConfirmationReference: response.supplierConfirmationReference ?? undefined,
+    confirmedAt: response.confirmedAt ?? undefined,
     committedAmount: response.committedAmount,
     bookedAt: response.bookedAt ?? undefined,
     liveFrom: response.liveFrom ?? undefined,
@@ -1940,6 +2039,48 @@ function mapCampaign(response: CampaignResponse): Campaign {
           closedAt: response.prospectDisposition.closedAt ?? undefined,
           closedByUserId: response.prospectDisposition.closedByUserId ?? undefined,
           closedByName: response.prospectDisposition.closedByName ?? undefined,
+        }
+      : undefined,
+    businessProcess: response.businessProcess
+      ? {
+          revenueAttribution: {
+            agentUserId: response.businessProcess.revenueAttribution.agentUserId ?? undefined,
+            agentName: response.businessProcess.revenueAttribution.agentName ?? undefined,
+            geography: response.businessProcess.revenueAttribution.geography,
+            packageName: response.businessProcess.revenueAttribution.packageName,
+            channelSpend: response.businessProcess.revenueAttribution.channelSpend ?? {},
+            paidRevenue: response.businessProcess.revenueAttribution.paidRevenue,
+          },
+          lostReason: {
+            stage: response.businessProcess.lostReason.stage ?? undefined,
+            reason: response.businessProcess.lostReason.reason ?? undefined,
+            lostAt: response.businessProcess.lostReason.lostAt ?? undefined,
+          },
+          recommendationCommercialCheck: {
+            recommendationId: response.businessProcess.recommendationCommercialCheck.recommendationId ?? undefined,
+            totalCost: response.businessProcess.recommendationCommercialCheck.totalCost,
+            estimatedSupplierCost: response.businessProcess.recommendationCommercialCheck.estimatedSupplierCost,
+            estimatedGrossProfit: response.businessProcess.recommendationCommercialCheck.estimatedGrossProfit,
+            estimatedGrossMarginPercent: response.businessProcess.recommendationCommercialCheck.estimatedGrossMarginPercent ?? undefined,
+            marginStatus: response.businessProcess.recommendationCommercialCheck.marginStatus,
+          },
+          supplierReadiness: response.businessProcess.supplierReadiness,
+          postCampaignGrowth: response.businessProcess.postCampaignGrowth,
+          termsAcceptance: {
+            accepted: response.businessProcess.termsAcceptance.accepted,
+            acceptedAt: response.businessProcess.termsAcceptance.acceptedAt ?? undefined,
+            version: response.businessProcess.termsAcceptance.version ?? undefined,
+            source: response.businessProcess.termsAcceptance.source ?? undefined,
+          },
+          refundCancellation: {
+            refundStatus: response.businessProcess.refundCancellation.refundStatus,
+            refundedAmount: response.businessProcess.refundCancellation.refundedAmount,
+            refundReason: response.businessProcess.refundCancellation.refundReason ?? undefined,
+            refundProcessedAt: response.businessProcess.refundCancellation.refundProcessedAt ?? undefined,
+            cancellationStatus: response.businessProcess.refundCancellation.cancellationStatus,
+            cancellationReason: response.businessProcess.refundCancellation.cancellationReason ?? undefined,
+            cancellationRequestedAt: response.businessProcess.refundCancellation.cancellationRequestedAt ?? undefined,
+          },
         }
       : undefined,
     effectivePlanningTarget: mapCampaignPlanningTarget(response.effectivePlanningTarget),

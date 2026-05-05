@@ -55,6 +55,7 @@ export default defineConfig({
         'radio-advertising-south-africa/index': path.resolve(__dirname, 'radio-advertising-south-africa/index.html'),
         'tv-advertising-south-africa/index': path.resolve(__dirname, 'tv-advertising-south-africa/index.html'),
         'digital-advertising-south-africa/index': path.resolve(__dirname, 'digital-advertising-south-africa/index.html'),
+        'newspaper-advertising-south-africa/index': path.resolve(__dirname, 'newspaper-advertising-south-africa/index.html'),
         'media-partners/index': path.resolve(__dirname, 'media-partners/index.html'),
         'partner-enquiry/index': path.resolve(__dirname, 'partner-enquiry/index.html'),
         'privacy/index': path.resolve(__dirname, 'privacy/index.html'),

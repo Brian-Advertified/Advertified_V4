@@ -8,6 +8,14 @@ public sealed class SaveCampaignSupplierBookingRequest
 
     public string BookingStatus { get; set; } = "planned";
 
+    public string? AvailabilityStatus { get; set; }
+
+    public DateTimeOffset? AvailabilityCheckedAt { get; set; }
+
+    public string? SupplierConfirmationReference { get; set; }
+
+    public DateTimeOffset? ConfirmedAt { get; set; }
+
     public decimal CommittedAmount { get; set; }
 
     public DateTimeOffset? BookedAt { get; set; }

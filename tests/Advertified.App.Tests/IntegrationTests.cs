@@ -11,6 +11,7 @@ using Advertified.App.Contracts.Admin;
 using Advertified.App.Contracts.Agent;
 using Advertified.App.Contracts.Campaigns;
 using Advertified.App.Contracts.Packages;
+using Advertified.App.Contracts.Payments;
 using Advertified.App.Data;
 using Advertified.App.Data.Entities;
 using Advertified.App.Data.Enums;
@@ -1756,7 +1757,7 @@ public class HttpWorkflowIntegrationTests
     }
 
     [Fact]
-    public async Task PublicProposalApproval_SendsApprovalSideEffectsOverHttp()
+    public async Task PublicProposalApproval_SelectsRecommendationBeforeCheckoutWhenPaymentIsUnpaid()
     {
         await using var harness = await TestApiHarness.CreateAsync(
             seed: db =>
@@ -1764,6 +1765,8 @@ public class HttpWorkflowIntegrationTests
                 var clientUser = TestSeed.CreateUser();
                 var agentUser = TestSeed.CreateAgent();
                 var (band, order, campaign) = TestSeed.CreateCampaignGraph(clientUser, selectedBudget: 250000m, status: "review_ready");
+                order.PaymentStatus = "unpaid";
+                order.PurchasedAt = null;
                 campaign.AssignedAgentUserId = agentUser.Id;
                 campaign.AssignedAt = DateTime.UtcNow;
 
@@ -1778,6 +1781,7 @@ public class HttpWorkflowIntegrationTests
             },
             configureServices: services =>
             {
+                ConfigureRealPackagePurchaseServices(services);
                 services.AddSingleton<StubTemplatedEmailService>();
                 services.AddSingleton<ITemplatedEmailService>(sp => sp.GetRequiredService<StubTemplatedEmailService>());
             });
@@ -1795,10 +1799,90 @@ public class HttpWorkflowIntegrationTests
         });
 
         approveResponse.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        var content = await approveResponse.Content.ReadAsStringAsync();
+        using var json = System.Text.Json.JsonDocument.Parse(content);
+        json.RootElement.GetProperty("status").GetString().Should().Be(RecommendationSelectionStatuses.PendingPayment);
 
-        var approvedCampaign = await harness.ExecuteDbAsync(db => db.Campaigns.Include(x => x.CampaignRecommendations).SingleAsync(x => x.Id == campaignId));
-        approvedCampaign.Status.Should().Be("approved");
-        approvedCampaign.CampaignRecommendations.Should().Contain(x => x.Status == "approved");
+        var selectedCampaign = await harness.ExecuteDbAsync(db => db.Campaigns
+            .Include(x => x.PackageOrder)
+            .Include(x => x.CampaignRecommendations)
+            .SingleAsync(x => x.Id == campaignId));
+        selectedCampaign.Status.Should().Be("review_ready");
+        selectedCampaign.PackageOrder.Should().NotBeNull();
+        selectedCampaign.PackageOrder!.SelectedRecommendationId.Should().Be(recommendationId);
+        selectedCampaign.PackageOrder.SelectionStatus.Should().Be(RecommendationSelectionStatuses.PendingPayment);
+        selectedCampaign.PackageOrder.SelectionSource.Should().Be("public_proposal");
+        selectedCampaign.CampaignRecommendations.Should().Contain(x => x.Status == "sent_to_client");
+
+        var emailService = harness.Services.GetRequiredService<StubTemplatedEmailService>();
+        emailService.SentEmails.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task PublicProposalPayment_AutoApprovesSelectedRecommendationAfterPayment()
+    {
+        await using var harness = await TestApiHarness.CreateAsync(
+            seed: db =>
+            {
+                var clientUser = TestSeed.CreateUser();
+                var agentUser = TestSeed.CreateAgent();
+                var (band, order, campaign) = TestSeed.CreateCampaignGraph(clientUser, selectedBudget: 250000m, status: "review_ready");
+                order.PaymentStatus = "unpaid";
+                order.PurchasedAt = null;
+                campaign.AssignedAgentUserId = agentUser.Id;
+                campaign.AssignedAt = DateTime.UtcNow;
+
+                var recommendation = TestSeed.CreateRecommendation(campaign.Id, status: "sent_to_client");
+
+                db.UserAccounts.AddRange(clientUser, agentUser);
+                db.PackageBands.Add(band);
+                db.PackageOrders.Add(order);
+                db.Campaigns.Add(campaign);
+                db.CampaignRecommendations.Add(recommendation);
+                db.SaveChanges();
+            },
+            configureServices: services =>
+            {
+                ConfigureRealPackagePurchaseServices(services);
+                services.AddSingleton<StubTemplatedEmailService>();
+                services.AddSingleton<ITemplatedEmailService>(sp => sp.GetRequiredService<StubTemplatedEmailService>());
+            });
+
+        var campaignId = await harness.ExecuteDbAsync(db => db.Campaigns.Select(x => x.Id).SingleAsync());
+        var orderId = await harness.ExecuteDbAsync(db => db.PackageOrders.Select(x => x.Id).SingleAsync());
+        var recommendationId = await harness.ExecuteDbAsync(db => db.CampaignRecommendations.Select(x => x.Id).SingleAsync());
+        await using var scope = harness.Services.CreateAsyncScope();
+        var tokenService = scope.ServiceProvider.GetRequiredService<IProposalAccessTokenService>();
+        var token = tokenService.CreateToken(campaignId);
+
+        var approveResponse = await harness.Client.PostAsJsonAsync($"/public/proposals/{campaignId}/approve", new
+        {
+            token,
+            recommendationId
+        });
+        approveResponse.StatusCode.Should().Be(HttpStatusCode.Accepted);
+
+        var paymentResponse = await harness.Client.PostAsJsonAsync("/payments/webhook", new
+        {
+            packageOrderId = orderId,
+            paymentStatus = "paid",
+            paymentReference = "test-payment-reference"
+        });
+        var paymentContent = await paymentResponse.Content.ReadAsStringAsync();
+        paymentResponse.StatusCode.Should().Be(HttpStatusCode.Accepted, paymentContent);
+
+        var paidCampaign = await harness.ExecuteDbAsync(db => db.Campaigns
+            .Include(x => x.PackageOrder)
+            .Include(x => x.CampaignRecommendations)
+            .SingleAsync(x => x.Id == campaignId));
+        paidCampaign.Status.Should().Be("approved");
+        paidCampaign.PackageOrder.PaymentStatus.Should().Be("paid");
+        paidCampaign.PackageOrder.TermsAcceptedAt.Should().NotBeNull();
+        paidCampaign.PackageOrder.TermsVersion.Should().Be(TermsAcceptancePolicy.CurrentVersion);
+        paidCampaign.PackageOrder.TermsAcceptanceSource.Should().Be("payment");
+        paidCampaign.PackageOrder.SelectedRecommendationId.Should().Be(recommendationId);
+        paidCampaign.PackageOrder.SelectionStatus.Should().Be(RecommendationSelectionStatuses.AutoApproved);
+        paidCampaign.CampaignRecommendations.Should().Contain(x => x.Id == recommendationId && x.Status == "approved");
 
         var emailService = harness.Services.GetRequiredService<StubTemplatedEmailService>();
         emailService.SentEmails.Select(x => x.TemplateName).Should().Contain(new[]
@@ -1807,6 +1891,16 @@ public class HttpWorkflowIntegrationTests
             "activation-in-progress",
             "creative-queue-update"
         });
+    }
+
+    private static void ConfigureRealPackagePurchaseServices(IServiceCollection services)
+    {
+        services.AddScoped<IVodaPayCheckoutService, StubVodaPayCheckoutService>();
+        services.AddScoped<IPaymentStateCache, StubPaymentStateCache>();
+        services.AddScoped<IPaymentAuditService, StubPaymentAuditService>();
+        services.AddScoped<IWebhookQueueService, StubWebhookQueueService>();
+        services.AddScoped<IPricingSettingsProvider, PricingSettingsProvider>();
+        services.AddScoped<IPackagePurchaseService, PackagePurchaseService>();
     }
 
     [Fact]
@@ -1853,7 +1947,8 @@ public class HttpWorkflowIntegrationTests
         harness.Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await harness.CreateSessionTokenAsync(agentUserId));
 
         var response = await harness.Client.PostAsJsonAsync($"/agent/campaigns/{campaignId}/generate-recommendation", new { });
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var responseContent = await response.Content.ReadAsStringAsync();
+        response.StatusCode.Should().Be(HttpStatusCode.OK, responseContent);
 
         var emailService = harness.Services.GetRequiredService<StubTemplatedEmailService>();
         emailService.SentEmails.Select(x => x.TemplateName).Should().Contain("agent-working");
@@ -1861,6 +1956,10 @@ public class HttpWorkflowIntegrationTests
 
         var savedCampaign = await harness.ExecuteDbAsync(db => db.Campaigns.Include(x => x.CampaignRecommendations).SingleAsync(x => x.Id == campaignId));
         savedCampaign.CampaignRecommendations.Should().NotBeEmpty();
+        savedCampaign.CampaignRecommendations.Should().OnlyContain(x =>
+            !string.IsNullOrWhiteSpace(x.ClientExplanation)
+            && x.MarginStatus == "low_margin_review"
+            && x.SupplierAvailabilityStatus == "unconfirmed");
     }
 
     [Fact]
@@ -2162,7 +2261,7 @@ public class HttpWorkflowIntegrationTests
             {
                 var clientUser = TestSeed.CreateUser();
                 var agentUser = TestSeed.CreateAgent();
-                var (band, order, campaign) = TestSeed.CreateCampaignGraph(clientUser, selectedBudget: 250000m, status: "launched");
+                var (band, order, campaign) = TestSeed.CreateCampaignGraph(clientUser, selectedBudget: 250000m, status: "creative_approved");
                 campaign.AssignedAgentUserId = agentUser.Id;
                 campaign.AssignedAt = DateTime.UtcNow;
 
@@ -2190,10 +2289,14 @@ public class HttpWorkflowIntegrationTests
             committedAmount = 45000m,
             liveFrom = DateOnly.FromDateTime(DateTime.UtcNow.Date),
             liveTo = DateOnly.FromDateTime(DateTime.UtcNow.Date.AddDays(13)),
+            availabilityStatus = "confirmed",
+            supplierConfirmationReference = "METRO-BOOK-001",
+            confirmedAt = DateTimeOffset.UtcNow,
             notes = "Confirmed for launch burst"
         });
 
-        bookingResponse.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        var bookingContent = await bookingResponse.Content.ReadAsStringAsync();
+        bookingResponse.StatusCode.Should().Be(HttpStatusCode.Accepted, bookingContent);
 
         var bookingId = await harness.ExecuteDbAsync(db => db.CampaignSupplierBookings.Select(x => x.Id).SingleAsync());
 
@@ -2215,7 +2318,12 @@ public class HttpWorkflowIntegrationTests
             .Include(x => x.CampaignDeliveryReports)
             .SingleAsync(x => x.Id == campaignId));
 
-        campaign.CampaignSupplierBookings.Should().ContainSingle(x => x.SupplierOrStation == "Metro FM" && x.BookingStatus == "booked");
+        campaign.CampaignSupplierBookings.Should().ContainSingle(x =>
+            x.SupplierOrStation == "Metro FM"
+            && x.BookingStatus == "booked"
+            && x.AvailabilityStatus == "confirmed"
+            && x.SupplierConfirmationReference == "METRO-BOOK-001"
+            && x.ConfirmedAt.HasValue);
         campaign.CampaignDeliveryReports.Should().ContainSingle(x => x.Headline == "Week one delivery confirmed" && x.PlaysOrSpots == 84);
 
         var emailService = harness.Services.GetRequiredService<StubTemplatedEmailService>();
@@ -3168,11 +3276,17 @@ internal sealed class TestApiHarness : IAsyncDisposable
         builder.Services.AddScoped<IPrivateDocumentStorage, StubPrivateDocumentStorage>();
         builder.Services.AddScoped<IRecommendationDocumentService, StubRecommendationDocumentService>();
         builder.Services.AddScoped<IRecommendationApprovalWorkflowService, RecommendationApprovalWorkflowService>();
+        builder.Services.AddScoped<ICampaignStatusTransitionService, CampaignStatusTransitionService>();
         builder.Services.AddScoped<ICampaignExecutionTaskService, CampaignExecutionTaskService>();
         builder.Services.AddScoped<IPublicAssetStorage, StubPublicAssetStorage>();
         builder.Services.AddScoped<IMediaPlanningEngine, StubMediaPlanningEngine>();
         builder.Services.AddScoped<ICampaignReasoningService, StubCampaignReasoningService>();
+        builder.Services.AddScoped(_ => new PlanningPolicySnapshotProvider(new PlanningPolicyOptions()));
+        builder.Services.AddScoped<IPlanningPolicyService, PlanningPolicyService>();
+        builder.Services.AddScoped<IPlanningBudgetAllocationService, StubPlanningBudgetAllocationService>();
+        builder.Services.AddScoped<IPlanningRequestFactory, PlanningRequestFactory>();
         builder.Services.AddScoped<ICampaignRecommendationService, CampaignRecommendationService>();
+        builder.Services.AddScoped<IAgentCampaignBookingOrchestrationService, AgentCampaignBookingOrchestrationService>();
         builder.Services.AddScoped<IAdPlatformAccessTokenService, StubAdPlatformAccessTokenService>();
         builder.Services.AddScoped<IAdPlatformConnectionService, StubAdPlatformConnectionService>();
         builder.Services.AddScoped<ILeadProposalConfidenceGateService, StubLeadProposalConfidenceGateService>();
@@ -3602,6 +3716,26 @@ internal sealed class StubCampaignReasoningService : ICampaignReasoningService
     }
 }
 
+internal sealed class StubPlanningBudgetAllocationService : IPlanningBudgetAllocationService
+{
+    public PlanningBudgetAllocation Resolve(CampaignPlanningRequest request)
+    {
+        return new PlanningBudgetAllocation
+        {
+            AudienceSegment = "test",
+            ChannelPolicyKey = "test",
+            GeoPolicyKey = "test",
+            ChannelAllocations = new List<PlanningChannelAllocation>(),
+            GeoAllocations = new List<PlanningGeoAllocation>()
+        };
+    }
+
+    public PlanningBudgetAllocation RebalanceChannelTargets(CampaignPlanningRequest request, IReadOnlyDictionary<string, int> channelShares)
+    {
+        return Resolve(request);
+    }
+}
+
 internal sealed class StubEmailVerificationService : IEmailVerificationService
 {
     public Task QueueActivationEmailAsync(UserAccount user, string? nextPath, CancellationToken cancellationToken) => Task.CompletedTask;
@@ -3625,7 +3759,37 @@ internal sealed class StubInvoiceService : IInvoiceService
         string? paymentReference,
         bool sendInvoiceEmail,
         CancellationToken cancellationToken)
-        => throw new NotSupportedException();
+    {
+        return Task.FromResult(new Invoice
+        {
+            Id = Guid.NewGuid(),
+            PackageOrderId = order.Id,
+            CampaignId = order.Campaign?.Id,
+            UserId = user.Id,
+            CompanyId = businessProfile?.Id,
+            InvoiceNumber = $"TEST-{order.Id:N}",
+            Provider = order.PaymentProvider ?? "test",
+            InvoiceType = invoiceType,
+            Status = status,
+            Currency = order.Currency,
+            TotalAmount = order.Amount,
+            CampaignName = order.Campaign?.CampaignName ?? band.Name,
+            PackageName = band.Name,
+            CustomerName = user.FullName,
+            CustomerEmail = user.Email,
+            CustomerAddress = string.Empty,
+            CompanyName = businessProfile?.BusinessName ?? string.Empty,
+            CompanyRegistrationNumber = businessProfile?.RegistrationNumber,
+            CompanyVatNumber = businessProfile?.VatNumber,
+            CompanyAddress = businessProfile is null
+                ? null
+                : $"{businessProfile.StreetAddress}, {businessProfile.City}, {businessProfile.Province}",
+            PaymentReference = paymentReference,
+            CreatedAtUtc = DateTime.UtcNow,
+            DueAtUtc = dueAtUtc,
+            PaidAtUtc = paidAtUtc
+        });
+    }
 
     public Task<byte[]> GetPdfBytesAsync(Guid invoiceId, CancellationToken cancellationToken)
         => throw new NotSupportedException();
@@ -3644,7 +3808,7 @@ internal sealed class StubPackagePurchaseService : IPackagePurchaseService
         CancellationToken cancellationToken)
         => throw new NotSupportedException();
 
-    public Task PrepareRecommendationCheckoutAsync(Guid campaignId, Guid recommendationId, CancellationToken cancellationToken)
+    public Task PrepareRecommendationCheckoutAsync(Guid campaignId, Guid recommendationId, string selectionSource, CancellationToken cancellationToken)
         => Task.CompletedTask;
 
     public Task MarkOrderPaidAsync(Guid packageOrderId, string paymentReference, CancellationToken cancellationToken)
@@ -3652,6 +3816,89 @@ internal sealed class StubPackagePurchaseService : IPackagePurchaseService
 
     public Task MarkOrderFailedAsync(Guid packageOrderId, string? paymentReference, CancellationToken cancellationToken)
         => Task.CompletedTask;
+}
+
+internal sealed class StubVodaPayCheckoutService : IVodaPayCheckoutService
+{
+    public Task<VodaPayCheckoutSession> InitiateAsync(
+        PackageOrder order,
+        PackageBand band,
+        UserAccount user,
+        BusinessProfile? businessProfile,
+        CancellationToken cancellationToken)
+    {
+        return Task.FromResult(new VodaPayCheckoutSession
+        {
+            SessionId = $"test-session-{order.Id:D}",
+            CheckoutUrl = $"https://checkout.example.test/{order.Id:D}",
+            TraceId = "test-trace",
+            EchoData = order.Id.ToString("D"),
+            ProviderReference = $"test-provider-{order.Id:D}"
+        });
+    }
+}
+
+internal sealed class StubPaymentStateCache : IPaymentStateCache
+{
+    private readonly Dictionary<string, PaymentStateCacheEntry> _entries = new(StringComparer.OrdinalIgnoreCase);
+
+    public Task SetAsync(string paymentReference, PaymentStateCacheEntry entry, CancellationToken cancellationToken)
+    {
+        _entries[paymentReference] = entry;
+        return Task.CompletedTask;
+    }
+
+    public Task<PaymentStateCacheEntry?> GetAsync(string paymentReference, CancellationToken cancellationToken)
+    {
+        _entries.TryGetValue(paymentReference, out var entry);
+        return Task.FromResult(entry);
+    }
+}
+
+internal sealed class StubPaymentAuditService : IPaymentAuditService
+{
+    public Task<Guid> CreateProviderRequestAsync(
+        Guid? packageOrderId,
+        string provider,
+        string eventType,
+        string requestUrl,
+        string requestHeadersJson,
+        string requestBodyJson,
+        string? externalReference,
+        CancellationToken cancellationToken)
+        => Task.FromResult(Guid.NewGuid());
+
+    public Task CompleteProviderRequestAsync(
+        Guid requestAuditId,
+        int? responseStatusCode,
+        string? responseHeadersJson,
+        string? responseBodyText,
+        CancellationToken cancellationToken)
+        => Task.CompletedTask;
+
+    public Task<Guid> CreateWebhookAsync(
+        Guid? packageOrderId,
+        string provider,
+        string webhookPath,
+        string headersJson,
+        string bodyJson,
+        string processedStatus,
+        string? processedMessage,
+        CancellationToken cancellationToken)
+        => Task.FromResult(Guid.NewGuid());
+
+    public Task CompleteWebhookAsync(
+        Guid webhookAuditId,
+        string processedStatus,
+        string? processedMessage,
+        CancellationToken cancellationToken)
+        => Task.CompletedTask;
+}
+
+internal sealed class StubWebhookQueueService : IWebhookQueueService
+{
+    public Task<bool> EnqueueVodaPayWebhookAsync(QueuedVodaPayWebhookJob job, CancellationToken cancellationToken)
+        => Task.FromResult(true);
 }
 
 internal sealed class StubPrivateDocumentStorage : IPrivateDocumentStorage

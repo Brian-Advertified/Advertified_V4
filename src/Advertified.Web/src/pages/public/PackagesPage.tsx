@@ -76,7 +76,7 @@ export function PackagesPage() {
     <section className="page-shell space-y-8 pb-36">
       <Seo
         title="Advertising Packages in South Africa | Advertified"
-        description="Browse Advertified package bands, choose the budget that fits your campaign, and move into guided advertising planning with clearer pricing."
+        description="Browse Advertified package bands for Billboards, Digital Screens, radio, TV, newspaper, digital and multi-channel advertising campaigns in South Africa."
         path="/packages"
         type="website"
       />

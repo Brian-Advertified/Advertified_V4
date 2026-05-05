@@ -19,6 +19,7 @@ const BillboardAdvertisingPage = lazyPage(() => import('../pages/public/ChannelL
 const RadioAdvertisingPage = lazyPage(() => import('../pages/public/ChannelLandingPages'), 'RadioAdvertisingPage');
 const TelevisionAdvertisingPage = lazyPage(() => import('../pages/public/ChannelLandingPages'), 'TelevisionAdvertisingPage');
 const DigitalAdvertisingPage = lazyPage(() => import('../pages/public/ChannelLandingPages'), 'DigitalAdvertisingPage');
+const NewspaperAdvertisingPage = lazyPage(() => import('../pages/public/ChannelLandingPages'), 'NewspaperAdvertisingPage');
 const PaymentSelectionPage = lazyPage(() => import('../pages/public/PaymentSelectionPage'), 'PaymentSelectionPage');
 const CheckoutConfirmationPage = lazyPage(() => import('../pages/public/CheckoutConfirmationPage'), 'CheckoutConfirmationPage');
 const ProposalEntryPage = lazyPage(() => import('../pages/public/ProposalEntryPage'), 'ProposalEntryPage');
@@ -42,6 +43,7 @@ export const publicRoutes: AppRoute[] = [
   { path: '/radio-advertising-south-africa', element: <RadioAdvertisingPage /> },
   { path: '/tv-advertising-south-africa', element: <TelevisionAdvertisingPage /> },
   { path: '/digital-advertising-south-africa', element: <DigitalAdvertisingPage /> },
+  { path: '/newspaper-advertising-south-africa', element: <NewspaperAdvertisingPage /> },
   { path: '/media-partners', element: <MediaPartnersPage /> },
   { path: '/partner-enquiry', element: <PartnerEnquiryPage /> },
   { path: '/start-campaign', element: <ProspectQuestionnairePage /> },

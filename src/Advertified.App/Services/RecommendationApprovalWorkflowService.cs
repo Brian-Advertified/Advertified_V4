@@ -61,7 +61,19 @@ public sealed class RecommendationApprovalWorkflowService : IRecommendationAppro
             throw new PaymentRequiredException("Please complete payment for this campaign before approving a recommendation.");
         }
 
+        if (string.Equals(recommendation.Status, RecommendationStatuses.Approved, StringComparison.OrdinalIgnoreCase))
+        {
+            return new RecommendationWorkflowResult
+            {
+                CampaignId = campaign.Id,
+                RecommendationId = recommendation.Id,
+                Status = recommendation.Status,
+                Message = "Recommendation already approved."
+            };
+        }
+
         var now = DateTime.UtcNow;
+        TermsAcceptancePolicy.Capture(campaign.PackageOrder, "recommendation_approval", now);
         _campaignStatusTransitionService.MoveRecommendationToApproved(campaign, recommendation, now);
         var responseMessage = AddClientResponseMessage(
             campaign,
@@ -96,6 +108,7 @@ public sealed class RecommendationApprovalWorkflowService : IRecommendationAppro
             notes,
             defaultSummary: "Client asked for recommendation changes.",
             defaultResultMessage: "Recommendation returned for changes.",
+            lostStage: null,
             cancellationToken);
     }
 
@@ -106,6 +119,7 @@ public sealed class RecommendationApprovalWorkflowService : IRecommendationAppro
             notes,
             defaultSummary: "Client rejected the current proposal set and asked for a fresh recommendation set.",
             defaultResultMessage: "All recommendations rejected and returned for replanning.",
+            lostStage: "proposal_rejected",
             cancellationToken);
     }
 
@@ -114,6 +128,7 @@ public sealed class RecommendationApprovalWorkflowService : IRecommendationAppro
         string? notes,
         string defaultSummary,
         string defaultResultMessage,
+        string? lostStage,
         CancellationToken cancellationToken)
     {
         var campaign = await _db.Campaigns
@@ -142,6 +157,12 @@ public sealed class RecommendationApprovalWorkflowService : IRecommendationAppro
         _campaignStatusTransitionService.MoveRecommendationBackToPlanning(campaign, now);
         var responseSummary = BuildClientResponseSummary(notes, defaultSummary);
         AddClientResponseMessage(campaign, responseSummary, now);
+        if (!string.IsNullOrWhiteSpace(lostStage))
+        {
+            campaign.PackageOrder.LostStage = lostStage;
+            campaign.PackageOrder.LostReason = string.IsNullOrWhiteSpace(notes) ? defaultSummary : notes.Trim();
+            campaign.PackageOrder.LostAt = now;
+        }
 
         await _db.SaveChangesAsync(cancellationToken);
         await SendAssignedAgentClientResponseEmailAsync(campaign, responseSummary, cancellationToken);

@@ -70,14 +70,14 @@ export function HowItWorksPage() {
     <div className="page-shell space-y-8 pb-10">
       <Seo
         title="How Advertified Works | Guided Advertising Planning"
-        description="See how Advertified takes businesses from package purchase to campaign recommendation, approval, creative production, and launch."
+        description="See how Advertified takes businesses from package purchase to Billboards, Digital Screens, radio, TV, newspaper or digital campaign recommendation, approval, creative production, and launch."
         path="/how-it-works"
         type="website"
       />
       <PageHero
         kicker="How it works"
         title="From package purchase to campaign recommendation in a clear, guided flow."
-        description="Advertified is designed to keep the buying journey commercial first, then unlock the planning support needed to shape a real campaign with confidence."
+        description="Advertified is designed to keep the buying journey commercial first, then unlock the planning support needed to shape Billboards, Digital Screens, radio, TV, newspaper, digital, or multi-channel campaigns with confidence."
         actions={(
           <>
             <Link to="/packages" className="hero-primary-button">

@@ -105,6 +105,7 @@ internal static class CampaignMappings
                 ClosedByUserId = campaign.ProspectDispositionClosedByUserId,
                 ClosedByName = campaign.ProspectDispositionClosedByUser?.FullName
             },
+            BusinessProcess = BuildBusinessProcess(campaign),
             CreatedAt = new DateTimeOffset(campaign.CreatedAt, TimeSpan.Zero),
             Timeline = CampaignWorkflowPolicy.BuildTimeline(campaign),
             Brief = campaign.CampaignBrief == null ? null : ToRequest(campaign.CampaignBrief),
@@ -132,6 +133,170 @@ internal static class CampaignMappings
             EffectiveEndDate = schedule.EffectiveEndDate,
             DaysLeft = schedule.DaysLeft
         };
+    }
+
+    private static CampaignBusinessProcessResponse BuildBusinessProcess(Campaign campaign)
+    {
+        var order = campaign.PackageOrder;
+        var recommendation = campaign.PackageOrder.SelectedRecommendationId.HasValue
+            ? campaign.CampaignRecommendations.FirstOrDefault(item => item.Id == campaign.PackageOrder.SelectedRecommendationId.Value)
+            : RecommendationSelectionPolicy.GetVisibleRecommendationSet(campaign).FirstOrDefault();
+        var channelSpend = recommendation?.RecommendationItems
+            .GroupBy(item => NormalizeChannel(item.InventoryType.Replace("upsell_", string.Empty, StringComparison.OrdinalIgnoreCase)))
+            .ToDictionary(group => group.Key, group => group.Sum(item => item.TotalCost), StringComparer.OrdinalIgnoreCase)
+            ?? new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+        var confirmedBookings = campaign.CampaignSupplierBookings.Count(IsSupplierConfirmed);
+        var unconfirmedBookings = campaign.CampaignSupplierBookings.Count - confirmedBookings;
+        var hasDeliveryReports = campaign.CampaignDeliveryReports.Count > 0;
+        var isLaunchedOrLater = campaign.Status is CampaignStatuses.Launched
+            || campaign.PausedAt.HasValue;
+
+        return new CampaignBusinessProcessResponse
+        {
+            RevenueAttribution = new RevenueAttributionResponse
+            {
+                AgentUserId = campaign.AssignedAgentUserId,
+                AgentName = campaign.AssignedAgentUser?.FullName,
+                Geography = ResolveAttributionGeography(campaign),
+                PackageName = campaign.PackageBand.Name,
+                ChannelSpend = channelSpend,
+                PaidRevenue = string.Equals(order.PaymentStatus, CampaignStatuses.Paid, StringComparison.OrdinalIgnoreCase)
+                    ? order.Amount
+                    : 0m
+            },
+            LostReason = new LostReasonResponse
+            {
+                Stage = order.LostStage ?? campaign.ProspectDispositionStatus,
+                Reason = order.LostReason ?? campaign.ProspectDispositionReason,
+                LostAt = order.LostAt.HasValue ? new DateTimeOffset(order.LostAt.Value, TimeSpan.Zero) : null
+            },
+            RecommendationCommercialCheck = new RecommendationCommercialCheckResponse
+            {
+                RecommendationId = recommendation?.Id,
+                TotalCost = recommendation?.TotalCost ?? 0m,
+                EstimatedSupplierCost = recommendation?.EstimatedSupplierCost ?? 0m,
+                EstimatedGrossProfit = recommendation?.EstimatedGrossProfit ?? 0m,
+                EstimatedGrossMarginPercent = recommendation?.EstimatedGrossMarginPercent,
+                MarginStatus = recommendation?.MarginStatus ?? "unchecked"
+            },
+            SupplierReadiness = new SupplierReadinessResponse
+            {
+                Status = ResolveSupplierReadinessStatus(campaign, confirmedBookings, unconfirmedBookings),
+                ConfirmedBookings = confirmedBookings,
+                UnconfirmedBookings = unconfirmedBookings,
+                Summary = BuildSupplierReadinessSummary(campaign, confirmedBookings, unconfirmedBookings)
+            },
+            PostCampaignGrowth = new PostCampaignGrowthResponse
+            {
+                ReportingStatus = hasDeliveryReports ? "reporting_started" : isLaunchedOrLater ? "report_due" : "not_due",
+                RenewalRecommended = ShouldRecommendRenewal(campaign),
+                NextAction = BuildPostCampaignNextAction(campaign, hasDeliveryReports, isLaunchedOrLater)
+            },
+            TermsAcceptance = new TermsAcceptanceResponse
+            {
+                Accepted = order.TermsAcceptedAt.HasValue,
+                AcceptedAt = order.TermsAcceptedAt.HasValue ? new DateTimeOffset(order.TermsAcceptedAt.Value, TimeSpan.Zero) : null,
+                Version = order.TermsVersion,
+                Source = order.TermsAcceptanceSource
+            },
+            RefundCancellation = new ClientRefundCancellationResponse
+            {
+                RefundStatus = order.RefundStatus,
+                RefundedAmount = order.RefundedAmount,
+                RefundReason = order.RefundReason,
+                RefundProcessedAt = order.RefundProcessedAt.HasValue ? new DateTimeOffset(order.RefundProcessedAt.Value, TimeSpan.Zero) : null,
+                CancellationStatus = order.CancellationStatus,
+                CancellationReason = order.CancellationReason,
+                CancellationRequestedAt = order.CancellationRequestedAt.HasValue ? new DateTimeOffset(order.CancellationRequestedAt.Value, TimeSpan.Zero) : null
+            }
+        };
+    }
+
+    private static string ResolveAttributionGeography(Campaign campaign)
+    {
+        if (campaign.CampaignBrief is not null)
+        {
+            var brief = campaign.CampaignBrief;
+            var parts = new[]
+            {
+                JoinJsonList(brief.ProvincesJson),
+                JoinJsonList(brief.CitiesJson),
+                JoinJsonList(brief.AreasJson),
+                JoinJsonList(brief.SuburbsJson)
+            }.Where(part => !string.IsNullOrWhiteSpace(part));
+            var value = string.Join(" / ", parts);
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return value;
+            }
+        }
+
+        return campaign.User?.BusinessProfile?.Province
+            ?? "Unspecified";
+    }
+
+    private static string? JoinJsonList(string? json)
+    {
+        var values = DeserializeList(json);
+        return values is { Count: > 0 }
+            ? string.Join(", ", values.Where(value => !string.IsNullOrWhiteSpace(value)).Take(4))
+            : null;
+    }
+
+    private static bool IsSupplierConfirmed(CampaignSupplierBooking booking)
+    {
+        return string.Equals(booking.AvailabilityStatus, "confirmed", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(booking.BookingStatus, "booked", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(booking.BookingStatus, "live", StringComparison.OrdinalIgnoreCase)
+            || booking.ConfirmedAt.HasValue;
+    }
+
+    private static string ResolveSupplierReadinessStatus(Campaign campaign, int confirmedBookings, int unconfirmedBookings)
+    {
+        if (campaign.CampaignSupplierBookings.Count == 0)
+        {
+            return "not_started";
+        }
+
+        return unconfirmedBookings == 0 && confirmedBookings > 0
+            ? "confirmed"
+            : "confirmation_required";
+    }
+
+    private static string BuildSupplierReadinessSummary(Campaign campaign, int confirmedBookings, int unconfirmedBookings)
+    {
+        if (campaign.CampaignSupplierBookings.Count == 0)
+        {
+            return "Supplier availability has not been confirmed yet.";
+        }
+
+        return unconfirmedBookings == 0
+            ? "All recorded supplier bookings are confirmed or booked."
+            : $"{unconfirmedBookings} supplier booking(s) still need availability confirmation before dates are promised.";
+    }
+
+    private static bool ShouldRecommendRenewal(Campaign campaign)
+    {
+        var deliveredSpend = campaign.CampaignDeliveryReports.Sum(report => report.SpendDelivered ?? 0m);
+        var bookedSpend = campaign.CampaignSupplierBookings.Sum(booking => booking.CommittedAmount);
+        return campaign.CampaignDeliveryReports.Count > 0
+            && bookedSpend > 0m
+            && deliveredSpend >= bookedSpend * 0.75m;
+    }
+
+    private static string BuildPostCampaignNextAction(Campaign campaign, bool hasDeliveryReports, bool isLaunchedOrLater)
+    {
+        if (ShouldRecommendRenewal(campaign))
+        {
+            return "Review renewal or upsell opportunity.";
+        }
+
+        if (isLaunchedOrLater && !hasDeliveryReports)
+        {
+            return "Create first delivery report.";
+        }
+
+        return "Monitor delivery.";
     }
 
     public static CampaignPerformanceSnapshotResponse ToPerformanceSnapshot(this Campaign campaign)
@@ -252,6 +417,15 @@ internal static class CampaignMappings
             RefundReason = order.RefundReason,
             RefundProcessedAt = order.RefundProcessedAt.HasValue ? new DateTimeOffset(order.RefundProcessedAt.Value, TimeSpan.Zero) : null,
             PaymentReference = order.PaymentReference,
+            SelectedRecommendationId = order.SelectedRecommendationId,
+            SelectedAt = order.SelectedAt.HasValue ? new DateTimeOffset(order.SelectedAt.Value, TimeSpan.Zero) : null,
+            SelectionSource = order.SelectionSource,
+            SelectionStatus = order.SelectionStatus,
+            LostReason = order.LostReason,
+            LostStage = order.LostStage,
+            LostAt = order.LostAt.HasValue ? new DateTimeOffset(order.LostAt.Value, TimeSpan.Zero) : null,
+            TermsAcceptedAt = order.TermsAcceptedAt.HasValue ? new DateTimeOffset(order.TermsAcceptedAt.Value, TimeSpan.Zero) : null,
+            CancellationStatus = order.CancellationStatus,
             CreatedAt = new DateTimeOffset(order.CreatedAt, TimeSpan.Zero),
             InvoiceId = order.Invoice?.Id,
             InvoiceStatus = order.Invoice?.Status,
@@ -341,6 +515,14 @@ internal static class CampaignMappings
             Audit = BuildAuditResponse(recommendation),
             Status = recommendation.Status,
             TotalCost = recommendation.TotalCost,
+            EstimatedSupplierCost = recommendation.EstimatedSupplierCost,
+            EstimatedGrossProfit = recommendation.EstimatedGrossProfit,
+            EstimatedGrossMarginPercent = recommendation.EstimatedGrossMarginPercent,
+            MarginStatus = recommendation.MarginStatus,
+            ClientExplanation = recommendation.ClientExplanation,
+            SupplierAvailabilityStatus = recommendation.SupplierAvailabilityStatus,
+            SupplierAvailabilityCheckedAt = recommendation.SupplierAvailabilityCheckedAt.HasValue ? new DateTimeOffset(recommendation.SupplierAvailabilityCheckedAt.Value, TimeSpan.Zero) : null,
+            SupplierAvailabilityNotes = recommendation.SupplierAvailabilityNotes,
             EmailDeliveries = campaign.EmailDeliveryMessages
                 .Where(message =>
                     string.Equals(message.DeliveryPurpose, "recommendation_ready", StringComparison.OrdinalIgnoreCase)
@@ -585,6 +767,10 @@ internal static class CampaignMappings
             SupplierOrStation = booking.SupplierOrStation,
             Channel = booking.Channel,
             BookingStatus = booking.BookingStatus,
+            AvailabilityStatus = booking.AvailabilityStatus,
+            AvailabilityCheckedAt = booking.AvailabilityCheckedAt.HasValue ? new DateTimeOffset(booking.AvailabilityCheckedAt.Value, TimeSpan.Zero) : null,
+            SupplierConfirmationReference = booking.SupplierConfirmationReference,
+            ConfirmedAt = booking.ConfirmedAt.HasValue ? new DateTimeOffset(booking.ConfirmedAt.Value, TimeSpan.Zero) : null,
             CommittedAmount = booking.CommittedAmount,
             BookedAt = booking.BookedAt.HasValue ? new DateTimeOffset(booking.BookedAt.Value, TimeSpan.Zero) : null,
             LiveFrom = booking.LiveFrom,

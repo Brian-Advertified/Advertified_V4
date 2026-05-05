@@ -21,6 +21,23 @@ const faqSections = [
     ],
   },
   {
+    title: 'Billboards, Digital Screens, radio, TV and newspaper advertising',
+    items: [
+      {
+        question: 'Can Advertified help with Billboards, Digital Screens in South Africa?',
+        answer: 'Yes. Advertified supports Billboards, Digital Screens campaign planning in South Africa through package-led budgeting, guided recommendations, approval workflows, creative support, and campaign launch support.',
+      },
+      {
+        question: 'Can Advertified help with radio, TV, and newspaper advertising?',
+        answer: 'Yes. Advertified can support radio advertising, TV advertising, and newspaper advertising as part of a package-led campaign plan, with the channel mix shaped around campaign goals, budget, timing, and audience fit.',
+      },
+      {
+        question: 'Do I need to choose between Billboards, Digital Screens, radio, TV, newspaper, and digital first?',
+        answer: 'No. You can start with your budget and campaign objective first. Advertified can then help shape the media mix, which may include Billboards, Digital Screens, radio, TV, newspaper, digital, SMS, or social depending on the campaign.',
+      },
+    ],
+  },
+  {
     title: 'Packages, payment, and pricing',
     items: [
       {
@@ -85,8 +102,8 @@ export function FaqPage() {
   return (
     <div className="page-shell space-y-8 pb-16">
       <Seo
-        title="Advertified FAQ | Packages, Payments, Campaigns, and Launch"
-        description="Read common questions about Advertified packages, payment timing, campaign approvals, creative production, launch workflows, and platform support."
+        title="Advertified FAQ | Billboards, Digital Screens, Radio, TV and Newspaper Advertising"
+        description="Read common questions about Advertified Billboards, Digital Screens, radio, TV, newspaper advertising, packages, payment timing, campaign approvals, creative production, launch workflows, and platform support."
         path="/faq"
         type="website"
         jsonLd={{

@@ -14,6 +14,14 @@ public sealed class CampaignRecommendationResponse
     public CampaignRecommendationAuditResponse? Audit { get; set; }
     public string Status { get; set; } = string.Empty;
     public decimal TotalCost { get; set; }
+    public decimal EstimatedSupplierCost { get; set; }
+    public decimal EstimatedGrossProfit { get; set; }
+    public decimal? EstimatedGrossMarginPercent { get; set; }
+    public string MarginStatus { get; set; } = string.Empty;
+    public string? ClientExplanation { get; set; }
+    public string SupplierAvailabilityStatus { get; set; } = string.Empty;
+    public DateTimeOffset? SupplierAvailabilityCheckedAt { get; set; }
+    public string? SupplierAvailabilityNotes { get; set; }
     public IReadOnlyList<EmailDeliveryAttemptResponse> EmailDeliveries { get; set; } = Array.Empty<EmailDeliveryAttemptResponse>();
     public IReadOnlyList<RecommendationItemResponse> Items { get; set; } = Array.Empty<RecommendationItemResponse>();
 }

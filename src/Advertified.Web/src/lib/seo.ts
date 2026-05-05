@@ -8,8 +8,8 @@ export type SeoMeta = {
 
 export const SITE_NAME = 'Advertified';
 export const SITE_URL = 'https://www.advertified.com';
-export const DEFAULT_TITLE = 'Advertified | Advertising Packages and Media Buying in South Africa';
-export const DEFAULT_DESCRIPTION = 'Advertified helps businesses in South Africa start advertising with clear packages, guided campaign planning, and multi-channel media buying support.';
+export const DEFAULT_TITLE = 'Advertified | Billboards, Digital Screens, Radio, TV and Newspaper Advertising';
+export const DEFAULT_DESCRIPTION = 'Advertified helps South African businesses buy Billboards, Digital Screens, radio, TV, newspaper and digital advertising with package-led media planning and clearer campaign support.';
 
 const routeSeo: Record<string, SeoMeta> = {
   '/': {
@@ -20,31 +20,31 @@ const routeSeo: Record<string, SeoMeta> = {
   },
   '/packages': {
     title: 'Advertising Packages in South Africa | Advertified',
-    description: 'Browse Advertified package bands, choose the budget that fits your campaign, and move into guided advertising planning with clearer pricing.',
+    description: 'Browse Advertified package bands for Billboards, Digital Screens, radio, TV, newspaper, digital and multi-channel advertising campaigns in South Africa.',
     path: '/packages/',
     type: 'website',
   },
   '/how-it-works': {
     title: 'How Advertified Works | Guided Advertising Planning',
-    description: 'See how Advertified takes businesses from package purchase to campaign recommendation, approval, creative production, and launch.',
+    description: 'See how Advertified takes businesses from package purchase to Billboards, Digital Screens, radio, TV, newspaper or digital campaign recommendation, approval, creative production, and launch.',
     path: '/how-it-works/',
     type: 'website',
   },
   '/about': {
     title: 'About Advertified | Advertising Platform for South African Businesses',
-    description: 'Learn how Advertified helps businesses buy advertising with more clarity through package-led planning, campaign workflows, and multi-channel execution.',
+    description: 'Learn how Advertified helps South African businesses buy Billboards, Digital Screens, radio, TV, newspaper, digital and multi-channel advertising with clearer package-led planning.',
     path: '/about/',
     type: 'website',
   },
   '/faq': {
-    title: 'Advertified FAQ | Packages, Payments, Campaigns, and Launch',
-    description: 'Read common questions about Advertified packages, payment, campaign approvals, creative production, launch workflows, and support.',
+    title: 'Advertified FAQ | Billboards, Digital Screens, Radio, TV and Newspaper Advertising',
+    description: 'Read common questions about Advertified Billboards, Digital Screens, radio, TV, newspaper advertising, packages, payment, approvals, creative production, launch workflows, and support.',
     path: '/faq/',
     type: 'website',
   },
   '/billboard-advertising-south-africa': {
-    title: 'Billboard Advertising in South Africa | Advertified',
-    description: 'Explore billboard advertising in South Africa with Advertified, including budget-led planning, package-led campaign setup, and support across Billboards and Digital Screens.',
+    title: 'Billboards, Digital Screens Advertising in South Africa | Advertified',
+    description: 'Explore Billboards, Digital Screens advertising in South Africa with Advertified, including package-led campaign planning across roadside, retail and commuter media.',
     path: '/billboard-advertising-south-africa/',
     type: 'website',
   },
@@ -66,9 +66,15 @@ const routeSeo: Record<string, SeoMeta> = {
     path: '/digital-advertising-south-africa/',
     type: 'website',
   },
+  '/newspaper-advertising-south-africa': {
+    title: 'Newspaper Advertising in South Africa | Advertified',
+    description: 'Plan newspaper advertising in South Africa with Advertified, including package-led campaign planning, press placements, creative support, approvals, and launch workflows.',
+    path: '/newspaper-advertising-south-africa/',
+    type: 'website',
+  },
   '/media-partners': {
     title: 'Media Partners | Advertified',
-    description: 'Partner with Advertified to connect premium billboard, radio, TV, press, and venue inventory to structured advertiser demand.',
+    description: 'Partner with Advertified to connect premium Billboards, Digital Screens, radio, TV, newspaper, press, and venue inventory to structured advertiser demand.',
     path: '/media-partners/',
     type: 'website',
   },
@@ -181,8 +187,27 @@ function removeMeta(name: string, attr: 'name' | 'property' = 'name') {
 }
 
 export function buildAbsoluteUrl(path = '/') {
-  const normalizedPath = path === '/' ? '/' : `/${path.replace(/^\/+/, '')}`;
+  const normalizedPath = normalizeCanonicalPath(path);
   return new URL(normalizedPath, SITE_URL).toString();
+}
+
+function normalizeCanonicalPath(path = '/') {
+  const suffixIndex = path.search(/[?#]/u);
+  const pathname = suffixIndex === -1 ? path : path.slice(0, suffixIndex);
+  const suffix = suffixIndex === -1 ? '' : path.slice(suffixIndex);
+  if (!pathname || pathname === '/') {
+    return `/${suffix}`;
+  }
+
+  return `/${pathname.replace(/^\/+/, '').replace(/\/+$/, '')}/${suffix}`;
+}
+
+function normalizeRouteKey(pathname: string) {
+  if (!pathname || pathname === '/') {
+    return '/';
+  }
+
+  return `/${pathname.replace(/^\/+/, '').replace(/\/+$/, '')}`;
 }
 
 export function applySeo(meta: SeoMeta) {
@@ -214,22 +239,23 @@ export function clearManagedStructuredData() {
 }
 
 export function getRouteSeo(pathname: string): SeoMeta {
-  if (routeSeo[pathname]) {
-    return routeSeo[pathname];
+  const routeKey = normalizeRouteKey(pathname);
+  if (routeSeo[routeKey]) {
+    return routeSeo[routeKey];
   }
 
   if (
-    pathname.startsWith('/agent')
-    || pathname.startsWith('/admin')
-    || pathname.startsWith('/dashboard')
-    || pathname.startsWith('/proposal/')
-    || pathname.startsWith('/lead-proposal/')
-    || pathname.startsWith('/creative/')
+    routeKey.startsWith('/agent')
+    || routeKey.startsWith('/admin')
+    || routeKey.startsWith('/dashboard')
+    || routeKey.startsWith('/proposal/')
+    || routeKey.startsWith('/lead-proposal/')
+    || routeKey.startsWith('/creative/')
   ) {
     return {
       title: SITE_NAME,
       description: DEFAULT_DESCRIPTION,
-      path: pathname,
+      path: routeKey,
       noindex: true,
       type: 'website',
     };
@@ -238,7 +264,7 @@ export function getRouteSeo(pathname: string): SeoMeta {
   return {
     title: DEFAULT_TITLE,
     description: DEFAULT_DESCRIPTION,
-    path: pathname,
+    path: routeKey,
     noindex: false,
     type: 'website',
   };

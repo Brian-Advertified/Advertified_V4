@@ -205,6 +205,7 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
         PlanningPolicyContext policyContext,
         InventorySnapshot inventorySnapshot)
     {
+        var commercialCheck = BuildCommercialCheck(recommendationResult);
         return new CampaignRecommendation
         {
             Id = Guid.NewGuid(),
@@ -213,6 +214,13 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             GeneratedBy = "system",
             Status = "draft",
             TotalCost = recommendationResult.RecommendedPlanTotal,
+            EstimatedSupplierCost = commercialCheck.EstimatedSupplierCost,
+            EstimatedGrossProfit = commercialCheck.EstimatedGrossProfit,
+            EstimatedGrossMarginPercent = commercialCheck.EstimatedGrossMarginPercent,
+            MarginStatus = commercialCheck.MarginStatus,
+            ClientExplanation = BuildClientExplanation(recommendationResult, aiReasoning?.Rationale),
+            SupplierAvailabilityStatus = "unconfirmed",
+            SupplierAvailabilityNotes = "Supplier availability must be confirmed during booking before launch dates are promised.",
             Summary = aiReasoning?.Summary ?? BuildSummary(recommendationResult, planningRequest),
             Rationale = BuildStoredRationale(recommendationResult, aiReasoning?.Rationale),
             RequestSnapshotJson = SerializeAuditJson(recommendationResult.RunTrace?.RequestSnapshot ?? BuildRequestSnapshot(planningRequest)),
@@ -270,6 +278,89 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             FinalRationale = recommendation.Rationale,
             CreatedAt = createdAt
         };
+    }
+
+    private static RecommendationCommercialCheck BuildCommercialCheck(RecommendationResult result)
+    {
+        var plannedItems = result.RecommendedPlan.Concat(result.Upsells).ToArray();
+        var supplierCost = plannedItems.Sum(EstimateSupplierCost);
+        var totalCost = plannedItems.Sum(item => item.TotalCost);
+        var grossProfit = decimal.Round(totalCost - supplierCost, 2, MidpointRounding.AwayFromZero);
+        var marginPercent = totalCost > 0m
+            ? decimal.Round(grossProfit / totalCost, 4, MidpointRounding.AwayFromZero)
+            : (decimal?)null;
+
+        return new RecommendationCommercialCheck(
+            EstimatedSupplierCost: decimal.Round(supplierCost, 2, MidpointRounding.AwayFromZero),
+            EstimatedGrossProfit: grossProfit,
+            EstimatedGrossMarginPercent: marginPercent,
+            MarginStatus: ResolveMarginStatus(marginPercent));
+    }
+
+    private static decimal EstimateSupplierCost(PlannedItem item)
+    {
+        var explicitSupplierCost = GetMetadataDecimal(item.Metadata, "supplierCostZar")
+            ?? GetMetadataDecimal(item.Metadata, "supplier_cost_zar")
+            ?? GetMetadataDecimal(item.Metadata, "rawCostZar")
+            ?? GetMetadataDecimal(item.Metadata, "raw_cost_zar")
+            ?? GetMetadataDecimal(item.Metadata, "baseCostZar")
+            ?? GetMetadataDecimal(item.Metadata, "base_cost_zar");
+        if (explicitSupplierCost.HasValue && explicitSupplierCost.Value > 0m)
+        {
+            return explicitSupplierCost.Value * Math.Max(1, item.Quantity);
+        }
+
+        var markupPercent = GetMetadataDecimal(item.Metadata, "markupPercent")
+            ?? GetMetadataDecimal(item.Metadata, "markup_percent");
+        if (markupPercent.HasValue && markupPercent.Value > 0m)
+        {
+            var divisor = 1m + markupPercent.Value;
+            return divisor > 0m ? item.TotalCost / divisor : item.TotalCost;
+        }
+
+        return item.TotalCost;
+    }
+
+    private static string ResolveMarginStatus(decimal? marginPercent)
+    {
+        if (!marginPercent.HasValue)
+        {
+            return "unchecked";
+        }
+
+        if (marginPercent.Value < 0.05m)
+        {
+            return "low_margin_review";
+        }
+
+        return "healthy";
+    }
+
+    private static string BuildClientExplanation(RecommendationResult result, string? aiRationale)
+    {
+        var channels = result.RecommendedPlan
+            .Select(item => FormatSummaryChannelLabel(item.MediaType))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(4)
+            .ToArray();
+        var reasons = result.RecommendedPlan
+            .SelectMany(item => GetMetadataArray(item.Metadata, "selectionReasons"))
+            .Where(reason => !string.IsNullOrWhiteSpace(reason))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(3)
+            .ToArray();
+
+        if (reasons.Length > 0)
+        {
+            return $"Recommended because {string.Join("; ", reasons)}. The plan uses {string.Join(", ", channels)} to balance reach, fit, and budget.";
+        }
+
+        if (!string.IsNullOrWhiteSpace(aiRationale))
+        {
+            return aiRationale.Trim();
+        }
+
+        return $"Recommended because these placements scored best for the brief, geography, target audience, and available budget across {string.Join(", ", channels)}.";
     }
 
     private static IReadOnlyList<ProposalVariant> BuildProposalVariants(CampaignPlanningRequest request, Advertified.App.Data.Entities.PackageBand packageBand)
@@ -725,6 +816,14 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             },
             _ => value.ToString()
         };
+    }
+
+    private static decimal? GetMetadataDecimal(IReadOnlyDictionary<string, object?> metadata, string key)
+    {
+        var value = GetMetadataValue(metadata, key);
+        return decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : null;
     }
 
     private static IReadOnlyList<string> GetMetadataArray(IReadOnlyDictionary<string, object?> metadata, string key)
@@ -1216,6 +1315,12 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
     }
 
     private sealed record ProposalVariant(string Key, CampaignPlanningRequest Request, ProposalBudgetBand? BudgetBand);
+
+    private sealed record RecommendationCommercialCheck(
+        decimal EstimatedSupplierCost,
+        decimal EstimatedGrossProfit,
+        decimal? EstimatedGrossMarginPercent,
+        string MarginStatus);
     private sealed record ProposalBudgetBand(decimal MinBudget, decimal MaxBudget, decimal PlanningBudget);
     private sealed record ChannelTargets(int Radio, int Ooh, int Tv, int Digital, int Newspaper);
 }

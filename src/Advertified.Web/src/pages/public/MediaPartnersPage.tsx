@@ -4,7 +4,7 @@ import { PageHero } from '../../components/marketing/PageHero';
 import { Seo } from '../../components/seo/Seo';
 
 const partnerTypes = [
-  'Billboard Media Owners',
+  'Billboards, Digital Screens Media Owners',
   'Radio Networks',
   'TV Channels',
   'Retail Venue Groups',
@@ -32,7 +32,7 @@ const snapshots = [
 ] as const;
 
 const partnerCards = [
-  { label: 'Billboards', icon: Megaphone },
+  { label: 'Billboards, Digital Screens', icon: Megaphone },
   { label: 'Radio', icon: Radio },
   { label: 'Television', icon: Tv },
   { label: 'Press', icon: Newspaper },
@@ -43,7 +43,7 @@ export function MediaPartnersPage() {
     <div className="page-shell space-y-8 pb-10">
       <Seo
         title="Media Partners | Advertified"
-        description="Partner with Advertified to connect premium billboard, radio, TV, press, and venue inventory to structured advertiser demand."
+        description="Partner with Advertified to connect premium Billboards, Digital Screens, radio, TV, newspaper, press, and venue inventory to structured advertiser demand."
         path="/media-partners"
         type="website"
       />

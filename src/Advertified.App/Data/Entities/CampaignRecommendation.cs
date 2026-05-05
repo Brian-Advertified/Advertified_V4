@@ -17,6 +17,22 @@ public partial class CampaignRecommendation
 
     public decimal TotalCost { get; set; }
 
+    public decimal EstimatedSupplierCost { get; set; }
+
+    public decimal EstimatedGrossProfit { get; set; }
+
+    public decimal? EstimatedGrossMarginPercent { get; set; }
+
+    public string MarginStatus { get; set; } = "unchecked";
+
+    public string? ClientExplanation { get; set; }
+
+    public string SupplierAvailabilityStatus { get; set; } = "unconfirmed";
+
+    public DateTime? SupplierAvailabilityCheckedAt { get; set; }
+
+    public string? SupplierAvailabilityNotes { get; set; }
+
     public string? Summary { get; set; }
 
     public string? Rationale { get; set; }

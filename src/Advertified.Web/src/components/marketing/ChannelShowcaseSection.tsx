@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import billboardImage from '../../assets/Channels/optimized/billboard-sa-optimized.jpg';
 import newspaperImage from '../../assets/Channels/optimized/newspaper-sa-optimized.jpg';
 import radioImage from '../../assets/Channels/optimized/radio-sa-optimized.jpg';
@@ -7,34 +8,40 @@ import tvImage from '../../assets/Channels/optimized/tv-sa-optimized.jpg';
 
 const channels = [
   {
-    title: 'Billboards and Digital Screens',
-    description: 'Premium roadside, retail, and commuter visibility across high-traffic environments.',
+    title: 'Billboards, Digital Screens',
+    description: 'Roadside, retail, commuter, and high-traffic visual advertising environments.',
     image: billboardImage,
+    href: '/billboard-advertising-south-africa',
   },
   {
     title: 'Radio',
     description: 'Regional and national station packages, slots, and audio-led reach campaigns.',
     image: radioImage,
+    href: '/radio-advertising-south-africa',
   },
   {
     title: 'Television',
     description: 'Broadcast and programme-aligned placements for broader awareness and authority.',
     image: tvImage,
+    href: '/tv-advertising-south-africa',
   },
   {
     title: 'Social Platforms',
     description: 'Meta, TikTok, and always-on social support that amplifies campaign momentum.',
     image: socialImage,
+    href: '/digital-advertising-south-africa',
   },
   {
     title: 'SMS',
     description: 'Direct-response messaging for retail pushes, reminders, and call-to-action bursts.',
     image: smsImage,
+    href: '/packages',
   },
   {
-    title: 'Press and Print',
-    description: 'Newspaper placements that support trust, offers, and local market presence.',
+    title: 'Newspaper Advertising',
+    description: 'Newspaper and press placements that support trust, offers, and local market presence.',
     image: newspaperImage,
+    href: '/newspaper-advertising-south-africa',
   },
 ];
 
@@ -48,13 +55,13 @@ export function ChannelShowcaseSection() {
             What Advertified actually helps you buy, plan, and activate.
           </h2>
           <p className="max-w-2xl text-sm leading-7 text-ink-soft">
-            From Billboards and Digital Screens to radio, TV, digital support, SMS, and print, these are the channels our package and planning workflow is designed to bring together.
+            From Billboards, Digital Screens to radio, TV, newspaper advertising, digital support, SMS, and print, these are the channels our package and planning workflow is designed to bring together.
           </p>
         </div>
 
         <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {channels.map((channel) => (
-            <article key={channel.title} className="overflow-hidden rounded-[22px] border border-line bg-white shadow-[0_8px_18px_rgba(17,24,39,0.04)]">
+            <Link key={channel.title} to={channel.href} className="block overflow-hidden rounded-[22px] border border-line bg-white shadow-[0_8px_18px_rgba(17,24,39,0.04)] transition hover:-translate-y-0.5 hover:border-brand/30 hover:shadow-[0_14px_28px_rgba(17,24,39,0.08)]">
               <div className="flex h-32 items-center justify-center overflow-hidden bg-white sm:h-36">
                 <img
                   src={channel.image}
@@ -68,7 +75,7 @@ export function ChannelShowcaseSection() {
                 <h3 className="text-base font-semibold tracking-tight text-ink">{channel.title}</h3>
                 <p className="text-xs leading-6 text-ink-soft">{channel.description}</p>
               </div>
-            </article>
+            </Link>
           ))}
         </div>
       </div>
