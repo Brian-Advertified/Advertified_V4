@@ -222,7 +222,7 @@ function Convert-RawOohRow {
         is_available                 = $isAvailable
         discounted_rate_zar          = Convert-ToNumberText $Row.discounted_rate
         rate_card_zar                = Convert-ToNumberText $Row.standard_rate
-        monthly_rate_zar             = Convert-ToNumberText $Row.discounted_rate
+        monthly_rate_zar             = Convert-ToNumberText $Row.standard_rate
         traffic_count                = Convert-ToNumberText $Row.traffic_count
         venue_type                   = Get-CleanValue $Row.venue_type
         premium_mass_fit             = ""

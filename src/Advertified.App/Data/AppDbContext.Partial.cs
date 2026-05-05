@@ -427,7 +427,6 @@ public partial class AppDbContext
                 .HasColumnName("selection_source");
             entity.Property(e => e.SelectionStatus)
                 .HasMaxLength(50)
-                .HasDefaultValue(RecommendationSelectionStatuses.None)
                 .HasColumnName("selection_status");
             entity.Property(e => e.LostReason).HasColumnName("lost_reason");
             entity.Property(e => e.LostStage)

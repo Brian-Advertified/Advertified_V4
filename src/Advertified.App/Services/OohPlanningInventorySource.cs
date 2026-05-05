@@ -3,6 +3,7 @@ using Advertified.App.Services.Abstractions;
 using Advertified.App.Support;
 using Dapper;
 using Npgsql;
+using System.Globalization;
 using System.Text.Json;
 
 namespace Advertified.App.Services;
@@ -10,16 +11,13 @@ namespace Advertified.App.Services;
 public sealed class OohPlanningInventorySource : IOohPlanningInventorySource
 {
     private readonly Npgsql.NpgsqlDataSource _dataSource;
-    private readonly IPricingSettingsProvider _pricingSettingsProvider;
     private readonly ICommercialFlightPricingResolver _commercialFlightPricingResolver;
 
     public OohPlanningInventorySource(
         Npgsql.NpgsqlDataSource dataSource,
-        IPricingSettingsProvider pricingSettingsProvider,
         ICommercialFlightPricingResolver commercialFlightPricingResolver)
     {
         _dataSource = dataSource;
-        _pricingSettingsProvider = pricingSettingsProvider;
         _commercialFlightPricingResolver = commercialFlightPricingResolver;
     }
 
@@ -46,12 +44,12 @@ select
         nullif(split_part(regexp_replace(coalesce(oii.audience_income_fit, ''), '[^0-9]+', ' ', 'g'), ' ', 1), '')::int
     ) as LsmMax,
     coalesce(
-        oii.discounted_rate_zar,
         oii.rate_card_zar,
-        oii.monthly_rate_zar,
-        nullif(regexp_replace(coalesce(oii.metadata_json ->> 'discounted_rate_zar', ''), '[^0-9.]', '', 'g'), '')::numeric,
         nullif(regexp_replace(coalesce(oii.metadata_json ->> 'rate_card_zar', ''), '[^0-9.]', '', 'g'), '')::numeric,
+        oii.monthly_rate_zar,
         nullif(regexp_replace(coalesce(oii.metadata_json ->> 'monthly_rate_zar', ''), '[^0-9.]', '', 'g'), '')::numeric,
+        oii.discounted_rate_zar,
+        nullif(regexp_replace(coalesce(oii.metadata_json ->> 'discounted_rate_zar', ''), '[^0-9.]', '', 'g'), '')::numeric,
         0
     ) as Cost,
     coalesce(oii.is_available, true) as IsAvailable,
@@ -129,17 +127,16 @@ select
 from ooh_inventory_intelligence oii
 where oii.is_active = true
   and coalesce(
-        oii.discounted_rate_zar,
         oii.rate_card_zar,
-        oii.monthly_rate_zar,
-        nullif(regexp_replace(coalesce(oii.metadata_json ->> 'discounted_rate_zar', ''), '[^0-9.]', '', 'g'), '')::numeric,
         nullif(regexp_replace(coalesce(oii.metadata_json ->> 'rate_card_zar', ''), '[^0-9.]', '', 'g'), '')::numeric,
+        oii.monthly_rate_zar,
         nullif(regexp_replace(coalesce(oii.metadata_json ->> 'monthly_rate_zar', ''), '[^0-9.]', '', 'g'), '')::numeric,
+        oii.discounted_rate_zar,
+        nullif(regexp_replace(coalesce(oii.metadata_json ->> 'discounted_rate_zar', ''), '[^0-9.]', '', 'g'), '')::numeric,
         0
       ) <= @Budget;";
 
         await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
-        var pricingSettings = await _pricingSettingsProvider.GetCurrentAsync(cancellationToken);
         var rows = await conn.QueryAsync<OohPlanningInventoryRow>(new CommandDefinition(
             sql,
             new { Budget = request.SelectedBudget },
@@ -158,9 +155,10 @@ where oii.is_active = true
                 row.SlotType = OohInventoryNormalizer.NormalizeSlotType(row.SlotType, row.Subtype);
                 row.MediaType = PlanningChannelSupport.ClassifyOohChannel(row.Subtype, row.SlotType, row.DisplayName);
 
-                var rawCost = row.Cost;
-                var markedUpCost = PricingPolicy.ApplyMarkup(rawCost, row.MediaType, row.Subtype, pricingSettings);
                 var metadata = DeserializeMetadata(row.MetadataJson);
+                var rateCardCost = row.Cost;
+                var supplierBaseCost = ParseNullableDecimal(GetMetadataValue(metadata, "discountedRateZar") ?? GetMetadataValue(metadata, "discounted_rate_zar"))
+                    ?? rateCardCost;
                 var offerDurationWeeks = ParseNullableInt(GetMetadataValue(metadata, "durationWeeks") ?? GetMetadataValue(metadata, "duration_weeks"));
                 var offerDurationMonths = ParseNullableInt(GetMetadataValue(metadata, "durationMonths") ?? GetMetadataValue(metadata, "duration_months"));
                 var pricingModel = GetMetadataValue(metadata, "pricingModel")
@@ -169,14 +167,27 @@ where oii.is_active = true
                     request,
                     row.MediaType,
                     pricingModel,
-                    markedUpCost,
-                    markedUpCost,
+                    rateCardCost,
+                    rateCardCost,
                     offerDurationWeeks,
                     offerDurationMonths,
                     row.PackageOnly,
                     allowsProration: pricingModel.Contains("monthly", StringComparison.OrdinalIgnoreCase));
 
                 row.Cost = resolution.QuotedCost;
+                var supplierQuotedCost = rateCardCost > 0m
+                    ? decimal.Round(supplierBaseCost * (resolution.QuotedCost / rateCardCost), 2, MidpointRounding.AwayFromZero)
+                    : supplierBaseCost;
+                metadata["supplierCostZar"] = supplierQuotedCost;
+                metadata["supplier_cost_zar"] = supplierQuotedCost;
+                metadata["rawCostZar"] = supplierQuotedCost;
+                metadata["raw_cost_zar"] = supplierQuotedCost;
+                metadata["rateCardSellCostZar"] = resolution.QuotedCost;
+                metadata["rate_card_sell_cost_zar"] = resolution.QuotedCost;
+                metadata["rateCardBaseCostZar"] = rateCardCost;
+                metadata["rate_card_base_cost_zar"] = rateCardCost;
+                metadata["markupPercent"] = 0m;
+                metadata["markup_percent"] = 0m;
                 row.MetadataJson = SerializeMetadata(metadata, resolution, offerDurationWeeks, offerDurationMonths);
                 return row;
             })
@@ -246,5 +257,10 @@ where oii.is_active = true
     private static int? ParseNullableInt(string? value)
     {
         return int.TryParse(value, out var parsed) ? parsed : null;
+    }
+
+    private static decimal? ParseNullableDecimal(string? value)
+    {
+        return decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed) ? parsed : null;
     }
 }

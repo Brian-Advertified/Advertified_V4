@@ -139,9 +139,9 @@ public sealed class PackagePreviewService : IPackagePreviewService
                 end
             ) as GpsCoordinates,
             coalesce(
-                oii.discounted_rate_zar,
                 oii.rate_card_zar,
                 oii.monthly_rate_zar,
+                oii.discounted_rate_zar,
                 0
             ) as Cost,
             case
@@ -151,9 +151,9 @@ public sealed class PackagePreviewService : IPackagePreviewService
             end as TrafficCount
         from ooh_inventory_intelligence oii
         where coalesce(
-            oii.discounted_rate_zar,
             oii.rate_card_zar,
             oii.monthly_rate_zar,
+            oii.discounted_rate_zar,
             0
         ) <= @PlacementBudget
           and oii.is_active = true
@@ -178,9 +178,9 @@ public sealed class PackagePreviewService : IPackagePreviewService
                 end
             ) as GpsCoordinates,
             coalesce(
-                oii.discounted_rate_zar,
                 oii.rate_card_zar,
                 oii.monthly_rate_zar,
+                oii.discounted_rate_zar,
                 0
             ) as Cost,
             case

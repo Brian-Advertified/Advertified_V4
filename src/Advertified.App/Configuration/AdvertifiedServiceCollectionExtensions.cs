@@ -211,7 +211,6 @@ public static class AdvertifiedServiceCollectionExtensions
         services.AddScoped<IRecommendationExplainabilityService, RecommendationExplainabilityService>();
         services.AddScoped<IOohPlanningInventorySource>(_ => new OohPlanningInventorySource(
             _.GetRequiredService<Npgsql.NpgsqlDataSource>(),
-            _.GetRequiredService<IPricingSettingsProvider>(),
             _.GetRequiredService<ICommercialFlightPricingResolver>()));
         services.AddScoped<IBroadcastPlanningInventorySource>(_ => new BroadcastPlanningInventorySource(
             _.GetRequiredService<IBroadcastInventoryCatalog>(),
