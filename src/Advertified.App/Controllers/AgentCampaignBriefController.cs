@@ -285,7 +285,7 @@ public sealed class AgentCampaignBriefController : ControllerBase
                     ["ClientName"] = campaign.ResolveClientName(),
                     ["CampaignName"] = string.IsNullOrWhiteSpace(campaign.CampaignName) ? $"{campaign.PackageBand.Name} campaign" : campaign.CampaignName.Trim(),
                     ["PackageName"] = campaign.PackageBand.Name,
-                    ["Budget"] = FormatCurrency(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount),
+                    ["Budget"] = CurrencyFormatSupport.FormatZarWhole(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount),
                     ["CampaignUrl"] = BuildClientCampaignUrl(campaign)
                 },
                 null,
@@ -333,7 +333,7 @@ public sealed class AgentCampaignBriefController : ControllerBase
                     ["ClientName"] = campaign.ResolveClientName(),
                     ["CampaignName"] = string.IsNullOrWhiteSpace(campaign.CampaignName) ? $"{campaign.PackageBand.Name} campaign" : campaign.CampaignName.Trim(),
                     ["PackageName"] = campaign.PackageBand.Name,
-                    ["Budget"] = FormatCurrency(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount),
+                    ["Budget"] = CurrencyFormatSupport.FormatZarWhole(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount),
                     ["CampaignUrl"] = BuildClientCampaignUrl(campaign)
                 },
                 null,
@@ -351,11 +351,6 @@ public sealed class AgentCampaignBriefController : ControllerBase
             _logger.LogError(ex, "Failed to send agent working email for campaign {CampaignId}.", campaign.Id);
             return;
         }
-    }
-
-    private static string FormatCurrency(decimal amount)
-    {
-        return amount.ToString("C0", System.Globalization.CultureInfo.GetCultureInfo("en-ZA"));
     }
 
 }

@@ -17,8 +17,6 @@ internal static class CampaignMappings
 {
     private static readonly JsonSerializerOptions AuditJsonOptions = new(JsonSerializerDefaults.Web);
     private const string ClientFeedbackMarker = "Client feedback:";
-    private const string FallbackFlagsMarker = "Fallback flags:";
-    private const string ManualReviewMarker = "Manual review required:";
 
     public static CampaignListItemResponse ToListItem(this Campaign campaign, Guid? currentUserId = null)
     {
@@ -499,16 +497,16 @@ internal static class CampaignMappings
     {
         var extractedFeedback = ExtractClientFeedbackNotes(recommendation.Rationale);
         var fallbackState = RecommendationAuditSupport.ResolveFallbackState(recommendation);
-        var (proposalLabel, proposalStrategy) = GetProposalDetails(recommendation.RecommendationType, proposalIndex);
+        var proposalPositioning = RecommendationProposalPositioning.Resolve(recommendation.RecommendationType, proposalIndex);
 
         return new CampaignRecommendationResponse
         {
             Id = recommendation.Id,
             CampaignId = recommendation.CampaignId,
-            ProposalLabel = proposalLabel,
-            ProposalStrategy = proposalStrategy,
+            ProposalLabel = proposalPositioning.Label,
+            ProposalStrategy = proposalPositioning.Strategy,
             Summary = recommendation.Summary ?? string.Empty,
-            Rationale = RemoveInternalMarkers(recommendation.Rationale),
+            Rationale = RecommendationRationaleSupport.RemoveInternalMarkers(recommendation.Rationale),
             ClientFeedbackNotes = extractedFeedback,
             ManualReviewRequired = fallbackState.ManualReviewRequired,
             FallbackFlags = fallbackState.FallbackFlags,
@@ -797,49 +795,6 @@ internal static class CampaignMappings
         };
     }
 
-    private static (string ProposalLabel, string ProposalStrategy) GetProposalDetails(string? recommendationType, int proposalIndex)
-    {
-        var variantKey = recommendationType?
-            .Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .LastOrDefault()?
-            .ToLowerInvariant();
-
-        return variantKey switch
-        {
-            "balanced" => ("Proposal A", "Balanced mix"),
-            "ooh_focus" => ("Proposal B", "Billboards and Digital Screens-led reach"),
-            "radio_focus" => ("Proposal C", "Radio-led frequency"),
-            "digital_focus" => ("Proposal C", "Digital-led amplification"),
-            "tv_focus" => ("Proposal C", "TV-led reach"),
-            _ => ($"Proposal {GetProposalLetter(proposalIndex)}", "Recommendation option")
-        };
-    }
-
-    private static string GetProposalLetter(int index)
-    {
-        return index >= 0 && index < 26
-            ? ((char)('A' + index)).ToString()
-            : (index + 1).ToString();
-    }
-
-    private static int GetProposalRank(string? recommendationType)
-    {
-        var variantKey = recommendationType?
-            .Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .LastOrDefault()?
-            .ToLowerInvariant();
-
-        return variantKey switch
-        {
-            "balanced" => 0,
-            "ooh_focus" => 1,
-            "radio_focus" => 2,
-            "digital_focus" => 2,
-            "tv_focus" => 2,
-            _ => 9
-        };
-    }
-
     private static RecommendationItemResponse ToResponse(RecommendationItem item, bool includeLinePricing)
     {
         var normalized = NormalizeRecommendationItemMetadata(item);
@@ -885,46 +840,16 @@ internal static class CampaignMappings
 
     private static int GetRecommendationItemChannelRank(string? channel)
     {
-        var normalized = NormalizeRecommendationChannel(channel);
+        var normalized = RecommendationPdfCopy.NormalizeRecommendationChannel(channel);
         return normalized switch
         {
             "ooh" => 0,
             "radio" => 1,
             "tv" => 2,
             "digital" => 3,
+            "newspaper" => 4,
             _ => 9
         };
-    }
-
-    private static string NormalizeRecommendationChannel(string? channel)
-    {
-        var normalized = (channel ?? string.Empty).Trim().ToLowerInvariant();
-        if (normalized.Contains("ooh", StringComparison.OrdinalIgnoreCase)
-            || normalized.Contains("billboard", StringComparison.OrdinalIgnoreCase)
-            || normalized.Contains("digital_screen", StringComparison.OrdinalIgnoreCase)
-            || normalized.Contains("digital screen", StringComparison.OrdinalIgnoreCase)
-            || normalized.Contains("out of home", StringComparison.OrdinalIgnoreCase))
-        {
-            return "ooh";
-        }
-
-        if (normalized.Contains("radio", StringComparison.OrdinalIgnoreCase))
-        {
-            return "radio";
-        }
-
-        if (normalized.Contains("tv", StringComparison.OrdinalIgnoreCase)
-            || normalized.Contains("television", StringComparison.OrdinalIgnoreCase))
-        {
-            return "tv";
-        }
-
-        if (normalized.Contains("digital", StringComparison.OrdinalIgnoreCase))
-        {
-            return "digital";
-        }
-
-        return normalized;
     }
 
     private static string ExtractRationale(string? metadataJson)
@@ -1341,27 +1266,6 @@ internal static class CampaignMappings
         };
     }
 
-    private static string RemoveInternalMarkers(string? rationale)
-    {
-        if (string.IsNullOrWhiteSpace(rationale))
-        {
-            return string.Empty;
-        }
-
-        var cleanedLines = rationale
-            .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
-            .Select(line => line.Trim())
-            .Where(line =>
-                !line.StartsWith(ClientFeedbackMarker, StringComparison.OrdinalIgnoreCase)
-                && !line.StartsWith(FallbackFlagsMarker, StringComparison.OrdinalIgnoreCase)
-                && !line.StartsWith(ManualReviewMarker, StringComparison.OrdinalIgnoreCase))
-            .ToArray();
-
-        return cleanedLines.Length == 0
-            ? string.Empty
-            : string.Join(Environment.NewLine, cleanedLines);
-    }
-
     private static CreativeSystemResponse DeserializeCreativeSystem(string? json)
     {
         if (string.IsNullOrWhiteSpace(json))
@@ -1489,7 +1393,7 @@ internal static class CampaignMappings
             return "Policy: no policy rejections recorded.";
         }
 
-        return $"Policy: scale floor {FormatCurrency(snapshot.Scale.BudgetFloor)}, dominance floor {FormatCurrency(snapshot.Dominance.BudgetFloor)}.";
+        return $"Policy: scale floor {CurrencyFormatSupport.FormatZarStandard(snapshot.Scale.BudgetFloor)}, dominance floor {CurrencyFormatSupport.FormatZarStandard(snapshot.Dominance.BudgetFloor)}.";
     }
 
     private static string BuildBudgetSummary(decimal selectedBudget, decimal totalCost, decimal utilizationRatio)
@@ -1498,7 +1402,7 @@ internal static class CampaignMappings
             ? utilizationRatio
             : (selectedBudget <= 0m ? 0m : totalCost / selectedBudget);
         var percentage = Math.Round(ratio * 100m, 0, MidpointRounding.AwayFromZero);
-        return $"Budget: {FormatCurrency(totalCost)} of {FormatCurrency(selectedBudget)} used ({percentage:0}%).";
+        return $"Budget: {CurrencyFormatSupport.FormatZarStandard(totalCost)} of {CurrencyFormatSupport.FormatZarStandard(selectedBudget)} used ({percentage:0}%).";
     }
 
     private static string? BuildFallbackSummary(IReadOnlyList<string> flags)
@@ -1597,11 +1501,6 @@ internal static class CampaignMappings
             "national_radio_inventory_insufficient" => "national radio inventory insufficient",
             _ => reason.Replace('_', ' ')
         };
-    }
-
-    private static string FormatCurrency(decimal value)
-    {
-        return $"R {value:N2}";
     }
 
     private sealed record NormalizedRecommendationItemMetadata(

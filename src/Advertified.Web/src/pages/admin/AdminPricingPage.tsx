@@ -30,10 +30,15 @@ export function AdminPricingPage() {
   const [slotDialog, setSlotDialog] = useState<{ mode: 'create' | 'view' | 'edit'; id?: string } | null>(null);
   const [pricingSettingsForm, setPricingSettingsForm] = useState<AdminUpdatePricingSettingsInput>({
     aiStudioReservePercent: 0.1,
-    oohMarkupPercent: 0.05,
-    radioMarkupPercent: 0.1,
-    tvMarkupPercent: 0.1,
-    digitalMarkupPercent: 0.1,
+    oohMarkupPercent: 0.15,
+    radioMarkupPercent: 0.15,
+    tvMarkupPercent: 0.15,
+    newspaperMarkupPercent: 0.15,
+    digitalMarkupPercent: 0.15,
+    salesCommissionPercent: 0.1,
+    salesCommissionThresholdZar: 250000,
+    salesAgentShareBelowThresholdPercent: 0.6,
+    salesAgentShareAtOrAboveThresholdPercent: 0.5,
   });
   const [packageSettingForm, setPackageSettingForm] = useState<AdminUpsertPackageSettingInput>({
     code: '',
@@ -107,7 +112,7 @@ export function AdminPricingPage() {
     mutationFn: () => advertifiedApi.updateAdminPricingSettings(pricingSettingsForm),
     onSuccess: async () => {
       await refreshPackageSettings();
-      pushToast({ title: 'Pricing settings updated.', description: 'Checkout reserve and channel markups are now live.' });
+      pushToast({ title: 'Pricing settings updated.', description: 'Pricing model, revenue share, and commission splits are now live.' });
     },
     onError: (error) => pushToast({ title: 'Could not update pricing settings.', description: error instanceof Error ? error.message : 'Please try again.' }, 'error'),
   });
@@ -225,7 +230,12 @@ export function AdminPricingPage() {
           || pricingSettingsForm.oohMarkupPercent !== dashboard.pricingSettings.oohMarkupPercent
           || pricingSettingsForm.radioMarkupPercent !== dashboard.pricingSettings.radioMarkupPercent
           || pricingSettingsForm.tvMarkupPercent !== dashboard.pricingSettings.tvMarkupPercent
+          || pricingSettingsForm.newspaperMarkupPercent !== dashboard.pricingSettings.newspaperMarkupPercent
           || pricingSettingsForm.digitalMarkupPercent !== dashboard.pricingSettings.digitalMarkupPercent
+          || pricingSettingsForm.salesCommissionPercent !== dashboard.pricingSettings.salesCommissionPercent
+          || pricingSettingsForm.salesCommissionThresholdZar !== dashboard.pricingSettings.salesCommissionThresholdZar
+          || pricingSettingsForm.salesAgentShareBelowThresholdPercent !== dashboard.pricingSettings.salesAgentShareBelowThresholdPercent
+          || pricingSettingsForm.salesAgentShareAtOrAboveThresholdPercent !== dashboard.pricingSettings.salesAgentShareAtOrAboveThresholdPercent
         ) {
           setPricingSettingsForm(dashboard.pricingSettings);
         }
@@ -511,8 +521,8 @@ export function AdminPricingPage() {
               <div className="panel p-6">
                 <div className="flex items-center justify-between gap-4">
                   <div>
-                    <h3 className="text-lg font-semibold text-ink">Platform markups and reserve</h3>
-                    <p className="mt-2 text-sm text-ink-soft">Control the hidden AI Studio reserve collected at checkout and the markup percentages applied to Billboards and Digital Screens, radio, TV, and social/digital planning costs.</p>
+                    <h3 className="text-lg font-semibold text-ink">Pricing model and commissions</h3>
+                    <p className="mt-2 text-sm text-ink-soft">Set AI reserve, OOH embedded revenue share, channel markups, and the gross transaction commission split.</p>
                   </div>
                   <button
                     type="button"
@@ -524,13 +534,13 @@ export function AdminPricingPage() {
                     Save pricing settings
                   </button>
                 </div>
-                <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+                <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-6">
                   <label className="space-y-2">
                     <span className="text-sm font-medium text-ink">AI Studio reserve %</span>
                     <input className="input-base" type="number" min="0" max="100" step="0.1" value={pricingSettingsForm.aiStudioReservePercent * 100} onChange={(event) => setPricingSettingsForm((current) => ({ ...current, aiStudioReservePercent: Number(event.target.value) / 100 }))} />
                   </label>
                   <label className="space-y-2">
-                    <span className="text-sm font-medium text-ink">Billboards and Digital Screens markup %</span>
+                    <span className="text-sm font-medium text-ink">OOH revenue share %</span>
                     <input className="input-base" type="number" min="0" max="100" step="0.1" value={pricingSettingsForm.oohMarkupPercent * 100} onChange={(event) => setPricingSettingsForm((current) => ({ ...current, oohMarkupPercent: Number(event.target.value) / 100 }))} />
                   </label>
                   <label className="space-y-2">
@@ -542,17 +552,39 @@ export function AdminPricingPage() {
                     <input className="input-base" type="number" min="0" max="100" step="0.1" value={pricingSettingsForm.tvMarkupPercent * 100} onChange={(event) => setPricingSettingsForm((current) => ({ ...current, tvMarkupPercent: Number(event.target.value) / 100 }))} />
                   </label>
                   <label className="space-y-2">
+                    <span className="text-sm font-medium text-ink">Newspaper markup %</span>
+                    <input className="input-base" type="number" min="0" max="100" step="0.1" value={pricingSettingsForm.newspaperMarkupPercent * 100} onChange={(event) => setPricingSettingsForm((current) => ({ ...current, newspaperMarkupPercent: Number(event.target.value) / 100 }))} />
+                  </label>
+                  <label className="space-y-2">
                     <span className="text-sm font-medium text-ink">Digital markup %</span>
                     <input className="input-base" type="number" min="0" max="100" step="0.1" value={pricingSettingsForm.digitalMarkupPercent * 100} onChange={(event) => setPricingSettingsForm((current) => ({ ...current, digitalMarkupPercent: Number(event.target.value) / 100 }))} />
                   </label>
                 </div>
-                <div className="mt-4 grid gap-4 md:grid-cols-5">
+                <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                  <label className="space-y-2">
+                    <span className="text-sm font-medium text-ink">Sales commission pool %</span>
+                    <input className="input-base" type="number" min="0" max="100" step="0.1" value={pricingSettingsForm.salesCommissionPercent * 100} onChange={(event) => setPricingSettingsForm((current) => ({ ...current, salesCommissionPercent: Number(event.target.value) / 100 }))} />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-sm font-medium text-ink">Commission threshold ZAR</span>
+                    <input className="input-base" type="number" min="0" step="1000" value={pricingSettingsForm.salesCommissionThresholdZar} onChange={(event) => setPricingSettingsForm((current) => ({ ...current, salesCommissionThresholdZar: Number(event.target.value) }))} />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-sm font-medium text-ink">Agent split below threshold %</span>
+                    <input className="input-base" type="number" min="0" max="100" step="0.1" value={pricingSettingsForm.salesAgentShareBelowThresholdPercent * 100} onChange={(event) => setPricingSettingsForm((current) => ({ ...current, salesAgentShareBelowThresholdPercent: Number(event.target.value) / 100 }))} />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-sm font-medium text-ink">Agent split at/above threshold %</span>
+                    <input className="input-base" type="number" min="0" max="100" step="0.1" value={pricingSettingsForm.salesAgentShareAtOrAboveThresholdPercent * 100} onChange={(event) => setPricingSettingsForm((current) => ({ ...current, salesAgentShareAtOrAboveThresholdPercent: Number(event.target.value) / 100 }))} />
+                  </label>
+                </div>
+                <div className="mt-4 grid gap-4 md:grid-cols-3 xl:grid-cols-6">
                   <div className="rounded-[20px] border border-line bg-brand-soft px-4 py-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">AI Studio</p>
                     <p className="mt-2 text-2xl font-semibold text-ink">{(pricingSettingsForm.aiStudioReservePercent * 100).toFixed(1)}%</p>
                   </div>
                   <div className="rounded-[20px] border border-line bg-white px-4 py-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Billboards and Digital Screens</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">OOH revenue share</p>
                     <p className="mt-2 text-2xl font-semibold text-ink">{(pricingSettingsForm.oohMarkupPercent * 100).toFixed(1)}%</p>
                   </div>
                   <div className="rounded-[20px] border border-line bg-white px-4 py-4">
@@ -564,8 +596,30 @@ export function AdminPricingPage() {
                     <p className="mt-2 text-2xl font-semibold text-ink">{(pricingSettingsForm.tvMarkupPercent * 100).toFixed(1)}%</p>
                   </div>
                   <div className="rounded-[20px] border border-line bg-white px-4 py-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Newspaper</p>
+                    <p className="mt-2 text-2xl font-semibold text-ink">{(pricingSettingsForm.newspaperMarkupPercent * 100).toFixed(1)}%</p>
+                  </div>
+                  <div className="rounded-[20px] border border-line bg-white px-4 py-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Digital</p>
                     <p className="mt-2 text-2xl font-semibold text-ink">{(pricingSettingsForm.digitalMarkupPercent * 100).toFixed(1)}%</p>
+                  </div>
+                </div>
+                <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                  <div className="rounded-[20px] border border-line bg-white px-4 py-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Commission pool</p>
+                    <p className="mt-2 text-2xl font-semibold text-ink">{(pricingSettingsForm.salesCommissionPercent * 100).toFixed(1)}%</p>
+                  </div>
+                  <div className="rounded-[20px] border border-line bg-white px-4 py-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Threshold</p>
+                    <p className="mt-2 text-2xl font-semibold text-ink">{fmtCurrency(pricingSettingsForm.salesCommissionThresholdZar)}</p>
+                  </div>
+                  <div className="rounded-[20px] border border-line bg-white px-4 py-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Agent below</p>
+                    <p className="mt-2 text-2xl font-semibold text-ink">{(pricingSettingsForm.salesAgentShareBelowThresholdPercent * 100).toFixed(1)}%</p>
+                  </div>
+                  <div className="rounded-[20px] border border-line bg-white px-4 py-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-soft">Agent at/above</p>
+                    <p className="mt-2 text-2xl font-semibold text-ink">{(pricingSettingsForm.salesAgentShareAtOrAboveThresholdPercent * 100).toFixed(1)}%</p>
                   </div>
                 </div>
               </div>

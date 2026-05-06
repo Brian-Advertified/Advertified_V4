@@ -13,7 +13,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
-using System.Globalization;
 
 namespace Advertified.App.Controllers;
 
@@ -517,11 +516,6 @@ public sealed class CampaignsController : ControllerBase
         return _frontendOptions.BaseUrl.TrimEnd('/') + path;
     }
 
-    private static string FormatCurrency(decimal amount)
-    {
-        return $"R {amount.ToString("N2", CultureInfo.GetCultureInfo("en-ZA"))}";
-    }
-
     private async Task SendInternalCreativeQueueUpdateAsync(
         Campaign campaign,
         string eventTitle,
@@ -553,7 +547,7 @@ public sealed class CampaignsController : ControllerBase
                     {
                         ["CampaignName"] = campaignName,
                         ["PackageName"] = campaign.PackageBand.Name,
-                        ["Budget"] = FormatCurrency(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount),
+                        ["Budget"] = CurrencyFormatSupport.FormatZar(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount),
                         ["EventTitle"] = eventTitle,
                         ["EventBody"] = eventBody,
                         ["ActionUrl"] = actionUrl

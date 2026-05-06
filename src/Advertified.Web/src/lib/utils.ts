@@ -36,6 +36,13 @@ export function formatDate(value: string | Date) {
   }).format(typeof value === 'string' ? new Date(value) : value);
 }
 
+export function formatDateTime(value: string | Date) {
+  return new Intl.DateTimeFormat('en-ZA', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(typeof value === 'string' ? new Date(value) : value);
+}
+
 export function titleCase(value: string) {
   return value
     .split('_')

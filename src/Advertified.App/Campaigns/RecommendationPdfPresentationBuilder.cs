@@ -47,6 +47,7 @@ internal static class RecommendationPdfPresentationBuilder
                     "radio" => "Radio",
                     "digital" => "Digital (online)",
                     "tv" => "TV",
+                    "newspaper" => "Newspaper",
                     _ => RecommendationPdfCopy.ToClientCopy(entry.Key)
                 };
                 var percent = Math.Round((entry.Total / total) * 100m, 0, MidpointRounding.AwayFromZero);
@@ -298,6 +299,7 @@ internal static class RecommendationPdfPresentationBuilder
             "radio" => 1,
             "tv" => 2,
             "digital" => 3,
+            "newspaper" => 4,
             _ => 9
         };
     }
@@ -310,6 +312,7 @@ internal static class RecommendationPdfPresentationBuilder
             "radio" => "Radio",
             "tv" => "TV",
             "digital" => "Digital",
+            "newspaper" => "Newspaper",
             _ => RecommendationPdfCopy.ToClientCopy(channel)
         };
     }

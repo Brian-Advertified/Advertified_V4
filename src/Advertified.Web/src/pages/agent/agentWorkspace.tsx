@@ -15,6 +15,7 @@ import { QueryStateBoundary } from '../../components/ui/QueryStateBoundary';
 import { useAuth } from '../../features/auth/auth-context';
 import { catalogQueryOptions } from '../../lib/catalogQueryOptions';
 import { shouldPollWhenVisible } from '../../lib/queryPolling';
+import { formatCurrency, formatDateTime } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import type { AgentInbox, Campaign, LeadOpsCoverage, LeadOpsInbox, PackageBand } from '../../types/domain';
 
@@ -50,8 +51,8 @@ export const agentNavSections: AgentNavSection[] = [
   },
 ];
 
-export const fmtCurrency = (amount?: number) => amount == null ? 'N/A' : new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 }).format(amount);
-export const fmtDate = (value?: string) => value ? new Intl.DateTimeFormat('en-ZA', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : 'Not yet available';
+export const fmtCurrency = (amount?: number) => amount == null ? 'N/A' : formatCurrency(amount);
+export const fmtDate = (value?: string) => value ? formatDateTime(value) : 'Not yet available';
 export const titleize = (value?: string) => value ? value.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase()) : 'Not set';
 
 export function queueTone(queueStage: string) {

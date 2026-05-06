@@ -3,7 +3,6 @@ using Advertified.App.Services.Abstractions;
 using Advertified.App.Support;
 using Dapper;
 using Npgsql;
-using System.Globalization;
 using System.Text.Json;
 
 namespace Advertified.App.Services;
@@ -12,13 +11,16 @@ public sealed class OohPlanningInventorySource : IOohPlanningInventorySource
 {
     private readonly Npgsql.NpgsqlDataSource _dataSource;
     private readonly ICommercialFlightPricingResolver _commercialFlightPricingResolver;
+    private readonly IPricingSettingsProvider _pricingSettingsProvider;
 
     public OohPlanningInventorySource(
         Npgsql.NpgsqlDataSource dataSource,
-        ICommercialFlightPricingResolver commercialFlightPricingResolver)
+        ICommercialFlightPricingResolver commercialFlightPricingResolver,
+        IPricingSettingsProvider pricingSettingsProvider)
     {
         _dataSource = dataSource;
         _commercialFlightPricingResolver = commercialFlightPricingResolver;
+        _pricingSettingsProvider = pricingSettingsProvider;
     }
 
     public async Task<List<OohPlanningInventoryRow>> GetCandidatesAsync(CampaignPlanningRequest request, CancellationToken cancellationToken)
@@ -46,10 +48,6 @@ select
     coalesce(
         oii.rate_card_zar,
         nullif(regexp_replace(coalesce(oii.metadata_json ->> 'rate_card_zar', ''), '[^0-9.]', '', 'g'), '')::numeric,
-        oii.monthly_rate_zar,
-        nullif(regexp_replace(coalesce(oii.metadata_json ->> 'monthly_rate_zar', ''), '[^0-9.]', '', 'g'), '')::numeric,
-        oii.discounted_rate_zar,
-        nullif(regexp_replace(coalesce(oii.metadata_json ->> 'discounted_rate_zar', ''), '[^0-9.]', '', 'g'), '')::numeric,
         0
     ) as Cost,
     coalesce(oii.is_available, true) as IsAvailable,
@@ -129,14 +127,16 @@ where oii.is_active = true
   and coalesce(
         oii.rate_card_zar,
         nullif(regexp_replace(coalesce(oii.metadata_json ->> 'rate_card_zar', ''), '[^0-9.]', '', 'g'), '')::numeric,
-        oii.monthly_rate_zar,
-        nullif(regexp_replace(coalesce(oii.metadata_json ->> 'monthly_rate_zar', ''), '[^0-9.]', '', 'g'), '')::numeric,
-        oii.discounted_rate_zar,
-        nullif(regexp_replace(coalesce(oii.metadata_json ->> 'discounted_rate_zar', ''), '[^0-9.]', '', 'g'), '')::numeric,
+        0
+      ) > 0
+  and coalesce(
+        oii.rate_card_zar,
+        nullif(regexp_replace(coalesce(oii.metadata_json ->> 'rate_card_zar', ''), '[^0-9.]', '', 'g'), '')::numeric,
         0
       ) <= @Budget;";
 
         await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
+        var pricingSettings = await _pricingSettingsProvider.GetCurrentAsync(cancellationToken);
         var rows = await conn.QueryAsync<OohPlanningInventoryRow>(new CommandDefinition(
             sql,
             new { Budget = request.SelectedBudget },
@@ -157,8 +157,6 @@ where oii.is_active = true
 
                 var metadata = DeserializeMetadata(row.MetadataJson);
                 var rateCardCost = row.Cost;
-                var supplierBaseCost = ParseNullableDecimal(GetMetadataValue(metadata, "discountedRateZar") ?? GetMetadataValue(metadata, "discounted_rate_zar"))
-                    ?? rateCardCost;
                 var offerDurationWeeks = ParseNullableInt(GetMetadataValue(metadata, "durationWeeks") ?? GetMetadataValue(metadata, "duration_weeks"));
                 var offerDurationMonths = ParseNullableInt(GetMetadataValue(metadata, "durationMonths") ?? GetMetadataValue(metadata, "duration_months"));
                 var pricingModel = GetMetadataValue(metadata, "pricingModel")
@@ -175,9 +173,9 @@ where oii.is_active = true
                     allowsProration: pricingModel.Contains("monthly", StringComparison.OrdinalIgnoreCase));
 
                 row.Cost = resolution.QuotedCost;
-                var supplierQuotedCost = rateCardCost > 0m
-                    ? decimal.Round(supplierBaseCost * (resolution.QuotedCost / rateCardCost), 2, MidpointRounding.AwayFromZero)
-                    : supplierBaseCost;
+                var revenueSharePercent = PricingPolicy.ResolveOohRevenueSharePercent(row.MediaType, row.Subtype, pricingSettings);
+                var revenueShareAmount = PricingPolicy.CalculateEmbeddedRevenueShareAmount(resolution.QuotedCost, revenueSharePercent);
+                var supplierQuotedCost = PricingPolicy.CalculateSupplierNetFromEmbeddedRevenueShare(resolution.QuotedCost, revenueSharePercent);
                 metadata["supplierCostZar"] = supplierQuotedCost;
                 metadata["supplier_cost_zar"] = supplierQuotedCost;
                 metadata["rawCostZar"] = supplierQuotedCost;
@@ -188,6 +186,12 @@ where oii.is_active = true
                 metadata["rate_card_base_cost_zar"] = rateCardCost;
                 metadata["markupPercent"] = 0m;
                 metadata["markup_percent"] = 0m;
+                metadata["revenueSharePercent"] = revenueSharePercent;
+                metadata["revenue_share_percent"] = revenueSharePercent;
+                metadata["advertifiedRevenueShareAmount"] = revenueShareAmount;
+                metadata["advertified_revenue_share_amount"] = revenueShareAmount;
+                metadata["mediaOwnerNetAmount"] = supplierQuotedCost;
+                metadata["media_owner_net_amount"] = supplierQuotedCost;
                 row.MetadataJson = SerializeMetadata(metadata, resolution, offerDurationWeeks, offerDurationMonths);
                 return row;
             })
@@ -257,10 +261,5 @@ where oii.is_active = true
     private static int? ParseNullableInt(string? value)
     {
         return int.TryParse(value, out var parsed) ? parsed : null;
-    }
-
-    private static decimal? ParseNullableDecimal(string? value)
-    {
-        return decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed) ? parsed : null;
     }
 }

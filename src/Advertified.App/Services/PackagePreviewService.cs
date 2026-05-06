@@ -140,8 +140,7 @@ public sealed class PackagePreviewService : IPackagePreviewService
             ) as GpsCoordinates,
             coalesce(
                 oii.rate_card_zar,
-                oii.monthly_rate_zar,
-                oii.discounted_rate_zar,
+                nullif(regexp_replace(coalesce(oii.metadata_json ->> 'rate_card_zar', ''), '[^0-9.]', '', 'g'), '')::numeric,
                 0
             ) as Cost,
             case
@@ -152,10 +151,14 @@ public sealed class PackagePreviewService : IPackagePreviewService
         from ooh_inventory_intelligence oii
         where coalesce(
             oii.rate_card_zar,
-            oii.monthly_rate_zar,
-            oii.discounted_rate_zar,
+            nullif(regexp_replace(coalesce(oii.metadata_json ->> 'rate_card_zar', ''), '[^0-9.]', '', 'g'), '')::numeric,
             0
         ) <= @PlacementBudget
+          and coalesce(
+            oii.rate_card_zar,
+            nullif(regexp_replace(coalesce(oii.metadata_json ->> 'rate_card_zar', ''), '[^0-9.]', '', 'g'), '')::numeric,
+            0
+          ) > 0
           and oii.is_active = true
         order by TrafficCount desc, Cost desc, oii.city nulls last, oii.suburb nulls last
         limit @PoolSize;
@@ -179,8 +182,7 @@ public sealed class PackagePreviewService : IPackagePreviewService
             ) as GpsCoordinates,
             coalesce(
                 oii.rate_card_zar,
-                oii.monthly_rate_zar,
-                oii.discounted_rate_zar,
+                nullif(regexp_replace(coalesce(oii.metadata_json ->> 'rate_card_zar', ''), '[^0-9.]', '', 'g'), '')::numeric,
                 0
             ) as Cost,
             case

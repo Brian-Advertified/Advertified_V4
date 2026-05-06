@@ -14,7 +14,7 @@ public class ClientFacingChannelCopyGuardTests
     [Fact]
     public void ControllerChannelLabelMapping_UsesClientSafeBillboardsLabel()
     {
-        var file = ReadRepositoryFile("src", "Advertified.App", "Controllers", "ControllerMappings.cs");
+        var file = ReadRepositoryFile("src", "Advertified.App", "Mappings", "CampaignMappings.cs");
 
         Assert.DoesNotContain("\"ooh\" => \"OOH\"", file, StringComparison.Ordinal);
         Assert.Contains("\"ooh\" => \"Billboards and Digital Screens\"", file, StringComparison.Ordinal);
@@ -23,7 +23,7 @@ public class ClientFacingChannelCopyGuardTests
     [Fact]
     public void LeadProposalPlaybookCopy_DoesNotExposeRawOohTerm()
     {
-        var file = ReadRepositoryFile("src", "Advertified.App", "Services", "RecommendationDocumentService.cs");
+        var file = ReadRepositoryFile("src", "Advertified.App", "Campaigns", "RecommendationProposalPositioning.cs");
         var playbookBody = ExtractPlaybookBody(file);
 
         Assert.DoesNotMatch(@"\bOOH\b", playbookBody);
@@ -32,7 +32,7 @@ public class ClientFacingChannelCopyGuardTests
 
     private static string ExtractPlaybookBody(string source)
     {
-        const string marker = "private static (string Label, string Strategy)? ResolveArchetypeProposalPlaybook";
+        const string marker = "private static RecommendationProposalPositioningDetails? ResolveArchetypeProposalPlaybook";
         var start = source.IndexOf(marker, StringComparison.Ordinal);
         if (start < 0)
         {
@@ -40,7 +40,7 @@ public class ClientFacingChannelCopyGuardTests
         }
 
         var segment = source[start..];
-        var endMarker = "private static string GetProposalLetter";
+        var endMarker = "private static string? ResolveVariantKey";
         var end = segment.IndexOf(endMarker, StringComparison.Ordinal);
         return end > 0 ? segment[..end] : segment;
     }

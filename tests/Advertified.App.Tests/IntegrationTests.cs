@@ -844,7 +844,7 @@ public class HttpWorkflowIntegrationTests
     }
 
     [Fact]
-    public async Task AdminPricingSettingsUpdate_WritesDigitalMarkupToChangeAuditOverHttp()
+    public async Task AdminPricingSettingsUpdate_WritesChannelMarkupsToChangeAuditOverHttp()
     {
         await using var harness = await TestApiHarness.CreateAsync(
             seed: db =>
@@ -865,10 +865,15 @@ public class HttpWorkflowIntegrationTests
         var response = await harness.Client.PutAsJsonAsync("/admin/pricing-settings", new UpdateAdminPricingSettingsRequest
         {
             AiStudioReservePercent = 0.10m,
-            OohMarkupPercent = 0.05m,
-            RadioMarkupPercent = 0.10m,
-            TvMarkupPercent = 0.10m,
-            DigitalMarkupPercent = 0.115m
+            OohMarkupPercent = 0.15m,
+            RadioMarkupPercent = 0.15m,
+            TvMarkupPercent = 0.15m,
+            NewspaperMarkupPercent = 0.15m,
+            DigitalMarkupPercent = 0.15m,
+            SalesCommissionPercent = 0.10m,
+            SalesCommissionThresholdZar = 250000m,
+            SalesAgentShareBelowThresholdPercent = 0.60m,
+            SalesAgentShareAtOrAboveThresholdPercent = 0.50m
         });
 
         var content = await response.Content.ReadAsStringAsync();
@@ -883,10 +888,15 @@ public class HttpWorkflowIntegrationTests
 
         using var metadata = System.Text.Json.JsonDocument.Parse(audit.MetadataJson!);
         metadata.RootElement.GetProperty("AiStudioReservePercent").GetDecimal().Should().Be(0.10m);
-        metadata.RootElement.GetProperty("OohMarkupPercent").GetDecimal().Should().Be(0.05m);
-        metadata.RootElement.GetProperty("RadioMarkupPercent").GetDecimal().Should().Be(0.10m);
-        metadata.RootElement.GetProperty("TvMarkupPercent").GetDecimal().Should().Be(0.10m);
-        metadata.RootElement.GetProperty("DigitalMarkupPercent").GetDecimal().Should().Be(0.115m);
+        metadata.RootElement.GetProperty("OohMarkupPercent").GetDecimal().Should().Be(0.15m);
+        metadata.RootElement.GetProperty("RadioMarkupPercent").GetDecimal().Should().Be(0.15m);
+        metadata.RootElement.GetProperty("TvMarkupPercent").GetDecimal().Should().Be(0.15m);
+        metadata.RootElement.GetProperty("NewspaperMarkupPercent").GetDecimal().Should().Be(0.15m);
+        metadata.RootElement.GetProperty("DigitalMarkupPercent").GetDecimal().Should().Be(0.15m);
+        metadata.RootElement.GetProperty("SalesCommissionPercent").GetDecimal().Should().Be(0.10m);
+        metadata.RootElement.GetProperty("SalesCommissionThresholdZar").GetDecimal().Should().Be(250000m);
+        metadata.RootElement.GetProperty("SalesAgentShareBelowThresholdPercent").GetDecimal().Should().Be(0.60m);
+        metadata.RootElement.GetProperty("SalesAgentShareAtOrAboveThresholdPercent").GetDecimal().Should().Be(0.50m);
     }
 
     [Fact]

@@ -301,7 +301,7 @@ public sealed class AdminPackageOrdersController : ControllerBase
                     ["CampaignName"] = order.Campaign?.CampaignName?.Trim() ?? $"{order.PackageBand.Name} campaign",
                     ["InvoiceNumber"] = order.Invoice.InvoiceNumber,
                     ["PackageName"] = order.PackageBand.Name,
-                    ["Amount"] = FormatCurrency(order.Amount),
+                    ["Amount"] = CurrencyFormatSupport.FormatZarStandard(order.Amount),
                     ["PaymentReference"] = order.PaymentReference ?? "-",
                     ["AdminNoteBlock"] = BuildAdminNoteBlock(note),
                     ["OrdersUrl"] = BuildFrontendUrl("/orders")
@@ -336,11 +336,6 @@ public sealed class AdminPackageOrdersController : ControllerBase
             </div>";
     }
 
-    private static string FormatCurrency(decimal amount)
-    {
-        return $"R {amount:N2}";
-    }
-
     private static AdminPackageOrderItemResponse MapResponse(PackageOrder order)
     {
         return new AdminPackageOrderItemResponse
@@ -354,6 +349,12 @@ public sealed class AdminPackageOrdersController : ControllerBase
             PackageBandName = order.PackageBand.Name,
             SelectedBudget = order.SelectedBudget ?? order.Amount,
             ChargedAmount = order.Amount,
+            SalesCommissionPercent = order.SalesCommissionPercent,
+            SalesCommissionPoolAmount = order.SalesCommissionPoolAmount,
+            SalesAgentCommissionSharePercent = order.SalesAgentCommissionSharePercent,
+            SalesAgentCommissionAmount = order.SalesAgentCommissionAmount,
+            AdvertifiedSalesCommissionAmount = order.AdvertifiedSalesCommissionAmount,
+            SalesCommissionTier = order.SalesCommissionTier,
             Currency = order.Currency,
             PaymentProvider = order.PaymentProvider ?? string.Empty,
             PaymentStatus = order.PaymentStatus,

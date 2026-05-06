@@ -8,7 +8,7 @@ import { useToast } from '../../components/ui/toast';
 import { useAuth } from '../../features/auth/auth-context';
 import { getCampaignPrimaryAction } from '../../lib/access';
 import { getPendingPaymentPollInterval } from '../../lib/queryPolling';
-import { formatCurrency } from '../../lib/utils';
+import { formatCurrency, formatDateTime } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
 
 type VodaPayReturnData = {
@@ -340,14 +340,4 @@ function parseVodaPayReturnData(encodedValue: string | null): VodaPayReturnData 
   } catch {
     return null;
   }
-}
-
-function formatDateTime(value: string) {
-  return new Intl.DateTimeFormat('en-ZA', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value));
 }

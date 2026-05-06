@@ -930,6 +930,30 @@ public partial class AppDbContext : DbContext
                 .HasPrecision(8, 4)
                 .HasDefaultValue(0.10m)
                 .HasColumnName("ai_studio_reserve_percent");
+            entity.Property(e => e.SalesCommissionPercent)
+                .HasPrecision(8, 4)
+                .HasDefaultValue(0.10m)
+                .HasColumnName("sales_commission_percent");
+            entity.Property(e => e.SalesCommissionPoolAmount)
+                .HasPrecision(12, 2)
+                .HasDefaultValue(0m)
+                .HasColumnName("sales_commission_pool_amount");
+            entity.Property(e => e.SalesAgentCommissionSharePercent)
+                .HasPrecision(8, 4)
+                .HasDefaultValue(0m)
+                .HasColumnName("sales_agent_commission_share_percent");
+            entity.Property(e => e.SalesAgentCommissionAmount)
+                .HasPrecision(12, 2)
+                .HasDefaultValue(0m)
+                .HasColumnName("sales_agent_commission_amount");
+            entity.Property(e => e.AdvertifiedSalesCommissionAmount)
+                .HasPrecision(12, 2)
+                .HasDefaultValue(0m)
+                .HasColumnName("advertified_sales_commission_amount");
+            entity.Property(e => e.SalesCommissionTier)
+                .HasMaxLength(50)
+                .HasDefaultValue("none")
+                .HasColumnName("sales_commission_tier");
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("created_at");
@@ -1095,9 +1119,24 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.TvMarkupPercent)
                 .HasPrecision(8, 4)
                 .HasColumnName("tv_markup_percent");
+            entity.Property(e => e.NewspaperMarkupPercent)
+                .HasPrecision(8, 4)
+                .HasColumnName("newspaper_markup_percent");
             entity.Property(e => e.DigitalMarkupPercent)
                 .HasPrecision(8, 4)
                 .HasColumnName("digital_markup_percent");
+            entity.Property(e => e.SalesCommissionPercent)
+                .HasPrecision(8, 4)
+                .HasColumnName("sales_commission_percent");
+            entity.Property(e => e.SalesCommissionThresholdZar)
+                .HasPrecision(12, 2)
+                .HasColumnName("sales_commission_threshold_zar");
+            entity.Property(e => e.SalesAgentShareBelowThresholdPercent)
+                .HasPrecision(8, 4)
+                .HasColumnName("sales_agent_share_below_threshold_percent");
+            entity.Property(e => e.SalesAgentShareAtOrAboveThresholdPercent)
+                .HasPrecision(8, 4)
+                .HasColumnName("sales_agent_share_at_or_above_threshold_percent");
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("created_at");

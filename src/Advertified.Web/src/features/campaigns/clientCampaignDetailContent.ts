@@ -2,12 +2,9 @@ import { formatCurrency, titleCase } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import { getPrimaryRecommendation } from '../../lib/campaignStatus';
 import { getClientCampaignState } from '../../lib/access';
+import { formatChannelLabel } from '../channels/channelUtils';
 
 type Campaign = Awaited<ReturnType<typeof advertifiedApi.getCampaign>>;
-
-function formatChannelLabel(value: string) {
-  return value.replace(/\booh\b/gi, 'Billboards and Digital Screens');
-}
 
 export function getHeroContent(campaign: Campaign) {
   const state = getClientCampaignState(campaign);

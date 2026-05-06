@@ -35,6 +35,7 @@ internal static class RecommendationClientDocumentShaper
             AcceptUrl = proposal.AcceptUrl,
             Summary = proposal.Summary,
             Rationale = proposal.Rationale,
+            Narrative = proposal.Narrative,
             TotalCost = proposal.TotalCost,
             Items = finalItems
         };

@@ -1,5 +1,5 @@
-using System.Globalization;
 using System.Text.RegularExpressions;
+using Advertified.App.Support;
 
 namespace Advertified.App.Campaigns;
 
@@ -35,12 +35,19 @@ internal static class RecommendationPdfCopy
             return "digital";
         }
 
+        if (normalized.Contains("newspaper", StringComparison.OrdinalIgnoreCase)
+            || normalized.Contains("print", StringComparison.OrdinalIgnoreCase)
+            || normalized.Contains("press", StringComparison.OrdinalIgnoreCase))
+        {
+            return "newspaper";
+        }
+
         return normalized;
     }
 
     internal static string FormatCurrency(decimal amount)
     {
-        return $"R {amount.ToString("N2", CultureInfo.GetCultureInfo("en-ZA"))}";
+        return CurrencyFormatSupport.FormatZar(amount);
     }
 
     internal static string ResolveBusinessReference(RecommendationDocumentModel model)
@@ -57,9 +64,16 @@ internal static class RecommendationPdfCopy
             return string.Empty;
         }
 
-        return string.Equals(channel.Trim(), "OOH", StringComparison.OrdinalIgnoreCase)
-            ? "Billboards and Digital Screens"
-            : ToClientCopy(channel.Trim());
+        return NormalizeRecommendationChannel(channel) switch
+        {
+            "ooh" => "Billboards and Digital Screens",
+            "radio" => "Radio",
+            "digital" => "Digital",
+            "tv" => "TV",
+            "newspaper" => "Newspaper",
+            "studio" => "Creative and studio support",
+            _ => ToClientCopy(channel.Trim().Replace("_", " "))
+        };
     }
 
     internal static string ToClientCopy(string? value)

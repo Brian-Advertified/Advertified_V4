@@ -164,6 +164,7 @@ public static class AdvertifiedServiceCollectionExtensions
         services.AddScoped<IAgentAreaRoutingService, AgentAreaRoutingService>();
         services.AddScoped<ICampaignBriefService, CampaignBriefService>();
         services.AddScoped<ICampaignRecommendationService, CampaignRecommendationService>();
+        services.AddScoped<IRecommendationProposalIntelligenceService, RecommendationProposalIntelligenceService>();
         services.AddScoped<IRecommendationDocumentService, RecommendationDocumentService>();
         services.AddScoped<IRecommendationApprovalWorkflowService, RecommendationApprovalWorkflowService>();
         services.AddScoped<ICampaignStatusTransitionService, CampaignStatusTransitionService>();
@@ -211,7 +212,8 @@ public static class AdvertifiedServiceCollectionExtensions
         services.AddScoped<IRecommendationExplainabilityService, RecommendationExplainabilityService>();
         services.AddScoped<IOohPlanningInventorySource>(_ => new OohPlanningInventorySource(
             _.GetRequiredService<Npgsql.NpgsqlDataSource>(),
-            _.GetRequiredService<ICommercialFlightPricingResolver>()));
+            _.GetRequiredService<ICommercialFlightPricingResolver>(),
+            _.GetRequiredService<IPricingSettingsProvider>()));
         services.AddScoped<IBroadcastPlanningInventorySource>(_ => new BroadcastPlanningInventorySource(
             _.GetRequiredService<IBroadcastInventoryCatalog>(),
             _.GetRequiredService<IBroadcastCostNormalizer>(),

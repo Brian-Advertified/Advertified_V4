@@ -76,6 +76,7 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
         var pricingSettings = await _pricingSettingsProvider.GetCurrentAsync(cancellationToken);
         var aiStudioReserveAmount = PricingPolicy.CalculateAiStudioReserveAmount(selectedBudget, pricingSettings.AiStudioReservePercent, band.Code, band.Name);
         var chargedAmount = PricingPolicy.CalculateChargedAmount(selectedBudget, pricingSettings.AiStudioReservePercent);
+        var commission = PricingPolicy.CalculateSalesCommission(chargedAmount, pricingSettings);
 
         var now = DateTime.UtcNow;
         var order = new PackageOrder
@@ -95,6 +96,7 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
             CreatedAt = now,
             UpdatedAt = now
         };
+        ApplySalesCommission(order, commission);
 
         _db.PackageOrders.Add(order);
         await _db.SaveChangesAsync(cancellationToken);
@@ -232,6 +234,9 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
 
         order.PaymentProvider = normalizedProvider;
         order.PaymentStatus = "pending";
+        ApplySalesCommission(
+            order,
+            PricingPolicy.CalculateSalesCommission(order.Amount, await _pricingSettingsProvider.GetCurrentAsync(cancellationToken)));
         order.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
 
@@ -344,6 +349,9 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
         order.SelectedAt = DateTime.UtcNow;
         order.SelectionSource = string.IsNullOrWhiteSpace(selectionSource) ? "checkout" : selectionSource.Trim().ToLowerInvariant();
         order.SelectionStatus = RecommendationSelectionStatuses.PendingPayment;
+        ApplySalesCommission(
+            order,
+            PricingPolicy.CalculateSalesCommission(order.Amount, await _pricingSettingsProvider.GetCurrentAsync(cancellationToken)));
         order.UpdatedAt = DateTime.UtcNow;
     }
 
@@ -373,6 +381,9 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
         order.PaymentStatus = "paid";
         order.PaymentReference = paymentReference;
         order.PurchasedAt = DateTime.UtcNow;
+        ApplySalesCommission(
+            order,
+            PricingPolicy.CalculateSalesCommission(order.Amount, await _pricingSettingsProvider.GetCurrentAsync(cancellationToken)));
         TermsAcceptancePolicy.Capture(order, "payment", order.PurchasedAt.Value);
         order.UpdatedAt = DateTime.UtcNow;
 
@@ -505,6 +516,16 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
         }, cancellationToken);
     }
 
+    private static void ApplySalesCommission(PackageOrder order, SalesCommissionBreakdown commission)
+    {
+        order.SalesCommissionPercent = commission.CommissionPercent;
+        order.SalesCommissionPoolAmount = commission.PoolAmount;
+        order.SalesAgentCommissionSharePercent = commission.SalesAgentSharePercent;
+        order.SalesAgentCommissionAmount = commission.SalesAgentAmount;
+        order.AdvertifiedSalesCommissionAmount = commission.AdvertifiedSalesAmount;
+        order.SalesCommissionTier = commission.Tier;
+    }
+
     private static UserAccount RequireOrderUser(PackageOrder order)
     {
         return order.User
@@ -554,8 +575,8 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
                         ["ClientEmail"] = user.Email,
                         ["CampaignName"] = campaignName,
                         ["PackageName"] = band.Name,
-                        ["SelectedBudget"] = FormatCurrency(order.SelectedBudget ?? order.Amount),
-                        ["ChargedAmount"] = FormatCurrency(order.Amount),
+                        ["SelectedBudget"] = CurrencyFormatSupport.FormatZar(order.SelectedBudget ?? order.Amount),
+                        ["ChargedAmount"] = CurrencyFormatSupport.FormatZar(order.Amount),
                         ["PaymentProvider"] = order.PaymentProvider ?? paymentProvider,
                         ["PaymentStatus"] = order.PaymentStatus,
                         ["ActionNote"] = actionNote,
@@ -589,7 +610,7 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
                     ["ClientName"] = user.FullName,
                     ["CampaignName"] = order.Campaign?.CampaignName?.Trim() ?? $"{band.Name} campaign",
                     ["PackageName"] = band.Name,
-                    ["Amount"] = FormatCurrency(order.Amount),
+                    ["Amount"] = CurrencyFormatSupport.FormatZar(order.Amount),
                     ["OrdersUrl"] = BuildFrontendUrl("/orders")
                 },
                 null,
@@ -607,8 +628,4 @@ public sealed class PackagePurchaseService : IPackagePurchaseService
         return _frontendOptions.BaseUrl.TrimEnd('/') + path;
     }
 
-    private static string FormatCurrency(decimal amount)
-    {
-        return $"R {amount.ToString("N2", CultureInfo.GetCultureInfo("en-ZA"))}";
-    }
 }

@@ -284,6 +284,11 @@ internal static class RecommendationPdfGenerator
                 }
             });
 
+            if (proposal.Narrative?.HasContent == true)
+            {
+                section.Item().Element(container => ComposeProposalNarrative(container, proposal.Narrative));
+            }
+
             var groupedPlacements = RecommendationPdfPresentationBuilder.BuildPlacementSections(proposal);
             if (groupedPlacements.Count > 0)
             {
@@ -313,6 +318,58 @@ internal static class RecommendationPdfGenerator
             if (proposalIndex < totalProposals - 1)
             {
                 section.Item().PaddingTop(8).LineHorizontal(1).LineColor(ColorBorder);
+            }
+        });
+    }
+
+    private static void ComposeProposalNarrative(IContainer container, RecommendationProposalNarrativeDocumentModel narrative)
+    {
+        container.Border(1).BorderColor(ColorBorder).Background(ColorWhite).Padding(12).Column(column =>
+        {
+            column.Spacing(8);
+            column.Item().Text("Strategic plan").FontSize(9).SemiBold().FontColor(ColorMuted);
+            ComposeNarrativeText(column, "Client challenge", narrative.ClientChallenge);
+            ComposeNarrativeText(column, "How this plan works", narrative.StrategicApproach);
+            ComposeNarrativeText(column, "Expected outcome", narrative.ExpectedOutcome);
+            ComposeNarrativeList(column, "Channel roles", narrative.ChannelRoles);
+            ComposeNarrativeList(column, "Success measures", narrative.SuccessMeasures);
+        });
+    }
+
+    private static void ComposeNarrativeText(ColumnDescriptor column, string label, string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        column.Item().Column(block =>
+        {
+            block.Spacing(2);
+            block.Item().Text(label).FontSize(8).SemiBold().FontColor(ColorMuted);
+            block.Item().Text(RecommendationPdfCopy.TruncateClientCopy(value, 320)).FontSize(9);
+        });
+    }
+
+    private static void ComposeNarrativeList(ColumnDescriptor column, string label, IReadOnlyList<string> values)
+    {
+        var cleaned = values
+            .Where(static value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => RecommendationPdfCopy.TruncateClientCopy(value, 220))
+            .Take(5)
+            .ToArray();
+        if (cleaned.Length == 0)
+        {
+            return;
+        }
+
+        column.Item().Column(block =>
+        {
+            block.Spacing(3);
+            block.Item().Text(label).FontSize(8).SemiBold().FontColor(ColorMuted);
+            foreach (var value in cleaned)
+            {
+                block.Item().Text($"- {value}").FontSize(8).FontColor(ColorMuted);
             }
         });
     }
@@ -436,6 +493,7 @@ internal static class RecommendationPdfGenerator
             "radio" => ("RAD", ColorAmberLight),
             "digital" => ("DIG", "#EAF3FF"),
             "tv" => ("TV", "#EEE9FF"),
+            "newspaper" => ("PRT", "#F4EFE4"),
             _ => ("AI", ColorGreenLight)
         };
     }
@@ -683,6 +741,7 @@ internal sealed class RecommendationProposalDocumentModel
     public string? AcceptUrl { get; init; }
     public string Summary { get; init; } = string.Empty;
     public string Rationale { get; init; } = string.Empty;
+    public RecommendationProposalNarrativeDocumentModel? Narrative { get; init; }
     public decimal TotalCost { get; init; }
     public IReadOnlyList<RecommendationLineDocumentModel> Items { get; init; } = Array.Empty<RecommendationLineDocumentModel>();
 }

@@ -115,16 +115,16 @@ internal static class InvoicePdfGenerator
                         {
                             DataCell(table, item.Description, false);
                             DataCell(table, IsStudioIncludedLine(item) ? "Included" : item.Quantity.ToString("N2", CultureInfo.GetCultureInfo("en-ZA")), true);
-                            DataCell(table, IsStudioIncludedLine(item) ? string.Empty : FormatCurrency(item.TotalAmount), true);
+                            DataCell(table, IsStudioIncludedLine(item) ? string.Empty : CurrencyFormatSupport.FormatZar(item.TotalAmount), true);
                         }
                     });
 
                     column.Item().AlignRight().Width(280).Column(totals =>
                     {
-                        TotalRow(totals, "Subtotal (excl. VAT)", FormatCurrency(subtotal), false);
-                        TotalRow(totals, "VAT (15%)", FormatCurrency(vatAmount), false);
+                        TotalRow(totals, "Subtotal (excl. VAT)", CurrencyFormatSupport.FormatZar(subtotal), false);
+                        TotalRow(totals, "VAT (15%)", CurrencyFormatSupport.FormatZar(vatAmount), false);
                         totals.Item().LineHorizontal(2).LineColor("#111111");
-                        TotalRow(totals, invoice.Status == InvoiceStatuses.Paid ? "TOTAL PAID" : "TOTAL DUE", FormatCurrency(invoice.TotalAmount), true);
+                        TotalRow(totals, invoice.Status == InvoiceStatuses.Paid ? "TOTAL PAID" : "TOTAL DUE", CurrencyFormatSupport.FormatZar(invoice.TotalAmount), true);
                     });
 
                     column.Item().Border(1).BorderColor("#D1D5DB").Padding(10).Column(meta =>
@@ -246,11 +246,6 @@ internal static class InvoicePdfGenerator
         });
     }
 
-    private static string FormatCurrency(decimal amount)
-    {
-        return $"R {amount.ToString("N2", CultureInfo.GetCultureInfo("en-ZA"))}";
-    }
-
     private static string GetStatusStamp(Invoice invoice)
     {
         return invoice.Status == InvoiceStatuses.Paid ? "PAID" : "UNPAID";
@@ -348,7 +343,7 @@ internal static class InvoicePdfGenerator
             ["Provider"] = string.IsNullOrWhiteSpace(invoice.Provider) ? "Payment provider" : invoice.Provider.Trim(),
             ["IssuerName"] = string.IsNullOrWhiteSpace(issuer.LegalName) ? "Advertified" : issuer.LegalName.Trim(),
             ["ClientName"] = string.IsNullOrWhiteSpace(invoice.CustomerName) ? "Client" : invoice.CustomerName.Trim(),
-            ["Amount"] = FormatCurrency(invoice.TotalAmount),
+            ["Amount"] = CurrencyFormatSupport.FormatZar(invoice.TotalAmount),
             ["ProcessingTimelineBusinessDays"] = ProcessingTimelineBusinessDays.ToString(CultureInfo.InvariantCulture),
             ["TermsUrl"] = TermsUrl,
         };

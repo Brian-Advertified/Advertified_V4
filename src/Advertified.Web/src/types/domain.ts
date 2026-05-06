@@ -1330,6 +1330,12 @@ export interface AdminPackageOrder {
   packageBandName: string;
   selectedBudget: number;
   chargedAmount: number;
+  salesCommissionPercent: number;
+  salesCommissionPoolAmount: number;
+  salesAgentCommissionSharePercent: number;
+  salesAgentCommissionAmount: number;
+  advertifiedSalesCommissionAmount: number;
+  salesCommissionTier: string;
   currency: string;
   paymentProvider: string;
   paymentStatus: PaymentStatus | string;
@@ -1499,7 +1505,12 @@ export interface AdminPricingSettings {
   oohMarkupPercent: number;
   radioMarkupPercent: number;
   tvMarkupPercent: number;
+  newspaperMarkupPercent: number;
   digitalMarkupPercent: number;
+  salesCommissionPercent: number;
+  salesCommissionThresholdZar: number;
+  salesAgentShareBelowThresholdPercent: number;
+  salesAgentShareAtOrAboveThresholdPercent: number;
 }
 
 export interface AdminEnginePolicy {
@@ -1765,7 +1776,12 @@ export interface AdminUpdatePricingSettingsInput {
   oohMarkupPercent: number;
   radioMarkupPercent: number;
   tvMarkupPercent: number;
+  newspaperMarkupPercent: number;
   digitalMarkupPercent: number;
+  salesCommissionPercent: number;
+  salesCommissionThresholdZar: number;
+  salesAgentShareBelowThresholdPercent: number;
+  salesAgentShareAtOrAboveThresholdPercent: number;
 }
 
 export interface AdminCreateOutletInput {

@@ -11,6 +11,12 @@ public sealed class AdminPackageOrderItemResponse
     public string PackageBandName { get; set; } = string.Empty;
     public decimal SelectedBudget { get; set; }
     public decimal ChargedAmount { get; set; }
+    public decimal SalesCommissionPercent { get; set; }
+    public decimal SalesCommissionPoolAmount { get; set; }
+    public decimal SalesAgentCommissionSharePercent { get; set; }
+    public decimal SalesAgentCommissionAmount { get; set; }
+    public decimal AdvertifiedSalesCommissionAmount { get; set; }
+    public string SalesCommissionTier { get; set; } = "none";
     public string Currency { get; set; } = "ZAR";
     public string PaymentProvider { get; set; } = string.Empty;
     public string PaymentStatus { get; set; } = string.Empty;

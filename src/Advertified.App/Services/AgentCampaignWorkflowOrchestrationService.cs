@@ -713,7 +713,7 @@ public sealed class AgentCampaignWorkflowOrchestrationService : IAgentCampaignWo
                     ["ClientName"] = campaign.ResolveClientName(),
                     ["CampaignName"] = string.IsNullOrWhiteSpace(campaign.CampaignName) ? $"{campaign.PackageBand.Name} campaign" : campaign.CampaignName.Trim(),
                     ["PackageName"] = campaign.PackageBand.Name,
-                    ["Budget"] = FormatCurrency(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount),
+                    ["Budget"] = CurrencyFormatSupport.FormatZarWhole(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount),
                     ["CampaignUrl"] = BuildClientCampaignUrl(campaign)
                 },
                 null,
@@ -989,19 +989,7 @@ public sealed class AgentCampaignWorkflowOrchestrationService : IAgentCampaignWo
 
     private static string GetProposalLabel(CampaignRecommendation recommendation)
     {
-        var variantKey = recommendation.RecommendationType?
-            .Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .LastOrDefault()?
-            .ToLowerInvariant();
-
-        return variantKey switch
-        {
-            "balanced" => "Proposal A",
-            "ooh_focus" => "Proposal B",
-            "radio_focus" => "Proposal C",
-            "digital_focus" => "Proposal C",
-            _ => string.Empty
-        };
+        return RecommendationProposalPositioning.GetKnownProposalLabel(recommendation.RecommendationType);
     }
 
     private static string? ExtractClientFeedbackNotes(string? rationale)
@@ -1051,20 +1039,15 @@ public sealed class AgentCampaignWorkflowOrchestrationService : IAgentCampaignWo
     {
         if (ShouldDisplayPackageRange(campaign))
         {
-            return $"{FormatCurrency(campaign.PackageBand.MinBudget)} to {FormatCurrency(campaign.PackageBand.MaxBudget)}";
+            return $"{CurrencyFormatSupport.FormatZarWhole(campaign.PackageBand.MinBudget)} to {CurrencyFormatSupport.FormatZarWhole(campaign.PackageBand.MaxBudget)}";
         }
 
-        return FormatCurrency(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount);
+        return CurrencyFormatSupport.FormatZarWhole(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount);
     }
 
     private static bool ShouldDisplayPackageRange(Campaign campaign)
     {
         return campaign.PackageOrder.SelectedBudget is null or 0m;
-    }
-
-    private static string FormatCurrency(decimal amount)
-    {
-        return amount.ToString("C0", CultureInfo.GetCultureInfo("en-ZA"));
     }
 
     private sealed record RecommendationEmailContext(string Subject, string Headline, string Summary, string PackBlock);

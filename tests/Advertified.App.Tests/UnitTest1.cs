@@ -1419,14 +1419,126 @@ public class PricingPolicyTests
     [Fact]
     public void ApplyMarkup_UsesConfiguredChannelPercentages()
     {
-        var settings = new Advertified.App.Support.PricingSettingsSnapshot(0.10m, 0.05m, 0.10m, 0.10m, 0.15m);
+        var settings = new Advertified.App.Support.PricingSettingsSnapshot(0.10m, 0.15m, 0.15m, 0.15m, 0.15m, 0.15m, 0.10m, 250000m, 0.60m, 0.50m);
 
-        Advertified.App.Support.PricingPolicy.ApplyMarkup(1000m, "OOH", "billboard", settings).Should().Be(1050m);
-        Advertified.App.Support.PricingPolicy.ApplyMarkup(1000m, "billboard", "Static Wall Wrap | Outdoor", settings).Should().Be(1050m);
-        Advertified.App.Support.PricingPolicy.ApplyMarkup(1000m, "digital_screen", "Digital Screen | Indoor", settings).Should().Be(1050m);
-        Advertified.App.Support.PricingPolicy.ApplyMarkup(1000m, "radio", null, settings).Should().Be(1100m);
-        Advertified.App.Support.PricingPolicy.ApplyMarkup(1000m, "tv", null, settings).Should().Be(1100m);
+        Advertified.App.Support.PricingPolicy.ApplyMarkup(1000m, "OOH", "billboard", settings).Should().Be(1000m);
+        Advertified.App.Support.PricingPolicy.ApplyMarkup(1000m, "billboard", "Static Wall Wrap | Outdoor", settings).Should().Be(1000m);
+        Advertified.App.Support.PricingPolicy.ApplyMarkup(1000m, "digital_screen", "Digital Screen | Indoor", settings).Should().Be(1000m);
+        Advertified.App.Support.PricingPolicy.ApplyMarkup(1000m, "radio", null, settings).Should().Be(1150m);
+        Advertified.App.Support.PricingPolicy.ApplyMarkup(1000m, "tv", null, settings).Should().Be(1150m);
+        Advertified.App.Support.PricingPolicy.ApplyMarkup(1000m, "newspaper", null, settings).Should().Be(1150m);
+        Advertified.App.Support.PricingPolicy.ApplyMarkup(1000m, "print", null, settings).Should().Be(1150m);
         Advertified.App.Support.PricingPolicy.ApplyMarkup(1000m, "digital", null, settings).Should().Be(1150m);
+    }
+
+    [Fact]
+    public void CalculateEmbeddedRevenueShare_UsesConfiguredOohPercentage()
+    {
+        var settings = new Advertified.App.Support.PricingSettingsSnapshot(0.10m, 0.15m, 0.15m, 0.15m, 0.15m, 0.15m, 0.10m, 250000m, 0.60m, 0.50m);
+
+        var revenueSharePercent = Advertified.App.Support.PricingPolicy.ResolveOohRevenueSharePercent("OOH", "billboard", settings);
+
+        revenueSharePercent.Should().Be(0.15m);
+        Advertified.App.Support.PricingPolicy.CalculateEmbeddedRevenueShareAmount(100000m, revenueSharePercent).Should().Be(15000m);
+        Advertified.App.Support.PricingPolicy.CalculateSupplierNetFromEmbeddedRevenueShare(100000m, revenueSharePercent).Should().Be(85000m);
+    }
+
+    [Fact]
+    public void CalculateSalesCommission_SplitsBelowAndAtThreshold()
+    {
+        var settings = new Advertified.App.Support.PricingSettingsSnapshot(0.10m, 0.15m, 0.15m, 0.15m, 0.15m, 0.15m, 0.10m, 250000m, 0.60m, 0.50m);
+
+        var belowThreshold = Advertified.App.Support.PricingPolicy.CalculateSalesCommission(100000m, settings);
+        belowThreshold.CommissionPercent.Should().Be(0.10m);
+        belowThreshold.PoolAmount.Should().Be(10000m);
+        belowThreshold.SalesAgentSharePercent.Should().Be(0.60m);
+        belowThreshold.SalesAgentAmount.Should().Be(6000m);
+        belowThreshold.AdvertifiedSalesAmount.Should().Be(4000m);
+        belowThreshold.Tier.Should().Be("below_threshold");
+
+        var atThreshold = Advertified.App.Support.PricingPolicy.CalculateSalesCommission(250000m, settings);
+        atThreshold.CommissionPercent.Should().Be(0.10m);
+        atThreshold.PoolAmount.Should().Be(25000m);
+        atThreshold.SalesAgentSharePercent.Should().Be(0.50m);
+        atThreshold.SalesAgentAmount.Should().Be(12500m);
+        atThreshold.AdvertifiedSalesAmount.Should().Be(12500m);
+        atThreshold.Tier.Should().Be("at_or_above_threshold");
+    }
+}
+
+public class PackagePreviewOutdoorSelectorTests
+{
+    [Fact]
+    public void SelectExamples_FiltersRowsToSelectedProvince()
+    {
+        var selector = new PackagePreviewOutdoorSelector();
+        var selectedArea = new PackagePreviewAreaProfile
+        {
+            Code = "gauteng",
+            Name = "Gauteng"
+        };
+        var rows = new[]
+        {
+            new OohPreviewRow
+            {
+                Suburb = "Cambridge",
+                City = "East London",
+                Province = "Eastern Cape",
+                SiteName = "East London Screen",
+                Cost = 6000m,
+                TrafficCount = 800000
+            },
+            new OohPreviewRow
+            {
+                Suburb = "Sandton",
+                City = "Johannesburg",
+                Province = "Gauteng",
+                SiteName = "Sandton Mall Screen",
+                Cost = 9000m,
+                TrafficCount = 1200000
+            }
+        };
+
+        var result = selector.SelectExamples(rows, selectedArea, 100000m, 0.5m);
+
+        result.Should().ContainSingle();
+        result.Single().Province.Should().Be("Gauteng");
+    }
+
+    [Fact]
+    public void BuildMapPoints_FlagsOnlySelectedProvinceAsInArea()
+    {
+        var selector = new PackagePreviewOutdoorSelector();
+        var selectedArea = new PackagePreviewAreaProfile
+        {
+            Code = "western-cape",
+            Name = "Western Cape"
+        };
+        var rows = new[]
+        {
+            new OohPreviewRow
+            {
+                Suburb = "Century City",
+                City = "Cape Town",
+                Province = "Western Cape",
+                SiteName = "Canal Walk Screen",
+                GpsCoordinates = "-33.8921, 18.5114"
+            },
+            new OohPreviewRow
+            {
+                Suburb = "Sandton",
+                City = "Johannesburg",
+                Province = "Gauteng",
+                SiteName = "Sandton Mall Screen",
+                GpsCoordinates = "-26.1076, 28.0567"
+            }
+        };
+
+        var result = selector.BuildMapPoints(rows, selectedArea);
+
+        result.Should().HaveCount(2);
+        result.Single(point => point.Province == "Western Cape").IsInSelectedArea.Should().BeTrue();
+        result.Single(point => point.Province == "Gauteng").IsInSelectedArea.Should().BeFalse();
     }
 }
 

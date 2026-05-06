@@ -84,21 +84,40 @@ public sealed class PackagePreviewOutdoorSelector : IPackagePreviewOutdoorSelect
 
     private static bool MatchesArea(OohPreviewRow row, PackagePreviewAreaProfile selectedArea)
     {
-        var clusterCode = row.RegionClusterCode?.Trim().ToLowerInvariant() ?? string.Empty;
+        var selectedCode = NormalizeAreaToken(selectedArea.Code);
+        var clusterCode = NormalizeAreaToken(row.RegionClusterCode);
         if (!string.IsNullOrWhiteSpace(clusterCode))
         {
-            return selectedArea.Code switch
+            return selectedCode switch
             {
                 "national" => true,
-                _ => clusterCode == selectedArea.Code
+                _ => clusterCode == selectedCode
             };
         }
 
-        var province = row.Province?.Trim().ToLowerInvariant() ?? string.Empty;
-        var city = row.City?.Trim().ToLowerInvariant() ?? string.Empty;
+        var province = NormalizeAreaToken(row.Province);
+        var city = NormalizeAreaToken(row.City);
+        var provinceTerms = selectedArea.ProvinceTerms
+            .Append(selectedArea.Name)
+            .Append(selectedArea.Code)
+            .Select(NormalizeAreaToken)
+            .Where(static term => !string.IsNullOrWhiteSpace(term));
+        var cityTerms = selectedArea.CityTerms
+            .Select(NormalizeAreaToken)
+            .Where(static term => !string.IsNullOrWhiteSpace(term));
 
-        return selectedArea.ProvinceTerms.Any(province.Contains)
-            || selectedArea.CityTerms.Any(city.Contains);
+        return provinceTerms.Any(term => province.Contains(term, StringComparison.OrdinalIgnoreCase))
+            || cityTerms.Any(term => city.Contains(term, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string NormalizeAreaToken(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        return Regex.Replace(value.Trim().ToLowerInvariant(), "[^a-z0-9]+", string.Empty);
     }
 
     private static string BuildExampleLocationLabel(OohPreviewRow row)

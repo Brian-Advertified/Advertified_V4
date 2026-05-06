@@ -568,7 +568,7 @@ public sealed class AdminCampaignOperationsController : ControllerBase
                     ["ClientName"] = campaignUser.FullName,
                     ["CampaignName"] = ResolveCampaignName(campaign),
                     ["PackageName"] = campaign.PackageBand.Name,
-                    ["RefundAmount"] = FormatCurrency(refundAmount),
+                    ["RefundAmount"] = CurrencyFormatSupport.FormatZar(refundAmount),
                     ["RefundStatus"] = campaign.PackageOrder.RefundStatus,
                     ["RefundPolicyLabel"] = snapshot.Label,
                     ["RefundReason"] = campaign.PackageOrder.RefundReason ?? "No reason supplied",
@@ -718,11 +718,6 @@ public sealed class AdminCampaignOperationsController : ControllerBase
         }
 
         return value.Trim();
-    }
-
-    private static string FormatCurrency(decimal amount)
-    {
-        return $"R {amount.ToString("N2", CultureInfo.GetCultureInfo("en-ZA"))}";
     }
 
     private static int ToDeliveryPercent(decimal bookedSpend, decimal deliveredSpend)

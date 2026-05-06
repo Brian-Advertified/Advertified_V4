@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using Advertified.App.Contracts.Admin;
 using Advertified.App.Contracts.Agent;
+using Advertified.App.Campaigns;
 using Advertified.App.Configuration;
 using Advertified.App.Contracts.Leads;
 using Advertified.App.Contracts.Campaigns;

@@ -5,4 +5,9 @@ public sealed record PricingSettingsSnapshot(
     decimal OohMarkupPercent,
     decimal RadioMarkupPercent,
     decimal TvMarkupPercent,
-    decimal DigitalMarkupPercent);
+    decimal NewspaperMarkupPercent,
+    decimal DigitalMarkupPercent,
+    decimal SalesCommissionPercent,
+    decimal SalesCommissionThresholdZar,
+    decimal SalesAgentShareBelowThresholdPercent,
+    decimal SalesAgentShareAtOrAboveThresholdPercent);

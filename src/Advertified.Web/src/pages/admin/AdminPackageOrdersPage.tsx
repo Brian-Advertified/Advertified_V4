@@ -60,6 +60,7 @@ export function AdminPackageOrdersPage() {
   const pendingLulaCount = items.filter((item) => item.canUpdateLulaStatus).length;
   const paidCount = items.filter((item) => item.paymentStatus === 'paid').length;
   const failedCount = items.filter((item) => item.paymentStatus === 'failed').length;
+  const salesCommissionPoolTotal = items.reduce((total, item) => total + item.salesCommissionPoolAmount, 0);
 
   if (query.isLoading) {
     return (
@@ -86,11 +87,12 @@ export function AdminPackageOrdersPage() {
       description="Track package orders, review invoice state, and open the Finance Partner settlement editor when a pending order needs manual intervention."
     >
       <section className="space-y-6">
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           <MetricCard label="Total orders" value={String(items.length)} note="Every package order across all payment providers." />
           <MetricCard label="Pending Finance Partner" value={String(pendingLulaCount)} note="Finance Partner orders waiting for manual review." />
           <MetricCard label="Paid orders" value={String(paidCount)} note="Orders already converted into paid campaigns." />
           <MetricCard label="Declined orders" value={String(failedCount)} note="Orders manually declined or failed." />
+          <MetricCard label="Commission pool" value={fmtCurrency(salesCommissionPoolTotal)} note="Total sales commission reserved on listed orders." />
         </div>
 
         <div className="panel overflow-hidden p-0">
@@ -105,6 +107,7 @@ export function AdminPackageOrdersPage() {
                 <tr>
                   <th className="px-4 py-4">Customer</th>
                   <th className="px-4 py-4">Package</th>
+                  <th className="px-4 py-4">Commission</th>
                   <th className="px-4 py-4">Provider</th>
                   <th className="px-4 py-4">Status</th>
                   <th className="px-4 py-4">Invoice</th>
@@ -123,6 +126,12 @@ export function AdminPackageOrdersPage() {
                       <p className="font-semibold text-ink">{item.packageBandName}</p>
                       <p className="mt-1 text-xs text-ink-soft">Budget {fmtCurrency(item.selectedBudget)}</p>
                       <p className="mt-1 text-xs text-ink-soft">Charge {fmtCurrency(item.chargedAmount)}</p>
+                    </td>
+                    <td className="px-4 py-4 align-top text-ink-soft">
+                      <p className="font-semibold text-ink">{fmtCurrency(item.salesCommissionPoolAmount)} pool</p>
+                      <p className="mt-1 text-xs">Agent {fmtCurrency(item.salesAgentCommissionAmount)} ({(item.salesAgentCommissionSharePercent * 100).toFixed(0)}%)</p>
+                      <p className="mt-1 text-xs">Advertified {fmtCurrency(item.advertifiedSalesCommissionAmount)}</p>
+                      <p className="mt-1 text-xs">{commissionTierLabel(item.salesCommissionTier)}</p>
                     </td>
                     <td className="px-4 py-4 align-top text-ink-soft">{titleize(item.paymentProvider)}</td>
                     <td className="px-4 py-4 align-top">
@@ -164,7 +173,7 @@ export function AdminPackageOrdersPage() {
                 ))}
                 {items.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-8 text-sm text-ink-soft" colSpan={6}>No package orders are available yet.</td>
+                    <td className="px-4 py-8 text-sm text-ink-soft" colSpan={7}>No package orders are available yet.</td>
                   </tr>
                 ) : null}
               </tbody>
@@ -204,4 +213,16 @@ function statusTone(status: string) {
   }
 
   return 'border-amber-200 bg-amber-50 text-amber-700';
+}
+
+function commissionTierLabel(tier: string) {
+  if (tier === 'below_threshold') {
+    return 'Below R250k';
+  }
+
+  if (tier === 'at_or_above_threshold') {
+    return 'R250k and above';
+  }
+
+  return titleize(tier || 'none');
 }

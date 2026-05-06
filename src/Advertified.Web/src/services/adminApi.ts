@@ -46,6 +46,12 @@ export type AdminPackageOrderResponse = {
   packageBandName: string;
   selectedBudget: number;
   chargedAmount: number;
+  salesCommissionPercent: number;
+  salesCommissionPoolAmount: number;
+  salesAgentCommissionSharePercent: number;
+  salesAgentCommissionAmount: number;
+  advertifiedSalesCommissionAmount: number;
+  salesCommissionTier: string;
   currency: string;
   paymentProvider: string;
   paymentStatus: 'pending' | 'paid' | 'failed';

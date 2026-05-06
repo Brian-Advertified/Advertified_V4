@@ -63,6 +63,18 @@ public partial class PackageOrder
 
     public decimal AiStudioReserveAmount { get; set; }
 
+    public decimal SalesCommissionPercent { get; set; }
+
+    public decimal SalesCommissionPoolAmount { get; set; }
+
+    public decimal SalesAgentCommissionSharePercent { get; set; }
+
+    public decimal SalesAgentCommissionAmount { get; set; }
+
+    public decimal AdvertifiedSalesCommissionAmount { get; set; }
+
+    public string SalesCommissionTier { get; set; } = "none";
+
     public string RefundStatus { get; set; } = "none";
 
     public decimal RefundedAmount { get; set; }

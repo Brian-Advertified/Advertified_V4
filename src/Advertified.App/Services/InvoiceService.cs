@@ -163,7 +163,7 @@ public sealed class InvoiceService : IInvoiceService
                     ["CampaignName"] = invoice.CampaignName,
                     ["InvoiceNumber"] = invoice.InvoiceNumber,
                     ["PackageName"] = invoice.PackageName,
-                    ["Amount"] = FormatCurrency(invoice.TotalAmount),
+                    ["Amount"] = CurrencyFormatSupport.FormatZar(invoice.TotalAmount),
                     ["PaymentReference"] = invoice.PaymentReference ?? "-"
                 },
                 new[]
@@ -262,8 +262,4 @@ public sealed class InvoiceService : IInvoiceService
         return BuildCustomerAddress(businessProfile);
     }
 
-    private static string FormatCurrency(decimal amount)
-    {
-        return $"R {amount.ToString("N2", CultureInfo.GetCultureInfo("en-ZA"))}";
-    }
 }

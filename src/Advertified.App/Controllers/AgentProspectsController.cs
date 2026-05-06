@@ -27,6 +27,7 @@ public sealed class AgentProspectsController : ControllerBase
     private readonly IChangeAuditService _changeAuditService;
     private readonly IProspectLeadRegistrationService _prospectLeadRegistrationService;
     private readonly ILeadOpsStateService _leadOpsStateService;
+    private readonly IPricingSettingsProvider _pricingSettingsProvider;
     private readonly ILogger<AgentProspectsController> _logger;
 
     public AgentProspectsController(
@@ -36,6 +37,7 @@ public sealed class AgentProspectsController : ControllerBase
         IChangeAuditService changeAuditService,
         IProspectLeadRegistrationService prospectLeadRegistrationService,
         ILeadOpsStateService leadOpsStateService,
+        IPricingSettingsProvider pricingSettingsProvider,
         ILogger<AgentProspectsController> logger)
     {
         _db = db;
@@ -44,6 +46,7 @@ public sealed class AgentProspectsController : ControllerBase
         _changeAuditService = changeAuditService;
         _prospectLeadRegistrationService = prospectLeadRegistrationService;
         _leadOpsStateService = leadOpsStateService;
+        _pricingSettingsProvider = pricingSettingsProvider;
         _logger = logger;
     }
 
@@ -75,6 +78,9 @@ public sealed class AgentProspectsController : ControllerBase
             .FirstOrDefaultAsync(x => x.Id == request.PackageBandId && x.IsActive, cancellationToken)
             ?? throw new NotFoundException("Package band not found.");
         var selectedBudget = ResolveProspectBudget(packageBand);
+        var commission = PricingPolicy.CalculateSalesCommission(
+            selectedBudget,
+            await _pricingSettingsProvider.GetCurrentAsync(cancellationToken));
 
         var leadResult = await _prospectLeadRegistrationService.UpsertAgentLeadAsync(
             currentUserId,
@@ -95,6 +101,12 @@ public sealed class AgentProspectsController : ControllerBase
             SelectedBudget = selectedBudget,
             AiStudioReservePercent = 0m,
             AiStudioReserveAmount = 0m,
+            SalesCommissionPercent = commission.CommissionPercent,
+            SalesCommissionPoolAmount = commission.PoolAmount,
+            SalesAgentCommissionSharePercent = commission.SalesAgentSharePercent,
+            SalesAgentCommissionAmount = commission.SalesAgentAmount,
+            AdvertifiedSalesCommissionAmount = commission.AdvertifiedSalesAmount,
+            SalesCommissionTier = commission.Tier,
             Currency = "ZAR",
             OrderIntent = OrderIntentValues.Prospect,
             PaymentProvider = null,
@@ -177,6 +189,9 @@ public sealed class AgentProspectsController : ControllerBase
             .FirstOrDefaultAsync(x => x.Id == request.PackageBandId && x.IsActive, cancellationToken)
             ?? throw new NotFoundException("Package band not found.");
         var selectedBudget = ResolveProspectBudget(packageBand);
+        var commission = PricingPolicy.CalculateSalesCommission(
+            selectedBudget,
+            await _pricingSettingsProvider.GetCurrentAsync(cancellationToken));
 
         var now = DateTime.UtcNow;
         var packageOrder = new PackageOrder
@@ -188,6 +203,12 @@ public sealed class AgentProspectsController : ControllerBase
             SelectedBudget = selectedBudget,
             AiStudioReservePercent = 0m,
             AiStudioReserveAmount = 0m,
+            SalesCommissionPercent = commission.CommissionPercent,
+            SalesCommissionPoolAmount = commission.PoolAmount,
+            SalesAgentCommissionSharePercent = commission.SalesAgentSharePercent,
+            SalesAgentCommissionAmount = commission.SalesAgentAmount,
+            AdvertifiedSalesCommissionAmount = commission.AdvertifiedSalesAmount,
+            SalesCommissionTier = commission.Tier,
             Currency = "ZAR",
             OrderIntent = OrderIntentValues.Prospect,
             PaymentProvider = null,
@@ -272,11 +293,20 @@ public sealed class AgentProspectsController : ControllerBase
             .FirstOrDefaultAsync(x => x.Id == request.PackageBandId && x.IsActive, cancellationToken)
             ?? throw new InvalidOperationException("Package band not found.");
         var selectedBudget = ResolveProspectBudget(packageBand);
+        var commission = PricingPolicy.CalculateSalesCommission(
+            selectedBudget,
+            await _pricingSettingsProvider.GetCurrentAsync(cancellationToken));
 
         campaign.PackageBandId = packageBand.Id;
         campaign.PackageOrder.PackageBandId = packageBand.Id;
         campaign.PackageOrder.Amount = selectedBudget;
         campaign.PackageOrder.SelectedBudget = selectedBudget;
+        campaign.PackageOrder.SalesCommissionPercent = commission.CommissionPercent;
+        campaign.PackageOrder.SalesCommissionPoolAmount = commission.PoolAmount;
+        campaign.PackageOrder.SalesAgentCommissionSharePercent = commission.SalesAgentSharePercent;
+        campaign.PackageOrder.SalesAgentCommissionAmount = commission.SalesAgentAmount;
+        campaign.PackageOrder.AdvertifiedSalesCommissionAmount = commission.AdvertifiedSalesAmount;
+        campaign.PackageOrder.SalesCommissionTier = commission.Tier;
         campaign.PackageOrder.UpdatedAt = DateTime.UtcNow;
         campaign.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);

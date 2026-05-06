@@ -5,9 +5,7 @@ export function parseDelimitedInput(value: string) {
     .filter(Boolean);
 }
 
-export function formatChannelLabel(value: string) {
-  return value.replace(/\booh\b/gi, 'Billboards and Digital Screens');
-}
+export { formatChannelLabel } from '../channels/channelUtils';
 
 export function buildDefaultCreativePrompt({
   campaignName,

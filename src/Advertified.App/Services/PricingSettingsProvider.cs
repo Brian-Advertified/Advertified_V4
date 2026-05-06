@@ -21,12 +21,17 @@ public sealed class PricingSettingsProvider : IPricingSettingsProvider
             .FirstOrDefaultAsync(x => x.PricingKey == "default", cancellationToken);
 
         return row is null
-            ? new PricingSettingsSnapshot(0.10m, 0.05m, 0.10m, 0.10m, 0.10m)
+            ? new PricingSettingsSnapshot(0.10m, 0.15m, 0.15m, 0.15m, 0.15m, 0.15m, 0.10m, 250000m, 0.60m, 0.50m)
             : new PricingSettingsSnapshot(
                 row.AiStudioReservePercent,
                 row.OohMarkupPercent,
                 row.RadioMarkupPercent,
                 row.TvMarkupPercent,
-                row.DigitalMarkupPercent);
+                row.NewspaperMarkupPercent,
+                row.DigitalMarkupPercent,
+                row.SalesCommissionPercent,
+                row.SalesCommissionThresholdZar,
+                row.SalesAgentShareBelowThresholdPercent,
+                row.SalesAgentShareAtOrAboveThresholdPercent);
     }
 }

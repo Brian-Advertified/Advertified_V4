@@ -115,7 +115,12 @@ public sealed class AdminPackageConfigurationController : BaseAdminController
                     request.OohMarkupPercent,
                     request.RadioMarkupPercent,
                     request.TvMarkupPercent,
-                    request.DigitalMarkupPercent
+                    request.NewspaperMarkupPercent,
+                    request.DigitalMarkupPercent,
+                    request.SalesCommissionPercent,
+                    request.SalesCommissionThresholdZar,
+                    request.SalesAgentShareBelowThresholdPercent,
+                    request.SalesAgentShareAtOrAboveThresholdPercent
                 },
                 cancellationToken);
             return NoContent();

@@ -23,7 +23,7 @@ internal static class RecommendationRevisionSupport
     {
         return recommendations
             .Where(x => x.RevisionNumber == revisionNumber)
-            .OrderBy(x => GetProposalRank(x.RecommendationType))
+            .OrderBy(x => RecommendationProposalPositioning.GetRank(x.RecommendationType))
             .ThenBy(x => x.CreatedAt)
             .ToArray();
     }
@@ -84,20 +84,4 @@ internal static class RecommendationRevisionSupport
         return $"{baseText.Trim()}\n\nClient feedback: {clientFeedbackNotes.Trim()}".Trim();
     }
 
-    private static int GetProposalRank(string? recommendationType)
-    {
-        var variantKey = recommendationType?
-            .Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .LastOrDefault()?
-            .ToLowerInvariant();
-
-        return variantKey switch
-        {
-            "balanced" => 0,
-            "ooh_focus" => 1,
-            "radio_focus" => 2,
-            "digital_focus" => 2,
-            _ => 9
-        };
-    }
 }

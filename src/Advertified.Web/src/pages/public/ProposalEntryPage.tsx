@@ -10,6 +10,7 @@ import { useToast } from '../../components/ui/toast';
 import { useAuth } from '../../features/auth/auth-context';
 import { hasRecommendationApprovalCompleted } from '../../lib/campaignStatus';
 import { getCampaignPaymentState } from '../../lib/access';
+import { formatChannelLabel } from '../../features/channels/channelUtils';
 import { formatCurrency } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import { parseCampaignOpportunityContext } from '../../features/campaigns/briefModel';
@@ -50,7 +51,7 @@ function buildFitBullets(campaign: Campaign, recommendation?: CampaignRecommenda
 }
 
 function buildIncludedItems(recommendation?: CampaignRecommendation) {
-  const channels = Array.from(new Set(recommendation?.items.map((item) => item.channel.replace(/\booh\b/gi, 'Billboards, Digital Screens')) ?? []));
+  const channels = Array.from(new Set(recommendation?.items.map((item) => formatChannelLabel(item.channel)) ?? []));
   const placements = recommendation?.items.length ?? 0;
 
   return [

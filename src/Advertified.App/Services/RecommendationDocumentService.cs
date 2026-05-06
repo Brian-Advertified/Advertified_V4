@@ -10,7 +10,7 @@ using Microsoft.Extensions.Options;
 
 namespace Advertified.App.Services;
 
-public sealed class RecommendationDocumentService : IRecommendationDocumentService
+internal sealed class RecommendationDocumentService : IRecommendationDocumentService
 {
     private readonly AppDbContext _db;
     private readonly IWebHostEnvironment _environment;
@@ -19,6 +19,7 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
     private readonly FrontendOptions _frontendOptions;
     private readonly IProposalAccessTokenService _proposalAccessTokenService;
     private readonly ILeadProposalConfidenceGateService _leadProposalConfidenceGateService;
+    private readonly IRecommendationProposalIntelligenceService _proposalIntelligenceService;
 
     public RecommendationDocumentService(
         AppDbContext db,
@@ -27,7 +28,8 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
         IPublicAssetStorage publicAssetStorage,
         IOptions<FrontendOptions> frontendOptions,
         IProposalAccessTokenService proposalAccessTokenService,
-        ILeadProposalConfidenceGateService leadProposalConfidenceGateService)
+        ILeadProposalConfidenceGateService leadProposalConfidenceGateService,
+        IRecommendationProposalIntelligenceService proposalIntelligenceService)
     {
         _db = db;
         _environment = environment;
@@ -36,6 +38,7 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
         _frontendOptions = frontendOptions.Value;
         _proposalAccessTokenService = proposalAccessTokenService;
         _leadProposalConfidenceGateService = leadProposalConfidenceGateService;
+        _proposalIntelligenceService = proposalIntelligenceService;
     }
 
     public async Task<byte[]> GetCampaignPdfBytesAsync(Guid campaignId, CancellationToken cancellationToken)
@@ -63,25 +66,7 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
             }
         }
 
-        var model = new RecommendationDocumentModel
-        {
-            ClientName = campaign.ResolveClientName(),
-            BusinessName = campaign.ResolveBusinessName(),
-            CampaignName = ResolveCampaignName(campaign),
-            CampaignApprovalsUrl = BuildProposalUrl(campaign.Id),
-            PackageName = campaign.PackageBand.Name,
-            SelectedBudget = ResolveSelectedBudget(campaign),
-            BudgetLabel = ResolveBudgetLabel(campaign),
-            BudgetDisplayText = ResolveBudgetDisplayText(campaign),
-            GeneratedAtUtc = DateTime.UtcNow,
-            CampaignObjective = campaign.CampaignBrief?.Objective,
-            SpecialRequirements = opportunityContext.CampaignNotes,
-            TargetAreas = BuildTargetAreas(campaign.CampaignBrief),
-            TargetAudienceSummary = BuildTargetAudienceSummary(campaign.CampaignBrief),
-            TargetLanguages = DeserializeList(campaign.CampaignBrief?.TargetLanguagesJson),
-            OpportunityContext = opportunityContext.Context,
-            Proposals = currentRecommendations.Select((recommendation, index) => MapProposal(campaign.Id, recommendation, opportunityContext.Context, index)).ToArray()
-        };
+        var model = BuildDocumentModel(campaign, opportunityContext, currentRecommendations);
 
         var logoPath = Billing.InvoicePdfGenerator.ResolveLogoPath(_environment.ContentRootPath, null);
         var pdfBytes = model.OpportunityContext?.IsLeadOutreach == true
@@ -124,25 +109,7 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
             }
         }
 
-        var model = new RecommendationDocumentModel
-        {
-            ClientName = campaign.ResolveClientName(),
-            BusinessName = campaign.ResolveBusinessName(),
-            CampaignName = ResolveCampaignName(campaign),
-            CampaignApprovalsUrl = BuildProposalUrl(campaign.Id),
-            PackageName = campaign.PackageBand.Name,
-            SelectedBudget = ResolveSelectedBudget(campaign),
-            BudgetLabel = ResolveBudgetLabel(campaign),
-            BudgetDisplayText = ResolveBudgetDisplayText(campaign),
-            GeneratedAtUtc = DateTime.UtcNow,
-            CampaignObjective = campaign.CampaignBrief?.Objective,
-            SpecialRequirements = opportunityContext.CampaignNotes,
-            TargetAreas = BuildTargetAreas(campaign.CampaignBrief),
-            TargetAudienceSummary = BuildTargetAudienceSummary(campaign.CampaignBrief),
-            TargetLanguages = DeserializeList(campaign.CampaignBrief?.TargetLanguagesJson),
-            OpportunityContext = opportunityContext.Context,
-            Proposals = new[] { MapProposal(campaign.Id, recommendation, opportunityContext.Context, 0) }
-        };
+        var model = BuildDocumentModel(campaign, opportunityContext, new[] { recommendation });
 
         var logoPath = Billing.InvoicePdfGenerator.ResolveLogoPath(_environment.ContentRootPath, null);
         var pdfBytes = model.OpportunityContext?.IsLeadOutreach == true
@@ -160,13 +127,41 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
         return pdfBytes;
     }
 
+    private RecommendationDocumentModel BuildDocumentModel(
+        Campaign campaign,
+        RecommendationOpportunityContextParseResult opportunityContext,
+        IReadOnlyList<CampaignRecommendation> recommendations)
+    {
+        var campaignContext = BuildProposalCampaignContext(campaign, opportunityContext.CampaignNotes);
+        return new RecommendationDocumentModel
+        {
+            ClientName = campaignContext.ClientName,
+            BusinessName = campaignContext.BusinessName,
+            CampaignName = campaignContext.CampaignName,
+            CampaignApprovalsUrl = BuildProposalUrl(campaign.Id),
+            PackageName = campaignContext.PackageName,
+            SelectedBudget = campaignContext.SelectedBudget,
+            BudgetLabel = campaignContext.BudgetLabel,
+            BudgetDisplayText = campaignContext.BudgetDisplayText,
+            GeneratedAtUtc = DateTime.UtcNow,
+            CampaignObjective = campaignContext.CampaignObjective,
+            SpecialRequirements = campaignContext.SpecialRequirements,
+            TargetAreas = campaignContext.TargetAreas,
+            TargetAudienceSummary = campaignContext.TargetAudienceSummary,
+            TargetLanguages = campaignContext.TargetLanguages,
+            OpportunityContext = opportunityContext.Context,
+            Proposals = recommendations.Select((recommendation, index) =>
+                MapProposal(campaign, campaignContext, recommendation, opportunityContext.Context, index)).ToArray()
+        };
+    }
+
     private RecommendationProposalDocumentModel MapProposal(
-        Guid campaignId,
+        Campaign campaign,
+        RecommendationProposalCampaignContext campaignContext,
         CampaignRecommendation recommendation,
         RecommendationOpportunityContextModel? opportunityContext,
         int proposalIndex)
     {
-        var (label, strategy) = GetProposalDetails(recommendation.RecommendationType, opportunityContext?.ArchetypeName, proposalIndex);
         var lines = recommendation.RecommendationItems
             .OrderBy(item => GetRecommendationItemChannelRank(item.InventoryType))
             .ThenBy(item => item.DisplayName)
@@ -182,18 +177,43 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
             Restrictions = "Included service line item."
         });
 
+        var intelligence = _proposalIntelligenceService.Build(new RecommendationProposalIntelligenceRequest(
+            campaignContext,
+            recommendation,
+            opportunityContext,
+            lines,
+            proposalIndex));
+
         var proposal = new RecommendationProposalDocumentModel
         {
-            Label = label,
-            Strategy = strategy,
-            AcceptUrl = BuildProposalUrl(campaignId, recommendation.Id),
-            Summary = recommendation.Summary ?? string.Empty,
-            Rationale = RemoveInternalMarkers(recommendation.Rationale),
+            Label = intelligence.Label,
+            Strategy = intelligence.Strategy,
+            AcceptUrl = BuildProposalUrl(campaign.Id, recommendation.Id),
+            Summary = intelligence.Summary,
+            Rationale = intelligence.Rationale,
+            Narrative = intelligence.Narrative,
             TotalCost = recommendation.TotalCost,
             Items = lines.ToArray()
         };
 
         return RecommendationClientDocumentShaper.ShapeProposal(proposal);
+    }
+
+    private static RecommendationProposalCampaignContext BuildProposalCampaignContext(Campaign campaign, string? campaignNotes)
+    {
+        return new RecommendationProposalCampaignContext(
+            campaign.ResolveClientName(),
+            campaign.ResolveBusinessName(),
+            ResolveCampaignName(campaign),
+            campaign.PackageBand.Name,
+            ResolveSelectedBudget(campaign),
+            ResolveBudgetLabel(campaign),
+            ResolveBudgetDisplayText(campaign),
+            campaign.CampaignBrief?.Objective,
+            campaignNotes,
+            BuildTargetAreas(campaign.CampaignBrief),
+            BuildTargetAudienceSummary(campaign.CampaignBrief),
+            DeserializeList(campaign.CampaignBrief?.TargetLanguagesJson));
     }
 
     private static RecommendationLineDocumentModel MapLine(RecommendationItem item)
@@ -368,23 +388,6 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
         return cleaned.Length == 0 ? null : string.Join(" | ", cleaned);
     }
 
-    private static string RemoveInternalMarkers(string? rationale)
-    {
-        if (string.IsNullOrWhiteSpace(rationale))
-        {
-            return string.Empty;
-        }
-
-        return string.Join(
-            Environment.NewLine,
-            rationale.Split(new[] { Environment.NewLine }, StringSplitOptions.None)
-                .Where(line =>
-                    !line.StartsWith("Client feedback:", StringComparison.OrdinalIgnoreCase) &&
-                    !line.StartsWith("Fallback flags:", StringComparison.OrdinalIgnoreCase) &&
-                    !line.StartsWith("Manual review required:", StringComparison.OrdinalIgnoreCase)))
-            .Trim();
-    }
-
     private static IReadOnlyList<string> DeserializeList(string? json)
     {
         return string.IsNullOrWhiteSpace(json)
@@ -505,10 +508,10 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
     {
         if (ShouldDisplayPackageRange(campaign))
         {
-            return $"{FormatCurrency(campaign.PackageBand.MinBudget)} to {FormatCurrency(campaign.PackageBand.MaxBudget)}";
+            return $"{RecommendationPdfCopy.FormatCurrency(campaign.PackageBand.MinBudget)} to {RecommendationPdfCopy.FormatCurrency(campaign.PackageBand.MaxBudget)}";
         }
 
-        return FormatCurrency(ResolveSelectedBudget(campaign));
+        return RecommendationPdfCopy.FormatCurrency(ResolveSelectedBudget(campaign));
     }
 
     private static bool ShouldDisplayPackageRange(Campaign campaign)
@@ -517,126 +520,18 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
             || !CampaignOperationsPolicy.IsOrderOperationallyActive(campaign.PackageOrder);
     }
 
-    private static string FormatCurrency(decimal amount)
-    {
-        return $"R {amount:N2}";
-    }
-
-    private static (string Label, string Strategy) GetProposalDetails(string? recommendationType, string? archetypeName, int proposalIndex)
-    {
-        var archetypePlaybook = ResolveArchetypeProposalPlaybook(archetypeName, proposalIndex);
-        if (archetypePlaybook is not null)
-        {
-            return archetypePlaybook.Value;
-        }
-
-        var variantKey = recommendationType?
-            .Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .LastOrDefault()?
-            .ToLowerInvariant();
-
-        return variantKey switch
-        {
-            "balanced" => ("Proposal A", "Balanced mix"),
-            "ooh_focus" => ("Proposal B", "Billboards and Digital Screens-led reach"),
-            "radio_focus" => ("Proposal C", "Radio-led frequency"),
-            "digital_focus" => ("Proposal C", "Digital-led amplification"),
-            "tv_focus" => ("Proposal C", "TV-led reach"),
-            _ => ($"Proposal {GetProposalLetter(proposalIndex)}", "Recommendation option")
-        };
-    }
-
-    private static (string Label, string Strategy)? ResolveArchetypeProposalPlaybook(string? archetypeName, int proposalIndex)
-    {
-        if (string.IsNullOrWhiteSpace(archetypeName))
-        {
-            return null;
-        }
-
-        var normalized = archetypeName.Trim().ToLowerInvariant();
-        return normalized switch
-        {
-            "active scaler" => proposalIndex switch
-            {
-                0 => ("Proposal A — Channel Extension (Test & validate)", "Add one missing high-impact channel while maintaining current digital activity. Built for low-risk validation."),
-                1 => ("Proposal B — Multi-Channel Expansion (Best balance)", "Capture more demand across multiple touchpoints with a balanced radio, Billboards and Digital Screens, and digital reinforcement mix."),
-                _ => ("Proposal C — Market Domination (Max growth)", "Maximise visibility and push category dominance locally through stronger radio, Billboards and Digital Screens, and digital amplification.")
-            },
-            "promo-dependent retailer" => proposalIndex switch
-            {
-                0 => ("Proposal A — Awareness Starter (Test & validate)", "Introduce a light brand layer with small radio support and minimal digital continuity."),
-                1 => ("Proposal B — Promo + Brand Hybrid (Best balance)", "Turn promotions into more consistent foot traffic using radio consistency, Billboards and Digital Screens reinforcement, and digital amplification."),
-                _ => ("Proposal C — Always-On Presence (Max growth)", "Build continuous visibility with stronger radio, Billboards and Digital Screens presence, and ongoing digital support to reduce promo dependency.")
-            },
-            "invisible local business" => proposalIndex switch
-            {
-                0 => ("Proposal A — Discovery Fix (Test & validate)", "Fix local discovery with search presence, maps optimization, and light paid support."),
-                1 => ("Proposal B — Local Visibility Boost (Best balance)", "Combine search and maps with radio or entry-level Billboards and Digital Screens to improve both discoverability and local awareness."),
-                _ => ("Proposal C — Full Local Dominance (Max growth)", "Own local visibility across search, Billboards and Digital Screens, and radio to become the most visible option in-area.")
-            },
-            "digital-only player" => proposalIndex switch
-            {
-                0 => ("Proposal A — Offline Test (Test & validate)", "Run a first offline step with small radio or 1-2 Billboards and Digital Screens placements while maintaining digital performance."),
-                1 => ("Proposal B — Omnichannel Expansion (Best balance)", "Break through digital saturation by combining current digital strength with balanced radio and Billboards and Digital Screens."),
-                _ => ("Proposal C — Scale Reach Fast (Max growth)", "Expand audience reach aggressively through heavier Billboards and Digital Screens, stronger radio coverage, and digital amplification.")
-            },
-            "passive / untapped business" => proposalIndex switch
-            {
-                0 => ("Proposal A — Starter Campaign (Test & validate)", "Launch a simple low-risk starter campaign with clear execution steps and BNPL support."),
-                1 => ("Proposal B — Growth Foundation (Best balance)", "Build a more consistent customer flow with a practical step-up in channel coverage."),
-                _ => ("Proposal C — Acceleration (Max growth)", "Fast-track growth with a broader multi-channel starter mix and stronger visibility pressure.")
-            },
-            _ => null
-        };
-    }
-
-    private static string GetProposalLetter(int index)
-    {
-        return index >= 0 && index < 26
-            ? ((char)('A' + index)).ToString()
-            : (index + 1).ToString();
-    }
-
     private static int GetRecommendationItemChannelRank(string? channel)
     {
-        var normalized = NormalizeRecommendationChannel(channel);
+        var normalized = RecommendationPdfCopy.NormalizeRecommendationChannel(channel);
         return normalized switch
         {
             "ooh" => 0,
             "radio" => 1,
             "tv" => 2,
             "digital" => 3,
+            "newspaper" => 4,
             _ => 9
         };
-    }
-
-    private static string NormalizeRecommendationChannel(string? channel)
-    {
-        var normalized = (channel ?? string.Empty).Trim().ToLowerInvariant();
-        if (normalized.Contains("ooh", StringComparison.OrdinalIgnoreCase)
-            || normalized.Contains("billboard", StringComparison.OrdinalIgnoreCase)
-            || normalized.Contains("out of home", StringComparison.OrdinalIgnoreCase))
-        {
-            return "ooh";
-        }
-
-        if (normalized.Contains("radio", StringComparison.OrdinalIgnoreCase))
-        {
-            return "radio";
-        }
-
-        if (normalized.Contains("tv", StringComparison.OrdinalIgnoreCase)
-            || normalized.Contains("television", StringComparison.OrdinalIgnoreCase))
-        {
-            return "tv";
-        }
-
-        if (normalized.Contains("digital", StringComparison.OrdinalIgnoreCase))
-        {
-            return "digital";
-        }
-
-        return normalized;
     }
 
     private string BuildFrontendUrl(string path)
@@ -660,230 +555,3 @@ public sealed class RecommendationDocumentService : IRecommendationDocumentServi
         return BuildFrontendUrl($"/proposal/{campaignId:D}{queryString}");
     }
 }
-
-internal static class RecommendationOpportunityContextParser
-{
-    public static RecommendationOpportunityContextParseResult Parse(string? rawNotes)
-    {
-        if (string.IsNullOrWhiteSpace(rawNotes))
-        {
-            return new RecommendationOpportunityContextParseResult(null, null);
-        }
-
-        var sections = rawNotes
-            .Split(new[] { "\r\n\r\n", "\n\n" }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Where(static section => !string.IsNullOrWhiteSpace(section))
-            .ToList();
-
-        var detectedGaps = new List<string>();
-        string? archetypeName = null;
-        string? industryProfileName = null;
-        string? industryMessagingAngle = null;
-        var industryGuardrails = new List<string>();
-        string? industryRecommendedCta = null;
-        string? whoWeAre = null;
-        var researchBasis = new List<string>();
-        string? lastResearchedAtUtc = null;
-        string? socialQualityNote = null;
-        string? leadInsightSummary = null;
-        string? expectedOutcome = null;
-        string? whyActNow = null;
-        string? flexibleRollout = null;
-        string? nextStep = null;
-        var isLeadOutreach = false;
-        var remainingSections = new List<string>();
-
-        foreach (var section in sections)
-        {
-            if (TryParseDetectedGaps(section, detectedGaps))
-            {
-                isLeadOutreach = true;
-                continue;
-            }
-
-            if (TryParsePrefixedSection(section, "Archetype:", out var archetype))
-            {
-                archetypeName = archetype;
-                isLeadOutreach = true;
-                continue;
-            }
-
-            if (TryParsePrefixedSection(section, "Who we are:", out var intro))
-            {
-                whoWeAre = intro;
-                continue;
-            }
-
-            if (TryParsePrefixedSection(section, "Industry profile:", out var industryProfile))
-            {
-                industryProfileName = industryProfile;
-                continue;
-            }
-
-            if (TryParsePrefixedSection(section, "Industry messaging angle:", out var angle))
-            {
-                industryMessagingAngle = angle;
-                continue;
-            }
-
-            if (TryParseBulletedSection(section, "Industry guardrails:", industryGuardrails))
-            {
-                continue;
-            }
-
-            if (TryParsePrefixedSection(section, "Industry recommended CTA:", out var industryCta))
-            {
-                industryRecommendedCta = industryCta;
-                continue;
-            }
-
-            if (TryParseBulletedSection(section, "Research basis:", researchBasis))
-            {
-                continue;
-            }
-
-            if (TryParsePrefixedSection(section, "Last researched:", out var lastResearched))
-            {
-                lastResearchedAtUtc = lastResearched;
-                continue;
-            }
-
-            if (TryParsePrefixedSection(section, "Social quality note:", out var socialNote))
-            {
-                socialQualityNote = socialNote;
-                continue;
-            }
-
-            if (TryParsePrefixedSection(section, "Lead intelligence summary:", out var summary))
-            {
-                leadInsightSummary = summary;
-                continue;
-            }
-
-            if (section.StartsWith("Expected impact:", StringComparison.OrdinalIgnoreCase))
-            {
-                expectedOutcome = section.Trim();
-                continue;
-            }
-
-            if (TryParsePrefixedSection(section, "Why act now:", out var urgency))
-            {
-                whyActNow = urgency;
-                continue;
-            }
-
-            if (TryParsePrefixedSection(section, "Flexible rollout:", out var rollout))
-            {
-                flexibleRollout = rollout;
-                continue;
-            }
-
-            if (TryParsePrefixedSection(section, "Next step:", out var step))
-            {
-                nextStep = step;
-                continue;
-            }
-
-            if (TryParsePrefixedSection(section, "Outreach email draft:", out _))
-            {
-                // Outreach email body is CRM/operator content and should never appear inside proposal PDFs.
-                continue;
-            }
-
-            if (TryParsePrefixedSection(section, "Lead source id:", out _))
-            {
-                // Internal provenance marker used for server-side confidence gate checks.
-                continue;
-            }
-
-            remainingSections.Add(section.Trim());
-        }
-
-        var hasOpportunityContext = detectedGaps.Count > 0
-            || !string.IsNullOrWhiteSpace(archetypeName)
-            || !string.IsNullOrWhiteSpace(industryProfileName)
-            || !string.IsNullOrWhiteSpace(industryMessagingAngle)
-            || industryGuardrails.Count > 0
-            || !string.IsNullOrWhiteSpace(industryRecommendedCta)
-            || !string.IsNullOrWhiteSpace(whoWeAre)
-            || researchBasis.Count > 0
-            || !string.IsNullOrWhiteSpace(lastResearchedAtUtc)
-            || !string.IsNullOrWhiteSpace(socialQualityNote)
-            || !string.IsNullOrWhiteSpace(leadInsightSummary)
-            || !string.IsNullOrWhiteSpace(expectedOutcome)
-            || !string.IsNullOrWhiteSpace(whyActNow)
-            || !string.IsNullOrWhiteSpace(flexibleRollout)
-            || !string.IsNullOrWhiteSpace(nextStep);
-
-        var campaignNotes = remainingSections.Count > 0
-            ? string.Join(Environment.NewLine + Environment.NewLine, remainingSections)
-            : null;
-
-        return new RecommendationOpportunityContextParseResult(
-            hasOpportunityContext
-                ? new RecommendationOpportunityContextModel
-                {
-                    ArchetypeName = archetypeName,
-                    IndustryProfileName = industryProfileName,
-                    IndustryMessagingAngle = industryMessagingAngle,
-                    IndustryGuardrails = industryGuardrails,
-                    IndustryRecommendedCta = industryRecommendedCta,
-                    WhoWeAre = whoWeAre,
-                    ResearchBasis = researchBasis,
-                    LastResearchedAtUtc = lastResearchedAtUtc,
-                    SocialQualityNote = socialQualityNote,
-                    DetectedGaps = detectedGaps,
-                    LeadInsightSummary = leadInsightSummary,
-                    ExpectedOutcome = expectedOutcome,
-                    WhyActNow = whyActNow,
-                    FlexibleRollout = flexibleRollout,
-                    NextStep = nextStep,
-                    IsLeadOutreach = isLeadOutreach
-                }
-                : null,
-            campaignNotes);
-    }
-
-    private static bool TryParseDetectedGaps(string section, List<string> detectedGaps)
-    {
-        return TryParseBulletedSection(section, "Why you are receiving this:", detectedGaps);
-    }
-
-    private static bool TryParseBulletedSection(string section, string prefix, List<string> lines)
-    {
-        if (!TryParsePrefixedSection(section, prefix, out var body))
-        {
-            return false;
-        }
-
-        foreach (var line in body
-            .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(static line => line.Trim())
-            .Where(static line => line.StartsWith("-", StringComparison.Ordinal)))
-        {
-            var normalized = line[1..].Trim();
-            if (!string.IsNullOrWhiteSpace(normalized))
-            {
-                lines.Add(normalized);
-            }
-        }
-
-        return true;
-    }
-
-    private static bool TryParsePrefixedSection(string section, string prefix, out string value)
-    {
-        if (!section.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-        {
-            value = string.Empty;
-            return false;
-        }
-
-        value = section[prefix.Length..].Trim();
-        return true;
-    }
-}
-
-internal sealed record RecommendationOpportunityContextParseResult(
-    RecommendationOpportunityContextModel? Context,
-    string? CampaignNotes);

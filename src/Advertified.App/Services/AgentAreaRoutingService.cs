@@ -1,5 +1,4 @@
 using System.Data;
-using System.Globalization;
 using System.Text.Json;
 using Advertified.App.Configuration;
 using Advertified.App.Data;
@@ -258,7 +257,7 @@ public sealed class AgentAreaRoutingService : IAgentAreaRoutingService
                     ["ClientName"] = campaign.ResolveClientName(),
                     ["CampaignName"] = ResolveCampaignName(campaign),
                     ["PackageName"] = campaign.PackageBand.Name,
-                    ["Budget"] = FormatCurrency(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount),
+                    ["Budget"] = CurrencyFormatSupport.FormatZar(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount),
                     ["AreaName"] = resolution.AreaLabel,
                     ["AreaCode"] = resolution.AreaCode,
                     ["AgentCampaignUrl"] = BuildFrontendUrl($"/agent/campaigns/{campaign.Id}")
@@ -317,11 +316,6 @@ public sealed class AgentAreaRoutingService : IAgentAreaRoutingService
         return string.IsNullOrWhiteSpace(campaign.CampaignName)
             ? $"{campaign.PackageBand.Name} campaign"
             : campaign.CampaignName.Trim();
-    }
-
-    private static string FormatCurrency(decimal amount)
-    {
-        return $"R {amount.ToString("N2", CultureInfo.GetCultureInfo("en-ZA"))}";
     }
 
     private sealed class TerritoryRow

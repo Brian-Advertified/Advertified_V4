@@ -9,7 +9,6 @@ using Advertified.App.Validation;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
-using System.Globalization;
 
 namespace Advertified.App.Services;
 
@@ -170,7 +169,7 @@ public sealed class CampaignBriefService : ICampaignBriefService
                     ["ClientName"] = campaignUser.FullName,
                     ["CampaignName"] = string.IsNullOrWhiteSpace(campaign.CampaignName) ? $"{campaign.PackageBand.Name} campaign" : campaign.CampaignName.Trim(),
                     ["PackageName"] = campaign.PackageBand.Name,
-                    ["Budget"] = FormatCurrency(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount),
+                    ["Budget"] = CurrencyFormatSupport.FormatZar(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount),
                     ["CampaignUrl"] = BuildFrontendUrl($"/campaigns/{campaign.Id}")
                 },
                 null,
@@ -265,11 +264,6 @@ public sealed class CampaignBriefService : ICampaignBriefService
     private string BuildFrontendUrl(string path)
     {
         return _frontendOptions.BaseUrl.TrimEnd('/') + path;
-    }
-
-    private static string FormatCurrency(decimal amount)
-    {
-        return $"R {amount.ToString("N2", CultureInfo.GetCultureInfo("en-ZA"))}";
     }
 
     private static UserAccount RequireCampaignUser(Campaign campaign)

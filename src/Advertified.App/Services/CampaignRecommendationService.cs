@@ -1036,11 +1036,6 @@ public sealed class CampaignRecommendationService : ICampaignRecommendationServi
             span * ProposalTierSpanToleranceRatio));
     }
 
-    private static string FormatCurrency(decimal amount)
-    {
-        return $"R {amount.ToString("N2", CultureInfo.GetCultureInfo("en-ZA"))}";
-    }
-
     private async Task<InventorySnapshot> BuildInventorySnapshotAsync(CancellationToken cancellationToken)
     {
         var activeBatches = await _db.InventoryImportBatches

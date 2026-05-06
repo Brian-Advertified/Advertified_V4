@@ -1315,7 +1315,15 @@ public sealed class AdminMutationService : IAdminMutationService
         ValidatePercentage(request.OohMarkupPercent, nameof(request.OohMarkupPercent));
         ValidatePercentage(request.RadioMarkupPercent, nameof(request.RadioMarkupPercent));
         ValidatePercentage(request.TvMarkupPercent, nameof(request.TvMarkupPercent));
+        ValidatePercentage(request.NewspaperMarkupPercent, nameof(request.NewspaperMarkupPercent));
         ValidatePercentage(request.DigitalMarkupPercent, nameof(request.DigitalMarkupPercent));
+        ValidatePercentage(request.SalesCommissionPercent, nameof(request.SalesCommissionPercent));
+        ValidatePercentage(request.SalesAgentShareBelowThresholdPercent, nameof(request.SalesAgentShareBelowThresholdPercent));
+        ValidatePercentage(request.SalesAgentShareAtOrAboveThresholdPercent, nameof(request.SalesAgentShareAtOrAboveThresholdPercent));
+        if (request.SalesCommissionThresholdZar < 0m)
+        {
+            throw new InvalidOperationException("Sales commission threshold must be zero or greater.");
+        }
 
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         await connection.ExecuteAsync(new CommandDefinition(
@@ -1326,14 +1334,24 @@ public sealed class AdminMutationService : IAdminMutationService
                 ooh_markup_percent,
                 radio_markup_percent,
                 tv_markup_percent,
-                digital_markup_percent
+                newspaper_markup_percent,
+                digital_markup_percent,
+                sales_commission_percent,
+                sales_commission_threshold_zar,
+                sales_agent_share_below_threshold_percent,
+                sales_agent_share_at_or_above_threshold_percent
             ) values (
                 'default',
                 @AiStudioReservePercent,
                 @OohMarkupPercent,
                 @RadioMarkupPercent,
                 @TvMarkupPercent,
-                @DigitalMarkupPercent
+                @NewspaperMarkupPercent,
+                @DigitalMarkupPercent,
+                @SalesCommissionPercent,
+                @SalesCommissionThresholdZar,
+                @SalesAgentShareBelowThresholdPercent,
+                @SalesAgentShareAtOrAboveThresholdPercent
             )
             on conflict (pricing_key) do update
             set
@@ -1341,7 +1359,12 @@ public sealed class AdminMutationService : IAdminMutationService
                 ooh_markup_percent = excluded.ooh_markup_percent,
                 radio_markup_percent = excluded.radio_markup_percent,
                 tv_markup_percent = excluded.tv_markup_percent,
+                newspaper_markup_percent = excluded.newspaper_markup_percent,
                 digital_markup_percent = excluded.digital_markup_percent,
+                sales_commission_percent = excluded.sales_commission_percent,
+                sales_commission_threshold_zar = excluded.sales_commission_threshold_zar,
+                sales_agent_share_below_threshold_percent = excluded.sales_agent_share_below_threshold_percent,
+                sales_agent_share_at_or_above_threshold_percent = excluded.sales_agent_share_at_or_above_threshold_percent,
                 updated_at = now();",
             new
             {
@@ -1349,7 +1372,12 @@ public sealed class AdminMutationService : IAdminMutationService
                 request.OohMarkupPercent,
                 request.RadioMarkupPercent,
                 request.TvMarkupPercent,
-                request.DigitalMarkupPercent
+                request.NewspaperMarkupPercent,
+                request.DigitalMarkupPercent,
+                request.SalesCommissionPercent,
+                request.SalesCommissionThresholdZar,
+                request.SalesAgentShareBelowThresholdPercent,
+                request.SalesAgentShareAtOrAboveThresholdPercent
             },
             cancellationToken: cancellationToken));
     }

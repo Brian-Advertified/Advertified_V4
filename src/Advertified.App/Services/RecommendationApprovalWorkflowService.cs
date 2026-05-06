@@ -189,7 +189,7 @@ public sealed class RecommendationApprovalWorkflowService : IRecommendationAppro
                     ["ClientName"] = campaign.ResolveClientName(),
                     ["CampaignName"] = ResolveCampaignName(campaign),
                     ["PackageName"] = campaign.PackageBand.Name,
-                    ["Budget"] = FormatCurrency(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount),
+                    ["Budget"] = CurrencyFormatSupport.FormatZar(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount),
                     ["CampaignUrl"] = BuildClientCampaignUrl(campaign)
                 },
                 null,
@@ -220,7 +220,7 @@ public sealed class RecommendationApprovalWorkflowService : IRecommendationAppro
                     ["ClientName"] = campaign.ResolveClientName(),
                     ["CampaignName"] = ResolveCampaignName(campaign),
                     ["PackageName"] = campaign.PackageBand.Name,
-                    ["Budget"] = FormatCurrency(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount),
+                    ["Budget"] = CurrencyFormatSupport.FormatZar(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount),
                     ["CampaignUrl"] = BuildClientCampaignUrl(campaign)
                 },
                 null,
@@ -265,7 +265,7 @@ public sealed class RecommendationApprovalWorkflowService : IRecommendationAppro
                     {
                         ["CampaignName"] = ResolveCampaignName(campaign),
                         ["PackageName"] = campaign.PackageBand.Name,
-                        ["Budget"] = FormatCurrency(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount),
+                        ["Budget"] = CurrencyFormatSupport.FormatZar(campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount),
                         ["EventTitle"] = eventTitle,
                         ["EventBody"] = eventBody,
                         ["ActionUrl"] = actionUrl
@@ -403,11 +403,6 @@ public sealed class RecommendationApprovalWorkflowService : IRecommendationAppro
         return campaign.UserId.HasValue
             ? BuildFrontendUrl($"/campaigns/{campaign.Id}")
             : BuildFrontendUrl($"/register?next=%2Fcampaigns%2F{campaign.Id:D}");
-    }
-
-    private static string FormatCurrency(decimal amount)
-    {
-        return $"R {amount.ToString("N2", CultureInfo.GetCultureInfo("en-ZA"))}";
     }
 
     private static string ResolveCampaignName(Campaign campaign)

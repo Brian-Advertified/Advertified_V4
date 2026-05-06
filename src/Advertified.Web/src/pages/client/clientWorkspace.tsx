@@ -3,6 +3,7 @@ import type { PropsWithChildren, ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { getClientCampaignState, hasCampaignClearedPayment } from '../../lib/access';
 import { buildBriefCoverageSummary } from '../../features/campaigns/briefModel';
+import { formatChannelLabel } from '../../features/channels/channelUtils';
 import {
   CAMPAIGN_STATUSES_AFTER_CREATIVE_APPROVAL,
   getPrimaryRecommendation,
@@ -11,10 +12,6 @@ import {
 } from '../../lib/campaignStatus';
 import { buildRecommendationTimingLabel, cn, formatCurrency, formatDate, titleCase } from '../../lib/utils';
 import type { Campaign, CampaignRecommendation, PackageBand, PackageOrder } from '../../types/domain';
-
-function formatChannelLabel(value: string) {
-  return value.replace(/\booh\b/gi, 'Billboards and Digital Screens');
-}
 
 export function getClientFacingBudget(campaign: Campaign) {
   const recommendation = getPrimaryRecommendation(campaign);

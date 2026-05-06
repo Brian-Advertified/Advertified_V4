@@ -4,6 +4,7 @@ import { Eye, Pencil, PlusCircle, Save, Trash2, X } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { QueryStateBoundary } from '../../components/ui/QueryStateBoundary';
 import { useToast } from '../../components/ui/toast';
+import { formatCurrency } from '../../lib/utils';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import type { AdminCreateOutletInput, AdminUpdateOutletInput } from '../../types/domain';
 import { AdminPageShell, splitList, titleize, tone } from './adminWorkspace';
@@ -573,8 +574,8 @@ export function AdminStationsPage() {
                   <div className="mt-4 flex flex-wrap items-center gap-5 text-sm text-ink-soft">
                     <label className="inline-flex items-center gap-2"><input disabled={isReadOnly} type="checkbox" checked={outletForm.isNational} onChange={(event) => setOutletForm((current) => ({ ...current, isNational: event.target.checked }))} /> National capable</label>
                     <label className="inline-flex items-center gap-2"><input disabled={isReadOnly} type="checkbox" checked={outletForm.hasPricing} onChange={(event) => setOutletForm((current) => ({ ...current, hasPricing: event.target.checked }))} /> Pricing already available</label>
-                    {activeDetail ? <span>Min package {activeDetail.minPackagePrice ? new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 }).format(activeDetail.minPackagePrice) : 'N/A'}</span> : null}
-                    {activeDetail ? <span>Min slot {activeDetail.minSlotRate ? new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 }).format(activeDetail.minSlotRate) : 'N/A'}</span> : null}
+                    {activeDetail ? <span>Min package {activeDetail.minPackagePrice ? formatCurrency(activeDetail.minPackagePrice) : 'N/A'}</span> : null}
+                    {activeDetail ? <span>Min slot {activeDetail.minSlotRate ? formatCurrency(activeDetail.minSlotRate) : 'N/A'}</span> : null}
                     <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${tone(effectiveCatalogHealth)}`}>
                       Effective health: {titleize(effectiveCatalogHealth)}
                     </span>

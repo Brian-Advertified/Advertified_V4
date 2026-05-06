@@ -42,6 +42,7 @@ public sealed class LeadsController : ControllerBase
     private readonly IProspectLeadRegistrationService _prospectLeadRegistrationService;
     private readonly IChangeAuditService _changeAuditService;
     private readonly ILeadOpsStateService _leadOpsStateService;
+    private readonly IPricingSettingsProvider _pricingSettingsProvider;
 
     public LeadsController(
         AppDbContext db,
@@ -66,7 +67,8 @@ public sealed class LeadsController : ControllerBase
         ICurrentUserAccessor currentUserAccessor,
         IProspectLeadRegistrationService prospectLeadRegistrationService,
         IChangeAuditService changeAuditService,
-        ILeadOpsStateService leadOpsStateService)
+        ILeadOpsStateService leadOpsStateService,
+        IPricingSettingsProvider pricingSettingsProvider)
     {
         _db = db;
         _leadScoreService = leadScoreService;
@@ -91,6 +93,7 @@ public sealed class LeadsController : ControllerBase
         _prospectLeadRegistrationService = prospectLeadRegistrationService;
         _changeAuditService = changeAuditService;
         _leadOpsStateService = leadOpsStateService;
+        _pricingSettingsProvider = pricingSettingsProvider;
     }
 
     [HttpGet]
@@ -733,6 +736,9 @@ public sealed class LeadsController : ControllerBase
                 .FirstOrDefaultAsync(x => x.Id == request.PackageBandId.Value && x.IsActive, cancellationToken)
                 ?? throw new NotFoundException("Package band not found.");
             var selectedBudget = packageBand.MinBudget > 0m ? packageBand.MinBudget : 25000m;
+            var commission = PricingPolicy.CalculateSalesCommission(
+                selectedBudget,
+                await _pricingSettingsProvider.GetCurrentAsync(cancellationToken));
 
             var packageOrder = new PackageOrder
             {
@@ -743,6 +749,12 @@ public sealed class LeadsController : ControllerBase
                 SelectedBudget = selectedBudget,
                 AiStudioReservePercent = 0m,
                 AiStudioReserveAmount = 0m,
+                SalesCommissionPercent = commission.CommissionPercent,
+                SalesCommissionPoolAmount = commission.PoolAmount,
+                SalesAgentCommissionSharePercent = commission.SalesAgentSharePercent,
+                SalesAgentCommissionAmount = commission.SalesAgentAmount,
+                AdvertifiedSalesCommissionAmount = commission.AdvertifiedSalesAmount,
+                SalesCommissionTier = commission.Tier,
                 Currency = "ZAR",
                 OrderIntent = OrderIntentValues.Prospect,
                 PaymentProvider = null,

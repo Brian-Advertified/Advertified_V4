@@ -1,5 +1,3 @@
-using System.Globalization;
-using System.Text.RegularExpressions;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -36,7 +34,7 @@ internal static class LeadOutreachPdfGenerator
                         }
 
                         col.Item().PaddingTop(4).Text("Growth Opportunity Pack").SemiBold().FontSize(18);
-                        col.Item().Text(ToClientCopy(model.CampaignName)).FontColor("#3D4F45");
+                        col.Item().Text(RecommendationPdfCopy.ToClientCopy(model.CampaignName)).FontColor("#3D4F45");
                     });
 
                     row.ConstantItem(220).AlignRight().Column(col =>
@@ -57,12 +55,12 @@ internal static class LeadOutreachPdfGenerator
                         var intro = !string.IsNullOrWhiteSpace(model.OpportunityContext?.WhoWeAre)
                             ? model.OpportunityContext!.WhoWeAre!
                             : "Advertified helps businesses find where they are losing customers, then launches practical campaigns to fix those gaps.";
-                        who.Item().Text(ToClientCopy(intro)).FontColor("#3D4F45");
+                        who.Item().Text(RecommendationPdfCopy.ToClientCopy(intro)).FontColor("#3D4F45");
 
                         if (!string.IsNullOrWhiteSpace(model.OpportunityContext?.IndustryProfileName))
                         {
                             who.Item()
-                                .Text($"Industry profile: {ToClientCopy(model.OpportunityContext.IndustryProfileName)}")
+                                .Text($"Industry profile: {RecommendationPdfCopy.ToClientCopy(model.OpportunityContext.IndustryProfileName)}")
                                 .SemiBold()
                                 .FontColor("#0F6E56");
                         }
@@ -70,7 +68,7 @@ internal static class LeadOutreachPdfGenerator
                         if (!string.IsNullOrWhiteSpace(model.OpportunityContext?.IndustryMessagingAngle))
                         {
                             who.Item()
-                                .Text($"Messaging angle: {ToClientCopy(model.OpportunityContext.IndustryMessagingAngle)}")
+                                .Text($"Messaging angle: {RecommendationPdfCopy.ToClientCopy(model.OpportunityContext.IndustryMessagingAngle)}")
                                 .FontColor("#3D4F45");
                         }
                     });
@@ -80,7 +78,7 @@ internal static class LeadOutreachPdfGenerator
                         hook.Spacing(7);
                         hook.Item().Text("What We Found").SemiBold().FontSize(12).FontColor("#0F6E56");
                         hook.Item().Text(
-                            $"We reviewed {ResolveBusinessReference(model)} and identified specific demand capture gaps that are currently limiting growth.")
+                            $"We reviewed {RecommendationPdfCopy.ResolveBusinessReference(model)} and identified specific demand capture gaps that are currently limiting growth.")
                             .SemiBold();
 
                         var gaps = model.OpportunityContext?.DetectedGaps?
@@ -92,12 +90,12 @@ internal static class LeadOutreachPdfGenerator
                         {
                             foreach (var gap in gaps)
                             {
-                                hook.Item().Text($"- {ToClientCopy(gap)}").FontColor("#3D4F45");
+                                hook.Item().Text($"- {RecommendationPdfCopy.ToClientCopy(gap)}").FontColor("#3D4F45");
                             }
                         }
                         else if (!string.IsNullOrWhiteSpace(model.OpportunityContext?.LeadInsightSummary))
                         {
-                            hook.Item().Text(ToClientCopy(model.OpportunityContext.LeadInsightSummary)).FontColor("#3D4F45");
+                            hook.Item().Text(RecommendationPdfCopy.ToClientCopy(model.OpportunityContext.LeadInsightSummary)).FontColor("#3D4F45");
                         }
                     });
 
@@ -113,29 +111,33 @@ internal static class LeadOutreachPdfGenerator
                     for (var index = 0; index < model.Proposals.Count; index++)
                     {
                         var proposal = model.Proposals[index];
-                        var channels = proposal.Items
-                            .Where(item => !string.IsNullOrWhiteSpace(item.Channel))
-                            .Select(item => FormatChannelLabel(item.Channel))
-                            .Distinct(StringComparer.OrdinalIgnoreCase)
-                            .Take(4)
-                            .ToArray();
-                        var whatYouGet = BuildWhatYouGetSummary(proposal);
-                        var whereItRuns = BuildWhereItRunsSummary(proposal);
-                        var highlightedPlacements = BuildHighlightedPlacements(proposal);
+                        var whatYouGet = RecommendationPdfPresentationBuilder.BuildProposalDeliverableSummary(proposal);
+                        var whereItRuns = RecommendationPdfPresentationBuilder.BuildProposalAreaSummary(model, proposal);
+                        var highlightedPlacements = RecommendationPdfPresentationBuilder.BuildProposalPlacementHighlights(proposal);
 
                         column.Item().Border(1).BorderColor(index == 1 ? "#0F6E56" : "#DDE8E3").Background("#FFFFFF").Padding(12).Column(card =>
                         {
                             card.Spacing(5);
                             card.Item().Row(row =>
                             {
-                                row.RelativeItem().Text(ToClientCopy(proposal.Label)).SemiBold().FontSize(11);
-                                row.ConstantItem(160).AlignRight().Text(FormatCurrency(proposal.TotalCost)).SemiBold();
+                                row.RelativeItem().Text(RecommendationPdfCopy.ToClientCopy(proposal.Label)).SemiBold().FontSize(11);
+                                row.ConstantItem(160).AlignRight().Text(RecommendationPdfCopy.FormatCurrency(proposal.TotalCost)).SemiBold();
                             });
 
                             var outcome = !string.IsNullOrWhiteSpace(proposal.Strategy)
                                 ? proposal.Strategy
                                 : proposal.Summary;
-                            card.Item().Text(ToClientCopy(outcome)).SemiBold();
+                            card.Item().Text(RecommendationPdfCopy.ToClientCopy(outcome)).SemiBold();
+
+                            if (!string.IsNullOrWhiteSpace(proposal.Narrative?.StrategicApproach))
+                            {
+                                card.Item().Text($"Why this route: {RecommendationPdfCopy.ToClientCopy(proposal.Narrative.StrategicApproach)}").FontColor("#3D4F45");
+                            }
+
+                            if (!string.IsNullOrWhiteSpace(proposal.Narrative?.ExpectedOutcome))
+                            {
+                                card.Item().Text($"Expected outcome: {RecommendationPdfCopy.ToClientCopy(proposal.Narrative.ExpectedOutcome)}").FontColor("#3D4F45");
+                            }
 
                             if (!string.IsNullOrWhiteSpace(whatYouGet))
                             {
@@ -147,14 +149,14 @@ internal static class LeadOutreachPdfGenerator
                                 card.Item().Text($"Where it runs: {whereItRuns}").FontColor("#3D4F45");
                             }
 
-                            if (highlightedPlacements.Length > 0)
+                            if (highlightedPlacements.Count > 0)
                             {
                                 card.Item().Text($"Included placements: {string.Join(" | ", highlightedPlacements)}").FontColor("#3D4F45");
                             }
 
                             if (!string.IsNullOrWhiteSpace(proposal.AcceptUrl))
                             {
-                                card.Item().Hyperlink(proposal.AcceptUrl).Text($"Accept {ToClientCopy(proposal.Label)}").SemiBold();
+                                card.Item().Hyperlink(proposal.AcceptUrl).Text($"Accept {RecommendationPdfCopy.ToClientCopy(proposal.Label)}").SemiBold();
                             }
                         });
                     }
@@ -175,108 +177,5 @@ internal static class LeadOutreachPdfGenerator
                 });
             });
         }).GeneratePdf();
-    }
-
-    private static string FormatCurrency(decimal amount)
-    {
-        return $"R {amount.ToString("N2", CultureInfo.GetCultureInfo("en-ZA"))}";
-    }
-
-    private static string BuildWhatYouGetSummary(RecommendationProposalDocumentModel proposal)
-    {
-        var placements = proposal.Items
-            .Where(item => !string.IsNullOrWhiteSpace(item.Channel) && !string.Equals(item.Channel, "Studio", StringComparison.OrdinalIgnoreCase))
-            .ToArray();
-        if (placements.Length == 0)
-        {
-            return string.Empty;
-        }
-
-        var totalQuantity = placements.Sum(item => Math.Max(1, item.Quantity));
-        var channels = placements
-            .Select(item => FormatChannelLabel(item.Channel))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
-        if (channels.Length == 1)
-        {
-            return $"{totalQuantity} planned media placement{(totalQuantity == 1 ? string.Empty : "s")} using {channels[0].ToLowerInvariant()}.";
-        }
-
-        var channelSummary = channels.Length == 2
-            ? $"{channels[0].ToLowerInvariant()} and {channels[1].ToLowerInvariant()}"
-            : $"{string.Join(", ", channels.Take(channels.Length - 1).Select(static value => value.ToLowerInvariant()))}, and {channels[^1].ToLowerInvariant()}";
-
-        return $"{totalQuantity} planned media placement{(totalQuantity == 1 ? string.Empty : "s")} using {channelSummary}.";
-    }
-
-    private static string BuildWhereItRunsSummary(RecommendationProposalDocumentModel proposal)
-    {
-        var regions = proposal.Items
-            .Select(item => item.Region)
-            .Where(region => !string.IsNullOrWhiteSpace(region))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Take(3)
-            .Select(region => ToClientCopy(region))
-            .ToArray();
-
-        return regions.Length == 0 ? string.Empty : string.Join(" | ", regions);
-    }
-
-    private static string[] BuildHighlightedPlacements(RecommendationProposalDocumentModel proposal)
-    {
-        return proposal.Items
-            .Where(item => !string.IsNullOrWhiteSpace(item.Title) && !string.Equals(item.Channel, "Studio", StringComparison.OrdinalIgnoreCase))
-            .Select(item => ToClientCopy(item.Title))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Take(3)
-            .ToArray();
-    }
-
-    private static string ResolveBusinessReference(RecommendationDocumentModel model)
-    {
-        return !string.IsNullOrWhiteSpace(model.BusinessName)
-            ? ToClientCopy(model.BusinessName)
-            : ToClientCopy(model.ClientName);
-    }
-
-    private static string FormatChannelLabel(string? channel)
-    {
-        if (string.IsNullOrWhiteSpace(channel))
-        {
-            return string.Empty;
-        }
-
-        return channel.Trim().ToLowerInvariant() switch
-        {
-            "ooh" => "Billboards and Digital Screens",
-            "billboard" => "Billboards",
-            "digital_screen" => "Digital Screens",
-            "digitalscreen" => "Digital Screens",
-            "radio" => "Radio",
-            "digital" => "Digital",
-            "tv" => "TV",
-            "studio" => "Creative and studio support",
-            _ => ToClientCopy(channel.Trim().Replace("_", " "))
-        };
-    }
-
-    private static string ToClientCopy(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return string.Empty;
-        }
-
-        var normalized = value
-            .Replace("Ã¢â‚¬â„¢", "'")
-            .Replace("Ã¢â‚¬Ëœ", "'")
-            .Replace("Ã¢â‚¬Å“", "\"")
-            .Replace("Ã¢â‚¬Â", "\"")
-            .Replace("Ã¢â‚¬â€œ", "-")
-            .Replace("Ã¢â‚¬â€", "-")
-            .Replace("\u00A0", " ");
-        normalized = Regex.Replace(normalized, "\\s+", " ").Trim();
-        return normalized;
     }
 }

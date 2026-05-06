@@ -4,6 +4,7 @@ import { NavLink } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { QueryStateBoundary } from '../../components/ui/QueryStateBoundary';
 import { useAuth } from '../../features/auth/auth-context';
+import { formatCurrency, formatDateTime } from '../../lib/utils';
 import { PageHero } from '../../components/marketing/PageHero';
 import { advertifiedApi } from '../../services/advertifiedApi';
 import type { AdminDashboard } from '../../types/domain';
@@ -66,8 +67,8 @@ export const adminNavSections: AdminNavSection[] = [
   },
 ] as const;
 
-export const fmtCurrency = (amount?: number) => amount == null ? 'N/A' : new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 }).format(amount);
-export const fmtDate = (value?: string) => value ? new Intl.DateTimeFormat('en-ZA', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : 'Not yet available';
+export const fmtCurrency = (amount?: number) => amount == null ? 'N/A' : formatCurrency(amount);
+export const fmtDate = (value?: string) => value ? formatDateTime(value) : 'Not yet available';
 export const titleize = (value: string) => value.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
 export const tone = (value: string) => {
   const normalized = value.toLowerCase();

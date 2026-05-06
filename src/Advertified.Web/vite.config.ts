@@ -25,6 +25,10 @@ function manualChunks(id: string) {
     return 'vendor-mapbox-search';
   }
 
+  if (id.includes('mapbox-gl')) {
+    return 'vendor-mapbox-gl';
+  }
+
   if (id.includes('react-router') || id.includes('@remix-run')) {
     return 'vendor-router';
   }

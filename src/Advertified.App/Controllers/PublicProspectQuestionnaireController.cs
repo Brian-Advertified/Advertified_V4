@@ -23,6 +23,7 @@ public sealed class PublicProspectQuestionnaireController : ControllerBase
     private readonly ICampaignBriefService _campaignBriefService;
     private readonly IChangeAuditService _changeAuditService;
     private readonly IProspectLeadRegistrationService _prospectLeadRegistrationService;
+    private readonly IPricingSettingsProvider _pricingSettingsProvider;
     private readonly ITemplatedEmailService _emailService;
     private readonly FrontendOptions _frontendOptions;
     private readonly ILogger<PublicProspectQuestionnaireController> _logger;
@@ -32,6 +33,7 @@ public sealed class PublicProspectQuestionnaireController : ControllerBase
         ICampaignBriefService campaignBriefService,
         IChangeAuditService changeAuditService,
         IProspectLeadRegistrationService prospectLeadRegistrationService,
+        IPricingSettingsProvider pricingSettingsProvider,
         ITemplatedEmailService emailService,
         IOptions<FrontendOptions> frontendOptions,
         ILogger<PublicProspectQuestionnaireController> logger)
@@ -40,6 +42,7 @@ public sealed class PublicProspectQuestionnaireController : ControllerBase
         _campaignBriefService = campaignBriefService;
         _changeAuditService = changeAuditService;
         _prospectLeadRegistrationService = prospectLeadRegistrationService;
+        _pricingSettingsProvider = pricingSettingsProvider;
         _emailService = emailService;
         _frontendOptions = frontendOptions.Value;
         _logger = logger;
@@ -73,6 +76,9 @@ public sealed class PublicProspectQuestionnaireController : ControllerBase
             ?? throw new NotFoundException("Package band not found.");
 
         var selectedBudget = ResolveProspectBudget(packageBand);
+        var commission = PricingPolicy.CalculateSalesCommission(
+            selectedBudget,
+            await _pricingSettingsProvider.GetCurrentAsync(cancellationToken));
         var leadResult = await _prospectLeadRegistrationService.UpsertPublicLeadAsync(
             fullName,
             email,
@@ -91,6 +97,12 @@ public sealed class PublicProspectQuestionnaireController : ControllerBase
             SelectedBudget = selectedBudget,
             AiStudioReservePercent = 0m,
             AiStudioReserveAmount = 0m,
+            SalesCommissionPercent = commission.CommissionPercent,
+            SalesCommissionPoolAmount = commission.PoolAmount,
+            SalesAgentCommissionSharePercent = commission.SalesAgentSharePercent,
+            SalesAgentCommissionAmount = commission.SalesAgentAmount,
+            AdvertifiedSalesCommissionAmount = commission.AdvertifiedSalesAmount,
+            SalesCommissionTier = commission.Tier,
             Currency = "ZAR",
             OrderIntent = OrderIntentValues.Prospect,
             PaymentProvider = null,

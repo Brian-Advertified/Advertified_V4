@@ -278,10 +278,15 @@ public sealed class AdminDashboardService : IAdminDashboardService
             return new AdminPricingSettingsResponse
             {
                 AiStudioReservePercent = 0.10m,
-                OohMarkupPercent = 0.05m,
-                RadioMarkupPercent = 0.10m,
-                TvMarkupPercent = 0.10m,
-                DigitalMarkupPercent = 0.10m
+                OohMarkupPercent = 0.15m,
+                RadioMarkupPercent = 0.15m,
+                TvMarkupPercent = 0.15m,
+                NewspaperMarkupPercent = 0.15m,
+                DigitalMarkupPercent = 0.15m,
+                SalesCommissionPercent = 0.10m,
+                SalesCommissionThresholdZar = 250000m,
+                SalesAgentShareBelowThresholdPercent = 0.60m,
+                SalesAgentShareAtOrAboveThresholdPercent = 0.50m
             };
         }
 
@@ -291,7 +296,12 @@ public sealed class AdminDashboardService : IAdminDashboardService
             OohMarkupPercent = row.OohMarkupPercent,
             RadioMarkupPercent = row.RadioMarkupPercent,
             TvMarkupPercent = row.TvMarkupPercent,
-            DigitalMarkupPercent = row.DigitalMarkupPercent
+            NewspaperMarkupPercent = row.NewspaperMarkupPercent,
+            DigitalMarkupPercent = row.DigitalMarkupPercent,
+            SalesCommissionPercent = row.SalesCommissionPercent,
+            SalesCommissionThresholdZar = row.SalesCommissionThresholdZar,
+            SalesAgentShareBelowThresholdPercent = row.SalesAgentShareBelowThresholdPercent,
+            SalesAgentShareAtOrAboveThresholdPercent = row.SalesAgentShareAtOrAboveThresholdPercent
         };
     }
 

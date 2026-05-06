@@ -16,4 +16,15 @@ public sealed class RecommendationPdfCopyTests
 
         normalized.Should().Be("ooh");
     }
+
+    [Theory]
+    [InlineData("newspaper")]
+    [InlineData("print")]
+    [InlineData("press")]
+    public void NormalizeRecommendationChannel_TreatsPrintFamilyChannelsAsNewspaper(string channel)
+    {
+        var normalized = RecommendationPdfCopy.NormalizeRecommendationChannel(channel);
+
+        normalized.Should().Be("newspaper");
+    }
 }

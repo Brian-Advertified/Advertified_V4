@@ -2,6 +2,7 @@ import { Download } from 'lucide-react';
 import { buildRecommendationTimingLabel, titleCase, formatCurrency } from '../../../lib/utils';
 import type { CampaignRecommendation } from '../../../types/domain';
 import { StatusBadge } from '../../../components/ui/StatusBadge';
+import { formatChannelLabel } from '../../channels/channelUtils';
 import type { CampaignOpportunityContext } from '../briefModel';
 
 export function RecommendationViewer({
@@ -16,7 +17,7 @@ export function RecommendationViewer({
   opportunityContext?: CampaignOpportunityContext;
 }) {
   const baseItems = recommendation.items.filter((item) => item.type === 'base');
-  const groupedChannels = Array.from(new Set(baseItems.map((item) => formatClientChannelLabel(item.channel))));
+  const groupedChannels = Array.from(new Set(baseItems.map((item) => formatChannelLabel(item.channel))));
   const topReasons = Array.from(new Set(baseItems.flatMap((item) => item.selectionReasons))).slice(0, 4);
 
   return (
@@ -124,7 +125,7 @@ export function RecommendationViewer({
             <div key={item.id} className="rounded-[24px] border border-line bg-slate-50 px-5 py-5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <div className="pill bg-white text-ink-soft">{formatClientChannelLabel(item.channel)}</div>
+                  <div className="pill bg-white text-ink-soft">{formatChannelLabel(item.channel)}</div>
                   <p className="mt-3 text-lg font-semibold text-ink">{item.title}</p>
                   <p className="mt-2 text-sm leading-7 text-ink-soft">{item.rationale}</p>
                   <div className="mt-3 flex flex-wrap gap-2">
@@ -170,14 +171,6 @@ export function RecommendationViewer({
       </div>
     </div>
   );
-}
-
-function formatClientChannelLabel(value: string) {
-  if (!value) {
-    return value;
-  }
-
-  return value.replace(/\booh\b/gi, 'Billboards and Digital Screens');
 }
 
 function toClientFriendlyCopy(value: string) {
