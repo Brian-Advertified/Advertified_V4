@@ -3,7 +3,7 @@ alter table pricing_settings
 
 alter table pricing_settings
     add column if not exists newspaper_markup_percent numeric(8,4) not null default 0.1000;
-sed 
+
 alter table pricing_settings
     add column if not exists sales_commission_percent numeric(8,4) not null default 0.1000;
 
