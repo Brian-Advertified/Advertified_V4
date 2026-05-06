@@ -29,7 +29,7 @@ public sealed class RecommendationProposalIntelligenceServiceTests
             {
                 RecommendationType = "hybrid:ooh_focus",
                 Summary = "Recommended 2 planned item(s) across OOH, Radio. Budget split target: Radio 50% | Billboards and Digital Screens 50%.",
-                Rationale = "Plan built within budget.",
+                Rationale = "Plan built within budget of 125,000, prioritising geography fit, audience fit, requested mix targets, and available inventory. Selected mix: OOH, Radio. Requested target: Radio 50% | Billboards and Digital Screens 50%. Strategy weighting favoured premium audience alignment. Budget allocation favored Billboards and Digital Screens (60%) and the local geo bucket (65%).",
                 TotalCost = 120000m
             },
             new RecommendationOpportunityContextModel
@@ -66,10 +66,14 @@ public sealed class RecommendationProposalIntelligenceServiceTests
         result.Summary.Should().Contain("Family Store");
         result.Summary.Should().Contain("Billboards and Digital Screens");
         result.Summary.Should().NotContain("planned item(s)");
+        result.Summary.Should().NotContain("Budget split target");
         result.Rationale.Should().NotContain("Plan built within budget");
         result.Rationale.Should().NotContain("OOH");
+        result.Rationale.Should().NotContain("Requested target");
+        result.Rationale.Should().NotContain("Budget allocation");
         result.Narrative.ExpectedOutcome.Should().Be("Stronger store visit signals during the campaign window.");
         result.Narrative.ChannelRoles.Should().Contain(role => role.StartsWith("Billboards and Digital Screens:", StringComparison.Ordinal));
+        result.Narrative.ChannelRoles.Should().Contain("Radio: keeps the campaign present during daily listening routines, helping the message move from recognition to recall.");
         result.Narrative.SuccessMeasures.Should().Contain(measure => measure.Contains("Supplier availability", StringComparison.OrdinalIgnoreCase));
     }
 
@@ -94,7 +98,7 @@ public sealed class RecommendationProposalIntelligenceServiceTests
             new CampaignRecommendation
             {
                 RecommendationType = "hybrid:balanced",
-                Summary = "A locally weighted launch plan built around Pretoria visibility and appointment demand.",
+                Summary = "A local launch plan built around Pretoria visibility and appointment demand.",
                 Rationale = "This balances outdoor visibility with digital demand capture so the branch is visible before and during the launch period.",
                 TotalCost = 210000m
             },
@@ -114,7 +118,7 @@ public sealed class RecommendationProposalIntelligenceServiceTests
 
         var result = service.Build(request);
 
-        result.Summary.Should().Be("A locally weighted launch plan built around Pretoria visibility and appointment demand.");
+        result.Summary.Should().Be("A local launch plan built around Pretoria visibility and appointment demand.");
         result.Rationale.Should().Be("This balances outdoor visibility with digital demand capture so the branch is visible before and during the launch period.");
         result.Narrative.ChannelRoles.Should().Contain(role => role.StartsWith("Digital:", StringComparison.Ordinal));
     }

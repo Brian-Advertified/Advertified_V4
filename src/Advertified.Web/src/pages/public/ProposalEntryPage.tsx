@@ -56,7 +56,7 @@ function buildIncludedItems(recommendation?: CampaignRecommendation) {
 
   return [
     channels.length > 0 ? `Channels included: ${channels.join(', ')}` : 'Channels are being prepared for this offer.',
-    placements > 0 ? `${placements} planned placement${placements === 1 ? '' : 's'} in the main route.` : 'Placement detail will appear as soon as the route is finalised.',
+    placements > 0 ? `${placements} campaign touchpoint${placements === 1 ? '' : 's'} in the main route.` : 'Placement detail will appear as soon as the route is finalised.',
     'Creative, approvals, and campaign support stay inside the Advertified workflow.',
   ];
 }

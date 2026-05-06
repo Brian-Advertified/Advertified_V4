@@ -300,6 +300,7 @@ export interface CampaignRecommendation {
   proposalStrategy?: string;
   summary: string;
   rationale: string;
+  narrative?: CampaignRecommendationNarrative;
   clientFeedbackNotes?: string;
   manualReviewRequired: boolean;
   fallbackFlags: string[];
@@ -317,6 +318,14 @@ export interface CampaignRecommendation {
   supplierAvailabilityNotes?: string;
   emailDeliveries?: EmailDeliveryAttempt[];
   items: RecommendationItem[];
+}
+
+export interface CampaignRecommendationNarrative {
+  clientChallenge?: string;
+  strategicApproach?: string;
+  expectedOutcome?: string;
+  channelRoles: string[];
+  successMeasures: string[];
 }
 
 export interface EmailDeliveryAttempt {

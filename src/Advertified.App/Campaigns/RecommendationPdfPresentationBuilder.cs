@@ -224,7 +224,7 @@ internal static class RecommendationPdfPresentationBuilder
     internal static IReadOnlyList<string> BuildPlacementTags(RecommendationLineDocumentModel item)
     {
         var tags = new List<string>();
-        tags.AddRange(item.SelectionReasons.Select(RecommendationPdfCopy.ToClientCopy));
+        tags.AddRange(item.SelectionReasons.Select(RecommendationPdfCopy.RewriteSelectionReason));
 
         if (!string.IsNullOrWhiteSpace(item.Language))
         {
@@ -460,12 +460,12 @@ internal static class RecommendationPdfPresentationBuilder
             "Good regional alignment" => "The placement lines up well with the target region",
             "Audience profile overlap" => "The audience profile matches the people this campaign is trying to reach",
             "Language or audience fit" => "The audience and language fit the brief",
-            "Matches requested channel mix" => "It strengthens the channel mix chosen for this campaign",
-            "Supports requested mix target" => "It helps keep the campaign balanced across the selected channels",
-            "Fits comfortably within budget" => "It stays comfortably within the approved budget",
+            "Matches requested channel mix" => "It strengthens the campaign journey across the selected touchpoints",
+            "Supports requested mix target" => "It keeps the plan balanced across awareness and response channels",
+            "Fits comfortably within budget" => "It fits the approved investment level",
             "Fixed supplier package investment" => "It comes as a bundled media package that keeps planning simple",
-            "Per-spot rate card pricing" => "It uses standard spot pricing for flexible scheduling",
-            "High-impact radio daypart" => "It runs in a high-attention radio slot",
+            "Per-spot rate card pricing" => "It allows flexible spot scheduling",
+            "High-impact radio daypart" => "It runs in a high-attention radio moment",
             "Supports higher-band radio policy" => "It supports broader radio reach at this budget level",
             "Billboards and Digital Screens prioritized for visibility" => "It adds strong visual presence in-market",
             "Adds visible market presence" => "It helps the brand stay visible in the target area",

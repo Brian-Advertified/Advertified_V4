@@ -1820,7 +1820,10 @@ public class ControllerMappingsTests
         response.Recommendation.Should().NotBeNull();
         response.Recommendation!.ManualReviewRequired.Should().BeTrue();
         response.Recommendation.FallbackFlags.Should().Contain(new[] { "national_radio_inventory_insufficient", "policy_relaxed" });
-        response.Recommendation.Rationale.Should().Be("Plan built within budget and aligned to campaign geography.");
+        response.Recommendation.Rationale.Should().NotContain("Manual review required");
+        response.Recommendation.Rationale.Should().NotContain("Fallback flags");
+        response.Recommendation.Rationale.Should().NotContain("Plan built within budget");
+        response.Recommendation.Summary.Should().NotContain("planned item");
     }
 
     [Fact]

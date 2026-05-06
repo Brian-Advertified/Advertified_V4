@@ -62,15 +62,15 @@ internal sealed class RecommendationProposalIntelligenceService : IRecommendatio
 
         var channels = ResolveChannelPhrase(mediaItems);
         var area = ResolveAreaPhrase(request.Campaign, mediaItems);
-        var placementCount = mediaItems.Sum(item => Math.Max(1, item.Quantity));
         var objective = RecommendationPdfCopy.ToClientCopy(request.Campaign.CampaignObjective);
+        var channelAction = CountDistinctChannels(mediaItems) > 1 ? "pairs" : "uses";
 
         if (!string.IsNullOrWhiteSpace(objective))
         {
-            return $"{positioning.Strategy} for {business}: {placementCount} planned media placement{(placementCount == 1 ? string.Empty : "s")} across {channels}, focused on {area} and the campaign objective: {objective}.";
+            return $"{positioning.Strategy} for {business}: the plan {channelAction} {channels} across {area} to turn the campaign objective into clearer visibility, recall, and response: {objective}.";
         }
 
-        return $"{positioning.Strategy} for {business}: {placementCount} planned media placement{(placementCount == 1 ? string.Empty : "s")} across {channels}, focused on {area}.";
+        return $"{positioning.Strategy} for {business}: the plan {channelAction} {channels} across {area} to create stronger market presence and measurable response.";
     }
 
     private static string BuildRationale(
@@ -101,17 +101,17 @@ internal sealed class RecommendationProposalIntelligenceService : IRecommendatio
             ?? Array.Empty<string>();
         if (gaps.Length > 0)
         {
-            return $"The immediate challenge for {business}: {FormatList(gaps)}. This route focuses on closing those demand-capture gaps before scaling spend further.";
+            return $"The immediate challenge for {business}: {FormatList(gaps)}. This route focuses on turning those gaps into clearer visibility, stronger recall, and easier customer response.";
         }
 
         var objective = RecommendationPdfCopy.ToClientCopy(request.Campaign.CampaignObjective);
         var area = ResolveAreaPhrase(request.Campaign, mediaItems);
         if (!string.IsNullOrWhiteSpace(objective))
         {
-            return $"{business} needs to turn the campaign objective into visible, repeated market presence across {area}: {objective}.";
+            return $"{business} needs the campaign objective to show up in-market as repeated visibility and easier response across {area}: {objective}.";
         }
 
-        return $"{business} needs a campaign route that creates visible, repeated presence across {area} without spreading budget into unsupported placements.";
+        return $"{business} needs a campaign route that creates visible, repeated presence across {area} while keeping the message simple enough to remember and act on.";
     }
 
     private static string BuildStrategicApproach(
@@ -136,10 +136,21 @@ internal sealed class RecommendationProposalIntelligenceService : IRecommendatio
 
         if (supportChannels.Length == 0)
         {
-            return $"The plan leads with {primaryLabel} to concentrate budget in the strongest available channel for {area}.";
+            return $"The plan concentrates the campaign through {primaryLabel} to create a clear, repeatable presence across {area}.";
         }
 
-        return $"The plan leads with {primaryLabel} and supports it with {FormatList(supportChannels)}, so the audience sees the campaign in more than one context across {area}.";
+        var hasOffline = mediaItems
+            .Select(item => NormalizeChannel(item.Channel))
+            .Any(channel => channel is "ooh" or "radio" or "tv" or "newspaper");
+        var hasDigital = mediaItems
+            .Select(item => NormalizeChannel(item.Channel))
+            .Any(channel => string.Equals(channel, "digital", StringComparison.OrdinalIgnoreCase));
+        if (hasOffline && hasDigital)
+        {
+            return $"The plan pairs reach media with response media under one campaign route: the {primaryLabel} layer creates market presence, while supporting {FormatList(supportChannels)} keeps attention active and captures response across {area}.";
+        }
+
+        return $"The plan leads with {primaryLabel} and uses {FormatList(supportChannels)} to keep the campaign visible in more than one customer moment across {area}.";
     }
 
     private static string BuildExpectedOutcome(
@@ -196,18 +207,17 @@ internal sealed class RecommendationProposalIntelligenceService : IRecommendatio
         string channel,
         IReadOnlyList<RecommendationLineDocumentModel> items)
     {
-        var count = items.Sum(item => Math.Max(1, item.Quantity));
         var area = ResolveAreaPhrase(campaign, items);
         var label = ResolveChannelLabel(channel);
 
         return channel switch
         {
-            "ooh" => $"{label}: builds location-based visibility around {area} with {count} selected placement{(count == 1 ? string.Empty : "s")}.",
-            "radio" => $"{label}: creates repeated message frequency through the selected station schedule and listening moments.",
-            "digital" => $"{label}: captures and reinforces demand online after awareness has been created.",
-            "tv" => $"{label}: adds broad awareness and credibility where a wider market needs to recognise the campaign.",
-            "newspaper" => $"{label}: supports high-attention local readership and considered response in the selected market.",
-            _ => $"{label}: adds a supporting touchpoint that fits the selected media mix and budget."
+            "ooh" => $"{label}: builds repeated commuter and shopper visibility around {area}, keeping the brand physically present near movement and purchase zones.",
+            "radio" => $"{label}: keeps the campaign present during daily listening routines, helping the message move from recognition to recall.",
+            "digital" => $"{label}: reinforces attention after offline exposure and converts interest into measurable engagement.",
+            "tv" => $"{label}: adds broad awareness and credibility when the market needs to recognise the brand quickly.",
+            "newspaper" => $"{label}: adds credibility in a trusted local reading environment for audiences making more considered decisions.",
+            _ => $"{label}: adds a supporting touchpoint that helps the campaign stay present across the customer journey."
         };
     }
 
@@ -306,6 +316,15 @@ internal sealed class RecommendationProposalIntelligenceService : IRecommendatio
             ?? "media";
     }
 
+    private static int CountDistinctChannels(IReadOnlyList<RecommendationLineDocumentModel> mediaItems)
+    {
+        return mediaItems
+            .Select(item => NormalizeChannel(item.Channel))
+            .Where(channel => !string.IsNullOrWhiteSpace(channel))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count();
+    }
+
     private static string NormalizeChannel(string? channel)
     {
         var normalized = RecommendationPdfCopy.NormalizeRecommendationChannel(channel);
@@ -334,13 +353,28 @@ internal sealed class RecommendationProposalIntelligenceService : IRecommendatio
     private static bool LooksLikePlannerSummary(string value)
     {
         return value.Contains("planned item", StringComparison.OrdinalIgnoreCase)
-            || value.Contains("Budget split target:", StringComparison.OrdinalIgnoreCase);
+            || value.Contains("Budget split target:", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("Requested target:", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("target mix", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("mix target", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("allocation", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("weighted", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool LooksLikePlannerRationale(string value)
     {
         return value.Length < 35
             || value.Equals("Plan built within budget.", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("Plan built within budget", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("prioritising geography fit", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("prioritizing geography fit", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("Selected mix:", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("Requested target:", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("Budget allocation", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("Strategy weighting", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("mix target", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("algorithm", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("calculated", StringComparison.OrdinalIgnoreCase)
             || value.Contains("Selected by planner", StringComparison.OrdinalIgnoreCase);
     }
 

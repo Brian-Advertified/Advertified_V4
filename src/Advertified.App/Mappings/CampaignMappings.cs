@@ -5,6 +5,7 @@ using Advertified.App.Contracts.Packages;
 using Advertified.App.Campaigns;
 using Advertified.App.Configuration;
 using Advertified.App.Data.Entities;
+using Advertified.App.Services;
 using Advertified.App.Support;
 using CampaignPlanningRequestSnapshot = Advertified.App.Domain.Campaigns.CampaignPlanningRequestSnapshot;
 using PlanningBudgetAllocationSnapshot = Advertified.App.Domain.Campaigns.PlanningBudgetAllocationSnapshot;
@@ -16,6 +17,7 @@ namespace Advertified.App.Mappings;
 internal static class CampaignMappings
 {
     private static readonly JsonSerializerOptions AuditJsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly RecommendationProposalIntelligenceService ProposalIntelligenceService = new();
     private const string ClientFeedbackMarker = "Client feedback:";
 
     public static CampaignListItemResponse ToListItem(this Campaign campaign, Guid? currentUserId = null)
@@ -55,8 +57,16 @@ internal static class CampaignMappings
 
     public static CampaignDetailResponse ToDetail(this Campaign campaign, Guid? currentUserId = null, bool includeLinePricing = true)
     {
+        var opportunityContext = RecommendationOpportunityContextParser.Parse(
+            campaign.CampaignBrief?.SpecialRequirements ?? campaign.CampaignBrief?.CreativeNotes);
         var recommendations = RecommendationSelectionPolicy.GetVisibleRecommendationSet(campaign)
-            .Select((recommendation, index) => ToResponse(campaign, recommendation, includeLinePricing, index))
+            .Select((recommendation, index) => ToResponse(
+                campaign,
+                recommendation,
+                includeLinePricing,
+                index,
+                opportunityContext.Context,
+                opportunityContext.CampaignNotes))
             .ToArray();
         var creativeSystems = campaign.CampaignCreativeSystems
             .OrderByDescending(x => x.CreatedAt)
@@ -493,20 +503,39 @@ internal static class CampaignMappings
             : JsonSerializer.Deserialize<List<string>>(json);
     }
 
-    private static CampaignRecommendationResponse ToResponse(Campaign campaign, CampaignRecommendation recommendation, bool includeLinePricing, int proposalIndex)
+    private static CampaignRecommendationResponse ToResponse(
+        Campaign campaign,
+        CampaignRecommendation recommendation,
+        bool includeLinePricing,
+        int proposalIndex,
+        RecommendationOpportunityContextModel? opportunityContext,
+        string? campaignNotes)
     {
         var extractedFeedback = ExtractClientFeedbackNotes(recommendation.Rationale);
         var fallbackState = RecommendationAuditSupport.ResolveFallbackState(recommendation);
-        var proposalPositioning = RecommendationProposalPositioning.Resolve(recommendation.RecommendationType, proposalIndex);
+        var sortedItems = recommendation.RecommendationItems
+            .OrderBy(item => GetRecommendationItemChannelRank(item.InventoryType))
+            .ThenBy(item => item.DisplayName)
+            .ToArray();
+        var documentLines = sortedItems
+            .Select(ToDocumentLine)
+            .ToArray();
+        var intelligence = ProposalIntelligenceService.Build(new RecommendationProposalIntelligenceRequest(
+            BuildProposalCampaignContext(campaign, campaignNotes),
+            recommendation,
+            opportunityContext,
+            documentLines,
+            proposalIndex));
 
         return new CampaignRecommendationResponse
         {
             Id = recommendation.Id,
             CampaignId = recommendation.CampaignId,
-            ProposalLabel = proposalPositioning.Label,
-            ProposalStrategy = proposalPositioning.Strategy,
-            Summary = recommendation.Summary ?? string.Empty,
-            Rationale = RecommendationRationaleSupport.RemoveInternalMarkers(recommendation.Rationale),
+            ProposalLabel = intelligence.Label,
+            ProposalStrategy = intelligence.Strategy,
+            Summary = intelligence.Summary,
+            Rationale = intelligence.Rationale,
+            Narrative = ToNarrativeResponse(intelligence.Narrative),
             ClientFeedbackNotes = extractedFeedback,
             ManualReviewRequired = fallbackState.ManualReviewRequired,
             FallbackFlags = fallbackState.FallbackFlags,
@@ -528,11 +557,177 @@ internal static class CampaignMappings
                 .OrderByDescending(message => message.CreatedAt)
                 .Select(ToResponse)
                 .ToArray(),
-            Items = recommendation.RecommendationItems
-                .OrderBy(item => GetRecommendationItemChannelRank(item.InventoryType))
-                .ThenBy(item => item.DisplayName)
+            Items = sortedItems
                 .Select(item => ToResponse(item, includeLinePricing))
                 .ToArray()
+        };
+    }
+
+    private static CampaignRecommendationNarrativeResponse? ToNarrativeResponse(RecommendationProposalNarrativeDocumentModel narrative)
+    {
+        return narrative.HasContent
+            ? new CampaignRecommendationNarrativeResponse
+            {
+                ClientChallenge = narrative.ClientChallenge,
+                StrategicApproach = narrative.StrategicApproach,
+                ExpectedOutcome = narrative.ExpectedOutcome,
+                ChannelRoles = narrative.ChannelRoles,
+                SuccessMeasures = narrative.SuccessMeasures
+            }
+            : null;
+    }
+
+    private static RecommendationProposalCampaignContext BuildProposalCampaignContext(Campaign campaign, string? campaignNotes)
+    {
+        return new RecommendationProposalCampaignContext(
+            campaign.ResolveClientName(),
+            campaign.ResolveBusinessName(),
+            string.IsNullOrWhiteSpace(campaign.CampaignName) ? $"{campaign.PackageBand.Name} campaign" : campaign.CampaignName.Trim(),
+            campaign.PackageBand.Name,
+            ResolveSelectedBudget(campaign),
+            ShouldDisplayPackageRange(campaign) ? "Package range" : "Selected budget",
+            ResolveBudgetDisplayText(campaign),
+            campaign.CampaignBrief?.Objective,
+            campaignNotes,
+            BuildNarrativeTargetAreas(campaign.CampaignBrief),
+            BuildNarrativeTargetAudienceSummary(campaign.CampaignBrief),
+            DeserializeListOrEmpty(campaign.CampaignBrief?.TargetLanguagesJson));
+    }
+
+    private static decimal ResolveSelectedBudget(Campaign campaign)
+    {
+        return PricingPolicy.ResolvePlanningBudget(
+            campaign.PackageOrder.SelectedBudget ?? campaign.PackageOrder.Amount,
+            campaign.PackageOrder.AiStudioReserveAmount);
+    }
+
+    private static string ResolveBudgetDisplayText(Campaign campaign)
+    {
+        if (ShouldDisplayPackageRange(campaign))
+        {
+            return $"{RecommendationPdfCopy.FormatCurrency(campaign.PackageBand.MinBudget)} to {RecommendationPdfCopy.FormatCurrency(campaign.PackageBand.MaxBudget)}";
+        }
+
+        return RecommendationPdfCopy.FormatCurrency(ResolveSelectedBudget(campaign));
+    }
+
+    private static bool ShouldDisplayPackageRange(Campaign campaign)
+    {
+        return string.Equals(campaign.Status, CampaignStatuses.AwaitingPurchase, StringComparison.OrdinalIgnoreCase)
+            || !CampaignOperationsPolicy.IsOrderOperationallyActive(campaign.PackageOrder);
+    }
+
+    private static IReadOnlyList<string> BuildNarrativeTargetAreas(CampaignBrief? brief)
+    {
+        if (brief is null)
+        {
+            return Array.Empty<string>();
+        }
+
+        var areas = DeserializeList(brief.AreasJson);
+        if (areas is { Count: > 0 })
+        {
+            return areas;
+        }
+
+        var cities = DeserializeList(brief.CitiesJson);
+        if (cities is { Count: > 0 })
+        {
+            return cities;
+        }
+
+        return DeserializeListOrEmpty(brief.ProvincesJson);
+    }
+
+    private static IReadOnlyList<string> DeserializeListOrEmpty(string? json)
+    {
+        var values = DeserializeList(json);
+        return values is null ? Array.Empty<string>() : values;
+    }
+
+    private static string? BuildNarrativeTargetAudienceSummary(CampaignBrief? brief)
+    {
+        if (brief is null)
+        {
+            return null;
+        }
+
+        var parts = new List<string>();
+
+        if (brief.TargetAgeMin.HasValue || brief.TargetAgeMax.HasValue)
+        {
+            parts.Add((brief.TargetAgeMin, brief.TargetAgeMax) switch
+            {
+                ({ } min, { } max) when min == max => $"Age {min}",
+                ({ } min, { } max) => $"Ages {min}-{max}",
+                ({ } min, null) => $"Age {min}+",
+                (null, { } max) => $"Up to age {max}",
+                _ => string.Empty
+            });
+        }
+
+        if (!string.IsNullOrWhiteSpace(brief.TargetGender))
+        {
+            parts.Add(brief.TargetGender.Trim());
+        }
+
+        if (brief.TargetLsmMin.HasValue || brief.TargetLsmMax.HasValue)
+        {
+            parts.Add((brief.TargetLsmMin, brief.TargetLsmMax) switch
+            {
+                ({ } min, { } max) when min == max => $"LSM {min}",
+                ({ } min, { } max) => $"LSM {min}-{max}",
+                ({ } min, null) => $"LSM {min}+",
+                (null, { } max) => $"Up to LSM {max}",
+                _ => string.Empty
+            });
+        }
+
+        if (!string.IsNullOrWhiteSpace(brief.TargetAudienceNotes))
+        {
+            parts.Add(brief.TargetAudienceNotes.Trim());
+        }
+
+        var cleaned = parts
+            .Where(static part => !string.IsNullOrWhiteSpace(part))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return cleaned.Length == 0 ? null : string.Join(" | ", cleaned);
+    }
+
+    private static RecommendationLineDocumentModel ToDocumentLine(RecommendationItem item)
+    {
+        var normalized = NormalizeRecommendationItemMetadata(item);
+        return new RecommendationLineDocumentModel
+        {
+            Channel = item.InventoryType,
+            Title = item.DisplayName,
+            Rationale = normalized.Rationale,
+            TotalCost = item.TotalCost,
+            Quantity = item.Quantity,
+            Region = normalized.Region,
+            Language = normalized.Language,
+            ShowDaypart = normalized.ShowDaypart,
+            TimeBand = normalized.TimeBand,
+            SlotType = normalized.SlotType,
+            Duration = normalized.Duration,
+            AppliedDuration = normalized.AppliedDuration,
+            Flighting = normalized.Flighting,
+            RequestedStartDate = normalized.RequestedStartDate,
+            RequestedEndDate = normalized.RequestedEndDate,
+            ResolvedStartDate = normalized.ResolvedStartDate,
+            ResolvedEndDate = normalized.ResolvedEndDate,
+            CommercialExplanation = normalized.CommercialExplanation,
+            Restrictions = normalized.Restrictions,
+            Dimensions = normalized.Dimensions,
+            Material = normalized.Material,
+            Illuminated = normalized.Illuminated,
+            TrafficCount = normalized.TrafficCount,
+            SiteNumber = normalized.SiteNumber,
+            ItemNotes = normalized.ItemNotes,
+            SelectionReasons = normalized.SelectionReasons,
+            PolicyFlags = normalized.PolicyFlags
         };
     }
 
@@ -798,6 +993,11 @@ internal static class CampaignMappings
     private static RecommendationItemResponse ToResponse(RecommendationItem item, bool includeLinePricing)
     {
         var normalized = NormalizeRecommendationItemMetadata(item);
+        var clientSelectionReasons = normalized.SelectionReasons
+            .Select(RecommendationPdfCopy.RewriteSelectionReason)
+            .Where(static reason => !string.IsNullOrWhiteSpace(reason))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
 
         return new RecommendationItemResponse
         {
@@ -812,7 +1012,7 @@ internal static class CampaignMappings
             AppliedDuration = normalized.AppliedDuration,
             Restrictions = normalized.Restrictions,
             ConfidenceScore = normalized.ConfidenceScore,
-            SelectionReasons = normalized.SelectionReasons,
+            SelectionReasons = clientSelectionReasons,
             PolicyFlags = normalized.PolicyFlags,
             Quantity = item.Quantity,
             Flighting = normalized.Flighting,
@@ -832,10 +1032,65 @@ internal static class CampaignMappings
             DurationFitScore = normalized.DurationFitScore,
             Title = item.DisplayName,
             Channel = item.InventoryType,
-            Rationale = normalized.Rationale,
+            Rationale = BuildClientItemRationale(item, normalized, clientSelectionReasons),
             Cost = includeLinePricing ? item.TotalCost : 0m,
             Type = item.InventoryType.Contains("upsell", StringComparison.OrdinalIgnoreCase) ? "upsell" : "base"
         };
+    }
+
+    private static string BuildClientItemRationale(
+        RecommendationItem item,
+        NormalizedRecommendationItemMetadata normalized,
+        IReadOnlyList<string> clientSelectionReasons)
+    {
+        var rationale = RecommendationPdfCopy.ToClientCopy(normalized.Rationale);
+        if (!LooksLikePlannerItemRationale(rationale, normalized.SelectionReasons))
+        {
+            return rationale;
+        }
+
+        var area = !string.IsNullOrWhiteSpace(normalized.Region)
+            ? RecommendationPdfCopy.ToClientCopy(normalized.Region)
+            : "the selected market";
+        var channel = RecommendationPdfCopy.NormalizeRecommendationChannel(item.InventoryType);
+        var reason = clientSelectionReasons.FirstOrDefault();
+
+        return channel switch
+        {
+            "ooh" => $"Builds repeated visibility around {area}, helping the brand stay physically present near customer movement and purchase moments.",
+            "radio" => $"Adds repeated audio presence during daily listening moments, helping the message move from recognition to recall.",
+            "digital" => "Reinforces campaign awareness online and turns interest into measurable engagement.",
+            "tv" => "Adds broad awareness and brand credibility for a wider market.",
+            "newspaper" => "Adds credibility in a trusted reading environment for audiences making considered decisions.",
+            _ when !string.IsNullOrWhiteSpace(reason) => reason,
+            _ => "Supports the campaign route by adding another relevant customer touchpoint."
+        };
+    }
+
+    private static bool LooksLikePlannerItemRationale(string value, IReadOnlyList<string> selectionReasons)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return true;
+        }
+
+        if (value.Contains("Selected with score", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("requested mix target", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("requested channel mix", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("score", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var parts = value
+            .Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToArray();
+        if (parts.Length == 0)
+        {
+            return false;
+        }
+
+        return parts.All(part => selectionReasons.Any(reason => string.Equals(part, reason, StringComparison.OrdinalIgnoreCase)));
     }
 
     private static int GetRecommendationItemChannelRank(string? channel)

@@ -19,6 +19,7 @@ export function RecommendationViewer({
   const baseItems = recommendation.items.filter((item) => item.type === 'base');
   const groupedChannels = Array.from(new Set(baseItems.map((item) => formatChannelLabel(item.channel))));
   const topReasons = Array.from(new Set(baseItems.flatMap((item) => item.selectionReasons))).slice(0, 4);
+  const narrative = recommendation.narrative;
 
   return (
     <div className="panel space-y-6 px-6 py-6">
@@ -66,6 +67,40 @@ export function RecommendationViewer({
           </div>
         </div>
       </div>
+      {narrative ? (
+        <div className="rounded-[24px] border border-brand/15 bg-brand-soft/25 px-5 py-5">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Strategic plan</p>
+          <div className="mt-4 grid gap-4 lg:grid-cols-3">
+            {narrative.clientChallenge ? (
+              <div className="rounded-[18px] border border-brand/15 bg-white px-4 py-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Business reality</p>
+                <p className="mt-2 text-sm leading-7 text-ink-soft">{toClientFriendlyCopy(narrative.clientChallenge)}</p>
+              </div>
+            ) : null}
+            {narrative.strategicApproach ? (
+              <div className="rounded-[18px] border border-brand/15 bg-white px-4 py-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Strategy</p>
+                <p className="mt-2 text-sm leading-7 text-ink-soft">{toClientFriendlyCopy(narrative.strategicApproach)}</p>
+              </div>
+            ) : null}
+            {narrative.expectedOutcome ? (
+              <div className="rounded-[18px] border border-brand/15 bg-white px-4 py-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft">Expected effect</p>
+                <p className="mt-2 text-sm leading-7 text-ink-soft">{toClientFriendlyCopy(narrative.expectedOutcome)}</p>
+              </div>
+            ) : null}
+          </div>
+          {narrative.channelRoles.length > 0 ? (
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {narrative.channelRoles.map((role) => (
+                <p key={role} className="rounded-[16px] border border-line bg-white px-4 py-3 text-sm leading-7 text-ink-soft">
+                  {toClientFriendlyCopy(role)}
+                </p>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       <div className="grid gap-4 lg:grid-cols-3">
         {opportunityContext ? (
           <div className="rounded-[24px] border border-brand/15 bg-brand-soft/30 px-5 py-5 lg:col-span-3">

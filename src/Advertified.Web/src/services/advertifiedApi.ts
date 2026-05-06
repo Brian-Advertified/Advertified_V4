@@ -295,6 +295,13 @@ type CampaignRecommendationResponse = {
   proposalStrategy?: string;
   summary: string;
   rationale: string;
+  narrative?: {
+    clientChallenge?: string | null;
+    strategicApproach?: string | null;
+    expectedOutcome?: string | null;
+    channelRoles?: string[] | null;
+    successMeasures?: string[] | null;
+  } | null;
   clientFeedbackNotes?: string | null;
   manualReviewRequired: boolean;
   fallbackFlags: string[];
@@ -1766,6 +1773,15 @@ function mapRecommendation(response?: CampaignRecommendationResponse | null): Ca
       proposalStrategy: response.proposalStrategy ?? undefined,
       summary: response.summary,
       rationale: response.rationale,
+      narrative: response.narrative
+        ? {
+            clientChallenge: response.narrative.clientChallenge ?? undefined,
+            strategicApproach: response.narrative.strategicApproach ?? undefined,
+            expectedOutcome: response.narrative.expectedOutcome ?? undefined,
+            channelRoles: response.narrative.channelRoles ?? [],
+            successMeasures: response.narrative.successMeasures ?? [],
+          }
+        : undefined,
       clientFeedbackNotes: response.clientFeedbackNotes ?? undefined,
       manualReviewRequired: response.manualReviewRequired,
       fallbackFlags: response.fallbackFlags ?? [],
